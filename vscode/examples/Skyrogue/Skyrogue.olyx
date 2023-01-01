@@ -1,0 +1,234 @@
+#target "dotnet: net48"
+
+#load "../core/*.oly"
+#load "../AssetManager/bsa.oly"
+#load "../AssetManager/nif.oly"
+#load "../AssetManager/AudioManager.oly"
+
+#reference "C:/Program Files/Unity/Hub/Editor/2022.2.1f1/Editor/Data/Managed/*.dll"
+#reference "C:/Program Files/Unity/Hub/Editor/2022.2.1f1/Editor/Data/Managed/UnityEngine/*.dll"
+#reference "C:/work/My project/Library/ScriptAssemblies/Unity.RenderPipelines.HighDefinition.Runtime.dll"
+//#reference "../AssetManager/AssetManager.olyx"
+
+#package "K4os.Compression.LZ4.Streams,1.2.16"
+#package "SharpDX.XAudio2,4.2.0"
+
+namespace Skyrogue
+
+open System
+open System.IO
+open System.IO.MemoryMappedFiles
+open System.Collections.Generic
+open K4os.Compression.LZ4
+open SharpDX.Multimedia
+open SharpDX.XAudio2
+open AssetManager.FileExtensions
+open AudioManager
+open UnityEngine
+open UnityEngine.Rendering.HighDefinition
+
+#[null]
+#[export]
+class ConsoleToGUIComponent =
+    inherits MonoBehaviour
+
+    private static mutable log: string = ""
+
+    private static Log(log: string, stackTrace: string, logTy: UnityEngine.LogType): () =
+        let mutable prevLog = ConsoleToGUIComponent.log
+        prevLog <- log + "\n" + prevLog
+        if (prevLog.get_Length() > 5000)
+            prevLog <- prevLog.Substring(0, 4000)
+        ConsoleToGUIComponent.log <- prevLog
+
+    private mutable logCallback: Application.LogCallback = null
+
+    OnEnable(): () =
+        if (this.logCallback === null)
+            let ptr = __oly_load_function_ptr(ConsoleToGUIComponent.Log)
+            let ptr: nint = UnsafeCast(ptr)
+            this.logCallback <- Application.LogCallback(unchecked default, ptr)
+        Application.add_logMessageReceived(this.logCallback)
+
+    OnDisable(): () =
+        if (this.logCallback !== null)
+            Application.remove_logMessageReceived(this.logCallback)
+
+    OnGUI(): () =
+        GUI.Label(Rect(0, float32(Screen.height) / 2, float32(Screen.width), float32(Screen.height / 2)), ConsoleToGUIComponent.log)
+
+#[null]
+#[export]
+class FreelookComponent =
+    inherits MonoBehaviour
+
+    private mutable camera: Camera = null
+
+    Start(): () =
+        this.camera <- this.GetComponent<Camera>()
+
+    Update(): () =
+        if (Input.GetKey("w"))
+            this.camera.transform.Translate(Vector3.forward * 1.0f)
+
+        if (Input.GetKey("s"))
+            this.camera.transform.Translate(Vector3.back * 1.0f)
+
+        if (Input.GetKey("a"))
+            this.camera.transform.Translate(Vector3.left * 1.0f)
+
+        if (Input.GetKey("d"))
+            this.camera.transform.Translate(Vector3.right * 1.0f)
+
+        let newRotationX = this.transform.localEulerAngles.y + Input.GetAxis("Mouse X") * 1.0f
+        let newRotationY = this.transform.localEulerAngles.x - Input.GetAxis("Mouse Y") * 1.0f
+        this.camera.transform.localEulerAngles <- Vector3(newRotationY, newRotationX, 0.0f)
+
+#[null]
+#[export]
+class ModelSelection =
+    inherits MonoBehaviour
+
+    private mutable lineRenderer: LineRenderer = null
+
+    mutable camera: Camera = null
+
+    Start(): () =
+        this.lineRenderer <- this.GetComponent<LineRenderer>()
+
+    Update(): () =
+        if (this.camera !== null)
+            this.lineRenderer.widthMultiplier <- 
+                Vector3.Distance(this.transform.position, this.camera.transform.position) / 250
+
+#[export]
+module Program =
+    SkyrimSoundsBsaPath: string = "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Skyrim - Sounds.bsa"
+    SkyrimMeshes0BsaPath: string = "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Skyrim - Meshes0.bsa"
+    SkyrimTextures0BsaPath: string = "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Skyrim - Textures0.bsa"
+
+
+    AudioManagerInstance: AudioManager.AudioManager = AudioManager.AudioManager()
+    SkyrimSoundsBsa: Bsa.Bsa = Bsa.OpenFromFile(SkyrimSoundsBsaPath)
+    SkyrimMeshes0Bsa: Bsa.Bsa = Bsa.OpenFromFile(SkyrimMeshes0BsaPath)
+    SkyrimTextures0Bsa: Bsa.Bsa = Bsa.OpenFromFile(SkyrimTextures0BsaPath)
+
+    private CreateTexture2DFromDDS(stream: Stream, length: int64, format: TextureFormat): Texture2D =
+        let startPos = stream.Position
+        stream.Position <- 4
+
+        if (stream.ReadByte() != 124)
+            fail("Invalid DDS DXTn texture.")
+
+        stream.Position <- 13
+        let b13 = stream.ReadByte()
+        stream.Position <- 12
+        let b12 = stream.ReadByte()
+
+        stream.Position <- 17
+        let b17 = stream.ReadByte()
+        stream.Position <- 16
+        let b16 = stream.ReadByte()
+
+        let mutable height = b13 * 256 + b12
+        let mutable width = b17 * 256 + b16
+
+        let ddsHeaderSize = 128
+        let dxtBytes = Prelude.Array.ZeroCreate<byte>(int32(length) - ddsHeaderSize)
+
+        stream.Position <- int64(ddsHeaderSize)
+        let ms = MemoryStream(dxtBytes)
+        stream.CopyTo(ms)
+        ms.Dispose()
+
+        let tex = Texture2D(width, height, format, false)
+        tex.LoadRawTextureData(dxtBytes)
+        tex.Apply()
+        Debug.Log("Height: " + height.ToString())
+        Debug.Log("Width: " + width.ToString())
+        tex
+
+    exit(): () =
+        AudioManagerInstance.Clear()
+
+    main(): () =
+        let line = GameObject.Instantiate<GameObject>(Resources.Load("Line"))
+        let lineRenderer = line.GetComponent<LineRenderer>()
+        lineRenderer.useWorldSpace <- false
+        lineRenderer.castShadows <- false
+        lineRenderer.widthMultiplier <- 0.05
+        lineRenderer.SetColors(Color.red, Color.red)
+
+        let linePositions =
+            [|
+                Vector3(0, 0, 0);
+                Vector3(0, 0, 10);
+                Vector3(10, 0, 10);
+                Vector3(10, 0, 0);
+                Vector3(0, 0, 0)
+            |]
+        lineRenderer.positionCount <- linePositions.Length
+        lineRenderer.SetPositions(linePositions)
+
+        let modelSelection = line.AddComponent<ModelSelection>()
+
+        let cube = GameObject.Instantiate<GameObject>(Resources.Load("Cube"))
+
+        let camera = GameObject.Find("Main Camera")
+        modelSelection.camera <- camera.GetComponent<Camera>()
+        let result = camera.AddComponent<FreelookComponent>()
+        let result = camera.AddComponent<ConsoleToGUIComponent>()
+
+        let meshFilter = cube.GetComponent<MeshFilter>()
+        let mesh = meshFilter.mesh
+
+        let mutable stream: Stream = null
+
+        if (SkyrimMeshes0Bsa.TryGetFileData("meshes/actors/chicken", "chicken.nif", &stream))
+            let mutable textureStream: Stream = null
+            if (SkyrimTextures0Bsa.TryGetFileData("textures/actors/chicken", "chicken.dds", &textureStream))
+                let mutable textureNormalStream: Stream = null
+                if (SkyrimTextures0Bsa.TryGetFileData("textures/actors/chicken", "chicken_n.dds", &textureNormalStream))
+                    let nif = Nif.OpenFromStream(SkyrimMeshes0Bsa.MemoryMappedFile, stream)
+                    let mutable info = default: Nif.NifModelInfo
+                    if (nif.TryGetTriangles(&info))
+                        mesh.vertices <- map(info.Vertices, x -> Vector3(x.X, x.Y, x.Z))
+                        mesh.normals <- map(info.Normals, x -> Vector3(float32(x.X), float32(x.Y), float32(x.Z)))
+                        mesh.tangents <- map(info.Tangents, x -> Vector4(x.X, x.Y, x.Z, 1))
+                        mesh.uv <- map(info.UV, x -> Vector2(x.U, x.V))
+                        Debug.Log("-- first UV --")
+                        Debug.Log(info.UV[0].U)
+                        Debug.Log(info.UV[0].V)
+                        Debug.Log("-- last tangent --")
+                        Debug.Log(mesh.tangents[mesh.tangents.Length - 1].x)
+                        Debug.Log(mesh.tangents[mesh.tangents.Length - 1].y)
+                        Debug.Log(mesh.tangents[mesh.tangents.Length - 1].z)
+                        Debug.Log(mesh.tangents[mesh.tangents.Length - 1].w)
+                        mesh.triangles <- flatten(info.Triangles, x -> (int32(x.V1), int32(x.V2), int32(x.V3)))
+
+                        let meshRenderer = cube.GetComponent<MeshRenderer>()
+
+                        let material = Material(Shader.Find("HDRP/Lit"))
+
+                        material.SetFloat("_Smoothness", 0)
+                       
+                        let mainTex = CreateTexture2DFromDDS(textureStream, textureStream.Length, TextureFormat.DXT5)
+                        material.SetTexture("_BaseColorMap", mainTex)
+
+                        let normalTex = CreateTexture2DFromDDS(textureNormalStream, textureNormalStream.Length, TextureFormat.DXT5)
+                        material.SetTexture("_NormalMap", normalTex)
+                        material.SetInt("_NormalMapSpace", 0)
+                        material.SetFloat("_NormalScale", 1)
+
+                        if (!HDMaterial.ValidateMaterial(material))
+                            Debug.Log("Bad material")
+
+                        meshRenderer.material <- material
+                        cube.transform.Rotate(-90, 0, 0)
+
+        let mutable stream: Stream = null
+    
+        if (SkyrimSoundsBsa.TryGetFileData("music/explore", "mus_explore_night_02.xwm", &stream))
+            let audio = AudioManagerInstance.CreateFromStream(AudioKind.XAudio2, stream)
+            stream.Dispose()
+            audio.Play()

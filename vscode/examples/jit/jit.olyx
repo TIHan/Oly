@@ -1,0 +1,377 @@
+#target "dotnet: net6"
+
+#load "*.oly"
+#load "../core/*.oly"
+
+#package "TerraFX.Interop.Windows,10.0.22000-rc1"
+
+open System
+open TerraFX.Interop.Windows
+open static TerraFX.Interop.Windows.Windows
+open static TerraFX.Interop.Windows.MEM
+open static TerraFX.Interop.Windows.PAGE
+open static Jit.Emitter.X64
+
+// win32 only (for now)
+AllocateBuffer(size: nuint): void* =
+    let allocTy = MEM_RESERVE | MEM_COMMIT
+    VirtualAlloc(nullptr, size, uint32(allocTy), uint32(PAGE_READWRITE))
+    
+// win32 only (for now)
+MarkBufferAsExecutable(buffer: void*, size: nuint): bool =
+    let mutable old = 0u
+    let result = VirtualProtect(buffer, size, uint32(PAGE_EXECUTE_READ), &&old)
+    if (result == BOOL.TRUE) true else false
+
+// win32 only (for now)
+FreeBuffer(buffer: void*): bool =
+    let result = VirtualFree(buffer, nuint(0), uint32(MEM_RELEASE))
+    if (result == BOOL.TRUE) true else false
+
+create_jit_add_int64(): static blittable (int64, int64) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(ADD, RCX, RDX, asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_add_uint64(): static blittable (uint64, uint64) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(ADD, RCX, RDX, asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_add_uint32(): static blittable (uint32, uint32) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(ADD, ECX, EDX, asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_add_uint16(): static blittable (uint16, uint16) -> uint16 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(ADD, CX,  DX,  asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_add_uint8(): static blittable (uint8, uint8) -> uint8 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(ADD, CL,  DL,  asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_sub_uint8(): static blittable (uint8, uint8) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(SUB, CL,  DL,  asmptr)
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_get_high_bits(): static blittable (uint16) -> uint8 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(MOV, AL, CH, asmptr)
+    asmptr <- Emit(RET,         asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_mul_uint16(): static blittable (uint16, uint16) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(MUL, DX, asmptr)
+    asmptr <- Emit(RET,           asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_imul_int16(): static blittable (int16, int16) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(MOV, RAX, RCX, asmptr)
+    asmptr <- Emit(IMUL, AX, DX, asmptr)
+    asmptr <- Emit(RET,          asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_imul_int16_2(): static blittable (int16, int16) -> uint64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(IMUL, CX, DX, asmptr)
+    asmptr <- Emit(MOV, R15, RCX, asmptr)
+    asmptr <- Emit(MOV, RAX, R15, asmptr)
+    asmptr <- Emit(RET,          asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_inc(): static blittable (int32) -> int32 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(MOV, EAX, ECX, asmptr)
+    asmptr <- Emit(INC, EAX, asmptr)
+    asmptr <- Emit(RET,          asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_add_two(): static blittable (int32) -> int32 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+    asmptr <- Emit(MOV, EAX, ECX, asmptr)
+    asmptr <- Emit(ADD, EAX, 2: int32, asmptr)
+    asmptr <- Emit(RET,          asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_loop_uint32(): static blittable (uint32, uint32) -> uint32 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+
+    let ig0 = asmptr
+    asmptr <- Emit(MOV, EAX, 10000000 - 1, asmptr)
+
+    let ig1 = asmptr
+    asmptr <- Emit(MOV, ESI, ECX, asmptr)
+    asmptr <- Emit(MOV, EDI, EDX, asmptr)
+    asmptr <- Emit(ADD, ESI, EDI, asmptr)
+    asmptr <- Emit(SUB, EAX, 1, asmptr)
+    let offset = -int32(UnsafeCast<uint64>(asmptr) - UnsafeCast<uint64>(ig1))
+    asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
+    
+    let ig3 = asmptr
+    asmptr <- Emit(MOV, EAX, ESI, asmptr)
+    asmptr <- Emit(RET, asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_loop_uint16(): static blittable (uint16, uint16) -> uint16 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+
+    let ig0 = asmptr
+    asmptr <- Emit(MOV, EAX, 10000000 - 1, asmptr)
+
+    let ig1 = asmptr
+    //asmptr <- Emit(XOR, ESI, ESI, asmptr)
+    //asmptr <- Emit(MOV, SI, CX, asmptr)
+   // asmptr <- Emit(MOV, DI, DX, asmptr)
+    asmptr <- Emit(MOV, ESI, ECX, asmptr)
+    asmptr <- Emit(MOV, EDI, EDX, asmptr)
+    asmptr <- Emit(ADD, SI, DI, asmptr)
+    //asmptr <- Emit(ADD, ESI, EDI, asmptr)
+    asmptr <- Emit(SUB, EAX, 1, asmptr)
+    let offset = -int32(UnsafeCast<uint64>(asmptr) - UnsafeCast<uint64>(ig1))
+    asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
+    
+    let ig3 = asmptr
+    asmptr <- Emit(MOV, AX, SI, asmptr)
+    asmptr <- Emit(RET, asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+create_jit_loop_int16(): static blittable (int16, int64) -> int64 =
+    let bufferSize = nuint(128) // TODO: Get page size.
+    let asm = AllocateBuffer(bufferSize)
+
+    let mutable asmptr = asm
+
+    let ig0 = asmptr
+    asmptr <- Emit(MOV, EAX, 10000000 - 1, asmptr)
+
+    let ig1 = asmptr
+    asmptr <- Emit(MOV, ESI, ECX, asmptr)
+    asmptr <- Emit(MOV, EDI, EDX, asmptr)
+    asmptr <- Emit(ADD, ESI, EDI, asmptr)
+    asmptr <- Emit(SUB, EAX, 1, asmptr)
+    let offset = -int32(UnsafeCast<uint64>(asmptr) - UnsafeCast<uint64>(ig1))
+    asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
+    
+    let ig3 = asmptr
+    asmptr <- Emit(MOVSX, RAX, SI, asmptr)
+    asmptr <- Emit(RET, asmptr)
+
+    if (!MarkBufferAsExecutable(asm, bufferSize))
+        fail("Failed to mark buffer as executable.")
+
+    UnsafeCast(asm)
+
+add_loop_uint32: static blittable (uint32, uint32) -> uint32 = create_jit_loop_uint32()
+add_loop_int16: static blittable (int16, int64) -> int64 = create_jit_loop_int16()
+
+benchmark1(s: System.Diagnostics.Stopwatch, result1: byref<float64>): () =
+    s.Start()
+    let result = add_loop_uint32(System.UInt32.MaxValue, 15)
+    s.Stop()
+    if (result != 14)
+        print(result)
+        fail("failed")
+    result1 <- s.Elapsed.TotalMilliseconds
+    s.Reset()
+
+benchmark2(s: System.Diagnostics.Stopwatch, result2: byref<float64>): () =
+    s.Start()
+    let result = add_loop_int16(System.Int16.MaxValue, 15)
+    s.Stop()
+    if (result != -32754)
+        print(result)
+        fail("failed")
+    result2 <- s.Elapsed.TotalMilliseconds
+    s.Reset()
+
+main(): () =
+    print("Entering the Jit.\n\n")
+
+    let add_int64 = create_jit_add_int64()
+    let add_uint64 = create_jit_add_uint64()
+    let add_uint32 = create_jit_add_uint32()
+    let add_uint16 = create_jit_add_uint16()
+    let add_uint8 = create_jit_add_uint8()
+
+    print(add_int64(Int64.MaxValue - 1, 2))
+    print(" - add - int64\n")
+
+    print(add_uint64(UInt64.MaxValue - 1, 2))
+    print(" - add - uint64\n")
+    print(add_uint32(UInt32.MaxValue - 1, 2))
+    print(" - add - uint32\n")
+    print(add_uint16(UInt16.MaxValue - 1, 2))
+    print(" - add - uint16\n")
+    print(add_uint8(Byte.MaxValue - 1, 2))
+    print(" - add - uint8\n")
+
+    let sub_uint8 = create_jit_sub_uint8()
+
+    print(sub_uint8(Byte.MaxValue, Byte.MaxValue))
+    print(" - sub - uint8\n")
+
+    let get_high_bits = create_jit_get_high_bits()
+    print(get_high_bits(0b0000000100000000))
+    print(" - get_high_bits - uint8\n")
+
+    let mul_uint16 = create_jit_mul_uint16()
+    print(mul_uint16(3, 2))
+    print(" - mul - uint16\n")
+
+    let imul_int16 = create_jit_imul_int16()
+    print(imul_int16(3, 2))
+    print(" - imul - int16\n")
+
+    let imul_int16 = create_jit_imul_int16_2()
+    print(imul_int16(3, 2))
+    print(" - imul - int16\n")
+
+    let mutable result1 = 0: float64
+    let mutable result2 = 0: float64
+    let mutable finalResult1 = System.Double.MaxValue
+    let mutable finalResult2 = System.Double.MaxValue
+
+    let s = System.Diagnostics.Stopwatch()
+    let mutable i = 0
+    while (i < 100)
+        benchmark1(s, &result1)
+        System.GC.Collect(2, GCCollectionMode.Forced, true)
+        System.GC.WaitForPendingFinalizers()
+
+        if (result1 < finalResult1)
+            finalResult1 <- result1
+
+        i <- i + 1
+
+    let mutable i = 0
+    while (i < 100)
+        benchmark2(s, &result2)
+        System.GC.Collect(2, GCCollectionMode.Forced, true)
+        System.GC.WaitForPendingFinalizers()
+
+        if (result2 < finalResult2)
+            finalResult2 <- result2
+
+        i <- i + 1
+
+    print("uint32 - " + finalResult1.ToString() + " ms\n")
+    print("uint16 - " + finalResult2.ToString() + " ms\n")
+
+    print("Exiting the Jit.\n\n")

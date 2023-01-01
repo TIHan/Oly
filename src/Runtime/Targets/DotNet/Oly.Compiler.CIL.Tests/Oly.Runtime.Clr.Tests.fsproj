@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7</TargetFramework>
+
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="TestPlatform.fs" />
+    <Compile Include="Utilities.fs" />
+    <Compile Include="Tests.fs" />
+    <Compile Include="StressTests.fs" />
+    <Compile Include="SampleProgramTests.fs" />
+    <Compile Include="LogicalOpTests.fs" />
+    <Compile Include="ReferenceTests.fs" />
+    <Compile Include="PatternMatchStressTests.fs" />
+    <Compile Include="ClrSpecificTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="xunit" Version="2.4.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.0" />
+    <PackageReference Include="coverlet.collector" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
+    <ProjectReference Include="..\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Service\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
+    <ProjectReference Include="..\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj" />
+  </ItemGroup>
+
+</Project>

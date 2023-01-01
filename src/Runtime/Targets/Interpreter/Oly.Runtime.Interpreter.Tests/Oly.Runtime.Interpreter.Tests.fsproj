@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="TestPlatform.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Utilities.fs" Link="Utilities.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Tests.fs" Link="Tests.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\LogicalOpTests.fs" Link="LogicalOpTests.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\ReferenceTests.fs" Link="ReferenceTests.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\SampleProgramTests.fs" Link="SampleProgramTests.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\PatternMatchStressTests.fs" Link="PatternMatchStressTests.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Program.fs" Link="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.4" />
+    <PackageReference Include="xunit" Version="2.4.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="3.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
+    <ProjectReference Include="..\..\Interpreter\Oly.Runtime.Interpreter\Oly.Runtime.Interpreter.fsproj" />
+  </ItemGroup>
+
+</Project>

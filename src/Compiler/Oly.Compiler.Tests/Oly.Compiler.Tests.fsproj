@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Remove="Conformance\TraitImplementation\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="TestFramework.fs" />
+    <Compile Include="TestUtilities.fs" />
+    <Compile Include="SyntaxTreeApiTests.fs" />
+    <Compile Include="SyntaxTreeTests.fs" />
+    <Compile Include="MiscTests.fs" />
+    <Compile Include="CompilationTests.fs" />
+    <Compile Include="Conformance\Ambiguity\AmbiguityTests.fs" />
+    <Compile Include="Conformance\Expressions\PatternMatchingTests.fs" />
+    <Compile Include="Conformance\Expressions\ExpressionTests.fs" />
+    <Compile Include="Conformance\Expressions\TryCatchFinallyTests.fs" />
+    <Compile Include="Conformance\Constraints\ConstraintTests.fs" />
+    <Compile Include="Conformance\Types\EnumTests.fs" />
+    <Compile Include="Conformance\Types\ClassTests.fs" />
+    <Compile Include="Conformance\Types\NewtypeTests.fs" />
+    <Compile Include="Conformance\Types\InterfaceTests.fs" />
+    <Compile Include="Conformance\Types\ModuleTests.fs" />
+    <Compile Include="Conformance\Types\NamespaceTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="xunit" Version="2.4.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.0" />
+    <PackageReference Include="coverlet.collector" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj" />
+    <ProjectReference Include="..\Oly.Compiler\Oly.Compiler.fsproj" />
+  </ItemGroup>
+
+</Project>

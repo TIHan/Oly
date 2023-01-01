@@ -1,0 +1,315 @@
+module AssetManager.FileExtensions.Bsa
+
+open System
+open System.IO
+open System.IO.MemoryMappedFiles
+open System.Collections.Generic
+open K4os.Compression.LZ4
+open K4os.Compression.LZ4.Streams
+
+private BsaSkyrimMagicNumber: uint32 = 0x00415342
+private BsaSkyrimSpecialEditionVersionNumber: uint32 = 0x69
+
+private struct BsaHeader =
+    mutable Magic: uint32 = 0
+    mutable Version: uint32 = 0
+    mutable FolderRecordOffset: uint32 = 0
+    mutable ArchiveFlags: uint32 = 0
+    mutable FolderCount: uint32 = 0
+    mutable FileCount: uint32 = 0
+    mutable TotalFolderNameLength: uint32 = 0
+    mutable TotalFileNameLength: uint32 = 0
+    mutable FileFlags: uint32 = 0
+
+    HasCompressedFilesByDefault: bool
+        get() = (this.ArchiveFlags & 0x4) != 0
+
+    HasEmbeddedFilePaths: bool
+        get() = (this.ArchiveFlags & 0x100) != 0
+
+private struct BsaFileRecord =
+    mutable Hash: uint64 = 0
+    mutable SizeInfo: uint32 = 0
+    mutable Offset: uint32 = 0
+
+private struct BsaFileRecordBlock =
+    mutable FolderName: string = ""
+    mutable FileRecords: List<BsaFileRecord> = List<BsaFileRecord>()
+
+private struct BsaFolderRecord =
+    mutable Hash: uint64 = 0
+    mutable FileCount: uint32 = 0
+    mutable Offset: uint32 = 0
+
+struct BsaFileInfo =
+    mutable FolderName: string
+    mutable FileName: string
+
+    new(folderName: string, fileName: string) =
+        {
+            FolderName = folderName
+            FileName = fileName
+        }
+
+sealed class Bsa =
+    implements IDisposable
+
+    private mmf: MemoryMappedFile
+    private stream: Stream
+    private reader: BinaryReader
+    private header: BsaHeader
+    private folderRecords: List<BsaFolderRecord>
+    private fileRecordBlocks: List<BsaFileRecordBlock>
+    private fileNames: List<string>
+
+    new(mmf: MemoryMappedFile,
+        stream: Stream,
+        reader: BinaryReader,
+        header: BsaHeader, 
+        folderRecords: List<BsaFolderRecord>, 
+        fileRecordBlocks: List<BsaFileRecordBlock>, 
+        fileNames: List<string>) =
+        {
+            mmf = mmf
+            stream = stream
+            reader = reader
+            header = header
+            folderRecords = folderRecords
+            fileRecordBlocks = fileRecordBlocks
+            fileNames = fileNames
+        }
+
+    MemoryMappedFile: MemoryMappedFile get() = this.mmf
+
+    Dispose(): () =
+        this.reader.Dispose()
+        this.stream.Dispose()
+        this.mmf.Dispose()
+
+    DebugExtractAllData(): () =
+
+        let fileInfos = this.GetFileInfos()
+        let mutable i = 0
+        while (i < fileInfos.Length)
+            let fileInfo = fileInfos[i]
+
+            let bytes = 
+                let mutable stream = unchecked default
+                if (this.TryGetFileData(fileInfo.FolderName, fileInfo.FileName, &stream))
+                    BinaryReader(stream).ReadBytes(int32(stream.Length))
+                else
+                    fail("should work")
+            
+            let path = Path.Combine(fileInfo.FolderName, fileInfo.FileName)
+            let path = Path.Combine("C:\\oly\\vscode\\examples\\", path).Replace("\0", "")
+            let dirInfo = Directory.CreateDirectory(Path.GetDirectoryName(path))
+            File.WriteAllBytes(path, bytes)
+
+            i <- i + 1
+
+    GetFileInfos(): BsaFileInfo[||] =
+        let fileInfos = Prelude.Array.ZeroCreate<BsaFileInfo>(this.fileNames.Count)
+
+        let mutable fileNameIndex = 0
+        let mutable i = 0
+        while (i < this.folderRecords.Count)
+            let folderRecord = this.folderRecords[i]
+            let fileRecordBlock = this.fileRecordBlocks[i]
+
+            let mutable j = 0
+            while (j < int32(folderRecord.FileCount))
+                fileInfos[fileNameIndex] <- BsaFileInfo(fileRecordBlock.FolderName, this.fileNames[fileNameIndex])
+                fileNameIndex <- fileNameIndex + 1
+                j <- j + 1
+
+            i <- i + 1
+
+        fileInfos
+
+    TryGetFileData(folderName: string, fileName: string, dataStream: byref<Stream>): bool =
+        let mutable found = false
+
+        let mutable fileNameIndex = 0
+        let mutable i = 0
+        while (i < this.folderRecords.Count)
+            let folderRecord = this.folderRecords[i]
+            let fileRecordBlock = this.fileRecordBlocks[i]
+
+            if (fileRecordBlock.FolderName.Equals(folderName, StringComparison.OrdinalIgnoreCase))
+                let mutable j = 0
+                while (j < int32(folderRecord.FileCount))
+                    let fileName2 = this.fileNames[fileNameIndex]
+                    if (fileName2.Equals(fileName, StringComparison.OrdinalIgnoreCase)) 
+                        let fileRecord = fileRecordBlock.FileRecords[j]
+
+                        let offset = int64(fileRecord.Offset)
+
+                        // Upper 2 bits are not significant and should not be part of the size.
+                        let size = int64(fileRecord.SizeInfo & (~0b11000000000000000000000000000000: uint32))
+
+                        let viewStream = this.mmf.CreateViewStream(offset, size, MemoryMappedFileAccess.Read)
+                        let reader = BinaryReader(viewStream, System.Text.Encoding.Default, true)
+
+                        let filePathOpt =
+                            if (this.header.HasEmbeddedFilePaths)
+                                ReadBsaBString(reader)
+                            else
+                                ""
+
+                        let isCompressed =
+                            if ((fileRecord.SizeInfo & uint32(1 << 30)) != 0)
+                                !this.header.HasCompressedFilesByDefault
+                            else
+                                this.header.HasCompressedFilesByDefault
+
+                        if (isCompressed)
+                            let uncompressedSize = int64(reader.ReadUInt32())
+                            let stream = LZ4Stream.Decode(reader.BaseStream, 0, false, false)
+
+                            let ms = MemoryStream()
+                            stream.CopyTo(ms)
+                            ms.Position <- 0
+                            dataStream <- ms
+                            stream.Dispose()
+                            reader.Dispose()
+                        else
+                            dataStream <- reader.BaseStream
+                            reader.Dispose()
+
+                        j <- Int32.MaxValue
+                        i <- Int32.MaxValue - 1
+                        found <- true
+                    else
+                        fileNameIndex <- fileNameIndex + 1
+                        j <- j + 1
+            else
+                fileNameIndex <- fileNameIndex + int32(folderRecord.FileCount)
+
+            i <- i + 1
+
+        found
+    
+private ReadBsaBZString(reader: BinaryReader): string =
+    let charCount = int32(reader.ReadByte())
+    String(reader.ReadChars(charCount))
+
+private ReadBsaBString(reader: BinaryReader): string =
+    let charCount = int32(reader.ReadByte())
+    String(reader.ReadChars(charCount))
+
+private ReadBsaZString(reader: BinaryReader): string =
+    let bytes = List<byte>()
+    let mutable cont = true
+    while (cont)
+        let b = reader.ReadByte()
+        if (b == 0)
+            cont <- false
+        else
+            bytes.Add(b)
+    System.Text.Encoding.Default.GetString(bytes.ToArray())
+
+private ReadBsaHeader(reader: BinaryReader): BsaHeader =
+    let mutable header = BsaHeader()
+
+    header.Magic <- reader.ReadUInt32()
+    if (header.Magic != BsaSkyrimMagicNumber)
+        fail("Invalid BSA header - invalid magic number")
+
+    header.Version <- reader.ReadUInt32()
+    if (header.Version != BsaSkyrimSpecialEditionVersionNumber)
+        fail("Invalid BSA header - invalid version number")
+
+    header.FolderRecordOffset <- reader.ReadUInt32()
+    header.ArchiveFlags <- reader.ReadUInt32()
+    header.FolderCount <- reader.ReadUInt32()
+    header.FileCount <- reader.ReadUInt32()
+    header.TotalFolderNameLength <- reader.ReadUInt32()
+    header.TotalFileNameLength <- reader.ReadUInt32()
+    header.FileFlags <- reader.ReadUInt32()
+
+    header
+    
+private ReadBsaFileRecord(reader: BinaryReader): BsaFileRecord =
+    let mutable r = BsaFileRecord()
+
+    r.Hash <- reader.ReadUInt64()
+    r.SizeInfo <- reader.ReadUInt32()
+    r.Offset <- reader.ReadUInt32()
+
+    r
+
+private ReadBsaFolderRecord(reader: BinaryReader): BsaFolderRecord =
+    let mutable r = BsaFolderRecord()
+
+    r.Hash <- reader.ReadUInt64()
+    r.FileCount <- reader.ReadUInt32()
+
+    // unused
+    let padding1 = reader.ReadUInt32()
+
+    r.Offset <- reader.ReadUInt32()
+
+    // unused
+    let padding2 = reader.ReadUInt32()
+
+    r
+
+private ReadBsaFileRecordBlock(reader: BinaryReader, fileCount: int32): BsaFileRecordBlock =
+    if (fileCount < 0)
+        fail("Invalid BSA - file count is less than zero")
+
+    let mutable block = BsaFileRecordBlock()
+
+    block.FolderName <- ReadBsaBZString(reader).Replace("\0", "").Replace("\\", "/")
+
+    let mutable i = 0
+    while (i < fileCount)
+        let fileRecord = ReadBsaFileRecord(reader)
+        block.FileRecords.Add(fileRecord)
+        i <- i + 1
+
+    block
+
+OpenFromFile(filePath: string): Bsa =
+    let file = FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
+    let mmf = MemoryMappedFile.CreateFromFile(file, unchecked default, 0, MemoryMappedFileAccess.Read, HandleInheritability.Inheritable, false)
+    let reader = BinaryReader(file)
+
+    let header = ReadBsaHeader(reader)
+
+    if (reader.BaseStream.Position != int64(header.FolderRecordOffset))
+        fail("Invalid bsa - unexpected stream position")
+
+    let folderRecords = List<BsaFolderRecord>()
+
+    let mutable i = 0
+    while (i < int32(header.FolderCount))
+        let folderRecord = ReadBsaFolderRecord(reader)
+        folderRecords.Add(folderRecord)
+        i <- i + 1
+
+    let fileRecordBlocks = List<BsaFileRecordBlock>()
+
+    let mutable i = 0
+    while (i < folderRecords.Count)
+        let folderRecord = folderRecords[i]
+        let fileCount = int32(folderRecord.FileCount)
+        fileRecordBlocks.Add(ReadBsaFileRecordBlock(reader, fileCount))
+        i <- i + 1
+
+    let fileNames = List<string>()
+
+    let mutable i = 0
+    while (i < folderRecords.Count)
+        let folderRecord = folderRecords[i]
+        let fileCount = int32(folderRecord.FileCount)
+
+        let mutable j = 0
+        while (j < fileCount)
+            let fileName = ReadBsaZString(reader)
+            fileNames.Add(fileName)
+            j <- j + 1
+
+        i <- i + 1
+
+    Bsa(mmf, file, reader, header, folderRecords, fileRecordBlocks, fileNames)

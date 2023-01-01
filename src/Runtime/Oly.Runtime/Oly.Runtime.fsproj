@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6</TargetFramework>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <Tailcalls>False</Tailcalls>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="PublicCodeGenTypes.fs" />
+    <Compile Include="InternalCodeGenTypes.fs" />
+    <Compile Include="OlyIR.fs" />
+    <Compile Include="IOlyRuntimeEmitter.fs" />
+    <Compile Include="Optimizer.fsi" />
+    <Compile Include="Optimizer.fs" />
+    <Compile Include="OlyRuntime.fsi" />
+    <Compile Include="OlyRuntime.fs" />
+    <Compile Include="Tools.fsi" />
+    <Compile Include="Tools.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Metadata\Oly.IR\Oly.Metadata.fsproj" />
+  </ItemGroup>
+
+</Project>

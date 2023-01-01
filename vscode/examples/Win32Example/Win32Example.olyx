@@ -1,0 +1,119 @@
+#target "dotnet: net6"
+
+#load "../core/*.oly"
+#load "*.oly"
+#package "TerraFX.Interop.Windows,10.0.22000-rc1"
+
+open System
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open TerraFX.Interop.Windows
+open static TerraFX.Interop.Windows.Windows
+open static TerraFX.Interop.Windows.CS
+open static TerraFX.Interop.Windows.GWLP
+open static TerraFX.Interop.Windows.PM
+open static TerraFX.Interop.Windows.WM
+open static TerraFX.Interop.Windows.WS
+open static TerraFX.Interop.Windows.SW
+
+class Marker
+
+#[blittable]
+//#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
+    if(msg == 2 /* WM_DESTROY - need conversions */)
+        print("Quitting...\n")
+        PostQuitMessage(0)
+        default
+    else
+        DefWindowProc(hWnd, msg, wParam, lParam)
+
+createWindow(): HWND =
+    let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(typeof<Marker>().Module))
+    let mutable wc = default: WNDCLASSW
+
+    let mutable example = "Hello World Class"
+    let mutable windowName = "\U0001F47D"
+    let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
+    let mutable gc2 = GCHandle.Alloc(windowName, GCHandleType.Pinned)
+    let addr = ToPtr(gc.AddrOfPinnedObject())
+    let addr2 = ToPtr(gc2.AddrOfPinnedObject())
+    wc.hInstance <- hInstance
+    wc.lpfnWndProc <- __oly_load_function_ptr(wndProc)
+    wc.lpszClassName <- addr
+
+    let result = RegisterClass(&&wc)
+    if (result == 0)
+        HWND.NULL
+    else
+        let hwnd =
+            CreateWindowEx(
+                0, 
+                wc.lpszClassName, 
+                addr2,
+                uint32(WS_OVERLAPPEDWINDOW),
+                CW_USEDEFAULT, 
+                CW_USEDEFAULT, 
+                CW_USEDEFAULT, 
+                CW_USEDEFAULT, 
+                HWND.NULL, 
+                HMENU.NULL, 
+                hInstance, 
+                default
+            )
+
+        gc.Free()
+        gc2.Free()
+        hwnd
+
+showWindow(hwnd: HWND): () =
+    let result = ShowWindow(hwnd, SW_SHOW)
+    let result = UpdateWindow(hwnd)
+    let result = SetFocus(hwnd)
+
+runWindowMessage(hwnd: HWND): () =
+    let mutable msg = default: MSG
+    while (GetMessage(&&msg, hwnd, 0, 0) == BOOL.TRUE)
+        let result = TranslateMessage(&&msg)
+        let result = DispatchMessage(&&msg)
+    // static let loop(hwnd, mutable msg): () =
+    //     if(GetMessage(&&msg, hwnd, 0, 0) == BOOL.TRUE)
+    //         let result = TranslateMessage(&&msg)
+    //         let result = DispatchMessage(&&msg)
+    //         loop(hwnd, default)
+    // loop(hwnd, default)
+
+main(): () =
+    let hwnd = createWindow()
+    if (hwnd == HWND.NULL)
+        print("Unable to create window.")
+    else
+        showWindow(hwnd)
+        runWindowMessage(hwnd)
+
+// pattern addOne(x: int32): int32 = 
+//     print("(side effect)")
+//     __oly_add(x, 1)
+
+// test<T>(x1: int32, x2: int32, x3: int32, z: T): () =
+//     match (x1, x2, x3)
+//     | 5, addOne(y), 2 => print(y)
+//     | 8, addOne(y), _ => print(y)
+//     | 99, addOne(y), 4 when (y == 49) => print(y)
+//     | 99, addOne(y), 5 when (y == 50) => print(y)
+//     | _ => print(z)
+
+// main(): () =
+//     test(99, 49, 8, 3.3)
+
+// #[inline]
+// forLoop(length: int32, #[inline] f: int32 -> ()): () =
+//     #[inline]
+//     let loop(i) =
+//         if (i < length)
+//             f(i)
+//             loop(i + 1)
+//     loop(0)
+
+// main(): () =
+//     forLoop(5, i -> print(i))

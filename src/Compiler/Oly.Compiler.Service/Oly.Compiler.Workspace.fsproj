@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="OlyWorkspace.fsi" />
+    <Compile Include="OlyWorkspace.fs" />
+    <Compile Include="OlyWorkspaceExtensions.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj" />
+    <ProjectReference Include="..\Oly.Compiler\Oly.Compiler.fsproj" />
+  </ItemGroup>
+
+</Project>

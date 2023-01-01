@@ -1,0 +1,62 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# Kate
+*~
+
+# MSVC
+Debug
+Release
+*.sdf
+*.user
+*.suo
+*.opensdf
+
+# Resharper
+_ReSharper*
+
+# Upgrade Reports
+_UpgradeReport_Files/
+UpgradeLog.XML
+UpgradeLog.htm
+
+# Text Editor
+\#*#
+
+# NuGet
+packages
+
+# NUnit
+TestResults
+
+# Exclusions
+!lib/
+
+# Xamarin Studio
+*.userprefs
+
+*.obj
+*.DS_Store
+
+\bin
+\obj
+build
+.paket/paket.exe
+.fake
+.vs
+.vscode
+.olycache
+.olyworkspace
+
+# Node
+\node_modules

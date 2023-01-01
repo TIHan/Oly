@@ -1,0 +1,70 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Oly-IR",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#single-line-comments"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#type"
+		},
+		{
+			"include": "#function"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword",
+					"match": "\\b(VALUE|NONE|null|true|false|default|variable|uint8|int8|uint16|int16|uint32|int32|uint64|int64|float32|float64|char16|utf16)\\b"
+				},
+				{
+					"name": "keyword.control",
+					"match": "\\b(LET|IF_ELSE|WHILE|OPERATION|SEQUENTIAL)\\b"
+				},
+				{
+					"name": "variable.name",
+					"match": "\\b(local|argument)\\b"
+				},
+				{
+					"name": "storage.modifier",
+					"match": "\\b(static)\\b"
+				},
+				{
+					"name": "entity.name.function",
+					"match": "\\b(add|subtract|multiply|divide|equal|notequal|remainder|greaterthan|greaterthanequal|lessthan|lessthanequal|address|field|loadfield|storefield|localaddress|print|upcast)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape",
+					"match": "\\\\."
+				}
+			]
+		},
+		"numbers": {
+			"name": "constant.numeric",
+			"match": "((\\b\\d+)|([_]+\\d+))|(\\b[.](\\b|\\s))"
+		},
+		"single-line-comments": {
+			"name": "comment.line.double-slash",
+			"match": "//.*"
+		}
+	},
+	"scopeName": "source.oly-ir"
+}

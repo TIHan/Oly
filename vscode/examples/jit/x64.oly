@@ -1,0 +1,590 @@
+module Jit.Emitter.X64
+
+/// X64 Register
+#[open]
+enum reg =
+    // 64-bit General Purpose Register (GPR)
+    | RAX
+    | RBX
+    | RCX
+    | RDX
+    | RSI
+    | RDI
+    | RBP
+    | RSP
+    | R8
+    | R9
+    | R10
+    | R11
+    | R12
+    | R13
+    | R14
+    | R15
+
+    // 32-bit General Purpose Register (GPR)
+    | EAX
+    | EBX
+    | ECX
+    | EDX
+    | ESI
+    | EDI
+    | EBP
+    | ESP
+    | R8D
+    | R9D
+    | R10D
+    | R11D
+    | R12D
+    | R13D
+    | R14D
+    | R15D
+
+    // 16-bit General Purpose Register (GPR)
+    | AX
+    | BX
+    | CX
+    | DX
+    | SI
+    | DI
+    | BP
+    | SP
+    | R8W
+    | R9W
+    | R10W
+    | R11W
+    | R12W
+    | R13W
+    | R14W
+    | R15W
+
+    // 8-bit General Purpose Register (GPR)
+    | AL
+    | BL
+    | CL
+    | DL
+    | SIL
+    | DIL
+    | BPL
+    | SPL
+    | R8B
+    | R9B
+    | R10B
+    | R11B
+    | R12B
+    | R13B
+    | R14B
+    | R15B
+
+    // 8-bit General Purpose Register (GPR) - High bits
+    | AH
+    | BH
+    | CH
+    | DH
+
+#[open]
+enum regsize =
+    | SIZE_8
+    | SIZE_16
+    | SIZE_32
+    | SIZE_64
+
+#[open]
+extension regExtensions =
+    inherits reg
+
+    UsesHighBits: bool
+        #[inline]
+        get() =
+            match (this)
+            | AH
+            | BH
+            | CH
+            | DH => true
+            | _ => false
+
+    Encoding: byte
+        #[inline]
+        get() =
+            match (this)
+            | AH => 4
+            | BH => 7
+            | CH => 5
+            | DH => 6
+            | RAX
+            | EAX
+            |  AX
+            |  AL => 0
+            | RBX
+            | EBX
+            |  BX
+            |  BL => 3
+            | RCX
+            | ECX
+            |  CX
+            |  CL => 1
+            | RDX
+            | EDX
+            |  DX
+            |  DL => 2
+            | RSI
+            | ESI
+            |  SI
+            |  SIL => 6
+            | RDI
+            | EDI
+            |  DI
+            |  DIL => 7
+            | RBP
+            | EBP
+            |  BP
+            |  BPL => 5
+            | RSP
+            | ESP
+            |  SP
+            |  SPL => 4
+            | R8
+            | R8D
+            | R8W
+            | R8B => 8
+            | R9
+            | R9D
+            | R9W
+            | R9B => 9
+            | R10
+            | R10D
+            | R10W
+            | R10B => 10
+            | R11
+            | R11D
+            | R11W
+            | R11B => 11
+            | R12 
+            | R12D 
+            | R12W
+            | R12B => 12
+            | R13
+            | R13D
+            | R13W
+            | R13B => 13
+            | R14
+            | R14D
+            | R14W
+            | R14B => 14
+            | R15
+            | R15D
+            | R15W
+            | R15B => 15
+            | _ => fail("Invalid register")
+
+    Size: regsize
+        #[inline]
+        get() =
+            match (this)
+            | AH
+            | BH
+            | CH
+            | DH => SIZE_8
+            | AL
+            | BL
+            | CL
+            | DL
+            | SIL
+            | DIL
+            | BPL
+            | SPL
+            | R8B
+            | R9B
+            | R10B
+            | R11B
+            | R12B
+            | R13B
+            | R14B
+            | R15B => SIZE_8
+            | AX
+            | BX
+            | CX
+            | DX
+            | SI
+            | DI
+            | BP
+            | SP
+            | R8W
+            | R9W
+            | R10W
+            | R11W
+            | R12W
+            | R13W
+            | R14W
+            | R15W => SIZE_16
+            | EAX
+            | EBX
+            | ECX
+            | EDX
+            | ESI
+            | EDI
+            | EBP
+            | ESP
+            | R8D
+            | R9D
+            | R10D
+            | R11D
+            | R12D
+            | R13D
+            | R14D
+            | R15D => SIZE_32
+            | RAX
+            | RBX
+            | RCX
+            | RDX
+            | RSI
+            | RDI
+            | RBP
+            | RSP
+            | R8
+            | R9
+            | R10
+            | R11
+            | R12
+            | R13
+            | R14
+            | R15 => SIZE_64
+            | _ => fail("Invalid 'regsize'")
+
+/// X64 OpCode
+#[open]
+enum opcode =
+    | RET
+    | MOV
+    | ADD
+    | SUB
+
+    /// Signed Multiply
+    | IMUL
+
+    /// Unsigned Multiply
+    | MUL
+
+    | XOR
+    | INC
+    | CMP
+    | JNE
+
+    | MOVSX
+    | MOVZX
+
+#[inline]
+Emit(opcode: opcode, buffer: void*): void* =
+    match (opcode)
+    | RET =>
+        EmitByte(0xC3, buffer)
+    | _ =>
+        fail("Invalid instruction")
+
+#[inline]
+EmitWithRelativeOffset(opcode: opcode, offset: int32, buffer: void*): void* =
+
+    let ptr = buffer
+
+    match (opcode)
+    | JNE =>
+        let ptr = EmitByte(0x0F, ptr)
+        let ptr = EmitByte(0x85, ptr)
+        EmitInt32(offset, ptr)
+    | _ =>
+        fail("Invalid instruction")
+
+#[inline]
+Emit(opcode: opcode, op1: reg, buffer: void*): void* =
+
+    let size = op1.Size
+    let usesREX = 
+        if (op1.UsesHighBits)
+            false
+        else
+            match (size)
+            | SIZE_64 => true
+            | SIZE_8  => op1.Encoding > 3
+            | _ => op1.Encoding > 7
+
+    if (!usesREX)
+        CheckRegForNonREX(op1)
+
+    let ptr = EmitPrefix(size, usesREX, buffer)
+
+    match (opcode)
+    | MUL =>
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0xF7, ptr)
+            | SIZE_8  => EmitByte(0xF6, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(4, op1, ptr)
+    | INC =>
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0xFF, ptr)
+            | SIZE_8  => EmitByte(0xFE, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(0, op1, ptr)   
+    | _ =>
+        fail("Invalid instruction")
+
+#[inline]
+Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
+    let size = op1.Size
+    let usesREX = 
+        if (op1.UsesHighBits || op2.UsesHighBits)
+            false
+        else
+            match (size)
+            | SIZE_64 => true
+            | SIZE_8  => op1.Encoding > 3 || op2.Encoding > 3
+            | _ => op1.Encoding > 7 || op2.Encoding > 7
+
+    if (!usesREX)
+        CheckRegForNonREX(op1)
+        CheckRegForNonREX(op2)
+
+    let ptr = EmitPrefix(size, usesREX, buffer)
+
+    match (opcode)
+    | MOV =>
+        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+            fail("Register sizes do not match")
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0x89, ptr)
+            | SIZE_8  => EmitByte(0x88, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(false, op1, op2, ptr)
+
+    | ADD =>
+        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+            fail("Register sizes do not match")
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0x01, ptr)
+            | SIZE_8  => EmitByte(0x00, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(false, op1, op2, ptr)
+
+    | SUB =>
+        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+            fail("Register sizes do not match")
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0x28, ptr)
+            | SIZE_8  => EmitByte(0x29, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(false, op1, op2, ptr)
+
+    | IMUL =>
+        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+            fail("Register sizes do not match")
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => 
+                let ptr = EmitByte(0x0F, ptr)
+                EmitByte(0xAF, ptr)
+            | SIZE_8 => 
+                fail("Register size not valid with this instruction")
+            | _ => 
+                fail("Invalid 'regsize'")
+        EmitModRM(true, op1, op2, ptr)
+
+    | XOR =>
+        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+            fail("Register sizes do not match")
+        let ptr =
+            match (size)
+            | SIZE_64
+            | SIZE_32
+            | SIZE_16 => EmitByte(0x31, ptr)
+            | SIZE_8  => EmitByte(0x30, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(false, op1, op2, ptr)
+
+    | MOVSX =>
+        let ptr =
+            match (op2.Size)
+            | SIZE_16 => 
+                let ptr = EmitByte(0x0F, ptr)
+                EmitByte(0xBF, ptr)
+            | SIZE_8 =>
+                let ptr = EmitByte(0x0F, ptr)
+                EmitByte(0xBE, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(true, op1, op2, ptr)
+
+    | MOVZX =>
+        let ptr =
+            match (op2.Size)
+            | SIZE_16 =>
+                let ptr = EmitByte(0x0F, ptr)
+                EmitByte(0xB7, ptr)
+            | SIZE_8 =>
+                let ptr = EmitByte(0x0F, ptr)
+                EmitByte(0xB6, ptr)
+            | _ => fail("Invalid 'regsize'")
+        EmitModRM(true, op1, op2, ptr)
+
+    | _ =>
+        fail("Invalid instruction")
+
+#[inline]
+Emit(opcode: opcode, op1: reg, imm32: int32, buffer: void*): void* =
+    if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(SIZE_32))
+        fail("Register sizes do not match")
+
+    let usesREX = 
+        if (op1.UsesHighBits)
+            false
+        else
+            op1.Encoding > 7
+
+    if (!usesREX)
+        CheckRegForNonREX(op1)
+
+    let ptr = EmitPrefix(op1.Size, usesREX, buffer)
+
+    match (opcode)
+    | ADD =>
+        let ptr = EmitByte(0x81, ptr)
+        let ptr = EmitModRM(0, op1, ptr) 
+        EmitInt32(imm32, ptr)
+    | SUB =>
+        let ptr = EmitByte(0x81, ptr)
+        let ptr = EmitModRM(5, op1, ptr) 
+        EmitInt32(imm32, ptr)
+    | CMP =>
+        let ptr = EmitByte(0x81, ptr)
+        let ptr = EmitModRM(7, op1, ptr) 
+        EmitInt32(imm32, ptr)
+    | MOV =>
+        let ptr = EmitByte(0xC7, ptr)
+        let ptr = EmitModRM(0, op1, ptr) 
+        EmitInt32(imm32, ptr)
+    | _ =>
+        fail("Invalid instruction")
+
+private module Mask =
+
+    #[inline]
+    ModRM_r(b1: bool, b2: bool): byte =
+        match (b1, b2)
+        | true,  true  => 0b11000000
+        | false, true  => 0b01000000
+        | true,  false => 0b10000000
+        | _ =>            0b00000000
+
+    #[inline]
+    ModRM_digit(b1: bool, b2: bool, digit: byte): byte =
+        if (digit >= 0 && digit <= 7)
+            ModRM_r(b1, b2) | (digit << 3)
+        else
+            fail("Invalid digit for ModRM byte")
+
+private module Prefix =
+
+    #[inline]
+    OverrideSize(): byte = 0x66
+
+    /// w - use 64-bit registers
+    #[inline]
+    REX(w: bool, r: bool, x: bool, b: bool): byte =
+        let mutable byte: byte = 
+                           0b01000000 // identifies REX
+        if (w)
+            byte <- byte | 0b00001000
+        if (r)
+            byte <- byte | 0b00000100
+        if (x)
+            byte <- byte | 0b00000010
+        if (b)
+            byte <- byte | 0b00000001
+
+        byte
+
+#[inline]
+private CheckRegForNonREX(reg: reg): () =
+    let isValid =
+        match (reg)
+        | SIL
+        | DIL
+        | BPL
+        | SPL => false
+        | _ => reg.Encoding <= 7
+    if (!isValid)
+        fail("Register not valid for non-REX encoding")
+
+#[inline]
+private EmitModRM(digit: byte, op1: reg, buffer: void*): void* =
+    let modRM = Mask.ModRM_digit(true, true, digit)
+    let op1e = op1.Encoding
+    EmitByte(modRM | op1e, buffer)
+
+#[inline]
+private EmitModRM(swap: bool, op1: reg, op2: reg, buffer: void*): void* =
+    let modRM = Mask.ModRM_r(true, true)
+    if (swap)
+        let op1e = op1.Encoding << 3
+        let op2e = op2.Encoding
+        EmitByte(modRM | op2e | op1e, buffer)
+    else
+        let op1e = op1.Encoding
+        let op2e = op2.Encoding << 3
+        EmitByte(modRM | op2e | op1e, buffer)
+
+#[inline]
+private EmitPrefix(size: regsize, usesREX: bool, buffer: void*): void* =
+    match (size)
+    | SIZE_64 => 
+        if (!usesREX)
+            fail("REX encoding required")
+        EmitByte(Prefix.REX(true, false, false, false), buffer)
+    | SIZE_32 => 
+        if (usesREX)
+            EmitByte(Prefix.REX(false, false, false, false), buffer)
+        else
+            buffer
+    | SIZE_16 => 
+        if (usesREX)
+            EmitByte(Prefix.REX(false, false, false, false), EmitByte(Prefix.OverrideSize(), buffer))
+        else
+            EmitByte(Prefix.OverrideSize(), buffer)
+    | SIZE_8 =>
+        if (usesREX)
+            EmitByte(Prefix.REX(false, false, false, false), buffer)
+        else
+            buffer
+    | _ => 
+        fail("Invalid 'regsize'")
+    
+#[inline]
+private EmitByte(byte: byte, buffer: void*): void* =
+    *buffer <- byte
+    buffer + 1
+
+#[inline]
+private EmitBytes(byte1: byte, byte2: byte, byte3: byte, mutable buffer: void*): void* =
+    buffer <- EmitByte(byte1, buffer)
+    buffer <- EmitByte(byte2, buffer)
+    buffer <- EmitByte(byte3, buffer)
+    buffer
+
+#[inline]
+private EmitInt32(value: int32, buffer: void*): void* =
+    *buffer <- value
+    buffer + 4

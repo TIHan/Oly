@@ -1,0 +1,64 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Symbols\Symbols.fs" />
+    <Compile Include="Symbols\SymbolBuilders.fs" />
+    <Compile Include="Symbols\SymbolOperations.fs" />
+    <Compile Include="Symbols\WellKnownFunctions.fs" />
+    <Compile Include="Symbols\SymbolEnvironments.fs" />
+    <Compile Include="CompilerImports.fs" />
+    <Compile Include="Exceptions.fs" />
+    <Compile Include="BoundTree.fs" />
+    <Compile Include="BoundTreePatterns.fs" />
+    <Compile Include="WellKnownExpressions.fs" />
+    <Compile Include="BoundTreeVisitor.fs" />
+    <Compile Include="BoundTreeRewriter.fs" />
+    <Compile Include="BoundTreeExtensions.fs" />
+    <Compile Include="PrettyPrint.fs" />
+    <Compile Include="Dump.fs" />
+    <Compile Include="SemanticErrors.fs" />
+    <Compile Include="FunctionOverloading.fs" />
+    <Compile Include="Solver.fs" />
+    <Compile Include="Checker.fs" />
+    <Compile Include="Binder\Environment.fs" />
+    <Compile Include="Binder\Scoping.fs" />
+    <Compile Include="Binder\NameResolution.fs" />
+    <Compile Include="Binder\Checking.fs" />
+    <Compile Include="Binder\AttributeBinder.fs" />
+    <Compile Include="Binder\Logic.fs" />
+    <Compile Include="Binder\PrePass.fs" />
+    <Compile Include="Binder\Pass0.fs" />
+    <Compile Include="Binder\Pass1.fs" />
+    <Compile Include="Binder\Pass2.fs" />
+    <Compile Include="Binder\Pass3.fs" />
+    <Compile Include="Binder\Pass4.fs" />
+    <Compile Include="Binder\PostInferenceAnalysis.fs" />
+    <Compile Include="Binder\Binder.fsi" />
+    <Compile Include="Binder\Binder.fs" />
+    <Compile Include="Lowering\PatternMatchCompilation.fsi" />
+    <Compile Include="Lowering\PatternMatchCompilation.fs" />
+    <Compile Include="Lowering\CommonLowering.fsi" />
+    <Compile Include="Lowering\CommonLowering.fs" />
+    <Compile Include="Lowering\Optimizer.fsi" />
+    <Compile Include="Lowering\Optimizer.fs" />
+    <Compile Include="Lowering\RefCellLowering.fsi" />
+    <Compile Include="Lowering\RefCellLowering.fs" />
+    <Compile Include="Lowering\LambdaLifting.fsi" />
+    <Compile Include="Lowering\LambdaLifting.fs" />
+    <Compile Include="ILGen.fs" />
+    <Compile Include="PublicAPI\PublicSymbols.fs" />
+    <Compile Include="PublicAPI\PublicAnalysis.fs" />
+    <Compile Include="PublicAPI\PublicCompilation.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Oly.Compiler.Syntax\Oly.Compiler.Syntax.fsproj" />
+    <ProjectReference Include="..\..\Metadata\Oly.IR\Oly.Metadata.fsproj" />
+  </ItemGroup>
+
+</Project>

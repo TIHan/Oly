@@ -1,0 +1,887 @@
+﻿<Tree>
+
+  <Node name="SyntaxAccessor">
+    <Case name="Public">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+    <Case name="Private">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+    <Case name="Internal">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+    <Case name="Protected">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxName">
+    <Case name="Identifier">
+      <Field name="ident">SyntaxToken</Field>
+    </Case>
+    <Case name="Generic">
+      <Field name="name">SyntaxName</Field>
+      <Field name="tyArgs">SyntaxTypeArguments</Field>
+    </Case>
+    <Case name="Qualified">
+      <Field name="head">SyntaxName</Field>
+      <Field name="dotToken">SyntaxToken</Field>
+      <Field name="tail">SyntaxName</Field>
+    </Case>
+    <Case name="Parenthesis">
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="identOrOperatorToken">SyntaxToken</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxBlittable">
+	<Case name="Blittable">
+		<Field name="blittableToken">SyntaxToken</Field>
+	</Case>
+  </Node>
+	
+  <Node name="SyntaxBlittableOptional">
+	<Case name="Some">
+		<Field name="blittable">SyntaxBlittable</Field>
+	</Case>
+	<Case name="None"/>
+  </Node>
+
+  <Node name="SyntaxAttribute">
+	<Case name="AutoOpen">
+      <Field name="openToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Nullable">
+	  <Field name="nullToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Blittable">
+	  <Field name="blittable">SyntaxBlittable</Field>
+	</Case>
+    <Case name="Intrinsic">
+      <Field name="intrinsicToken">SyntaxToken</Field>
+      <Field name="leftParenthesisToken">SyntaxToken</Field>
+      <Field name="ident">SyntaxToken</Field>
+      <Field name="rightParenthesisToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Import">
+      <Field name="importName">SyntaxName</Field>
+      <Field name="args">SyntaxArguments</Field>
+    </Case>
+	<Case name="Export">
+      <Field name="exportToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Inline">
+      <Field name="inlineToken">SyntaxToken</Field>
+    </Case>
+	<Case name="NotInline">
+	  <Field name="notToken">SyntaxToken</Field>
+      <Field name="inlineToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Pure">
+      <Field name="pureToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Expression">
+      <Field name="expr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxHashAttribute">
+    <Case name="HashAttribute">
+	  <Field name="hashToken">SyntaxToken</Field>
+      <Field name="brackets">SyntaxAttribute SyntaxBrackets</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxAttributes">
+    <Case name="Attributes">
+	  <Field name="hashAttrList">SyntaxHashAttribute SyntaxList</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxConstraint">
+	<Case name="Null">
+      <Field name="nullToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Struct">
+	  <Field name="structToken">SyntaxToken</Field>
+	</Case>
+	<Case name="NotStruct">
+	  <Field name="notToken">SyntaxToken</Field>
+	  <Field name="structToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Unmanaged">
+	  <Field name="unmanagedToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Type">
+      <Field name="ty">SyntaxType</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+	<Case name="ConstantType">
+      <Field name="constantToken">SyntaxToken</Field>
+	  <Field name="ty">SyntaxType</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxConstraintClause">
+    <Case name="ConstraintClause">
+      <Field name="whereToken">SyntaxToken</Field>
+      <Field name="ty">SyntaxType</Field>
+      <Field name="colonToken">SyntaxToken</Field>
+      <Field name="constrs">SyntaxConstraint SyntaxSeparatorList</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxTypeParameters">
+    <Case name="TypeParameters">
+      <Field name="lessThanToken">SyntaxToken</Field>
+      <Field name="tyParList">SyntaxType SyntaxSeparatorList</Field>
+      <Field name="greaterThanToken">SyntaxToken</Field>
+    </Case>
+	<Case name="RequireTypeParameters">
+      <Field name="lessThanToken">SyntaxToken</Field>
+	  <Field name="requireToken">SyntaxToken</Field>
+      <Field name="tyParList">SyntaxType SyntaxSeparatorList</Field>
+      <Field name="greaterThanToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxTypeConstructor">
+    <Case name="Identifier">
+      <Field name="identifierToken">SyntaxToken</Field>
+      <Field name="tyPars">SyntaxTypeParameters</Field>
+    </Case>
+    <Case name="QualifiedName">
+      <Field name="identifierToken">SyntaxToken</Field>
+      <Field name="tyPars">SyntaxTypeParameters</Field>
+      <Field name="dotToken">SyntaxToken</Field>
+      <Field name="rest">SyntaxTypeConstructor</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxTupleElement">
+    <Case name="Type">
+	  <Field name="ty">SyntaxType</Field>
+	</Case>
+	<Case name="IdentifierWithTypeAnnotation">
+	  <Field name="identToken">SyntaxToken</Field>
+	  <Field name="colonToken">SyntaxToken</Field>
+	  <Field name="ty">SyntaxType</Field>
+	</Case>
+	<Case name="Error">
+		<Field name="token">SyntaxToken</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxType">
+    <Case name="Name">
+      <Field name="name">SyntaxName</Field>
+    </Case>
+    <Case name="Tuple">
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="tupleElementList">SyntaxTupleElement SyntaxSeparatorList</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Variadic">
+	  <Field name="ident">SyntaxToken</Field>
+	  <Field name="dotDotDotToken">SyntaxToken</Field>
+	</Case>
+	<Case name="VariadicIndexer">
+      <Field name="ident">SyntaxToken</Field>
+	  <Field name="dotDotDotToken">SyntaxToken</Field>
+	  <Field name="leftBracketToken">SyntaxToken</Field>
+	  <Field name="expr">SyntaxExpression</Field>
+	  <Field name="rightBracketToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Array">
+	  <Field name="elementTy">SyntaxType</Field>
+      <Field name="brackets">SyntaxToken SyntaxList SyntaxBrackets</Field>
+    </Case>
+    <Case name="MutableArray">
+	  <Field name="elementTy">SyntaxType</Field>
+      <Field name="bracketInnerPipes">SyntaxToken SyntaxList SyntaxBracketInnerPipes</Field>
+    </Case>
+    <Case name="Shape">
+      <Field name="curlyBrackets">SyntaxExpression SyntaxSeparatorList SyntaxCurlyBrackets</Field>
+    </Case>
+    <Case name="WildCard">
+      <Field name="underscore">SyntaxToken</Field>
+    </Case>
+    <Case name="Function">
+      <Field name="inputTy">SyntaxType</Field>
+      <Field name="rightArrowToken">SyntaxToken</Field>
+      <Field name="outputTy">SyntaxType</Field>
+    </Case>
+	<Case name="FunctionPtr">
+	  <Field name="staticToken">SyntaxToken</Field>
+	  <Field name="blittableOptional">SyntaxBlittableOptional</Field>
+	  <Field name="inputTy">SyntaxType</Field>
+	  <Field name="rightArrowToken">SyntaxToken</Field>
+	  <Field name="outputTy">SyntaxType</Field>
+	</Case>
+    <Case name="Postfix">
+      <Field name="elementTy">SyntaxType</Field>
+	  <Field name="ident">SyntaxToken</Field>
+    </Case>
+	<Case name="Literal">
+		<Field name="literal">SyntaxLiteral</Field>
+	</Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxMutability">
+    <Case name="Mutable">
+      <Field name="mutableToken">SyntaxToken</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxParameter">
+    <Case name="Identifier">
+	  <Field name="attrs">SyntaxAttributes</Field>
+      <Field name="mutability">SyntaxMutability</Field>
+      <Field name="identToken">SyntaxToken</Field>
+    </Case>
+	<Case name="IdentifierWithTypeAnnotation">
+	  <Field name="attrs">SyntaxAttributes</Field>
+      <Field name="mutability">SyntaxMutability</Field>
+      <Field name="identToken">SyntaxToken</Field>
+	  <Field name="colonToken">SyntaxToken</Field>
+	  <Field name="ty">SyntaxType</Field>
+    </Case>
+    <Case name="Type">
+	  <Field name="attrs">SyntaxAttributes</Field>
+      <Field name="ty">SyntaxType</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxTypeArguments">
+    <Case name="TypeArguments">
+      <Field name="lessThanToken">SyntaxToken</Field>
+      <Field name="tyArgList">SyntaxType SyntaxSeparatorList</Field>
+      <Field name="greaterThanToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+  
+  <Node name="SyntaxParameters">
+    <Case name="Parameters">
+      <Field name="leftParenthesisToken">SyntaxToken</Field>
+      <Field name="parList">SyntaxParameter SyntaxSeparatorList</Field>
+      <Field name="rightParenthesisToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxLambdaKind">
+    <Case name="Static">
+      <Field name="staticToken">SyntaxToken</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxReturnTypeAnnotation">
+    <Case name="TypeAnnotation">
+      <Field name="colonToken">SyntaxToken</Field>
+      <Field name="ty">SyntaxType</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxFunctionName">
+    <Case name="Identifier">
+      <Field name="ident">SyntaxToken</Field>
+    </Case>
+    <Case name="Parenthesis">
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="operatorToken">SyntaxToken</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxBindingDeclaration">
+    <Case name="Function">
+      <Field name="funcName">SyntaxFunctionName</Field>
+      <Field name="tyPars">SyntaxTypeParameters</Field>
+      <Field name="pars">SyntaxParameters</Field>
+      <Field name="returnTyAnnot">SyntaxReturnTypeAnnotation</Field>
+      <Field name="constrClauseList">SyntaxConstraintClause SyntaxSeparatorList</Field>
+    </Case>
+    <Case name="Value">
+      <Field name="identifierToken">SyntaxToken</Field>
+      <Field name="returnTyAnnot">SyntaxReturnTypeAnnotation</Field>
+    </Case>
+    <Case name="New">
+      <Field name="newToken">SyntaxToken</Field>
+      <Field name="pars">SyntaxParameters</Field>
+    </Case>
+    <Case name="Get">
+      <Field name="getToken">SyntaxToken</Field>
+      <Field name="pars">SyntaxParameters</Field>
+    </Case>
+    <Case name="Set">
+      <Field name="setToken">SyntaxToken</Field>
+      <Field name="pars">SyntaxParameters</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxPropertyBinding">
+	  <Case name="Binding">
+	    <Field name="attrs">SyntaxAttributes</Field>
+	    <Field name="accessor">SyntaxAccessor</Field>
+		<Field name="premodifierList">SyntaxValueDeclarationPremodifier SyntaxList</Field>
+		<Field name="kind">SyntaxValueDeclarationKind</Field>
+	    <Field name="binding">SyntaxBinding</Field>
+	  </Case>
+  </Node>
+	
+  <Node name="SyntaxGuardBinding">
+	  <Case name="Implementation">
+		<Field name="whenToken">SyntaxToken</Field>
+		<Field name="identTokenOptional">SyntaxToken</Field>
+		<Field name="leftParenToken">SyntaxToken</Field>
+		<Field name="condExpr">SyntaxExpression</Field>
+		<Field name="rightParenToken">SyntaxToken</Field>
+		<Field name="fatRightArrowToken">SyntaxToken</Field>
+		<Field name="rhsExpr">SyntaxExpression</Field>
+	  </Case>
+      <Case name="Signature">
+		<Field name="whenToken">SyntaxToken</Field>
+		<Field name="identTokenOptional">SyntaxToken</Field>
+	  </Case>
+  </Node>
+
+  <Node name="SyntaxBinding">
+    <Case name="Implementation">
+      <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
+      <Field name="equalToken">SyntaxToken</Field>
+      <Field name="rhsExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Signature">
+      <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
+    </Case>
+    <Case name="Property">
+      <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
+      <Field name="bindingList">SyntaxPropertyBinding SyntaxList</Field>
+    </Case>
+	<Case name="PatternWithGuard">
+		<Field name="bindingDecl">SyntaxBindingDeclaration</Field>
+		<Field name="guardBinding">SyntaxGuardBinding</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxTypeDeclarationKind">
+    <Case name="Alias">
+      <Field name="aliasToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Class">
+      <Field name="classToken">SyntaxToken</Field>
+    </Case>
+	<Case name="AbstractClass">
+		<Field name="abstractToken">SyntaxToken</Field>
+		<Field name="classToken">SyntaxToken</Field>
+	</Case>
+	<Case name="SealedClass">
+		<Field name="sealedToken">SyntaxToken</Field>
+		<Field name="classToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Interface">
+      <Field name="interfaceToken">SyntaxToken</Field>
+    </Case>
+	<Case name="SealedInterface">
+		<Field name="sealedToken">SyntaxToken</Field>
+		<Field name="interfaceToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Module">
+      <Field name="moduleToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Shape">
+      <Field name="shapeToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Struct">
+      <Field name="structToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Extension">
+      <Field name="extensionToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Attribute">
+	  <Field name="attributeToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Enum">
+      <Field name="enumToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Newtype">
+      <Field name="newtypeToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxLiteral">
+    <Case name="Int8">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="UInt8">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Int16">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="UInt16">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Int32">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="UInt32">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Int64">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="UInt64">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Float32">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Float64">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Bool">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Char16">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Utf16">
+      <Field name="valueToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Null">
+	  <Field name="nullToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Default">
+      <Field name="defaultToken">SyntaxToken</Field>
+    </Case>
+	<Case name="UncheckedDefault">
+	  <Field name="uncheckedToken">SyntaxToken</Field>
+	  <Field name="defaultToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Integer">
+	  <Field name="valueToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Real">
+	  <Field name="valueToken">SyntaxToken</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxFieldPattern">
+    <Case name="FieldPattern">
+      <Field name="name">SyntaxName</Field>
+      <Field name="equalsToken">SyntaxToken</Field>
+      <Field name="expr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxNamedArgument">
+    <Case name="NamedArgument">
+	  <Field name="ident">SyntaxToken</Field>
+	  <Field name="equalToken">SyntaxToken</Field>
+	  <Field name="rhsExpr">SyntaxExpression</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxArguments">
+    <Case name="Arguments">
+      <Field name="leftParenthesisToken">SyntaxToken</Field>
+      <Field name="argumentList">SyntaxExpression SyntaxSeparatorList</Field>
+	  <Field name="namedArgumentList">SyntaxNamedArgument SyntaxSeparatorList</Field>
+      <Field name="rightParenthesisToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxElseIfOrElseExpression">
+    <Case name="ElseIf">
+      <Field name="elseToken">SyntaxToken</Field>
+	  <Field name="ifToken">SyntaxToken</Field>
+	  <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="conditionExpr">SyntaxExpression</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+      <Field name="targetExpr">SyntaxExpression</Field>
+      <Field name="nextExpr">SyntaxElseIfOrElseExpression</Field>
+    </Case>
+    <Case name="Else">
+      <Field name="elseToken">SyntaxToken</Field>
+      <Field name="targetExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="None">
+      <Field name="terminalToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxValueDeclarationPremodifier">
+    <Case name="Static">
+      <Field name="staticToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Overrides">
+      <Field name="overridesToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Abstract">
+      <Field name="abstractToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Default">
+      <Field name="defaultToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Mutable">
+      <Field name="mutableToken">SyntaxToken</Field>
+    </Case>
+	<Case name="New">
+	  <Field name="newToken">SyntaxToken</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxValueDeclarationPostmodifier">
+    <Case name="Mutable">
+      <Field name="mutableToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxValueDeclarationKind">
+    <Case name="Let">
+      <Field name="letToken">SyntaxToken</Field>
+    </Case>
+    <Case name="LetBind">
+      <Field name="letExclamationToken">SyntaxToken</Field>
+    </Case>
+	  <Case name="Constant">
+	    <Field name="constantToken">SyntaxToken</Field>
+	  </Case>
+    <Case name="Get">
+      <Field name="getToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Set">
+      <Field name="setToken">SyntaxToken</Field>
+    </Case>
+    <Case name="GetSet">
+      <Field name="getToken">SyntaxToken</Field>
+      <Field name="setToken">SyntaxToken</Field>
+    </Case>
+	<Case name="Pattern">
+	  <Field name="patternToken">SyntaxToken</Field>
+	</Case>
+    <Case name="None" />
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxExtends">
+	<Case name="Type">
+	  <Field name="ty">SyntaxType</Field>
+	</Case>
+    <Case name="Inherits">
+      <Field name="inheritsToken">SyntaxToken</Field>
+      <Field name="tys">SyntaxType SyntaxSeparatorList</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxImplements">
+    <Case name="Implements">
+      <Field name="implementsToken">SyntaxToken</Field>
+      <Field name="tys">SyntaxType SyntaxSeparatorList</Field>
+    </Case>
+    <Case name="Empty" />
+  </Node>
+
+  <Node name="SyntaxTypeDeclarationCase">
+    <Case name="Case">
+      <Field name="pipeToken">SyntaxToken</Field>
+      <Field name="ident">SyntaxToken</Field>
+    </Case>
+    <Case name="EnumCase">
+      <Field name="pipeToken">SyntaxToken</Field>
+      <Field name="ident">SyntaxToken</Field>
+      <Field name="equalToken">SyntaxToken</Field>
+      <Field name="rhsExpr">SyntaxExpression</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxTypeDeclarationBody">
+    <Case name="Body">
+      <Field name="extends">SyntaxExtends</Field>
+      <Field name="implements">SyntaxImplements</Field>
+	  <Field name="caseList">SyntaxTypeDeclarationCase SyntaxList</Field>
+      <Field name="bodyExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxTypeDeclarationName">
+    <Case name="Identifier">
+      <Field name="ident">SyntaxToken</Field>
+    </Case>
+    <Case name="Parenthesis">
+      <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="operatorToken">SyntaxToken</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxPattern">
+    <Case name="Literal">
+      <Field name="literal">SyntaxLiteral</Field>
+    </Case>
+    <Case name="Name">
+      <Field name="name">SyntaxName</Field>
+    </Case>
+	<Case name="Function">
+      <Field name="name">SyntaxName</Field>
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="patArgs">SyntaxPattern SyntaxSeparatorList</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Parenthesis">
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="patArgs">SyntaxPattern SyntaxSeparatorList</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Discard">
+      <Field name="underscoreToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+  
+  <Node name="SyntaxMatchGuard">
+    <Case name="MatchGuard">
+      <Field name="whenToken">SyntaxToken</Field>
+      <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="conditionExpr">SyntaxExpression</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+
+  <Node name="SyntaxMatchPattern">
+    <Case name="Patterns">
+      <Field name="patList">SyntaxPattern SyntaxSeparatorList</Field>
+    </Case>
+    <Case name="Or">
+      <Field name="lhs">SyntaxMatchPattern</Field>
+      <Field name="pipeToken">SyntaxToken</Field>
+      <Field name="rhs">SyntaxMatchPattern</Field>
+    </Case>
+    <Case name="Discard">
+      <Field name="underscoreToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxMatchClause">
+    <Case name="MatchClause">
+      <Field name="pipeToken">SyntaxToken</Field>
+      <Field name="matchPat">SyntaxMatchPattern</Field>
+      <Field name="matchGuard">SyntaxMatchGuard</Field>
+      <Field name="fatRightArrow">SyntaxToken</Field>
+      <Field name="targetExpr">SyntaxExpression</Field>
+    </Case>
+  </Node>
+	
+  <Node name="SyntaxConstructType">
+	<Case name="Anonymous">
+	  <Field name="leftCurlyBracketToken">SyntaxToken</Field>
+	  <Field name="fieldPatList">SyntaxFieldPattern SyntaxSeparatorList</Field>
+	  <Field name="rightCurlyBracketToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Named">
+	  <Field name="name">SyntaxName</Field>
+	  <Field name="leftCurlyBracketToken">SyntaxToken</Field>
+	  <Field name="fieldPatList">SyntaxFieldPattern SyntaxSeparatorList</Field>
+	  <Field name="rightCurlyBracketToken">SyntaxToken</Field>
+	</Case>
+  </Node>
+
+  <Node name="SyntaxCompilationUnit">
+    <Case name="Namespace">
+      <Field name="namespaceToken">SyntaxToken</Field>
+      <Field name="name">SyntaxName</Field>
+      <Field name="tyDefBody">SyntaxTypeDeclarationBody</Field>
+      <Field name="terminalToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Module">
+	  <Field name="attrs">SyntaxAttributes</Field>
+	  <Field name="accessor">SyntaxAccessor</Field>
+      <Field name="moduleToken">SyntaxToken</Field>
+      <Field name="name">SyntaxName</Field>
+      <Field name="constrClauseList">SyntaxConstraintClause SyntaxSeparatorList</Field>
+      <Field name="tyDefBody">SyntaxTypeDeclarationBody</Field>
+      <Field name="terminalToken">SyntaxToken</Field>
+    </Case>
+    <Case name="AnonymousModule">
+      <Field name="tyDefBody">SyntaxTypeDeclarationBody</Field>
+      <Field name="terminalToken">SyntaxToken</Field>
+    </Case>
+  </Node>
+
+  <Node name="SyntaxExpression">
+    <Case name="OpenDeclaration">
+      <Field name="openToken">SyntaxToken</Field>
+      <Field name="name">SyntaxName</Field>
+    </Case>
+	<Case name="OpenStaticDeclaration">
+	  <Field name="openToken">SyntaxToken</Field>
+	  <Field name="staticToken">SyntaxToken</Field>
+	  <Field name="name">SyntaxName</Field>
+	</Case>
+	<Case name="OpenExtensionDeclaration">
+	  <Field name="openToken">SyntaxToken</Field>
+	  <Field name="extensionToken">SyntaxToken</Field>
+	  <Field name="name">SyntaxName</Field>
+	</Case>
+    <Case name="Sequential">
+      <Field name="expr1">SyntaxExpression</Field>
+      <Field name="expr2">SyntaxExpression</Field>
+    </Case>
+    <Case name="Parenthesis">
+      <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="exprList">SyntaxExpression SyntaxSeparatorList</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Array">
+      <Field name="leftBracketToken">SyntaxToken</Field>
+      <Field name="elements">SyntaxExpression SyntaxSeparatorList</Field>
+      <Field name="rightBracketToken">SyntaxToken</Field>
+    </Case>
+    <Case name="MutableArray">
+      <Field name="leftBracketInnerPipeToken">SyntaxToken</Field>
+      <Field name="elements">SyntaxExpression SyntaxSeparatorList</Field>
+      <Field name="rightBracketInnerPipeToken">SyntaxToken</Field>
+    </Case>
+    <Case name="Call">
+      <Field name="expression">SyntaxExpression</Field>
+      <Field name="arguments">SyntaxArguments</Field>
+    </Case>
+    <Case name="InfixCall">
+      <Field name="left">SyntaxExpression</Field>
+      <Field name="name">SyntaxName</Field>
+      <Field name="right">SyntaxExpression</Field>
+    </Case>
+    <Case name="PrefixCall">
+      <Field name="name">SyntaxName</Field>
+      <Field name="arg">SyntaxExpression</Field>
+    </Case>
+	<Case name="Throw">
+	  <Field name="throwToken">SyntaxToken</Field>
+	  <Field name="arg">SyntaxExpression</Field>
+	</Case>
+	<Case name="Indexer">
+	  <Field name="lhsExpr">SyntaxExpression</Field>
+      <Field name="brackets">SyntaxExpression SyntaxSeparatorList SyntaxBrackets</Field>
+	</Case>
+    <Case name="Name">
+      <Field name="name">SyntaxName</Field>
+    </Case>
+    <Case name="Literal">
+      <Field name="lit">SyntaxLiteral</Field>
+    </Case>
+    <Case name="CreateRecord">
+      <Field name="constructTy">SyntaxConstructType</Field>
+    </Case>
+	<Case name="UpdateRecord">
+	  <Field name="expr">SyntaxExpression</Field>
+	  <Field name="withToken">SyntaxToken</Field>
+      <Field name="constructTy">SyntaxConstructType</Field>
+    </Case>
+    <Case name="If">
+      <Field name="ifToken">SyntaxToken</Field>
+      <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="predicateExpr">SyntaxExpression</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+      <Field name="target">SyntaxExpression</Field>
+      <Field name="elseIfOrElseExpr">SyntaxElseIfOrElseExpression</Field>
+    </Case>
+    <Case name="Match">
+      <Field name="matchToken">SyntaxToken</Field>
+      <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="matchExprList">SyntaxExpression SyntaxSeparatorList</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+      <Field name="matchClauseList">SyntaxMatchClause SyntaxList</Field>
+    </Case>
+	<Case name="While">
+      <Field name="whileToken">SyntaxToken</Field>
+      <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="conditionExpr">SyntaxExpression</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+      <Field name="bodyExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Typed">
+      <Field name="expr">SyntaxExpression</Field>
+      <Field name="colonToken">SyntaxToken</Field>
+      <Field name="ty">SyntaxType</Field>
+    </Case>
+    <Case name="ValueDeclaration">
+      <Field name="attrs">SyntaxAttributes</Field>
+      <Field name="accessor">SyntaxAccessor</Field>
+      <Field name="premodifierList">SyntaxValueDeclarationPremodifier SyntaxList</Field>
+      <Field name="kind">SyntaxValueDeclarationKind</Field>
+      <Field name="postmodifierList">SyntaxValueDeclarationPostmodifier SyntaxList</Field>
+      <Field name="binding">SyntaxBinding</Field>
+    </Case>
+    <Case name="TypeDeclaration">
+      <Field name="attrs">SyntaxAttributes</Field>
+      <Field name="accessor">SyntaxAccessor</Field>
+      <Field name="kind">SyntaxTypeDeclarationKind</Field>
+      <Field name="name">SyntaxTypeDeclarationName</Field>
+      <Field name="typeParameters">SyntaxTypeParameters</Field>
+      <Field name="constrClauseList">SyntaxConstraintClause SyntaxSeparatorList</Field>
+      <Field name="equalsToken">SyntaxToken</Field>
+      <Field name="body">SyntaxTypeDeclarationBody</Field>
+    </Case>
+    <Case name="MemberAccess">
+      <Field name="receiver">SyntaxExpression</Field>
+      <Field name="dotToken">SyntaxToken</Field>
+      <Field name="expr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Mutate">
+      <Field name="lhsExpr">SyntaxExpression</Field>
+      <Field name="leftArrowToken">SyntaxToken</Field>
+      <Field name="rhsExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="Lambda">
+      <Field name="kind">SyntaxLambdaKind</Field>
+      <Field name="pars">SyntaxParameters</Field>
+      <Field name="rightArrowToken">SyntaxToken</Field>
+      <Field name="body">SyntaxExpression</Field>
+    </Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
+    <Case name="None" />
+  </Node>
+  
+</Tree>

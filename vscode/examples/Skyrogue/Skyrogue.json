@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "name": "Debug",
+      "defines": [
+        "DEBUG",
+        "UNITY"
+      ],
+      "debuggable": true
+    },
+    {
+      "name": "Release",
+      "defines": [
+        "UNITY"
+      ],
+      "debuggable": false
+    }
+  ]
+}

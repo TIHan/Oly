@@ -1,0 +1,15 @@
+#target "dotnet: net6"
+
+#load "../core/*.oly"
+
+open System
+open System.Runtime.InteropServices
+
+#[import("C", "user32.dll", "MessageBox")]
+MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
+
+main(): () =
+    let result = MessageBox(default, "Command-line message box", "Attention!", 0)
+
+// main() : () =
+//     print("Hello World!")

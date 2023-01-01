@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Text.fs" />
+    <Compile Include="Internal\Token.fs" />
+    <Compile Include="Internal\ISyntaxNode.fs" />
+    <Compile Include="Internal\Generated.fs" />
+    <Compile Include="Internal\Extensions.fs" />
+    <Compile Include="Internal\SyntaxTree.fs" />
+    <Compile Include="Internal\Lexer.fs" />
+    <Compile Include="Internal\SyntaxErrors.fs" />
+    <Compile Include="Internal\Parser.fsi" />
+    <Compile Include="Internal\Parser.fs" />
+    <Compile Include="SyntaxTree.fs" />
+    <Compile Include="Generated.fs" />
+    <Compile Include="SyntaxTreeImplementation.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Oly.Core\Oly.Core.fsproj" />
+  </ItemGroup>
+
+</Project>

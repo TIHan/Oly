@@ -1,0 +1,127 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Oly",
+	"patterns": [
+		{
+			"include": "#conditional-directives"
+		},
+		{
+			"include": "#directives"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#single-line-comments"
+		},
+		{
+			"include": "#multi-line-comments"
+		},
+		{
+			"include": "#explicit-identifier"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#type"
+		},
+		{
+			"include": "#function"
+		}
+	],
+	"repository": {
+		"conditional-directives": {
+			"name": "meta.preprocessor",
+			"begin": "#if+\\s+[a-zA-Z0-9]+\\n",
+			"end": "#end\\b",
+			"patterns": [
+				{
+					"name": "meta.preprocessor.string",
+					"match": "."
+				}
+			]
+		},
+		"directives": {
+			"name": "meta.preprocessor",
+			"match": "\\#+[a-zA-Z]+\\b"
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control",
+					"match": "\\b(match|when|if|else|while|try|catch|finally|import|export)\\b"
+				},
+				{
+					"name": "keyword",
+					"match": "\\b(is|as|to|of|from|throw|for|do|on|in|out|namespace|open|new|let|get|set|pattern|with|mutable|inline|pure|inherits|implements|refine|constant|intrinsic|implicit|explicit|where|checked|unchecked|unmanaged|managed|blittable|require|ignore)\\b"
+				},
+				{
+					"name": "variable.language",
+					"match": "\\b(this|base)\\b"
+				},
+				{
+					"name": "constant.language",
+					"match": "\\b(true|false|null|default)\\b"
+				},
+				{
+					"name": "keyword.control.less",
+					"match": "\\b(return|and|or|not)\\b"
+				},
+				{
+					"name": "storage.modifier",
+					"match": "\\b(sealed|abstract|static|overrides|public|private|protected|internal)\\b"
+				},
+				{
+					"match": "\\b(module|type|alias|class|enum|interface|struct|shape|extension|attribute|data|constraint|newtype)\\b",
+					"name": "keyword"
+				},
+				{
+					"match": "(?<=module|type|class|enum|interface|struct|shape|extension|attribute|data|constraint|newtype)\\s+[a-zA-Zα-ωΑ-Ω_]+\\d*?(?=\\s|\\<|\\b)",
+					"name": "entity.name.type"
+				},
+				{
+					"name": "keyword.other",
+					"match": "->|<-|=>|let!"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape",
+					"match": "\\\\."
+				}
+			]
+		},
+		"numbers": {
+			"name": "constant.numeric",
+			"match": "\\b((0b+\\d+)|(0x+\\d+)|(\\d+))|(\\b[.](\\b|\\s))"
+		},
+		"single-line-comments": {
+			"name": "comment.line.double-slash",
+			"match": "//.*"
+		},
+		"multi-line-comments": {
+			"name": "comment.block",
+			"begin": "/\\*",
+			"end": "\\*/"
+		},
+		"explicit-identifier": {
+			"name": "entity.name",
+			"begin": "`",
+			"end": "`"
+		},
+		"function": {
+			"match": "[a-zA-Zα-ωΑ-Ω_]+\\d*?(?=\\(|\\<)",
+			"name": "entity.name.function"
+		}
+	},
+	"scopeName": "source.oly"
+}
