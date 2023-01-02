@@ -1,10 +1,10 @@
 {
-	"name": "oly",
-	"displayName": "Oly",
-	"description": "Oly for Visual Studio Code",
-	"version": "0.0.1",
-	"publisher": "Will F. Smith",
+	"name": "oly-lsp-client",
+	"description": "Oly Language Client",
+	"author": "Will F. Smith",
 	"license": "MIT",
+	"version": "0.0.1",
+	"publisher": "vscode",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/tihan/oly"
@@ -12,142 +12,10 @@
 	"engines": {
 		"vscode": "^1.64.0"
 	},
-	"categories": [
-		"Programming Languages"
-	],
-	"activationEvents": [
-		"onLanguage:oly"
-	],
-	"main": "./client/out/extension",
-	"contributes": {
-		"snippets": [
-			{
-				"language": "oly",
-				"path": "./snippets/oly.json"
-			}
-		],
-		"taskDefinitions": [],
-		"views": {
-			"explorer": [
-				{
-					"id": "oly.syntaxTree",
-					"name": "Syntax Tree",
-					"when": "resourceLangId == oly"
-				}
-			]
-		},
-		"menus": {
-			"editor/context": [
-				{
-					"command": "oly.getSyntaxTree",
-					"when": "resourceLangId == oly"
-				},
-				{
-					"command": "oly.getIR",
-					"when": "resourceLangId == oly"
-				},
-				{
-					"command": "oly.getIRNoOpt",
-					"when": "resourceLangId == oly"
-				}
-			]
-		},
-		"commands": [
-			{
-				"command": "oly.getSyntaxTree",
-				"title": "Go to Syntax Node",
-				"when": "resourceLangId == oly"
-			},
-			{
-				"command": "oly.getIR",
-				"title": "Get IR",
-				"when": "resourceLangId == oly"
-			},
-			{
-				"command": "oly.getIRNoOpt",
-				"title": "Get IR - No Optimizations",
-				"when": "resourceLangId == oly"
-			}
-		],
-		"keybindings": [],
-		"languages": [
-			{
-				"id": "oly",
-				"aliases": [
-					"Oly",
-					"oly"
-				],
-				"extensions": [
-					"oly",
-					"olyx"
-				],
-				"configuration": "./language-configuration.json",
-				"icon": {
-					"light": "./icons/oly-light.png",
-					"dark": "./icons/oly-dark.png"
-				}
-			},
-			{
-				"id": "oly-ir",
-				"aliases": [
-					"Oly-IR",
-					"oly-ir"
-				],
-				"extensions": [
-					"oly-ir"
-				],
-				"configuration": "./language-ir-configuration.json",
-				"icon": {
-					"light": "./icons/oly-light.png",
-					"dark": "./icons/oly-dark.png"
-				}
-			}
-		],
-		"grammars": [
-			{
-				"language": "oly",
-				"scopeName": "source.oly",
-				"path": "./syntaxes/oly.tmLanguage.json"
-			},
-			{
-				"language": "oly-ir",
-				"scopeName": "source.oly-ir",
-				"path": "./syntaxes/oly-ir.tmLanguage.json"
-			}
-		],
-		"configuration": {
-			"type": "object",
-			"title": "Oly",
-			"properties": {
-				"olyLanguageServer.editedDocumentDiagnosticMaxDelay": {
-					"scope": "resource",
-					"type": "number",
-					"default": 500,
-					"description": "Controls the maximum delay (ms) to publish document diagnostics when the current document has been edited."
-				},
-				"olyLanguageServer.editedDocumentDependentDiagnosticDelay": {
-					"scope": "resource",
-					"type": "number",
-					"default": 1000,
-					"description": "Controls the delay (ms) to publish document diagnostics after the currently edited documents has its diagnostics published."
-				}
-			}
-		}
-	},
-	"scripts": {
-		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -b",
-		"watch": "tsc -b -w"
+	"dependencies": {
+		"vscode-languageclient": "^7.0.0"
 	},
 	"devDependencies": {
-		"@types/mocha": "^8.2.3",
-		"@types/node": "^12.20.46",
-		"@typescript-eslint/parser": "^2.3.0",
-		"eslint": "^6.4.0",
-		"mocha": "^8.4.0",
-		"typescript": "^3.9.10"
-	},
-	"dependencies": {
-		"ts-node": "^10.5.0"
+		"@types/vscode": "1.64.0"
 	}
 }
