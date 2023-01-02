@@ -9,7 +9,4 @@ open System.Runtime.InteropServices
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
 main(): () =
-    let result = MessageBox(default, "Command-line message box", "Attention!", 0)
-
-// main() : () =
-//     print("Hello World!")
+    let result = MessageBox(default, "Message Box", "Hello World!", 0)
