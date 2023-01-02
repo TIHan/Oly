@@ -1,4 +1,4 @@
-#target "dotnet: net6"
+#target "dotnet: net7"
 
 #load "../core/*.oly"
 #load "*.oly"
