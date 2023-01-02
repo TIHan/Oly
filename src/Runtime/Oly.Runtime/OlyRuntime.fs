@@ -1375,7 +1375,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | _ ->
             None
 
-    let tryResolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) funcTyArgs (enclosingTy1: RuntimeType) (genericContext: GenericContext) =
+    let tryResolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) (funcTyArgs: _ imarray) (enclosingTy1: RuntimeType) (genericContext: GenericContext) =
         let enclosingTyParCount1 = enclosingTy1.TypeParameters.Length
 
         let tryResolve (enclosingTy1: RuntimeType) =
@@ -1438,7 +1438,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             funcs[0].MakeInstance(enclosing.AsType, funcTyArgs)
 
-    let resolveWitnesses ilAsm ilWitnesses funcTyArgs passedWitnesses (genericContext: GenericContext) =
+    let resolveWitnesses ilAsm ilWitnesses (funcTyArgs: _ imarray) (passedWitnesses: _ imarray) (genericContext: GenericContext) =
         let witnesses =
             let fixedGenericContext =
                 // TODO: This could add support for witness resolving for type parameters on types.
