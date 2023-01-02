@@ -131,14 +131,6 @@ function getActiveDocumentVisibleRanges() {
 	return vscode.window.activeTextEditor?.visibleRanges;
 }
 
-function getIR(document: vscode.TextDocument, pos: vscode.Position) {
-	return client.sendRequest("oly/getIR", { documentPath: document.uri.path, position: pos, opts: true });
-}
-
-function getIRNoOpt(document: vscode.TextDocument, pos: vscode.Position) {
-	return client.sendRequest("oly/getIR", { documentPath: document.uri.path, position: pos, opts: false });
-}
-
 function findSyntaxNodeTokenViewModelByPosition(pos: OlyTextPosition, viewModel: IOlySyntaxNodeViewModel, ct: CancellationToken): IOlySyntaxNodeViewModel {
 	if (ct.isCancellationRequested)
 	{
@@ -316,36 +308,6 @@ module OlyClientCommands {
 				vscode.window.activeTextEditor.revealRange(range);
 				vscode.window.activeTextEditor.selection = new vscode.Selection(range.start, range.end);
 			}
-		}
-	};
-
-	export const getIRCommand = `oly.getIR`;
-	export const getIRCommandHandler = async () => {
-		let active = getActiveDocumentAndCursorPosition();
-		if (active?.document?.languageId === 'oly') {
-			getIR(active.document, active.cursorPosition).then(async (content: string) => {
-				await vscode.workspace.openTextDocument({
-					content: content, 
-					language: "oly-ir"
-				}).then(async (document) => {
-					await vscode.window.showTextDocument(document);
-				  });
-			});
-		}
-	};
-
-	export const getIRNoOptCommand = `oly.getIRNoOpt`;
-	export const getIRNoOptCommandHandler = async () => {
-		let active = getActiveDocumentAndCursorPosition();
-		if (active?.document?.languageId === 'oly') {
-			getIRNoOpt(active.document, active.cursorPosition).then(async (content: string) => {
-				await vscode.workspace.openTextDocument({
-					content: content, 
-					language: "oly-ir"
-				}).then(async (document) => {
-					await vscode.window.showTextDocument(document);
-				  });
-			});
 		}
 	};
 
@@ -587,8 +549,6 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: 'oly'}, new DocumentSemanticTokensProvider(), legend));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compileCommand, OlyClientCommands.compileCommandHandler));
 
-		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getIRCommand, OlyClientCommands.getIRCommandHandler));
-		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getIRNoOptCommand, OlyClientCommands.getIRNoOptCommandHandler));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getSyntaxTreeCommand, OlyClientCommands.getSyntaxTreeCommandHandler));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.navigateToSyntaxNodeCommand, OlyClientCommands.navigateToSyntaxNodeCommandHandler));
 
