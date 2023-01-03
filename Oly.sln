@@ -19,7 +19,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.DotNet",
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.LanguageServer", "src\LanguageServer\Oly.LanguageServer\Oly.LanguageServer.fsproj", "{EC7A94C7-AB52-452C-8236-135D3BB6CDA9}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Workspace", "src\Compiler\Oly.Compiler.Service\Oly.Compiler.Workspace.fsproj", "{2F96654E-E448-4A6D-A606-BA1072B9A02D}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Workspace", "src\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj", "{2F96654E-E448-4A6D-A606-BA1072B9A02D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DotNet", "DotNet", "{3138A23B-A784-4DFB-A72F-23BDB1E180F6}"
 EndProject

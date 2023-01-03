@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Service\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj" />
   </ItemGroup>
 

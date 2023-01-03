@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj" />
-    <ProjectReference Include="..\Oly.Compiler.Service\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
   </ItemGroup>
 
 </Project>
