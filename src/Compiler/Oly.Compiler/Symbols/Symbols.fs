@@ -320,10 +320,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
     let rec instTy ty =
         match stripTypeEquations ty with
         | TypeSymbol.Variable(tyPar) -> 
-            if tyPar.IsVariadic && tyPar.Index >= tyArgs.Length then
-                TypeSymbol.Unit
-            else
-                tyArgs.[tyPar.Index]
+            tyArgs.[tyPar.Index]
 
         | TypeSymbol.HigherVariable(tyPar, tyArgs2) ->
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
@@ -2746,6 +2743,13 @@ let private FormalMutableArrayTypeParameters =
 let private FormalMutableArrayType =
     TypeSymbol.Array(FormalMutableArrayTypeParameters[0].AsType, 1, ArrayKind.Mutable)
 
+let private FormalTupleTypeParameters =
+    let elementsTy = TypeParameterSymbol("TElements", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+    ImArray.createOne elementsTy
+
+let private FormalTupleType =
+    TypeSymbol.Tuple(ImArray.createOne FormalTupleTypeParameters[0].AsType, ImArray.empty)
+
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
 let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
 let private FormalReadByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.Read)
@@ -2884,6 +2888,7 @@ type TypeSymbol =
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
         | TypeSymbol.Array(_, 1, ArrayKind.Immutable) -> FormalArrayType
         | TypeSymbol.Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayType
+        | TypeSymbol.Tuple _ -> FormalTupleType
         | _ -> this // TODO:
 
     member this.Name =
@@ -3037,7 +3042,7 @@ type TypeSymbol =
         | Array(_, 1, ArrayKind.Immutable) -> FormalArrayTypeParameters
         | Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayTypeParameters
         | Array _ -> TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
-        | Tuple _ -> TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
+        | Tuple _ -> FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
         | DependentIndexer _ -> ImArray.empty
@@ -3076,7 +3081,10 @@ type TypeSymbol =
 
         | Function(argTys, returnTy)
         | NativeFunctionPtr(_, argTys, returnTy) ->
-            argTys.Add(returnTy)
+            if argTys.IsEmpty then
+                ImArray.createTwo TypeSymbol.Unit returnTy
+            else
+                argTys.Add(returnTy)
                 
         | HigherInferenceVariable(_, tyArgs, _, _)
         | HigherVariable(_, tyArgs) -> tyArgs
@@ -4413,7 +4421,7 @@ module Types =
 
     let InRef = TypeSymbol.GetFormalByRef(ByRefKind.Read)
 
-    let Tuple = TypeSymbol.Tuple(TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty).AsType |> ImArray.createOne, ImArray.empty)
+    let Tuple = FormalTupleType
 
     let NativePtr = FormalNativePtrType
 
