@@ -1162,12 +1162,8 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
                     let ilFuncDefHandle = 
                         if ent.IsAnonymousShape then
                             GenFunctionAsILFunctionDefinition cenv env x
-                        else
-                            try
-                                cenv.cachedFuncDefs[x.Id]
-                            with
-                            | ex -> 
-                                reraise()
+                        else 
+                            cenv.cachedFuncDefs[x.Id]
                     if x.IsEntryPoint then
                         let ilEnclosingTy = emitILType cenv env ent.AsType
                         cenv.assembly.EntryPoint <- Some(ilEnclosingTy, ilFuncDefHandle)
