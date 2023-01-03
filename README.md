@@ -7,6 +7,9 @@ A side project to understand programming languages and compilers in all stages.
 
 ## Building
 
+Requirements:
+- .NET 7 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)
+
 This will build everything except for the VSCode extension.
 
 In the command-line at the root of the repository, run command:
@@ -26,6 +29,10 @@ In the command-line at the root of the repository, run command:
 You can also run the tests in Visual Studio's Test Explorer.
 
 ## Building VSCode Extension
+
+Requirements:
+- VSCode 1.64.0 or newer
+- Node.js and NPM
 
 In the command-line at the `vscode` folder, run commands:
 
