@@ -320,7 +320,10 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
     let rec instTy ty =
         match stripTypeEquations ty with
         | TypeSymbol.Variable(tyPar) -> 
-            tyArgs.[tyPar.Index]
+            if tyPar.IsVariadic && tyPar.Index >= tyArgs.Length then
+                TypeSymbol.Unit
+            else
+                tyArgs.[tyPar.Index]
 
         | TypeSymbol.HigherVariable(tyPar, tyArgs2) ->
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
