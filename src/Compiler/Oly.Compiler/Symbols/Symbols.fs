@@ -335,6 +335,15 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             else
                 TypeSymbol.Function(argTys2, instTy returnTy)
 
+        | TypeSymbol.NativeFunctionPtr(ilCallConv, argTys, returnTy) ->
+            let argTys2 =
+                argTys
+                |> ImArray.map (fun x -> instTy x)
+            if (argTys2.Length = 1 && argTys2[0].IsUnit_t) then
+                TypeSymbol.NativeFunctionPtr(ilCallConv, ImArray.empty, instTy returnTy)
+            else
+                TypeSymbol.NativeFunctionPtr(ilCallConv, argTys2, instTy returnTy)
+
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
             |> ImArray.iter (fun tyPar ->
@@ -351,7 +360,10 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             instTy innerTy
 
         | TypeSymbol.Tuple(variadicTyArgs, names) ->
-            TypeSymbol.Tuple(variadicTyArgs |> ImArray.map instTy, names)
+            if variadicTyArgs.Length = 1 && obj.ReferenceEquals(variadicTyArgs[0], FormalTupleTypeParameters[0].AsType) then
+                TypeSymbol.Tuple(tyArgs, names)
+            else
+                TypeSymbol.Tuple(variadicTyArgs |> ImArray.map instTy, names)
 
         | TypeSymbol.Entity(ent) ->
             let tyArgs = 
@@ -2743,9 +2755,9 @@ let private FormalMutableArrayTypeParameters =
 let private FormalMutableArrayType =
     TypeSymbol.Array(FormalMutableArrayTypeParameters[0].AsType, 1, ArrayKind.Mutable)
 
-let private FormalTupleTypeParameters =
-    let elementsTy = TypeParameterSymbol("TElements", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty)
-    ImArray.createOne elementsTy
+let private FormalTupleTypeParameters: TypeParameterSymbol imarray =
+    let tyPar = TypeParameterSymbol("TElements", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+    ImArray.createOne tyPar
 
 let private FormalTupleType =
     TypeSymbol.Tuple(ImArray.createOne FormalTupleTypeParameters[0].AsType, ImArray.empty)
