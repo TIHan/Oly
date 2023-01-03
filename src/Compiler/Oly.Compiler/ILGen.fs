@@ -1110,7 +1110,7 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         let ilPropDefs =
             ent.Properties
             |> ImArray.map (fun prop ->
-                // REVIEW: This is a special case for shape since we can have an anonymous shape type and we need to create a definition.
+                // REVIEW: This is a special case for shape since we can have an anonymous shape type.
                 if ent.IsAnonymousShape then
                     GenAutoOrSignatureProperty cenv env prop
                 else
