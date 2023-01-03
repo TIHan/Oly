@@ -710,39 +710,42 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         return None
                 }
 
-            let resolvedReferences =
+            // Some basic validation
+            config.References
+            |> ImArray.iter (fun (textSpan, path) ->
+                if path.HasExtension(".oly") then
+                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", OlySourceLocation.Create(textSpan, syntaxTree)))
+            )
 
-                config.References
-                |> ImArray.iter (fun (textSpan, path) ->
-                    if path.HasExtension(".oly") then
-                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", OlySourceLocation.Create(textSpan, syntaxTree)))
+            let referenceInfos = 
+                getSortedReferencesFromConfig state.rs absoluteDir config
+                |> ImArray.map (fun (textSpan, path) ->
+                    OlyReferenceInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
                 )
 
-                let referenceInfos = 
-                    getSortedReferencesFromConfig state.rs absoluteDir config
-                    |> ImArray.map (fun (textSpan, path) ->
-                        OlyReferenceInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
-                    )
-                let packageInfos =
-                    config.Packages
-                    |> ImArray.map (fun (textSpan, text) ->
-                        OlyPackageInfo(text, textSpan)
-                    )
+            let packageInfos =
+                config.Packages
+                |> ImArray.map (fun (textSpan, text) ->
+                    OlyPackageInfo(text, textSpan)
+                )
 
-                let olyProjectReferenceInfos =
-                    referenceInfos
-                    |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
+            let olyxReferenceInfos =
+                referenceInfos
+                |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
 
-                let referenceInfos =
-                    referenceInfos
-                    |> ImArray.filter (fun x -> 
-                        not(x.Path.HasExtension(".olyx")) &&
-                        not(x.Path.HasExtension(".oly"))
-                    )
+            let referenceInfos =
+                referenceInfos
+                |> ImArray.filter (fun x -> 
+                    not(x.Path.HasExtension(".olyx")) &&
+                    not(x.Path.HasExtension(".oly"))
+                )
             
-                let resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos, ct).Result
-                resInfo.Diagnostics
-                |> ImArray.iter diags.Add
+            let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos, ct)
+
+            resInfo.Diagnostics
+            |> ImArray.iter diags.Add
+
+            let resolvedReferences =
                 resInfo.Paths
                 |> ImArray.map (fun x -> (OlyTextSpan.Create(0, 0), x))
                 |> Seq.distinctBy (fun (_, x) -> x.ToString())
@@ -761,6 +764,17 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 projectReferences
                 |> Seq.choose id
                 |> ImArray.ofSeq
+
+            let projectReferencesInWorkspace = ImArray.builder()
+
+            for info in olyxReferenceInfos do
+                match solution.TryGetProject(info.Path) with
+                | Some proj ->
+                    projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
+                | _ ->
+                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+
+            let projectReferences = ImArray.append projectReferences (projectReferencesInWorkspace.ToImmutable())
 
             try
                 targetPlatform.OnAfterReferencesImported()

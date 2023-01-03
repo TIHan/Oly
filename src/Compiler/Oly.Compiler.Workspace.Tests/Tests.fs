@@ -575,14 +575,16 @@ print(__oly_object): ()
         """
 #target "i: default"
 
-#reference "../fakepath/Test.olyx"
+#reference "fakepath/Test.olyx"
+
+open static Test
 
 main(): () =
     print("Hello World!")
         """
 
     let workspace = createWorkspace()
-    let path1 = OlyPath.Create("Test.olyx")
+    let path1 = OlyPath.Create("fakePath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
