@@ -1,6 +1,6 @@
 #target "dotnet: net7"
 
-#load "../core/*.oly"
+#reference "../core/prelude.olyx"
 
 open System
 open System.Runtime.InteropServices

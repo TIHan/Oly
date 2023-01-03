@@ -13,6 +13,27 @@ open Oly.Compiler.Workspace.Extensions
 let createWorkspace() =
     OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
 
+let createWorkspaceWith(f) =
+    let rs =
+        {
+            new IOlyWorkspaceResourceService with
+        
+                member _.LoadSourceText(filePath) =
+                    f filePath
+        
+                member _.GetTimeStamp(filePath) = DateTime()
+        
+                member _.FindSubPaths(dirPath) =
+                    ImArray.empty
+        
+                member _.LoadProjectConfigurationAsync(_projectFilePath: OlyPath, ct: CancellationToken) =
+                    backgroundTask {
+                        ct.ThrowIfCancellationRequested()
+                        return OlyProjectConfiguration(String.Empty, ImArray.empty, false)
+                    }
+        }
+    OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()], rs)
+
 let createProject src (workspace: OlyWorkspace) =
     let path = OlyPath.Create "olytest.olyx"
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
@@ -583,11 +604,81 @@ main(): () =
     print("Hello World!")
         """
 
-    let workspace = createWorkspace()
     let path1 = OlyPath.Create("fakePath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
-    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+[<Fact>]
+let ``Project reference another project 2``() =
+    let src1 =
+        """
+#target "i: default"
+
+module Test
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+main(): () =
+    Test.print("Hello World!")
+        """
+
+    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+[<Fact>]
+let ``Project reference another project 3``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+main(): () =
+    print("Hello World!")
+        """
+
+    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)

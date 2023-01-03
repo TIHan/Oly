@@ -1036,6 +1036,7 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         | EntityKind.Newtype -> OlyILEntityKind.Newtype
 
     let ilEntFlags = OlyILEntityFlags.None
+    let ilEntFlags = if ent.IsAutoOpenable then ilEntFlags ||| OlyILEntityFlags.AutoOpen else ilEntFlags
     let ilEntFlags = if ent.IsSealed then ilEntFlags ||| OlyILEntityFlags.Final else ilEntFlags
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
     let ilEntFlags = 

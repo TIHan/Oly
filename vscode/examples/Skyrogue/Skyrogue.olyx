@@ -1,10 +1,10 @@
 #target "dotnet: net48"
 
-#load "../core/*.oly"
 #load "../AssetManager/bsa.oly"
 #load "../AssetManager/nif.oly"
 #load "../AssetManager/AudioManager.oly"
 
+#reference "../core/prelude.olyx"
 #reference "C:/Program Files/Unity/Hub/Editor/2022.2.1f1/Editor/Data/Managed/*.dll"
 #reference "C:/Program Files/Unity/Hub/Editor/2022.2.1f1/Editor/Data/Managed/UnityEngine/*.dll"
 #reference "C:/work/My project/Library/ScriptAssemblies/Unity.RenderPipelines.HighDefinition.Runtime.dll"

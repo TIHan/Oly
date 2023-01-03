@@ -767,12 +767,20 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
             let projectReferencesInWorkspace = ImArray.builder()
 
+            let mutable solution = solution
+
             for info in olyxReferenceInfos do
-                match solution.TryGetProject(info.Path) with
-                | Some proj ->
-                    projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
-                | _ ->
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                try
+                    let! result = OlyWorkspace.UpdateDocumentAsyncCore(state, solution, info.Path, state.rs.LoadSourceText(info.Path), ct)
+                    solution <- result
+                    match solution.TryGetProject(info.Path) with
+                    | Some proj ->
+                        projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
+                    | _ ->
+                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                with
+                | ex ->
+                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}'. Internal Error: {ex.Message}", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
 
             let projectReferences = ImArray.append projectReferences (projectReferencesInWorkspace.ToImmutable())
 

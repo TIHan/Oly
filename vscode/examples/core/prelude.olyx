@@ -1,5 +1,8 @@
+#target "dotnet: netstandard2.1"
+#library
+
 #[open]
-module Prelude
+module OlyPrelude
 
 #[intrinsic("void")]
 alias void
@@ -7,7 +10,7 @@ alias void
 #[intrinsic("uint8")]
 alias uint8
 
-// takes precedence over uint8 when importing unaliased uint8 because it is below it // TODO: we should just have a proper alias i.e 'alias byte = uint8'
+// takes precedence over uint8 when importing unaliased uint8 because it is below it
 #[intrinsic("uint8")]
 alias byte
 

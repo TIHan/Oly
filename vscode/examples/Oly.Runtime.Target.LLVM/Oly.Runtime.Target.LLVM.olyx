@@ -1,7 +1,6 @@
 #target "dotnet: net7"
 
-#load "../core/*.oly"
-
+#reference "../core/prelude.olyx"
 #reference "../../../src/Compiler/Oly.Compiler.Workspace/Oly.Compiler.Workspace.fsproj"
 
 #package "LLVMSharp,14.0.0-beta1"

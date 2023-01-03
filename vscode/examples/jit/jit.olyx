@@ -1,8 +1,8 @@
 #target "dotnet: net7"
 
 #load "*.oly"
-#load "../core/*.oly"
 
+#reference "../core/prelude.olyx"
 #package "TerraFX.Interop.Windows,10.0.22000-rc1"
 
 open System
