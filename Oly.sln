@@ -7,7 +7,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler", "src\Compile
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Tests", "src\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj", "{44BD2D6A-529B-471E-905B-EAC82B234BC3}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Metadata", "src\Metadata\Oly.IR\Oly.Metadata.fsproj", "{C41176E2-30E1-49D8-872A-4DFB53211D61}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Metadata", "src\Metadata\Oly.Metadata\Oly.Metadata.fsproj", "{C41176E2-30E1-49D8-872A-4DFB53211D61}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Clr", "src\Runtime\Targets\DotNet\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj", "{0A761F52-F99A-4772-AEDC-B44B7CF0BCE8}"
 EndProject
