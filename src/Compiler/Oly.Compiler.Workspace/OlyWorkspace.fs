@@ -711,6 +711,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 }
 
             let resolvedReferences =
+
+                config.References
+                |> ImArray.iter (fun (textSpan, path) ->
+                    if path.HasExtension(".oly") then
+                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                )
+
                 let referenceInfos = 
                     getSortedReferencesFromConfig state.rs absoluteDir config
                     |> ImArray.map (fun (textSpan, path) ->
@@ -720,6 +727,17 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     config.Packages
                     |> ImArray.map (fun (textSpan, text) ->
                         OlyPackageInfo(text, textSpan)
+                    )
+
+                let olyProjectReferenceInfos =
+                    referenceInfos
+                    |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
+
+                let referenceInfos =
+                    referenceInfos
+                    |> ImArray.filter (fun x -> 
+                        not(x.Path.HasExtension(".olyx")) &&
+                        not(x.Path.HasExtension(".oly"))
                     )
             
                 let resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos, ct).Result

@@ -508,3 +508,86 @@ main(): () =
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.NotEqual(0, symbols.Length)
+
+[<Fact>]
+let ``Project should fail when trying to reference a Oly file``() =
+    let src =
+        """
+#target "i: default"
+
+#reference "fake.oly"
+
+module Test
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+    
+main(): () =
+    print("Hello World!")
+        """
+    let workspace = createWorkspace()
+    let path = OlyPath.Create("Test.olyx")
+    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
+    
+    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    Assert.Equal(1, diags.Length)
+    Assert.Equal("Cannot reference Oly file(s) 'fake.oly'. Use '#load' instead.", diags[0].Message)
+
+[<Fact>]
+let ``Project should fail when trying to reference a Oly file 2``() =
+    let src =
+        """
+#target "i: default"
+
+#reference "*.oly"
+
+module Test
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+    
+main(): () =
+    print("Hello World!")
+        """
+    let workspace = createWorkspace()
+    let path = OlyPath.Create("Test.olyx")
+    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
+    
+    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    Assert.Equal(1, diags.Length)
+    Assert.Equal("Cannot reference Oly file(s) '*.oly'. Use '#load' instead.", diags[0].Message)
+
+[<Fact>]
+let ``Project reference another project``() =
+    let src1 =
+        """
+#target "i: default"
+
+module Test
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "../fakepath/Test.olyx"
+
+main(): () =
+    print("Hello World!")
+        """
+
+    let workspace = createWorkspace()
+    let path1 = OlyPath.Create("Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
