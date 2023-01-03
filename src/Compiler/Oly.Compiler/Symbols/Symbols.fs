@@ -330,19 +330,13 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let argTys2 =
                 argTys
                 |> ImArray.map (fun x -> instTy x)
-            if (ty.IsFormal && argTys2.Length = 1 && argTys2[0].IsUnit_t) then
-                TypeSymbol.Function(ImArray.empty, instTy returnTy)
-            else
-                TypeSymbol.Function(argTys2, instTy returnTy)
+            TypeSymbol.Function(argTys2, instTy returnTy)
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv, argTys, returnTy) ->
             let argTys2 =
                 argTys
                 |> ImArray.map (fun x -> instTy x)
-            if (ty.IsFormal && argTys2.Length = 1 && argTys2[0].IsUnit_t) then
-                TypeSymbol.NativeFunctionPtr(ilCallConv, ImArray.empty, instTy returnTy)
-            else
-                TypeSymbol.NativeFunctionPtr(ilCallConv, argTys2, instTy returnTy)
+            TypeSymbol.NativeFunctionPtr(ilCallConv, argTys2, instTy returnTy)
 
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
@@ -1261,14 +1255,9 @@ let stripTypeEquations (ty: TypeSymbol) =
 
 let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
-    match ty.Formal.TryIntrinsicType with
-    | Some intrinTy -> 
-        if ty.IsFormal then
-            intrinTy
-        else
-            actualType ty.TypeArguments intrinTy
-    | _ -> 
-        ty
+    match ty.TryIntrinsicType with
+    | Some intrinTy -> intrinTy
+    | _ -> ty
 
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
     stripTypeEquationsAux true false ty
@@ -4481,12 +4470,12 @@ module OtherExtensions =
     type IEntitySymbol with
 
         member this.TryIntrinsicType =
-            OlyAssert.True(this.IsFormal)
             if this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic then
                 this.Attributes
                 |> ImArray.tryPick (fun x ->
                     match x.TryIntrinsicType with
                     | ValueSome x -> 
+                        // TODO: We need to apply types here.
                         OlyAssert.True(x.IsFormal)
                         Some x
                     | _ -> 
