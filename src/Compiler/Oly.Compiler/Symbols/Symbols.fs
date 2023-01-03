@@ -1246,9 +1246,18 @@ let stripTypeEquations (ty: TypeSymbol) =
 
 let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
-    match ty.TryIntrinsicType with
-    | Some ty -> ty
-    | _ -> ty
+    if ty.IsBuiltIn then
+        match ty.Formal.TryIntrinsicType with
+        | Some intrinTy -> 
+            if ty.IsFormal then
+                intrinTy
+            else
+                actualType ty.TypeArguments intrinTy
+        | _ -> 
+
+            ty
+    else
+        ty
 
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
     stripTypeEquationsAux true false ty
@@ -2703,6 +2712,34 @@ let private FormalFunctionType =
     let tyPars = FormalFunctionTypeParameters
     TypeSymbol.Function(ImArray.createOne tyPars[0].AsType, tyPars[1].AsType)
 
+let private FormalRefCellTypeParameters =
+    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+    |> ImArray.createOne
+
+let private FormalRefCellType =
+    TypeSymbol.RefCell(FormalRefCellTypeParameters[0].AsType)
+
+let private FormalNativePtrTypeParameters =
+    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+    |> ImArray.createOne
+
+let private FormalNativePtrType =
+    TypeSymbol.NativePtr(FormalNativePtrTypeParameters[0].AsType)
+
+let private FormalArrayTypeParameters =
+    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+    |> ImArray.createOne
+
+let private FormalArrayType =
+    TypeSymbol.Array(FormalArrayTypeParameters[0].AsType, 1, ArrayKind.Immutable)
+
+let private FormalMutableArrayTypeParameters =
+    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+    |> ImArray.createOne
+
+let private FormalMutableArrayType =
+    TypeSymbol.Array(FormalMutableArrayTypeParameters[0].AsType, 1, ArrayKind.Mutable)
+
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
 let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
 let private FormalReadByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.Read)
@@ -2783,6 +2820,7 @@ type TypeSymbol =
         | BaseStruct
         | BaseStructEnum
         | BaseAttribute
+        | Void
         | Unit
         | Int8
         | UInt8
@@ -2836,6 +2874,10 @@ type TypeSymbol =
         | TypeSymbol.Entity(ent) -> TypeSymbol.Entity(ent.Formal)
         | TypeSymbol.ByRef(_, kind) -> TypeSymbol.GetFormalByRef(kind)
         | TypeSymbol.Function _ -> FormalFunctionType
+        | TypeSymbol.RefCell _ -> FormalRefCellType
+        | TypeSymbol.NativePtr _ -> FormalNativePtrType
+        | TypeSymbol.Array(_, 1, ArrayKind.Immutable) -> FormalArrayType
+        | TypeSymbol.Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayType
         | _ -> this // TODO:
 
     member this.Name =
@@ -2946,6 +2988,7 @@ type TypeSymbol =
             tyPars.Length
         | Function _ -> 2
         | ByRef _ -> 1
+        | Array(_, 1, _) -> 1
         | Array _ -> 2
         | _ -> 0
 
@@ -2978,16 +3021,18 @@ type TypeSymbol =
         | ObjectInferenceVariable _ 
         | NumberInferenceVariable _ -> ImArray.empty
         | BaseStructEnum _ -> EnumTypeParameters
-        | RefCell _ -> TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
+        | RefCell _ -> FormalRefCellTypeParameters
         | Function _ -> FormalFunctionTypeParameters
         | HigherInferenceVariable(_, tyArgs, _, _)
         | HigherVariable(_, tyArgs) -> tyArgs |> ImArray.mapi (fun i _ -> TypeParameterSymbol("_", i, 0, TypeParameterKind.Type, ref ImArray.empty))
         | ForAll(tyPars, _) -> tyPars
         | ByRef _ -> ByReferenceTypeParameters
         | Entity(ent) -> ent.TypeParameters
+        | Array(_, 1, ArrayKind.Immutable) -> FormalArrayTypeParameters
+        | Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayTypeParameters
         | Array _ -> TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
         | Tuple _ -> TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
-        | NativePtr _ -> TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
+        | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
         | DependentIndexer _ -> ImArray.empty
 
@@ -3478,6 +3523,12 @@ type TypeSymbol =
                     false
             | Function _ as ty ->
                 obj.ReferenceEquals(FormalFunctionType, ty)
+            | RefCell _ as ty ->
+                obj.ReferenceEquals(FormalRefCellType, ty)
+            | Array(_, 1, ArrayKind.Immutable) as ty ->
+                obj.ReferenceEquals(FormalArrayType, ty)
+            | Array(_, 1, ArrayKind.Mutable) as ty ->
+                obj.ReferenceEquals(FormalMutableArrayType, ty)
             | _ -> false
 
     member this.TryFunction =
@@ -4358,7 +4409,7 @@ module Types =
 
     let Tuple = TypeSymbol.Tuple(TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty).AsType |> ImArray.createOne, ImArray.empty)
 
-    let NativePtr = TypeSymbol.NativePtr(TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty).AsType)
+    let NativePtr = FormalNativePtrType
 
     let BaseEnum = TypeSymbol.BaseStructEnum
 
@@ -4397,12 +4448,16 @@ module OtherExtensions =
     type IEntitySymbol with
 
         member this.TryIntrinsicType =
+            OlyAssert.True(this.IsFormal)
             if this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic then
                 this.Attributes
                 |> ImArray.tryPick (fun x ->
                     match x.TryIntrinsicType with
-                    | ValueSome x -> Some x
-                    | _ -> None
+                    | ValueSome x -> 
+                        OlyAssert.True(x.IsFormal)
+                        Some x
+                    | _ -> 
+                        None
                 )
             else
                 None
@@ -4422,9 +4477,15 @@ module OtherExtensions =
             | _ -> false
 
         member this.TryIntrinsicType =
+            // TODO: Uncomment this.
+            //OlyAssert.True(this.IsFormal)
             match stripTypeEquationsExceptAlias this with
             | TypeSymbol.Entity(ent) -> ent.TryIntrinsicType
-            | _ -> None
+            | _ -> 
+                if this.IsBuiltIn then
+                    Some(this)
+                else
+                    None
 
 type CompilerPass =
     | Pass0

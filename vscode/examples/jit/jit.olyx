@@ -12,6 +12,7 @@ open static TerraFX.Interop.Windows.MEM
 open static TerraFX.Interop.Windows.PAGE
 open static Jit.Emitter.X64
 
+
 // win32 only (for now)
 AllocateBuffer(size: nuint): void* =
     let allocTy = MEM_RESERVE | MEM_COMMIT
