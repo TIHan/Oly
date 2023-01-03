@@ -168,21 +168,28 @@ type Imports =
                 | _ -> failwith "Imported entity must have a containing assembly."
 
             let ent =
-                match this.sharedCache.entFromName.TryGetValue(asm.Identity.Name) with
-                | true, ents ->
-                    match ents.TryGetValue(ent.QualifiedName) with
-                    | true, ent -> ent
-                    | _ -> 
+                let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
+
+                // Anonymous Shape
+                if ilEntDef.Kind = OlyILEntityKind.Shape && 
+                   ilEntDef.NameHandle.IsNil then
+                   ent
+                else
+                    match this.sharedCache.entFromName.TryGetValue(asm.Identity.Name) with
+                    | true, ents ->
+                        match ents.TryGetValue(ent.QualifiedName) with
+                        | true, ent -> ent
+                        | _ -> 
+                            this.sharedCache.AddEntity(ent)
+                            let funcs = ent.Functions
+                            funcs
+                            |> ImArray.iter (fun x ->
+                                System.Diagnostics.Debug.WriteLine(x.Name)
+                            )
+                            ent
+                    | _ ->
                         this.sharedCache.AddEntity(ent)
-                        let funcs = ent.Functions
-                        funcs
-                        |> ImArray.iter (fun x ->
-                            System.Diagnostics.Debug.WriteLine(x.Name)
-                        )
                         ent
-                | _ ->
-                    this.sharedCache.AddEntity(ent)
-                    ent
             localCache.entFromEntDef.TryAdd(ilEntDefHandle, ent) |> ignore
             ent
 

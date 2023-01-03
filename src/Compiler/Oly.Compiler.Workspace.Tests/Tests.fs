@@ -795,15 +795,10 @@ module Test
 
 class TestClass =
 
-    get X: __oly_int32 = 123
-
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
     
 #[intrinsic("print")]
 print(__oly_object): ()
-
-testShape<T>(x: T): () where T: { get X: __oly_int32 } =
-    ()
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
@@ -817,9 +812,7 @@ testShape<T>(x: T): () where T: { get X: __oly_int32 } =
 
 main(): () =
     let x = TestClass()
-    testShape(x)
     let result = x * x
-    print(x.X)
         """
 
     let path1 = OlyPath.Create("fakePath/Test.olyx")

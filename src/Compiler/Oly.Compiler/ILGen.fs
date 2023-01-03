@@ -253,7 +253,7 @@ and GenEntityAsILEntityInstance cenv env (ent: IEntitySymbol) =
         | _ -> failwith "Expected a containing assembly when emitting a entity instance."
 
     let ilTyInst = emitILTypes cenv env ent.TypeArguments
-    if asmIdentity = cenv.assembly.Identity then
+    if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
         // Local to the assembly
         OlyILEntityInstance(GenEntityAsILEntityDefinition cenv env ent.Formal, ilTyInst)
     else
@@ -273,8 +273,7 @@ and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: IEntitySymbol) =
             | Some(asm) -> asm.Identity
             | _ -> failwith "Expected a containing assembly when emitting a entity instance."
 
-        if asmIdentity = cenv.assembly.Identity then
-            // Local to the assembly
+        if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
             OlyILEntityConstructor(GenEntityAsILEntityDefinition cenv env ent)
         else
             OlyILEntityConstructor(GenEntityAsILEntityReference cenv env ent)
@@ -535,14 +534,6 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
                     OlyILConstraint.ConstantType(emitILType cenv env constTy.Value)
                 | ConstraintSymbol.SubtypeOf(ty) ->
                     let ty = ty.Value
-                    if ty.IsAnonymousShape then
-                        let ent = ty.AsEntity.Formal
-#if DEBUG
-                        OlyAssert.False(DoesILEntityDefinitionExists cenv ent)
-#endif
-                        // This is really the definition.
-                        // This is ok to do as there are no implementation details, only signatures.
-                        GenEntityDefinitionNoCache cenv env ent
                     OlyILConstraint.SubtypeOf(emitILType cenv env ty)
             )
         OlyILTypeParameter(GenString cenv x.Name, x.Arity, x.IsVariadic, ilConstrs)
@@ -1110,29 +1101,25 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         let ilPropDefs =
             ent.Properties
             |> ImArray.map (fun prop ->
-                // REVIEW: This is a special case for shape since we can have an anonymous shape type.
-                if ent.IsAnonymousShape then
-                    GenAutoOrSignatureProperty cenv env prop
-                else
-                    let ilAttrs = GenAttributes cenv env prop.Attributes
-                    let ilName = GenString cenv prop.Name
-                    let ilTy = emitILType cenv env prop.Type
-                    let ilGetterOpt =
-                        prop.Getter
-                        |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
-                        |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
-                    let ilSetterOpt =
-                        prop.Setter
-                        |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
-                        |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
-                    OlyILPropertyDefinition(
-                        ilAttrs,
-                        ilName,
-                        ilTy,
-                        ilGetterOpt,
-                        ilSetterOpt
-                    )
-                    |> cenv.assembly.AddPropertyDefinition
+                let ilAttrs = GenAttributes cenv env prop.Attributes
+                let ilName = GenString cenv prop.Name
+                let ilTy = emitILType cenv env prop.Type
+                let ilGetterOpt =
+                    prop.Getter
+                    |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
+                    |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
+                let ilSetterOpt =
+                    prop.Setter
+                    |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
+                    |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
+                OlyILPropertyDefinition(
+                    ilAttrs,
+                    ilName,
+                    ilTy,
+                    ilGetterOpt,
+                    ilSetterOpt
+                )
+                |> cenv.assembly.AddPropertyDefinition
             )
 
         let ilPatDefs =
@@ -1160,10 +1147,7 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
                 |> ImArray.map (fun x -> 
                     OlyAssert.True(x.IsFormal)
                     let ilFuncDefHandle = 
-                        if ent.IsAnonymousShape then
-                            GenFunctionAsILFunctionDefinition cenv env x
-                        else 
-                            cenv.cachedFuncDefs[x.Id]
+                        GenFunctionAsILFunctionDefinition cenv env x
                     if x.IsEntryPoint then
                         let ilEnclosingTy = emitILType cenv env ent.AsType
                         cenv.assembly.EntryPoint <- Some(ilEnclosingTy, ilFuncDefHandle)
@@ -1196,6 +1180,8 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)
     )
 
+    ilEntDefHandleFixup
+
 and GenEntityAsILEntityDefinition cenv env (ent: IEntitySymbol) : OlyILEntityDefinitionHandle =
     OlyAssert.True(ent.IsFormal)
     match cenv.cachedEntDefs.TryGetValue ent.Id with
@@ -1203,7 +1189,12 @@ and GenEntityAsILEntityDefinition cenv env (ent: IEntitySymbol) : OlyILEntityDef
     | _ ->
         let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinition()
         cenv.cachedEntDefs.Add(ent.Id, ilEntDefHandleFixup)
-        ilEntDefHandleFixup
+        if ent.IsAnonymousShape then
+            let result = GenEntityDefinitionNoCache cenv env ent
+            OlyAssert.Equal(result, ilEntDefHandleFixup)
+            result
+        else
+            ilEntDefHandleFixup
 
 and DoesILEntityDefinitionExists cenv (ent: IEntitySymbol) =
     OlyAssert.True(ent.IsFormal)
@@ -1389,6 +1380,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         // the same local entity definition. If so, only do it once.
         if not ent.Enclosing.IsLocalEnclosing || cenv.funEnv.localEntities.Add(ent.Id) then
             GenEntityDefinitionNoCache cenv env ent
+            |> ignore
             GenExpression cenv (setLocalContext env ent) body
         else
             OlyILExpression.None
