@@ -23,8 +23,6 @@ type SolverEnvironment =
             benv = benv
         }
 
-let mutable stuff = Unchecked.defaultof<_>
-
 let rec solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
     let res = UnifyTypes Flexible expectedTy ty
     if not res then
