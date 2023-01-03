@@ -26,7 +26,7 @@ type SolverEnvironment =
 let rec solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
     let res = UnifyTypes Flexible expectedTy ty
     if not res then
-        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy2) (printType env.benv ty2), 0, syntaxNode)
+        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
 
 let rec solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
     // REVIEW: We ignore solving if the type is an error.
