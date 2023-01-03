@@ -15,7 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Metadata\Oly.IR\Oly.Metadata.fsproj" />
     <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
   </ItemGroup>
 

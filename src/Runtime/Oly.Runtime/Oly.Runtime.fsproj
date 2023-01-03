@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Metadata\Oly.IR\Oly.Metadata.fsproj" />
+    <ProjectReference Include="..\..\Metadata\Oly.Metadata\Oly.Metadata.fsproj" />
   </ItemGroup>
 
 </Project>

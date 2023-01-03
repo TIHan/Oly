@@ -56,8 +56,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Metadata\Oly.Metadata\Oly.Metadata.fsproj" />
     <ProjectReference Include="..\Oly.Compiler.Syntax\Oly.Compiler.Syntax.fsproj" />
-    <ProjectReference Include="..\..\Metadata\Oly.IR\Oly.Metadata.fsproj" />
   </ItemGroup>
 
 </Project>
