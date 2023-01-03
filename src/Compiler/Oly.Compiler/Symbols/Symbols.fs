@@ -333,7 +333,10 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let argTys2 =
                 argTys
                 |> ImArray.map (fun x -> instTy x)
-            TypeSymbol.Function(argTys2, instTy returnTy)
+            if (argTys2.Length = 1 && argTys2[0].IsUnit_t) then
+                TypeSymbol.Function(ImArray.empty, instTy returnTy)
+            else
+                TypeSymbol.Function(argTys2, instTy returnTy)
 
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
