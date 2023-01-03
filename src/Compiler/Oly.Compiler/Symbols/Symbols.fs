@@ -354,10 +354,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             instTy innerTy
 
         | TypeSymbol.Tuple(variadicTyArgs, names) ->
-            if variadicTyArgs.Length = 1 && obj.ReferenceEquals(variadicTyArgs[0], FormalTupleTypeParameters[0].AsType) then
-                TypeSymbol.Tuple(tyArgs, names)
-            else
-                TypeSymbol.Tuple(variadicTyArgs |> ImArray.map instTy, names)
+            TypeSymbol.Tuple(variadicTyArgs |> ImArray.map instTy, names)
 
         | TypeSymbol.Entity(ent) ->
             let tyArgs = 
@@ -3003,8 +3000,10 @@ type TypeSymbol =
             OlyAssert.False(tyPars.IsEmpty)
 #endif
             tyPars.Length
-        | Function _ -> 2
-        | ByRef _ -> 1
+        | Function _
+        | NativeFunctionPtr _ -> 2
+        | ByRef _ 
+        | NativePtr _ -> 1
         | Array(_, 1, _) -> 1
         | Array _ -> 2
         | _ -> 0
@@ -4470,13 +4469,13 @@ module OtherExtensions =
     type IEntitySymbol with
 
         member this.TryIntrinsicType =
+            // TODO: Uncomment this.
+            //   OlyAssert.True(this.IsFormal)
             if this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic then
                 this.Attributes
                 |> ImArray.tryPick (fun x ->
                     match x.TryIntrinsicType with
                     | ValueSome x -> 
-                        // TODO: We need to apply types here.
-                        OlyAssert.True(x.IsFormal)
                         Some x
                     | _ -> 
                         None
@@ -4502,7 +4501,15 @@ module OtherExtensions =
             // TODO: Uncomment this.
             //OlyAssert.True(this.IsFormal)
             match stripTypeEquationsExceptAlias this with
-            | TypeSymbol.Entity(ent) -> ent.TryIntrinsicType
+            | TypeSymbol.Entity(ent) -> 
+                if ent.IsFormal then
+                    ent.TryIntrinsicType
+                else
+                    match ent.Formal.TryIntrinsicType with
+                    | Some formalIntrinTy ->
+                        Some(applyType formalIntrinTy ent.TypeArguments)
+                    | _ ->
+                        None
             | _ -> 
                 if this.IsBuiltIn then
                     Some(this)

@@ -694,6 +694,12 @@ let private importFunctionFlags (ilFuncFlags: OlyILFunctionFlags) =
         else
             funcFlags
 
+    let funcFlags =
+        if ilFuncFlags.HasFlag(OlyILFunctionFlags.ParameterLess) then
+            funcFlags ||| FunctionFlags.ParameterLess
+        else
+            funcFlags
+
     funcFlags
 
 let private importFieldFlags (ilFieldFlags: OlyILFieldFlags) =
@@ -1027,7 +1033,12 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILAssembly, imports: Impo
     let lazyInherits =
         lazy
             ilEntDef.Extends
-            |> ImArray.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
+            |> ImArray.map (fun ilTy ->
+                match ilTy with
+                | OlyILTypeVoid -> TypeSymbol.Void
+                | _ ->
+                    importTypeSymbol cenv lazyTyPars.Value ImArray.empty ilTy
+            )
 
     let lazyImplements =
         lazy
@@ -1177,7 +1188,8 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILAssembly, imports: Impo
 
         member _.Implements: TypeSymbol imarray = lazyImplements.Value
 
-        member _.Extends: TypeSymbol imarray = lazyInherits.Value
+        member this.Extends: TypeSymbol imarray = 
+            lazyInherits.Value
 
         member _.Kind: EntityKind = kind
 
