@@ -330,7 +330,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let argTys2 =
                 argTys
                 |> ImArray.map (fun x -> instTy x)
-            if (argTys2.Length = 1 && argTys2[0].IsUnit_t) then
+            if (ty.IsFormal && argTys2.Length = 1 && argTys2[0].IsUnit_t) then
                 TypeSymbol.Function(ImArray.empty, instTy returnTy)
             else
                 TypeSymbol.Function(argTys2, instTy returnTy)
@@ -339,7 +339,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let argTys2 =
                 argTys
                 |> ImArray.map (fun x -> instTy x)
-            if (argTys2.Length = 1 && argTys2[0].IsUnit_t) then
+            if (ty.IsFormal && argTys2.Length = 1 && argTys2[0].IsUnit_t) then
                 TypeSymbol.NativeFunctionPtr(ilCallConv, ImArray.empty, instTy returnTy)
             else
                 TypeSymbol.NativeFunctionPtr(ilCallConv, argTys2, instTy returnTy)
@@ -1261,17 +1261,13 @@ let stripTypeEquations (ty: TypeSymbol) =
 
 let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
-    if ty.IsBuiltIn then
-        match ty.Formal.TryIntrinsicType with
-        | Some intrinTy -> 
-            if ty.IsFormal then
-                intrinTy
-            else
-                actualType ty.TypeArguments intrinTy
-        | _ -> 
-
-            ty
-    else
+    match ty.Formal.TryIntrinsicType with
+    | Some intrinTy -> 
+        if ty.IsFormal then
+            intrinTy
+        else
+            actualType ty.TypeArguments intrinTy
+    | _ -> 
         ty
 
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
@@ -2762,6 +2758,14 @@ let private FormalTupleTypeParameters: TypeParameterSymbol imarray =
 let private FormalTupleType =
     TypeSymbol.Tuple(ImArray.createOne FormalTupleTypeParameters[0].AsType, ImArray.empty)
 
+let private FormalDependentIndexerTypeParameters =
+    let inputValueTyPar = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+    let innerTyPar = TypeParameterSymbol("N", 1, 0, TypeParameterKind.Type, ref ImArray.empty)
+    ImArray.createTwo inputValueTyPar innerTyPar
+
+let private FormalDependentIndexerType =
+    TypeSymbol.DependentIndexer(FormalDependentIndexerTypeParameters[0].AsType, FormalDependentIndexerTypeParameters[1].AsType)
+
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
 let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
 let private FormalReadByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.Read)
@@ -2901,6 +2905,7 @@ type TypeSymbol =
         | TypeSymbol.Array(_, 1, ArrayKind.Immutable) -> FormalArrayType
         | TypeSymbol.Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayType
         | TypeSymbol.Tuple _ -> FormalTupleType
+        | TypeSymbol.DependentIndexer _ -> FormalDependentIndexerType
         | _ -> this // TODO:
 
     member this.Name =
@@ -3057,7 +3062,7 @@ type TypeSymbol =
         | Tuple _ -> FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
-        | DependentIndexer _ -> ImArray.empty
+        | DependentIndexer _ -> FormalDependentIndexerTypeParameters
 
     member this.TypeArguments : TypeArgumentSymbol imarray =
         match stripTypeEquationsExceptAlias this with
@@ -3109,7 +3114,7 @@ type TypeSymbol =
         | Tuple(tyArgs, _) -> tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
-        | DependentIndexer _ -> ImArray.empty
+        | DependentIndexer(inputValueTy, innerTy) -> ImArray.createTwo inputValueTy innerTy
 
     member this.FormalId =
         match stripTypeEquationsExceptAlias this with
@@ -3555,6 +3560,8 @@ type TypeSymbol =
                 obj.ReferenceEquals(FormalArrayType, ty)
             | Array(_, 1, ArrayKind.Mutable) as ty ->
                 obj.ReferenceEquals(FormalMutableArrayType, ty)
+            | DependentIndexer _ as ty ->
+                obj.ReferenceEquals(FormalDependentIndexerType, ty)
             | _ -> false
 
     member this.TryFunction =
