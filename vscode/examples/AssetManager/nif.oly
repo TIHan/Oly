@@ -722,7 +722,7 @@ private ReadBSStreamHeader(reader: BinaryReader): BSStreamHeader =
     header
 
 private ReadArray<T>(reader: BinaryReader, count: int32, read: BinaryReader -> T): T[||] =
-    let arr = OlyPrelude.Array.ZeroCreate<T>(count)
+    let arr = ZeroCreate<T>(count)
 
     let mutable i = 0
     while (i < count)

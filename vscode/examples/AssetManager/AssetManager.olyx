@@ -1,8 +1,9 @@
 #target "dotnet: netstandard2.1"
+#library
 
-#load "../core/*.oly"
 #load "*.oly"
 
+#reference "../core/prelude.olyx"
 #package "K4os.Compression.LZ4.Streams,1.2.16"
 #package "SharpDX.XAudio2,4.2.0"
 

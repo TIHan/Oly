@@ -134,7 +134,7 @@ module Program =
         let mutable width = b17 * 256 + b16
 
         let ddsHeaderSize = 128
-        let dxtBytes = OlyPrelude.Array.ZeroCreate<byte>(int32(length) - ddsHeaderSize)
+        let dxtBytes = ZeroCreate<byte>(int32(length) - ddsHeaderSize)
 
         stream.Position <- int64(ddsHeaderSize)
         let ms = MemoryStream(dxtBytes)

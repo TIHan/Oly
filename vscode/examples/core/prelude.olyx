@@ -1,6 +1,8 @@
 #target "dotnet: netstandard2.1"
 #library
 
+#load "*.oly"
+
 #[open]
 module OlyPrelude
 
@@ -579,11 +581,6 @@ fromEnum<T>(T): uint64 where T: System.Enum
 #[intrinsic("get_tuple_element")]
 GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
 
-module Array =
-
-    #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): T[||]
-
 alloc(numberOfBytes: int32): uint8* =
     ToPtr(System.Runtime.InteropServices.Marshal.AllocHGlobal(numberOfBytes))
 
@@ -595,32 +592,3 @@ free(pBytes: uint8*): () =
 
 fail<TResult>(msg: string): TResult =
     throw System.Exception(msg)
-
-map<T, U>(arr: T[||], f: T -> U): U[||] =
-    let newArr = Array.ZeroCreate<U>(arr.Length)
-    let mutable i = 0
-    while (i < arr.Length)
-        newArr[i] <- f(arr[i])
-        i <- i + 1
-    newArr
-
-flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
-    let newArr = Array.ZeroCreate<U>(arr.Length * 3)
-    let mutable i = 0
-    let mutable j = 0
-    while (i < arr.Length)
-        let tup = f(arr[i])
-        newArr[j] <- GetTupleElement<0, _>(tup)
-        newArr[j + 1] <- GetTupleElement<1, _>(tup)
-        newArr[j + 2] <- GetTupleElement<2, _>(tup)
-        i <- i + 1
-        j <- j + 3
-    newArr
-
-#[open]
-extension ArrayExtensions<T> =
-    inherits T[||]
-
-    Length: int32 
-        #[inline]
-        get() = getLength(this)
