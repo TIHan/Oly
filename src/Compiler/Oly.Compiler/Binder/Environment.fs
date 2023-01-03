@@ -509,3 +509,11 @@ let typeResolutionArityOfName syntaxName =
             ResolutionTypeArity.Any
     | _ ->
         ResolutionTypeArity.Any
+
+let tryEvaluateLazyLiteral (diagnostics: OlyDiagnosticLogger) (lazyLiteral: Lazy<Result<BoundLiteral, OlyDiagnostic>>) : BoundLiteral voption =
+    match lazyLiteral.Value with
+    | Ok literal ->
+        ValueSome literal
+    | Error(diag) ->
+        diagnostics.AddDiagnostic(diag)
+        ValueNone

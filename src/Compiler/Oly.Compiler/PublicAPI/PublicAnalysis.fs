@@ -267,7 +267,7 @@ module Patterns =
                 Some(value)
             | BoundLiteral.NumberInference(lazyLiteral, _) ->
                 match lazyLiteral.Value with
-                | BoundLiteral.Constant(ConstantSymbol.Int32 value) ->
+                | Ok(BoundLiteral.Constant(ConstantSymbol.Int32 value)) ->
                     Some(value)
                 | _ ->
                     None

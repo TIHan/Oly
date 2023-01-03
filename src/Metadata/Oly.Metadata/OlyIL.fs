@@ -438,6 +438,8 @@ type OlyILFunctionDefinition =
     member this.IsConstructor =
         this.Flags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
 
+    static member NilHandle = OlyILTableIndex.CreateFunctionDefinition(-1)
+
 [<NoEquality;NoComparison>]
 type OlyILFunctionInstance =
     | OlyILFunctionInstance of enclosing: OlyILEnclosing * specHandle: OlyILFunctionSpecificationHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray

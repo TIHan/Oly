@@ -18,7 +18,9 @@ let private tryAttributeConstant cenv syntaxNode =
             match literal with
             | BoundLiteral.Constant(cns) -> Some cns
             | BoundLiteral.NumberInference(lazyLiteral, _) -> 
-                toConstant lazyLiteral.Value
+                match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+                | ValueSome literal -> toConstant literal
+                | _ -> None
             | BoundLiteral.DefaultInference _ ->
                 cenv.diagnostics.Error("'default' not supported yet for attributes.", 10, syntaxNode)
                 None

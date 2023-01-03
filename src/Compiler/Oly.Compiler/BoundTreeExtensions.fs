@@ -1113,7 +1113,9 @@ let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy
 let stripLiteral (literal: BoundLiteral) =
     match literal with
     | BoundLiteral.NumberInference(lazyLiteral, _) ->
-        stripLiteral lazyLiteral.Value
+        match lazyLiteral.Value with
+        | Ok(literal) -> stripLiteral literal
+        | _ -> literal
     | _ ->
         literal
 

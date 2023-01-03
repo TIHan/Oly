@@ -80,7 +80,7 @@ type BoundLiteral =
     | Constant of ConstantSymbol
     | NullInference of ty: TypeSymbol
     | DefaultInference of ty: TypeSymbol * isUnchecked: bool
-    | NumberInference of Lazy<BoundLiteral> * ty: TypeSymbol
+    | NumberInference of Lazy<Result<BoundLiteral, OlyDiagnostic>> * ty: TypeSymbol
     | ConstantEnum of ConstantSymbol * enumTy: TypeSymbol
     | Error
 
@@ -1272,7 +1272,11 @@ type BoundLiteral with
         match this with
         | BoundLiteral.Constant(cns) -> ValueSome cns
         | BoundLiteral.NumberInference(lazyLit, _) when lazyLit.IsValueCreated -> 
-            lazyLit.Value.TryGetConstant()
+            match lazyLit.Value with
+            | Ok(literal) ->
+                literal.TryGetConstant()
+            | _ ->
+                ValueNone
         | BoundLiteral.ConstantEnum(cns, _) ->
             ValueSome cns
         | _ ->

@@ -1086,15 +1086,52 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
 
     cenv.delayedEntityGenQueue.Enqueue(fun () ->         
 
-        // REVIEW: This is a special case for shape since we can have an anonymous shape type and we need to create a definition.
-        if ent.IsAnonymousShape then
+        let ilPropDefs =
             ent.Properties
-            |> ImArray.iter (fun prop ->
-                GenAutoOrSignatureProperty cenv env prop
+            |> ImArray.map (fun prop ->
+                // REVIEW: This is a special case for shape since we can have an anonymous shape type and we need to create a definition.
+          //      if ent.IsAnonymousShape then
+           //         GenAutoOrSignatureProperty cenv env prop
+             //   else
+                    let ilAttrs = GenAttributes cenv env prop.Attributes
+                    let ilName = GenString cenv prop.Name
+                    let ilTy = emitILType cenv env prop.Type
+                    let ilGetterOpt =
+                        prop.Getter
+                        |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
+                        |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
+                    let ilSetterOpt =
+                        prop.Setter
+                        |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
+                        |> Option.defaultValue (OlyILFunctionDefinition.NilHandle)
+                    OlyILPropertyDefinition(
+                        ilAttrs,
+                        ilName,
+                        ilTy,
+                        ilGetterOpt,
+                        ilSetterOpt
+                    )
+                    |> cenv.assembly.AddPropertyDefinition
             )
 
-        let ilPropDefs = ImArray.empty // TODO:
-        let ilPatDefs = ImArray.empty // TODO:
+        let ilPatDefs =
+            ent.Patterns
+            |> ImArray.map (fun pat ->
+                let ilAttrs = GenAttributes cenv env pat.Attributes
+                let ilName = GenString cenv pat.Name
+                let ilPatFuncDefHandle = GenFunctionAsILFunctionDefinition cenv env pat.PatternFunction
+                let ilPatGuardFuncDefHandleOpt =
+                    pat.PatternGuardFunction
+                    |> Option.map (GenFunctionAsILFunctionDefinition cenv env)
+                    |> Option.defaultValue OlyILFunctionDefinition.NilHandle
+                OlyILPatternDefinition(
+                    ilAttrs,
+                    ilName,
+                    ilPatFuncDefHandle,
+                    ilPatGuardFuncDefHandleOpt
+                )
+                |> cenv.assembly.AddPatternDefinition
+            )
         
         let ilFuncDefs =          
             let ilFuncDefs =
@@ -1188,7 +1225,9 @@ and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
     | BoundLiteral.NullInference ty ->
         OlyILValue.Null(emitILType cenv env ty)
     | BoundLiteral.NumberInference(lazyValue, _) ->
-        GenValueLiteral cenv env lazyValue.Value
+        match lazyValue.Value with
+        | Ok(literal) -> GenValueLiteral cenv env literal
+        | _ -> OlyAssert.Fail("Internal ILGen Error: Unexpected error for a lazy literal.")
     | BoundLiteral.DefaultInference(ty, _) ->
         OlyILValue.Default(emitILType cenv env ty)
     | BoundLiteral.ConstantEnum(constant, enumTy) ->

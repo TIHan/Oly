@@ -146,7 +146,11 @@ let dumpLiteral (literal: BoundLiteral) =
     | BoundLiteral.ConstantEnum(constant, enumTy) ->
         dumpConstantSymbol constant + ": " + dumpTypeSymbol enumTy
     | BoundLiteral.NumberInference(lazyLiteral, _) ->
-        dumpLiteral lazyLiteral.Value
+        match lazyLiteral.Value with
+        | Ok literal ->
+            dumpLiteral literal
+        | _ ->
+            "?invalid literal?"
     | BoundLiteral.DefaultInference(ty, _) ->
         dumpTypeSymbol ty
     | _ ->

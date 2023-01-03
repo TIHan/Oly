@@ -360,11 +360,8 @@ and analyzeMatchPattern cenv env (matchPat: BoundMatchPattern) =
 and analyzeLiteral cenv env (syntaxNode: OlySyntaxNode) (literal: BoundLiteral) =
     match literal with
     | BoundLiteral.NumberInference(lazyLiteral, _) -> 
-        try
-            lazyLiteral.Force() |> ignore
-        with
-        | _ ->
-            cenv.diagnostics.Error("Invalid literal.", 10, syntaxNode)
+        tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral
+        |> ignore
     | BoundLiteral.NullInference(ty) ->
         if not ty.IsNullable && ty.IsSolved then
             cenv.diagnostics.Error($"'null' is not allowed for '{printType env.benv ty}'.", 10, syntaxNode)

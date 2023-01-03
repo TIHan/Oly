@@ -81,13 +81,17 @@ let substituteLiteral(tyParLookup: ReadOnlyDictionary<int64, TypeSymbol>, litera
         BoundLiteral.ConstantEnum(newConstant, newEnumTy)
 
     | BoundLiteral.NumberInference(lazyLiteral, ty) ->
-        let newLiteral = substituteLiteral(tyParLookup, lazyLiteral.Value)
-        let newTy = ty.Substitute(tyParLookup)
+        match lazyLiteral.Value with
+        | Ok(literal) ->
+            let newLiteral = substituteLiteral(tyParLookup, literal)
+            let newTy = ty.Substitute(tyParLookup)
 
-        if newLiteral = literal && areTypesEqual newTy ty then
+            if newLiteral = literal && areTypesEqual newTy ty then
+                literal
+            else
+                BoundLiteral.NumberInference(Lazy.CreateFromValue(Ok(newLiteral)), newTy)
+        | _ ->
             literal
-        else
-            BoundLiteral.NumberInference(Lazy.CreateFromValue(newLiteral), newTy)
 
     | _ ->
         literal          

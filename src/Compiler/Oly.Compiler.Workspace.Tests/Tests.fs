@@ -684,3 +684,44 @@ main(): () =
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
+
+
+[<Fact>]
+let ``Project reference another project 4``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+class TestClass =
+
+    get X: __oly_int32 = 123
+    
+#[intrinsic("print")]
+print(__oly_object): ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+main(): () =
+    let x = TestClass()
+    print(x.X)
+        """
+
+    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)

@@ -298,7 +298,12 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
             match internalLiteral with
             | BoundLiteral.Constant(cns) -> constantToConstant cns
             | BoundLiteral.NullInference _ -> OlyConstant.Null
-            | BoundLiteral.NumberInference(lazyInternalLiteral, _) when lazyInternalLiteral.IsValueCreated -> OlyConstantSymbol(boundModel, benv, location, lazyInternalLiteral.Value).Value
+            | BoundLiteral.NumberInference(lazyInternalLiteral, _) when lazyInternalLiteral.IsValueCreated -> 
+                match lazyInternalLiteral.Value with
+                | Ok(literal) ->
+                    OlyConstantSymbol(boundModel, benv, location, literal).Value
+                | _ ->
+                    OlyConstant.Error
             | BoundLiteral.DefaultInference _ -> OlyConstant.Default
             | BoundLiteral.ConstantEnum(constant, _) ->
                 constantToConstant constant

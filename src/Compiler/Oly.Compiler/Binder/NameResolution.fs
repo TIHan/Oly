@@ -232,15 +232,19 @@ let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironm
         match literal with
         | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsFixedInteger ->
             handleConstantSymbol constantSymbol
-        | BoundLiteral.NumberInference(lazyLiteral, ty) ->
+        | BoundLiteral.NumberInference(lazyLiteral, ty) when lazyLiteral.IsValueCreated ->
             let expectedTy =
                 match expectedTyOpt with
                 | Some expectedTy -> expectedTy
                 | _ -> TypeSymbol.Int32
             checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr.Syntax expectedTy ty
-            match lazyLiteral.Value.TryGetConstant() with
-            | ValueSome constantSymbol when constantSymbol.Type.IsFixedInteger ->
-                handleConstantSymbol constantSymbol
+            match lazyLiteral.Value with
+            | Ok(literal) ->
+                match literal.TryGetConstant() with
+                | ValueSome constantSymbol when constantSymbol.Type.IsFixedInteger ->
+                    handleConstantSymbol constantSymbol
+                | _ ->
+                    ValueNone
             | _ ->
                 ValueNone
         | _ ->
@@ -1330,7 +1334,10 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     let constExpr = bindConstantExpression cenv env None syntaxConstExpr
                     let literalOpt =
                         match constExpr with
-                        | BoundExpression.Literal(_, BoundLiteral.NumberInference(lazyLiteral, _)) -> lazyLiteral.Value |> Some
+                        | BoundExpression.Literal(_, BoundLiteral.NumberInference(lazyLiteral, _)) ->
+                            match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+                            | ValueSome literal -> Some literal
+                            | _ -> None
                         | BoundExpression.Literal(_, literal) -> literal |> Some
                         | _ -> None
                     match literalOpt with
@@ -1418,9 +1425,14 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                 TypeSymbol.ConstantInt32(value)
             | BoundLiteral.NumberInference(lazyLiteral, literalTy) ->
                 checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral TypeSymbol.Int32 literalTy
-                match lazyLiteral.Value with
-                | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
-                    TypeSymbol.ConstantInt32(value)
+                match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+                | ValueSome literal ->
+                    match literal with
+                    | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
+                        TypeSymbol.ConstantInt32(value)
+                    | _ ->
+                        cenv.diagnostics.Error("Invalid type literal.", 10, syntaxLiteral)
+                        TypeSymbol.Error None
                 | _ ->
                     TypeSymbol.Error None
             | _ ->
@@ -2329,47 +2341,73 @@ let rec bindLiteralAux (cenv: cenv) (_env: BinderEnvironment) (syntaxLiteral: Ol
         let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Int32, valueText)
         let lazyValue =
             lazy
-                let cleanedText = cleanNumericText syntaxToken.ValueText
+                try
+                    let cleanedText = cleanNumericText syntaxToken.ValueText
 
-                let fromBase, cleanedText =
-                    if cleanedText.Contains("b") then
-                        2, cleanedText.Replace("b", "")
-                    elif cleanedText.Contains("x") then
-                        16, cleanedText.Replace("x", "")
-                    else
-                        10, cleanedText
-                match stripTypeEquations ty with
-                | TypeSymbol.Int8 ->
-                    BoundLiteral.Constant(ConstantSymbol.Int8(Convert.ToSByte(cleanedText, fromBase)))
-                | TypeSymbol.UInt8 ->
-                    BoundLiteral.Constant(ConstantSymbol.UInt8(Convert.ToByte(cleanedText, fromBase)))
-                | TypeSymbol.Int16 ->
-                    BoundLiteral.Constant(ConstantSymbol.Int16(Convert.ToInt16(cleanedText, fromBase)))
-                | TypeSymbol.UInt16 ->
-                    BoundLiteral.Constant(ConstantSymbol.UInt16(Convert.ToUInt16(cleanedText, fromBase)))
-                | TypeSymbol.UInt32 ->
-                    BoundLiteral.Constant(ConstantSymbol.UInt32(Convert.ToUInt32(cleanedText, fromBase)))
-                | TypeSymbol.Int64 ->
-                    BoundLiteral.Constant(ConstantSymbol.Int64(Convert.ToInt64(cleanedText, fromBase)))
-                | TypeSymbol.UInt64 ->
-                    BoundLiteral.Constant(ConstantSymbol.UInt64(Convert.ToUInt64(cleanedText, fromBase)))
-                | TypeSymbol.Float32 ->
-                    BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanedText)))
-                | TypeSymbol.Float64 ->
-                    BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanedText)))
-                | _ ->
-                    BoundLiteral.Constant(ConstantSymbol.Int32(Convert.ToInt32(cleanedText, fromBase)))
+                    let fromBase, cleanedText =
+                        if cleanedText.Contains("b") then
+                            2, cleanedText.Replace("b", "")
+                        elif cleanedText.Contains("x") then
+                            16, cleanedText.Replace("x", "")
+                        else
+                            10, cleanedText
+
+                    let literal =
+                        match stripTypeEquations ty with
+                        | TypeSymbol.Int8 ->
+                            BoundLiteral.Constant(ConstantSymbol.Int8(Convert.ToSByte(cleanedText, fromBase)))
+                        | TypeSymbol.UInt8 ->
+                            BoundLiteral.Constant(ConstantSymbol.UInt8(Convert.ToByte(cleanedText, fromBase)))
+                        | TypeSymbol.Int16 ->
+                            BoundLiteral.Constant(ConstantSymbol.Int16(Convert.ToInt16(cleanedText, fromBase)))
+                        | TypeSymbol.UInt16 ->
+                            BoundLiteral.Constant(ConstantSymbol.UInt16(Convert.ToUInt16(cleanedText, fromBase)))
+                        | TypeSymbol.UInt32 ->
+                            BoundLiteral.Constant(ConstantSymbol.UInt32(Convert.ToUInt32(cleanedText, fromBase)))
+                        | TypeSymbol.Int64 ->
+                            BoundLiteral.Constant(ConstantSymbol.Int64(Convert.ToInt64(cleanedText, fromBase)))
+                        | TypeSymbol.UInt64 ->
+                            BoundLiteral.Constant(ConstantSymbol.UInt64(Convert.ToUInt64(cleanedText, fromBase)))
+                        | TypeSymbol.Float32 ->
+                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanedText)))
+                        | TypeSymbol.Float64 ->
+                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanedText)))
+                        | _ ->
+                            BoundLiteral.Constant(ConstantSymbol.Int32(Convert.ToInt32(cleanedText, fromBase)))
+
+                    Ok(literal)
+                with
+                | ex ->
+                    let diag = 
+                        OlyDiagnostic.CreateError(
+                            $"Invalid numeric literal: {ex.Message}",
+                            10,
+                            syntaxToken
+                        )
+                    Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
     | OlySyntaxLiteral.Real(syntaxToken) ->
         let valueText = cleanNumericText syntaxToken.ValueText
         let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Float64, cleanNumericText valueText)
         let lazyValue =
             lazy
-                match stripTypeEquations ty with
-                | TypeSymbol.Float32 ->
-                    BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText)))
-                | _ ->
-                    BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText)))
+                try
+                    let literal =
+                        match stripTypeEquations ty with
+                        | TypeSymbol.Float32 ->
+                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText)))
+                        | _ ->
+                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText)))
+                    Ok(literal)
+                with
+                | ex ->
+                    let diag = 
+                        OlyDiagnostic.CreateError(
+                            $"Invalid numeric literal: {ex.Message}",
+                            10,
+                            syntaxToken
+                        )
+                    Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
 
     | _ ->
