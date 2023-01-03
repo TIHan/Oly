@@ -1419,6 +1419,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
             match bindingInfo with
             | BindingProperty(_, prop) ->
                 GenAutoOrSignatureProperty cenv env prop
+                |> ignore
                 OlyILExpression.None
             | _ ->
                 OlyAssert.Fail("Expected binding property.")
