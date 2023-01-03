@@ -1776,7 +1776,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             match value with
             | :? IFunctionSymbol as func ->
                 match func.TryWellKnownFunction with
-                | ValueSome funcIntrin when not func.IsImported ->
+                | ValueSome funcIntrin when 
+                        not func.IsImported && 
+                        (match funcIntrin with WellKnownFunction.Constant -> false | _ -> true) ->
                     match funcIntrin with
                     | WellKnownFunction.Print ->
                         OlyILOperation.Print(ilArgExprs.[0])
