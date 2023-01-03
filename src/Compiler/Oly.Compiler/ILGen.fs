@@ -808,95 +808,116 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 and GenAutoOrSignatureProperty cenv env (prop: IPropertySymbol) =
     OlyAssert.True(prop.IsFormal)
 
-    if prop.IsField then
-        match prop.Getter with
-        | Some getter ->
-            let pars = getter.Parameters
+    let ilGetterOpt, ilSetterOpt =
+        if prop.IsField then
 
-            let bodyExpr =
-                E.CreateSequential(cenv.syntaxTree,
-                    [
-                        E.GetField(
-                            BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                            E.Value(
-                                BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                pars.[0] (* wrong - does not handle static *)
-                            ), 
-                            None,
-                            prop :?> IFieldSymbol
+            let ilGetterOpt =
+                match prop.Getter with
+                | Some getter ->
+                    let pars = getter.Parameters
+
+                    let bodyExpr =
+                        E.CreateSequential(cenv.syntaxTree,
+                            [
+                                E.GetField(
+                                    BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                                    E.Value(
+                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
+                                        pars.[0] (* wrong - does not handle static *)
+                                    ), 
+                                    None,
+                                    prop :?> IFieldSymbol
+                                )
+                            ]
                         )
-                    ]
-                )
-            let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
-            let rhsExpr = 
-                E.Lambda(
-                    BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                    LambdaFlags.None,
-                    ImArray.empty, 
-                    pars, 
-                    LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
-                    rhsExprTy, 
-                    ref ValueNone, 
-                    ref ValueNone
-                )
-            rhsExprTy.Expression <- rhsExpr
-            GenFunctionDefinitionExpression cenv env getter rhsExpr
-        | _ ->
-            ()
-
-        match prop.Setter with
-        | Some setter ->
-            let pars = setter.Parameters
-
-            let bodyExpr =
-                E.CreateSequential(cenv.syntaxTree,
-                    [
-                        E.SetField(
+                    let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
+                    let rhsExpr = 
+                        E.Lambda(
                             BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                            E.Value(
-                                BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                pars.[0] (* wrong - does not handle static *)
-                            ), 
-                            None,
-                            prop :?> IFieldSymbol,
-                            E.Value(
-                                BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                pars.[1] (* wrong - does not handle static *)
-                            )
+                            LambdaFlags.None,
+                            ImArray.empty, 
+                            pars, 
+                            LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
+                            rhsExprTy, 
+                            ref ValueNone, 
+                            ref ValueNone
                         )
-                    ]
-                )
-            let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
-            let rhsExpr = 
-                E.Lambda(
-                    BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                    LambdaFlags.None,
-                    ImArray.empty, 
-                    pars, 
-                    LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
-                    rhsExprTy, 
-                    ref ValueNone, 
-                    ref ValueNone
-                )
-            rhsExprTy.Expression <- rhsExpr
-            GenFunctionDefinitionExpression cenv env setter rhsExpr
-        | _ ->
-            ()
-    else
-        match prop.Getter with
-        | Some getter ->
-            GenFunctionAsILFunctionDefinition cenv env getter
-            |> ignore
-        | _ ->
-            ()
+                    rhsExprTy.Expression <- rhsExpr
+                    GenFunctionDefinitionExpression cenv env getter rhsExpr
+                    GenFunctionAsILFunctionDefinition cenv env getter
+                | _ ->
+                    OlyILFunctionDefinition.NilHandle
 
-        match prop.Setter with
-        | Some setter ->
-            GenFunctionAsILFunctionDefinition cenv env setter
-            |> ignore
-        | _ ->
-            ()
+            let ilSetterOpt =
+                match prop.Setter with
+                | Some setter ->
+                    let pars = setter.Parameters
 
+                    let bodyExpr =
+                        E.CreateSequential(cenv.syntaxTree,
+                            [
+                                E.SetField(
+                                    BoundSyntaxInfo.Generated(cenv.syntaxTree), 
+                                    E.Value(
+                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
+                                        pars.[0] (* wrong - does not handle static *)
+                                    ), 
+                                    None,
+                                    prop :?> IFieldSymbol,
+                                    E.Value(
+                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
+                                        pars.[1] (* wrong - does not handle static *)
+                                    )
+                                )
+                            ]
+                        )
+                    let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
+                    let rhsExpr = 
+                        E.Lambda(
+                            BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                            LambdaFlags.None,
+                            ImArray.empty, 
+                            pars, 
+                            LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
+                            rhsExprTy, 
+                            ref ValueNone, 
+                            ref ValueNone
+                        )
+                    rhsExprTy.Expression <- rhsExpr
+                    GenFunctionDefinitionExpression cenv env setter rhsExpr
+                    GenFunctionAsILFunctionDefinition cenv env setter
+                | _ ->
+                    OlyILFunctionDefinition.NilHandle
+
+            ilGetterOpt, ilSetterOpt
+        else
+            let ilGetterOpt =
+                match prop.Getter with
+                | Some getter ->
+                    GenFunctionAsILFunctionDefinition cenv env getter
+                | _ ->
+                    OlyILFunctionDefinition.NilHandle
+
+            let ilSetterOpt =
+                match prop.Setter with
+                | Some setter ->
+                    GenFunctionAsILFunctionDefinition cenv env setter
+                | _ ->
+                    OlyILFunctionDefinition.NilHandle
+
+            ilGetterOpt, ilSetterOpt
+
+    let ilAttrs = GenAttributes cenv env prop.Attributes
+    let ilName = GenString cenv prop.Name
+    let ilTy = emitILType cenv env prop.Type
+    OlyILPropertyDefinition(
+        ilAttrs,
+        ilName,
+        ilTy,
+        ilGetterOpt,
+        ilSetterOpt
+    )
+    |> cenv.assembly.AddPropertyDefinition
 
 and GenConstant cenv env (constant: ConstantSymbol) =
     match constant with
@@ -1090,9 +1111,9 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
             ent.Properties
             |> ImArray.map (fun prop ->
                 // REVIEW: This is a special case for shape since we can have an anonymous shape type and we need to create a definition.
-          //      if ent.IsAnonymousShape then
-           //         GenAutoOrSignatureProperty cenv env prop
-             //   else
+                if ent.IsAnonymousShape then
+                    GenAutoOrSignatureProperty cenv env prop
+                else
                     let ilAttrs = GenAttributes cenv env prop.Attributes
                     let ilName = GenString cenv prop.Name
                     let ilTy = emitILType cenv env prop.Type

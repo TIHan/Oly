@@ -374,7 +374,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
                 | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, syntaxExpr) ->
                     requireAllCasesAConstant <- true
                     let constantExpr = bindConstantExpression cenv env extendsTyOpt syntaxExpr
-                    match tryEvaluateFixedIntegralConstantExpression cenv env extendsTyOpt constantExpr with
+                    match tryEvaluateFixedIntegralConstantExpression cenv env constantExpr with
                     | ValueSome(_value, constantSymbol) ->
                         let field = createFieldConstant enclosing ImArray.empty syntaxIdent.ValueText ty MemberFlags.Public constantSymbol
                         recordValueDeclaration cenv field syntaxIdent

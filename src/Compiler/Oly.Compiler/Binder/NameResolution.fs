@@ -186,7 +186,7 @@ let private createWitnessArguments (cenv: cenv) (env: BinderEnvironment) syntaxN
 let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxExpr: OlySyntaxExpression) =
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
-        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env syntaxLiteral)
+        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
         match expectedTyOpt with
         | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
         | _ -> ()
@@ -212,7 +212,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
         cenv.diagnostics.Error("Not a valid constant expression.", 10, syntaxExpr)
         BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
 
-let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: BoundExpression) : (int64 * ConstantSymbol) voption =
+let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironment) (expr: BoundExpression) : (int64 * ConstantSymbol) voption =
     let handleConstantSymbol constantSymbol =
         match constantSymbol with
         | ConstantSymbol.UInt8(value) -> (int64 value, constantSymbol) |> ValueSome
@@ -226,27 +226,10 @@ let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironm
         | _ -> ValueNone
 
     match expr with
-    | BoundExpression.Typed(_, innerExpr, ty) ->
-        tryEvaluateFixedIntegralConstantExpression cenv env (Some ty) innerExpr
     | BoundExpression.Literal(_, literal) ->
         match literal with
         | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsFixedInteger ->
             handleConstantSymbol constantSymbol
-        | BoundLiteral.NumberInference(lazyLiteral, ty) when lazyLiteral.IsValueCreated ->
-            let expectedTy =
-                match expectedTyOpt with
-                | Some expectedTy -> expectedTy
-                | _ -> TypeSymbol.Int32
-            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr.Syntax expectedTy ty
-            match lazyLiteral.Value with
-            | Ok(literal) ->
-                match literal.TryGetConstant() with
-                | ValueSome constantSymbol when constantSymbol.Type.IsFixedInteger ->
-                    handleConstantSymbol constantSymbol
-                | _ ->
-                    ValueNone
-            | _ ->
-                ValueNone
         | _ ->
             ValueNone
     | _ ->
@@ -1420,7 +1403,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                 TypeSymbol.Error None
 
         | OlySyntaxType.Literal(syntaxLiteral) ->
-            match bindLiteral cenv env syntaxLiteral with
+            match bindLiteral cenv env None syntaxLiteral with
             | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
                 TypeSymbol.ConstantInt32(value)
             | BoundLiteral.NumberInference(lazyLiteral, literalTy) ->
@@ -2282,7 +2265,7 @@ let rec private unescapeTextAux cenv syntaxNode syntaxOffset (s: ReadOnlySpan<ch
         | c ->
             unescapeTextAux cenv syntaxNode (syntaxOffset + 1) (s.Slice(1)) (builder.Append(c))
 
-let rec bindLiteralAux (cenv: cenv) (_env: BinderEnvironment) (syntaxLiteral: OlySyntaxLiteral) =
+let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     let cleanNumericText (text: string) =
         if text.StartsWith("0x") then
             text.Replace("_", String.Empty)
@@ -2413,15 +2396,14 @@ let rec bindLiteralAux (cenv: cenv) (_env: BinderEnvironment) (syntaxLiteral: Ol
     | _ ->
         raise(InternalCompilerException())
 
-let bindLiteral cenv env syntaxLiteral =
-    try
-        bindLiteralAux cenv env syntaxLiteral
-    with
-    | :? InternalCompilerException ->
-        reraise()
+let bindLiteral cenv env expectedTyOpt syntaxLiteral =
+    let literal = bindLiteralAux cenv syntaxLiteral
+    match expectedTyOpt with
+    | Some(expectedTy) ->
+        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral expectedTy literal.Type
+        stripLiteral literal
     | _ ->
-        cenv.diagnostics.Error("Invalid literal.", 10, syntaxLiteral)
-        BoundLiteral.Error
+        literal
 
 let bindExtends (cenv: cenv) (env: BinderEnvironment) (syntaxExtends: OlySyntaxExtends) =
     match syntaxExtends with

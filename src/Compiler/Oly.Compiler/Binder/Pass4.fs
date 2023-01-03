@@ -69,8 +69,7 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
         env, BoundCasePattern.Discard(syntaxPattern)
     
     | OlySyntaxPattern.Literal(syntaxLiteral) ->
-        let literal = bindLiteral cenv env syntaxLiteral
-        checkTypes solverEnv syntaxPattern matchTy literal.Type
+        let literal = bindLiteral cenv env (Some matchTy) syntaxLiteral
         env, BoundCasePattern.Literal(syntaxPattern, env.benv, literal)
 
     | OlySyntaxPattern.Name(syntaxName) ->
@@ -1655,8 +1654,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Literal syntaxLiteral ->
-        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env syntaxLiteral)
-        env, checkExpression cenv env expectedTyOpt expr
+        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
+        env, expr
 
     | OlySyntaxExpression.MemberAccess(syntaxReceiver, _, syntaxMemberExpr) ->
         let expr =

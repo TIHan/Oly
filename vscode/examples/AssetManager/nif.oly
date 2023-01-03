@@ -285,7 +285,7 @@ private enum NifVertexAttribute =
 
 private enum BSVertexDesc =
     inherits uint64
-  
+
     | VertexDataSize            = 0xF
     | DynamicVertexSize         = 0xF0
     | UV1Offset                 = 0xF00
