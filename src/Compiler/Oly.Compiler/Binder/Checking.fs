@@ -229,6 +229,8 @@ let private filterByRefReturnTypes (argExprs: BoundExpression imarray) (funcs: I
                     true
                 else
                     false
+            | FromAddress(expr) ->
+                areTypesEqual expr.Type.Formal x.ReturnType.Formal
             | BoundExpression.Call(value=value) ->
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) ->

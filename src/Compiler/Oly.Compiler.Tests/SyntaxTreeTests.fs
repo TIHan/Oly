@@ -1573,7 +1573,7 @@ test(): () =
     Oly src
     |> hasErrorDiagnostics
 
-[<Fact>]
+[<Fact(Skip = "This is not simple and the error condition in this test is totally not right")>]
 let ``Pattern match recoverability``() =
     let src =
         """

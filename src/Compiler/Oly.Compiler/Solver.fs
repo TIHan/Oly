@@ -1,4 +1,4 @@
-﻿module internal Oly.Compiler.Internal.Solver
+﻿module internal rec Oly.Compiler.Internal.Solver
 
 open Oly.Core
 open System.Collections.Immutable
@@ -94,7 +94,7 @@ and solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys
         else
             funcs |> Seq.head
 
-let solveShape env syntaxNode (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) ty =
+let solveShape env syntaxNode (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (tyPar: TypeParameterSymbol) ty =
     OlyAssert.True(targetShape.IsShape)
 
     let shapeMembers = 
@@ -110,10 +110,32 @@ let solveShape env syntaxNode (witnessArgs: WitnessSolution imarray) (targetShap
     if isValid then
         shapeMembers
         |> ImArray.iter (fun (abstractFunc, funcs) ->
-            let freshAbstractFunc = freshenValue env.benv abstractFunc :?> IFunctionSymbol
             let func = funcs[0]
+            let freshFunc = freshenValue env.benv func :?> IFunctionSymbol
 
-            match freshAbstractFunc.Type.TryFunction, func.Type.TryFunction with
+            let funcTyArgs =
+                (freshFunc.TypeParameters, freshFunc.TypeArguments)
+                ||> ImArray.mapi2 (fun i tyPar2 tyArg ->
+                    match tyPar.Kind, tyPar2.Kind with
+                    | TypeParameterKind.Function(index1), TypeParameterKind.Function(index2) when index1 = index2 ->
+                        solveTypes env syntaxNode tyArg (mkSolvedInferenceVariableType tyPar2 ty)
+                        tyArg
+                    | _ ->
+                        tyArg
+                )
+
+            let innerWitnessArgs =
+                freshFunc.TypeParameters
+                |> ImArray.map (fun tyPar ->
+                    freshWitnessesWithTypeArguments () funcTyArgs tyPar
+                )
+                |> ImArray.concat
+
+            solveConstraints env syntaxNode None funcTyArgs innerWitnessArgs
+
+            let freshAbstractFunc = freshenValue env.benv abstractFunc :?> IFunctionSymbol
+
+            match freshAbstractFunc.Type.TryFunction, freshFunc.Type.TryFunction with
             | ValueSome(argTys1, returnTy1), ValueSome(argTys2, returnTy2) ->
                 let isInstance = freshAbstractFunc.IsInstance
                 (argTys1, argTys2)
@@ -133,9 +155,9 @@ let solveShape env syntaxNode (witnessArgs: WitnessSolution imarray) (targetShap
                 if not witnessArg.HasSolution then
                     match witnessArg.Function with
                     | Some func2 ->
-                        if areValueSignaturesEqual func2.Formal abstractFunc.Formal then
-                            if func.Enclosing.IsTypeExtension then
-                                witnessArg.Solution <- WitnessSymbol.TypeExtension(func.Enclosing.TryEntity.Value, Some abstractFunc) |> Some
+                        if areValueSignaturesEqual func2.Formal freshAbstractFunc.Formal then
+                            if freshFunc.Enclosing.IsTypeExtension then
+                                witnessArg.Solution <- WitnessSymbol.TypeExtension(freshFunc.Enclosing.TryEntity.Value, Some freshAbstractFunc) |> Some
                             else
                                 witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
                     | _ ->
@@ -153,7 +175,7 @@ let solveShape env syntaxNode (witnessArgs: WitnessSolution imarray) (targetShap
                     env.diagnostics.Error($"'{printValueName abstractFunc}' has ambiguous functions.", 10, syntaxNode)                     
             )
 
-let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) =
+let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) : bool =
     let possibleConstrs =
         tyPar.Constraints
         |> Seq.choose (fun constr ->
@@ -217,7 +239,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (witnessArgs: Witne
 
     let solveSubsumption () =
         if target.IsShape then
-            solveShape env syntaxNode witnessArgs target ty
+            solveShape env syntaxNode witnessArgs target tyPar ty
             true // Error recovery // TODO: We should make better error messages for constraints
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then

@@ -13555,3 +13555,116 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "1123"
     |> ignore
+
+[<Fact>]
+let ``Multiple type parameters on extension with shape constraint should compile``() =
+    let src =
+        """
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+struct Vector3 =
+
+    mutable X: float32 = 0
+    mutable Y: float32 = 0
+    mutable Z: float32 = 0
+
+    static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
+        let mutable v3 = Vector3()
+        v3.X <- v1.X + v2.X
+        v3.Y <- v1.Y + v2.Y
+        v3.Z <- v1.Z + v2.Z
+        v3
+
+#[open]
+extension AddExtension =
+    inherits Vector3
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+
+main(): () =
+    let mutable v = Vector3()
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result: Vector3 = v + v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "246"
+    |> ignore
+
+
+[<Fact>]
+let ``Multiple type parameters on extension with shape constraint should compile 2``() =
+    let src =
+        """
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+struct Vector3 =
+
+    mutable X: float32 = 0
+    mutable Y: float32 = 0
+    mutable Z: float32 = 0
+
+    static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
+        let mutable v3 = Vector3()
+        v3.X <- v1.X + v2.X
+        v3.Y <- v1.Y + v2.Y
+        v3.Z <- v1.Z + v2.Z
+        v3
+
+#[open]
+extension AddExtension =
+    inherits object
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+
+main(): () =
+    let mutable v = Vector3()
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result: Vector3 = v + v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "246"
+    |> ignore

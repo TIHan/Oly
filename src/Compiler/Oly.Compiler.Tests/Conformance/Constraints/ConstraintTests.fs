@@ -1202,3 +1202,4 @@ class Test<T<_>> where T<_>: ITest =
             )
         ]
     |> ignore
+

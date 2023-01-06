@@ -1110,13 +1110,14 @@ type TypeSymbol with
                 }
 
         member this.AllLogicalInheritsAndImplements: _ imarray =
-            match this.TryEntity with
+            let ty = stripTypeEquationsAndBuiltIn this
+            match ty.TryEntity with
             | ValueSome ent -> ent.AllLogicalInheritsAndImplements
             | _ ->
                 let result =
-                    this.ImplicitBaseTypes
+                    ty.ImplicitBaseTypes
                     |> ImArray.ofSeq
-                match this.TryTypeParameter with
+                match ty.TryTypeParameter with
                 | ValueSome tyPar ->
                     tyPar.Constraints
                     |> Seq.choose (function

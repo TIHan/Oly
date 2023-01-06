@@ -122,6 +122,7 @@ let dotnetTarget = DotNetTarget()
 let targetName = "net7"
 let targetInfo = OlyTargetInfo(targetName, OlyOutputKind.Library)
 let projectPath = OlyPath.Create "olytest"
+let projectPath2 = OlyPath.Create "olytest2"
 let dotnetReferences =
     dotnetTarget.ResolveReferencesAsync(projectPath, targetInfo, ImArray.empty, ImArray.empty, System.Threading.CancellationToken.None).Result.Paths
     |> ImArray.map (fun x -> 
@@ -139,10 +140,29 @@ let lazyInfo =
         let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
         let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
         sol, proj, doc
+let lazyInfo2 =
+    lazy
+        let config = OlyProjectConfiguration("olytest2", ImArray.empty, false)
+        let sol, _ = workspace.Solution.CreateProject(projectPath2, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Library), System.Threading.CancellationToken.None)
+        let sol, proj = sol.UpdateReferences(projectPath2, dotnetReferences, System.Threading.CancellationToken.None)
+        let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest2", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
+        let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest2", syntaxTree, ImArray.empty)
+        sol, proj, doc
 let getProject src =
     let sol, proj, doc = lazyInfo.Value
     let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
     let _, proj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
+    proj
+
+let getProjectWithReferenceProject refSrc src =
+    let sol, proj, doc = lazyInfo2.Value
+    let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest2", (fun _ -> OlySourceText.Create(refSrc)), parsingOptions = OlyParsingOptions.Default)
+    let sol, refProj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
+
+    let sol, proj, doc = lazyInfo.Value
+    let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
+    let sol, proj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
+    let _, proj = sol.UpdateReferences(projectPath, dotnetReferences.Add(OlyProjectReference.Create(OlyCompilationReference.Create(projectPath2, fun () -> refProj.Compilation))), System.Threading.CancellationToken.None)
     proj
 
 let run expectedOutput src =
@@ -2718,4 +2738,233 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "123"
+
+[<Fact>]
+let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+#[open]
+extension AddExtension =
+    inherits Vector3
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result: Vector3 = v + v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "246"
+
+[<Fact>]
+let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 2``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+#[open]
+extension AddExtension =
+    inherits object
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result: Vector3 = v + v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "246"
+
+[<Fact>]
+let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 3``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+#[open]
+extension AddExtension =
+    inherits object
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result = v + v // must infer correctly
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "246"
+
+[<Fact>]
+let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 4``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+    T1.(+)<T1, T2, T3>(x, y)
+
+#[open]
+extension AddExtension =
+    inherits object
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+        T1.op_Addition(x, y)
+        """
+    let src =
+        """
+open System.Numerics
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result: Vector3 = v + v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProjectWithReferenceProject refSrc src
+    proj.Compilation
+    |> runWithExpectedOutput "246"
+
+[<Fact>]
+let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 5``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 } = T1.(+)(x, y)
+
+#[open]
+extension DotNetAddExtension =
+    inherits object
+
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } =
+        T1.op_Addition(x, y)
+        """
+    let src =
+        """
+open System.Numerics
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result = v + v // must infer correctly
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProjectWithReferenceProject refSrc src
+    proj.Compilation
+    |> runWithExpectedOutput "246"
 
