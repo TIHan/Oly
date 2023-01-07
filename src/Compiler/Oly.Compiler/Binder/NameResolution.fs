@@ -154,7 +154,7 @@ let getSyntaxArgumentsAsSyntaxExpressions (cenv: cenv) (syntaxArgs: OlySyntaxArg
         ImArray.empty
 
 let private createWitnessArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode (syntaxNameOpt: OlySyntaxName option) (value: IValueSymbol) =
-    CacheValueWithArg(fun syntaxTyArgsOpt ct ->
+    CacheValueWithArg(fun (syntaxTyArgsOpt: OlySyntaxType imarray option) ct ->
         ct.ThrowIfCancellationRequested()
 
         let witnessArgs =
@@ -178,8 +178,35 @@ let private createWitnessArguments (cenv: cenv) (env: BinderEnvironment) syntaxN
             | _ ->
                 syntaxNode
 
-        let allTyArgs = value.AllTypeArguments
-        checkConstraintsForSolving (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxNode syntaxTyArgsOpt allTyArgs witnessArgs
+        let enclosingTyArgs = value.Enclosing.TypeArguments
+        let funcTyArgs = value.TypeArguments
+
+        let syntaxEnclosingTyArgsOpt =
+            syntaxTyArgsOpt 
+            |> Option.bind (fun xs -> 
+                if xs.Length > enclosingTyArgs.Length then
+                    None
+                else
+                    Some(xs |> Seq.take enclosingTyArgs.Length |> ImArray.ofSeq)
+            )
+
+        let syntaxFuncTyArgsOpt =
+            syntaxTyArgsOpt
+            |> Option.bind (fun xs ->
+                if xs.Length > (enclosingTyArgs.Length + funcTyArgs.Length) then
+                    None
+                else
+                    Some(xs |> Seq.skip enclosingTyArgs.Length |> ImArray.ofSeq)
+            )
+
+        checkConstraintsForSolving 
+            (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
+            syntaxNode 
+            syntaxEnclosingTyArgsOpt
+            enclosingTyArgs
+            syntaxFuncTyArgsOpt
+            funcTyArgs
+            witnessArgs
         witnessArgs
     )
 

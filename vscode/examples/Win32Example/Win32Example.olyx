@@ -30,7 +30,8 @@ wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
         DefWindowProc(hWnd, msg, wParam, lParam)
 
 createWindow(): HWND =
-    let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(typeof<Marker>().Module))
+    let m = typeof<Marker>().Module
+    let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
     let mutable wc = default: WNDCLASSW
 
     let mutable example = "Hello World Class"

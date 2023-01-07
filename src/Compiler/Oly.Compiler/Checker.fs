@@ -708,8 +708,15 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | _ ->
         ()
 
-and checkConstraintsForSolving (env: SolverEnvironment) syntaxNode (syntaxTyArgsOpt: OlySyntaxType imarray option) tyArgs (witnessArgs: WitnessSolution imarray) =
-    solveConstraints env syntaxNode syntaxTyArgsOpt tyArgs witnessArgs
+and checkConstraintsForSolving 
+        (env: SolverEnvironment) 
+        syntaxNode 
+        (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option) 
+        enclosingTyArgs
+        syntaxFuncTyArgsOpt
+        funcTyArgs
+        (witnessArgs: WitnessSolution imarray) =
+    solveConstraints env syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
 
 /// This checks the expression to verify its correctness.
 /// It does not check all expressions under the expression.

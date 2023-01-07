@@ -543,13 +543,24 @@ let areEnclosingsEqual (enclosing1: EnclosingSymbol) (enclosing2: EnclosingSymbo
         | EnclosingSymbol.Entity(ent1), EnclosingSymbol.Entity(ent2) -> areEntitiesEqual ent1 ent2
         | _ -> false
 
-let areConstraintsEqual (constr1: ConstraintSymbol) (constr2: ConstraintSymbol) : bool =
+let areConstraintsEqualWith rigidity (constr1: ConstraintSymbol) (constr2: ConstraintSymbol) : bool =
     if obj.ReferenceEquals(constr1, constr2) then true
     else
         match constr1, constr2 with
         | ConstraintSymbol.NotStruct, ConstraintSymbol.NotStruct -> true
-        | ConstraintSymbol.SubtypeOf(ty1), ConstraintSymbol.SubtypeOf(ty2) -> areTypesEqual ty1.Value ty2.Value
+        | ConstraintSymbol.SubtypeOf(ty1), ConstraintSymbol.SubtypeOf(ty2) -> 
+            let ty1 = ty1.Value
+            let ty2 = ty2.Value
+            if ty1.IsShape && ty2.IsShape then
+                areShapesEqualWith rigidity ty1 ty2
+            elif ty1.IsShape || ty2.IsShape then
+                false
+            else
+                areTypesEqualWithRigidity rigidity ty1 ty2
         | _ -> false
+
+let areConstraintsEqual (constr1: ConstraintSymbol) (constr2: ConstraintSymbol) : bool =
+    areConstraintsEqualWith Rigid constr1 constr2
 
 let areConstantsEqual (cns1: ConstantSymbol) (cns2: ConstantSymbol) : bool =
     if obj.ReferenceEquals(cns1, cns2) then true
@@ -606,6 +617,18 @@ let areManyConstraintsEqual (constrs1: ConstraintSymbol seq) (constrs2: Constrai
             ||> Seq.forall2 areConstraintsEqual
         else
             false
+
+let areFunctionTypeParameterConstraintsEqualWith rigidity (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
+    (func1.TypeParameters, func2.TypeParameters)
+    ||> ImArray.forall2 (fun tyPar1 tyPar2 ->
+        if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
+            (tyPar1.Constraints, tyPar2.Constraints)
+            ||> ImArray.forall2 (fun constr1 constr2 ->
+                areConstraintsEqualWith rigidity constr1 constr2
+            )
+        else
+            false
+    )
 
 let areTypeParametersEqual (tyPar1: TypeParameterSymbol) (tyPar2: TypeParameterSymbol) =
     if obj.ReferenceEquals(tyPar1, tyPar2) then true
@@ -749,6 +772,48 @@ let areValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
 
         | _ ->
             false
+
+// TODO: Practically identical to 'subsumesShapeMembersWith'. There a way to re-use logic between them?
+let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
+    OlyAssert.True(ty1.IsShape)
+    OlyAssert.True(ty2.IsShape)
+
+    let funcs1: IFunctionSymbol imarray = ty1.Functions
+    let funcs2: IFunctionSymbol imarray = ty2.Functions
+
+    if funcs1.Length = funcs2.Length then
+        funcs1
+        |> ImArray.forall (fun superFunc ->
+            funcs2
+            |> ImArray.exists (fun func ->
+                if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
+                        // TODO: This really isn't right.
+                        let isInstance = func.IsInstance
+                        if not isInstance || not ty2.IsAnyStruct || (if superFunc.IsReadOnly then func.IsReadOnly else true) then
+                            let result =
+                                (superFunc.Parameters, func.Parameters)
+                                ||> ImArray.foralli2 (fun i par1 par2 ->
+                                    if i = 0 && isInstance then
+                                        // We return true here because the first parameter of an instance member function is the 'shape' entity,
+                                        // which cannot be unified.
+                                        true
+                                    else
+                                        UnifyTypes rigidity par1.Type par2.Type
+                                ) &&
+                                UnifyTypes rigidity superFunc.ReturnType func.ReturnType
+                            if not result then
+                                areLogicalFunctionSignaturesEqual superFunc func &&
+                                areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction
+                            else
+                                areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction
+                        else
+                            false
+                    else
+                        false
+            )
+        )
+    else
+        false
 
 [<Struct;NoComparison;NoEquality>]
 type TypeSymbolGeneralizedMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =

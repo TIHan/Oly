@@ -14,6 +14,8 @@ open Oly.Metadata
 [<Sealed>]
 type BinderPass4 =
 
+    member Entity : EntitySymbol
+
     member PartialDeclarationTable : BoundDeclarationTable
 
     member Bind : CancellationToken -> BoundTree * OlyDiagnostic imarray

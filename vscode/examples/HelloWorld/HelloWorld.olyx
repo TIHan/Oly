@@ -2,13 +2,8 @@
 
 #reference "../core/prelude.olyx"
 
-open System.Numerics
-
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
 main(): () =
-    let v = Vector3(1)
-    let result = v + v
-   // print(result)
     let result = MessageBox(default, "Hello World!", "Message Box", 0)

@@ -445,18 +445,21 @@ type OlySolution (state: SolutionState) =
             newSolution
 
     member this.RemoveProject(projectPath) =
-        let project = this.GetProject(projectPath)
-        let projectsToRemove = 
-            this.GetProjectsDependentOnReference(projectPath).Add(project)
-            |> ImArray.map (fun x -> x.Path)
+        match this.TryGetProject(projectPath) with
+        | Some project ->
+            let projectsToRemove = 
+                this.GetProjectsDependentOnReference(projectPath).Add(project)
+                |> ImArray.map (fun x -> x.Path)
 
-        let mutable newSolution = this
-        let newSolutionLazy = lazy newSolution
-        let newProjects = state.projects.RemoveRange(projectsToRemove)
-        newSolution <- { state with projects = newProjects } |> OlySolution
-        newSolution <- updateSolution newSolution newSolutionLazy
-        newSolutionLazy.Force() |> ignore
-        newSolution    
+            let mutable newSolution = this
+            let newSolutionLazy = lazy newSolution
+            let newProjects = state.projects.RemoveRange(projectsToRemove)
+            newSolution <- { state with projects = newProjects } |> OlySolution
+            newSolution <- updateSolution newSolution newSolutionLazy
+            newSolutionLazy.Force() |> ignore
+            newSolution
+        | _ ->
+            this
 
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
         let project = this.GetProject(projectPath)
@@ -589,6 +592,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     try
                         ct.ThrowIfCancellationRequested()
                         do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
+                        solution.GetDocuments(documentPath)
+                        |> ImArray.iter (fun doc ->
+                            solution.GetProjectsDependentOnReference(doc.Project.Path)
+                            |> ImArray.iter (fun proj ->
+                                solution <- solution.RemoveProject(proj.Path)
+                            )
+                        )
                     with
                     | _ ->
                         ()
@@ -598,6 +608,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
                         let docs = this.Solution.GetDocuments(documentPath)
                         reply.Reply(docs)
+                        docs
+                        |> ImArray.iter (fun doc ->
+                            solution.GetProjectsDependentOnReference(doc.Project.Path)
+                            |> ImArray.iter (fun proj ->
+                                solution <- solution.RemoveProject(proj.Path)
+                            )
+                        )
                     with
                     | _ ->
                         reply.Reply(ImArray.empty)

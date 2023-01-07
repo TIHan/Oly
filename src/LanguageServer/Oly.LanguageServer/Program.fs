@@ -743,11 +743,20 @@ type ITextDocumentIdentifierParams with
                 match textManager.TryGet(documentPath) with
                 | Some (sourceText, _) ->
                     let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                    if docs.Length >= 1 then
-                        let doc = docs.[0]
-                        return! f doc ct
+
+                    if docs.IsEmpty then
+                        let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
+                            return Unchecked.defaultof<_>
                     else
-                        return Unchecked.defaultof<_>
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
+                            return Unchecked.defaultof<_>
                 | _ ->
                     return Unchecked.defaultof<_>
             }
@@ -906,11 +915,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 workspace.UpdateDocument(x, OlySourceText.FromFile(x.ToString()), ct) 
         )
 
-    member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
+    let refreshWorkspaceByDocument (documentPath: OlyPath) version ct =
         backgroundTask {
-            let cts = getCts documentPath
-            let ct = cts.Token
-
             autoOpenProjectsByDocument documentPath ct
             let! docs = workspace.GetDocumentsAsync(documentPath, ct)
             for doc in docs do
@@ -922,6 +928,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 dirWatch.Add(OlyPath.GetDirectory(doc.Project.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Project.Path, ".json")).ToString())
                 let diags = doc.ToLspDiagnostics(ct)
                 server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
+        }
+
+    member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
+        backgroundTask {
+            let cts = getCts documentPath
+            let ct = cts.Token
+
+            do! refreshWorkspaceByDocument documentPath version ct
             return MediatR.Unit.Value
         }
 
@@ -929,6 +943,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         backgroundTask {
             let cts = cancelAndGetCts documentPath
             let ct = cts.Token
+
+            let origSolution = workspace.Solution
+
             workspace.UpdateDocument(documentPath, sourceText, ct)
             let work =
                 backgroundTask {
@@ -955,17 +972,24 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                 server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
                             )
 
+                        do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
+
+                        let docs = origSolution.GetDocuments(documentPath)
+
+                        for doc in docs do
                             let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
-                            depsOn
-                            |> ImArray.iter (fun dep ->
-                                let cts = getCts documentPath
-                                let ct = cts.Token
-                                dep.Documents
-                                |> ImArray.iter (fun doc ->
-                                    let diags = doc.ToLspDiagnostics(ct)
-                                    server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                                )
-                            )
+                            for dep in depsOn do
+                                match textManager.TryGet(dep.Path) with
+                                | Some (sourceText, _) ->
+                                    let! docs = workspace.UpdateDocumentAsync(dep.Path, sourceText, ct)
+                                    for doc in docs do
+                                        doc.Project.Documents
+                                        |> ImArray.iter (fun doc ->
+                                            let diags = doc.ToLspDiagnostics(ct)
+                                            server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                                        )
+                                | _ ->
+                                    ()
                     with
                     | :? OperationCanceledException ->
                         ()
@@ -1110,8 +1134,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(_request: DidSaveTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> = 
             task {
-              //  GC.Collect(2, GCCollectionMode.Forced, true, true)
-              //  GC.WaitForPendingFinalizers()
                 return MediatR.Unit.Value
             }
 

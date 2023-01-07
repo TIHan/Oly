@@ -253,7 +253,6 @@ type internal InitialState =
         importDiags: OlyDiagnostic imarray
         autoOpens: IEntitySymbol imarray
         env: BoundEnv
-        cyclicRefs: OlyCompilation imarray
     }
 
 let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
@@ -262,7 +261,7 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
     let importer = imports.Importer
     let importDiags = ImArray.builder()
 
-    let cyclicRefs = ImArray.builder()
+    let comps = ResizeArray()
     for reference in compRefs do
         match reference with
         | OlyCompilationReference.AssemblyReference(_, _, ilAsmLazy) ->
@@ -272,21 +271,23 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
             | Result.Error diag ->
                 importDiags.Add(diag)
         | OlyCompilationReference.CompilationReference(_, getComp) ->
-            let comp = getComp()
+            let comp = getComp()          
             let isCyclic =
                 comp.GetTransitiveReferenceCompilations(ct)
                 |> ImArray.exists (fun x -> x.AssemblyIdentity = ilAsmIdent)
+
             if isCyclic then
-                cyclicRefs.Add(comp)
+                // TODO: Report error if cyclic...
+                ()
             else
-                // TODO: Getting the IL assembly is ok,
-                //       but this fully evaluates everything; it's slow.
-                //       Instead, we should get a metadata only version of one instead of implementation.
-                match comp.GetILAssembly(ct) with
-                | Result.Ok ilAsm ->
-                    importer.ImportAssembly(ilAsm)
-                | Result.Error _ ->
-                    ()
+                comps.Add(comp)
+
+    for comp in comps do
+        let refBinders = CompilationPhases.signature comp.State ct
+        refBinders
+        |> ImArray.iter (fun (x: BinderPass4, _) ->
+            importer.ImportAndRetargetEntity(ilAsmIdent, x.Entity)
+        )
 
     let importDiagnostics = OlyDiagnosticLogger.Create()
     let env, autoOpens1 = 
@@ -305,7 +306,6 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
         importDiags = importDiags.AddRange(importDiagnostics.GetDiagnostics())
         autoOpens = autoOpens1
         env = env
-        cyclicRefs = cyclicRefs.ToImmutable()
     }
 
 let private setup isApp ilAsmIdent references =
@@ -336,11 +336,6 @@ module private CompilationPhases =
                 seq {
                     for pair in state.cunits do
                         pair.Value.LazyInitialPass
-
-                    // REVIEW: Do we actually want to have cyclic compilation references?
-                    for comp in initialState.cyclicRefs do
-                        for runit in comp.State.cunits.Values do
-                            runit.LazyInitialPass
                 }
                 |> ImArray.ofSeq
 

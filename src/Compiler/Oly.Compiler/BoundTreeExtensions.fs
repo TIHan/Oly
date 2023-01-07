@@ -1047,7 +1047,10 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
                                     UnifyTypes rigidity par1.Type par2.Type
                             ) &&
                             UnifyTypes rigidity superFunc.ReturnType func.ReturnType
-                        if not result then
+
+                        if (rigidity = Rigid) && not(areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction) then
+                            false
+                        elif not result then
                             areLogicalFunctionSignaturesEqual superFunc func
                         else
                             true

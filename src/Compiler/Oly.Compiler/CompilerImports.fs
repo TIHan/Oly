@@ -13,6 +13,258 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolBuilders
 
+[<Sealed>]
+type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, func: IFunctionSymbol) =
+
+    let id = newId()
+
+    let lazyEnclosing: Lazy<EnclosingSymbol> =
+        lazy
+            retargetEnclosing currentAsmIdent importer func.Enclosing
+
+    let lazyTyPars =
+        lazy
+            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let funcTyPars: TypeParameterSymbol imarray = 
+                func.TypeParameters
+                |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
+
+            let tyPars = enclosingTyPars.AddRange(funcTyPars)
+
+            (func.TypeParameters, funcTyPars)
+            ||> ImArray.iter2 (fun oldTyPar tyPar ->
+                if not oldTyPar.Constraints.IsEmpty then 
+                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
+            )
+
+            funcTyPars
+
+    let lazyTyArgs =
+        lazy
+            lazyTyPars.Value
+            |> ImArray.map (fun (tyPar: TypeParameterSymbol) -> tyPar.AsType)
+
+    let lazyPars =
+        lazy
+            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let funcTyPars = lazyTyPars.Value
+            let tyPars = enclosingTyPars.AddRange(funcTyPars)
+            func.Parameters
+            |> ImArray.map (retargetParameter currentAsmIdent importer tyPars)
+
+    let lazyReturnTy =
+        lazy
+            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let funcTyPars = lazyTyPars.Value
+            let tyPars = enclosingTyPars.AddRange(funcTyPars)
+            retargetType currentAsmIdent importer tyPars func.ReturnType
+
+    let lazyTy =
+        lazy
+            let argTys = lazyPars.Value |> ImArray.map (fun (x: ILocalParameterSymbol) -> x.Type)
+            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, lazyReturnTy.Value)
+
+    let lazyOverrides =
+        lazy
+            func.FunctionOverrides
+            |> Option.map (retargetFunction currentAsmIdent importer)
+
+    do
+        OlyAssert.True(func.IsFormal)
+        OlyAssert.False(func.IsBase)
+        OlyAssert.False(func.IsField)
+        OlyAssert.False(func.IsPattern)
+        OlyAssert.False(func.IsProperty)
+        OlyAssert.False(func.IsThis)
+        OlyAssert.True(func.IsFunction)
+    
+    interface IFunctionSymbol with
+        member this.AssociatedFormalPattern = func.AssociatedFormalPattern
+        member this.Attributes = func.Attributes
+        member this.Enclosing = lazyEnclosing.Value
+        member this.Formal = this
+        member this.FunctionFlags = func.FunctionFlags
+        member this.FunctionOverrides = lazyOverrides.Value
+        member this.Id = id
+        member this.IsBase = false
+        member this.IsField = false
+        member this.IsFunction = true
+        member this.IsPattern = false
+        member this.IsProperty = false
+        member this.IsThis = false
+        member this.MemberFlags = func.MemberFlags
+        member this.Name = func.Name
+        member this.Parameters = lazyPars.Value
+        member this.ReturnType = lazyReturnTy.Value
+        member this.Semantic = func.Semantic
+        member this.Type = lazyTy.Value
+        member this.TypeArguments = lazyTyArgs.Value
+        member this.TypeParameters = lazyTyPars.Value
+        member this.ValueFlags = func.ValueFlags
+        member this.WellKnownFunction = func.WellKnownFunction
+
+[<Sealed>]
+type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, ent: IEntitySymbol) =
+    
+    let id = newId()
+
+    let lazyEnclosing =
+        lazy
+            retargetEnclosing currentAsmIdent importer ent.Enclosing
+
+    let lazyTyPars =
+        lazy
+            let tyPars: TypeParameterSymbol imarray = 
+                ent.TypeParameters
+                |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
+
+            (ent.TypeParameters, tyPars)
+            ||> ImArray.iter2 (fun oldTyPar tyPar ->
+                if not oldTyPar.Constraints.IsEmpty then 
+                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
+            )
+
+            tyPars
+
+    let lazyTyArgs =
+        lazy
+            lazyTyPars.Value
+            |> ImArray.map (fun (tyPar: TypeParameterSymbol) -> tyPar.AsType)
+
+    let lazyEntities =
+        lazy
+            ent.Entities
+            |> ImArray.map (retargetEntity currentAsmIdent importer)
+
+    let lazyFunctions =
+        lazy
+            ent.Functions
+            |> ImArray.map (retargetFunction currentAsmIdent importer)
+
+    let lazyExtends =
+        lazy
+            let tyPars = lazyTyPars.Value
+            ent.Extends
+            |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+
+    let lazyImplements =
+        lazy
+            let tyPars = lazyTyPars.Value
+            ent.Implements
+            |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+
+    do
+        OlyAssert.True(ent.IsFormal || ent.IsNamespace)
+
+    interface IEntitySymbol with
+        member this.Attributes = ent.Attributes
+        member this.ContainingAssembly = ent.ContainingAssembly
+        member this.Enclosing = lazyEnclosing.Value
+        member this.Entities = lazyEntities.Value
+        member this.Extends = lazyExtends.Value
+        member this.Fields = ent.Fields
+        member this.Flags = ent.Flags
+        member this.Formal = this
+        member this.Functions = lazyFunctions.Value
+        member this.Id = id
+        member this.Implements = lazyImplements.Value
+        member this.InstanceConstructors = ent.InstanceConstructors
+        member this.Kind = ent.Kind
+        member this.Name = ent.Name
+        member this.Patterns = ent.Patterns
+        member this.Properties = ent.Properties
+        member this.TypeArguments = lazyTyArgs.Value
+        member this.TypeParameters = lazyTyPars.Value
+
+let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (constr: ConstraintSymbol) =
+    match constr with
+    | ConstraintSymbol.NotStruct
+    | ConstraintSymbol.Struct
+    | ConstraintSymbol.Null
+    | ConstraintSymbol.Unmanaged -> constr
+    | ConstraintSymbol.ConstantType(lazyTy) ->
+        let ty = lazyTy.Value
+        let rty = retargetType currentAsmIdent importer tyPars ty
+        if obj.ReferenceEquals(rty, ty) then
+            constr
+        else
+            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(rty))
+    | ConstraintSymbol.SubtypeOf(lazyTy) ->
+        let ty = lazyTy.Value
+        let rty = retargetType currentAsmIdent importer tyPars ty
+        if obj.ReferenceEquals(rty, ty) then
+            constr
+        else
+            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(rty))
+
+let private retargetTypeParameter currentAsmIdent importer (tyPar: TypeParameterSymbol) =
+    if tyPar.Constraints.IsEmpty then
+        tyPar
+    else
+        TypeParameterSymbol(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.IsVariadic, tyPar.Kind, ref ImArray.empty)
+
+let private retargetParameter currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (par: ILocalParameterSymbol) =
+    match par with
+    | :? LocalParameterSymbol ->
+        LocalParameterSymbol(par.Attributes, par.Name, retargetType currentAsmIdent importer tyPars par.Type, par.IsThis, par.IsBase, par.IsMutable)
+    | _ ->
+        OlyAssert.Fail("Invalid parameter symbol")
+
+let private retargetFunction currentAsmIdent importer ent =
+    RetargetedFunctionSymbol(currentAsmIdent, importer, ent) :> IFunctionSymbol
+
+let private retargetEntity currentAsmIdent (importer: Importer) (ent: IEntitySymbol) =
+    let qualName = ent.QualifiedName
+    match importer.TryGetEntity(qualName) with
+    | true, ent -> ent
+    | _ ->
+        let ent = RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
+        importer.AddEntity(qualName, ent)
+        ent
+
+let private retargetEnclosing currentAsmIdent importer enclosing =
+    match enclosing with
+    | EnclosingSymbol.Local
+    | EnclosingSymbol.RootNamespace -> enclosing
+    | EnclosingSymbol.Witness _ -> OlyAssert.Fail("Invalid enclosing symbol")
+    | EnclosingSymbol.Entity(ent) ->
+        let rent = retargetEntity currentAsmIdent importer ent
+        if obj.ReferenceEquals(ent, rent) then
+            enclosing
+        else
+            EnclosingSymbol.Entity(rent)
+
+let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParameterSymbol imarray) (ty: TypeSymbol) =
+    match ty with
+    | TypeSymbol.Variable(tyPar) ->
+        let newTyPar = tyPars[tyPar.Index]
+        OlyAssert.Equal(tyPar.Name, newTyPar.Name)
+        TypeSymbol.Variable(newTyPar)
+
+    | TypeSymbol.InferenceVariable(_, solution) when solution.HasSolution ->
+        retargetType currentAsmIdent importer tyPars solution.Solution.Value
+
+    | TypeSymbol.Entity(ent) ->
+        if ent.IsFormal then
+            let rent = retargetEntity currentAsmIdent importer ent
+            if obj.ReferenceEquals(rent, ent) then
+                ty
+            else
+                TypeSymbol.Entity(rent)
+        else
+            let formalEnt = ent.Formal
+            let formalREnt = retargetEntity currentAsmIdent importer formalEnt
+            if obj.ReferenceEquals(formalREnt, formalEnt) then
+                ty
+            else
+                let tyArgs =
+                    ent.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+                TypeSymbol.Entity(formalREnt.Apply(tyArgs))
+
+    | _ ->
+        // TODO:
+        ty
+
 /// L2 cache that is to the current compilation.
 [<NoEquality;NoComparison>]
 type SharedImportCache =
@@ -1208,6 +1460,8 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILAssembly, imports: Impo
 [<Sealed>]
 type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
 
+    let entities: ConcurrentDictionary<QualifiedName, IEntitySymbol> = ConcurrentDictionary()
+
     let currentAssemblies = ConcurrentDictionary()
     let ents = ResizeArray()
 
@@ -1239,6 +1493,25 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         currentAssemblies.[ilAsm.Identity] <- ()
 
     member this.ImportEntity(ent: IEntitySymbol) =
+        if ent.IsNamespace then
+            handleEntity ent
+        else
+            let qualName = ent.QualifiedName
+            match entities.TryGetValue(qualName) with
+            | false, _ ->
+                entities[qualName] <- ent
+                handleEntity ent
+            | _ ->
+                ()
+
+    member this.TryGetEntity(qualName, rent: outref<IEntitySymbol>): bool =
+        entities.TryGetValue(qualName, &rent)
+
+    member this.AddEntity(qualName, rent: IEntitySymbol) =
+        entities[qualName] <- rent
+
+    member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: IEntitySymbol) =
+        let ent = retargetEntity currentAsmIdent this ent
         handleEntity ent
 
     member this.ForEachEntity(diagnostics, ct: CancellationToken, f, forEachPrimTy) =
@@ -1260,6 +1533,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                     ct.ThrowIfCancellationRequested()
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
+                    let qualName = ent.QualifiedName
+                    this.AddEntity(qualName, ent)
                     f ent
                 )
 
@@ -1268,6 +1543,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                     ct.ThrowIfCancellationRequested()
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
+                    let qualName = ent.QualifiedName
+                    this.AddEntity(qualName, ent)
                     forEachPrimTy ty ent
                 )
         )
