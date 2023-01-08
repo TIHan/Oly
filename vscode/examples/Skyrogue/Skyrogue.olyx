@@ -228,7 +228,7 @@ module Program =
 
         let mutable stream: Stream = null
     
-        if (SkyrimSoundsBsa.TryGetFileData("music/explore", "mus_explore_night_02.xwm", &stream))
+        if (SkyrimSoundsBsa.TryGetFileData("music/explore", "mus_explore_night_03.xwm", &stream))
             let audio = AudioManagerInstance.CreateFromStream(AudioKind.XAudio2, stream)
             stream.Dispose()
             audio.Play()

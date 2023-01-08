@@ -220,6 +220,7 @@ and GenString cenv (value: string) =
         handle
 
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: IEntitySymbol) =
+    OlyAssert.False(ent.IsAnonymous)
     let ent = ent.Formal
     match cenv.cachedEntRefs.TryGetValue ent.Id with
     | true, handle -> handle

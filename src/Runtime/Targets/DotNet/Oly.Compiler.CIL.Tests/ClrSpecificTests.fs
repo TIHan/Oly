@@ -2938,6 +2938,8 @@ print(object): ()
 
 #[intrinsic("add")]
 (+)(float32, float32): float32
+#[intrinsic("multiply")]
+(*)(float32, float32): float32
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)

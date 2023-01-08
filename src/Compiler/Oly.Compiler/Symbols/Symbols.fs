@@ -4727,7 +4727,12 @@ let assertNoForAllTypes (func: IFunctionSymbol) =
         | _ -> ()
 
         if par.Type.IsTypeVariable then ()
-        elif par.Type.IsTypeConstructor && enclosingTy.FormalId <> par.Type.FormalId then OlyAssert.Fail("Parameters cannot be typed with a non-variable type constructor.")
+        elif par.Type.IsTypeConstructor && enclosingTy.FormalId <> par.Type.FormalId then 
+            
+            // REVIEW/TODO: This is a little strange, but two shapes can be considered equivelant across assembly boundaries.
+            //              Maybe the "FormalId" check above is just bad as we can't rely on it.
+            if not enclosingTy.IsShape && not par.Type.IsShape then
+                OlyAssert.Fail("Parameters cannot be typed with a non-variable type constructor.")
     )
 
     match stripTypeEquations func.ReturnType with

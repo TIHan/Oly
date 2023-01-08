@@ -214,13 +214,19 @@ let private retargetFunction currentAsmIdent importer ent =
     RetargetedFunctionSymbol(currentAsmIdent, importer, ent) :> IFunctionSymbol
 
 let private retargetEntity currentAsmIdent (importer: Importer) (ent: IEntitySymbol) =
-    let qualName = ent.QualifiedName
-    match importer.TryGetEntity(qualName) with
-    | true, ent -> ent
-    | _ ->
-        let ent = RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
-        importer.AddEntity(qualName, ent)
-        ent
+    if ent.IsAnonymous then
+        RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
+    else
+       
+        let qualName = ent.QualifiedName
+        match importer.TryGetEntity(qualName) with
+        | true, ent -> 
+            OlyAssert.False(ent.IsAnonymous)
+            ent
+        | _ ->
+            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
+            importer.AddEntity(qualName, ent)
+            ent
 
 let private retargetEnclosing currentAsmIdent importer enclosing =
     match enclosing with
@@ -411,7 +417,9 @@ type Imports =
     member this.GetOrCreateLocalEntity(ilAsm: OlyILAssembly, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         let localCache = this.GetLocalCache(ilAsm)
         match localCache.entFromEntDef.TryGetValue ilEntDefHandle with
-        | true, ent -> ent
+        | true, ent -> 
+            OlyAssert.False(ent.IsAnonymous)
+            ent
         | _ ->
             let ent: IEntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
             let asm =
@@ -422,9 +430,8 @@ type Imports =
             let ent =
                 let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
 
-                // Anonymous Shape
-                if ilEntDef.Kind = OlyILEntityKind.Shape && 
-                   ilEntDef.NameHandle.IsNil then
+                // Anonymous
+                if ilEntDef.NameHandle.IsNil then
                    ent
                 else
                     match this.sharedCache.entFromName.TryGetValue(asm.Identity.Name) with
@@ -1493,7 +1500,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         currentAssemblies.[ilAsm.Identity] <- ()
 
     member this.ImportEntity(ent: IEntitySymbol) =
-        if ent.IsNamespace then
+        if ent.IsNamespace || ent.IsAnonymous then
             handleEntity ent
         else
             let qualName = ent.QualifiedName
@@ -1508,6 +1515,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         entities.TryGetValue(qualName, &rent)
 
     member this.AddEntity(qualName, rent: IEntitySymbol) =
+        OlyAssert.False(rent.IsAnonymous)
         entities[qualName] <- rent
 
     member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: IEntitySymbol) =

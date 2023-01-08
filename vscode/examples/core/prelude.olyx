@@ -442,17 +442,6 @@ nullptr<T>: T*
 #[intrinsic("print")]
 print(object): ()
 
-printLine<T>(value: T): () where T: { ToString(): string } =
-    print(value.ToString() + "\n")
-
-printLine(value: uint32): () =
-    print(value)
-    print("\n")
-
-printLine(value: int32): () =
-    print(value)
-    print("\n")
-
 #[intrinsic("get_element")]
 (`[]`)<T>(T[], index: int32): T
 #[intrinsic("get_element")]
@@ -468,10 +457,6 @@ printLine(value: int32): () =
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
 
 // DotNet Specific
-
-(+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
-(==)(str1: string, str2: string): bool = System.String.Equals(str1, str2)
-(!=)(str1: string, str2: string): bool = !System.String.Equals(str1, str2)
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -559,16 +544,31 @@ alias inref<T>
 #[intrinsic("bitwise_shift_right")]
 (>>)(uint64, int32): uint64
 
-// TODO: Get rid of the '()', but we cant because attributes dont like it
-#[intrinsic("constant")]
-#[import("intrinsic-CLR", "", "typeof")]
-typeof<require T>(): System.Type
-
 #[intrinsic("get_length")]
 getLength<T>(T[]): int32
 
 #[intrinsic("get_length")]
 getLength<T>(T[||]): int32
+
+// TODO: Get rid of the '()', but we cant because attributes dont like it
+#[intrinsic("constant")]
+#[import("intrinsic-CLR", "", "typeof")]
+typeof<require T>(): System.Type
+
+printLine<T>(value: T): () where T: { ToString(): string } =
+    print(value.ToString() + "\n")
+
+printLine(value: uint32): () =
+    print(value)
+    print("\n")
+
+printLine(value: int32): () =
+    print(value)
+    print("\n")
+
+(+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
+(==)(str1: string, str2: string): bool = System.String.Equals(str1, str2)
+(!=)(str1: string, str2: string): bool = !System.String.Equals(str1, str2)
 
 // Enum functions
 
