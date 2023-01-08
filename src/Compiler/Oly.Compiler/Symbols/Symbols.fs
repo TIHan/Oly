@@ -2651,12 +2651,15 @@ type WitnessSymbol =
 [<Sealed>]
 type WitnessSolution (tyPar: TypeParameterSymbol, ent: IEntitySymbol, funcOpt: IFunctionSymbol option) =
 
+#if DEBUG
     do
         match funcOpt with
         | Some func ->
-            OlyAssert.Equal(ent.Formal.Id, func.Enclosing.TryEntity.Value.Formal.Id)
+            if not ent.IsAnonymousShape && func.Enclosing.TryEntity.Value.IsAnonymousShape then
+                OlyAssert.Equal(ent.Formal.Id, func.Enclosing.TryEntity.Value.Formal.Id)
         | _ ->
             ()
+#endif
 
     member _.TypeParameter = tyPar
     
@@ -4731,7 +4734,7 @@ let assertNoForAllTypes (func: IFunctionSymbol) =
             
             // REVIEW/TODO: This is a little strange, but two shapes can be considered equivelant across assembly boundaries.
             //              Maybe the "FormalId" check above is just bad as we can't rely on it.
-            if not enclosingTy.IsShape && not par.Type.IsShape then
+            if not enclosingTy.IsAnonymousShape && not par.Type.IsAnonymousShape then
                 OlyAssert.Fail("Parameters cannot be typed with a non-variable type constructor.")
     )
 
