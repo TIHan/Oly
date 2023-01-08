@@ -678,7 +678,8 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
         member this.LoadProjectConfigurationAsync(projectConfigPath, ct) = 
             backgroundTask {
                 try                 
-                    let! state = this.GetWorkspaceStateAsync(ct)
+                    // TODO: Use 'ct' instead of CancellationToken.None.
+                    let! state = this.GetWorkspaceStateAsync(CancellationToken.None)
 
                     let mutable configs = LspProjectConfigurations.Default
                     try
@@ -768,7 +769,7 @@ type ITextDocumentIdentifierParams with
 module ExtensionHelpers =
     type IOlyRequest<'T> with
 
-        member this.HandleOlyDocument(ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
+        member this.HandleOlyDocument(ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
             backgroundTask {
                 let documentPath = this.DocumentPath |> normalizeFilePath
         
@@ -780,11 +781,24 @@ module ExtensionHelpers =
                 cts.Token.ThrowIfCancellationRequested()
                 let ct = handleCts.Token
 
-                let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                if docs.Length >= 1 then
-                    let doc = docs.[0]
-                    return! f doc ct
-                else
+                match textManager.TryGet(documentPath) with
+                | Some (sourceText, _) ->
+                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+
+                    if docs.IsEmpty then
+                        let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
+                            return raise(OperationCanceledException())
+                    else
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
+                            return raise(OperationCanceledException())
+                | _ ->
                     return raise(OperationCanceledException())
             }
         
@@ -1690,7 +1704,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyCompileRequest, string> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(ct, getCts, workspace, fun doc ct ->
+            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
                     match! workspace.BuildProjectAsync(doc.Project.Path, ct) with
                     | Ok result -> return result
@@ -1701,7 +1715,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(ct, getCts, workspace, fun doc ct ->
+            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
                     match doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct) with
                     | None ->
@@ -1750,7 +1764,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetSyntaxTreeRequest, OlySyntaxTreeViewModel> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(ct, getCts, workspace, fun doc ct ->
+            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
                     let syntaxTree = doc.SyntaxTree
 
@@ -1891,7 +1905,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(ct, getCts, workspace, fun (doc: OlyDocument) ct ->
+            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun (doc: OlyDocument) ct ->
                 backgroundTask {
                     let classify line column width tokenType tokenModifiers =
                         {
