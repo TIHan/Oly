@@ -2919,3 +2919,51 @@ main(): () =
     let proj = getProjectWithReferenceProject refSrc src
     proj.Compilation
     |> runWithExpectedOutput "246"
+
+[<Fact>]
+let ``Extension Vector3 should work``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
+(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
+(-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+        """
+    let src =
+        """
+open System.Numerics
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result = v * v
+
+    print(result.X)
+    print(result.Y)
+    print(result.Z)
+        """
+    let proj = getProjectWithReferenceProject refSrc src
+    proj.Compilation
+    |> runWithExpectedOutput "149"
