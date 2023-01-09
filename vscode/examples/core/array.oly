@@ -1,6 +1,12 @@
 #[open]
 module OlyArray
 
+#[intrinsic("get_length")]
+getLength<T>(T[]): int32
+
+#[intrinsic("get_length")]
+getLength<T>(T[||]): int32
+
 #[intrinsic("new_array")]
 ZeroCreate<T>(size: int32): T[||]
 

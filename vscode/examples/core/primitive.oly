@@ -1,0 +1,67 @@
+#[open]
+module OlyPrimitive
+
+#[intrinsic("void")]
+alias void
+
+#[intrinsic("uint8")]
+alias byte
+
+alias uint8 = byte
+
+#[intrinsic("int8")]
+alias int8
+
+#[intrinsic("uint16")]
+alias uint16
+
+#[intrinsic("int16")]
+alias int16
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint64")]
+alias uint64
+
+#[intrinsic("int64")]
+alias int64
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("float64")]
+alias float64
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("base_struct_enum")]
+alias base_struct_enum

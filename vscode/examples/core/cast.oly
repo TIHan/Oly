@@ -1,0 +1,104 @@
+#[open]
+module OlyCast
+
+#[intrinsic("cast")]
+uint16(byte): uint16
+
+#[intrinsic("cast")]
+uint32(uint16): uint32
+
+#[intrinsic("cast")]
+uint32(int32): uint32
+
+#[intrinsic("cast")]
+uint32(int64): uint32
+
+#[intrinsic("cast")]
+uint32(uint64): uint32
+
+#[intrinsic("cast")]
+int32(byte): int32
+
+#[intrinsic("cast")]
+int32(uint16): int32
+
+#[intrinsic("cast")]
+int32(uint32): int32
+
+#[intrinsic("cast")]
+int32(int64): int32
+
+#[intrinsic("cast")]
+int32(uint64): int32
+
+#[intrinsic("cast")]
+uint64(uint32): uint64
+
+#[intrinsic("cast")]
+uint64(int64): uint64
+
+#[intrinsic("cast")]
+int64(int32): int64
+
+#[intrinsic("cast")]
+int64(uint32): int64
+
+#[intrinsic("cast")]
+int64(uint64): int64
+
+#[intrinsic("cast")]
+float32(byte): float32
+
+#[intrinsic("cast")]
+float32(uint16): float32
+
+#[intrinsic("cast")]
+float32(int32): float32
+
+#[intrinsic("cast")]
+nint<T>(T*): nint
+
+#[intrinsic("cast")]
+nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
+
+#[intrinsic("cast")]
+nuint(int32): nuint
+
+#[intrinsic("cast")]
+nuint(uint32): nuint
+
+#[intrinsic("cast")]
+nuint(uint64): nuint
+
+#[intrinsic("cast")]
+nuint(uint8): nuint
+
+#[intrinsic("cast")]
+nuint(void*): nuint
+
+#[intrinsic("cast")]
+ToVoidPtr(int32): void*
+
+#[intrinsic("cast")]
+ToVoidPtr(nuint): void*
+
+#[intrinsic("cast")]
+UnsafeCast<T>(object): T
+
+#[intrinsic("cast")]
+ToPtr<T>(int32): T*
+
+#[intrinsic("cast")]
+ToPtr<T>(void*): T*
+
+#[intrinsic("cast")]
+ToPtr<T>(nint): T*
+
+#[intrinsic("cast")]
+ToPtr<T, TResult>(T*): TResult*
+
+#[intrinsic("cast")]
+(*)<T>(void*): byref<T>
+
+#[intrinsic("cast")]
+(*)<T>(T*): byref<T>
