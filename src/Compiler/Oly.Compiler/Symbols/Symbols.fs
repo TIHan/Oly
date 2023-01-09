@@ -2655,8 +2655,7 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: IEntitySymbol, funcOpt: I
     do
         match funcOpt with
         | Some func ->
-            if not ent.IsAnonymousShape && func.Enclosing.TryEntity.Value.IsAnonymousShape then
-                OlyAssert.Equal(ent.Formal.Id, func.Enclosing.TryEntity.Value.Formal.Id)
+            OlyAssert.Equal(ent.Formal.Id, func.Enclosing.TryEntity.Value.Formal.Id)
         | _ ->
             ()
 #endif
