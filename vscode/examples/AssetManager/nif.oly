@@ -60,7 +60,7 @@ private HalfToFloat(h: hfloat): float32 =
     let h_f_e_denorm_bias     : uint32 = 0x0000007e
     let h_f_m_denorm_sa_bias  : uint32 = 0x00000008
     let f_e_pos               : uint32 = 0x00000017
-    let h_e_mask_minus_one    : uint32 = 31743 //0x00007bff // TODO: This fails with invalid literal.
+    let h_e_mask_minus_one    : uint32 = 0x00007bff
 
     let h_e                   = h & h_e_mask
     let h_m                   = h & h_m_mask

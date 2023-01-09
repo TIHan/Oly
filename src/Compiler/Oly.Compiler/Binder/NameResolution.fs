@@ -2355,9 +2355,9 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let cleanedText = cleanNumericText syntaxToken.ValueText
 
                     let fromBase, cleanedText =
-                        if cleanedText.Contains("b") then
+                        if cleanedText.StartsWith("0b") then
                             2, cleanedText.Replace("b", "")
-                        elif cleanedText.Contains("x") then
+                        elif cleanedText.StartsWith("0x") then
                             16, cleanedText.Replace("x", "")
                         else
                             10, cleanedText
