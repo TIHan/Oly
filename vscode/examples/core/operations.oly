@@ -1,6 +1,5 @@
 #[open]
-module Operations
-
+module OlyOperations
 
 #[intrinsic("load_null_ptr")]
 nullptr<T>: T*
