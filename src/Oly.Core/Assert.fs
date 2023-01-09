@@ -16,7 +16,7 @@ module Assert =
 [<RequireQualifiedAccess>]
 module OlyAssert =
 
-    let Equal<'T when 'T: equality> (expected: 'T, actual: 'T) =
+    let inline Equal<'T when 'T: equality> (expected: 'T, actual: 'T) =
 #if DEBUG
         if expected <> actual then
             failwith $"Assertion failed. Expected '{expected}', but was '{actual}'."

@@ -993,7 +993,15 @@ and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
     |> ImArray.choose (GenAttribute cenv env)
 
 and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
+#if DEBUG
     OlyAssert.True(ent.IsFormal)
+    if ent.IsShape then
+        OlyAssert.False(ent.Enclosing.IsShape && not ent.IsAnonymous)
+    elif ent.IsAnonymous then
+        match ent.Enclosing with
+        | EnclosingSymbol.RootNamespace -> ()
+        | _ -> OlyAssert.Fail("Expected RootNamespace for anonymous entity.")
+#endif
 
     let ilEntDefHandleFixup = GenEntityAsILEntityDefinition cenv env ent
     let envWithLocalContext = setLocalContext env ent
@@ -1074,7 +1082,11 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         else
             ent.Name
 
-    let ilEnclosing = emitILEnclosingForEntity cenv env ent
+    let ilEnclosing = 
+        if ent.IsAnonymous then
+            OlyILEnclosing.Namespace(ImArray.empty, cenv.assembly.Identity)
+        else
+            emitILEnclosingForEntity cenv env ent
     let ilName = 
         if ent.IsShape && ent.IsAnonymous then
             OlyILTableIndex(OlyILTableKind.String, -1)

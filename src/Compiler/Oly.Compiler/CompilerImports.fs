@@ -14,17 +14,13 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolBuilders
 
 [<Sealed>]
-type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, func: IFunctionSymbol) =
+type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, func: IFunctionSymbol) =
 
     let id = newId()
 
-    let lazyEnclosing: Lazy<EnclosingSymbol> =
-        lazy
-            retargetEnclosing currentAsmIdent importer func.Enclosing
-
     let lazyTyPars =
         lazy
-            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let enclosingTyPars = enclosing.TypeParameters
             let funcTyPars: TypeParameterSymbol imarray = 
                 func.TypeParameters
                 |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
@@ -46,7 +42,7 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
 
     let lazyPars =
         lazy
-            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let enclosingTyPars = enclosing.TypeParameters
             let funcTyPars = lazyTyPars.Value
             let tyPars = enclosingTyPars.AddRange(funcTyPars)
             func.Parameters
@@ -54,7 +50,7 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
 
     let lazyReturnTy =
         lazy
-            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
+            let enclosingTyPars = enclosing.TypeParameters
             let funcTyPars = lazyTyPars.Value
             let tyPars = enclosingTyPars.AddRange(funcTyPars)
             retargetType currentAsmIdent importer tyPars func.ReturnType
@@ -67,7 +63,14 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
     let lazyOverrides =
         lazy
             func.FunctionOverrides
-            |> Option.map (retargetFunction currentAsmIdent importer)
+            |> Option.map (fun x ->
+#if DEBUG
+                match x.Enclosing.TryEntity with
+                | Some ent -> OlyAssert.False(ent.IsShape)
+                | _ -> ()
+#endif
+                retargetFunction currentAsmIdent importer x.Enclosing x
+            )
 
     do
         OlyAssert.True(func.IsFormal)
@@ -81,7 +84,7 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
     interface IFunctionSymbol with
         member this.AssociatedFormalPattern = func.AssociatedFormalPattern
         member this.Attributes = func.Attributes
-        member this.Enclosing = lazyEnclosing.Value
+        member this.Enclosing = enclosing
         member this.Formal = this
         member this.FunctionFlags = func.FunctionFlags
         member this.FunctionOverrides = lazyOverrides.Value
@@ -104,13 +107,11 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
         member this.WellKnownFunction = func.WellKnownFunction
 
 [<Sealed>]
-type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, ent: IEntitySymbol) =
+type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
     
     let id = newId()
 
-    let lazyEnclosing =
-        lazy
-            retargetEnclosing currentAsmIdent importer ent.Enclosing
+    let asEnclosing = (this :> IEntitySymbol).AsEnclosing
 
     let lazyTyPars =
         lazy
@@ -134,12 +135,12 @@ type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, impo
     let lazyEntities =
         lazy
             ent.Entities
-            |> ImArray.map (retargetEntity currentAsmIdent importer)
+            |> ImArray.map (retargetEntity currentAsmIdent importer asEnclosing)
 
     let lazyFunctions =
         lazy
             ent.Functions
-            |> ImArray.map (retargetFunction currentAsmIdent importer)
+            |> ImArray.map (retargetFunction currentAsmIdent importer asEnclosing)
 
     let lazyExtends =
         lazy
@@ -159,7 +160,7 @@ type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, impo
     interface IEntitySymbol with
         member this.Attributes = ent.Attributes
         member this.ContainingAssembly = ent.ContainingAssembly
-        member this.Enclosing = lazyEnclosing.Value
+        member this.Enclosing = enclosing
         member this.Entities = lazyEntities.Value
         member this.Extends = lazyExtends.Value
         member this.Fields = ent.Fields
@@ -210,21 +211,20 @@ let private retargetParameter currentAsmIdent importer (tyPars: TypeParameterSym
     | _ ->
         OlyAssert.Fail("Invalid parameter symbol")
 
-let private retargetFunction currentAsmIdent importer ent =
-    RetargetedFunctionSymbol(currentAsmIdent, importer, ent) :> IFunctionSymbol
+let private retargetFunction currentAsmIdent importer enclosing func =
+    RetargetedFunctionSymbol(currentAsmIdent, importer, enclosing, func) :> IFunctionSymbol
 
-let private retargetEntity currentAsmIdent (importer: Importer) (ent: IEntitySymbol) =
+let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: IEntitySymbol) =
     if ent.IsAnonymous then
-        RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
-    else
-       
+        RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> IEntitySymbol
+    else     
         let qualName = ent.QualifiedName
         match importer.TryGetEntity(qualName) with
         | true, ent -> 
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, ent) :> IEntitySymbol
+            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> IEntitySymbol
             importer.AddEntity(qualName, ent)
             ent
 
@@ -234,7 +234,8 @@ let private retargetEnclosing currentAsmIdent importer enclosing =
     | EnclosingSymbol.RootNamespace -> enclosing
     | EnclosingSymbol.Witness _ -> OlyAssert.Fail("Invalid enclosing symbol")
     | EnclosingSymbol.Entity(ent) ->
-        let rent = retargetEntity currentAsmIdent importer ent
+        let renclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
+        let rent = retargetEntity currentAsmIdent importer renclosing ent
         if obj.ReferenceEquals(ent, rent) then
             enclosing
         else
@@ -252,14 +253,16 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
 
     | TypeSymbol.Entity(ent) ->
         if ent.IsFormal then
-            let rent = retargetEntity currentAsmIdent importer ent
+            let renclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
+            let rent = retargetEntity currentAsmIdent importer renclosing ent
             if obj.ReferenceEquals(rent, ent) then
                 ty
             else
                 TypeSymbol.Entity(rent)
         else
             let formalEnt = ent.Formal
-            let formalREnt = retargetEntity currentAsmIdent importer formalEnt
+            let renclosing = retargetEnclosing currentAsmIdent importer formalEnt.Enclosing
+            let formalREnt = retargetEntity currentAsmIdent importer renclosing formalEnt
             if obj.ReferenceEquals(formalREnt, formalEnt) then
                 ty
             else
@@ -418,7 +421,6 @@ type Imports =
         let localCache = this.GetLocalCache(ilAsm)
         match localCache.entFromEntDef.TryGetValue ilEntDefHandle with
         | true, ent -> 
-            OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
             let ent: IEntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
@@ -1519,7 +1521,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         entities[qualName] <- rent
 
     member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: IEntitySymbol) =
-        let ent = retargetEntity currentAsmIdent this ent
+        let renclosing = retargetEnclosing currentAsmIdent this ent.Enclosing
+        let ent = retargetEntity currentAsmIdent this renclosing ent
         handleEntity ent
 
     member this.ForEachEntity(diagnostics, ct: CancellationToken, f, forEachPrimTy) =

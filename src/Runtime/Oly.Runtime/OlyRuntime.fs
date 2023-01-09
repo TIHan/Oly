@@ -2784,11 +2784,26 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
         let asm = assemblies.[ilAsm.Identity]
 
+        let isAnonymousShape (ilEntDef: OlyILEntityDefinition) =
+            ilEntDef.Kind = OlyILEntityKind.Shape && 
+            ilEntDef.NameHandle.IsNil
+
+        let verify (ilEntDef: OlyILEntityDefinition) =
+            if isAnonymousShape ilEntDef then
+                match ilEntDef.Enclosing with
+                | OlyILEnclosing.Namespace(path, _) ->
+                    if not path.IsEmpty then
+                        OlyAssert.Fail("Invalid anonymous shape.")
+                | _ ->
+                    OlyAssert.Fail("Invalid anonymous shape.")
+
         if ilEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
             match asm.EntityDefinitionCache.TryGetValue ilEntDefOrRefHandle with
             | true, (res, _) -> res
             | _ ->
                 let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefOrRefHandle)
+                verify ilEntDef               
+
                 let enclosing = this.ResolveEnclosing(0, ilAsm, ilEntDef.Enclosing, GenericContext.Default, ImArray.empty)
 
                 let enclosingTyPars = enclosing.TypeParameters
