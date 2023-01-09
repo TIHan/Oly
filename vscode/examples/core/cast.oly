@@ -59,7 +59,10 @@ float32(int32): float32
 nint<T>(T*): nint
 
 #[intrinsic("cast")]
-nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
+nint(void*): nint
+
+#[intrinsic("cast")]
+nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
 
 #[intrinsic("cast")]
 nuint(int32): nuint
