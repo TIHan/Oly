@@ -615,53 +615,24 @@ let LspWorkspaceStateDirectory = ".olyworkspace/"
 let LspWorkspaceStateFileName = "state.json"
  
 [<Sealed>]
-type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher) =
+type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher) as this =
     
     let mutable init = 0
 
     let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceService
 
-    member private this.GetWorkspaceStatePath() =
+    let wstateStore = 
+        lazy
+            editorDirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
+            new JsonFileStore<LspWorkspaceState>(this.GetWorkspaceStatePath(), { activeConfiguration = "Debug" }, editorDirWatch)
+
+    member this.GetWorkspaceStatePath() =
         Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
         |> OlyPath.Create
 
     member this.GetWorkspaceStateAsync(ct: CancellationToken) =
         backgroundTask {
-            let statePath = this.GetWorkspaceStatePath()
-            try
-                if File.Exists(statePath.ToString()) |> not then
-                    Directory.CreateDirectory(OlyPath.GetDirectory(statePath).ToString()) |> ignore
-            with
-            | _ -> ()
-
-            if Interlocked.CompareExchange(&init, 1, 0) = 0 then
-                let dir = OlyPath.GetDirectory(statePath)
-                let fileName = OlyPath.GetFileName(statePath)
-                editorDirWatch.Add(dir.ToString(), fileName)
-
-            let mutable editorState = { activeConfiguration = "Debug" }
-            try
-                let fs = File.OpenText(statePath.ToString())
-                try
-                    let jsonOptions = System.Text.Json.JsonSerializerOptions()
-                    jsonOptions.PropertyNameCaseInsensitive <- true
-                    let! result = System.Text.Json.JsonSerializer.DeserializeAsync<LspWorkspaceState>(fs.BaseStream, jsonOptions, cancellationToken = ct)
-                    editorState <- result
-                finally
-                    fs.Dispose()
-            with
-            | _ ->
-                try
-                    Directory.CreateDirectory(OlyPath.GetDirectory(statePath).ToString()) |> ignore
-                with
-                | _ -> ()
-                let fs = File.OpenWrite(statePath.ToString())
-                let jsonOptions = System.Text.Json.JsonSerializerOptions()
-                jsonOptions.PropertyNameCaseInsensitive <- true
-                jsonOptions.WriteIndented <- true
-                do! System.Text.Json.JsonSerializer.SerializeAsync(fs, editorState, jsonOptions, cancellationToken = ct)
-                do! fs.DisposeAsync()
-            return editorState
+            return! wstateStore.Value.GetContentsAsync(ct)
         }
 
     interface IOlyWorkspaceResourceService with
@@ -818,8 +789,8 @@ type WorkspaceSettings =
 
 type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
-    let editorDirWatch = DirectoryWatcher()
-    let dirWatch = DirectoryWatcher();
+    let editorDirWatch = new DirectoryWatcher()
+    let dirWatch = new DirectoryWatcher();
 
     let textManager = OlyLspSourceTextManager()
     let rs = OlyWorkspaceLspResourceService(textManager, server, editorDirWatch)
@@ -886,18 +857,18 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let mustInvalidate =
                 proj.Documents
                 |> ImArray.exists (fun x ->
-                    OlyPath.GetDirectory(x.Path) = dir
+                    OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
                 )
             if mustInvalidate then
                 workspace.InvalidateProject(proj.Path, CancellationToken.None)
         )
 
     do
-        dirWatch.FileRenamed.Add(invalidate)
+        dirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidate oldFullPath)
         dirWatch.FileCreated.Add(invalidate)
         dirWatch.FileDeleted.Add(invalidate)
 
-        editorDirWatch.FileRenamed.Add(invalidateEditor)
+        editorDirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidateEditor oldFullPath)
         editorDirWatch.FileCreated.Add(invalidateEditor)
         editorDirWatch.FileDeleted.Add(invalidateEditor)
         editorDirWatch.FileChanged.Add(invalidateEditor)
@@ -909,7 +880,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         |> ImArray.ofSeq
 
     let documentIsUsedInProject (projectPath: OlyPath) (documentPath: OlyPath) =
-        if projectPath = documentPath then true
+        if OlyPath.Equals(projectPath, documentPath) then true
         else
             let projSyntaxTree = OlySyntaxTree.Parse(projectPath, OlySourceText.FromFile(projectPath.ToString()), { OlyParsingOptions.Default with CompilationUnitConfigurationEnabled = true })
             let config = projSyntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
@@ -936,10 +907,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             for doc in docs do
                 doc.Project.Documents
                 |> ImArray.iter (fun doc ->
-                    dirWatch.Add(OlyPath.GetDirectory(doc.Path).ToString(), "*.oly")
-                    dirWatch.Add(OlyPath.GetDirectory(doc.Path).ToString(), "*.olyx")
+                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.oly")
+                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.olyx")
                 )
-                dirWatch.Add(OlyPath.GetDirectory(doc.Project.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Project.Path, ".json")).ToString())
+                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Project.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Project.Path, ".json")).ToString())
                 let diags = doc.ToLspDiagnostics(ct)
                 server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
         }

@@ -14,7 +14,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolBuilders
 
 [<Sealed>]
-type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, func: IFunctionSymbol) =
+type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, func: IFunctionSymbol) =
 
     let id = newId()
 
@@ -80,6 +80,8 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
         OlyAssert.False(func.IsProperty)
         OlyAssert.False(func.IsThis)
         OlyAssert.True(func.IsFunction)
+
+    member this.Original = func
     
     interface IFunctionSymbol with
         member this.AssociatedFormalPattern = func.AssociatedFormalPattern
@@ -107,7 +109,7 @@ type private RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, im
         member this.WellKnownFunction = func.WellKnownFunction
 
 [<Sealed>]
-type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
+type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
     
     let id = newId()
 
@@ -156,6 +158,8 @@ type private RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, impo
 
     do
         OlyAssert.True(ent.IsFormal || ent.IsNamespace)
+
+    member this.Original = ent
 
     interface IEntitySymbol with
         member this.Attributes = ent.Attributes

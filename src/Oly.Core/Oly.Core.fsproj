@@ -10,6 +10,7 @@
     <Compile Include="ImArray.fs" />
     <Compile Include="CacheValue.fs" />
     <Compile Include="FileWatcher.fs" />
+    <Compile Include="FileStore.fs" />
     <Compile Include="Async.fs" />
     <Compile Include="ExternalProcess.fs" />
   </ItemGroup>

@@ -106,7 +106,7 @@ type cenv =
             cachedEntRefs = Dictionary()
             cachedEntDefs = Dictionary()
             cachedFieldDefs = Dictionary()
-            cachedDbgSrcs = Dictionary()
+            cachedDbgSrcs = Dictionary(OlyPathEqualityComparer.Instance)
 
             extraFuncDefs = Dictionary()
 

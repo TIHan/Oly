@@ -1761,14 +1761,14 @@ type OlyBoundModel internal (
 
     member internal _.TryFindDefinition(value: IValueSymbol, ct) =
         let declTable = getPartialDeclTable ct
-        match declTable.ValueDeclarations.TryGetValue value.Formal with
+        match declTable.ValueDeclarations.TryGetValue value with
         | true, location ->
             location
             |> Some
         | _ ->
             let boundTree = this.GetBoundTree(ct)
             let declTable = boundTree.DeclarationTable
-            match declTable.ValueDeclarations.TryGetValue value.Formal with
+            match declTable.ValueDeclarations.TryGetValue value with
             | true, location ->
                 location
                 |> Some
@@ -1777,14 +1777,14 @@ type OlyBoundModel internal (
 
     member internal _.TryFindDefinition(ent: IEntitySymbol, ct) : OlySourceLocation option =
         let declTable = getPartialDeclTable ct
-        match declTable.EntityDeclarations.TryGetValue ent.Formal with
+        match declTable.EntityDeclarations.TryGetValue ent with
         | true, location ->
             location
             |> Some
         | _ ->
             let boundTree = this.GetBoundTree(ct)
             let declTable = boundTree.DeclarationTable
-            match declTable.EntityDeclarations.TryGetValue ent.Formal with
+            match declTable.EntityDeclarations.TryGetValue ent with
             | true, location ->
                 location
                 |> Some
@@ -1809,11 +1809,19 @@ type OlyBoundModel internal (
 
     member internal this.TryFindDefinition(s: ISymbol, ct) : OlySourceLocation option =
         match s with
-        | :? IEntitySymbol as ent ->           
-            this.TryFindDefinition(ent, ct)
+        | :? IEntitySymbol as ent ->
+            match ent.Formal with
+            | :? Internal.CompilerImports.RetargetedEntitySymbol as ent ->
+                this.TryFindDefinition(ent.Original, ct)
+            | ent ->
+                this.TryFindDefinition(ent, ct)
         | :? TypeParameterSymbol as tyPar ->
             this.TryFindDefinition(tyPar, ct)
         | :? IValueSymbol as value ->
-            this.TryFindDefinition(value, ct)
+            match value.Formal with
+            | :? Internal.CompilerImports.RetargetedFunctionSymbol as func ->
+                this.TryFindDefinition(func.Original, ct)
+            | value ->
+                this.TryFindDefinition(value, ct)
         | _ ->
             None

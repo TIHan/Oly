@@ -4,7 +4,7 @@ open System
 open System.IO
 
 /// A self-normalizing path for files and directories.
-[<Sealed>]
+[<Struct;NoEquality;NoComparison>]
 type OlyPath private (path: string) =
 
     static let empty = OlyPath("")
@@ -15,15 +15,12 @@ type OlyPath private (path: string) =
     override _.ToString() = path
 
     /// Not case sensitive.
-    override _.GetHashCode() = path.GetHashCode(StringComparison.OrdinalIgnoreCase)
+    member this.StartsWith(str: string) =
+        path.StartsWith(str, StringComparison.OrdinalIgnoreCase)
 
     /// Not case sensitive.
-    override this.Equals(path) =
-        match path with
-        | :? OlyPath as path ->
-            String.Equals(this.ToString(), path.ToString(), StringComparison.OrdinalIgnoreCase)
-        | _ ->
-            false
+    member this.StartsWith(path2: OlyPath) =
+        path.StartsWith(path2.ToString(), StringComparison.OrdinalIgnoreCase)
 
     /// Not case sensitive.
     member this.EndsWith(str: string) =
@@ -70,7 +67,7 @@ type OlyPath private (path: string) =
             else
                 false
         | _ ->
-            if this = path then
+            if this.ToString().Equals(path.ToString()) then
                 true
             elif this.IsDirectory then
                 let result = Path.GetRelativePath(this.ToString(), path.ToString())
@@ -112,7 +109,7 @@ type OlyPath private (path: string) =
                     Path.Combine(dir, fileNameWithExt).Replace("\\", "/")
         if Path.IsPathFullyQualified(path) && not (path.EndsWith('/')) then
             // We do this to get rid of the ".."
-            Path.GetFullPath(path)
+            Path.GetFullPath(path).Replace("\\", "/")
         else
             path
     
@@ -148,6 +145,12 @@ type OlyPath private (path: string) =
     static member GetRelativePath(relativeTo: OlyPath, path: OlyPath) =
         OlyPath.Create(Path.GetRelativePath(relativeTo.ToString(), path.ToString()))
 
+    static member IsRooted(path: OlyPath) = 
+        Path.IsPathRooted(path.ToString())
+
+    static member Equals(path1: OlyPath, path2: OlyPath) =
+        path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
+
     static member Combine(path1: OlyPath, path2: string) =
         OlyPath.NormalizeCombine(path1.ToString(), path2)
         |> OlyPath
@@ -159,3 +162,14 @@ type OlyPath private (path: string) =
     static member Create(path: string) : OlyPath =
         OlyPath.Normalize(path)
         |> OlyPath
+
+[<Sealed>]
+type OlyPathEqualityComparer private () =
+
+    static member val Instance = OlyPathEqualityComparer()
+    
+    interface System.Collections.Generic.IEqualityComparer<OlyPath> with
+
+        member this.GetHashCode(path) = path.ToString().GetHashCode()
+
+        member this.Equals(path1, path2) = OlyPath.Equals(path1, path2)

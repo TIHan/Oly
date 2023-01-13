@@ -608,7 +608,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -642,7 +642,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -677,7 +677,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -718,7 +718,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -776,7 +776,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -819,7 +819,7 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if x = path1 then text1 else failwith "Invalid path")
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
     workspace.UpdateDocument(path2, text2, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]

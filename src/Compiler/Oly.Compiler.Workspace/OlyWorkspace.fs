@@ -197,7 +197,7 @@ type OlyProject (
 
     member this.GetDocumentsExcept(documentPath: OlyPath) =
         this.Documents
-        |> ImArray.filter (fun doc -> doc.Path <> documentPath)
+        |> ImArray.filter (fun doc -> not(OlyPath.Equals(doc.Path, documentPath)))
 
     member this.UpdateDocument(newSolutionLazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree, extraDiagnostics) =
         let mutable newProject = this
@@ -390,7 +390,7 @@ type OlySolution (state: SolutionState) =
         state.projects.Values
         |> Seq.filter (fun x ->
             x.Compilation.References
-            |> ImArray.exists (fun x -> x.Path = referencePath)
+            |> ImArray.exists (fun x -> OlyPath.Equals(x.Path, referencePath))
         )
         |> ImArray.ofSeq
 
@@ -431,7 +431,7 @@ type OlySolution (state: SolutionState) =
         newSolution, newProject, newDocument
 
     member this.RemoveDocument(projectPath, documentPath) =
-        if (projectPath = documentPath) then
+        if OlyPath.Equals(projectPath, documentPath) then
             this.RemoveProject(projectPath)
         else
             let project = this.GetProject(projectPath)
@@ -771,7 +771,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
             let! projectReferences =
                 resolvedReferences
-                |> Seq.distinct
+                |> Seq.distinctBy (fun x -> x.ToString().ToLower()) // TODO: This allocates extra with '.ToLower()', figure out a better way for this.
                 |> Seq.map (fun (textSpan, path) ->
                     chooseReference textSpan path
                 )
@@ -821,7 +821,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution
                     else
                         let path = OlyPath.Combine(absoluteDir, path.ToString())
-                        if filePath = path then
+                        if OlyPath.Equals(filePath, path) then
                             solution
                         else
                             try
@@ -872,11 +872,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 else
                     let loadsAreSame =
                         (loads, currentLoads)
-                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> path1 = path2)
+                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> OlyPath.Equals(path1, path2))
 
                     let refsAreSame =
                         (refs, currentRefs)
-                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> path1 = path2)
+                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> OlyPath.Equals(path1, path2))
 
                     let packagesAreSame =
                         (packages, currentPackages)

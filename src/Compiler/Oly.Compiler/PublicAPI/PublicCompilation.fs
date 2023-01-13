@@ -124,7 +124,7 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
             CacheValue(fun ct ->
                 let compSigPass = compRef.contents.LazySignaturePhase.GetValue(ct)
                 let sigPasses = compSigPass
-                let pass4, diags = sigPasses |> ImArray.find (fun (x, _) -> x.SyntaxTree.Path = syntaxTree.Path)
+                let pass4, diags = sigPasses |> ImArray.find (fun (x, _) -> OlyPath.Equals(x.SyntaxTree.Path, syntaxTree.Path))
                 pass4, diags
             )
 
@@ -174,7 +174,7 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
         let implPass =
             CacheValue(fun ct ->
                 let compSigPass = compRef.contents.LazySignaturePhase.GetValue(ct)
-                let pass4, diags = compSigPass |> ImArray.find (fun (x, _) -> x.SyntaxTree.Path = syntaxTree.Path)
+                let pass4, diags = compSigPass |> ImArray.find (fun (x, _) -> OlyPath.Equals(x.SyntaxTree.Path, syntaxTree.Path))
                 pass4, diags
             )
 
@@ -511,7 +511,7 @@ type OlyCompilation private (state: CompilationState) =
         let syntaxTrees =
             this.SyntaxTrees
             |> ImArray.map (fun (x: OlySyntaxTree) ->
-                if x.Path = syntaxTree.Path then
+                if OlyPath.Equals(x.Path, syntaxTree.Path) then
                     alreadyHasSyntaxTree <- true
                     syntaxTree
                 else
@@ -534,7 +534,7 @@ type OlyCompilation private (state: CompilationState) =
                     
                 state.cunits
                 |> Seq.map (fun pair ->
-                    if pair.Key = syntaxTree.Path then
+                    if OlyPath.Equals(pair.Key, syntaxTree.Path) then
                         KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, tryGetLocation, syntaxTree))
                     else
                         KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, tryGetLocation, pair.Value.BoundModel.SyntaxTree))
