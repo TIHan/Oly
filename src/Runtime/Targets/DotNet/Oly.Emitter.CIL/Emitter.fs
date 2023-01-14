@@ -988,33 +988,33 @@ module rec ClrCodeGen =
                     orExpr argx1 (orExpr argx2 arg2 resultTy) resultTy
                     |> reduce
 
-                //| And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
-                //    match argx1, argx2 with
-                //    // TODO: There is some code duplication that we can cleanup.
-                //    | E.Value(_, value1), E.Value(_, value2) 
-                //        when canUseIntrinsicEquality value1 value2 ->
+                | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
+                    match argx1, argx2 with
+                    // TODO: There is some code duplication that we can cleanup.
+                    | E.Value(_, value1), E.Value(_, value2) 
+                        when canUseIntrinsicEquality value1 value2 ->
                     
-                //        GenExpression cenv { env with isReturnable = false } argx1
-                //        GenExpression cenv { env with isReturnable = false } argx2
+                        GenExpression cenv { env with isReturnable = false } argx1
+                        GenExpression cenv { env with isReturnable = false } argx2
 
-                //        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
-                //        reduce arg2
-                //    | _ ->
-                //        GenExpression cenv { env with isReturnable = false } conditionExpr
-                //        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
+                        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                        reduce arg2
+                    | _ ->
+                        GenExpression cenv { env with isReturnable = false } conditionExpr
+                        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
 
-                //| E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
-                //    match arg1, arg2 with
-                //    | E.Value(_, value1), E.Value(_, value2) 
-                //        when canUseIntrinsicEquality value1 value2  ->
+                | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+                    match arg1, arg2 with
+                    | E.Value(_, value1), E.Value(_, value2) 
+                        when canUseIntrinsicEquality value1 value2  ->
                     
-                //        GenExpression cenv { env with isReturnable = false } arg1
-                //        GenExpression cenv { env with isReturnable = false } arg2
+                        GenExpression cenv { env with isReturnable = false } arg1
+                        GenExpression cenv { env with isReturnable = false } arg2
 
-                //        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
-                //    | _ ->
-                //        GenExpression cenv { env with isReturnable = false } conditionExpr
-                //        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
+                        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                    | _ ->
+                        GenExpression cenv { env with isReturnable = false } conditionExpr
+                        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
 
                 | _ ->
                     GenExpression cenv { env with isReturnable = false } conditionExpr
