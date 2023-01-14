@@ -265,11 +265,6 @@ module rec ClrCodeGen =
     let emitInstruction (cenv: cenv) (instr: ClrInstruction) =
         cenv.buffer.Add(instr)
 
-    let emitFixupInstruction cenv =
-        let fixupIndex = cenv.buffer.Count
-        cenv.buffer.Add(Unchecked.defaultof<_>)
-        fixupIndex
-
     let emitInstructions cenv (instrs: imarrayb<_>) =
         cenv.buffer.AddRange(instrs)
 
