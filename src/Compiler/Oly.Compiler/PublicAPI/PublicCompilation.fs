@@ -294,7 +294,7 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
         computePrologEnvironment
             imports
             importDiagnostics
-            { DefaultBinderEnvironment with isApp = isApp }
+            { DefaultBinderEnvironment with isExecutable = isApp }
             (BoundDeclarationTable())
             OpenContent.All
             ct

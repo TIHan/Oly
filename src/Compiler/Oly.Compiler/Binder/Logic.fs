@@ -17,6 +17,22 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 
+/// A function is an entry point if the following is true:
+///     1. Function's name is "main" with exact case.
+///     2. Function is static.
+///     3. Function's enclosing type is a module.
+///     4. The compilation unit is marked as an executable.
+///     5. The compilation unit allows anonymous module definitions.
+let private isValidEntryPoint (cenv: cenv) env (enclosing: EnclosingSymbol) (funcName: string) (isInstance: bool) =
+    if funcName = EntryPointName && env.isExecutable && not isInstance then
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) when ent.IsModule && cenv.syntaxTree.ParsingOptions.AnonymousModuleDefinitionAllowed ->
+            true
+        | _ ->
+            false
+    else
+        false
+
 let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) (valueExplicitness: ValueExplicitness) (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) : Choice<BindingInfoSymbol, LocalBindingInfoSymbol> option =
     let enclosing = currentEnclosing env
 
@@ -119,12 +135,8 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                 |> snd
 
         let funcFlags =
-            if funcName = EntryPointName then
-                match enclosing with
-                | EnclosingSymbol.Entity(ent) when ent.IsModule && not isInstance && env1.isApp ->
-                    funcFlags ||| FunctionFlags.EntryPoint
-                | _ ->
-                    funcFlags
+            if isValidEntryPoint cenv env enclosing funcName isInstance then
+                funcFlags ||| FunctionFlags.EntryPoint
             else
                 funcFlags
 

@@ -49,7 +49,7 @@ type TestCompilation =
                     parsingOptions = 
                         { 
                             OlyParsingOptions.Default with 
-                                AnonymousModuleDefinitionAllowed = false
+                                AnonymousModuleDefinitionAllowed = true
                                 CompilationUnitConfigurationEnabled = true 
                         }
                 )
@@ -60,7 +60,7 @@ type TestCompilation =
                         { 
                             OlyParsingOptions.Default with 
                                 AnonymousModuleDefinitionAllowed = false
-                                CompilationUnitConfigurationEnabled = true 
+                                CompilationUnitConfigurationEnabled = false 
                         }
                 )
             ]

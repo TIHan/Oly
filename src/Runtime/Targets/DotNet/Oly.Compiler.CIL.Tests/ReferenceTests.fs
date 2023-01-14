@@ -282,5 +282,5 @@ module TestMain =
         print("hello")
         test()
         """
-    OlyTwo src1 src2
+    OlyTwo src2 src1
     |> runWithExpectedOutput "hellocall"

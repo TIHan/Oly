@@ -614,7 +614,7 @@ let DefaultBinderEnvironment =
         contextTypeOrTypeConstructor = None
         implicitThisOpt = None
         isReturnable = false
-        isApp = false
+        isExecutable = false
     }
 
 let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =

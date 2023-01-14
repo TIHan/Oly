@@ -1191,27 +1191,283 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let signature = asmBuilder.CreateMethodSignature(SignatureCallingConvention.Default, tyPars.Length, isInstance, parTys, returnTy)
         asmBuilder.CreateMethodDefinitionHandle(f, nameHandle, signature)
 
-    static let emitBranch (labels: Dictionary<int, ResizeArray<_>>) (instrOffsets: ReadOnlyMemory<int>) i instrIndexOffset code (il: byref<InstructionEncoder>) =
-        if instrIndexOffset > 0 then
-            let label = il.DefineLabel()
-            let pos = (instrIndexOffset + i)
-            let ls =
-                match labels.TryGetValue pos with
-                | true, ls -> ls
-                | _ ->
-                    let ls = ResizeArray()
-                    labels.[pos] <- ls
-                    ls
-            ls.Add(label)
-            il.Branch(code, label)
-        elif instrIndexOffset < 0 then
-            il.OpCode(code)
-            let currentOffset = il.Offset
-            let offset = instrOffsets.Span.[i + instrIndexOffset]
-            let finalOffset = offset - (currentOffset + 4)
-            il.CodeBuilder.WriteInt32(finalOffset)
+    static let shrinkBranchOpCode (finalOffset: int32) code =
+        if finalOffset >= (int32 System.SByte.MinValue) && finalOffset <= (int32 System.SByte.MaxValue) then
+            match code with
+            | ILOpCode.Br -> ILOpCode.Br_s, true
+            | ILOpCode.Brfalse -> ILOpCode.Brfalse_s, true
+            | ILOpCode.Brtrue -> ILOpCode.Brtrue_s, true
+            | ILOpCode.Beq -> ILOpCode.Beq_s, true
+            | ILOpCode.Bne_un -> ILOpCode.Bne_un_s, true
+            | _ -> code, false
         else
-            failwith "Branch instruction offset not expected to be 0."
+            code, false
+
+    static let emitTypeToken (asmBuilder: ClrAssemblyBuilder) (il: byref<InstructionEncoder>) (handle: ClrTypeHandle) =
+        match handle.TryTypeVariable with
+        | ValueSome(index, kind) ->
+            let builder = new BlobBuilder()
+            let mutable encoder = new BlobEncoder(builder)
+            let mutable specSig = encoder.TypeSpecificationSignature()
+            match kind with
+            | ClrTypeVariableKind.Type ->
+                specSig.GenericTypeParameter(index)
+            | ClrTypeVariableKind.Method ->
+                specSig.GenericMethodTypeParameter(index)
+            let blob = asmBuilder.MetadataBuilder.GetOrAddBlob(builder)
+            il.Token(asmBuilder.MetadataBuilder.AddTypeSpecification(blob))
+        | _ ->
+            match handle with
+            | ClrTypeHandle.FunctionPointer _ 
+            | ClrTypeHandle.NativePointer _  ->
+                il.Token(asmBuilder.TypeReferenceUIntPtr.EntityHandle)
+            | _ ->
+                il.Token(handle.EntityHandle)
+
+    static let emitInstr (asmBuilder: ClrAssemblyBuilder) (maxStack: byref<int32>) (il: byref<InstructionEncoder>) instr =
+        match instr with
+        | ClrInstruction.Conv_i ->
+            il.OpCode(ILOpCode.Conv_i)
+        | ClrInstruction.Conv_i1 ->
+            il.OpCode(ILOpCode.Conv_i1)
+        | ClrInstruction.Conv_i2 ->
+            il.OpCode(ILOpCode.Conv_i2)
+        | ClrInstruction.Conv_i4 ->
+            il.OpCode(ILOpCode.Conv_i4)
+        | ClrInstruction.Conv_i8 ->
+            il.OpCode(ILOpCode.Conv_i8)
+
+        | ClrInstruction.Conv_u ->
+            il.OpCode(ILOpCode.Conv_u)
+        | ClrInstruction.Conv_u1 ->
+            il.OpCode(ILOpCode.Conv_u1)
+        | ClrInstruction.Conv_u2 ->
+            il.OpCode(ILOpCode.Conv_u2)
+        | ClrInstruction.Conv_u4 ->
+            il.OpCode(ILOpCode.Conv_u4)
+        | ClrInstruction.Conv_u8 ->
+            il.OpCode(ILOpCode.Conv_u8)
+
+        | ClrInstruction.Conv_r_un ->
+            il.OpCode(ILOpCode.Conv_r_un)
+        | ClrInstruction.Conv_r4 ->
+            il.OpCode(ILOpCode.Conv_r4)
+        | ClrInstruction.Conv_r8 ->
+            il.OpCode(ILOpCode.Conv_r8)
+
+        | ClrInstruction.Calli(cc, parTys, returnTy) ->
+            maxStack <- max maxStack (parTys.Length + 1)
+            let signature = BlobBuilder()
+            let mutable encoder = BlobEncoder(signature)
+            let mutable parEncoder = Unchecked.defaultof<_>
+            let mutable returnTyEncoder = Unchecked.defaultof<_>
+            encoder.MethodSignature(convention = cc).Parameters(parTys.Length, &returnTyEncoder, &parEncoder)
+            asmBuilder.EncodeReturnType(returnTyEncoder, returnTy)
+            asmBuilder.EncodeParameters(parEncoder, parTys)
+            let handle = asmBuilder.MetadataBuilder.AddStandaloneSignature(asmBuilder.MetadataBuilder.GetOrAddBlob(signature))
+            il.CallIndirect(handle)
+
+        | ClrInstruction.Ldlen ->
+            il.OpCode(ILOpCode.Ldlen)
+
+        | ClrInstruction.Ldtoken(handle) ->
+            il.OpCode(ILOpCode.Ldtoken)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Initobj(handle) ->
+            match handle with
+            | ClrTypeHandle.NativePointer _
+            | ClrTypeHandle.FunctionPointer _ ->
+                il.OpCode(ILOpCode.Conv_u)
+                il.OpCode(ILOpCode.Ldc_i4_0)
+            | _ ->
+                il.OpCode(ILOpCode.Initobj)
+                emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Constrained(handle) ->
+            il.OpCode(ILOpCode.Constrained)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Throw ->
+            il.OpCode(ILOpCode.Throw)
+
+        | ClrInstruction.StindRef ->
+            il.OpCode(ILOpCode.Stind_ref)
+        | ClrInstruction.Stobj(handle) ->
+            il.OpCode(ILOpCode.Stobj) 
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Nop ->
+            il.OpCode(ILOpCode.Nop)
+        | ClrInstruction.Ret ->
+            il.OpCode(ILOpCode.Ret)
+        | ClrInstruction.Box handle ->
+            il.OpCode(ILOpCode.Box)
+            emitTypeToken asmBuilder &il handle
+        | ClrInstruction.Unbox handle ->
+            il.OpCode(ILOpCode.Unbox)
+            emitTypeToken asmBuilder &il handle
+        | ClrInstruction.Unbox_any handle ->
+            il.OpCode(ILOpCode.Unbox_any)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Add ->
+            il.OpCode(ILOpCode.Add)
+        | ClrInstruction.Sub ->
+            il.OpCode(ILOpCode.Sub)
+        | ClrInstruction.Mul ->
+            il.OpCode(ILOpCode.Mul)
+        | ClrInstruction.Div ->
+            il.OpCode(ILOpCode.Div)
+        | ClrInstruction.Rem ->
+            il.OpCode(ILOpCode.Rem)
+        | ClrInstruction.Neg ->
+            il.OpCode(ILOpCode.Neg)
+
+        | ClrInstruction.Ceq ->
+            il.OpCode(ILOpCode.Ceq)
+        | ClrInstruction.Cgt ->
+            il.OpCode(ILOpCode.Cgt)
+        | ClrInstruction.Cgt_un ->
+            il.OpCode(ILOpCode.Cgt_un)
+        | ClrInstruction.Clt ->
+            il.OpCode(ILOpCode.Clt)
+        | ClrInstruction.Clt_un ->
+            il.OpCode(ILOpCode.Clt_un)
+
+        | ClrInstruction.Ldarg n ->
+            il.LoadArgument(n)
+        | ClrInstruction.Ldarga n ->
+            il.LoadArgumentAddress(n)
+        | ClrInstruction.LdindRef ->
+            il.OpCode(ILOpCode.Ldind_ref)
+        | ClrInstruction.Ldloc n ->
+            il.LoadLocal(n)
+        | ClrInstruction.Ldloca n ->
+            il.LoadLocalAddress(n)
+        | ClrInstruction.Starg n ->
+            il.StoreArgument(n)
+        | ClrInstruction.Stloc n ->
+            il.StoreLocal n
+
+        | ClrInstruction.Ldind_i4 ->
+            il.OpCode(ILOpCode.Ldind_i4)
+        | ClrInstruction.Ldind_i8 ->
+            il.OpCode(ILOpCode.Ldind_i8)
+
+        | ClrInstruction.Stind_i4 ->
+            il.OpCode(ILOpCode.Stind_i4)
+        | ClrInstruction.Stind_i8 ->
+            il.OpCode(ILOpCode.Stind_i8)
+
+        | ClrInstruction.Ldelem handle ->
+            il.OpCode(ILOpCode.Ldelem)
+            emitTypeToken asmBuilder &il handle
+        | ClrInstruction.Ldelema handle ->
+            il.OpCode(ILOpCode.Ldelema)
+            emitTypeToken asmBuilder &il handle
+        | ClrInstruction.Stelem handle ->
+            il.OpCode(ILOpCode.Stelem)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Ldftn handle ->
+            il.OpCode(ILOpCode.Ldftn)
+            il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
+        | ClrInstruction.Ldnull ->
+            il.OpCode(ILOpCode.Ldnull)
+        | ClrInstruction.Ldobj handle ->
+            il.OpCode(ILOpCode.Ldobj)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Pop ->
+            il.OpCode(ILOpCode.Pop)
+
+        | ClrInstruction.Dup ->
+            il.OpCode(ILOpCode.Dup)
+
+        | ClrInstruction.Tail ->
+            il.OpCode(ILOpCode.Tail)
+
+        | ClrInstruction.Call(handle, argCount) ->
+            maxStack <- max maxStack argCount
+            match handle with
+            | ClrMethodHandle.None -> failwith "Invalid member handle."
+            | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
+                il.Call(memRefHandle)
+            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
+                il.Call(methDefHandle.Value)
+            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
+                il.Call(methSpecHandle.Value)
+        | ClrInstruction.Callvirt(handle, argCount) ->
+            maxStack <- max maxStack argCount
+            il.OpCode(ILOpCode.Callvirt)
+            match handle with
+            | ClrMethodHandle.None -> failwith "Invalid member handle."
+            | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
+                il.Token(MemberReferenceHandle.op_Implicit memRefHandle : EntityHandle)
+            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
+                il.Token(MethodDefinitionHandle.op_Implicit methDefHandle.Value : EntityHandle)
+            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
+                il.Token(MethodSpecificationHandle.op_Implicit methSpecHandle.Value : EntityHandle)
+        | ClrInstruction.Newobj(handle, argCount) ->
+            maxStack <- max maxStack argCount
+            il.OpCode(ILOpCode.Newobj)
+            il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
+        | ClrInstruction.Newarr handle ->
+            il.OpCode(ILOpCode.Newarr)
+            emitTypeToken asmBuilder &il handle
+
+        | ClrInstruction.Ldstr str ->
+            il.LoadString(asmBuilder.MetadataBuilder.GetOrAddUserString(str))
+        | ClrInstruction.LdcI4 value ->
+            il.LoadConstantI4(value)
+        | ClrInstruction.LdcI8 value ->
+            il.LoadConstantI8(value)
+        | ClrInstruction.LdcR4(value) ->
+            il.LoadConstantR4(value)
+        | ClrInstruction.LdcR8 value ->
+            il.LoadConstantR8(value)
+
+        | ClrInstruction.Ldfld handle ->
+            il.OpCode(ILOpCode.Ldfld)
+            il.Token(handle.EntityHandle)
+        | ClrInstruction.Ldflda handle ->
+            il.OpCode(ILOpCode.Ldflda)
+            il.Token(handle.EntityHandle)
+        | ClrInstruction.Stfld handle ->
+            il.OpCode(ILOpCode.Stfld)
+            il.Token(handle.EntityHandle)
+        | ClrInstruction.Ldsfld handle ->
+            il.OpCode(ILOpCode.Ldsfld)
+            il.Token(handle.EntityHandle)
+        | ClrInstruction.Ldsflda handle ->
+            il.OpCode(ILOpCode.Ldsflda)
+            il.Token(handle.EntityHandle)
+        | ClrInstruction.Stsfld handle ->
+            il.OpCode(ILOpCode.Stsfld)
+            il.Token(handle.EntityHandle)
+
+        | ClrInstruction.And ->
+            il.OpCode(ILOpCode.And)
+        | ClrInstruction.Or ->
+            il.OpCode(ILOpCode.Or)
+        | ClrInstruction.Xor ->
+            il.OpCode(ILOpCode.Xor)
+        | ClrInstruction.Not ->
+            il.OpCode(ILOpCode.Not)
+        | ClrInstruction.Shl ->
+            il.OpCode(ILOpCode.Shl)
+        | ClrInstruction.Shr ->
+            il.OpCode(ILOpCode.Shr)
+        | ClrInstruction.Shr_un ->
+            il.OpCode(ILOpCode.Shr_un)
+
+        | ClrInstruction.Br _
+        | ClrInstruction.Brfalse _
+        | ClrInstruction.Brtrue _
+        | ClrInstruction.Bne_un _
+        | ClrInstruction.Beq _ ->
+            failwith "Unexpected branch instruction."
 
     member _.Name = name
     member _.IsInstance = isInstance
@@ -1238,308 +1494,86 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         if Seq.isEmpty this.BodyInstructions then -1 // no body - this makes the RVA zero
         else
 
-        let metadataBuilder = asmBuilder.MetadataBuilder
-        let ilBuilder = asmBuilder.ILBuilder
-        ilBuilder.Align(4)
-        let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)
-        let code = BlobBuilder()
-        let mutable il = InstructionEncoder(code, ControlFlowBuilder())
+        let mutable il = InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
+            
+        let labels = Dictionary<int, _>()
+        let labelsToMark = Dictionary<int, ResizeArray<_>>()
 
-        let labels = Dictionary<int, ResizeArray<_>>()
+        let addLabel offset i =
+            let label = il.DefineLabel()
+
+            labels[i] <- label
+
+            let index = i + offset
+
+            match labelsToMark.TryGetValue index with
+            | true, ls ->
+                ls.Add(label)
+            | _ ->
+                let ls = ResizeArray()
+                labelsToMark[index] <- ls
+                ls.Add(label)
+
+        //---------------------------------------------------------
 
         let instrs = this.BodyInstructions |> ImArray.ofSeq
-        
-        let instrOffsets = Array.zeroCreate<int> instrs.Length
-        let readOnlyInstrOffsets = ReadOnlyMemory(instrOffsets)
+
+        for i = 0 to instrs.Length - 1 do
+            let instr = instrs[i]
+
+            match instr with
+            | ClrInstruction.Br offset ->
+                addLabel offset i
+            | ClrInstruction.Brfalse offset ->
+                addLabel offset i
+            | ClrInstruction.Brtrue offset ->
+                addLabel offset i
+            | ClrInstruction.Bne_un offset ->
+                addLabel (offset()) i
+            | ClrInstruction.Beq offset ->
+                addLabel (offset()) i
+            | _ ->
+                ()
 
         let mutable maxStack = 8 // TODO: We could optimize this.
 
-        let emitTypeToken (handle: ClrTypeHandle) =
-            match handle.TryTypeVariable with
-            | ValueSome(index, kind) ->
-                let builder = new BlobBuilder()
-                let mutable encoder = new BlobEncoder(builder)
-                let mutable specSig = encoder.TypeSpecificationSignature()
-                match kind with
-                | ClrTypeVariableKind.Type ->
-                    specSig.GenericTypeParameter(index)
-                | ClrTypeVariableKind.Method ->
-                    specSig.GenericMethodTypeParameter(index)
-                let blob = metadataBuilder.GetOrAddBlob(builder)
-                il.Token(metadataBuilder.AddTypeSpecification(blob))
-            | _ ->
-                match handle with
-                | ClrTypeHandle.FunctionPointer _ 
-                | ClrTypeHandle.NativePointer _  ->
-                    il.Token(asmBuilder.TypeReferenceUIntPtr.EntityHandle)
-                | _ ->
-                    il.Token(handle.EntityHandle)
+        for i = 0 to instrs.Length - 1 do
+            let instr = instrs[i]
 
-        instrs
-        |> ImArray.iteri (fun i instr ->
-            instrOffsets.[i] <- il.Offset
-
-            match labels.TryGetValue i with
+            match labelsToMark.TryGetValue i with
             | true, ls ->
                 for i = 0 to ls.Count - 1 do
-                    il.MarkLabel(ls.[i])
+                    let label = ls.[i]
+                    il.MarkLabel(label)
             | _ ->
                 ()
+
             match instr with
-            | ClrInstruction.Conv_i ->
-                il.OpCode(ILOpCode.Conv_i)
-            | ClrInstruction.Conv_i1 ->
-                il.OpCode(ILOpCode.Conv_i1)
-            | ClrInstruction.Conv_i2 ->
-                il.OpCode(ILOpCode.Conv_i2)
-            | ClrInstruction.Conv_i4 ->
-                il.OpCode(ILOpCode.Conv_i4)
-            | ClrInstruction.Conv_i8 ->
-                il.OpCode(ILOpCode.Conv_i8)
+            | ClrInstruction.Br _ ->
+                il.Branch(ILOpCode.Br, labels[i])
+            | ClrInstruction.Brfalse _ ->
+                il.Branch(ILOpCode.Brfalse, labels[i])
+            | ClrInstruction.Brtrue _ ->
+                il.Branch(ILOpCode.Brtrue, labels[i])
+            | ClrInstruction.Bne_un _ ->
+                il.Branch(ILOpCode.Bne_un, labels[i])
+            | ClrInstruction.Beq _ ->
+                il.Branch(ILOpCode.Beq, labels[i])
+            | _ ->
+                emitInstr asmBuilder &maxStack &il instr
 
-            | ClrInstruction.Conv_u ->
-                il.OpCode(ILOpCode.Conv_u)
-            | ClrInstruction.Conv_u1 ->
-                il.OpCode(ILOpCode.Conv_u1)
-            | ClrInstruction.Conv_u2 ->
-                il.OpCode(ILOpCode.Conv_u2)
-            | ClrInstruction.Conv_u4 ->
-                il.OpCode(ILOpCode.Conv_u4)
-            | ClrInstruction.Conv_u8 ->
-                il.OpCode(ILOpCode.Conv_u8)
+        //---------------------------------------------------------
 
-            | ClrInstruction.Conv_r_un ->
-                il.OpCode(ILOpCode.Conv_r_un)
-            | ClrInstruction.Conv_r4 ->
-                il.OpCode(ILOpCode.Conv_r4)
-            | ClrInstruction.Conv_r8 ->
-                il.OpCode(ILOpCode.Conv_r8)
-
-            | ClrInstruction.Calli(cc, parTys, returnTy) ->
-                maxStack <- max maxStack (parTys.Length + 1)
-                let signature = BlobBuilder()
-                let mutable encoder = BlobEncoder(signature)
-                let mutable parEncoder = Unchecked.defaultof<_>
-                let mutable returnTyEncoder = Unchecked.defaultof<_>
-                encoder.MethodSignature(convention = cc).Parameters(parTys.Length, &returnTyEncoder, &parEncoder)
-                asmBuilder.EncodeReturnType(returnTyEncoder, returnTy)
-                asmBuilder.EncodeParameters(parEncoder, parTys)
-                let handle = asmBuilder.MetadataBuilder.AddStandaloneSignature(asmBuilder.MetadataBuilder.GetOrAddBlob(signature))
-                il.CallIndirect(handle)
-
-            | ClrInstruction.Ldlen ->
-                il.OpCode(ILOpCode.Ldlen)
-
-            | ClrInstruction.Ldtoken(handle) ->
-                il.OpCode(ILOpCode.Ldtoken)
-                emitTypeToken handle
-
-            | ClrInstruction.Initobj(handle) ->
-                match handle with
-                | ClrTypeHandle.NativePointer _
-                | ClrTypeHandle.FunctionPointer _ ->
-                    il.OpCode(ILOpCode.Conv_u)
-                    il.OpCode(ILOpCode.Ldc_i4_0)
-                | _ ->
-                    il.OpCode(ILOpCode.Initobj)
-                    emitTypeToken handle
-
-            | ClrInstruction.Constrained(handle) ->
-                il.OpCode(ILOpCode.Constrained)
-                emitTypeToken handle
-
-            | ClrInstruction.Throw ->
-                il.OpCode(ILOpCode.Throw)
-
-            | ClrInstruction.StindRef ->
-                il.OpCode(ILOpCode.Stind_ref)
-            | ClrInstruction.Stobj(handle) ->
-                il.OpCode(ILOpCode.Stobj) 
-                emitTypeToken handle
-
-            | ClrInstruction.Nop ->
-                il.OpCode(ILOpCode.Nop)
-            | ClrInstruction.Ret ->
-                il.OpCode(ILOpCode.Ret)
-            | ClrInstruction.Box handle ->
-                il.OpCode(ILOpCode.Box)
-                emitTypeToken handle
-            | ClrInstruction.Unbox handle ->
-                il.OpCode(ILOpCode.Unbox)
-                emitTypeToken handle
-            | ClrInstruction.Unbox_any handle ->
-                il.OpCode(ILOpCode.Unbox_any)
-                emitTypeToken handle
-
-            | ClrInstruction.Add ->
-                il.OpCode(ILOpCode.Add)
-            | ClrInstruction.Sub ->
-                il.OpCode(ILOpCode.Sub)
-            | ClrInstruction.Mul ->
-                il.OpCode(ILOpCode.Mul)
-            | ClrInstruction.Div ->
-                il.OpCode(ILOpCode.Div)
-            | ClrInstruction.Rem ->
-                il.OpCode(ILOpCode.Rem)
-            | ClrInstruction.Neg ->
-                il.OpCode(ILOpCode.Neg)
-
-            | ClrInstruction.Ceq ->
-                il.OpCode(ILOpCode.Ceq)
-            | ClrInstruction.Cgt ->
-                il.OpCode(ILOpCode.Cgt)
-            | ClrInstruction.Cgt_un ->
-                il.OpCode(ILOpCode.Cgt_un)
-            | ClrInstruction.Clt ->
-                il.OpCode(ILOpCode.Clt)
-            | ClrInstruction.Clt_un ->
-                il.OpCode(ILOpCode.Clt_un)
-
-            | ClrInstruction.Ldarg n ->
-                il.LoadArgument(n)
-            | ClrInstruction.Ldarga n ->
-                il.LoadArgumentAddress(n)
-            | ClrInstruction.LdindRef ->
-                il.OpCode(ILOpCode.Ldind_ref)
-            | ClrInstruction.Ldloc n ->
-                il.LoadLocal(n)
-            | ClrInstruction.Ldloca n ->
-                il.LoadLocalAddress(n)
-            | ClrInstruction.Starg n ->
-                il.StoreArgument(n)
-            | ClrInstruction.Stloc n ->
-                il.StoreLocal n
-
-            | ClrInstruction.Ldind_i4 ->
-                il.OpCode(ILOpCode.Ldind_i4)
-            | ClrInstruction.Ldind_i8 ->
-                il.OpCode(ILOpCode.Ldind_i8)
-
-            | ClrInstruction.Stind_i4 ->
-                il.OpCode(ILOpCode.Stind_i4)
-            | ClrInstruction.Stind_i8 ->
-                il.OpCode(ILOpCode.Stind_i8)
-
-            | ClrInstruction.Ldelem handle ->
-                il.OpCode(ILOpCode.Ldelem)
-                emitTypeToken handle
-            | ClrInstruction.Ldelema handle ->
-                il.OpCode(ILOpCode.Ldelema)
-                emitTypeToken handle
-            | ClrInstruction.Stelem handle ->
-                il.OpCode(ILOpCode.Stelem)
-                emitTypeToken handle
-
-            | ClrInstruction.Ldftn handle ->
-                il.OpCode(ILOpCode.Ldftn)
-                il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
-            | ClrInstruction.Ldnull ->
-                il.OpCode(ILOpCode.Ldnull)
-            | ClrInstruction.Ldobj handle ->
-                il.OpCode(ILOpCode.Ldobj)
-                emitTypeToken handle
-
-            | ClrInstruction.Pop ->
-                il.OpCode(ILOpCode.Pop)
-
-            | ClrInstruction.Dup ->
-                il.OpCode(ILOpCode.Dup)
-
-            | ClrInstruction.Tail ->
-                il.OpCode(ILOpCode.Tail)
-
-            | ClrInstruction.Call(handle, argCount) ->
-                maxStack <- max maxStack argCount
-                match handle with
-                | ClrMethodHandle.None -> failwith "Invalid member handle."
-                | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
-                    il.Call(memRefHandle)
-                | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
-                    il.Call(methDefHandle.Value)
-                | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
-                    il.Call(methSpecHandle.Value)
-            | ClrInstruction.Callvirt(handle, argCount) ->
-                maxStack <- max maxStack argCount
-                il.OpCode(ILOpCode.Callvirt)
-                match handle with
-                | ClrMethodHandle.None -> failwith "Invalid member handle."
-                | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
-                    il.Token(MemberReferenceHandle.op_Implicit memRefHandle : EntityHandle)
-                | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
-                    il.Token(MethodDefinitionHandle.op_Implicit methDefHandle.Value : EntityHandle)
-                | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
-                    il.Token(MethodSpecificationHandle.op_Implicit methSpecHandle.Value : EntityHandle)
-            | ClrInstruction.Newobj(handle, argCount) ->
-                maxStack <- max maxStack argCount
-                il.OpCode(ILOpCode.Newobj)
-                il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
-            | ClrInstruction.Newarr handle ->
-                il.OpCode(ILOpCode.Newarr)
-                emitTypeToken handle
-
-            | ClrInstruction.Ldstr str ->
-                il.LoadString(metadataBuilder.GetOrAddUserString(str))
-            | ClrInstruction.LdcI4 value ->
-                il.LoadConstantI4(value)
-            | ClrInstruction.LdcI8 value ->
-                il.LoadConstantI8(value)
-            | ClrInstruction.LdcR4(value) ->
-                il.LoadConstantR4(value)
-            | ClrInstruction.LdcR8 value ->
-                il.LoadConstantR8(value)
-
-            | ClrInstruction.Ldfld handle ->
-                il.OpCode(ILOpCode.Ldfld)
-                il.Token(handle.EntityHandle)
-            | ClrInstruction.Ldflda handle ->
-                il.OpCode(ILOpCode.Ldflda)
-                il.Token(handle.EntityHandle)
-            | ClrInstruction.Stfld handle ->
-                il.OpCode(ILOpCode.Stfld)
-                il.Token(handle.EntityHandle)
-            | ClrInstruction.Ldsfld handle ->
-                il.OpCode(ILOpCode.Ldsfld)
-                il.Token(handle.EntityHandle)
-            | ClrInstruction.Ldsflda handle ->
-                il.OpCode(ILOpCode.Ldsflda)
-                il.Token(handle.EntityHandle)
-            | ClrInstruction.Stsfld handle ->
-                il.OpCode(ILOpCode.Stsfld)
-                il.Token(handle.EntityHandle)
-
-            | ClrInstruction.And ->
-                il.OpCode(ILOpCode.And)
-            | ClrInstruction.Or ->
-                il.OpCode(ILOpCode.Or)
-            | ClrInstruction.Xor ->
-                il.OpCode(ILOpCode.Xor)
-            | ClrInstruction.Not ->
-                il.OpCode(ILOpCode.Not)
-            | ClrInstruction.Shl ->
-                il.OpCode(ILOpCode.Shl)
-            | ClrInstruction.Shr ->
-                il.OpCode(ILOpCode.Shr)
-            | ClrInstruction.Shr_un ->
-                il.OpCode(ILOpCode.Shr_un)
-
-            | ClrInstruction.Br offset ->
-                emitBranch labels readOnlyInstrOffsets i offset ILOpCode.Br &il
-            | ClrInstruction.Brfalse offset ->
-                emitBranch labels readOnlyInstrOffsets i offset ILOpCode.Brfalse &il
-            | ClrInstruction.Brtrue offset ->
-                emitBranch labels readOnlyInstrOffsets i offset ILOpCode.Brtrue &il
-            | ClrInstruction.Bne_un offset ->
-                emitBranch labels readOnlyInstrOffsets i (offset()) ILOpCode.Bne_un &il
-            | ClrInstruction.Beq offset ->
-                emitBranch labels readOnlyInstrOffsets i (offset()) ILOpCode.Beq_s &il
-        )
+        let ilBuilder = asmBuilder.ILBuilder
+        ilBuilder.Align(4)
+        let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)
 
         let bodyOffset =
             if this.Locals.IsEmpty then
                 methBodyStream.AddMethodBody(il, maxStack = maxStack)
             else
                 methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = asmBuilder.CreateStandaloneSignature(this.Locals))
-        code.Clear()
+
         bodyOffset
 
     member internal this.Build() =

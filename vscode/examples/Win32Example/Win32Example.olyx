@@ -92,30 +92,3 @@ main(): () =
     else
         showWindow(hwnd)
         runWindowMessage(hwnd)
-
-// pattern addOne(x: int32): int32 = 
-//     print("(side effect)")
-//     __oly_add(x, 1)
-
-// test<T>(x1: int32, x2: int32, x3: int32, z: T): () =
-//     match (x1, x2, x3)
-//     | 5, addOne(y), 2 => print(y)
-//     | 8, addOne(y), _ => print(y)
-//     | 99, addOne(y), 4 when (y == 49) => print(y)
-//     | 99, addOne(y), 5 when (y == 50) => print(y)
-//     | _ => print(z)
-
-// main(): () =
-//     test(99, 49, 8, 3.3)
-
-// #[inline]
-// forLoop(length: int32, #[inline] f: int32 -> ()): () =
-//     #[inline]
-//     let loop(i) =
-//         if (i < length)
-//             f(i)
-//             loop(i + 1)
-//     loop(0)
-
-// main(): () =
-//     forLoop(5, i -> print(i))

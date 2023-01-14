@@ -58,7 +58,7 @@ type BinderEnvironment =
        // TODO: Get rid of this...
        implicitThisOpt: ILocalParameterSymbol option
 
-       isApp: bool
+       isExecutable: bool
     }
 
     /// Context type is not the enclosing type, but rather using certain expressions like "let!"
