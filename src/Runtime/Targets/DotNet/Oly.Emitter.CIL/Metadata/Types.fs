@@ -284,11 +284,6 @@ type ClrInstruction =
     | Ldnull
     | Ldobj of ClrTypeHandle
     | Ldftn of ClrMethodHandle
-    | Brtrue of int32
-    | Brfalse of int32
-    | Br of int32
-    | Bne_un of fixup: (unit -> int32)
-    | Beq of fixup: (unit -> int32)
 
     | Not
     | And
@@ -319,6 +314,16 @@ type ClrInstruction =
     | Throw
 
     | Dup
+
+    // Branches
+
+    | Brtrue of labelId: int32
+    | Brfalse of labelId: int32
+    | Br of labelId: int32
+    | Bne_un of labelId: int32
+    | Beq of labelId: int32
+
+    | Label of labelId: int32
 
 [<RequireQualifiedAccess>]
 module ClrElementTypes =

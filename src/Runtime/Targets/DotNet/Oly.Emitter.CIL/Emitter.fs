@@ -172,7 +172,8 @@ module rec ClrCodeGen =
             buffer: ResizeArray<ClrInstruction>
             locals: System.Collections.Generic.Dictionary<int, ClrTypeInfo>
             dups: System.Collections.Generic.HashSet<int>
-            mutable localCount: int
+            mutable localCount: int ref
+            mutable nextLabelId: int32 ref
         }
 
         member this.NewBuffer() =
@@ -181,10 +182,15 @@ module rec ClrCodeGen =
             }
 
         member this.NewLocal(ty: ClrTypeInfo) =
-            let localIndex = this.localCount
-            this.localCount <- this.localCount + 1
+            let localIndex = this.localCount.contents
+            this.localCount.contents <- this.localCount.contents + 1
             this.locals.[localIndex] <- ty
             localIndex
+
+        member this.NewLabel() =
+            let labelId = this.nextLabelId.contents
+            this.nextLabelId.contents <- this.nextLabelId.contents + 1
+            labelId
 
     type env =
         {
@@ -953,6 +959,8 @@ module rec ClrCodeGen =
             GenExpression cenv env irExpr2
 
         | E.IfElse(conditionExpr, trueExpr, falseExpr, _) ->
+            let falseLabelId = cenv.NewLabel()
+
             let truePath = NewGenBranchPath cenv env trueExpr
             let falsePath = NewGenBranchPath cenv env falseExpr
 
@@ -960,14 +968,11 @@ module rec ClrCodeGen =
                 falsePath.Count > 0 && 
                 not (match falsePath.[falsePath.Count - 1] with ClrInstruction.Ret -> true | _ -> false)
 
-            let extra =
-                if mustBranch then 1
-                else 0
-
-            let emitBranch instr =
-                instr (truePath.Count + 1 + extra) |> emitInstruction cenv
-
-            let mutable falseIndex = 0
+            let contLabelIdOpt =
+                if mustBranch then
+                    cenv.NewLabel() |> ValueSome
+                else
+                    ValueNone
 
             let andExpr arg1 arg2 resultTy =
                 E.IfElse(arg1, arg2, E.Value(NoRange, V.Constant(C.False, resultTy)), resultTy)
@@ -991,67 +996,77 @@ module rec ClrCodeGen =
                     orExpr argx1 (orExpr argx2 arg2 resultTy) resultTy
                     |> reduce
 
-                | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
-                    match argx1, argx2 with
-                    // TODO: There is some code duplication that we can cleanup.
-                    | E.Value(_, value1), E.Value(_, value2) 
-                        when canUseIntrinsicEquality value1 value2 ->
+                //| And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
+                //    match argx1, argx2 with
+                //    // TODO: There is some code duplication that we can cleanup.
+                //    | E.Value(_, value1), E.Value(_, value2) 
+                //        when canUseIntrinsicEquality value1 value2 ->
                     
-                        GenExpression cenv { env with isReturnable = false } argx1
-                        GenExpression cenv { env with isReturnable = false } argx2
+                //        GenExpression cenv { env with isReturnable = false } argx1
+                //        GenExpression cenv { env with isReturnable = false } argx2
 
-                        let currentIndex = cenv.buffer.Count
-                        ClrInstruction.Bne_un(fun () -> falseIndex - currentIndex) |> emitInstruction cenv
-                        reduce arg2
-                    | _ ->
-                        GenExpression cenv { env with isReturnable = false } conditionExpr
-                        emitBranch ClrInstruction.Brfalse
+                //        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                //        reduce arg2
+                //    | _ ->
+                //        GenExpression cenv { env with isReturnable = false } conditionExpr
+                //        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
 
-                | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
-                    match arg1, arg2 with
-                    | E.Value(_, value1), E.Value(_, value2) 
-                        when canUseIntrinsicEquality value1 value2  ->
+                //| E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+                //    match arg1, arg2 with
+                //    | E.Value(_, value1), E.Value(_, value2) 
+                //        when canUseIntrinsicEquality value1 value2  ->
                     
-                        GenExpression cenv { env with isReturnable = false } arg1
-                        GenExpression cenv { env with isReturnable = false } arg2
+                //        GenExpression cenv { env with isReturnable = false } arg1
+                //        GenExpression cenv { env with isReturnable = false } arg2
 
-                        let currentIndex = cenv.buffer.Count
-                        ClrInstruction.Bne_un(fun () -> falseIndex - currentIndex) |> emitInstruction cenv
-                    | _ ->
-                        GenExpression cenv { env with isReturnable = false } conditionExpr
-                        emitBranch ClrInstruction.Brfalse
+                //        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                //    | _ ->
+                //        GenExpression cenv { env with isReturnable = false } conditionExpr
+                //        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
 
                 | _ ->
                     GenExpression cenv { env with isReturnable = false } conditionExpr
-                    emitBranch ClrInstruction.Brfalse
+                    ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
 
             reduce conditionExpr
-            emitInstructions cenv truePath            
-            if mustBranch then
-                ClrInstruction.Br (falsePath.Count + 1) |> emitInstruction cenv
-            falseIndex <- cenv.buffer.Count
+            emitInstructions cenv truePath 
+            
+            match contLabelIdOpt with
+            | ValueSome(contLabelId) ->
+                ClrInstruction.Br(contLabelId) |> emitInstruction cenv
+            | _ ->
+                ()
+
+            ClrInstruction.Label(falseLabelId) |> emitInstruction cenv
             emitInstructions cenv falsePath
 
-        | E.While(predicateExpr, bodyExpr, _) ->
-            let loopStartPos = getInstructionPosition cenv
+            match contLabelIdOpt with
+            | ValueSome(contLabelId) ->
+                ClrInstruction.Label(contLabelId) |> emitInstruction cenv
+            | _ ->
+                ()
 
+        | E.While(predicateExpr, bodyExpr, _) ->
             let envLoop = 
                 { env with 
                     isInWhileLoop = true
                     isReturnable = false }
 
+            let loopStartLabelId = cenv.NewLabel()
+            let loopEndLabelId = cenv.NewLabel()
+
             let predicatePath = NewGenBranchPath cenv envLoop predicateExpr
             let bodyPath = NewGenBranchPath cenv envLoop bodyExpr
 
+            ClrInstruction.Label(loopStartLabelId) |> emitInstruction cenv
+
             emitInstructions cenv predicatePath
-            let fixupBranchFalseIndex = emitFixupInstruction cenv
+            emitInstruction cenv (ClrInstruction.Brfalse loopEndLabelId)
 
             emitInstructions cenv bodyPath
-            let offset = getInstructionPosition cenv - loopStartPos
-            emitInstruction cenv (ClrInstruction.Br -offset)
+            emitInstruction cenv (ClrInstruction.Br loopStartLabelId)
 
-            let brFalseOffset = getInstructionPosition cenv - fixupBranchFalseIndex
-            cenv.buffer.[fixupBranchFalseIndex] <- ClrInstruction.Brfalse(brFalseOffset)
+            ClrInstruction.Label(loopEndLabelId) |> emitInstruction cenv
 
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr
@@ -2086,7 +2101,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     buffer = output
                     locals = System.Collections.Generic.Dictionary()
                     dups = System.Collections.Generic.HashSet()
-                    localCount = bodyResult.LocalCount
+                    localCount = ref bodyResult.LocalCount
+                    nextLabelId = ref 0
                 } : ClrCodeGen.cenv
 
             let env =

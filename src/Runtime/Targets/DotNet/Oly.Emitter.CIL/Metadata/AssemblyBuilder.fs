@@ -1466,7 +1466,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | ClrInstruction.Brfalse _
         | ClrInstruction.Brtrue _
         | ClrInstruction.Bne_un _
-        | ClrInstruction.Beq _ ->
+        | ClrInstruction.Beq _ 
+        | ClrInstruction.Label _ ->
             failwith "Unexpected branch instruction."
 
     member _.Name = name
@@ -1497,22 +1498,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let mutable il = InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
             
         let labels = Dictionary<int, _>()
-        let labelsToMark = Dictionary<int, ResizeArray<_>>()
-
-        let addLabel offset i =
-            let label = il.DefineLabel()
-
-            labels[i] <- label
-
-            let index = i + offset
-
-            match labelsToMark.TryGetValue index with
-            | true, ls ->
-                ls.Add(label)
-            | _ ->
-                let ls = ResizeArray()
-                labelsToMark[index] <- ls
-                ls.Add(label)
+        let addLabel id =
+            labels.Add(id, il.DefineLabel())
 
         //---------------------------------------------------------
 
@@ -1522,16 +1509,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             let instr = instrs[i]
 
             match instr with
-            | ClrInstruction.Br offset ->
-                addLabel offset i
-            | ClrInstruction.Brfalse offset ->
-                addLabel offset i
-            | ClrInstruction.Brtrue offset ->
-                addLabel offset i
-            | ClrInstruction.Bne_un offset ->
-                addLabel (offset()) i
-            | ClrInstruction.Beq offset ->
-                addLabel (offset()) i
+            | ClrInstruction.Label labeId ->
+                addLabel labeId
             | _ ->
                 ()
 
@@ -1540,25 +1519,19 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
 
-            match labelsToMark.TryGetValue i with
-            | true, ls ->
-                for i = 0 to ls.Count - 1 do
-                    let label = ls.[i]
-                    il.MarkLabel(label)
-            | _ ->
-                ()
-
             match instr with
-            | ClrInstruction.Br _ ->
-                il.Branch(ILOpCode.Br, labels[i])
-            | ClrInstruction.Brfalse _ ->
-                il.Branch(ILOpCode.Brfalse, labels[i])
-            | ClrInstruction.Brtrue _ ->
-                il.Branch(ILOpCode.Brtrue, labels[i])
-            | ClrInstruction.Bne_un _ ->
-                il.Branch(ILOpCode.Bne_un, labels[i])
-            | ClrInstruction.Beq _ ->
-                il.Branch(ILOpCode.Beq, labels[i])
+            | ClrInstruction.Br labelId ->
+                il.Branch(ILOpCode.Br, labels[labelId])
+            | ClrInstruction.Brfalse labelId ->
+                il.Branch(ILOpCode.Brfalse, labels[labelId])
+            | ClrInstruction.Brtrue labelId ->
+                il.Branch(ILOpCode.Brtrue, labels[labelId])
+            | ClrInstruction.Bne_un labelId ->
+                il.Branch(ILOpCode.Bne_un, labels[labelId])
+            | ClrInstruction.Beq labelId ->
+                il.Branch(ILOpCode.Beq, labels[labelId])
+            | ClrInstruction.Label labelId ->
+                il.MarkLabel(labels[labelId])
             | _ ->
                 emitInstr asmBuilder &maxStack &il instr
 
