@@ -1476,7 +1476,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     member val Convention = SignatureCallingConvention.Default with get, set
     member val Attributes = MethodAttributes() with get, set
     member val ImplementationAttributes = MethodImplAttributes() with get, set
-    member val BodyInstructions = Seq.empty with get, set
+    member val BodyInstructions = ImArray.empty with get, set
 
     member _.Overrides
         with get() = overridesOpt
@@ -1492,7 +1492,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     member _.Handle: ClrMethodHandle = handle
 
     member private this.PopulateMethodBody() =
-        if Seq.isEmpty this.BodyInstructions then -1 // no body - this makes the RVA zero
+        if this.BodyInstructions.IsEmpty then -1 // no body - this makes the RVA zero
         else
 
         let mutable il = InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
@@ -1503,7 +1503,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         //---------------------------------------------------------
 
-        let instrs = this.BodyInstructions |> ImArray.ofSeq
+        let instrs = this.BodyInstructions
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]

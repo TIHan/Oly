@@ -169,7 +169,7 @@ module rec ClrCodeGen =
         {
             assembly: ClrAssemblyBuilder
             emitTailCalls: bool
-            buffer: ResizeArray<ClrInstruction>
+            buffer: imarrayb<ClrInstruction>
             locals: System.Collections.Generic.Dictionary<int, ClrTypeInfo>
             dups: System.Collections.Generic.HashSet<int>
             mutable localCount: int ref
@@ -178,7 +178,7 @@ module rec ClrCodeGen =
 
         member this.NewBuffer() =
             { this with
-                buffer = ResizeArray()
+                buffer = ImArray.builder ()
             }
 
         member this.NewLocal(ty: ClrTypeInfo) =
@@ -270,7 +270,7 @@ module rec ClrCodeGen =
         cenv.buffer.Add(Unchecked.defaultof<_>)
         fixupIndex
 
-    let emitInstructions cenv instrs =
+    let emitInstructions cenv (instrs: imarrayb<_>) =
         cenv.buffer.AddRange(instrs)
 
     let emitConv cenv tyCode =
@@ -1141,6 +1141,7 @@ let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodNa
                 ClrInstruction.Throw
                 ClrInstruction.Ret
             ]
+            |> ImArray.ofSeq
 
     methDefBuilder
 
@@ -1687,6 +1688,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         ClrInstruction.Stfld instanceFieldHandle
                         ClrInstruction.Ret
                     ]
+                    |> ImArray.ofSeq
 
                 if extendedTy.IsStruct then
                     // Add second constructor if the extending type is a struct.
@@ -1706,6 +1708,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                             ClrInstruction.Stfld instanceFieldHandle
                             ClrInstruction.Ret
                         ]
+                        |> ImArray.ofSeq
 
                 let instanceTyInfo =
                     ClrTypeInfo.TypeDefinition(asmBuilder, instanceTyDefBuilder, isReadOnly, false, None, ValueNone, false, false)
@@ -1979,6 +1982,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                                 ClrInstruction.Call(methDefBuilder.Handle, ldargInstrs.Length)
                                                 ClrInstruction.Ret
                                             |]
+                                        |> ImArray.ofSeq
                             | _ ->
                                 ()
 
@@ -1990,6 +1994,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                     ClrInstruction.Throw
                                     ClrInstruction.Ret
                                 ]
+                                |> ImArray.ofSeq
 
                         if externalInfoOpt.IsSome && externalInfoOpt.Value.Platform = "C" then
                             //methDefBuilder.PInvokeInfo <-
@@ -2079,7 +2084,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             }
 
         member this.EmitFunctionBody(irFuncBody, func) =
-            let output = ResizeArray()
+            let output = ImArray.builder()
 
             let bodyResult = 
 #if DEBUG
@@ -2120,7 +2125,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     |> Seq.sortBy (fun x -> x.Key)
                     |> Seq.map (fun x -> ClrLocal(x.Value.Handle))
                     |> ImArray.ofSeq
-                methDefBuilder.BodyInstructions <- cenv.buffer
+                methDefBuilder.BodyInstructions <- cenv.buffer.ToImmutable()
             | _ ->
                 failwith "Expected method definition builder."
 
