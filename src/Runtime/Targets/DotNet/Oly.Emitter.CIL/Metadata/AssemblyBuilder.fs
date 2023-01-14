@@ -1470,6 +1470,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | ClrInstruction.Label _ ->
             failwith "Unexpected branch instruction."
 
+    static let createInstructionEncoder() =
+        InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
+
+    static let addLabel (il: byref<InstructionEncoder>) (labels: Dictionary<int, _>) labelId =
+        labels.Add(labelId, il.DefineLabel())
+
     member _.Name = name
     member _.IsInstance = isInstance
     member val Locals: ClrLocal imarray = ImArray.empty with get, set
@@ -1495,11 +1501,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         if this.BodyInstructions.IsEmpty then -1 // no body - this makes the RVA zero
         else
 
-        let mutable il = InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
-            
         let labels = Dictionary<int, _>()
-        let addLabel id =
-            labels.Add(id, il.DefineLabel())
+        let mutable il = createInstructionEncoder()
 
         //---------------------------------------------------------
 
@@ -1510,7 +1513,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             match instr with
             | ClrInstruction.Label labeId ->
-                addLabel labeId
+                addLabel &il labels labeId
             | _ ->
                 ()
 

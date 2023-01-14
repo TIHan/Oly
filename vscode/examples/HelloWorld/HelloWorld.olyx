@@ -5,5 +5,12 @@
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
+doot(x: int32): () =
+    if (x == 1)
+        print("doot")
+    else
+        print("zoot")
+
 main(): () =
+    doot(1)
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
