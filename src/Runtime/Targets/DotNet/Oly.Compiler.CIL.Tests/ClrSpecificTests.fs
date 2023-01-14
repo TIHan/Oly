@@ -2960,3 +2960,65 @@ main(): () =
     let proj = getProjectWithReferenceProject refSrc src
     proj.Compilation
     |> runWithExpectedOutput "149"
+
+[<Fact>]
+let ``Test various branch sizes``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[not inline]
+test1(x: int32): () =
+    if (x == 1)
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+    else
+        print("failed")
+
+#[not inline]
+test2(x: int32): () =
+    if (x == 1)
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
+    else
+        print("failed")
+
+main(): () =
+    test1(1)
+    test2(1)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput ""
+    |> ignore

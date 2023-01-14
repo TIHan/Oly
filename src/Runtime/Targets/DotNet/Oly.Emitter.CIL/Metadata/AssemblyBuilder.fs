@@ -1470,6 +1470,245 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | ClrInstruction.Label _ ->
             failwith "Unexpected branch instruction."
 
+    static let estimateSizeOfInstr instr =
+        match instr with
+        | ClrInstruction.Conv_i ->
+            1
+        | ClrInstruction.Conv_i1 ->
+            1
+        | ClrInstruction.Conv_i2 ->
+            1
+        | ClrInstruction.Conv_i4 ->
+            1
+        | ClrInstruction.Conv_i8 ->
+            1
+
+        | ClrInstruction.Conv_u ->
+            1
+        | ClrInstruction.Conv_u1 ->
+            1
+        | ClrInstruction.Conv_u2 ->
+            1
+        | ClrInstruction.Conv_u4 ->
+            1
+        | ClrInstruction.Conv_u8 ->
+            1
+
+        | ClrInstruction.Conv_r_un ->
+            1
+        | ClrInstruction.Conv_r4 ->
+            1
+        | ClrInstruction.Conv_r8 ->
+            1
+
+        | ClrInstruction.Calli _ ->
+            1 + 4
+
+        | ClrInstruction.Ldlen ->
+            1
+
+        | ClrInstruction.Ldtoken _ ->
+            1 + 4
+
+        | ClrInstruction.Initobj(handle) ->
+            match handle with
+            | ClrTypeHandle.NativePointer _
+            | ClrTypeHandle.FunctionPointer _ ->
+                1 + // Conv_u
+                1   // Ldc_i4_0
+            | _ ->
+                2 + 4
+
+        | ClrInstruction.Constrained _ ->
+            2 + 4
+
+        | ClrInstruction.Throw ->
+            1
+
+        | ClrInstruction.StindRef ->
+            1
+        | ClrInstruction.Stobj _ ->
+            1 + 4
+
+        | ClrInstruction.Nop ->
+            1
+        | ClrInstruction.Ret ->
+            1
+        | ClrInstruction.Box _ ->
+            1 + 4
+        | ClrInstruction.Unbox _ ->
+            1 + 4
+        | ClrInstruction.Unbox_any _ ->
+            1 + 4
+
+        | ClrInstruction.Add ->
+            1
+        | ClrInstruction.Sub ->
+            1
+        | ClrInstruction.Mul ->
+            1
+        | ClrInstruction.Div ->
+            1
+        | ClrInstruction.Rem ->
+            1
+        | ClrInstruction.Neg ->
+            1
+
+        | ClrInstruction.Ceq ->
+            2
+        | ClrInstruction.Cgt ->
+            2
+        | ClrInstruction.Cgt_un ->
+            2
+        | ClrInstruction.Clt ->
+            2
+        | ClrInstruction.Clt_un ->
+            2
+
+        | ClrInstruction.Ldarg value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                if value >= 0 && value <= 3 then
+                    1
+                else
+                    1 + 1
+            else
+                1 + 2
+        | ClrInstruction.Ldarga value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                1 + 1
+            else
+                1 + 2
+        | ClrInstruction.LdindRef ->
+            1
+        | ClrInstruction.Ldloc value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                if value >= 0 && value <= 3 then
+                    1
+                else
+                    1 + 1
+            else
+                1 + 2
+        | ClrInstruction.Ldloca value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                1 + 1
+            else
+                1 + 2
+        | ClrInstruction.Starg value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                1 + 1
+            else
+                1 + 2
+        | ClrInstruction.Stloc value ->
+            if value <= int Byte.MaxValue && value >= int Byte.MinValue then
+                if value >= 0 && value <= 3 then
+                    1
+                else
+                    1 + 1
+            else
+                1 + 2
+
+        | ClrInstruction.Ldind_i4 ->
+            1
+        | ClrInstruction.Ldind_i8 ->
+            1
+
+        | ClrInstruction.Stind_i4 ->
+            1
+        | ClrInstruction.Stind_i8 ->
+            1
+
+        | ClrInstruction.Ldelem _ ->
+            1 + 4
+        | ClrInstruction.Ldelema _ ->
+            1 + 4
+        | ClrInstruction.Stelem _ ->
+            1 + 4
+
+        | ClrInstruction.Ldftn _ ->
+            2 + 4
+        | ClrInstruction.Ldnull ->
+            1
+        | ClrInstruction.Ldobj _ ->
+            1 + 4
+
+        | ClrInstruction.Pop ->
+            1
+
+        | ClrInstruction.Dup ->
+            1
+
+        | ClrInstruction.Tail ->
+            2
+
+        | ClrInstruction.Call _ ->
+            1 + 4
+        | ClrInstruction.Callvirt _ ->
+            1 + 4
+        | ClrInstruction.Newobj _ ->
+            1 + 4
+        | ClrInstruction.Newarr _ ->
+            1 + 4
+
+        | ClrInstruction.Ldstr _ ->
+            1 + 4
+        | ClrInstruction.LdcI4(value) ->
+            if value <= int SByte.MaxValue && value >= int SByte.MinValue then
+                if value >= 0 && value <= 8 then
+                    1
+                elif value = -1 then
+                    1 // ldc.i4.m1
+                else
+                    1 + 1
+            else
+                1 + 4
+        | ClrInstruction.LdcI8 _ ->
+            1 + 8
+        | ClrInstruction.LdcR4 _ ->
+            1 + 4
+        | ClrInstruction.LdcR8 _ ->
+            1 + 8
+
+        | ClrInstruction.Ldfld _ ->
+            1 + 4
+        | ClrInstruction.Ldflda _ ->
+            1 + 4
+        | ClrInstruction.Stfld _ ->
+            1 + 4
+        | ClrInstruction.Ldsfld _ ->
+            1 + 4
+        | ClrInstruction.Ldsflda _ ->
+            1 + 4
+        | ClrInstruction.Stsfld _ ->
+            1 + 4
+
+        | ClrInstruction.And ->
+            1
+        | ClrInstruction.Or ->
+            1
+        | ClrInstruction.Xor ->
+            1
+        | ClrInstruction.Not ->
+            1
+        | ClrInstruction.Shl ->
+            1
+        | ClrInstruction.Shr ->
+            1
+        | ClrInstruction.Shr_un ->
+            1
+
+        | ClrInstruction.Br _ ->
+            1 + 4
+        | ClrInstruction.Brfalse _ ->
+            1 + 4
+        | ClrInstruction.Brtrue _ ->
+            1 + 4
+        | ClrInstruction.Bne_un _ ->
+            1 + 4
+        | ClrInstruction.Beq _ ->
+            1 + 4
+        | ClrInstruction.Label _ ->
+            0
+
     static let createInstructionEncoder() =
         InstructionEncoder(BlobBuilder(), ControlFlowBuilder())
 
@@ -1501,19 +1740,21 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         if this.BodyInstructions.IsEmpty then -1 // no body - this makes the RVA zero
         else
 
-        let labels = Dictionary<int, _>()
-        let mutable il = createInstructionEncoder()
+        let instrs = this.BodyInstructions
 
         //---------------------------------------------------------
 
-        let instrs = this.BodyInstructions
+#if DEBUG
+        let labels = Dictionary<int, _>()
+
+        let mutable dummyIL = createInstructionEncoder()
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
 
             match instr with
             | ClrInstruction.Label labeId ->
-                addLabel &il labels labeId
+                addLabel &dummyIL labels labeId
             | _ ->
                 ()
 
@@ -1524,21 +1765,123 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             match instr with
             | ClrInstruction.Br labelId ->
-                il.Branch(ILOpCode.Br, labels[labelId])
+                dummyIL.Branch(ILOpCode.Br, labels[labelId])
             | ClrInstruction.Brfalse labelId ->
-                il.Branch(ILOpCode.Brfalse, labels[labelId])
+                dummyIL.Branch(ILOpCode.Brfalse, labels[labelId])
             | ClrInstruction.Brtrue labelId ->
-                il.Branch(ILOpCode.Brtrue, labels[labelId])
+                dummyIL.Branch(ILOpCode.Brtrue, labels[labelId])
             | ClrInstruction.Bne_un labelId ->
-                il.Branch(ILOpCode.Bne_un, labels[labelId])
+                dummyIL.Branch(ILOpCode.Bne_un, labels[labelId])
             | ClrInstruction.Beq labelId ->
-                il.Branch(ILOpCode.Beq, labels[labelId])
+                dummyIL.Branch(ILOpCode.Beq, labels[labelId])
+            | ClrInstruction.Label labelId ->
+                dummyIL.MarkLabel(labels[labelId])
+            | _ ->
+                emitInstr asmBuilder &maxStack &dummyIL instr
+#endif
+
+        let labels = Dictionary<int, _>()
+        let labelOffsets = Dictionary<int, _>()
+        let offsets = Array.zeroCreate<int> instrs.Length
+
+        let mutable il = createInstructionEncoder()
+        let mutable totalSize = 0
+        for i = 0 to instrs.Length - 1 do
+            let instr = instrs[i]
+
+            offsets[i] <- totalSize
+
+            match instr with
+            | ClrInstruction.Label(labelId) ->
+                labelOffsets[labelId] <- totalSize
+                addLabel &il labels labelId
+            | _ ->
+                ()
+
+            totalSize <- totalSize + estimateSizeOfInstr instr
+
+#if DEBUG
+        // Assert estimation size
+        // In Debug, we emit the IL instructions twice.
+        OlyAssert.Equal(dummyIL.Offset, totalSize)
+#endif
+
+        let mutable maxStack = 8 // TODO: We could optimize this.
+
+        for i = 0 to instrs.Length - 1 do
+            let instr = instrs[i]
+
+            // Handling branches to determine the use of the short form is a little conservative as it will not take into account
+            //     other branches that are short form.
+            match instr with
+            | ClrInstruction.Br labelId ->
+                let opCode =
+                    let offset = offsets[i] + 5
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        ILOpCode.Br_s
+                    else
+                        ILOpCode.Br
+
+                il.Branch(opCode, labels[labelId])
+
+            | ClrInstruction.Brfalse labelId ->
+                let opCode =
+                    let offset = offsets[i] + 5
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        ILOpCode.Brfalse_s
+                    else
+                        ILOpCode.Brfalse
+
+                il.Branch(opCode, labels[labelId])
+
+            | ClrInstruction.Brtrue labelId ->
+                let opCode =
+                    let offset = offsets[i] + 5
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        ILOpCode.Brtrue_s
+                    else
+                        ILOpCode.Brtrue
+
+                il.Branch(opCode, labels[labelId])
+
+            | ClrInstruction.Bne_un labelId ->
+                let opCode =
+                    let offset = offsets[i] + 5
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        ILOpCode.Bne_un_s
+                    else
+                        ILOpCode.Bne_un
+
+                il.Branch(opCode, labels[labelId])
+
+            | ClrInstruction.Beq labelId ->
+                let opCode =
+                    let offset = offsets[i] + 5
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        ILOpCode.Beq_s
+                    else
+                        ILOpCode.Beq
+
+                il.Branch(opCode, labels[labelId])
+
             | ClrInstruction.Label labelId ->
                 il.MarkLabel(labels[labelId])
+
             | _ ->
                 emitInstr asmBuilder &maxStack &il instr
 
         //---------------------------------------------------------
+
 
         let ilBuilder = asmBuilder.ILBuilder
         ilBuilder.Align(4)
