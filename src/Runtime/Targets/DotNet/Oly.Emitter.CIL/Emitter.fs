@@ -259,9 +259,6 @@ module rec ClrCodeGen =
         else
             PrimitiveTypeCode.Object
 
-    let getInstructionPosition cenv =
-        cenv.buffer.Count
-
     let emitInstruction (cenv: cenv) (instr: ClrInstruction) =
         cenv.buffer.Add(instr)
 
