@@ -317,12 +317,33 @@ type ClrInstruction =
 
     // Branches
 
-    | Brtrue of labelId: int32
-    | Brfalse of labelId: int32
-    | Br of labelId: int32
-    | Bne_un of labelId: int32
+    /// Branch if equal
     | Beq of labelId: int32
-
+    /// Branch if greater than or equal
+    | Bge of labelId: int32
+    /// Branch if greater than or equal (unsigned)
+    | Bge_un of labelId: int32
+    /// Branch if greater than
+    | Bgt of labelId: int32
+    /// Branch if greater than (unsigned)
+    | Bgt_un of labelId: int32
+    /// Branch if less than or equal
+    | Ble of labelId: int32
+    /// Branch if less than or equal (unsigned)
+    | Ble_un of labelId: int32
+    /// Branch if less than
+    | Blt of labelId: int32
+    /// Branch if less than (unsigned)
+    | Blt_un of labelId: int32
+    /// Branch if not equal (unsigned)
+    | Bne_un of labelId: int32
+    /// Branch if true
+    | Brtrue of labelId: int32
+    /// Branch if false
+    | Brfalse of labelId: int32
+    /// Branch
+    | Br of labelId: int32
+    /// Branch label marker
     | Label of labelId: int32
 
 [<RequireQualifiedAccess>]
@@ -388,3 +409,7 @@ module ClrElementTypes =
     /// Followed by TypeDef or TypeRef token
     [<Literal>]
     let Class = 0x12uy
+
+module ClrPatterns =
+
+    type I = ClrInstruction
