@@ -11,6 +11,7 @@ open Oly.Metadata
 open Oly.Runtime
 open Oly.Runtime.CodeGen
 open Oly.Runtime.CodeGen.Patterns
+open ClrPatterns
 
 [<RequireQualifiedAccess>]
 type ClrMethodSpecialKind =
@@ -169,7 +170,7 @@ module rec ClrCodeGen =
         {
             assembly: ClrAssemblyBuilder
             emitTailCalls: bool
-            buffer: imarrayb<ClrInstruction>
+            buffer: imarrayb<I>
             locals: System.Collections.Generic.Dictionary<int, ClrTypeInfo>
             dups: System.Collections.Generic.HashSet<int>
             mutable localCount: int ref
@@ -259,7 +260,7 @@ module rec ClrCodeGen =
         else
             PrimitiveTypeCode.Object
 
-    let emitInstruction (cenv: cenv) (instr: ClrInstruction) =
+    let emitInstruction (cenv: cenv) (instr: I) =
         cenv.buffer.Add(instr)
 
     let emitInstructions cenv (instrs: imarrayb<_>) =
@@ -268,31 +269,31 @@ module rec ClrCodeGen =
     let emitConv cenv tyCode =
         match tyCode with
         | PrimitiveTypeCode.UIntPtr ->
-            ClrInstruction.Conv_u |> emitInstruction cenv
+            I.Conv_u |> emitInstruction cenv
         | PrimitiveTypeCode.Byte ->
-            ClrInstruction.Conv_u1 |> emitInstruction cenv
+            I.Conv_u1 |> emitInstruction cenv
         | PrimitiveTypeCode.UInt16 ->
-            ClrInstruction.Conv_u2 |> emitInstruction cenv
+            I.Conv_u2 |> emitInstruction cenv
         | PrimitiveTypeCode.UInt32 ->
-            ClrInstruction.Conv_u4 |> emitInstruction cenv
+            I.Conv_u4 |> emitInstruction cenv
         | PrimitiveTypeCode.UInt64 ->
-            ClrInstruction.Conv_u8 |> emitInstruction cenv
+            I.Conv_u8 |> emitInstruction cenv
 
         | PrimitiveTypeCode.IntPtr ->
-            ClrInstruction.Conv_i |> emitInstruction cenv
+            I.Conv_i |> emitInstruction cenv
         | PrimitiveTypeCode.SByte ->
-            ClrInstruction.Conv_i1 |> emitInstruction cenv
+            I.Conv_i1 |> emitInstruction cenv
         | PrimitiveTypeCode.Int16 ->
-            ClrInstruction.Conv_i2 |> emitInstruction cenv
+            I.Conv_i2 |> emitInstruction cenv
         | PrimitiveTypeCode.Int32 ->
-            ClrInstruction.Conv_i4 |> emitInstruction cenv
+            I.Conv_i4 |> emitInstruction cenv
         | PrimitiveTypeCode.Int64 ->
-            ClrInstruction.Conv_i8 |> emitInstruction cenv
+            I.Conv_i8 |> emitInstruction cenv
 
         | PrimitiveTypeCode.Single ->
-            ClrInstruction.Conv_r4 |> emitInstruction cenv
+            I.Conv_r4 |> emitInstruction cenv
         | PrimitiveTypeCode.Double ->
-            ClrInstruction.Conv_r8 |> emitInstruction cenv
+            I.Conv_r8 |> emitInstruction cenv
 
         | _ -> () // possible unsafe cast
 
@@ -305,7 +306,7 @@ module rec ClrCodeGen =
         | PrimitiveTypeCode.Int16 ->
             emitConv cenv tyCode
         | PrimitiveTypeCode.UInt32 ->
-            ClrInstruction.Conv_i4 |> emitInstruction cenv
+            I.Conv_i4 |> emitInstruction cenv
         | _ ->
             ()
 
@@ -320,8 +321,8 @@ module rec ClrCodeGen =
             let returnTy = irFunc.EmittedFunction.ReturnType.Handle
 
             GenExpression cenv env receiverExpr
-            emitInstruction cenv (ClrInstruction.Ldftn(irFunc.EmittedFunction.handle))
-            ClrInstruction.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
+            emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
+            I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -333,7 +334,7 @@ module rec ClrCodeGen =
             if rank > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
-                emitInstruction cenv ClrInstruction.Ldlen
+                emitInstruction cenv I.Ldlen
 
         | O.LoadArrayElement(irReceiver, irIndexArgs, resultTy) ->
             GenExpression cenv env irReceiver
@@ -341,7 +342,7 @@ module rec ClrCodeGen =
                 failwith "clr emit rank greater than zero not yet supported."
             else
                 GenExpression cenv env irIndexArgs[0]
-                emitInstruction cenv (ClrInstruction.Ldelem resultTy.Handle)
+                emitInstruction cenv (I.Ldelem resultTy.Handle)
 
         | O.LoadArrayElementAddress(irReceiver, irIndexArgs, _, resultTy) ->
             GenExpression cenv env irReceiver
@@ -351,7 +352,7 @@ module rec ClrCodeGen =
                 GenExpression cenv env irIndexArgs[0]
                 match resultTy.TryByRefElementType with
                 | ValueSome resultTy ->
-                    emitInstruction cenv (ClrInstruction.Ldelema resultTy.Handle)
+                    emitInstruction cenv (I.Ldelema resultTy.Handle)
                 | _ ->
                     failwith "assert"
 
@@ -367,35 +368,35 @@ module rec ClrCodeGen =
             else
                 GenExpression cenv env irIndexArgs[0]
                 GenExpression cenv env irRhsArg
-                emitInstruction cenv (ClrInstruction.Stelem tyHandle)
+                emitInstruction cenv (I.Stelem tyHandle)
 
         | O.BitwiseNot(irArg, resultTy) ->
             GenExpression cenv env irArg
-            emitInstruction cenv ClrInstruction.Not
+            emitInstruction cenv I.Not
             emitConvForOp cenv resultTy
 
         | O.BitwiseOr(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            emitInstruction cenv ClrInstruction.Or
+            emitInstruction cenv I.Or
             emitConvForOp cenv resultTy
 
         | O.BitwiseExclusiveOr(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            emitInstruction cenv ClrInstruction.Xor
+            emitInstruction cenv I.Xor
             emitConvForOp cenv resultTy
 
         | O.BitwiseAnd(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            emitInstruction cenv ClrInstruction.And
+            emitInstruction cenv I.And
             emitConvForOp cenv resultTy
 
         | O.BitwiseShiftLeft(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            emitInstruction cenv ClrInstruction.Shl
+            emitInstruction cenv I.Shl
             emitConvForOp cenv resultTy
 
         | O.BitwiseShiftRight(irArg1, irArg2, resultTy) ->
@@ -409,9 +410,9 @@ module rec ClrCodeGen =
             | PrimitiveTypeCode.UInt32
             | PrimitiveTypeCode.UInt64
             | PrimitiveTypeCode.UIntPtr ->
-                emitInstruction cenv ClrInstruction.Shr_un
+                emitInstruction cenv I.Shr_un
             | _ ->
-                emitInstruction cenv ClrInstruction.Shr  
+                emitInstruction cenv I.Shr  
             emitConvForOp cenv resultTy
 
         | O.Witness(irBody, witnessTy, resultTy) ->
@@ -432,7 +433,7 @@ module rec ClrCodeGen =
                             | _ -> failwith "Expected a single constructor."
                     | _ ->
                         failwith "Expected a type definition."
-                emitInstruction cenv (ClrInstruction.Newobj(ctorHandle, 1))
+                emitInstruction cenv (I.Newobj(ctorHandle, 1))
             | _ ->
                 failwith "Expected a type definition."
 
@@ -441,27 +442,27 @@ module rec ClrCodeGen =
 
             // TODO/REVIEW: Should we include this for up-casting?
             //if irArg.ResultType.IsStruct && not resultTy.IsStruct then
-            //    emitInstruction cenv (ClrInstruction.Box(irArg.ResultType.Handle))
+            //    emitInstruction cenv (I.Box(irArg.ResultType.Handle))
 
         | O.Box(irArg, _) ->
             GenExpression cenv env irArg
-            emitInstruction cenv (ClrInstruction.Box(irArg.ResultType.Handle))
+            emitInstruction cenv (I.Box(irArg.ResultType.Handle))
 
         | O.Unbox(irArg, resultTy) ->
             GenExpression cenv env irArg
-            emitInstruction cenv (ClrInstruction.Unbox_any(resultTy.Handle))
+            emitInstruction cenv (I.Unbox_any(resultTy.Handle))
 
         | O.Print(E.Operation(op=O.Box(irArg, _)), _) when irArg.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ->
             GenExpression cenv env irArg
-            ClrInstruction.Call(cenv.assembly.ConsoleWriteMethod_Int32.Value, 1) |> emitInstruction cenv
+            I.Call(cenv.assembly.ConsoleWriteMethod_Int32.Value, 1) |> emitInstruction cenv
 
         | O.Print(E.Operation(op=O.Upcast(irArg, _)), _) when irArg.ResultType.Handle = cenv.assembly.TypeReferenceString ->
             GenExpression cenv env irArg
-            ClrInstruction.Call(cenv.assembly.ConsoleWriteMethod_String.Value, 1) |> emitInstruction cenv
+            I.Call(cenv.assembly.ConsoleWriteMethod_String.Value, 1) |> emitInstruction cenv
 
         | O.Print(irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Call(cenv.assembly.ConsoleWriteMethod.Value, 1) |> emitInstruction cenv
+            I.Call(cenv.assembly.ConsoleWriteMethod.Value, 1) |> emitInstruction cenv
 
         | O.Cast(irArg, resultTy) ->
             GenExpression cenv env irArg
@@ -481,11 +482,11 @@ module rec ClrCodeGen =
             | PrimitiveTypeCode.UIntPtr ->
                 match castToTy with
                 | PrimitiveTypeCode.Single ->
-                    ClrInstruction.Conv_r_un |> emitInstruction cenv
-                    ClrInstruction.Conv_r4 |> emitInstruction cenv
+                    I.Conv_r_un |> emitInstruction cenv
+                    I.Conv_r4 |> emitInstruction cenv
                 | PrimitiveTypeCode.Double ->
-                    ClrInstruction.Conv_r_un |> emitInstruction cenv
-                    ClrInstruction.Conv_r4 |> emitInstruction cenv
+                    I.Conv_r_un |> emitInstruction cenv
+                    I.Conv_r4 |> emitInstruction cenv
                 | _ ->
                     emitConv cenv castToTy
             | _ ->
@@ -493,7 +494,7 @@ module rec ClrCodeGen =
 
         | O.Throw(irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Throw |> emitInstruction cenv
+            I.Throw |> emitInstruction cenv
 
         | O.Ignore(irArg, _) ->
             GenExpression cenv env irArg
@@ -501,59 +502,59 @@ module rec ClrCodeGen =
             match irArg with
             | E.Operation(op=O.Throw _) -> () // do not emit a pop for a Throw.
             | _ ->
-                ClrInstruction.Pop |> emitInstruction cenv
+                I.Pop |> emitInstruction cenv
 
         | O.Add(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Add |> emitInstruction cenv
+            I.Add |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Subtract(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Sub |> emitInstruction cenv
+            I.Sub |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Multiply(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Mul |> emitInstruction cenv
+            I.Mul |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Divide(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Div |> emitInstruction cenv
+            I.Div |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Remainder(irArg1, irArg2, resultTy) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Rem |> emitInstruction cenv
+            I.Rem |> emitInstruction cenv
             emitConvForOp cenv resultTy
 
         | O.Not(irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.LdcI4 0 |> emitInstruction cenv
-            ClrInstruction.Ceq |> emitInstruction cenv
+            I.LdcI4 0 |> emitInstruction cenv
+            I.Ceq |> emitInstruction cenv
 
         | O.Negate(irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Neg |> emitInstruction cenv
+            I.Neg |> emitInstruction cenv
 
         | O.Equal(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Ceq |> emitInstruction cenv
+            I.Ceq |> emitInstruction cenv
         | O.NotEqual(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Ceq |> emitInstruction cenv
-            ClrInstruction.LdcI4 0 |> emitInstruction cenv
-            ClrInstruction.Ceq |> emitInstruction cenv
+            I.Ceq |> emitInstruction cenv
+            I.LdcI4 0 |> emitInstruction cenv
+            I.Ceq |> emitInstruction cenv
 
         | O.Utf16Equal(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
             let methHandle = cenv.assembly.String_Equals.Value
-            ClrInstruction.Call(methHandle, 2) |> emitInstruction cenv
+            I.Call(methHandle, 2) |> emitInstruction cenv
 
         | O.GreaterThan(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
@@ -562,9 +563,9 @@ module rec ClrCodeGen =
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt64 then
-                ClrInstruction.Cgt |> emitInstruction cenv
+                I.Cgt |> emitInstruction cenv
             else
-                ClrInstruction.Cgt_un |> emitInstruction cenv
+                I.Cgt_un |> emitInstruction cenv
         | O.GreaterThanOrEqual(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
@@ -572,13 +573,13 @@ module rec ClrCodeGen =
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt64 then
-                ClrInstruction.Clt |> emitInstruction cenv
-                ClrInstruction.LdcI4 0 |> emitInstruction cenv
-                ClrInstruction.Ceq |> emitInstruction cenv
+                I.Clt |> emitInstruction cenv
+                I.LdcI4 0 |> emitInstruction cenv
+                I.Ceq |> emitInstruction cenv
             else
-                ClrInstruction.Clt_un |> emitInstruction cenv
-                ClrInstruction.LdcI4 0 |> emitInstruction cenv
-                ClrInstruction.Ceq |> emitInstruction cenv
+                I.Clt_un |> emitInstruction cenv
+                I.LdcI4 0 |> emitInstruction cenv
+                I.Ceq |> emitInstruction cenv
         | O.LessThan(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
@@ -586,9 +587,9 @@ module rec ClrCodeGen =
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt64 then
-                ClrInstruction.Clt |> emitInstruction cenv
+                I.Clt |> emitInstruction cenv
             else
-                ClrInstruction.Clt_un |> emitInstruction cenv
+                I.Clt_un |> emitInstruction cenv
         | O.LessThanOrEqual(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
@@ -596,18 +597,18 @@ module rec ClrCodeGen =
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt64 then               
-                ClrInstruction.Cgt |> emitInstruction cenv
-                ClrInstruction.LdcI4 0 |> emitInstruction cenv
-                ClrInstruction.Ceq |> emitInstruction cenv
+                I.Cgt |> emitInstruction cenv
+                I.LdcI4 0 |> emitInstruction cenv
+                I.Ceq |> emitInstruction cenv
             else
-                ClrInstruction.Cgt_un |> emitInstruction cenv
-                ClrInstruction.LdcI4 0 |> emitInstruction cenv
-                ClrInstruction.Ceq |> emitInstruction cenv
+                I.Cgt_un |> emitInstruction cenv
+                I.LdcI4 0 |> emitInstruction cenv
+                I.Ceq |> emitInstruction cenv
 
         | O.LoadRefCellContents(irArg, resultTy) ->
             GenExpression cenv env irArg
-            ClrInstruction.LdcI4 0 |> emitInstruction cenv
-            ClrInstruction.Ldelem(resultTy.Handle) |> emitInstruction cenv
+            I.LdcI4 0 |> emitInstruction cenv
+            I.Ldelem(resultTy.Handle) |> emitInstruction cenv
 
         | O.LoadTupleElement(irArg, index, _) ->
             GenExpression cenv env irArg
@@ -636,7 +637,7 @@ module rec ClrCodeGen =
                         failwith "Invalid LoadTupleItem"
                 | _ ->
                     failwith "Invalid LoadTupleItem"
-            ClrInstruction.Call(methHandle, 1) |> emitInstruction cenv
+            I.Call(methHandle, 1) |> emitInstruction cenv
 
         | O.StoreRefCellContents(irArg1, irArg2, _) ->
             let tyHandle =
@@ -645,64 +646,64 @@ module rec ClrCodeGen =
                 | _ -> failwith "Expecting a type with an element."
 
             GenExpression cenv env irArg1
-            ClrInstruction.LdcI4 0 |> emitInstruction cenv
+            I.LdcI4 0 |> emitInstruction cenv
             GenExpression cenv env irArg2
-            ClrInstruction.Stelem(tyHandle) |> emitInstruction cenv
+            I.Stelem(tyHandle) |> emitInstruction cenv
 
         | O.Store(n, irArg1, _) ->
             GenExpression cenv env irArg1
-            ClrInstruction.Stloc n |> emitInstruction cenv
+            I.Stloc n |> emitInstruction cenv
 
         | O.StoreArgument(n, irArg1, _) ->
             GenExpression cenv env irArg1
-            ClrInstruction.Starg n |> emitInstruction cenv
+            I.Starg n |> emitInstruction cenv
 
         | O.StoreToAddress(irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
             let ty = irArg2.ResultType
             if ty.Handle = cenv.assembly.TypeReferenceInt32 then
-                ClrInstruction.Stind_i4 |> emitInstruction cenv
+                I.Stind_i4 |> emitInstruction cenv
             elif ty.Handle = cenv.assembly.TypeReferenceInt64 then
-                ClrInstruction.Stind_i8 |> emitInstruction cenv
+                I.Stind_i8 |> emitInstruction cenv
             elif ty.Handle = cenv.assembly.TypeReferenceUInt64 then
-                ClrInstruction.Stind_i8 |> emitInstruction cenv
+                I.Stind_i8 |> emitInstruction cenv
             else
                 if irArg2.ResultType.Handle.IsNamed then
-                    ClrInstruction.Stobj(irArg2.ResultType.Handle) |> emitInstruction cenv
+                    I.Stobj(irArg2.ResultType.Handle) |> emitInstruction cenv
                 else
-                    ClrInstruction.StindRef |> emitInstruction cenv
+                    I.StindRef |> emitInstruction cenv
 
         | O.StoreField(irField: OlyIRField<_, _, ClrFieldInfo>, irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
             GenExpression cenv env irArg2
-            ClrInstruction.Stfld irField.EmittedField.Handle |> emitInstruction cenv
+            I.Stfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.StoreStaticField(irField, irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Stsfld irField.EmittedField.Handle |> emitInstruction cenv
+            I.Stsfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.LoadFromAddress(irArg, returnTy) ->
             GenExpression cenv env irArg
             if returnTy.IsStruct then
                 if returnTy.Handle = cenv.assembly.TypeReferenceInt32 then
-                    ClrInstruction.Ldind_i4 |> emitInstruction cenv
+                    I.Ldind_i4 |> emitInstruction cenv
                 elif returnTy.Handle = cenv.assembly.TypeReferenceInt64 then
-                    ClrInstruction.Ldind_i8 |> emitInstruction cenv
+                    I.Ldind_i8 |> emitInstruction cenv
                 elif returnTy.Handle = cenv.assembly.TypeReferenceUInt64 then
-                    ClrInstruction.Ldind_i8 |> emitInstruction cenv
+                    I.Ldind_i8 |> emitInstruction cenv
                 else
-                    ClrInstruction.Ldobj(returnTy.Handle) |> emitInstruction cenv
+                    I.Ldobj(returnTy.Handle) |> emitInstruction cenv
             else
-                ClrInstruction.LdindRef |> emitInstruction cenv
+                I.LdindRef |> emitInstruction cenv
 
         | O.LoadField(irField, irArg, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Ldfld irField.EmittedField.Handle |> emitInstruction cenv
+            I.Ldfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.LoadFieldAddress(irField, irArg, _, _) ->
             GenExpression cenv env irArg
-            ClrInstruction.Ldflda irField.EmittedField.Handle |> emitInstruction cenv
+            I.Ldflda irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.NewTuple(itemTys, irArgs, _) ->
             irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
@@ -711,28 +712,28 @@ module rec ClrCodeGen =
                 itemTys
                 |> ImArray.map (fun x -> x.Handle)
 
-            ClrInstruction.Newobj(cenv.assembly.AddTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
+            I.Newobj(cenv.assembly.AddTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
             
         | O.NewMutableArray(elementTy, irSizeArgExpr, _) ->
             GenExpression cenv env irSizeArgExpr
-            ClrInstruction.Newarr(elementTy.Handle) |> emitInstruction cenv
+            I.Newarr(elementTy.Handle) |> emitInstruction cenv
 
         | O.NewArray(elementTy, _irKind, irArgExprs, _) ->
-            ClrInstruction.LdcI4 (irArgExprs.Length) |> emitInstruction cenv
-            ClrInstruction.Newarr(elementTy.Handle) |> emitInstruction cenv
+            I.LdcI4 (irArgExprs.Length) |> emitInstruction cenv
+            I.Newarr(elementTy.Handle) |> emitInstruction cenv
             for i = 0 to irArgExprs.Length - 1 do
-                ClrInstruction.Dup |> emitInstruction cenv
-                ClrInstruction.LdcI4 i |> emitInstruction cenv
+                I.Dup |> emitInstruction cenv
+                I.LdcI4 i |> emitInstruction cenv
                 GenExpression cenv env irArgExprs[i]
-                ClrInstruction.Stelem(elementTy.Handle) |> emitInstruction cenv
+                I.Stelem(elementTy.Handle) |> emitInstruction cenv
 
         | O.NewRefCell(contentTy, irArg, _) ->
-            ClrInstruction.LdcI4 1 |> emitInstruction cenv
-            ClrInstruction.Newarr(contentTy.Handle) |> emitInstruction cenv
-            ClrInstruction.Dup |> emitInstruction cenv
-            ClrInstruction.LdcI4 0 |> emitInstruction cenv
+            I.LdcI4 1 |> emitInstruction cenv
+            I.Newarr(contentTy.Handle) |> emitInstruction cenv
+            I.Dup |> emitInstruction cenv
+            I.LdcI4 0 |> emitInstruction cenv
             GenExpression cenv env irArg
-            ClrInstruction.Stelem(contentTy.Handle) |> emitInstruction cenv
+            I.Stelem(contentTy.Handle) |> emitInstruction cenv
 
         | O.New(irFunc, irArgs, _) ->
             GenNew cenv env irFunc.EmittedFunction irArgs
@@ -748,28 +749,28 @@ module rec ClrCodeGen =
 
     let GenValue cenv env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
-        | V.Unit _ -> ClrInstruction.Ldnull |> emitInstruction cenv
-        | V.Null _ -> ClrInstruction.Ldnull |> emitInstruction cenv
+        | V.Unit _ -> I.Ldnull |> emitInstruction cenv
+        | V.Null _ -> I.Ldnull |> emitInstruction cenv
         | V.Constant(irConstant, _) ->
             match irConstant with
-            | C.True _ -> ClrInstruction.LdcI4(1) |> emitInstruction cenv
-            | C.False _ -> ClrInstruction.LdcI4(0) |> emitInstruction cenv
-            | C.Int8(v) -> ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
+            | C.True _ -> I.LdcI4(1) |> emitInstruction cenv
+            | C.False _ -> I.LdcI4(0) |> emitInstruction cenv
+            | C.Int8(v) -> I.LdcI4(int32 v) |> emitInstruction cenv
             | C.UInt8(v) -> 
-                ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
-            | C.Int16(v) -> ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
+                I.LdcI4(int32 v) |> emitInstruction cenv
+            | C.Int16(v) -> I.LdcI4(int32 v) |> emitInstruction cenv
             | C.UInt16(v) -> 
-                ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
-            | C.Int32(v) -> ClrInstruction.LdcI4(v) |> emitInstruction cenv
+                I.LdcI4(int32 v) |> emitInstruction cenv
+            | C.Int32(v) -> I.LdcI4(v) |> emitInstruction cenv
             | C.UInt32(v) -> 
-                ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
-            | C.Int64(v) -> ClrInstruction.LdcI8(v) |> emitInstruction cenv
+                I.LdcI4(int32 v) |> emitInstruction cenv
+            | C.Int64(v) -> I.LdcI8(v) |> emitInstruction cenv
             | C.UInt64(v) -> 
-                ClrInstruction.LdcI8(int64 v) |> emitInstruction cenv
-            | C.Float32(v) -> ClrInstruction.LdcR4(v) |> emitInstruction cenv
-            | C.Float64(v) -> ClrInstruction.LdcR8(v) |> emitInstruction cenv
-            | C.Char16(v) -> ClrInstruction.LdcI4(int32 v) |> emitInstruction cenv
-            | C.Utf16(v) -> ClrInstruction.Ldstr v |> emitInstruction cenv
+                I.LdcI8(int64 v) |> emitInstruction cenv
+            | C.Float32(v) -> I.LdcR4(v) |> emitInstruction cenv
+            | C.Float64(v) -> I.LdcR8(v) |> emitInstruction cenv
+            | C.Char16(v) -> I.LdcI4(int32 v) |> emitInstruction cenv
+            | C.Utf16(v) -> I.Ldstr v |> emitInstruction cenv
             | C.Array _ ->
                 raise(System.NotImplementedException())
             | C.External _ ->
@@ -778,34 +779,34 @@ module rec ClrCodeGen =
                 raise(System.NotSupportedException())
 
         | V.StaticField(irField, _) ->
-            ClrInstruction.Ldsfld irField.EmittedField.Handle |> emitInstruction cenv
+            I.Ldsfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | V.StaticFieldAddress(irField, _, _) ->
-            ClrInstruction.Ldsflda irField.EmittedField.Handle |> emitInstruction cenv
+            I.Ldsflda irField.EmittedField.Handle |> emitInstruction cenv
 
         | V.Local(n, _) ->
             if cenv.dups.Contains(n) |> not then
-                ClrInstruction.Ldloc n |> emitInstruction cenv
+                I.Ldloc n |> emitInstruction cenv
 
         | V.LocalAddress(n, _, _) ->
-            ClrInstruction.Ldloca n |> emitInstruction cenv
+            I.Ldloca n |> emitInstruction cenv
 
         | V.Argument(n, _) ->
-            ClrInstruction.Ldarg n |> emitInstruction cenv
+            I.Ldarg n |> emitInstruction cenv
 
         | V.ArgumentAddress(n, _, _) ->
-            ClrInstruction.Ldarga n |> emitInstruction cenv
+            I.Ldarga n |> emitInstruction cenv
 
         | V.FunctionPtr(methInfo, _) ->
-            emitInstruction cenv (ClrInstruction.Ldftn(methInfo.handle))
+            emitInstruction cenv (I.Ldftn(methInfo.handle))
 
         | V.Function(methInfo, _) ->
             let parTys = methInfo.Parameters |> ImArray.map (fun (_, x) -> x.Handle)
             let returnTy = methInfo.ReturnType.Handle
 
-            ClrInstruction.Ldnull |> emitInstruction cenv
-            emitInstruction cenv (ClrInstruction.Ldftn(methInfo.handle))
-            ClrInstruction.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
+            I.Ldnull |> emitInstruction cenv
+            emitInstruction cenv (I.Ldftn(methInfo.handle))
+            I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
 
         | V.Default(ty) ->
             if ty.Handle = cenv.assembly.TypeReferenceByte      ||
@@ -816,27 +817,27 @@ module rec ClrCodeGen =
                ty.Handle = cenv.assembly.TypeReferenceInt32     || 
                ty.Handle = cenv.assembly.TypeReferenceChar      ||
                ty.Handle = cenv.assembly.TypeReferenceBoolean   then
-                    ClrInstruction.LdcI4(0) |> emitInstruction cenv
+                    I.LdcI4(0) |> emitInstruction cenv
             elif ty.Handle = cenv.assembly.TypeReferenceUInt64 ||
                  ty.Handle = cenv.assembly.TypeReferenceInt64 then
-                    ClrInstruction.LdcI8(0) |> emitInstruction cenv
+                    I.LdcI8(0) |> emitInstruction cenv
             elif ty.Handle = cenv.assembly.TypeReferenceSingle then
-                    ClrInstruction.LdcR4(0.0f) |> emitInstruction cenv
+                    I.LdcR4(0.0f) |> emitInstruction cenv
             elif ty.Handle = cenv.assembly.TypeReferenceDouble then
-                    ClrInstruction.LdcR8(0.0) |> emitInstruction cenv
+                    I.LdcR8(0.0) |> emitInstruction cenv
             elif ty.IsStruct then
                 match ty.Handle with
                 | ClrTypeHandle.NativePointer _
                 | ClrTypeHandle.FunctionPointer _ ->
-                    ClrInstruction.LdcI4(0) |> emitInstruction cenv
-                    ClrInstruction.Conv_u |> emitInstruction cenv
+                    I.LdcI4(0) |> emitInstruction cenv
+                    I.Conv_u |> emitInstruction cenv
                 | _ ->
                     let localIndex = cenv.NewLocal(ty)
-                    emitInstruction cenv (ClrInstruction.Ldloca(localIndex))
-                    emitInstruction cenv (ClrInstruction.Initobj(ty.Handle))
-                    emitInstruction cenv (ClrInstruction.Ldloc(localIndex))
+                    emitInstruction cenv (I.Ldloca(localIndex))
+                    emitInstruction cenv (I.Initobj(ty.Handle))
+                    emitInstruction cenv (I.Ldloc(localIndex))
             else
-                ClrInstruction.Ldnull |> emitInstruction cenv
+                I.Ldnull |> emitInstruction cenv
 
     let canTailCall cenv (func: ClrMethodInfo) =
         cenv.emitTailCalls && 
@@ -855,22 +856,22 @@ module rec ClrCodeGen =
         | ClrMethodSpecialKind.None ->
             if func.IsStatic || not isVirtual then
                 if isReturnable && canTailCall cenv func then
-                    ClrInstruction.Tail |> emitInstruction cenv
-                ClrInstruction.Call(func.handle, irArgs.Length) |> emitInstruction cenv
+                    I.Tail |> emitInstruction cenv
+                I.Call(func.handle, irArgs.Length) |> emitInstruction cenv
             else
                 let argTy0 = irArgs.[0].ResultType
                 if isVirtual && func.IsInstance then
                     if argTy0.IsByRefOfTypeVariable || (argTy0.IsByRefOfStruct && (not func.enclosingTyHandle.IsValueType || (func.enclosingTyHandle = cenv.assembly.TypeReferenceValueType))) then
                         match argTy0.TryByRefElementType with
                         | ValueSome(elementTy) ->
-                            ClrInstruction.Constrained(elementTy.Handle) |> emitInstruction cenv
+                            I.Constrained(elementTy.Handle) |> emitInstruction cenv
                         | _ ->
                             failwith "Expected by-ref element type."
-                ClrInstruction.Callvirt(func.handle, irArgs.Length) |> emitInstruction cenv
+                I.Callvirt(func.handle, irArgs.Length) |> emitInstruction cenv
 
         | ClrMethodSpecialKind.TypeOf ->
-            ClrInstruction.Ldtoken func.tyInst.[0].Handle |> emitInstruction cenv
-            ClrInstruction.Call(cenv.assembly.GetTypeFromHandleMethod.Value, 1) |> emitInstruction cenv
+            I.Ldtoken func.tyInst.[0].Handle |> emitInstruction cenv
+            I.Call(cenv.assembly.GetTypeFromHandleMethod.Value, 1) |> emitInstruction cenv
 
         | _ ->
             failwith "Invalid special method."
@@ -878,17 +879,17 @@ module rec ClrCodeGen =
     let GenNew cenv env (func: ClrMethodInfo) irArgs =
         irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
 
-        ClrInstruction.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
+        I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
     let GenCallIndirect (cenv: cenv) env (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
         match irFunArg.ResultType.Handle with
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->            
             let localIndex = cenv.NewLocal(irFunArg.ResultType)
             GenExpression cenv env irFunArg
-            ClrInstruction.Stloc localIndex |> emitInstruction cenv
+            I.Stloc localIndex |> emitInstruction cenv
             irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
-            ClrInstruction.Ldloc localIndex |> emitInstruction cenv
-            ClrInstruction.Calli(cc, parTys, returnTy) |> emitInstruction cenv
+            I.Ldloc localIndex |> emitInstruction cenv
+            I.Calli(cc, parTys, returnTy) |> emitInstruction cenv
         | _ ->
             GenExpression cenv env irFunArg
             irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
@@ -904,7 +905,7 @@ module rec ClrCodeGen =
                 |> ImArray.ofSeq
 
             let methRef = cenv.assembly.AddAnonymousFunctionInvoke(argTys, runtimeReturnTy.Handle)
-            ClrInstruction.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
+            I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
 
     /// Builds a new instruction buffer and returns it.
     let NewGenBranchPath (cenv: cenv) env irExpr =
@@ -934,9 +935,9 @@ module rec ClrCodeGen =
                 cenv.locals.[n] <- rhsExprTy
             GenExpression cenv { env with isReturnable = false } irRhsExpr
             if hasNoDup then
-                ClrInstruction.Stloc n |> emitInstruction cenv
+                I.Stloc n |> emitInstruction cenv
             else
-                ClrInstruction.Dup |> emitInstruction cenv
+                I.Dup |> emitInstruction cenv
 
             GenExpression cenv env irBodyExpr
 
@@ -958,7 +959,7 @@ module rec ClrCodeGen =
 
             let mustBranch =
                 falsePath.Count > 0 && 
-                not (match falsePath.[falsePath.Count - 1] with ClrInstruction.Ret -> true | _ -> false)
+                not (match falsePath.[falsePath.Count - 1] with I.Ret -> true | _ -> false)
 
             let contLabelIdOpt =
                 if mustBranch then
@@ -997,11 +998,11 @@ module rec ClrCodeGen =
                         GenExpression cenv { env with isReturnable = false } argx1
                         GenExpression cenv { env with isReturnable = false } argx2
 
-                        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                        I.Bne_un(falseLabelId) |> emitInstruction cenv
                         reduce arg2
                     | _ ->
                         GenExpression cenv { env with isReturnable = false } conditionExpr
-                        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
+                        I.Brfalse(falseLabelId) |> emitInstruction cenv
 
                 | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
                     match arg1, arg2 with
@@ -1011,30 +1012,30 @@ module rec ClrCodeGen =
                         GenExpression cenv { env with isReturnable = false } arg1
                         GenExpression cenv { env with isReturnable = false } arg2
 
-                        ClrInstruction.Bne_un(falseLabelId) |> emitInstruction cenv
+                        I.Bne_un(falseLabelId) |> emitInstruction cenv
                     | _ ->
                         GenExpression cenv { env with isReturnable = false } conditionExpr
-                        ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
+                        I.Brfalse(falseLabelId) |> emitInstruction cenv
 
                 | _ ->
                     GenExpression cenv { env with isReturnable = false } conditionExpr
-                    ClrInstruction.Brfalse(falseLabelId) |> emitInstruction cenv
+                    I.Brfalse(falseLabelId) |> emitInstruction cenv
 
             reduce conditionExpr
             emitInstructions cenv truePath 
             
             match contLabelIdOpt with
             | ValueSome(contLabelId) ->
-                ClrInstruction.Br(contLabelId) |> emitInstruction cenv
+                I.Br(contLabelId) |> emitInstruction cenv
             | _ ->
                 ()
 
-            ClrInstruction.Label(falseLabelId) |> emitInstruction cenv
+            I.Label(falseLabelId) |> emitInstruction cenv
             emitInstructions cenv falsePath
 
             match contLabelIdOpt with
             | ValueSome(contLabelId) ->
-                ClrInstruction.Label(contLabelId) |> emitInstruction cenv
+                I.Label(contLabelId) |> emitInstruction cenv
             | _ ->
                 ()
 
@@ -1050,22 +1051,22 @@ module rec ClrCodeGen =
             let predicatePath = NewGenBranchPath cenv envLoop predicateExpr
             let bodyPath = NewGenBranchPath cenv envLoop bodyExpr
 
-            ClrInstruction.Label(loopStartLabelId) |> emitInstruction cenv
+            I.Label(loopStartLabelId) |> emitInstruction cenv
 
             emitInstructions cenv predicatePath
-            emitInstruction cenv (ClrInstruction.Brfalse loopEndLabelId)
+            emitInstruction cenv (I.Brfalse loopEndLabelId)
 
             emitInstructions cenv bodyPath
-            emitInstruction cenv (ClrInstruction.Br loopStartLabelId)
+            emitInstruction cenv (I.Br loopStartLabelId)
 
-            ClrInstruction.Label(loopEndLabelId) |> emitInstruction cenv
+            I.Label(loopEndLabelId) |> emitInstruction cenv
 
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr
         if env.isReturnable then
-            if cenv.buffer.Count > 0 && cenv.buffer.[cenv.buffer.Count - 1] = ClrInstruction.Ret then ()
+            if cenv.buffer.Count > 0 && cenv.buffer.[cenv.buffer.Count - 1] = I.Ret then ()
             else
-                ClrInstruction.Ret |> emitInstruction cenv
+                I.Ret |> emitInstruction cenv
 
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
@@ -1129,9 +1130,9 @@ let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodNa
         // We do this as it's a stub for a static abstract method.
         methDefBuilder.BodyInstructions <-
             [
-                ClrInstruction.Ldnull
-                ClrInstruction.Throw
-                ClrInstruction.Ret
+                I.Ldnull
+                I.Throw
+                I.Ret
             ]
             |> ImArray.ofSeq
 
@@ -1673,12 +1674,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 methDefBuilder.Locals <- ImArray.empty
                 methDefBuilder.BodyInstructions <-
                     [
-                        ClrInstruction.Ldarg 0
-                        ClrInstruction.Ldarg 1
+                        I.Ldarg 0
+                        I.Ldarg 1
                         if extendedTy.IsStruct then
-                            ClrInstruction.Ldobj(extendedTy.Handle)
-                        ClrInstruction.Stfld instanceFieldHandle
-                        ClrInstruction.Ret
+                            I.Ldobj(extendedTy.Handle)
+                        I.Stfld instanceFieldHandle
+                        I.Ret
                     ]
                     |> ImArray.ofSeq
 
@@ -1695,10 +1696,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     methDefBuilder.Locals <- ImArray.empty
                     methDefBuilder.BodyInstructions <-
                         [
-                            ClrInstruction.Ldarg 0
-                            ClrInstruction.Ldarg 1
-                            ClrInstruction.Stfld instanceFieldHandle
-                            ClrInstruction.Ret
+                            I.Ldarg 0
+                            I.Ldarg 1
+                            I.Stfld instanceFieldHandle
+                            I.Ret
                         ]
                         |> ImArray.ofSeq
 
@@ -1953,16 +1954,16 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                         let ldargInstrs =
                                             Array.init 
                                                 (pars.Length) 
-                                                (fun i -> ClrInstruction.Ldarg(i))
+                                                (fun i -> I.Ldarg(i))
                                             |> Array.collect (fun instr ->
                                                 match instr with
-                                                | ClrInstruction.Ldarg(0) ->
+                                                | I.Ldarg(0) ->
                                                     [|
                                                         instr
                                                         if extendedTy.IsStruct then
-                                                            ClrInstruction.Ldflda(instanceFieldHandle)
+                                                            I.Ldflda(instanceFieldHandle)
                                                         else
-                                                            ClrInstruction.Ldfld(instanceFieldHandle)
+                                                            I.Ldfld(instanceFieldHandle)
                                                     |]
                                                 | _ ->
                                                     [|instr|]
@@ -1971,8 +1972,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                         Array.append
                                             ldargInstrs
                                             [|
-                                                ClrInstruction.Call(methDefBuilder.Handle, ldargInstrs.Length)
-                                                ClrInstruction.Ret
+                                                I.Call(methDefBuilder.Handle, ldargInstrs.Length)
+                                                I.Ret
                                             |]
                                         |> ImArray.ofSeq
                             | _ ->
@@ -1982,9 +1983,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                             // stub
                             methDefBuilder.BodyInstructions <-
                                 [
-                                    ClrInstruction.Ldnull
-                                    ClrInstruction.Throw
-                                    ClrInstruction.Ret
+                                    I.Ldnull
+                                    I.Throw
+                                    I.Ret
                                 ]
                                 |> ImArray.ofSeq
 
