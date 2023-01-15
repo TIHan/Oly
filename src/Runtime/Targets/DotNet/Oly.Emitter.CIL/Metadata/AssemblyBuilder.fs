@@ -1301,8 +1301,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             match handle with
             | ClrTypeHandle.NativePointer _
             | ClrTypeHandle.FunctionPointer _ ->
-                il.OpCode(ILOpCode.Conv_u)
-                il.OpCode(ILOpCode.Ldc_i4_0)
+                OlyAssert.Fail("Invalid type handle.")
             | _ ->
                 il.OpCode(ILOpCode.Initobj)
                 emitTypeToken asmBuilder &il handle
@@ -1541,14 +1540,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Ldtoken _ ->
             1 + 4
 
-        | I.Initobj(handle) ->
-            match handle with
-            | ClrTypeHandle.NativePointer _
-            | ClrTypeHandle.FunctionPointer _ ->
-                1 + // Conv_u
-                1   // Ldc_i4_0
-            | _ ->
-                2 + 4
+        | I.Initobj _ ->
+            2 + 4
 
         | I.Constrained _ ->
             2 + 4
