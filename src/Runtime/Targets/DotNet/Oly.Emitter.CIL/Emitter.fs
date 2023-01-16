@@ -1502,7 +1502,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let appliedTyHandle = asmBuilder.AddGenericInstanceTypeReference(ty.Handle, tyArgHandles)
             ClrTypeInfo.TypeGenericInstance(ty, tyArgHandles, appliedTyHandle)
 
-        member this.EmitTypeDefinition(enclosing, kind, flags, name, irTyPars, inherits, implements, irAttrs) =
+        member this.EmitTypeDefinition(enclosing, kind, flags, name, irTyPars, extends, implements, irAttrs) =
             let name =
                 if flags &&& OlyIRTypeFlags.GenericsErased = OlyIRTypeFlags.GenericsErased then
                     name + newUniquePrivateTypeName()
@@ -1512,11 +1512,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let isStruct = kind = OlyILEntityKind.Struct
             let isEnum = kind = OlyILEntityKind.Enum
-            let enumBaseTyOpt =
-                if isEnum then
-                    Some inherits[0]
-                else
-                    None
             let isNewtype = kind = OlyILEntityKind.Newtype
             let isReadOnly = flags &&& OlyIRTypeFlags.ReadOnly = OlyIRTypeFlags.ReadOnly
             let isInterface = kind = OlyILEntityKind.Interface
@@ -1525,7 +1520,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let enumBaseTyOpt =
                 if isEnum then
-                    inherits[0] |> Some
+                    extends[0] |> Some
                 else
                     None
 
@@ -1536,7 +1531,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let inherits =
                 // TODO: This assumes enum is an int32, handle other cases.
                 if isEnum || isNewtype then ImArray.empty
-                else inherits
+                else extends
 
             let isExported = flags.HasFlag(OlyIRTypeFlags.Exported)
 

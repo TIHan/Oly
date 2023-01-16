@@ -6,4 +6,7 @@
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
 main(): () =
+#if DEBU
+    let doot = 1
+#end
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
