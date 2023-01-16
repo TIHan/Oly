@@ -1881,7 +1881,6 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         //---------------------------------------------------------
 
-
         let ilBuilder = asmBuilder.ILBuilder
         ilBuilder.Align(4)
         let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)

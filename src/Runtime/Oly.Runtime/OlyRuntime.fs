@@ -428,6 +428,39 @@ let canPossiblyEraseGenericFunction (envFunc: RuntimeFunction) (func: RuntimeFun
         |> not
     )
 
+let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type) =
+    let asExpr irValue =
+        E.Value(irTextRange, irValue)
+
+    if resultTy.IsAnyStruct then
+        match resultTy.StripAliasAndNewtypeAndEnum() with
+        | RuntimeType.Int8 ->
+            V.Constant(C.Int8(0y), emittedTy) |> asExpr
+        | RuntimeType.Int16 ->
+            V.Constant(C.Int16(0s), emittedTy) |> asExpr
+        | RuntimeType.Int32 ->
+            V.Constant(C.Int32(0), emittedTy) |> asExpr
+        | RuntimeType.Int64 ->
+            V.Constant(C.Int64(0L), emittedTy) |> asExpr
+        | RuntimeType.UInt8 ->
+            V.Constant(C.UInt8(0uy), emittedTy) |> asExpr
+        | RuntimeType.UInt16 ->
+            V.Constant(C.UInt16(0us), emittedTy) |> asExpr
+        | RuntimeType.UInt32 ->
+            V.Constant(C.UInt32(0u), emittedTy) |> asExpr
+        | RuntimeType.UInt64 ->
+            V.Constant(C.UInt64(0UL), emittedTy) |> asExpr
+        | RuntimeType.Float32 ->
+            V.Constant(C.Float32(0.0f), emittedTy) |> asExpr
+        | RuntimeType.Float64 ->
+            V.Constant(C.Int8(0y), emittedTy) |> asExpr
+        | RuntimeType.Char16 ->
+            V.Constant(C.Char16(char 0), emittedTy) |> asExpr
+        | _ ->
+            V.DefaultStruct(emittedTy) |> asExpr
+    else
+        V.Null(emittedTy) |> asExpr
+
 let incrementArgumentUsage (cenv: cenv<'Type, 'Function, 'Field>) argIndex =
     cenv.ArgumentUsageCount[argIndex] <- cenv.ArgumentUsageCount[argIndex] + 1
 
@@ -478,7 +511,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILValue.Default(ilTy) ->
             let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilTy, env.GenericContext)
-            V.Default(cenv.EmitType(resultTy)) |> asExpr, resultTy
+            createDefaultExpression irTextRange (resultTy, cenv.EmitType(resultTy)), resultTy
 
         | OlyILValue.Argument(argIndex) ->
             incrementArgumentUsage cenv argIndex
@@ -3353,11 +3386,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             E.Operation(
                                 NoRange, 
                                 O.StoreStaticField(
-                                    OlyIRField(this.EmitField(field), field), 
-                                    E.Value(
-                                        NoRange,
-                                        V.Default(this.EmitType(field.Type))
-                                    ),
+                                    OlyIRField(this.EmitField(field), field),
+                                    createDefaultExpression NoRange (field.Type, this.EmitType(field.Type)),
                                     this.EmitType(RuntimeType.Void)
                                 )
                             )

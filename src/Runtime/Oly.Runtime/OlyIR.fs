@@ -94,7 +94,7 @@ type OlyIRAttribute<'Type, 'Function> =
 type OlyIRValue<'Type, 'Function, 'Field> =
     | Unit of resultTy: 'Type
     | Null of resultTy: 'Type
-    | Default of resultTy: 'Type
+    | DefaultStruct of resultTy: 'Type
     | FunctionPtr of func: 'Function * resultTy: 'Type
     | Function of func: 'Function * resultTy: 'Type
     | Local of index: int32 * resultTy: 'Type
@@ -109,7 +109,7 @@ type OlyIRValue<'Type, 'Function, 'Field> =
         match this with
         | Unit(resultTy)
         | Null(resultTy)
-        | Default(resultTy)
+        | DefaultStruct(resultTy)
         | FunctionPtr(resultTy=resultTy)
         | Function(resultTy=resultTy)
         | Local(resultTy=resultTy)
@@ -658,9 +658,8 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | Let of            name: string * localIndex: int * rhsExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field>
     | Value of          textRange: OlyIRDebugSourceTextRange * value: OlyIRValue<'Type, 'Function, 'Field>
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
-    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
     | Sequential of     expr1: OlyIRExpression<'Type, 'Function, 'Field> * expr2: OlyIRExpression<'Type, 'Function, 'Field>
-
+    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
     | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type        
 
     member this.GetExpressions() : _ imarray =
@@ -707,7 +706,6 @@ module Patterns =
     type C<'Type, 'Function> = OlyIRConstant<'Type, 'Function>
 
     let NoRange = OlyIRDebugSourceTextRange.Empty
-
 
     let And arg1 arg2 resultTy =
         E.IfElse(arg1, arg2, E.Value(NoRange, V.Constant(C.False, resultTy)), resultTy)
@@ -853,7 +851,7 @@ module Dump =
 
     let DumpValue (v: V<_, _, _>) : string =
         match v with
-        | V.Default _ -> "default"
+        | V.DefaultStruct _ -> "defaultstruct"
         | V.Null _ -> "null"
         | V.Unit _ -> "unit"
         | V.FunctionPtr _ -> "functionptr" // TODO: what function? V.FunctionPtr needs OlyIRFunction...

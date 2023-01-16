@@ -594,6 +594,40 @@ type InterpreterFunction(env: InterpreterEnvironment,
         | _ ->
             failwith "Invalid 'BitwiseNot'"
 
+    /// TODO: We REALLY should get rid of this. We only need it for creating a zero'd array. We should probably push this to the front-end.
+    member private this.CreateDefaultValue(resultTy: InterpreterType) =
+        let asExpr irValue =
+            InterpreterExpression.Value(Patterns.NoRange, irValue)
+
+        if resultTy.IsStruct then
+            match resultTy with
+            | InterpreterType.Int8 ->
+                InterpreterValue.Constant(OlyIRConstant.Int8(0y), resultTy) |> asExpr
+            | InterpreterType.Int16 ->
+                InterpreterValue.Constant(OlyIRConstant.Int16(0s), resultTy) |> asExpr
+            | InterpreterType.Int32 ->
+                InterpreterValue.Constant(OlyIRConstant.Int32(0), resultTy) |> asExpr
+            | InterpreterType.Int64 ->
+                InterpreterValue.Constant(OlyIRConstant.Int64(0L), resultTy) |> asExpr
+            | InterpreterType.UInt8 ->
+                InterpreterValue.Constant(OlyIRConstant.UInt8(0uy), resultTy) |> asExpr
+            | InterpreterType.UInt16 ->
+                InterpreterValue.Constant(OlyIRConstant.UInt16(0us), resultTy) |> asExpr
+            | InterpreterType.UInt32 ->
+                InterpreterValue.Constant(OlyIRConstant.UInt32(0u), resultTy) |> asExpr
+            | InterpreterType.UInt64 ->
+                InterpreterValue.Constant(OlyIRConstant.UInt64(0UL), resultTy) |> asExpr
+            | InterpreterType.Float32 ->
+                InterpreterValue.Constant(OlyIRConstant.Float32(0.0f), resultTy) |> asExpr
+            | InterpreterType.Float64 ->
+                InterpreterValue.Constant(OlyIRConstant.Int8(0y), resultTy) |> asExpr
+            | InterpreterType.Char16 ->
+                InterpreterValue.Constant(OlyIRConstant.Char16(char 0), resultTy) |> asExpr
+            | _ ->
+                InterpreterValue.DefaultStruct(resultTy) |> asExpr
+        else
+            InterpreterValue.Null(resultTy) |> asExpr
+
     member private this.HandleCast(arg1: obj, castToTy: InterpreterType) =
         match castToTy with
         | InterpreterType.UInt8 ->
@@ -945,39 +979,15 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 stack.Push(null)
             | InterpreterValue.Null _ ->
                 stack.Push(null)
-            | InterpreterValue.Default(resultTy) ->
+            | InterpreterValue.DefaultStruct(resultTy) ->
                 match resultTy with
-                | InterpreterType.UInt8 ->
-                    stack.Push(0uy)
-                | InterpreterType.Int8 ->
-                    stack.Push(0y)
-                | InterpreterType.UInt16 ->
-                    stack.Push(0us)
-                | InterpreterType.Int16 ->
-                    stack.Push(0s)
-                | InterpreterType.UInt32 ->
-                    stack.Push(0u)
-                | InterpreterType.Int32 ->
-                    stack.Push(0)
-                | InterpreterType.UInt64 ->
-                    stack.Push(0UL)
-                | InterpreterType.Int64 ->
-                    stack.Push(0L)
-                | InterpreterType.Float32 ->
-                    stack.Push(0.0f)
-                | InterpreterType.Float64 ->
-                    stack.Push(0.0)
-                | InterpreterType.Bool ->
-                    stack.Push(false)
-                | InterpreterType.Char16 ->
-                    stack.Push(char 0)
                 | ty when ty.IsStruct ->
                     let instance = InterpreterInstanceOfType(resultTy, false, true, resultTy.Inherits, resultTy.Implements)
                     for field in resultTy.Fields do
                         instance.SetFieldState(field.Name, null)
                     stack.Push(instance)
                 | _ ->
-                    stack.Push(null)
+                    OlyAssert.Fail("Expected struct type.")
             | InterpreterValue.StaticField(irField, _) ->
                 irField.EmittedField.GetStaticValue()
                 |> stack.Push
@@ -1300,7 +1310,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
 
             | InterpreterOperation.NewMutableArray(elementTy, irSizeArgExpr, _) ->
                 Array.init (evalArg stack irSizeArgExpr :?> int) (fun _ ->
-                    evalArg stack (OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Default(elementTy)))
+                    evalArg stack (this.CreateDefaultValue(elementTy))
                 )
                 |> stack.Push
 

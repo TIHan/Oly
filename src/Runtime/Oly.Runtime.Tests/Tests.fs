@@ -279,9 +279,9 @@ module OlyExpressionHelpers =
             OlyILValue.Default ilTy
         )
 
-    let (|Default|_|) expr =
+    let (|DefaultStruct|_|) expr =
         match expr with
-        | OlyIRExpression.Value(_, OlyIRValue.Default(irTy)) ->
+        | OlyIRExpression.Value(_, OlyIRValue.DefaultStruct(irTy)) ->
             Some irTy
         | _ ->
             None
@@ -796,7 +796,7 @@ let ``Test 5`` () =
             )
 
     match irExpr with
-    | Let(0, Default _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -851,7 +851,7 @@ let ``Test 6`` () =
             )
 
     match irExpr with
-    | Let(0, Default _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -910,7 +910,7 @@ let ``Test 7`` () =
             )
 
     match irExpr with
-    | Let(0, Default _,
+    | Let(0, DefaultStruct _,
         LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
@@ -1184,7 +1184,7 @@ let ``Test 12`` () =
             )
 
     match irExpr with
-    | Let(0, Default _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr

@@ -275,7 +275,7 @@ type RuntimeEntity =
     member this.IsAnyStruct =
         this.ILEntityKind = OlyILEntityKind.Struct ||
         (
-            (this.IsTypeExtension || this.IsEnum || this.IsNewtype) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
+            (this.IsTypeExtension || this.IsEnum || this.IsNewtype || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
         )
 
     member this.IsEnum =
@@ -1384,6 +1384,12 @@ type RuntimeType with
     member this.StripAliasAndNewtype(): RuntimeType =
         if (this.IsAlias || this.IsNewtype) && this.Extends.Length = 1 then
             this.Extends.[0].StripAliasAndNewtype()
+        else
+            this
+
+    member this.StripAliasAndNewtypeAndEnum(): RuntimeType =
+        if (this.IsAlias || this.IsNewtype || this.IsEnum) && this.Extends.Length = 1 then
+            this.Extends.[0].StripAliasAndNewtypeAndEnum()
         else
             this
 

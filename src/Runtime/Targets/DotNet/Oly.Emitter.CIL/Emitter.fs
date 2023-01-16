@@ -823,24 +823,8 @@ module rec ClrCodeGen =
             emitInstruction cenv (I.Ldftn(methInfo.handle))
             I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
 
-        | V.Default(ty) ->
-            if ty.Handle = cenv.assembly.TypeReferenceByte      ||
-               ty.Handle = cenv.assembly.TypeReferenceSByte     ||
-               ty.Handle = cenv.assembly.TypeReferenceUInt16    ||
-               ty.Handle = cenv.assembly.TypeReferenceInt16     ||
-               ty.Handle = cenv.assembly.TypeReferenceUInt32    ||
-               ty.Handle = cenv.assembly.TypeReferenceInt32     || 
-               ty.Handle = cenv.assembly.TypeReferenceChar      ||
-               ty.Handle = cenv.assembly.TypeReferenceBoolean   then
-                    I.LdcI4(0) |> emitInstruction cenv
-            elif ty.Handle = cenv.assembly.TypeReferenceUInt64 ||
-                 ty.Handle = cenv.assembly.TypeReferenceInt64 then
-                    I.LdcI8(0) |> emitInstruction cenv
-            elif ty.Handle = cenv.assembly.TypeReferenceSingle then
-                    I.LdcR4(0.0f) |> emitInstruction cenv
-            elif ty.Handle = cenv.assembly.TypeReferenceDouble then
-                    I.LdcR8(0.0) |> emitInstruction cenv
-            elif ty.IsStruct then
+        | V.DefaultStruct(ty) ->
+            if ty.IsStruct then
                 match ty.Handle with
                 | ClrTypeHandle.NativePointer _
                 | ClrTypeHandle.FunctionPointer _ ->
@@ -852,7 +836,7 @@ module rec ClrCodeGen =
                     emitInstruction cenv (I.Initobj(ty.Handle))
                     emitInstruction cenv (I.Ldloc(localIndex))
             else
-                I.Ldnull |> emitInstruction cenv
+                OlyAssert.Fail("Expected struct type.")
 
     let canTailCall cenv (func: ClrMethodInfo) =
         cenv.emitTailCalls && 
@@ -991,8 +975,7 @@ module rec ClrCodeGen =
 
         | _ ->
             GenExpression cenv (setNotReturnable env) conditionExpr
-            I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
-        
+            I.Brfalse(falseTargetLabelId) |> emitInstruction cenv       
 
     let GenExpressionAux cenv env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
