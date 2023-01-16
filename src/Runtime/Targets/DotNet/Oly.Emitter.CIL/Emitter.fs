@@ -199,7 +199,22 @@ module rec ClrCodeGen =
             isReturnable: bool
         }
 
-    let getPrimitiveTypeCode cenv (ty: ClrTypeInfo) =
+    let private tryGetLastInstruction cenv =
+        if cenv.buffer.Count > 0 then
+            cenv.buffer[cenv.buffer.Count - 1]
+            |> ValueSome
+        else
+            ValueNone
+
+    let private setReturnable env =
+        if env.isReturnable then env
+        else { env with isReturnable = true }
+
+    let private setNotReturnable env =
+        if env.isReturnable then { env with isReturnable = false }
+        else env
+
+    let private getPrimitiveTypeCode cenv (ty: ClrTypeInfo) =
         if ty.IsDefinitionEnum then
             getPrimitiveTypeCode cenv (ty.TryGetEnumBaseType().Value)
         else
@@ -907,21 +922,6 @@ module rec ClrCodeGen =
             let methRef = cenv.assembly.AddAnonymousFunctionInvoke(argTys, runtimeReturnTy.Handle)
             I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
 
-    /// Builds a new instruction buffer and returns it.
-    let NewGenBranch (cenv: cenv) env irExpr =
-        let cenvNew = cenv.NewBuffer()
-
-        GenExpression cenvNew env irExpr
-
-        cenvNew.buffer
-
-    let (|EqualExpr|_|) irExpr =
-        match irExpr with
-        | E.Operation(irTextRange, O.Equal(arg1, arg2, resultTy)) ->
-            Some(irTextRange, arg1, arg2, resultTy)
-        | _ ->
-            None
-
     // TODO: We could just do this in the front-end when optimizations are enabled.
     let rec MorphExpression (expr: E<ClrTypeInfo, _, _>) =
         match expr with
@@ -1005,12 +1005,8 @@ module rec ClrCodeGen =
             GenExpression cenv env irExpr2
 
         | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
-            let trueTarget = NewGenBranch cenv env trueTargetExpr
-            let falseTarget = NewGenBranch cenv env falseTargetExpr
-
             let continuationLabelIdOpt =
-                if falseTarget.Count > 0 && 
-                   not (match falseTarget.[falseTarget.Count - 1] with I.Ret -> true | _ -> false) then
+                if not env.isReturnable then
                     cenv.NewLabel() |> ValueSome
                 else
                     ValueNone
@@ -1018,9 +1014,9 @@ module rec ClrCodeGen =
             let falseTargetLabelId = cenv.NewLabel()
 
             MorphExpression conditionExpr
-            |> GenConditionExpression cenv env falseTargetLabelId
+            |> GenConditionExpression cenv (setNotReturnable env) falseTargetLabelId
             
-            emitInstructions cenv trueTarget 
+            GenExpression cenv env trueTargetExpr
             
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
@@ -1029,7 +1025,7 @@ module rec ClrCodeGen =
                 ()
 
             I.Label falseTargetLabelId |> emitInstruction cenv
-            emitInstructions cenv falseTarget
+            GenExpression cenv env falseTargetExpr
 
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
@@ -1059,15 +1055,13 @@ module rec ClrCodeGen =
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr
         if env.isReturnable then
-            if cenv.buffer.Count > 0 && cenv.buffer.[cenv.buffer.Count - 1] = I.Ret then ()
-            else
-                I.Ret |> emitInstruction cenv
-
+            // If the last emitted instruction is a return, then we do not need to emit another one.
+            match tryGetLastInstruction cenv with
+            | ValueSome(I.Ret) -> ()
+            | _ -> I.Ret |> emitInstruction cenv
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
     let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)
-
-    // TODO: maybe we should not emit 'virtual final newslot' for some members?
 
     let methAttrs =
         if flags.IsPublic then
