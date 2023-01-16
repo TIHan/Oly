@@ -908,7 +908,7 @@ module rec ClrCodeGen =
             I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
 
     /// Builds a new instruction buffer and returns it.
-    let NewGenBranchPath (cenv: cenv) env irExpr =
+    let NewGenBranch (cenv: cenv) env irExpr =
         let cenvNew = cenv.NewBuffer()
 
         GenExpression cenvNew env irExpr
@@ -921,6 +921,59 @@ module rec ClrCodeGen =
             Some(irTextRange, arg1, arg2, resultTy)
         | _ ->
             None
+
+    // TODO: We could just do this in the front-end when optimizations are enabled.
+    let rec MorphExpression (expr: E<ClrTypeInfo, _, _>) =
+        match expr with
+        // Makes optimizations easier
+        | And(And(argx1, argx2, _), arg2, resultTy) ->
+            And argx1 (And argx2 arg2 resultTy) resultTy
+            |> MorphExpression
+
+        // Makes optimizations easier
+        | Or(Or(argx1, argx2, _), arg2, resultTy) ->
+            Or argx1 (Or argx2 arg2 resultTy) resultTy
+            |> MorphExpression
+
+        | _ ->
+            expr
+
+    let GenConditionExpression cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+        match conditionExpr with
+        | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
+            match argx1, argx2 with
+            | Integral _, Integral _ ->
+            
+                GenExpression cenv { env with isReturnable = false } argx1
+                GenExpression cenv { env with isReturnable = false } argx2
+
+                I.Bne_un(falseTargetLabelId) |> emitInstruction cenv
+                GenConditionExpression cenv env falseTargetLabelId arg2
+            | _ ->
+                GenExpression cenv { env with isReturnable = false } conditionExpr
+                I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
+
+        | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+            match arg1, arg2 with
+            | _, IntegralZero ->
+                GenExpression cenv { env with isReturnable = false } arg1
+
+                I.Brtrue(falseTargetLabelId) |> emitInstruction cenv
+
+            | Integral _, Integral _ ->
+            
+                GenExpression cenv { env with isReturnable = false } arg1
+                GenExpression cenv { env with isReturnable = false } arg2
+
+                I.Bne_un(falseTargetLabelId) |> emitInstruction cenv
+            | _ ->
+                GenExpression cenv { env with isReturnable = false } conditionExpr
+                I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
+
+        | _ ->
+            GenExpression cenv { env with isReturnable = false } conditionExpr
+            I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
+        
 
     let GenExpressionAux cenv env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
@@ -951,74 +1004,24 @@ module rec ClrCodeGen =
             GenExpression cenv { env with isReturnable = false } irExpr1
             GenExpression cenv env irExpr2
 
-        | E.IfElse(conditionExpr, trueExpr, falseExpr, _) ->
-            let truePath = NewGenBranchPath cenv env trueExpr
-            let falsePath = NewGenBranchPath cenv env falseExpr
+        | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+            let trueTarget = NewGenBranch cenv env trueTargetExpr
+            let falseTarget = NewGenBranch cenv env falseTargetExpr
 
             let continuationLabelIdOpt =
-                if falsePath.Count > 0 && 
-                   not (match falsePath.[falsePath.Count - 1] with I.Ret -> true | _ -> false) then
+                if falseTarget.Count > 0 && 
+                   not (match falseTarget.[falseTarget.Count - 1] with I.Ret -> true | _ -> false) then
                     cenv.NewLabel() |> ValueSome
                 else
                     ValueNone
 
-            let andExpr arg1 arg2 resultTy =
-                E.IfElse(arg1, arg2, E.Value(NoRange, V.Constant(C.False, resultTy)), resultTy)
+            let falseTargetLabelId = cenv.NewLabel()
 
-            let orExpr arg1 arg2 resultTy =
-                E.IfElse(arg1, E.Value(NoRange, V.Constant(C.True, resultTy)), arg2, resultTy)
-
-            let falsePathLabelId = cenv.NewLabel()
-
-            let rec reduce (conditionExpr: E<ClrTypeInfo, _, _>) =
-                match conditionExpr with
-                // Makes optimizations easier
-                | And(And(argx1, argx2, _), arg2, resultTy) ->
-                    andExpr argx1 (andExpr argx2 arg2 resultTy) resultTy
-                    |> reduce
-
-                // Makes optimizations easier
-                | Or(Or(argx1, argx2, _), arg2, resultTy) ->
-                    orExpr argx1 (orExpr argx2 arg2 resultTy) resultTy
-                    |> reduce
-
-                | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
-                    match argx1, argx2 with
-                    // TODO: There is some code duplication that we can cleanup.
-                    | IntegralConstant _, IntegralConstant _ ->
-                    
-                        GenExpression cenv { env with isReturnable = false } argx1
-                        GenExpression cenv { env with isReturnable = false } argx2
-
-                        I.Bne_un(falsePathLabelId) |> emitInstruction cenv
-                        reduce arg2
-                    | _ ->
-                        GenExpression cenv { env with isReturnable = false } conditionExpr
-                        I.Brfalse(falsePathLabelId) |> emitInstruction cenv
-
-                | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
-                    match arg1, arg2 with
-                    | _, IntegralConstantZero ->
-                        GenExpression cenv { env with isReturnable = false } arg1
-
-                        I.Brtrue(falsePathLabelId) |> emitInstruction cenv
-
-                    | IntegralConstant _, IntegralConstant _ ->
-                    
-                        GenExpression cenv { env with isReturnable = false } arg1
-                        GenExpression cenv { env with isReturnable = false } arg2
-
-                        I.Bne_un(falsePathLabelId) |> emitInstruction cenv
-                    | _ ->
-                        GenExpression cenv { env with isReturnable = false } conditionExpr
-                        I.Brfalse(falsePathLabelId) |> emitInstruction cenv
-
-                | _ ->
-                    GenExpression cenv { env with isReturnable = false } conditionExpr
-                    I.Brfalse(falsePathLabelId) |> emitInstruction cenv
-
-            reduce conditionExpr
-            emitInstructions cenv truePath 
+            MorphExpression conditionExpr
+            |> GenConditionExpression cenv env falseTargetLabelId
+            
+            GenExpression cenv env trueTargetExpr
+            emitInstructions cenv trueTarget 
             
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
@@ -1026,8 +1029,8 @@ module rec ClrCodeGen =
             | _ ->
                 ()
 
-            I.Label(falsePathLabelId) |> emitInstruction cenv
-            emitInstructions cenv falsePath
+            I.Label(falseTargetLabelId) |> emitInstruction cenv
+            emitInstructions cenv falseTarget
 
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
@@ -1035,7 +1038,7 @@ module rec ClrCodeGen =
             | _ ->
                 ()
 
-        | E.While(predicateExpr, bodyExpr, _) ->
+        | E.While(conditionExpr, bodyExpr, _) ->
             let envLoop = 
                 { env with 
                     isInWhileLoop = true
@@ -1044,15 +1047,15 @@ module rec ClrCodeGen =
             let loopStartLabelId = cenv.NewLabel()
             let loopEndLabelId = cenv.NewLabel()
 
-            let predicatePath = NewGenBranchPath cenv envLoop predicateExpr
-            let bodyPath = NewGenBranchPath cenv envLoop bodyExpr
+            let conditionTarget = NewGenBranch cenv envLoop conditionExpr
+            let bodyTarget = NewGenBranch cenv envLoop bodyExpr
 
             I.Label(loopStartLabelId) |> emitInstruction cenv
 
-            emitInstructions cenv predicatePath
+            emitInstructions cenv conditionTarget
             emitInstruction cenv (I.Brfalse loopEndLabelId)
 
-            emitInstructions cenv bodyPath
+            emitInstructions cenv bodyTarget
             emitInstruction cenv (I.Br loopStartLabelId)
 
             I.Label(loopEndLabelId) |> emitInstruction cenv

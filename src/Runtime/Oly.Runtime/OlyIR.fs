@@ -658,10 +658,10 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | Let of            name: string * localIndex: int * rhsExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field>
     | Value of          textRange: OlyIRDebugSourceTextRange * value: OlyIRValue<'Type, 'Function, 'Field>
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
-    | IfElse of         predicateExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
+    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
     | Sequential of     expr1: OlyIRExpression<'Type, 'Function, 'Field> * expr2: OlyIRExpression<'Type, 'Function, 'Field>
 
-    | While of          predicateExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type        
+    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type        
 
     member this.GetExpressions() : _ imarray =
         match this with
@@ -708,6 +708,13 @@ module Patterns =
 
     let NoRange = OlyIRDebugSourceTextRange.Empty
 
+
+    let And arg1 arg2 resultTy =
+        E.IfElse(arg1, arg2, E.Value(NoRange, V.Constant(C.False, resultTy)), resultTy)
+
+    let Or arg1 arg2 resultTy =
+        E.IfElse(arg1, E.Value(NoRange, V.Constant(C.True, resultTy)), arg2, resultTy)
+
     let (|And|_|) (expr: E<_, _, _>) =
         match expr with
         | E.IfElse(expr1, expr2, E.Value(value=V.Constant(C.False, _)), resultTy) ->
@@ -722,7 +729,17 @@ module Patterns =
         | _ ->
             None
 
-    let (|IntegralConstant|_|) (expr: E<_, _, _>) =
+    let (|True|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=V.Constant(C.True, _)) -> Some()
+        | _ -> None
+
+    let (|False|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=V.Constant(C.False, _)) -> Some()
+        | _ -> None
+
+    let (|Integral|_|) (expr: E<_, _, _>) =
         match expr with
         | E.Value(value=v) ->
             match v with
@@ -751,7 +768,7 @@ module Patterns =
         | _ ->
             None        
 
-    let (|IntegralConstantZero|_|) (expr: E<_, _, _>) =
+    let (|IntegralZero|_|) (expr: E<_, _, _>) =
         match expr with
         | E.Value(value=v) ->
             match v with
@@ -770,6 +787,15 @@ module Patterns =
                     None
             | _ ->
                 None
+        | _ ->
+            None
+
+    let (|Null|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=v) ->
+            match v with
+            | V.Null _ -> Some()
+            | _ -> None
         | _ ->
             None
 
