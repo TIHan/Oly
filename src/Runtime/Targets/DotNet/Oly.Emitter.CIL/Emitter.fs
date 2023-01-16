@@ -940,39 +940,98 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let GenConditionExpression cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+    let GenConditionExpressionForFalseTarget cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+        OlyAssert.False(env.isReturnable)
+
         match conditionExpr with
         | And(E.Operation(_, O.Equal _) as arg1, arg2, _) ->
-            GenConditionExpression cenv env falseTargetLabelId arg1
-            GenConditionExpression cenv env falseTargetLabelId arg2
+            GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg1
+            GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg2
 
         | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
             match arg1, arg2 with
             | _, Null
             | _, IntegralZero ->
-                GenExpression cenv (setNotReturnable env) arg1
+                GenExpression cenv env arg1
                 I.Brfalse falseTargetLabelId |> emitInstruction cenv
 
             | _ ->
-                GenExpression cenv (setNotReturnable env) arg1
-                GenExpression cenv (setNotReturnable env) arg2
+                GenExpression cenv env arg1
+                GenExpression cenv env arg2
                 I.Beq falseTargetLabelId |> emitInstruction cenv
 
         | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
             match arg1, arg2 with
             | _, Null
             | _, IntegralZero ->
-                GenExpression cenv (setNotReturnable env) arg1
+                GenExpression cenv env arg1
                 I.Brtrue falseTargetLabelId |> emitInstruction cenv
 
             | _ ->
-                GenExpression cenv (setNotReturnable env) arg1
-                GenExpression cenv (setNotReturnable env) arg2
+                GenExpression cenv env arg1
+                GenExpression cenv env arg2
                 I.Bne_un falseTargetLabelId |> emitInstruction cenv
 
         | _ ->
-            GenExpression cenv (setNotReturnable env) conditionExpr
-            I.Brfalse(falseTargetLabelId) |> emitInstruction cenv       
+            GenExpression cenv env conditionExpr
+            I.Brfalse falseTargetLabelId |> emitInstruction cenv       
+
+    let GenConditionExpressionForTrueTarget cenv env trueTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+        OlyAssert.False(env.isReturnable)
+
+        match conditionExpr with
+        | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
+            match arg1, arg2 with
+            | _, Null
+            | _, IntegralZero ->
+                GenExpression cenv env arg1
+                I.Brtrue trueTargetLabelId |> emitInstruction cenv
+
+            | _ ->
+                GenExpression cenv env arg1
+                GenExpression cenv env arg2
+                I.Bne_un trueTargetLabelId |> emitInstruction cenv
+
+        | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+            match arg1, arg2 with
+            | _, Null
+            | _, IntegralZero ->
+                GenExpression cenv env arg1
+                I.Brfalse trueTargetLabelId |> emitInstruction cenv
+
+            | _ ->
+                GenExpression cenv env arg1
+                GenExpression cenv env arg2
+                I.Beq trueTargetLabelId |> emitInstruction cenv
+
+        | _ ->
+            GenExpression cenv env conditionExpr
+            I.Brtrue trueTargetLabelId |> emitInstruction cenv  
+
+    let private GenConditionOrExpression cenv env continuationLabelIdOpt expr1 expr2 trueTargetLabelId falseTargetLabelId =
+        GenConditionExpressionForTrueTarget cenv (setNotReturnable env) trueTargetLabelId expr1
+
+        match expr2 with
+        | Or(expr1, expr2, _) ->
+            GenConditionOrExpression cenv env continuationLabelIdOpt expr1 expr2 trueTargetLabelId falseTargetLabelId
+        | _ ->
+            GenConditionExpressionForFalseTarget cenv (setNotReturnable env) falseTargetLabelId expr2
+
+    let private GenIfElseContinuation cenv env continuationLabelIdOpt falseTargetLabelId falseTargetExpr =
+        match continuationLabelIdOpt with
+        | ValueSome(contLabelId) ->
+            I.Br(contLabelId) |> emitInstruction cenv
+        | _ ->
+            ()
+
+        I.Label falseTargetLabelId |> emitInstruction cenv
+        GenExpression cenv env falseTargetExpr
+
+        match continuationLabelIdOpt with
+        | ValueSome(contLabelId) ->
+            I.Label(contLabelId) |> emitInstruction cenv
+        | _ ->
+            ()
 
     let GenExpressionAux cenv env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
@@ -1000,7 +1059,7 @@ module rec ClrCodeGen =
             GenOperation cenv env irOp
 
         | E.Sequential(irExpr1, irExpr2) ->
-            GenExpression cenv { env with isReturnable = false } irExpr1
+            GenExpression cenv (setNotReturnable env) irExpr1
             GenExpression cenv env irExpr2
 
         | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
@@ -1012,11 +1071,26 @@ module rec ClrCodeGen =
 
             let falseTargetLabelId = cenv.NewLabel()
 
-            MorphExpression conditionExpr
-            |> GenConditionExpression cenv (setNotReturnable env) falseTargetLabelId
-            
-            GenExpression cenv env trueTargetExpr
-            
+            let conditionExpr = MorphExpression conditionExpr
+            match conditionExpr with
+            | Or(expr1, expr2, _) ->
+                let trueTargetLabelId = cenv.NewLabel()
+
+                GenConditionOrExpression 
+                    cenv 
+                    env 
+                    continuationLabelIdOpt 
+                    expr1 
+                    expr2 
+                    trueTargetLabelId 
+                    falseTargetLabelId
+
+                I.Label trueTargetLabelId |> emitInstruction cenv
+                GenExpression cenv env trueTargetExpr
+            | _ ->
+                GenConditionExpressionForFalseTarget cenv (setNotReturnable env) falseTargetLabelId conditionExpr          
+                GenExpression cenv env trueTargetExpr
+
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
                 I.Br(contLabelId) |> emitInstruction cenv

@@ -5,8 +5,12 @@
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
+test(x: int32, y: int32, z: int32, w: int32): string =
+    if (x == 3 || y == 4 || z == 5 || w == 8)
+        "beef"
+    else
+        "chicken"
+
 main(): () =
-#if DEBUG
-    let VARIABLE = 1
-#end
+    print(test(5, 4, 5, 1))
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
