@@ -675,20 +675,19 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
                         configs.configurations
                         |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.name))) && x.name.Equals(state.activeConfiguration, StringComparison.OrdinalIgnoreCase))
 
-                    let name =
+                    let config =
                         match configOpt with
-                        | Some config -> config.name
-                        | _ -> String.Empty
+                        | None ->
+                            match configs.configurations |> Array.tryHead with
+                            | Some config -> config
+                            | _ -> LspProjectConfigurations.Default.configurations[0]
+                        | Some config ->
+                            config
 
-                    let conditionalDefines =
-                        match configOpt with
-                        | Some options -> options.defines |> ImArray.ofSeq
-                        | _ -> ImArray.empty
+                    let name = config.name
+                    let conditionalDefines = config.defines |> ImArray.ofSeq
+                    let isDebuggable = config.debuggable
 
-                    let isDebuggable =
-                        match configOpt with
-                        | Some options -> options.debuggable
-                        | _ -> false
 
                     return OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
                 with

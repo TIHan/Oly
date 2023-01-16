@@ -545,7 +545,7 @@ type OlyDocument with
                             false
 
                 let context =
-                    if token.IsTrivia then
+                    if token.IsTrivia && not token.IsWhitespaceTrivia then
                         OlyCompletionContext.None
                     elif hasDotOnLeft then
                         match boundModel.TryFindSymbol(token, ct) with
