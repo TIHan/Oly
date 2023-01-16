@@ -652,6 +652,8 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
                     // TODO: Use 'ct' instead of CancellationToken.None.
                     let! state = this.GetWorkspaceStateAsync(CancellationToken.None)
 
+                    editorDirWatch.WatchFiles(OlyPath.GetDirectory(projectConfigPath).ToString(), OlyPath.GetFileName(projectConfigPath))
+
                     let mutable configs = LspProjectConfigurations.Default
                     try
                         let fs = File.OpenText(projectConfigPath.ToString())
@@ -835,19 +837,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
 
-    let invalidateEditor (filePath: string) =
-        let fileName = Path.GetFileName(filePath)
-        if fileName.Equals(LspWorkspaceStateFileName, StringComparison.OrdinalIgnoreCase) then
-            lock ctsLock <| fun () ->
-                let results = ctsTable.Values |> ImArray.ofSeq
-                results
-                |> ImArray.iter (fun x -> try x.Cancel() with | _ -> ())
-                ctsTable.Clear()
-                workspace.ClearSolutionAsync(CancellationToken.None).Result |> ignore
-           // server.RefreshClientAsync(CancellationToken.None).Result |> ignore
-        else
-            ()
-
     let invalidate (filePath: string) =
         let solution = workspace.Solution
         let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
@@ -861,6 +850,21 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             if mustInvalidate then
                 workspace.InvalidateProject(proj.Path, CancellationToken.None)
         )
+
+    let invalidateEditor (filePath: string) =
+        let fileName = Path.GetFileName(filePath)
+        if fileName.Equals(LspWorkspaceStateFileName, StringComparison.OrdinalIgnoreCase) then
+            lock ctsLock <| fun () ->
+                let results = ctsTable.Values |> ImArray.ofSeq
+                results
+                |> ImArray.iter (fun x -> try x.Cancel() with | _ -> ())
+                ctsTable.Clear()
+                workspace.ClearSolutionAsync(CancellationToken.None).Result |> ignore
+           // server.RefreshClientAsync(CancellationToken.None).Result |> ignore
+        elif fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) then
+            invalidate (Path.ChangeExtension(filePath, ".olyx"))
+        else
+            ()
 
     do
         dirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidate oldFullPath)
