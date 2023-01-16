@@ -410,35 +410,7 @@ export function activate(context: ExtensionContext) {
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
 			fileEvents: workspace.createFileSystemWatcher('**/*.oly')
-			// Notify the server about file changes to '.clientrc files contained in the workspace
-			//fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-		},
-		// connectionOptions: {
-		// 	cancellationStrategy: {
-		// 		receiver: {
-		// 			createCancellationTokenSource(id: CancellationId): AbstractCancellationTokenSource {
-		// 				return new CancellationTokenSource();
-		// 			}
-		// 		},
-		// 		sender: {
-		// 			sendCancellation(conn: MessageConnection, id: CancellationId): void {
-		// 				console.log(id);
-		// 			},
-		// 			cleanup(id: CancellationId): void {
-		// 				console.log(id);
-		// 			}
-		// 		}
-		// 	}
-		// }
-		// middleware: {
-		// 	provideCompletionItem: async (document, position, context, token, next) => {
-		// 		var temp_result: any = await next(document, position, context, token);
-		// 		var res: vscode.CompletionItem[] = temp_result;
-		// 		res[0].
-
-		// 		return temp_result;
-		// 	}
-		// }
+		}
 	};
 
 	// Create the language client and start the client.

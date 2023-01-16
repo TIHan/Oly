@@ -55,6 +55,7 @@ type OlyClassificationKind =
     | ConstantNull
     | ConstantDefault
     | Directive
+    | ConditionalDirective
 
 type OlyClassificationModifierFlags =
     | None       = 0x00000
@@ -212,8 +213,10 @@ type OlySymbol with
             classifyTypeKind symbol
         | :? OlyConstantSymbol as symbol ->
             classifyConstantKind symbol
-        | :? OlyDirectiveSymbol as symbol ->
+        | :? OlyDirectiveSymbol ->
             OlyClassificationKind.Directive
+        | :? OlyConditionalDirectiveSymbol ->
+            OlyClassificationKind.ConditionalDirective
         | _ ->
             OlyClassificationKind.None
 
@@ -542,7 +545,9 @@ type OlyDocument with
                             false
 
                 let context =
-                    if hasDotOnLeft then
+                    if token.IsTrivia then
+                        OlyCompletionContext.None
+                    elif hasDotOnLeft then
                         match boundModel.TryFindSymbol(token, ct) with
                         | Some symbol ->
                             match symbol with
@@ -777,7 +782,8 @@ type OlyDocument with
             |> Array.ofSeq
 
         match context with
-        | OlyCompletionContext.None
+        | OlyCompletionContext.None ->
+            Seq.empty
         | OlyCompletionContext.Unqualified _ ->
             let controlKeywordCompletions =
                 controlKeywords

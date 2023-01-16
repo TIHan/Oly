@@ -34,17 +34,6 @@
 		}
 	],
 	"repository": {
-		"conditional-directives": {
-			"name": "meta.preprocessor",
-			"begin": "#if+\\s+[a-zA-Z0-9]+\\n",
-			"end": "#end\\b",
-			"patterns": [
-				{
-					"name": "meta.preprocessor.string",
-					"match": "."
-				}
-			]
-		},
 		"directives": {
 			"name": "meta.preprocessor",
 			"match": "\\#+[a-zA-Z]+\\b"

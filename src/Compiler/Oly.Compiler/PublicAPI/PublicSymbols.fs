@@ -632,6 +632,20 @@ type OlyDirectiveSymbol internal (syntaxNode: OlySyntaxNode, name: string, value
 
     member _.Value = value
 
+[<Sealed>] 
+type OlyConditionalDirectiveSymbol internal (syntaxNode: OlySyntaxNode) =
+    inherit OlySymbol(syntaxNode)
+
+    override _.SignatureText = String.Empty
+
+    override _.Name = String.Empty
+
+    override _.TryGetDefinitionLocation(_) = None
+
+    override this.IsSimilarTo(_) = false
+
+    override _.IsLocal = false
+
 // TODO: Weird name.
 [<Sealed>] 
 type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode, benv: BoundEnvironment) =
@@ -1264,12 +1278,16 @@ type OlyBoundModel internal (
         //       It's hacky because we assume the directives are always at the top, but it wont be the case for #if, #when, #else.
         let directiveSymbols = 
             let chooser (x: OlyToken) =
-                if x.IsDirective && predicate x.Node then
+                if x.IsAnyDirective && predicate x.Node then
                     match x.TryDirectiveText with
                     | ValueSome(name, value) ->
-                        OlyDirectiveSymbol(x.Node, name, value) |> Some
+                        OlyDirectiveSymbol(x.Node, name, value) :> OlySymbol |> Some
                     | _ ->
-                        None
+                        match x.TryConditionalDirectiveText with
+                        | ValueSome(_hashIfText, _bodyText, _hashEndText) ->
+                            OlyConditionalDirectiveSymbol(x.Node) :> OlySymbol |> Some
+                        | _ ->
+                            None
                 else
                     None
             match boundTree.SyntaxTree.GetRoot(ct).TryGetFirstToken(true) with

@@ -43,9 +43,10 @@ type OlyToken =
 
     member this.Text = this.node.Internal.Text
 
-    member this.IsDirective =
+    member this.IsAnyDirective =
         match this.node.Internal.RawToken with
-        | Directive _ -> 
+        | Directive _
+        | ConditionalDirective _ -> 
             true
         | _ ->
             false
@@ -54,6 +55,13 @@ type OlyToken =
         match this.node.Internal.RawToken with
         | Directive(_, identToken, _, valueToken) -> 
             ValueSome(identToken.ValueText, valueToken.ValueText)
+        | _ ->
+            ValueNone
+
+    member this.TryConditionalDirectiveText =
+        match this.node.Internal.RawToken with
+        | ConditionalDirective(hashIfToken, bodyText, hashEndToken) -> 
+            ValueSome(hashIfToken.ValueText, bodyText, hashEndToken.ValueText)
         | _ ->
             ValueNone
 
