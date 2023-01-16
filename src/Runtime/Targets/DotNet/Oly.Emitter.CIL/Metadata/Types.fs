@@ -335,7 +335,7 @@ type ClrInstruction =
     | Blt of labelId: int32
     /// Branch if less than (unsigned)
     | Blt_un of labelId: int32
-    /// Branch if not equal (unsigned)
+    /// Branch if not equal
     | Bne_un of labelId: int32
     /// Branch if true
     | Brtrue of labelId: int32

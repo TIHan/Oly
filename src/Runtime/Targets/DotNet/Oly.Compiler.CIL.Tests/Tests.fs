@@ -13612,7 +13612,6 @@ main(): () =
     |> shouldRunWithExpectedOutput "246"
     |> ignore
 
-
 [<Fact>]
 let ``Multiple type parameters on extension with shape constraint should compile 2``() =
     let src =
@@ -13667,4 +13666,175 @@ main(): () =
     Oly src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "246"
+    |> ignore
+
+[<Fact>]
+let ``Integral does not equal zero should succeed``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("not_equal")]
+(!=)(int32, int32): bool
+
+test1(value: int32): () =
+    if (value != 0)
+        print("passed")
+    else
+        print("failed")
+
+main(): () =
+    test1(1)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Integral does not equal value should succeed``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("not_equal")]
+(!=)(int32, int32): bool
+
+test1(value: int32): () =
+    if (value != 256)
+        print("passed")
+    else
+        print("failed")
+
+main(): () =
+    test1(1)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Object does equal null should succeed``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(===)<T>(T, T): bool where T: not struct
+
+#[null]
+class Test1
+
+test1(value: Test1): () =
+    if (value === null)
+        print("failed")
+    else
+        print("passed")
+
+main(): () =
+    test1(Test1())
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Object does equal null should succeed 2``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(===)<T>(T, T): bool where T: not struct
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[null]
+class Test1
+
+test1(value1: Test1, value2: Test1): () =
+    if (value1 === null && value2 === null)
+        print("failed")
+    else
+        print("passed")
+
+main(): () =
+    test1(Test1(), Test1())
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Object does equal null should succeed 3``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(===)<T>(T, T): bool where T: not struct
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[null]
+class Test1
+
+test1(value1: Test1, value2: Test1, value3: Test1): () =
+    if (value1 === null && value2 === null && value3 === null)
+        print("passed")
+    else
+        print("failed")
+
+main(): () =
+    test1(null, null, null)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
     |> ignore

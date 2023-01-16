@@ -938,40 +938,59 @@ module rec ClrCodeGen =
         | _ ->
             expr
 
+    let private isIntegral (cenv: cenv) (expr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+        let handle = expr.ResultType.Handle
+        handle = cenv.assembly.TypeReferenceInt32 ||
+        handle = cenv.assembly.TypeReferenceSByte ||
+        handle = cenv.assembly.TypeReferenceInt16 ||
+        handle = cenv.assembly.TypeReferenceInt64 ||
+        handle = cenv.assembly.TypeReferenceByte ||
+        handle = cenv.assembly.TypeReferenceUInt16 ||
+        handle = cenv.assembly.TypeReferenceUInt32 ||
+        handle = cenv.assembly.TypeReferenceUInt64
+
+    let private isUnsigned (cenv: cenv) (expr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+        let handle = expr.ResultType.Handle
+        handle = cenv.assembly.TypeReferenceByte ||
+        handle = cenv.assembly.TypeReferenceUInt16 ||
+        handle = cenv.assembly.TypeReferenceUInt32 ||
+        handle = cenv.assembly.TypeReferenceUInt64
+
     let GenConditionExpression cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match conditionExpr with
         | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
-            match argx1, argx2 with
-            | Integral _, Integral _ ->
-            
-                GenExpression cenv { env with isReturnable = false } argx1
-                GenExpression cenv { env with isReturnable = false } argx2
+            GenExpression cenv (setNotReturnable env) argx1
+            GenExpression cenv (setNotReturnable env) argx2
+            I.Bne_un falseTargetLabelId |> emitInstruction cenv
 
-                I.Bne_un(falseTargetLabelId) |> emitInstruction cenv
-                GenConditionExpression cenv env falseTargetLabelId arg2
+            GenConditionExpression cenv env falseTargetLabelId arg2
+
+        | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
+            match arg1, arg2 with
+            | _, Null
+            | _, IntegralZero ->
+                GenExpression cenv (setNotReturnable env) arg1
+                I.Brfalse falseTargetLabelId |> emitInstruction cenv
+
             | _ ->
-                GenExpression cenv { env with isReturnable = false } conditionExpr
-                I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
+                GenExpression cenv (setNotReturnable env) arg1
+                GenExpression cenv (setNotReturnable env) arg2
+                I.Beq falseTargetLabelId |> emitInstruction cenv
 
         | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
             match arg1, arg2 with
+            | _, Null
             | _, IntegralZero ->
-                GenExpression cenv { env with isReturnable = false } arg1
+                GenExpression cenv (setNotReturnable env) arg1
+                I.Brtrue falseTargetLabelId |> emitInstruction cenv
 
-                I.Brtrue(falseTargetLabelId) |> emitInstruction cenv
-
-            | Integral _, Integral _ ->
-            
-                GenExpression cenv { env with isReturnable = false } arg1
-                GenExpression cenv { env with isReturnable = false } arg2
-
-                I.Bne_un(falseTargetLabelId) |> emitInstruction cenv
             | _ ->
-                GenExpression cenv { env with isReturnable = false } conditionExpr
-                I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
+                GenExpression cenv (setNotReturnable env) arg1
+                GenExpression cenv (setNotReturnable env) arg2
+                I.Bne_un falseTargetLabelId |> emitInstruction cenv
 
         | _ ->
-            GenExpression cenv { env with isReturnable = false } conditionExpr
+            GenExpression cenv (setNotReturnable env) conditionExpr
             I.Brfalse(falseTargetLabelId) |> emitInstruction cenv
         
 
