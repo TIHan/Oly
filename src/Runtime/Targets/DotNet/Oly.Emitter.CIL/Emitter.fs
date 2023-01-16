@@ -1017,22 +1017,6 @@ module rec ClrCodeGen =
         | _ ->
             GenConditionExpressionForFalseTarget cenv (setNotReturnable env) falseTargetLabelId expr2
 
-    let private GenIfElseContinuation cenv env continuationLabelIdOpt falseTargetLabelId falseTargetExpr =
-        match continuationLabelIdOpt with
-        | ValueSome(contLabelId) ->
-            I.Br(contLabelId) |> emitInstruction cenv
-        | _ ->
-            ()
-
-        I.Label falseTargetLabelId |> emitInstruction cenv
-        GenExpression cenv env falseTargetExpr
-
-        match continuationLabelIdOpt with
-        | ValueSome(contLabelId) ->
-            I.Label(contLabelId) |> emitInstruction cenv
-        | _ ->
-            ()
-
     let GenExpressionAux cenv env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
         | E.None _ ->
