@@ -1020,7 +1020,6 @@ module rec ClrCodeGen =
             MorphExpression conditionExpr
             |> GenConditionExpression cenv env falseTargetLabelId
             
-            GenExpression cenv env trueTargetExpr
             emitInstructions cenv trueTarget 
             
             match continuationLabelIdOpt with
@@ -1029,7 +1028,7 @@ module rec ClrCodeGen =
             | _ ->
                 ()
 
-            I.Label(falseTargetLabelId) |> emitInstruction cenv
+            I.Label falseTargetLabelId |> emitInstruction cenv
             emitInstructions cenv falseTarget
 
             match continuationLabelIdOpt with
@@ -1047,18 +1046,15 @@ module rec ClrCodeGen =
             let loopStartLabelId = cenv.NewLabel()
             let loopEndLabelId = cenv.NewLabel()
 
-            let conditionTarget = NewGenBranch cenv envLoop conditionExpr
-            let bodyTarget = NewGenBranch cenv envLoop bodyExpr
+            I.Label loopStartLabelId |> emitInstruction cenv
 
-            I.Label(loopStartLabelId) |> emitInstruction cenv
+            GenExpression cenv envLoop conditionExpr
+            I.Brfalse loopEndLabelId |> emitInstruction cenv
 
-            emitInstructions cenv conditionTarget
-            emitInstruction cenv (I.Brfalse loopEndLabelId)
+            GenExpression cenv envLoop bodyExpr
+            I.Br loopStartLabelId |> emitInstruction cenv
 
-            emitInstructions cenv bodyTarget
-            emitInstruction cenv (I.Br loopStartLabelId)
-
-            I.Label(loopEndLabelId) |> emitInstruction cenv
+            I.Label loopEndLabelId  |> emitInstruction cenv
 
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr
