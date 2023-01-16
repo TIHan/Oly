@@ -942,11 +942,8 @@ module rec ClrCodeGen =
 
     let GenConditionExpression cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match conditionExpr with
-        | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
-            GenExpression cenv (setNotReturnable env) argx1
-            GenExpression cenv (setNotReturnable env) argx2
-            I.Bne_un falseTargetLabelId |> emitInstruction cenv
-
+        | And(E.Operation(_, O.Equal _) as arg1, arg2, _) ->
+            GenConditionExpression cenv env falseTargetLabelId arg1
             GenConditionExpression cenv env falseTargetLabelId arg2
 
         | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
