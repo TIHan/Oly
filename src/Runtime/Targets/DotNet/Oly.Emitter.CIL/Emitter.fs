@@ -952,17 +952,12 @@ module rec ClrCodeGen =
             GenExpression cenv env irExpr2
 
         | E.IfElse(conditionExpr, trueExpr, falseExpr, _) ->
-            let falseLabelId = cenv.NewLabel()
-
             let truePath = NewGenBranchPath cenv env trueExpr
             let falsePath = NewGenBranchPath cenv env falseExpr
 
-            let mustBranch =
-                falsePath.Count > 0 && 
-                not (match falsePath.[falsePath.Count - 1] with I.Ret -> true | _ -> false)
-
-            let contLabelIdOpt =
-                if mustBranch then
+            let continuationLabelIdOpt =
+                if falsePath.Count > 0 && 
+                   not (match falsePath.[falsePath.Count - 1] with I.Ret -> true | _ -> false) then
                     cenv.NewLabel() |> ValueSome
                 else
                     ValueNone
@@ -973,9 +968,7 @@ module rec ClrCodeGen =
             let orExpr arg1 arg2 resultTy =
                 E.IfElse(arg1, E.Value(NoRange, V.Constant(C.True, resultTy)), arg2, resultTy)
 
-            let canUseIntrinsicEquality (value1: V<ClrTypeInfo, _, _>) (value2: V<ClrTypeInfo, _, _>) =
-                value1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 &&
-                value2.ResultType.Handle = cenv.assembly.TypeReferenceInt32
+            let falsePathLabelId = cenv.NewLabel()
 
             let rec reduce (conditionExpr: E<ClrTypeInfo, _, _>) =
                 match conditionExpr with
@@ -992,48 +985,51 @@ module rec ClrCodeGen =
                 | And(E.Operation(_, O.Equal(argx1, argx2, _)), arg2, _) ->
                     match argx1, argx2 with
                     // TODO: There is some code duplication that we can cleanup.
-                    | E.Value(_, value1), E.Value(_, value2) 
-                        when canUseIntrinsicEquality value1 value2 ->
+                    | IntegralConstant _, IntegralConstant _ ->
                     
                         GenExpression cenv { env with isReturnable = false } argx1
                         GenExpression cenv { env with isReturnable = false } argx2
 
-                        I.Bne_un(falseLabelId) |> emitInstruction cenv
+                        I.Bne_un(falsePathLabelId) |> emitInstruction cenv
                         reduce arg2
                     | _ ->
                         GenExpression cenv { env with isReturnable = false } conditionExpr
-                        I.Brfalse(falseLabelId) |> emitInstruction cenv
+                        I.Brfalse(falsePathLabelId) |> emitInstruction cenv
 
                 | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
                     match arg1, arg2 with
-                    | E.Value(_, value1), E.Value(_, value2) 
-                        when canUseIntrinsicEquality value1 value2  ->
+                    | _, IntegralConstantZero ->
+                        GenExpression cenv { env with isReturnable = false } arg1
+
+                        I.Brtrue(falsePathLabelId) |> emitInstruction cenv
+
+                    | IntegralConstant _, IntegralConstant _ ->
                     
                         GenExpression cenv { env with isReturnable = false } arg1
                         GenExpression cenv { env with isReturnable = false } arg2
 
-                        I.Bne_un(falseLabelId) |> emitInstruction cenv
+                        I.Bne_un(falsePathLabelId) |> emitInstruction cenv
                     | _ ->
                         GenExpression cenv { env with isReturnable = false } conditionExpr
-                        I.Brfalse(falseLabelId) |> emitInstruction cenv
+                        I.Brfalse(falsePathLabelId) |> emitInstruction cenv
 
                 | _ ->
                     GenExpression cenv { env with isReturnable = false } conditionExpr
-                    I.Brfalse(falseLabelId) |> emitInstruction cenv
+                    I.Brfalse(falsePathLabelId) |> emitInstruction cenv
 
             reduce conditionExpr
             emitInstructions cenv truePath 
             
-            match contLabelIdOpt with
+            match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
                 I.Br(contLabelId) |> emitInstruction cenv
             | _ ->
                 ()
 
-            I.Label(falseLabelId) |> emitInstruction cenv
+            I.Label(falsePathLabelId) |> emitInstruction cenv
             emitInstructions cenv falsePath
 
-            match contLabelIdOpt with
+            match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
                 I.Label(contLabelId) |> emitInstruction cenv
             | _ ->

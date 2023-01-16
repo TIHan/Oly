@@ -710,15 +710,66 @@ module Patterns =
 
     let (|And|_|) (expr: E<_, _, _>) =
         match expr with
-        | OlyIRExpression.IfElse(expr1, expr2, E.Value(value=V.Constant(C.False, _)), resultTy) ->
+        | E.IfElse(expr1, expr2, E.Value(value=V.Constant(C.False, _)), resultTy) ->
             Some(expr1, expr2, resultTy)
         | _ ->
             None
 
     let (|Or|_|) (expr: E<_, _, _>) =
         match expr with
-        | OlyIRExpression.IfElse(expr1, E.Value(value=V.Constant(C.True, _)), expr2, resultTy) ->
+        | E.IfElse(expr1, E.Value(value=V.Constant(C.True, _)), expr2, resultTy) ->
             Some(expr1, expr2, resultTy)
+        | _ ->
+            None
+
+    let (|IntegralConstant|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=v) ->
+            match v with
+            | V.Constant(c, _) ->
+                match c with
+                | C.UInt8(value) ->
+                    Some(int64 value)
+                | C.UInt16(value) ->
+                    Some(int64 value)
+                | C.UInt32(value) ->
+                    Some(int64 value)
+                | C.UInt64(value) ->
+                    Some(int64 value)
+                | C.Int8(value) ->
+                    Some(int64 value)
+                | C.Int16(value) ->
+                    Some(int64 value)
+                | C.Int32(value) ->
+                    Some(int64 value)
+                | C.Int64(value) ->
+                    Some(value)
+                | _ ->
+                    None
+            | _ ->
+                None
+        | _ ->
+            None        
+
+    let (|IntegralConstantZero|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=v) ->
+            match v with
+            | V.Constant(c, _) ->
+                match c with
+                | C.UInt8(0uy)
+                | C.UInt16(0us)
+                | C.UInt32(0u)
+                | C.UInt64(0UL)
+                | C.Int8(0y)
+                | C.Int16(0s)
+                | C.Int32(0)
+                | C.Int64(0L) ->
+                    Some()
+                | _ ->
+                    None
+            | _ ->
+                None
         | _ ->
             None
 
