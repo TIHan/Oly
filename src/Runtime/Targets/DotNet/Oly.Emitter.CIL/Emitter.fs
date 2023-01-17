@@ -173,6 +173,7 @@ module rec ClrCodeGen =
             buffer: imarrayb<I>
             locals: System.Collections.Generic.Dictionary<int, ClrTypeInfo>
             dups: System.Collections.Generic.HashSet<int>
+            irTier: OlyIRFunctionTier
             mutable localCount: int ref
             mutable nextLabelId: int32 ref
         }
@@ -192,6 +193,11 @@ module rec ClrCodeGen =
             let labelId = this.nextLabelId.contents
             this.nextLabelId.contents <- this.nextLabelId.contents + 1
             labelId
+
+        member this.IsDebuggable =
+            match this.irTier with
+            | OlyIRFunctionTier.Tier0 -> true
+            | _ -> false
 
     type env =
         {
@@ -907,20 +913,22 @@ module rec ClrCodeGen =
             I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
-    let rec MorphExpression (expr: E<ClrTypeInfo, _, _>) =
-        match expr with
-        // Makes optimizations easier
-        | And(And(argx1, argx2, _), arg2, resultTy) ->
-            And argx1 (And argx2 arg2 resultTy) resultTy
-            |> MorphExpression
+    let rec MorphExpression (cenv: cenv) (expr: E<ClrTypeInfo, _, _>) =
+        if cenv.IsDebuggable then expr
+        else
+            match expr with
+            // Makes optimizations easier
+            | And(And(argx1, argx2, _), arg2, resultTy) ->
+                And argx1 (And argx2 arg2 resultTy) resultTy
+                |> MorphExpression cenv
 
-        // Makes optimizations easier
-        | Or(Or(argx1, argx2, _), arg2, resultTy) ->
-            Or argx1 (Or argx2 arg2 resultTy) resultTy
-            |> MorphExpression
+            // Makes optimizations easier
+            | Or(Or(argx1, argx2, _), arg2, resultTy) ->
+                Or argx1 (Or argx2 arg2 resultTy) resultTy
+                |> MorphExpression cenv
 
-        | _ ->
-            expr
+            | _ ->
+                expr
 
     let private isIntegral (cenv: cenv) (expr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         let handle = expr.ResultType.Handle
@@ -940,73 +948,81 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let GenConditionExpressionForFalseTarget cenv env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+    let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
-        match conditionExpr with
-        | And(E.Operation(_, O.Equal _) as arg1, arg2, _) ->
-            GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg1
-            GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg2
-
-        | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
-            match arg1, arg2 with
-            | _, Null
-            | _, IntegralZero ->
-                GenExpression cenv env arg1
-                I.Brfalse falseTargetLabelId |> emitInstruction cenv
-
-            | _ ->
-                GenExpression cenv env arg1
-                GenExpression cenv env arg2
-                I.Beq falseTargetLabelId |> emitInstruction cenv
-
-        | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
-            match arg1, arg2 with
-            | _, Null
-            | _, IntegralZero ->
-                GenExpression cenv env arg1
-                I.Brtrue falseTargetLabelId |> emitInstruction cenv
-
-            | _ ->
-                GenExpression cenv env arg1
-                GenExpression cenv env arg2
-                I.Bne_un falseTargetLabelId |> emitInstruction cenv
-
-        | _ ->
+        if cenv.IsDebuggable then
             GenExpression cenv env conditionExpr
-            I.Brfalse falseTargetLabelId |> emitInstruction cenv       
+            I.Brfalse falseTargetLabelId |> emitInstruction cenv 
+        else
+            match conditionExpr with
+            | And(E.Operation(_, O.Equal _) as arg1, arg2, _) ->
+                GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg1
+                GenConditionExpressionForFalseTarget cenv env falseTargetLabelId arg2
 
-    let GenConditionExpressionForTrueTarget cenv env trueTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+            | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
+                match arg1, arg2 with
+                | _, Null
+                | _, IntegralZero ->
+                    GenExpression cenv env arg1
+                    I.Brfalse falseTargetLabelId |> emitInstruction cenv
+
+                | _ ->
+                    GenExpression cenv env arg1
+                    GenExpression cenv env arg2
+                    I.Beq falseTargetLabelId |> emitInstruction cenv
+
+            | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+                match arg1, arg2 with
+                | _, Null
+                | _, IntegralZero ->
+                    GenExpression cenv env arg1
+                    I.Brtrue falseTargetLabelId |> emitInstruction cenv
+
+                | _ ->
+                    GenExpression cenv env arg1
+                    GenExpression cenv env arg2
+                    I.Bne_un falseTargetLabelId |> emitInstruction cenv
+
+            | _ ->
+                GenExpression cenv env conditionExpr
+                I.Brfalse falseTargetLabelId |> emitInstruction cenv       
+
+    let GenConditionExpressionForTrueTarget (cenv: cenv) env trueTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
-        match conditionExpr with
-        | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
-            match arg1, arg2 with
-            | _, Null
-            | _, IntegralZero ->
-                GenExpression cenv env arg1
-                I.Brtrue trueTargetLabelId |> emitInstruction cenv
-
-            | _ ->
-                GenExpression cenv env arg1
-                GenExpression cenv env arg2
-                I.Bne_un trueTargetLabelId |> emitInstruction cenv
-
-        | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
-            match arg1, arg2 with
-            | _, Null
-            | _, IntegralZero ->
-                GenExpression cenv env arg1
-                I.Brfalse trueTargetLabelId |> emitInstruction cenv
-
-            | _ ->
-                GenExpression cenv env arg1
-                GenExpression cenv env arg2
-                I.Beq trueTargetLabelId |> emitInstruction cenv
-
-        | _ ->
+        if cenv.IsDebuggable then
             GenExpression cenv env conditionExpr
-            I.Brtrue trueTargetLabelId |> emitInstruction cenv  
+            I.Brtrue trueTargetLabelId |> emitInstruction cenv
+        else
+            match conditionExpr with
+            | E.Operation(_, O.NotEqual(arg1, arg2, _)) ->
+                match arg1, arg2 with
+                | _, Null
+                | _, IntegralZero ->
+                    GenExpression cenv env arg1
+                    I.Brtrue trueTargetLabelId |> emitInstruction cenv
+
+                | _ ->
+                    GenExpression cenv env arg1
+                    GenExpression cenv env arg2
+                    I.Bne_un trueTargetLabelId |> emitInstruction cenv
+
+            | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
+                match arg1, arg2 with
+                | _, Null
+                | _, IntegralZero ->
+                    GenExpression cenv env arg1
+                    I.Brfalse trueTargetLabelId |> emitInstruction cenv
+
+                | _ ->
+                    GenExpression cenv env arg1
+                    GenExpression cenv env arg2
+                    I.Beq trueTargetLabelId |> emitInstruction cenv
+
+            | _ ->
+                GenExpression cenv env conditionExpr
+                I.Brtrue trueTargetLabelId |> emitInstruction cenv  
 
     let private GenConditionOrExpression cenv env continuationLabelIdOpt expr1 expr2 trueTargetLabelId falseTargetLabelId =
         GenConditionExpressionForTrueTarget cenv (setNotReturnable env) trueTargetLabelId expr1
@@ -1055,7 +1071,7 @@ module rec ClrCodeGen =
 
             let falseTargetLabelId = cenv.NewLabel()
 
-            let conditionExpr = MorphExpression conditionExpr
+            let conditionExpr = MorphExpression cenv conditionExpr
             match conditionExpr with
             | Or(expr1, expr2, _) ->
                 let trueTargetLabelId = cenv.NewLabel()
@@ -2117,7 +2133,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 tyParCount = tyPars.Length
             }
 
-        member this.EmitFunctionBody(irFuncBody, func) =
+        member this.EmitFunctionBody(irFuncBody, irTier, func) =
             let output = ImArray.builder()
 
             let bodyResult = 
@@ -2136,6 +2152,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let cenv = 
                 {
                     assembly = asmBuilder
+                    irTier = irTier
                     emitTailCalls = true
                     buffer = output
                     locals = System.Collections.Generic.Dictionary()

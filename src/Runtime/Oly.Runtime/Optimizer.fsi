@@ -14,5 +14,5 @@ val OptimizeFunctionBody<'Type, 'Function, 'Field> :
     irLocalFlags: OlyIRLocalFlags imarray ->
     E<'Type, 'Function, 'Field> -> 
     GenericContext ->
-    isDebuggable: bool ->
+    irTier: OlyIRFunctionTier ->
     OlyIRFunctionBody<'Type, 'Function, 'Field>

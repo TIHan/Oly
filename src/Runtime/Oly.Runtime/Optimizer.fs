@@ -79,10 +79,15 @@ type optenv<'Type, 'Function, 'Field> =
         emitFunction: RuntimeFunction * RuntimeFunction -> 'Function
         inlineSet: Dictionary<RuntimeFunction, int>
         localManager: LocalManager
-        isDebuggable: bool
+        irTier: OlyIRFunctionTier
         irArgFlags: OlyIRLocalFlags imarray
         genericContext: GenericContext
     }
+
+    member this.IsDebuggable =
+        match this.irTier with
+        | OlyIRFunctionTier.Tier0 -> true
+        | _ -> false
 
     member this.LocalCount =
         this.localManager.Count
@@ -551,7 +556,7 @@ let tryGetFunctionBody optenv func =
 let tryInlineFunction optenv irExpr =
     match irExpr with
     | E.Operation(irTextRange, O.Call(irFunc, irArgExprs, resultTy)) 
-            when (not optenv.isDebuggable && irFunc.IsInlineable) ->
+            when (not optenv.IsDebuggable && irFunc.IsInlineable) ->
         let func = irFunc.RuntimeFunction
 
         if not <| pushInline optenv func then
@@ -1863,7 +1868,7 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         (irLocalFlags: OlyIRLocalFlags imarray)
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
-        (isDebuggable: bool) =
+        (irTier: OlyIRFunctionTier) =
     let localManager =
         LocalManager(ResizeArray irLocalFlags)
 
@@ -1874,13 +1879,13 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
             func = func
             localManager = localManager
             inlineSet = Dictionary()
-            isDebuggable = isDebuggable
+            irTier = irTier
             irArgFlags = irArgFlags
             genericContext = genericContext
         }
         
-    let optimizationPass optenv irExpr =
-        if optenv.isDebuggable then
+    let optimizationPass (optenv: optenv<_, _, _>) irExpr =
+        if optenv.IsDebuggable then
             irExpr
         else
             irExpr

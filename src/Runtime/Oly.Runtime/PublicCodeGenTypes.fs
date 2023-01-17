@@ -74,12 +74,12 @@ type OlyIRTypeFlags =
     | Exported       = 0x000000100
 
 type internal RuntimeFunctionFlags =
-    | None =             0x00000000
-    | Exported =         0x00000010
-    | Inlineable =       0x00000100
-    | External =         0x00100000
-    | GenericsErased =   0x01000000
-    | EntryPoint =       0x10000000
+    | None =             0b00000000
+    | Exported =         0b00000010
+    | Inlineable =       0b00000100
+    | External =         0b00001000
+    | GenericsErased =   0b00010000
+    | EntryPoint =       0b00100000
 
 [<Sealed>]
 type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray, name: string) =

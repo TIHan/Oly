@@ -1617,7 +1617,7 @@ type InterpreterRuntimeEmitter() =
             | _ ->
                 failwith "Invalid function."
 
-        member this.EmitFunctionBody(irFuncBody: Lazy<_>, func: InterpreterFunction): unit =
+        member this.EmitFunctionBody(irFuncBody: Lazy<_>, _, func: InterpreterFunction): unit =
             func.Body <- Some irFuncBody
 
         member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, inherits, implements, _): InterpreterType = 

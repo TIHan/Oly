@@ -3,6 +3,12 @@
 open Oly.Metadata
 open Oly.Core
 
+[<RequireQualifiedAccess>]
+type OlyIRFunctionTier =
+    | Tier0
+    | Tier1
+    | Tier2
+
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 
     abstract EmitTypeNativeInt      : unit -> 'Type
@@ -91,6 +97,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 
     abstract EmitFunctionBody : 
         body: Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>> *
+        tier: OlyIRFunctionTier *
         func: 'Function 
             -> unit
     

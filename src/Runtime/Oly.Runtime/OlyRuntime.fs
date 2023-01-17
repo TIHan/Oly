@@ -2023,6 +2023,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     emitTypeGenericInstance ty
 
     let optimizeFunctionBody (func: RuntimeFunction) (funcBody: OlyIRFunctionBody<_, _, _>) (genericContext: GenericContext) =
+        let irTier = this.GetFunctionTier(func)
+
         OptimizeFunctionBody
             (fun targetFunc -> 
                 let enclosingTyArgs =
@@ -2045,7 +2047,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             funcBody.LocalFlags
             funcBody.Expression
             genericContext
-            func.ILAssembly.IsDebuggable
+            irTier
 
     let emitFunctionBody (func: RuntimeFunction) emittedFunc (genericContext: GenericContext) =
         let body = this.TryResolveFunctionBody(func, genericContext).Value
@@ -2055,7 +2057,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             lazy
                 let funcBody = body.Value
                 optimizeFunctionBody func funcBody genericContext
-        this.Emitter.EmitFunctionBody(body, emittedFunc)
+
+        let irTier = this.GetFunctionTier(func)
+
+        this.Emitter.EmitFunctionBody(body, irTier, emittedFunc)
 
     let emitFunctionDefinition (enclosingTy: RuntimeType) (func: RuntimeFunction) (genericContext: GenericContext) =
         let witnesses = func.Witnesses
@@ -3566,3 +3571,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 Ok(lazyIRBody.Value)
             | _ ->
                 Error("Function body not found.")
+
+    member this.GetFunctionTier(func: RuntimeFunction) =
+        // TODO: At the moment, we do not use Tier1. We will have to do work if we want to make this
+        //       a tiered JIT.
+        if assemblies[func.EnclosingType.AssemblyIdentity].ilAsm.IsDebuggable then
+            OlyIRFunctionTier.Tier0
+        else
+            OlyIRFunctionTier.Tier2
