@@ -3320,7 +3320,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                // The infinite loop occurs because when finding a function of a Built-In type,
                // it will find a non-alias intrinsic type who inherits the Built-In type.
                // Therefore, we need to stop searching the hierarchy.
-               (not enclosingTy.IsBuiltIn && enclosingTy.IsIntrinsic) then
+               (not enclosingTy.IsAlias && enclosingTy.IsIntrinsic) then
                 mostSpecificFuncs.AddRange(funcs)
             else
                 find enclosingTy.Extends.[0] (mostSpecificFuncs.AddRange(funcs))
