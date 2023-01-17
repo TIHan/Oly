@@ -3249,15 +3249,17 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         )
 
     member this.FindImmediatePossiblyOverridenFunctionDefinitions(enclosingTyParCount, ilAsm: OlyILReadOnlyAssembly, ilFuncSpecHandle, enclosingTy: RuntimeType, funcTyArgs, genericContext) : RuntimeFunction imarray =
-        // TODO: This is inefficient as we are going through function definitions twice.
-        //       We should combine them, or at least just merge it all into 'FindImmediateFunctionDefinitions'.
-        let funcs = this.FindImmediateFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, enclosingTy, funcTyArgs, genericContext)
-        if funcs.IsEmpty then
-            // Do this as the possibility of an overriding function that were trying to find has a different name in
-            // the concrete implementation.
-            this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, enclosingTy, funcTyArgs, genericContext)
+        if enclosingTy.IsBuiltIn then ImArray.empty
         else
-            funcs
+            // TODO: This is inefficient as we are going through function definitions twice.
+            //       We should combine them, or at least just merge it all into 'FindImmediateFunctionDefinitions'.
+            let funcs = this.FindImmediateFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, enclosingTy, funcTyArgs, genericContext)
+            if funcs.IsEmpty then
+                // Do this as the possibility of an overriding function that were trying to find has a different name in
+                // the concrete implementation.
+                this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, enclosingTy, funcTyArgs, genericContext)
+            else
+                funcs
 
     member this.FindMostSpecificFunctionsInHierarchy(enclosingTyParCount, ilAsm: OlyILReadOnlyAssembly, ilFuncSpecHandle, enclosingTy: RuntimeType, funcTyArgs, genericContext) : RuntimeFunction imarray =
         let findImmediate enclosingTy =            
@@ -3313,7 +3315,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
                 |> ImArray.map (fun func -> (enclosingTy, func))
 
-            if enclosingTy.Extends.IsEmpty then
+            if enclosingTy.Extends.IsEmpty || 
+               // This prevents an infinite loop with a non-alias intrinsic type.
+               // The infinite loop occurs because when finding a function of a Built-In type,
+               // it will find a non-alias intrinsic type who inherits the Built-In type.
+               // Therefore, we need to stop searching the hierarchy.
+               (not enclosingTy.IsBuiltIn && enclosingTy.IsIntrinsic) then
                 mostSpecificFuncs.AddRange(funcs)
             else
                 find enclosingTy.Extends.[0] (mostSpecificFuncs.AddRange(funcs))

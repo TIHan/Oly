@@ -557,18 +557,6 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
             else
                 OlyILMemberFlags.Static
 
-        let memberFlags =
-            if field.IsAbstract then
-                memberFlags ||| OlyILMemberFlags.Abstract
-            else
-                memberFlags
-
-        let memberFlags =
-            if field.IsVirtual then
-                memberFlags ||| OlyILMemberFlags.Virtual
-            else
-                memberFlags
-
         let memberFlags = 
             if field.IsPrivate then
                 memberFlags ||| OlyILMemberFlags.Private
