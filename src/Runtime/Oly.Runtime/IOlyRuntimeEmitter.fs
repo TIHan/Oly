@@ -110,3 +110,14 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         attrs: OlyIRAttribute<'Type, 'Function> imarray * 
         constValueOpt: OlyIRConstant<'Type, 'Function> option 
             -> 'Field
+
+    abstract EmitExportedProperty :
+        enclosingTy: 'Type *
+        name: string *
+        ty: 'Type *
+        attrs: OlyIRAttribute<'Type, 'Function> imarray *
+        getterOpt: 'Function option *
+        setterOpt: 'Function option
+            -> unit
+
+    // TODO: Add EmitExternalSemanticPattern

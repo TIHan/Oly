@@ -568,11 +568,15 @@ type OlyILFieldDefinition =
 
 [<NoEquality;NoComparison>]
 type OlyILPropertyDefinition =
-    | OlyILPropertyDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * getterOpt: OlyILFunctionDefinitionHandle * setterOpt: OlyILFunctionDefinitionHandle
+    | OlyILPropertyDefinition of attrs: OlyILAttribute imarray * nameHandle: OlyILStringHandle * ty: OlyILType * getterHandleOpt: OlyILFunctionDefinitionHandle * setterHandleOpt: OlyILFunctionDefinitionHandle
+
+    member this.Attributes =
+        match this with
+        | OlyILPropertyDefinition(attrs=attrs) -> attrs
 
     member this.NameHandle =
         match this with
-        | OlyILPropertyDefinition(name=nameHandle) -> nameHandle
+        | OlyILPropertyDefinition(nameHandle=nameHandle) -> nameHandle
 
     member this.Type =
         match this with
@@ -580,11 +584,11 @@ type OlyILPropertyDefinition =
 
     member this.Getter =
         match this with
-        | OlyILPropertyDefinition(getterOpt=getter) -> getter
+        | OlyILPropertyDefinition(getterHandleOpt=getterHandleOpt) -> getterHandleOpt
 
     member this.Setter =
         match this with
-        | OlyILPropertyDefinition(setterOpt=setter) -> setter
+        | OlyILPropertyDefinition(setterHandleOpt=setterHandleOpt) -> setterHandleOpt
 
 [<NoEquality;NoComparison>]
 type OlyILPatternDefinition =

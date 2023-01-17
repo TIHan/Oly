@@ -1868,6 +1868,45 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let mutable f = Unchecked.defaultof<_>
                     while delayed.TryDequeue(&f) do
                         f()
+
+                // Properties are only emitted if the runtime target supports it and the type is exported.
+                if tyDef.IsExported then
+                    ilEntDef.PropertyDefinitionHandles
+                    |> ImArray.iter (fun ilPropDefHandle ->
+                        let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
+
+                        let getterOpt =
+                            if ilPropDef.Getter.IsNil then
+                                None
+                            else
+                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
+                                |> this.EmitFunction
+                                |> Some
+
+                        let setterOpt =
+                            if ilPropDef.Setter.IsNil then
+                                None
+                            else
+                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
+                                |> this.EmitFunction
+                                |> Some
+
+                        let irAttrs =
+                            ilPropDef.Attributes
+                            |> ImArray.choose (fun ilAttr ->
+                                this.TryResolveAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
+                            )
+                            |> emitAttributes ilAsm
+
+                        emitter.EmitExportedProperty(
+                            this.EmitType(tyDef),
+                            ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
+                            this.EmitType(this.ResolveType(0, ilAsm, ilPropDef.Type, GenericContext.Default)),
+                            irAttrs,
+                            getterOpt,
+                            setterOpt                           
+                        )
+                    )
         
                 res
         | _ ->

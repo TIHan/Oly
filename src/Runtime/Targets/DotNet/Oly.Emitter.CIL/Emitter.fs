@@ -1855,6 +1855,32 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | _ ->
                 failwith "Invalid type info."
 
+        member this.EmitExportedProperty(enclosingTy, name, ty, attrs, getterOpt, setterOpt) =
+            match enclosingTy with
+            | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, _, _, _, _, _) ->
+                let canEmitProperty, isInstance =
+                    match getterOpt, setterOpt with
+                    | Some getter, Some setter ->
+                        getter.IsInstance = setter.IsInstance, getter.IsInstance
+                    | None, None ->
+                        false, false
+                    | Some getter, None ->
+                        true, getter.IsInstance
+                    | None, Some setter ->
+                        true, setter.IsInstance
+
+                if canEmitProperty then
+                    tyDefBuilder.CreatePropertyDefinitionBuilder(
+                        name, 
+                        ty.Handle, 
+                        isInstance, 
+                        getterOpt |> Option.map (fun x -> x.handle), 
+                        setterOpt |> Option.map (fun x -> x.handle)
+                    )
+                    |> ignore
+            | _ ->
+                OlyAssert.Fail("Expected type definition.")
+
         member this.EmitFunctionInstance(enclosingTy, func: ClrMethodInfo, tyArgs: imarray<ClrTypeInfo>): ClrMethodInfo = 
             let newHandle =
                 if enclosingTy.TypeArguments.IsEmpty && tyArgs.IsEmpty then

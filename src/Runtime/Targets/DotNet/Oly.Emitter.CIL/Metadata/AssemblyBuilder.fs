@@ -725,10 +725,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         |> metadataBuilder.GetOrAddBlob
         |> metadataBuilder.AddStandaloneSignature
 
-    member internal this.CreatePropertySignature(isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
+    member internal this.CreatePropertySignature(isInstance, returnTy: ClrTypeHandle) =
         let signature = BlobBuilder()
         BlobEncoder(signature).PropertySignature(isInstance).Parameters(
-            parTys.Length,
+            0,
             (fun encoder ->
                 if returnTy.HasEntityHandle then
                     match returnTy.EntityHandle with
@@ -738,9 +738,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                         this.EncodeType(encoder.Type(returnTy.IsByRef_t), returnTy)
                 else
                     this.EncodeType(encoder.Type(returnTy.IsByRef_t), returnTy)),
-            (fun encoder -> 
-                for parTy in parTys do
-                    this.EncodeType(encoder.AddParameter().Type(parTy.IsByRef_t), parTy))
+            (fun _ -> ())
         )
         signature
         |> metadataBuilder.GetOrAddBlob
@@ -785,9 +783,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         processQueue methDefQueue
         processQueue overrideQueue
-        processQueue fieldDefQueue 
+        processQueue fieldDefQueue
+        processQueue propDefQueue
 
-        if methDefQueue.Count > 0 || overrideQueue.Count > 0 || fieldDefQueue.Count > 0 || tyDefQueue.Count > 0 then
+        if methDefQueue.Count > 0 || overrideQueue.Count > 0 || fieldDefQueue.Count > 0 || tyDefQueue.Count > 0 || propDefQueue.Count > 0 then
             failwith "Expected empty queues."
 
         processPriorityQueue genericParamsQueue
@@ -1953,11 +1952,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         )
 
 [<Sealed>]
-type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name: string, pars: (string * _) imarray, returnTy: ClrTypeHandle, isInstance: bool) =
+type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name: string, returnTy: ClrTypeHandle, isInstance: bool, getterOpt: ClrMethodHandle option, setterOpt: ClrMethodHandle option) =
 
     let metadataBuilder = asmBuilder.MetadataBuilder
-    let parTys = pars |> ImArray.map snd
-    let propSig = asmBuilder.CreatePropertySignature(isInstance, parTys, returnTy)
+    let propSig = asmBuilder.CreatePropertySignature(isInstance, returnTy)
     let nameHandle = metadataBuilder.GetOrAddString(name)
 
     let handle =
@@ -1969,7 +1967,10 @@ type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name
     member _.Signature = propSig
     member _.NameHandle = nameHandle
 
-    member internal _.Build() = handle.Value
+    member _.GetterOption = getterOpt
+    member _.SetterOption = setterOpt
+
+    member internal _.BuildAndCache() = handle.Value
 
 [<Sealed>]
 type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyPars: string imarray, isValueType: bool, isEnum: bool) as this =
@@ -1994,7 +1995,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
     let methDefs = ResizeArray()
     let fieldDefs = ResizeArray<string * ClrFieldHandle>()
-    let propDefs = ResizeArray()
+    let propDefs = ResizeArray<ClrPropertyDefinitionBuilder>()
 
     member _.FullyQualifiedName = fullyQualifiedName
 
@@ -2009,6 +2010,11 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
         let methDefBuilder = ClrMethodDefinitionBuilder(asmBuilder, tyPars.Length, name, methTyPars, pars, returnTy, isInstance)
         methDefs.Add(methDefBuilder)
         methDefBuilder
+
+    member this.CreatePropertyDefinitionBuilder(name: string, returnTy: ClrTypeHandle, isInstance: bool, getterOpt, setterOpt) =
+        let propDefBuilder = ClrPropertyDefinitionBuilder(asmBuilder, name, returnTy, isInstance, getterOpt, setterOpt)
+        propDefs.Add(propDefBuilder)
+        propDefBuilder
 
     member this.AddFieldDefinition(attrs, name: string, fieldTy: ClrTypeHandle, constValueOpt: obj option) =
         let metadataBuilder = asmBuilder.MetadataBuilder
@@ -2130,17 +2136,46 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                 | _ ->
                     ()
 
-            //let propList =
-            //    if propDefs.Count = 0 then
-            //        MetadataTokens.PropertyDefinitionHandle(asmBuilder.PropertyDefinitionRowCount + 1)
-            //    else
-            //        propDefs.[0].Build()
+            // ---------------------------------------------------------------------------------------------------
 
-            //for i = 1 to propDefs.Count - 1 do
-            //    propDefs.[i].Build() |> ignore
+            let addProperty (propDef: ClrPropertyDefinitionBuilder) =
+                let propDefHandle = propDef.BuildAndCache()
                 
-            //if propDefs.Count > 0 then
-            //    metadataBuilder.AddPropertyMap(tyDefHandle, propList)
+                match propDef.GetterOption with
+                | Some getter ->
+                    metadataBuilder.AddMethodSemantics(
+                        PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
+                        MethodSemanticsAttributes.Getter, 
+                        MethodDefinitionHandle.op_Explicit(getter.UnsafeLazilyEvaluateEntityHandle())
+                    )
+                | _ ->
+                    ()
+                
+                match propDef.SetterOption with
+                | Some getter ->
+                    metadataBuilder.AddMethodSemantics(
+                        PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
+                        MethodSemanticsAttributes.Setter, 
+                        MethodDefinitionHandle.op_Explicit(getter.UnsafeLazilyEvaluateEntityHandle())
+                    )
+                | _ ->
+                    ()
+
+                propDefHandle
+
+            let propList =
+                if propDefs.Count = 0 then
+                    MetadataTokens.PropertyDefinitionHandle(asmBuilder.PropertyDefinitionRowCount + 1)
+                else
+                    addProperty propDefs[0]
+
+            for i = 1 to propDefs.Count - 1 do
+                addProperty propDefs[i] |> ignore
+                
+            if propDefs.Count > 0 then
+                metadataBuilder.AddPropertyMap(tyDefHandle, propList)
+
+            // ---------------------------------------------------------------------------------------------------
 
             tyDefHandle
         )
