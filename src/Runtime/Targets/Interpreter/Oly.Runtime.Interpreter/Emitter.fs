@@ -53,7 +53,7 @@ type InterpreterType =
     | BaseAttribute
     | LiteralInt32 of value: int32
 
-    | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * tyArgs: InterpreterType imarray * funcs: InterpreterFunction ResizeArray * fields: ResizeArray<InterpreterField> * isTyExt: bool * isStruct: bool * isEnum: bool * inherits: InterpreterType imarray * implements: InterpreterType imarray
+    | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * tyArgs: InterpreterType imarray * funcs: InterpreterFunction ResizeArray * fields: ResizeArray<InterpreterField> * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * inherits: InterpreterType imarray * implements: InterpreterType imarray
 
     member this.IsEnum =
         match this with
@@ -63,6 +63,11 @@ type InterpreterType =
     member this.IsTypeExtension =
         match this with
         | InterpreterType.Custom(isTyExt=isTyExt) -> isTyExt
+        | _ -> false
+
+    member this.IsInterface =
+        match this with
+        | InterpreterType.Custom(isInterface=isInterface) -> isInterface
         | _ -> false
 
     member this.IsStruct =
@@ -165,6 +170,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                          enclosingTy: InterpreterType,
                          isInstance: bool,
                          isCtor: bool,
+                         isVirtual: bool,
+                         isFinal: bool,
                          overridesOpt: InterpreterFunction option,
                          sigKey: OlyIRFunctionSignatureKey option) as this =
 
@@ -178,9 +185,13 @@ type InterpreterFunction(env: InterpreterEnvironment,
 
     member this.SignatureKey = sigKey
 
-    member this.EnclosingType = enclosingTy
+    member this.EnclosingType: InterpreterType = enclosingTy
 
     member this.IsInstance = isInstance
+
+    member this.IsVirtual = isVirtual
+
+    member this.IsFinal = isFinal
 
     member this.Overrides = overridesOpt
 
@@ -1147,23 +1158,29 @@ type InterpreterFunction(env: InterpreterEnvironment,
                         match receiver with
                         | :? InterpreterInstanceOfType as receiver ->
                             let receiverTy = receiver.Type
-                            let mutable result = receiverTy.TryFindOverridesFunction(func)
-                            if result.IsSome then
-                                result
+                            let resultOpt = receiverTy.TryFindOverridesFunction(func)
+                            if resultOpt.IsSome then
+                                resultOpt
                             else
-                                result <-
-                                    if receiverTy.IsTypeExtension then
-                                        match receiver.GetTypeExtensionInstance() with
-                                        | :? InterpreterInstanceOfType as instance ->
-                                            instance.Type.TryFindOverridesFunction(func)
-                                        | _ ->
-                                            None
-                                    else
-                                        None
-
-                                if result.IsSome then
-                                    result
+                                if receiverTy.IsTypeExtension then
+                                    match receiver.GetTypeExtensionInstance() with
+                                    | :? InterpreterInstanceOfType as instance ->
+                                        let resultOpt = instance.Type.TryFindOverridesFunction(func)
+                                        if resultOpt.IsSome then 
+                                            resultOpt
+                                        elif not func.EnclosingType.IsInterface && func.IsInstance && func.IsVirtual then 
+                                            // Fallback - look for a function that can override it by key.
+                                            // This one is a little special.
+                                            // TODO: Describe why this is special.
+                                            instance.Type.TryFindOverridesFunctionByKey(func)
+                                        else
+                                            // Fallback - look for a function that can override it by key.
+                                            receiverTy.TryFindOverridesFunctionByKey(func)
+                                    | _ ->
+                                        // Fallback - look for a function that can override it by key.
+                                        receiverTy.TryFindOverridesFunctionByKey(func)
                                 else
+                                    // Fallback - look for a function that can override it by key.
                                     receiverTy.TryFindOverridesFunctionByKey(func)
                         | _ ->
                             None
@@ -1180,7 +1197,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 let ctor = ctor.EmittedFunction
                 let thisArg =
                     match resultTy with
-                    | InterpreterType.Custom(_, _, _, funcs, fields, isTyExt, isStruct, isEnum, inherits, implements) ->
+                    | InterpreterType.Custom(_, _, _, funcs, fields, isTyExt, isStruct, isEnum, isInterface, inherits, implements) ->
                         let instance = InterpreterInstanceOfType(resultTy, isTyExt, isStruct, inherits, implements)
                         for field in fields do
                             instance.SetFieldState(field.Name, null)
@@ -1611,7 +1628,7 @@ type InterpreterRuntimeEmitter() =
 
             match enclosingTy with
             | InterpreterType.Custom(funcs=funcs) ->
-                let func = InterpreterFunction(env, name, enclosingTy, not flags.IsStatic, flags.IsConstructor, overridesOpt, Some sigKey)
+                let func = InterpreterFunction(env, name, enclosingTy, not flags.IsStatic, flags.IsConstructor, flags.IsVirtual, flags.IsFinal, overridesOpt, Some sigKey)
                 if flags.IsEntryPoint then
                     entryPoint <- ValueSome func
 
@@ -1633,14 +1650,14 @@ type InterpreterRuntimeEmitter() =
                     inherits[0].IsStruct
                 else
                     false
-            let ty = InterpreterType.Custom(enclosing, name, ImArray.empty, funcs, fields, (kind = OlyILEntityKind.TypeExtension), isStruct, (kind = OlyILEntityKind.Enum), inherits, implements)
+            let ty = InterpreterType.Custom(enclosing, name, ImArray.empty, funcs, fields, (kind = OlyILEntityKind.TypeExtension), isStruct, (kind = OlyILEntityKind.Enum), (kind = OlyILEntityKind.Interface), inherits, implements)
             if kind = OlyILEntityKind.TypeExtension && inherits.Length = 1 then
                 let valueFieldName = "__oly_instance_value"
                 let valueField = InterpreterField(ty, valueFieldName, inherits.[0], None, ref None)
                 fields.Add(valueField)
 
                 let ctorName = "__oly_instance_ctor"
-                let ctor = InterpreterFunction(env, ctorName, ty, true, true, None, None)
+                let ctor = InterpreterFunction(env, ctorName, ty, true, true, false, false, None, None)
                 ctor.Body <-
                     let arg0 = OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Argument(0, ty))
                     let arg1 = OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Argument(1, inherits.[0]))

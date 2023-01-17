@@ -2168,10 +2168,10 @@ let bindValueModifiersAndKindAsMemberFlags
                         MemberFlags.Virtual ||| MemberFlags.NewSlot ||| MemberFlags.Instance
                 else
                     if isExplicitAbstract then
-                        cenv.diagnostics.Error("Type members can not be abstract without a default implemenation. Remove 'abstract' or add 'default'.", 10, syntaxValueDeclKind)
+                        cenv.diagnostics.Error("Members cannot be abstract without a default implemenation. Remove 'abstract' or add 'default'.", 10, syntaxValueDeclKind)
 
                     if isExplicitDefault then
-                        cenv.diagnostics.Error("Type members must always have an implementation. Use 'default' on members who are abstract to have overridable members.", 10, syntaxValueDeclKind)
+                        cenv.diagnostics.Error("Members must always have an implementation. Use 'default' on members who are abstract to have overridable members.", 10, syntaxValueDeclKind)
 
                     if isExplicitStatic then
                         if isExplicitOverrides then
@@ -2182,7 +2182,7 @@ let bindValueModifiersAndKindAsMemberFlags
                         if isExplicitOverrides then
                             MemberFlags.Virtual ||| MemberFlags.Instance ||| MemberFlags.ExplicitOverrides
                         else
-                            MemberFlags.Sealed ||| MemberFlags.Virtual ||| MemberFlags.Instance
+                            MemberFlags.Instance
 
             let memberFlags =
                 if isExplicitNew && not isExplicitStatic then

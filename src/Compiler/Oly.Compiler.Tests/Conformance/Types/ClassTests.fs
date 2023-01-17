@@ -63,7 +63,7 @@ class A =
     |> ignore
 
 [<Fact>]
-let ``Class 5``() =
+let ``Class 5 - should fail``() =
     let src =
         """
 interface IA =
@@ -77,7 +77,9 @@ class B =
     implements IA
         """
     Oly src
-    |> shouldCompile
+    |> withErrorDiagnostics [
+        "The function 'value(): __oly_int32' is not implemented for 'IA' on 'B'."
+    ]
     |> ignore
 
 [<Fact>]

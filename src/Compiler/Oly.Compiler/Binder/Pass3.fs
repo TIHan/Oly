@@ -133,7 +133,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             true
         else
             match inheritedFuncSet.TryGet func with
-            | ValueSome _ ->
+            | ValueSome inheritedFunc ->
                 if func.IsNewSlot then
                     false
                 else
@@ -247,36 +247,41 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 |> ImArray.filter (fun overridenFunc ->
                     areLogicalFunctionSignaturesEqual func overridenFunc
                 )
-
-            if not func.IsVirtual && not mostSpecificFuncs.IsEmpty then
-                cenv.diagnostics.Error($"The member '{func.Name}' will hide over its base.", 10, syntax.Identifier)
-                false
-            else
             
             if mostSpecificFuncs.Length > 1 then
                 cenv.diagnostics.Error($"The member '{func.Name}' is ambiguous to override.", 10, syntax.Identifier)
                 true
             elif mostSpecificFuncs.Length = 1 then
                 let overridenFunc = mostSpecificFuncs.[0]
-                if areLogicalFunctionSignaturesEqual func overridenFunc then
-                    func.SetOverrides_Pass3_NonConcurrent(overridenFunc)
-                    let func = func :> IFunctionSymbol
 
-                    (func.TypeParameters, overridenFunc.TypeParameters)
-                    ||> ImArray.tryIter2 (fun tyPar1 tyPar2 ->
-                        if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
-                            (tyPar1.Constraints, tyPar2.Constraints)
-                            ||> ImArray.iter2 (fun constr1 constr2 ->
-                                if not(areConstraintsEqual constr1 constr2) then
-                                    cenv.diagnostics.Error($"'{printConstraint env.benv constr1}' constraint does not exist on the overriden function's type parameter '{printType env.benv tyPar2.AsType}'.", 10, syntax.Identifier)
-                            )
-                        else
-                            cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.", 10, syntax.Identifier)
-                    )
+                // This forces the function to be a virtual/final/new-slot if it could override an interface function.
+                if func.IsInstance && not func.IsVirtual && not func.Enclosing.IsInterface &&
+                   overridenFunc.IsInstance && overridenFunc.Enclosing.IsInterface then
+                        func.SetVirtualFinalNewSlot_Pass3()
 
-                    true
-                else
+                if not func.IsVirtual then
+                    cenv.diagnostics.Error($"The member '{func.Name}' will hide over its base.", 10, syntax.Identifier)
                     false
+                else
+                    if areLogicalFunctionSignaturesEqual func overridenFunc then
+                        func.SetOverrides_Pass3_NonConcurrent(overridenFunc)
+                        let func = func :> IFunctionSymbol
+
+                        (func.TypeParameters, overridenFunc.TypeParameters)
+                        ||> ImArray.tryIter2 (fun tyPar1 tyPar2 ->
+                            if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
+                                (tyPar1.Constraints, tyPar2.Constraints)
+                                ||> ImArray.iter2 (fun constr1 constr2 ->
+                                    if not(areConstraintsEqual constr1 constr2) then
+                                        cenv.diagnostics.Error($"'{printConstraint env.benv constr1}' constraint does not exist on the overriden function's type parameter '{printType env.benv tyPar2.AsType}'.", 10, syntax.Identifier)
+                                )
+                            else
+                                cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.", 10, syntax.Identifier)
+                        )
+
+                        true
+                    else
+                        false
             else
                 false
 

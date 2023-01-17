@@ -118,6 +118,10 @@ extension TestAddExtension =
             ("The function 'add' must have an implementation.", "
     add(x: __oly_int32, y: __oly_int32) : __oly_int32
     ^^^
+");
+            ("The function 'add(x: __oly_int32, y: __oly_int32): __oly_int32' is not implemented for 'Add<__oly_int32, __oly_int32, __oly_int32>' on 'TestAddExtension'.", "
+extension TestAddExtension =
+          ^^^^^^^^^^^^^^^^
 ")
         ]
     |> ignore

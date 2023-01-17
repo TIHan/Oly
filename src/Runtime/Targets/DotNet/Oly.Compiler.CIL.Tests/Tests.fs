@@ -8814,7 +8814,7 @@ interface ITest =
 
 class Test =
 
-    get x: int32
+    abstract default get x: int32
     new() = { x = 5 }
 
 extension TestExtension =
@@ -8891,7 +8891,7 @@ interface ITest =
     x(): int32
 
 class Test1 =
-    x(): int32 = 123
+    abstract default x(): int32 = 123
 
     new() = { }
 
@@ -8931,7 +8931,7 @@ interface ITest =
 
 class Test =
 
-    x(): int32 = 123
+    abstract default x(): int32 = 123
     new() = { }
 
 extension TestExtension =

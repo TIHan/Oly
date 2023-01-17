@@ -1777,6 +1777,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
     let mutable attrs = attrs
     let mutable patOpt = None
     let mutable funcFlags = funcFlags
+    let mutable memberFlags = memberFlags
 
     member _.Enclosing = enclosing
     member _.Attributes = attrs
@@ -1818,6 +1819,15 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
     /// Mutability - only used in LambdaLifting
     member this.SetStaticLocal() =
         funcFlags <- funcFlags ||| FunctionFlags.StaticLocal
+
+    /// Mutability
+    member this.SetVirtualFinalNewSlot_Pass3() =
+#if DEBUG
+        OlyAssert.False(this.IsVirtual)
+        OlyAssert.False(this.IsFinal)
+        OlyAssert.False(this.IsNewSlot)
+#endif
+        memberFlags <- memberFlags ||| MemberFlags.Virtual ||| MemberFlags.Sealed ||| MemberFlags.NewSlot
 
     interface IFunctionSymbol with
         member _.Enclosing = enclosing
