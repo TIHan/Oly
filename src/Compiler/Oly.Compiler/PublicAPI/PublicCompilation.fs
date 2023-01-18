@@ -587,20 +587,32 @@ type OlyCompilation private (state: CompilationState) =
         compRef.contents
 
     member this.Update(?references: OlyCompilationReference seq, ?options: OlyCompilationOptions) =
-        let references = defaultArg (references |> Option.map ImArray.ofSeq) state.references
-        let options = defaultArg options state.options
+        if references.IsNone && options.IsNone then
+            this
+        else
+            let updatingReferences = references.IsSome
+            let references = defaultArg (references |> Option.map ImArray.ofSeq) state.references
+            let options = defaultArg options state.options
 
-        let lazyInitialState = setup state.options.Executable this.AssemblyIdentity references
+            let lazyInitialState = 
+                // If we are not updating references and the Executable option has not changed,
+                // then we do not need to re-compute the initial state.
+                if not updatingReferences && (options.Executable = state.options.Executable) then
+                    state.lazyInitialState
+                else
+                    // This will effectively rebuild everything. 
+                    // Initial state must be re-computed which is expensive, but it is lazy (will not happen immediately here).
+                    setup state.options.Executable this.AssemblyIdentity references
                 
-        let state =
-            { state with
-                options = options
-                lazyInitialState = lazyInitialState
-                references = references
-            }
+            let state =
+                { state with
+                    options = options
+                    lazyInitialState = lazyInitialState
+                    references = references
+                }
 
-        let c = OlyCompilation state
-        c.InitialSetSyntaxTreeBatch(this.SyntaxTrees)
+            let c = OlyCompilation state
+            c.InitialSetSyntaxTreeBatch(this.SyntaxTrees)
 
     member this.SyntaxTrees =
         state.cunits.Values

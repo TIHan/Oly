@@ -115,7 +115,7 @@ let scanToken (leadingTrivia: SyntaxToken) leadingTriviaWidth newLine state =
     let start = state.lexer.CurrentPosition
     let token = Lexer.scanToken state.lexer state.ct
     let newLine = newLine || token.IsPossibleNewLine
-    if token.IsTrivia then 
+    if token.IsTriviaExceptEndOfSource then 
         let leadingTriviaWidth = leadingTriviaWidth + token.Width
         let leadingTrivia =
             if isTokenNull(leadingTrivia) then

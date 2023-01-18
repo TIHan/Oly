@@ -18,7 +18,6 @@ type ClrMethodSpecialKind =
     | None
     | TypeOf
     | FunctionPointer
-    | PInvoke
 
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
 type ClrTypeInfo = 
@@ -693,7 +692,7 @@ module rec ClrCodeGen =
                 if irArg2.ResultType.Handle.IsNamed then
                     I.Stobj(irArg2.ResultType.Handle) |> emitInstruction cenv
                 else
-                    I.StindRef |> emitInstruction cenv
+                    I.Stind_ref |> emitInstruction cenv
 
         | O.StoreField(irField: OlyIRField<_, _, ClrFieldInfo>, irArg1, irArg2, _) ->
             GenExpression cenv env irArg1
@@ -1278,12 +1277,8 @@ type BlobBuilder with
                 SignatureTypeCode.FunctionPointer
                 |> byte
                 |> b.WriteByte
-            | ClrMethodSpecialKind.PInvoke ->
-                raise(System.NotImplementedException())
             | _ ->
-                SignatureTypeCode.Invalid
-                |> byte
-                |> b.WriteByte
+                raise(System.NotSupportedException($"Constant function '{func.name}'."))
 
     member b.WriteValueOfC(x, asCountedUtf8) =
         match x with

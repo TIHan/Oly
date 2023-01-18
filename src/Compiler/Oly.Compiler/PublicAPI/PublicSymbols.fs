@@ -979,6 +979,26 @@ let private getValueSymbolByIdentifier bm (addSymbol: OlySymbol -> unit) benv (p
         | _ ->
             addSymbol(OlyValueSymbol(bm, benv, syntaxIdent, value))
 
+let private nodeContains (boundNode: IBoundNode) (syntaxTarget: OlySyntaxNode) =
+    let span = boundNode.Syntax.FullTextSpan
+    let targetSpan = syntaxTarget.TextSpan
+    span.Contains(targetSpan)
+
+let private nodeHas (syntax: OlySyntaxNode) (syntaxTarget: OlySyntaxNode) =
+    let span = syntax.TextSpan
+    let targetSpan = syntaxTarget.TextSpan
+    span.Contains(targetSpan)
+
+let private nodeIntersects (syntax: OlySyntaxNode) (syntaxTarget: OlySyntaxNode) =
+    let span = syntax.TextSpan
+    let targetSpan = syntaxTarget.TextSpan
+    span.IntersectsWith(targetSpan)
+
+let private nodeEquals (syntax: OlySyntaxNode) (syntaxTarget: OlySyntaxNode) =
+    let span = syntax.TextSpan
+    let targetSpan = syntaxTarget.TextSpan
+    span.Start = targetSpan.Start && span.End = targetSpan.End
+
 [<Sealed>] 
 type OlyBoundModel internal (
         asm: AssemblySymbol, 
@@ -986,21 +1006,6 @@ type OlyBoundModel internal (
         tryGetLocation: (OlyILAssemblyIdentity * ISymbol * CancellationToken -> OlySourceLocation option), 
         getPartialDeclTable: (CancellationToken -> BoundDeclarationTable), 
         getResult: (CancellationToken -> FullyBoundResult)) as this =
-
-    let rec nodeContains (boundNode: IBoundNode) (syntaxTarget: OlySyntaxNode) =
-        let span = boundNode.Syntax.FullTextSpan
-        let targetSpan = syntaxTarget.TextSpan
-        span.Contains(targetSpan)
-
-    let nodeHas (syntax: OlySyntaxNode) (syntaxTarget: OlySyntaxNode) =
-        let span = syntax.TextSpan
-        let targetSpan = syntaxTarget.TextSpan
-        span.Contains(targetSpan)
-
-    let nodeEquals (syntax: OlySyntaxNode) (syntaxTarget: OlySyntaxNode) =
-        let span = syntax.TextSpan
-        let targetSpan = syntaxTarget.TextSpan
-        span.Start = targetSpan.Start && span.End = targetSpan.End
 
     let rec getParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (logicalPars: ILocalParameterSymbol romem) =
         (syntaxPars.Values.AsMemory(), logicalPars)
@@ -1753,11 +1758,15 @@ type OlyBoundModel internal (
 
     member this.GetSymbols(node: OlySyntaxNode, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        getSymbols node (fun _ -> true) nodeHas true ct
+        // TODO: This code '(fun x -> nodeHas node x.UseSyntax)' is fine, 
+        //       but 'x' is an OlySymbol that was allocated and could be prevented if we 
+        //       only checked the symbol's use syntax before the symbol gets created/allocated.
+        //       Similar thing for 'GetSymbolsByPossibleName'.
+        getSymbols node (fun x -> nodeHas node x.UseSyntax) nodeIntersects true ct
 
     member this.GetSymbolsByPossibleName(node: OlySyntaxNode, possibleName: string, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        getSymbols node (fun x -> x.Name.Contains(possibleName)) nodeHas true ct
+        getSymbols node (fun x -> nodeHas node x.UseSyntax && x.Name.Contains(possibleName)) nodeIntersects true ct
 
     member this.TryFindSymbol(token: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()

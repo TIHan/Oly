@@ -251,21 +251,15 @@ export class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySy
 	}
 }
 
-class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
-	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens> {
-		let visibleRanges = getActiveDocumentVisibleRanges();
-
-		if(visibleRanges.length > 0)
-		{
-			let range = visibleRanges[0];
-			return client.sendRequest("oly/getSemanticClassification", { Range: OlyTextRange.fromVscodeRange(range), documentPath: document.uri.path }, token).then((tokens: IOlyToken []) => {
-				const builder = new vscode.SemanticTokensBuilder();
-				tokens.forEach((token) => {
-					builder.push(token.line, token.startCharacter, token.length, this._encodeTokenType(token.tokenType), this._encodeTokenModifiers(token.tokenModifiers));
-				});
-				return builder.build();
+class DocumentRangeSemanticTokensProvider implements vscode.DocumentRangeSemanticTokensProvider {
+	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens> {
+		return client.sendRequest("oly/getSemanticClassification", { Range: OlyTextRange.fromVscodeRange(range), documentPath: document.uri.path }, token).then((tokens: IOlyToken []) => {
+			const builder = new vscode.SemanticTokensBuilder();
+			tokens.forEach((token) => {
+				builder.push(token.line, token.startCharacter, token.length, this._encodeTokenType(token.tokenType), this._encodeTokenModifiers(token.tokenModifiers));
 			});
-		}
+			return builder.build();
+		});
 	}
 
 	private _encodeTokenType(tokenType: string): number {
@@ -518,7 +512,7 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: 'oly'}, new DocumentSemanticTokensProvider(), legend));
+		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), legend));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compileCommand, OlyClientCommands.compileCommandHandler));
 
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getSyntaxTreeCommand, OlyClientCommands.getSyntaxTreeCommandHandler));

@@ -266,7 +266,7 @@ type ClrInstruction =
 
     | Stind_i4
     | Stind_i8
-    | StindRef
+    | Stind_ref
     | Stobj of ClrTypeHandle
 
     | Add

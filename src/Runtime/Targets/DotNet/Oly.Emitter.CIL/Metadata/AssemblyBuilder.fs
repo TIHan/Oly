@@ -1312,7 +1312,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Throw ->
             il.OpCode(ILOpCode.Throw)
 
-        | I.StindRef ->
+        | I.Stind_ref ->
             il.OpCode(ILOpCode.Stind_ref)
         | I.Stobj(handle) ->
             il.OpCode(ILOpCode.Stobj) 
@@ -1548,7 +1548,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Throw ->
             1
 
-        | I.StindRef ->
+        | I.Stind_ref ->
             1
         | I.Stobj _ ->
             1 + 4

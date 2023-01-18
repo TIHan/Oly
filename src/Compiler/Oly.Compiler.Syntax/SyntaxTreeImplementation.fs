@@ -796,6 +796,18 @@ module OlySyntaxTreeExtensions =
 
         member this.IsToken = this.InternalNode.IsToken
 
+        member this.IsEndOfSourceToken = 
+            if this.InternalNode.IsToken then
+                match this.InternalNode with
+                | :? SyntaxToken as token ->
+                    match token.RawToken with
+                    | EndOfSource -> true
+                    | _ -> false
+                | _ ->
+                    false
+            else
+                false
+
         member this.IsTrivia = 
             if this.InternalNode.IsToken then
                 match this.InternalNode with
@@ -1290,11 +1302,11 @@ module OlySyntaxTreeExtensions =
             | None -> None
             | Some textSpan ->
                 
-                let rec loop (node: OlySyntaxNode) =
+                let rec loop (textSpan: OlyTextSpan) (node: OlySyntaxNode) =
                     if node.FullTextSpan.Contains(textSpan) then
                         let innerNode =
                             node.Children
-                            |> ImArray.tryPick loop
+                            |> ImArray.tryPick (loop textSpan)
 
                         if innerNode.IsSome then
                             innerNode
@@ -1304,7 +1316,22 @@ module OlySyntaxTreeExtensions =
                         None
 
                 let root = this.GetRoot(CancellationToken.None)
-                loop root
+
+                let fixedTextSpan =
+                    // For the root node only, shave off the ending of the original span so that is does not include trailing trivia.
+                    // We do this to potentially get a more specific node rather than the root node.
+                    if root.Children.Length > 1 && root.Children[root.Children.Length - 1].IsEndOfSourceToken then
+                        let nodeBeforeEndOfSource = root.Children[root.Children.Length - 2]
+                        let possibleEnd = nodeBeforeEndOfSource.FullTextSpan.End
+
+                        if textSpan.End >= possibleEnd then
+                            OlyTextSpan.CreateWithEnd(textSpan.Start, nodeBeforeEndOfSource.FullTextSpan.End)
+                        else
+                            textSpan
+                    else
+                        textSpan
+
+                loop fixedTextSpan root
 
         member this.GetOpenDeclarationNames(ct: CancellationToken) =
             let builder = ImArray.builder()

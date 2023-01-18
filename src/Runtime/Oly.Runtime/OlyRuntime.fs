@@ -1334,7 +1334,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     let mutable isEmittingTypeDefinition = false
     let delayed = ConcurrentQueue()
 
-    let functionBodyCache: ConcurrentDictionary<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = ConcurrentDictionary()
+    let inlineFunctionBodyCache: ConcurrentDictionary<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = ConcurrentDictionary()
 
     let primitiveTypes = ConcurrentDictionary<RuntimeType, RuntimeType>()
     let addPrimitiveType primTy ty =
@@ -3385,7 +3385,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if func.HasILFunctionBody then
             let cachedBodyOpt =
                 if func.Flags.IsInlineable then
-                    match functionBodyCache.TryGetValue(func) with
+                    match inlineFunctionBodyCache.TryGetValue(func) with
                     | true, body -> Some body
                     | _ -> None
                 else
@@ -3405,7 +3405,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         genericContext
 
                 if func.Flags.IsInlineable then
-                    functionBodyCache[func] <- body
+                    // TODO: We need a cache eviction policy, otherwise this will continue growing.
+                    inlineFunctionBodyCache[func] <- body
 
                 Some body
         else

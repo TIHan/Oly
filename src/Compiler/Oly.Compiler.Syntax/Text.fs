@@ -18,11 +18,15 @@ type OlyTextSpan private (start: int, width: int) =
     member this.Contains(position: int) =
         position >= this.Start && position < this.End && width <> 0
 
-    member this.Contains(span: OlyTextSpan) =
-        span.Start >= this.Start && span.End <= this.End && width <> 0
+    member this.Contains(textSpan: OlyTextSpan) =
+        textSpan.Start >= this.Start && textSpan.End <= this.End && width <> 0
 
     member this.IntersectsWith(position: int) =
         position >= this.Start && position <= this.End
+
+    member this.IntersectsWith(textSpan: OlyTextSpan) =
+        (textSpan.Start >= this.Start && textSpan.End <= this.End) ||
+        (this.Start >= textSpan.Start && this.End <= textSpan.End)
 
     member this.IsEqualTo(textSpan: OlyTextSpan) =
         this.Start = textSpan.Start && this.Width = textSpan.Width

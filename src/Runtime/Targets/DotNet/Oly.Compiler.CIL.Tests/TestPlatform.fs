@@ -22,16 +22,44 @@ let emitterWrite(emitter: OlyRuntimeClrEmitter) =
 
 let private gate = obj()
 
+let private runtimeconfigJson =
+    """{
+  "runtimeOptions": {
+    "tfm": "net7.0",
+    "framework": {
+      "name": "Microsoft.NETCore.App",
+      "version": "7.0.0"
+    },
+    "configProperties": {
+      "System.Reflection.Metadata.MetadataUpdater.IsSupported": false
+    }
+  }
+}"""
+
 let run (ms: MemoryStream, expectedOutput: string) =
     //let tmpFile = Path.GetTempFileName()
     //try File.Delete tmpFile with | _ -> ()
     //let tmpFile = Path.ChangeExtension(tmpFile, ".dll")
-    //use fs = new FileStream(tmpFile, FileMode.Create)
-    //let bytes = ms.GetBuffer()
-    //fs.Write(bytes, 0, bytes.Length)
-    //use dotnet = new Oly.Core.ExternalProcess("dotnet", tmpFile)
-    //let result = dotnet.RunAsync(Threading.CancellationToken.None).Result
-    //Assert.Equal(expectedOutput, result.Output)
+    //let tmpJsonConfigFile = Path.ChangeExtension(tmpFile, ".runtimeconfig.json")
+
+    //try
+    //    let fs = new FileStream(tmpFile, FileMode.Create)
+    //    let bytes = ms.GetBuffer()
+    //    fs.Write(bytes, 0, bytes.Length)
+    //    fs.Dispose()
+
+    //    File.WriteAllText(tmpJsonConfigFile, runtimeconfigJson)
+
+    //    use dotnet = new Oly.Core.ExternalProcess("dotnet", tmpFile)
+    //    let result = dotnet.RunAsync(Threading.CancellationToken.None).Result
+    //    if result.Output.EndsWith("\r\n") then             
+    //        Assert.Equal(expectedOutput + "\r\n", result.Output)
+    //    else
+    //        Assert.Equal(expectedOutput, result.Output)
+    //finally
+    //    try File.Delete tmpFile with | _ -> ()
+    //    try File.Delete tmpJsonConfigFile with | _ -> ()
+
     let context = AssemblyLoadContext(Guid.NewGuid().ToString(), isCollectible=true)
     try
         let rasm = context.LoadFromStream(ms)

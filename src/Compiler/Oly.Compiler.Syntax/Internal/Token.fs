@@ -593,7 +593,7 @@ type internal Token =
             text = "[]" || text = "[,]"
         | _ -> false
 
-    member this.IsTrivia =
+    member this.IsTriviaExceptEndOfSource =
         match this with
         | Space _
         | CarriageReturn
@@ -609,6 +609,14 @@ type internal Token =
         | HashIf _
         | HashEnd _ -> true
         | _ -> false
+
+    member this.IsTrivia =
+        if this.IsTriviaExceptEndOfSource then
+            true
+        else
+            match this with
+            | EndOfSource -> true
+            | _ -> false
 
     member this.IsOther =
         match this with
@@ -630,7 +638,6 @@ type internal Token =
         | SemiColon
         | Hash
         | Invalid _
-        | EndOfSource
         | Equal -> true
         | _ -> false
 

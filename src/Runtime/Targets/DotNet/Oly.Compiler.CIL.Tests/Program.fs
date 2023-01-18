@@ -2,7 +2,7 @@ module Program
 
 open Xunit
 
-[<assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly, MaxParallelThreads = 16)>]
+[<assembly: CollectionBehavior(CollectionBehavior.CollectionPerClass, MaxParallelThreads = 0)>]
 do()
 
 let [<EntryPoint>] main _ = 0

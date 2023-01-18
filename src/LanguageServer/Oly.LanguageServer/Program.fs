@@ -1890,7 +1890,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             tokenModifiers = tokenModifiers
                         }
                     let classifications =
-                        doc.GetSemanticClassifications(OlyTextRange(), ct)
+                        doc.GetSemanticClassifications(request.Range, ct)
                         |> Seq.map (fun item ->
                             let tokenType = item.Kind.ToLspClassificationKind()
                             let tokenModifiers = item.Kind.ToLspClassificationModifiers()

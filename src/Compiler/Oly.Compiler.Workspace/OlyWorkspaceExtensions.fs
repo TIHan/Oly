@@ -227,32 +227,36 @@ type OlyDocument with
 
         let boundModel = this.BoundModel
 
-        let symbols = boundModel.GetSymbols(this.SyntaxTree.GetRoot(ct), ct)
+        match boundModel.SyntaxTree.TryFindNode(range, ct) with
+        | Some syntaxNode ->
+            let symbols = boundModel.GetSymbols(syntaxNode, ct)
 
-        symbols
-        |> ImArray.choose (fun symbol ->
-            ct.ThrowIfCancellationRequested()
-            match symbol.UseSyntax.TryFindFirstIdentifierOrLiteral() with
-            | Some(identToken) ->
-                let r = identToken.GetTextRange(ct)
-                let span = identToken.TextSpan
-                let flags = OlyClassificationModifierFlags.None
-                match symbol with
-                | :? OlyTypeSymbol as tySymbol ->
-                    Some(classifyType r span tySymbol flags)
-                | :? OlyFunctionGroupSymbol as funcGroupSymbol ->
-                    Some(classifyFunctionGroup r span funcGroupSymbol flags)
-                | :? OlyValueSymbol as valueSymbol ->
-                    Some(classifyValue r span valueSymbol flags)
-                | :? OlyNamespaceSymbol as namespaceSymbol ->
-                    Some(classifyNamespace r span namespaceSymbol flags)
-                | :? OlyConstantSymbol as constantSymbol ->
-                    Some(classifyConstant r span constantSymbol flags)
+            symbols
+            |> ImArray.choose (fun symbol ->
+                ct.ThrowIfCancellationRequested()
+                match symbol.UseSyntax.TryFindFirstIdentifierOrLiteral() with
+                | Some(identToken) ->
+                    let r = identToken.GetTextRange(ct)
+                    let span = identToken.TextSpan
+                    let flags = OlyClassificationModifierFlags.None
+                    match symbol with
+                    | :? OlyTypeSymbol as tySymbol ->
+                        Some(classifyType r span tySymbol flags)
+                    | :? OlyFunctionGroupSymbol as funcGroupSymbol ->
+                        Some(classifyFunctionGroup r span funcGroupSymbol flags)
+                    | :? OlyValueSymbol as valueSymbol ->
+                        Some(classifyValue r span valueSymbol flags)
+                    | :? OlyNamespaceSymbol as namespaceSymbol ->
+                        Some(classifyNamespace r span namespaceSymbol flags)
+                    | :? OlyConstantSymbol as constantSymbol ->
+                        Some(classifyConstant r span constantSymbol flags)
+                    | _ ->
+                        None
                 | _ ->
                     None
-            | _ ->
-                None
-        )
+            )
+        | _ ->
+            ImArray.empty
 
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
 type OlyCompletionContext =
