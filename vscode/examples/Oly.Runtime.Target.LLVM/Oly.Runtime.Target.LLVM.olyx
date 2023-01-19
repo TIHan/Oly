@@ -32,7 +32,7 @@ module OptionPatterns<T> =
     pattern Some(value: FSharpOption<T>): T when (value !== null) =>
         value.Value
 
-test(value: FSharpOption<int32>): () =
+test(value: FSharpOption<FSharpOption<int32>>): () =
     match(value)
     | Some(x) => print(x)
     | None => print("nothing2")
@@ -40,7 +40,9 @@ test(value: FSharpOption<int32>): () =
 
 main(): () =
     let y = None
-    test(Some(567))
+    let lambda(x) =
+        test(Some(x))
+    lambda(Some(587))
     print("\n")
     test(y)
 
@@ -48,4 +50,4 @@ main(): () =
     let mutable strPtr = GCHandle.Alloc(str, GCHandleType.Pinned)
     let mod = LLVM.ModuleCreateWithName(ToPtr(strPtr.AddrOfPinnedObject()))
     let builder = LLVM.CreateBuilder()
-    print("test")
+    print("testttttt")

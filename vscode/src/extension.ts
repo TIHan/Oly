@@ -518,7 +518,7 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getSyntaxTreeCommand, OlyClientCommands.getSyntaxTreeCommandHandler));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.navigateToSyntaxNodeCommand, OlyClientCommands.navigateToSyntaxNodeCommandHandler));
 
-		context.subscriptions.push(vscode.commands.registerCommand('workbench.action.debug.start', async () => {
+		context.subscriptions.push(vscode.commands.registerCommand('oly.compile', async () => {
 			let ch = OlyClientCommands.buildOutputChannel;
 			
 			ch.show(true);

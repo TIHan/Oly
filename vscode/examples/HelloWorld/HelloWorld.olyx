@@ -10,6 +10,12 @@ chicken(): () =
     print("chicken")
 
 main(): () =
-    let result = System.Diagnostics.Debugger.Launch()
+
+
+
+
+
     chicken()
+
+
     let result = MessageBox(default, "Hello World!", "Message Box", 0)

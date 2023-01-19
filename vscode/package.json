@@ -58,6 +58,10 @@
 				{
 					"command": "oly.getSyntaxTree",
 					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.compile",
+					"when": "resourceLangId == oly"
 				}
 			]
 		},
@@ -65,6 +69,11 @@
 			{
 				"command": "oly.getSyntaxTree",
 				"title": "Go to Syntax Node",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.compile",
+				"title": "Compile Oly Project",
 				"when": "resourceLangId == oly"
 			}
 		],

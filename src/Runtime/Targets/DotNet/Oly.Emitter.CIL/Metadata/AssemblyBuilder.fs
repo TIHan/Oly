@@ -21,8 +21,8 @@ module private MetadataHelpers =
             Version(0, 0, 0, 0), 
             StringHandle(), 
             BlobHandle(), 
-            AssemblyFlags.PublicKey, 
-            AssemblyHashAlgorithm.Sha1)
+            AssemblyFlags.PublicKey,
+            AssemblyHashAlgorithm.Sha256)
 
     let addModule assemblyName isExe (mvid: Guid) (metadataBuilder: MetadataBuilder) =
         metadataBuilder.AddModule(
@@ -393,8 +393,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let metadataBuilder = MetadataBuilder()
     let pdbBuilder = ClrPdbBuilder()
 
-    do MetadataHelpers.addAssembly assemblyName metadataBuilder |> ignore
-
     // TODO: This assembly name equality is probably not entirely correct.
     let asmRefComparer =
         { new IEqualityComparer<AssemblyName> with
@@ -549,6 +547,22 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             metadataBuilder.GetOrAddString(name)
         )
 
+    let addDebuggableTyRef () =
+        let asmRef = createAsmRef (primaryAssembly)
+        metadataBuilder.AddTypeReference(
+            AssemblyReferenceHandle.op_Implicit asmRef,
+            metadataBuilder.GetOrAddString("System.Diagnostics"),
+            metadataBuilder.GetOrAddString("DebuggableAttribute")
+        )
+
+    let addDebuggingModesTyRef () =
+        let asmRef = createAsmRef (primaryAssembly)
+        metadataBuilder.AddTypeReference(
+            TypeReferenceHandle.op_Implicit(addDebuggableTyRef()),
+            Unchecked.defaultof<_>,
+            metadataBuilder.GetOrAddString("DebuggingModes")
+        )
+
     let sysTy name isValueType =
         createTyRef ("System." + name) isValueType (addBuiltInTyRef "System" name)
 
@@ -572,6 +586,28 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         tyDefRowCount <- tyDefRowCount + 1
         nextTyDefRowId <- nextTyDefRowId + 1
+
+    let createDebuggableConstructor() =
+        let signature = BlobBuilder()
+        let mutable encoder = BlobEncoder(signature)
+        let mutable encoder = encoder.MethodSignature(isInstanceMethod = true)
+        encoder.Parameters(
+            1,
+            (fun encoder -> encoder.Void()),
+            (fun encoder -> encoder.AddParameter().Type().Type(addDebuggingModesTyRef(), true))
+        )
+
+        let name = metadataBuilder.GetOrAddString(".ctor")
+        let signature = metadataBuilder.GetOrAddBlob(signature)
+
+        let realHandle =
+            metadataBuilder.AddMemberReference(
+                addDebuggableTyRef(),
+                name,
+                signature
+            )
+
+        createMemRef realHandle name signature
 
     let createConsoleWriteMethod() =
         let consoleTy = consoleSysTy "Console" false
@@ -809,11 +845,17 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             false 
             (addBuiltInTyRef "System.Runtime.CompilerServices" "IsReadOnlyAttribute")
             
+    member val tr_DebuggableAttribute =
+        createTyRef 
+            ("System.Diagnostics.DebuggableAttribute") 
+            false 
+            (addBuiltInTyRef "System.Diagnostics" "DebuggableAttribute")
 
     member val ``ConsoleWriteMethod`` = lazy createConsoleWriteMethod()
     member val ``ConsoleWriteMethod_Int32`` = lazy createConsoleWriteMethod_Int32()
     member val ``ConsoleWriteMethod_String`` = lazy createConsoleWriteMethod_String()
     member val ``GetTypeFromHandleMethod`` = lazy createGetTypeFromHandleMethod()
+    member val ``DebuggableAttributeConstructor`` = lazy createDebuggableConstructor()
 
     member val EntryPoint = ClrMethodHandle.None with get, set
 
@@ -949,6 +991,26 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     
     member this.Write(stream: IO.Stream, pdbStream: IO.Stream) =
 
+        let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
+
+        let writeAttrArgs () =
+            let b = BlobBuilder()
+
+            // Prolog
+            b.WriteByte(1uy)
+            b.WriteByte(0uy)
+
+            b.WriteInt32(1 ||| 256)
+
+            // NumNamed
+            b.WriteByte(0uy)
+            b.WriteByte(0uy)        
+
+            this.AddBlob(b)
+
+        metadataBuilder.AddCustomAttribute(asmDefHandle, this.DebuggableAttributeConstructor.Value.UnsafeLazilyEvaluateEntityHandle(), writeAttrArgs())
+        |> ignore
+
         while tyDefQueue.Count > 0 do
             processQueue tyDefQueue
 
@@ -1015,7 +1077,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 peHeaderBuilder, 
                 rootBuilder, 
                 ilBuilder, 
-                flags = CorFlags.ILOnly,
+                flags = (CorFlags.ILOnly),
                 entryPoint = entryPoint,
                 debugDirectoryBuilder = debugDirBuilder)
         let peBlob = BlobBuilder()
@@ -2072,9 +2134,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     match firstDocument with
                     | None -> 
                         firstDocument <- Some document
-                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
+                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine + 1, endLine + 1, startColumn + 1, endColumn + 1))
                     | _ when il.Offset > 0 -> 
-                        seqPoints.Add(ClrSequencePoint(Unchecked.defaultof<_>, il.Offset, startLine, endLine, startColumn, endColumn))
+                        seqPoints.Add(ClrSequencePoint(Unchecked.defaultof<_>, il.Offset, startLine + 1, endLine + 1, startColumn + 1, endColumn + 1))
                     | _ ->
                         ()
 
