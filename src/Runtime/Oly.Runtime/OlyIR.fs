@@ -695,6 +695,16 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
 
+    member this.DebugSourceTextRange =
+        match this with
+        | OlyIRExpression.None _ -> OlyIRDebugSourceTextRange.Empty
+        | Let(_, _, rhsExpr, _) -> rhsExpr.DebugSourceTextRange // TODO: Let needs to have its own text range.
+        | Value(textRange, _) -> textRange
+        | Operation(textRange, _) -> textRange
+        | Sequential(expr, _) -> expr.DebugSourceTextRange // TODO: Sequential needs to have its own text range.
+        | IfElse(conditionExpr, _, _, _)
+        | While(conditionExpr, _, _) -> conditionExpr.DebugSourceTextRange // TODO: IfElse and While needs to have their own text range.
+
     override this.ToString() =
         Dump.DumpExpression this
 

@@ -346,6 +346,8 @@ type ClrInstruction =
     /// Branch label marker
     | Label of labelId: int32
 
+    | SequencePoint of documentPath: string * startLine: int * endLine: int * startColumn: int * endColumn: int
+
 [<RequireQualifiedAccess>]
 module ClrElementTypes =
 

@@ -594,6 +594,10 @@ type BoundMatchPattern =
 type BoundMatchClause =
     | MatchClause of OlySyntaxMatchClause * BoundMatchPattern * guardExprOpt: BoundExpression option * targetExpr: BoundExpression
 
+    member this.Syntax =
+        match this with
+        | MatchClause(syntax, _, _, _) -> syntax
+
     member this.MatchPattern =
         match this with
         | MatchClause(_, matchPattern, _, _) -> matchPattern

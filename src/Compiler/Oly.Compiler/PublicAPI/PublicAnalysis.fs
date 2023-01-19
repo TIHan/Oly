@@ -45,6 +45,45 @@ type OlyAnalysisExpression =
             ct.ThrowIfCancellationRequested()
             OlyTypeSymbol(boundModel, boundModel.GetBoundTree(ct).RootEnvironment, expr.Syntax, expr.Type)
 
+[<NoEquality;NoComparison;DebuggerDisplay("{DebugText}")>]
+type OlyAnalysisPattern =
+    private
+    | Pattern of BoundCasePattern * OlyBoundModel * ct: CancellationToken
+
+    override this.ToString() = "Pattern"
+
+    member private this.DebugText = this.ToString()
+
+    member this.SyntaxNode =
+        match this with
+        | Pattern(casePat, _, _) -> casePat.Syntax
+
+[<NoEquality;NoComparison;DebuggerDisplay("{DebugText}")>]
+type OlyAnalysisMatchPattern =
+    private
+    | MatchPattern of BoundMatchPattern * OlyBoundModel * ct: CancellationToken
+
+    override this.ToString() = "MatchPattern"
+
+    member private this.DebugText = this.ToString()
+
+    member this.SyntaxNode =
+        match this with
+        | MatchPattern(matchPattern, _, _) -> matchPattern.Syntax
+
+[<NoEquality;NoComparison;DebuggerDisplay("{DebugText}")>]
+type OlyAnalysisMatchClause =
+    private
+    | MatchClause of BoundMatchClause * OlyBoundModel * ct: CancellationToken
+
+    override this.ToString() = "MatchClause"
+
+    member private this.DebugText = this.ToString()
+
+    member this.SyntaxNode =
+        match this with
+        | MatchClause(matchClause, _, _) -> matchClause.Syntax
+
 let private cleanExpr (expr: BoundExpression) =
     match expr with
     | BoundExpression.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsLocal ->
@@ -75,7 +114,115 @@ let rec private stripExpr (expr: BoundExpression) =
 let rec private convert (boundModel: OlyBoundModel) (expr: BoundExpression) ct : OlyAnalysisExpression =
     Expression(stripExpr expr, boundModel, ct)
 
+type OlyAnalysisByRefKindDescription =
+    | DefaultByRefKind
+    | WildcardByRefKind
+    | Read
+    | ReadWrite
+
+[<NoEquality;NoComparison>]
+type OlyAnalysisTypeDescription =
+    | DefaultType
+    | WildcardType
+    | Int32
+    | ByRef of kind: OlyAnalysisByRefKindDescription * elementTy: OlyAnalysisTypeDescription
+
+type OlyAnalysisRule =
+    | OverloadedFunctionDefinitionsCannotDisambiguateType of OlyAnalysisTypeDescription
+
+let rec private areTypesEqualWithDescription (tTy: OlyAnalysisTypeDescription) (ty1: TypeSymbol) (ty2: TypeSymbol) =
+    match tTy with
+    | WildcardType -> true
+    | DefaultType -> areTypesEqual ty1 ty2
+    | Int32 -> areTypesEqual ty1 TypeSymbol.Int32 && areTypesEqual ty1 ty2
+
+    | ByRef(tByRefKind, tElementTy) ->
+        match stripTypeEquationsAndBuiltIn ty1, stripTypeEquationsAndBuiltIn ty2 with
+        | TypeSymbol.ByRef(elementTy1, byRefKind1), TypeSymbol.ByRef(elementTy2, byRefKind2) ->
+            match tByRefKind, byRefKind1, byRefKind2 with
+            | WildcardByRefKind, _, _
+            | Read, ByRefKind.Read, ByRefKind.Read
+            | ReadWrite, ByRefKind.ReadWrite, ByRefKind.ReadWrite ->
+                areTypesEqualWithDescription tElementTy elementTy1 elementTy2
+
+            | DefaultByRefKind, _, _ -> byRefKind1 = byRefKind2 && areTypesEqualWithDescription tElementTy elementTy1 elementTy2
+            | _ -> false
+        | _ ->
+            false
+
 type OlyBoundModel with
+
+    member this.CheckRules(rules: OlyAnalysisRule imarray, ct: CancellationToken) =
+        let diagLogger = OlyDiagnosticLogger.Create()
+        let boundTree = this.GetBoundTree(ct)
+        let diags = this.SyntaxTree.GetDiagnostics(ct).AddRange(this.GetDiagnostics(ct))
+        if diags |> ImArray.exists (fun x -> x.IsError) then
+            ImArray.empty
+        else
+
+            let rules_OverloadedFunctionDefinitionsCannotDisambiguateType =
+                rules
+                |> ImArray.choose (function
+                    | OverloadedFunctionDefinitionsCannotDisambiguateType(tTy) -> Some tTy
+                )
+
+            boundTree.ForEachForTooling(function
+                | :? BoundExpression as expr ->
+                    match expr with
+                    | BoundExpression.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
+                        match syntaxInfo.TryEnvironment with
+                        | None -> ()
+                        | Some benv ->
+                            if rules_OverloadedFunctionDefinitionsCannotDisambiguateType.IsEmpty then ()
+                            else
+                                let overloadedFunctions = 
+                                    ent.Functions 
+                                    |> Seq.groupBy (fun x -> (x.Name, x.TypeArguments.Length, x.Parameters.Length, x.IsInstance))
+                                    |> Seq.choose (fun (_, funcs) ->
+                                        let funcs = funcs |> ImArray.ofSeq
+                                        if funcs.Length > 1 then
+                                            Some(funcs)
+                                        else
+                                            None
+                                    )
+                                    |> ImArray.ofSeq
+
+                                if overloadedFunctions.IsEmpty then ()
+                                else
+                                    overloadedFunctions
+                                    |> ImArray.iter (fun funcs ->
+                                        funcs
+                                        |> ImArray.iter (fun func ->
+                                            funcs
+                                            |> ImArray.iter (fun func2 ->
+                                                if obj.ReferenceEquals(func, func2) then ()
+                                                else
+                                                    rules_OverloadedFunctionDefinitionsCannotDisambiguateType
+                                                    |> ImArray.iter (fun tTy ->
+                                                        let mutable allParsAreSame = true
+                                                        (func.Parameters, func2.Parameters)
+                                                        ||> ImArray.iter2 (fun par1 par2 ->
+                                                            if not(areTypesEqual par1.Type par2.Type) then
+                                                                if not(areTypesEqualWithDescription tTy par1.Type par2.Type) then
+                                                                    allParsAreSame <- false                                                          
+                                                        )
+
+                                                        if not(areTypesEqual func.ReturnType func2.ReturnType) then
+                                                            if not(areTypesEqualWithDescription tTy func.ReturnType func2.ReturnType) then
+                                                                allParsAreSame <- false 
+
+                                                        if allParsAreSame then
+                                                            diagLogger.Error($"Unable to disambiguate types on function '{printValue benv func}'.", 10, syntaxInfo.Syntax)
+                                                    )
+                                            )
+                                        )
+                                    )
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
+            )
+            diagLogger.GetDiagnostics()
 
     /// Runs the given analyzers against function implementations.
     /// If the bound model has errors, then this immediately returns an empty result.
@@ -87,28 +234,6 @@ type OlyBoundModel with
         if diags |> ImArray.exists (fun x -> x.IsError) then
             ImArray.empty
         else
-
-            // We run through these lowering phases to clean-up and normalize the tree
-            // to make it easier to write analyzers.
-            //
-            // As an example, trying to do flow analysis on a Match expression would be painful -
-            // which is why we lower it to IfElse expressions, then later clean the generated expressions
-            // in the optimizer.
-            //
-            // It is redudant that we have to do these lowering phases twice per-file, one for ILGen
-            // and one for analyzers. But since they would happen in parallel, it is fine for now. We could
-            // do lowering only once for the phases that do not produce different results in
-            // Debug or Release(non-debuggable) compilations, such as PatternMatchCompilation and CommonLowering.
-            //
-            // It looks like the only reason to run the optimizer is to clean up the 'tmps' and True/False literals
-            // produced by PatternMatchCompilation. Is there a way to simply just make them cleaner within it instead
-            // of the optimizer? If we could, then we would not have to run the optimizer here.
-            let boundTree =
-                boundTree
-                |> Lowering.PatternMatchCompilation.Lower ct
-                |> Lowering.CommonLowering.Lower ct
-                |> Lowering.Optimizer.Lower ct { LocalValueElimination = false; BranchElimination = false }
-
             analyzers
             |> ImArray.Parallel.iter (fun analyzer ->
                 boundTree.ForEachForTooling(function
@@ -375,6 +500,104 @@ module Patterns =
             Some(convert boundModel conditionExpr ct, convert boundModel trueTargetExpr ct, convert boundModel falseTargetExpr ct)
         | _ ->
             None
+
+    let (|Match|_|) (texpr: OlyAnalysisExpression) =
+        match texpr with
+        | Expression(BoundExpression.Match(_, _, matchInputExprs, matchClauses, _), boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            Some(matchInputExprs |> ImArray.map (fun x -> convert boundModel x ct), 
+                 matchClauses |> ImArray.map (fun x -> MatchClause(x, boundModel, ct))  
+            )
+        | _ ->
+            None
+
+    let (|MatchCases|_|) (tmatchPat: OlyAnalysisMatchPattern) =
+        match tmatchPat with
+        | MatchPattern(matchPat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match matchPat with
+            | BoundMatchPattern.Cases(_, casePats) ->
+                Some(casePats |> ImArray.map (fun x -> Pattern(x, boundModel, ct)))
+            | _ ->
+                None
+
+    let (|MatchOr|_|) (tmatchPat: OlyAnalysisMatchPattern) =
+        match tmatchPat with
+        | MatchPattern(matchPat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match matchPat with
+            | BoundMatchPattern.Or(_, lhsPat, rhsPat) ->
+                Some(MatchPattern(lhsPat, boundModel, ct), MatchPattern(rhsPat, boundModel, ct))
+            | _ ->
+                None
+
+    let (|MatchClause|) (tmatchClause: OlyAnalysisMatchClause) =
+        match tmatchClause with
+        | OlyAnalysisMatchClause.MatchClause(matchClause, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match matchClause with
+            | BoundMatchClause.MatchClause(_, matchPat, guardExprOpt, targetExpr) ->
+                (MatchPattern(matchPat, boundModel, ct), guardExprOpt |> Option.map (fun x -> convert boundModel x ct), convert boundModel targetExpr ct)
+
+    let (|PatternConstant|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.Literal(syntaxNode, benv, literal) ->
+                Some(OlyConstantSymbol(boundModel, benv, syntaxNode, literal))
+            | _ ->
+                None
+
+    let (|PatternLocal|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.Local(syntaxNode, benv, local) ->
+                Some(OlyValueSymbol(boundModel, benv, syntaxNode, local))
+            | _ ->
+                None
+
+    let (|PatternFieldConstant|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.FieldConstant(syntaxNode, benv, field) ->
+                Some(OlyValueSymbol(boundModel, benv, syntaxNode, field))
+            | _ ->
+                None
+
+    let (|PatternFunction|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.Function(syntaxNode, benv, pat, _, casePatArgs) ->
+                Some(OlyValueSymbol(boundModel, benv, syntaxNode, pat), casePatArgs |> ImArray.map (fun x -> OlyAnalysisPattern.Pattern(x, boundModel, ct)))
+            | _ ->
+                None
+
+    let (|PatternTuple|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.Tuple(syntaxNode, casePatArgs) ->
+                Some(casePatArgs |> ImArray.map (fun x -> OlyAnalysisPattern.Pattern(x, boundModel, ct)))
+            | _ ->
+                None
+
+    let (|PatternDiscard|_|) (tPat: OlyAnalysisPattern) =
+        match tPat with
+        | OlyAnalysisPattern.Pattern(casePat, _, ct) ->
+            ct.ThrowIfCancellationRequested()
+            match casePat with
+            | BoundCasePattern.Discard _ -> 
+                Some()
+            | _ ->
+                None
 
     let (|Unit|_|) (texpr: OlyAnalysisExpression) =
         match texpr with

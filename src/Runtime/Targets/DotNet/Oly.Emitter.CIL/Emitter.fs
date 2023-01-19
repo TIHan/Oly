@@ -1051,10 +1051,16 @@ module rec ClrCodeGen =
 
             GenExpression cenv env irBodyExpr
 
-        | E.Value(_, irValue) ->
+        | E.Value(textRange, irValue) ->
+            if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
+                I.SequencePoint(textRange.Path.ToString(), textRange.StartLine, textRange.EndLine, textRange.StartColumn, textRange.EndColumn) |> emitInstruction cenv
+
             GenValue cenv env irValue
 
-        | E.Operation(_, irOp) ->
+        | E.Operation(textRange, irOp) ->
+            if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
+                I.SequencePoint(textRange.Path.ToString(), textRange.StartLine, textRange.EndLine, textRange.StartColumn, textRange.EndColumn) |> emitInstruction cenv
+
             GenOperation cenv env irOp
 
         | E.Sequential(irExpr1, irExpr2) ->
@@ -2170,6 +2176,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 irFuncBody.Value
 #endif
 
+            let expr = bodyResult.Expression
+
             let cenv = 
                 {
                     assembly = asmBuilder
@@ -2188,7 +2196,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     isReturnable = true
                 } : ClrCodeGen.env
 
-            ClrCodeGen.GenExpression cenv env bodyResult.Expression
+            ClrCodeGen.GenExpression cenv env expr
 
             match func.builder with
             | Some methDefBuilder ->
@@ -2198,6 +2206,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     |> Seq.map (fun x -> ClrLocal(x.Value.Handle))
                     |> ImArray.ofSeq
                 methDefBuilder.BodyInstructions <- cenv.buffer.ToImmutable()
+
             | _ ->
                 failwith "Expected method definition builder."
 

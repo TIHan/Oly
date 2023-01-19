@@ -226,3 +226,48 @@ test(): () =
     let diags = boundModel.AnalyzeFunctionImplementations(ImArray.createOne analyzer, CancellationToken.None)
     Assert.Equal(1, diags.Length)
     Assert.Equal("You used 7 twice.", diags[0].Message)
+
+[<Fact>]
+let ``Basic rules analyzer`` () =
+    let src1 =
+        """
+module Module
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("int16")]
+alias int16
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+class OverloadTest =
+
+    M(x: byref<int32>): () = ()
+    M(x: inref<int32>): () = ()
+
+        """
+    let tree = OlySyntaxTree.Parse(OlyPath.Create("test"), src1) 
+    let c = OlyCompilation.Create("testasm", [tree])
+    let boundModel = c.GetBoundModel(OlyPath.Create("test"))
+
+    let diags = boundModel.GetDiagnostics(CancellationToken.None)
+    Assert.Equal(0, diags.Length)
+
+    let rules = 
+        OverloadedFunctionDefinitionsCannotDisambiguateType(
+            ByRef(
+                WildcardByRefKind, 
+                DefaultType
+            )
+        )
+        |> ImArray.createOne
+
+    let diags = boundModel.CheckRules(rules, CancellationToken.None)
+    Assert.Equal(2, diags.Length)
+    //Assert.Equal("    let y = 1
+    //    ^", diags[0].GetHelperText())

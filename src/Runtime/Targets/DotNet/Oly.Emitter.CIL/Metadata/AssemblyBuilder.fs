@@ -65,34 +65,324 @@ module private MetadataHelpers =
             )
         handle
 
+    let encodeType (encoder: SignatureTypeEncoder, handle: ClrTypeHandle, asmBuilder: ClrAssemblyBuilder) =
+        match handle with
+        | ClrTypeHandle.TypeSpecification(_, isValueType, tyRefHandle, tyInst) ->
+            let mutable encoderInst = encoder.GenericInstantiation(tyRefHandle.EntityHandle, tyInst.Length, isValueType)
+            tyInst
+            |> ImArray.iter (fun ty ->
+                encodeType(encoderInst.AddArgument(), ty, asmBuilder)
+            )
+        | ClrTypeHandle.Array(elementTyHandle, rank) ->
+            if rank < 1 then failwith "Invalid rank."
+            if rank = 1 then
+                let mutable elementEncoder = encoder.SZArray()
+                encodeType(elementEncoder, elementTyHandle, asmBuilder)
+            else
+                
+                let mutable elementEncoder = Unchecked.defaultof<_>
+                let mutable arrayShape = Unchecked.defaultof<_>
+                encoder.Array(&elementEncoder, &arrayShape)
+                arrayShape.Shape(rank, ImArray.empty, ImArray.init rank (fun _ -> 0))
+                
+        | ClrTypeHandle.TypeVariable(index, kind) ->
+            match kind with
+            | ClrTypeVariableKind.Type ->
+                encoder.GenericTypeParameter(index)
+            | ClrTypeVariableKind.Method ->
+                encoder.GenericMethodTypeParameter(index)
+        | ClrTypeHandle.ByRef(ty) ->
+            encodeType(encoder, ty, asmBuilder)
+        | ClrTypeHandle.ModReq(modifier, ty) ->
+            encodeType(encoder, ty, asmBuilder)
+            encoder.CustomModifiers().AddModifier(modifier.EntityHandle, false)
+            |> ignore
+        | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->
+            let mutable parEncoder = Unchecked.defaultof<_>
+            let mutable returnTyEncoder = Unchecked.defaultof<_>
+            encoder.FunctionPointer(convention = cc).Parameters(parTys.Length, &returnTyEncoder, &parEncoder)
+            encodeReturnType(returnTyEncoder, returnTy, asmBuilder)
+            encodeParameters(parEncoder, parTys, asmBuilder)
+        | ClrTypeHandle.NativePointer(elementTy) ->
+            if elementTy = asmBuilder.TypeReferenceVoid then
+                encoder.VoidPointer()
+            else
+                encodeType(encoder.Pointer(), elementTy, asmBuilder)
+
+        | _ ->
+
+        let entityHandle = handle.EntityHandle
+
+        if entityHandle.Equals(asmBuilder.TypeReferenceString.EntityHandle) then
+            encoder.String()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceObject.EntityHandle) then
+            encoder.Object()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceBoolean.EntityHandle) then
+            encoder.Boolean()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceByte.EntityHandle) then
+            encoder.Byte()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceSByte.EntityHandle) then
+            encoder.SByte()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceInt16.EntityHandle) then
+            encoder.Int16()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceUInt16.EntityHandle) then
+            encoder.UInt16()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceInt32.EntityHandle) then
+            encoder.Int32()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceUInt32.EntityHandle) then
+            encoder.UInt32()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceInt64.EntityHandle) then
+            encoder.Int64()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceUInt64.EntityHandle) then
+            encoder.UInt64()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceSingle.EntityHandle) then
+            encoder.Single()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceDouble.EntityHandle) then
+            encoder.Double()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceChar.EntityHandle) then
+            encoder.Char()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceIntPtr.EntityHandle) then
+            encoder.IntPtr()
+        elif entityHandle.Equals(asmBuilder.TypeReferenceUIntPtr.EntityHandle) then
+            encoder.UIntPtr()
+        else
+            encoder.Type(handle.EntityHandle, handle.IsValueType)
+
+    let encodeReturnType (encoder: ReturnTypeEncoder, returnTy: ClrTypeHandle, asmBuilder: ClrAssemblyBuilder) =
+        if returnTy.HasEntityHandle then
+            if returnTy.EntityHandle.Equals(asmBuilder.TypeReferenceVoid.EntityHandle) then
+                encoder.Void()
+            else
+                match returnTy.TryElementType with
+                | ValueSome elementTy when returnTy.IsByRef_t ->
+                    encodeType(encoder.Type(true), elementTy, asmBuilder)
+                | _ ->
+                    encodeType(encoder.Type(false), returnTy, asmBuilder)
+        else
+            match returnTy.TryElementType with
+            | ValueSome elementTy when returnTy.IsByRef_t ->
+                encodeType(encoder.Type(true), elementTy, asmBuilder)
+            | _ ->
+                encodeType(encoder.Type(false), returnTy, asmBuilder)
+
+    let encodeParameters (encoder: ParametersEncoder, parTys: ClrTypeHandle imarray, asmBuilder: ClrAssemblyBuilder) =
+        parTys
+        |> ImArray.iter (fun parTy ->
+            match parTy.TryElementType with
+            | ValueSome elementTy when parTy.IsByRef_t ->
+                encodeType(encoder.AddParameter().Type(true), elementTy, asmBuilder)
+            | _ ->
+                encodeType(encoder.AddParameter().Type(false), parTy, asmBuilder)
+        )
+
+    let createMethodSignature(convention, tyParCount: int, isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle, asmBuilder: ClrAssemblyBuilder) =
+        let signature = BlobBuilder()
+        BlobEncoder(signature).MethodSignature(convention, tyParCount, isInstance).Parameters(
+            parTys.Length,
+            (fun encoder ->
+                encodeReturnType(encoder, returnTy, asmBuilder)),
+            (fun encoder -> 
+                encodeParameters(encoder, parTys, asmBuilder))
+        )
+        signature
+
 [<Sealed>]
 type ClrLocal(ty: ClrTypeHandle) =
 
     member _.Type = ty
 
+/// The specified Hash algorithm to use on portable pdb files.
+type private HashAlgorithm =
+    | Sha1
+    | Sha256
+
 [<Sealed>]
-type ClrMetadataBuilder() =
-    let metadataBuilder = MetadataBuilder()
-    let pdbMetadataBuilder = MetadataBuilder()
+type ClrSequencePoint (document: DocumentHandle, offset: int, line: int, endLine: int, column: int, endColumn: int) =
 
-    member _.Metadata = metadataBuilder
-    member _.PdbMetadata = pdbMetadataBuilder
+    member _.Document = document
 
-    member _.AddAssemblyWithPdb(assemblyName) =
-        MetadataHelpers.addAssembly assemblyName metadataBuilder,
-        MetadataHelpers.addAssembly assemblyName pdbMetadataBuilder
+    member val Offset = offset with get, set
 
-    member _.AddModuleWithPdb(assemblyName, isExe) =
-        let mvid = Guid.NewGuid() // TODO: This is really meant for determinism, but I'm lazy...
-        MetadataHelpers.addModule assemblyName isExe mvid metadataBuilder,
-        MetadataHelpers.addModule assemblyName isExe mvid pdbMetadataBuilder
+    member _.Line = line
 
-    member _.AddAssemblyReference(asmName) =
-        MetadataHelpers.addAssemblyReference asmName metadataBuilder
+    member _.EndLine = endLine
 
-    member _.AddAssemblyReferenceWithPdb(asmName) =
-        MetadataHelpers.addAssemblyReference asmName metadataBuilder,
-        MetadataHelpers.addAssemblyReference asmName pdbMetadataBuilder
+    member _.Column = column
+
+    member _.EndColumn = endColumn
+
+[<Sealed>]
+type ClrPdbBuilder() =
+    let metadata = MetadataBuilder()
+
+    // Document checksum algorithms
+    let guidSha1 = Guid("ff1816ec-aa5e-4d10-87f7-6f4963833460")
+    let guidSha2 = Guid("8829d00f-11b8-4213-878b-770e8597ac16")
+
+    let corSymLanguageTypeId =
+        Guid(0xAB4F38C9u, 0xB6E6us, 0x43baus, 0xBEuy, 0x3Buy, 0x58uy, 0x08uy, 0x0Buy, 0x2Cuy, 0xCCuy, 0xE3uy)
+
+    let embeddedSourceId =
+        Guid(0x0e8a571bu, 0x6926us, 0x466eus, 0xb4uy, 0xaduy, 0x8auy, 0xb0uy, 0x46uy, 0x11uy, 0xf5uy, 0xfeuy)
+
+    let sourceLinkId =
+        Guid(0xcc110556u, 0xa091us, 0x4d38us, 0x9fuy, 0xecuy, 0x25uy, 0xabuy, 0x9auy, 0x35uy, 0x1auy, 0x6auy)
+
+    let checkSum (url: string) (checksumAlgorithm: HashAlgorithm) =
+        try
+            use file = System.IO.File.OpenRead(url)
+
+            let guid, alg =
+                match checksumAlgorithm with
+                | HashAlgorithm.Sha1 -> guidSha1, SHA1.Create() :> System.Security.Cryptography.HashAlgorithm
+                | HashAlgorithm.Sha256 -> guidSha2, SHA256.Create() :> System.Security.Cryptography.HashAlgorithm
+
+            let checkSum = alg.ComputeHash file
+            Some(guid, checkSum)
+        with _ ->
+            None
+
+    let serializeDocumentName (name: string) =
+       // let name = PathMap.apply pathMap name
+
+        let count s c =
+            s |> Seq.filter (fun ch -> c = ch) |> Seq.length
+
+        let s1, s2 = '/', '\\'
+
+        let separator = if (count name s1) >= (count name s2) then s1 else s2
+
+        let writer = BlobBuilder()
+        writer.WriteByte(byte separator)
+
+        for part in name.Split([| separator |]) do
+            let partIndex =
+                MetadataTokens.GetHeapOffset(BlobHandle.op_Implicit (metadata.GetOrAddBlobUTF8 part))
+
+            writer.WriteCompressedInteger(int partIndex)
+
+        metadata.GetOrAddBlob writer
+
+    let docs = Dictionary()
+
+    member internal _.Internal = metadata
+
+    member _.GetOrAddDocument(name: string) =
+        match docs.TryGetValue name with
+        | true, handle -> handle
+        | _ ->
+            let handle =
+                metadata.AddDocument(
+                    serializeDocumentName name,
+                    metadata.GetOrAddGuid(Guid.Empty),
+                    metadata.GetOrAddBlob(ImArray.empty),
+                    metadata.GetOrAddGuid corSymLanguageTypeId
+                )
+            docs.Add(name, handle)
+            handle
+
+    member private _.BuildSequencePoints(localSigToken, sps: ClrSequencePoint imarray) =
+        let builder = BlobBuilder()
+        builder.WriteCompressedInteger(localSigToken)
+
+        if sps.Length = 0 then
+            builder.WriteCompressedInteger(0)
+            builder.WriteCompressedInteger(0)
+            Unchecked.defaultof<BlobHandle>
+        else
+
+            let mutable currentDocument = sps[0].Document
+
+            if not currentDocument.IsNil then
+                builder.WriteCompressedInteger(
+                    MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
+                )
+
+            let mutable previousNonHiddenStartLine = -1
+            let mutable previousNonHiddenStartColumn = 0
+
+            for i in 0 .. (sps.Length - 1) do
+
+                if not sps[i].Document.IsNil && sps[i].Document <> currentDocument then
+                    currentDocument <- sps[i].Document
+
+                    builder.WriteCompressedInteger(0)
+
+                    builder.WriteCompressedInteger(
+                        MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
+                    )
+                else
+                    //=============================================================================================================================================
+                    // Sequence-point-record
+                    // Validate these with magic numbers according to the portable pdb spec Sequence point dexcription:
+                    // https://github.com/dotnet/corefx/blob/master/src/System.Reflection.Metadata/specs/PortablePdb-Metadata.md#methoddebuginformation-table-0x31
+                    //
+                    // So the spec is actually bit iffy!!!!! (More like guidelines really.  )
+                    //  It uses code similar to this to validate the values
+                    //    if (result < 0 || result >= ushort.MaxValue)  // be errorfull
+                    // Spec Says 0x10000 and value max = 0xFFFF but it can't even be = to maxvalue, and so the range is 0 .. 0xfffe inclusive
+                    //=============================================================================================================================================
+
+                    let capValue v maxValue =
+                        if v < 0 then 0
+                        elif v > maxValue then maxValue
+                        else v
+
+                    let capOffset v = capValue v 0xfffe
+                    let capLine v = capValue v 0x1ffffffe
+                    let capColumn v = capValue v 0xfffe
+
+                    let offset = capOffset sps[i].Offset
+                    let startLine = capLine sps[i].Line
+                    let endLine = capLine sps[i].EndLine
+                    let startColumn = capColumn sps[i].Column
+                    let endColumn = capColumn sps[i].EndColumn
+
+                    let offsetDelta = // delta from previous offset
+                        if i > 0 then
+                            offset - capOffset sps[i - 1].Offset
+                        else
+                            offset
+
+                    if i < 1 || offsetDelta > 0 then
+                        builder.WriteCompressedInteger offsetDelta
+
+                        // Check for hidden-sequence-point-record
+                        if
+                            startLine = 0xfeefee
+                            || endLine = 0xfeefee
+                            || (startColumn = 0 && endColumn = 0)
+                            || ((endLine - startLine) = 0 && (endColumn - startColumn) = 0)
+                        then
+                            // Hidden-sequence-point-record
+                            builder.WriteCompressedInteger 0
+                            builder.WriteCompressedInteger 0
+                        else
+                            // Non-hidden-sequence-point-record
+                            let deltaLines = endLine - startLine // lines
+                            builder.WriteCompressedInteger deltaLines
+
+                            let deltaColumns = endColumn - startColumn // Columns
+
+                            if deltaLines = 0 then
+                                builder.WriteCompressedInteger deltaColumns
+                            else
+                                builder.WriteCompressedSignedInteger deltaColumns
+
+                            if previousNonHiddenStartLine < 0 then // delta Start Line & Column:
+                                builder.WriteCompressedInteger startLine
+                                builder.WriteCompressedInteger startColumn
+                            else
+                                builder.WriteCompressedSignedInteger(startLine - previousNonHiddenStartLine)
+                                builder.WriteCompressedSignedInteger(startColumn - previousNonHiddenStartColumn)
+
+                            previousNonHiddenStartLine <- startLine
+                            previousNonHiddenStartColumn <- startColumn
+
+            metadata.GetOrAddBlob builder
+
+    member this.AddMethodDebugInformation(document, localSigToken, sequencePoints) =
+        metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, sequencePoints))
 
 [<Sealed>]
 type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: AssemblyName, consoleAssembly: AssemblyName) as this =
@@ -100,14 +390,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let tyDefsByQualifiedName = ConcurrentDictionary<string, obj>()
     let ilBuilder = BlobBuilder()
 
-    let md = ClrMetadataBuilder()
+    let metadataBuilder = MetadataBuilder()
+    let pdbBuilder = ClrPdbBuilder()
 
-    let metadataBuilder = md.Metadata
-    let pdbMetadataBuilder = md.PdbMetadata
-
-    do
-        md.AddAssemblyWithPdb(assemblyName)
-        |> ignore
+    do MetadataHelpers.addAssembly assemblyName metadataBuilder |> ignore
 
     // TODO: This assembly name equality is probably not entirely correct.
     let asmRefComparer =
@@ -242,7 +528,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         match asmRefCache.TryGetValue(asmName) with
         | true, handle -> handle
         | _ ->
-            let handle = md.AddAssemblyReference(asmName)
+            let handle = MetadataHelpers.addAssemblyReference asmName metadataBuilder
             asmRefCache.[asmName] <- handle
             handle
 
@@ -271,7 +557,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let consoleSysTy name isValueType =
         createTyRef ("System." + name) isValueType (addConsoleTyRef "System" name)
 
-    let moduleDefHandle, _ = md.AddModuleWithPdb(assemblyName, isExe)
+    let mvid = Guid.NewGuid() // TODO: This does not work for determinism, fix it.
+    let moduleDefHandle = MetadataHelpers.addModule assemblyName isExe mvid metadataBuilder
 
     do
         metadataBuilder.AddTypeDefinition(
@@ -445,28 +732,30 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member internal _.MetadataBuilder = metadataBuilder
     member internal _.ILBuilder = ilBuilder
 
+    member _.PdbBuilder = pdbBuilder
+
     member val ModuleDefinitionHandle = moduleDefHandle
 
-    member val TypeReferenceVoid = sysTy "Void" false
-    member val TypeReferenceObject = sysTyObject
-    member val TypeReferenceValueType = sysTy "ValueType" false
-    member val TypeReferenceEnum = sysTy "Enum" true
-    member val TypeReferenceByte = sysTy "Byte" true
-    member val TypeReferenceSByte = sysTy "SByte" true
-    member val TypeReferenceInt16 = sysTy "Int16" true
-    member val TypeReferenceUInt16 = sysTy "UInt16" true
-    member val TypeReferenceInt32 = sysTy "Int32" true
-    member val TypeReferenceUInt32 = sysTy "UInt32" true
-    member val TypeReferenceInt64 = sysTy "Int64" true
-    member val TypeReferenceUInt64 = sysTy "UInt64" true
-    member val TypeReferenceSingle = sysTy "Single" true
-    member val TypeReferenceDouble = sysTy "Double" true
-    member val TypeReferenceChar = sysTy "Char" true
-    member val TypeReferenceBoolean = sysTy "Boolean" true
-    member val TypeReferenceString = sysTy "String" false
-    member val TypeReferenceArray = sysTy "Array" false
-    member val TypeReferenceIntPtr = sysTy "IntPtr" true
-    member val TypeReferenceUIntPtr = sysTy "UIntPtr" true
+    member val TypeReferenceVoid: ClrTypeHandle = sysTy "Void" false
+    member val TypeReferenceObject: ClrTypeHandle = sysTyObject
+    member val TypeReferenceValueType: ClrTypeHandle = sysTy "ValueType" false
+    member val TypeReferenceEnum: ClrTypeHandle = sysTy "Enum" true
+    member val TypeReferenceByte: ClrTypeHandle = sysTy "Byte" true
+    member val TypeReferenceSByte: ClrTypeHandle = sysTy "SByte" true
+    member val TypeReferenceInt16: ClrTypeHandle = sysTy "Int16" true
+    member val TypeReferenceUInt16: ClrTypeHandle = sysTy "UInt16" true
+    member val TypeReferenceInt32: ClrTypeHandle = sysTy "Int32" true
+    member val TypeReferenceUInt32: ClrTypeHandle = sysTy "UInt32" true
+    member val TypeReferenceInt64: ClrTypeHandle = sysTy "Int64" true
+    member val TypeReferenceUInt64: ClrTypeHandle = sysTy "UInt64" true
+    member val TypeReferenceSingle: ClrTypeHandle = sysTy "Single" true
+    member val TypeReferenceDouble: ClrTypeHandle = sysTy "Double" true
+    member val TypeReferenceChar: ClrTypeHandle = sysTy "Char" true
+    member val TypeReferenceBoolean: ClrTypeHandle = sysTy "Boolean" true
+    member val TypeReferenceString: ClrTypeHandle = sysTy "String" false
+    member val TypeReferenceArray: ClrTypeHandle = sysTy "Array" false
+    member val TypeReferenceIntPtr: ClrTypeHandle = sysTy "IntPtr" true
+    member val TypeReferenceUIntPtr: ClrTypeHandle = sysTy "UIntPtr" true
 
     member val ``TypeReferenceAttribute`` = sysTy "Attribute" false
 
@@ -527,33 +816,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``GetTypeFromHandleMethod`` = lazy createGetTypeFromHandleMethod()
 
     member val EntryPoint = ClrMethodHandle.None with get, set
-
-    member this.EncodeReturnType (encoder: ReturnTypeEncoder, returnTy: ClrTypeHandle) =
-        if returnTy.HasEntityHandle then
-            if returnTy.EntityHandle.Equals(this.TypeReferenceVoid.EntityHandle) then
-                encoder.Void()
-            else
-                match returnTy.TryElementType with
-                | ValueSome elementTy when returnTy.IsByRef_t ->
-                    this.EncodeType(encoder.Type(true), elementTy)
-                | _ ->
-                    this.EncodeType(encoder.Type(false), returnTy)
-        else
-            match returnTy.TryElementType with
-            | ValueSome elementTy when returnTy.IsByRef_t ->
-                this.EncodeType(encoder.Type(true), elementTy)
-            | _ ->
-                this.EncodeType(encoder.Type(false), returnTy)
-
-    member this.EncodeParameters (encoder: ParametersEncoder, parTys: ClrTypeHandle imarray) =
-        parTys
-        |> ImArray.iter (fun parTy ->
-            match parTy.TryElementType with
-            | ValueSome elementTy when parTy.IsByRef_t ->
-                this.EncodeType(encoder.AddParameter().Type(true), elementTy)
-            | _ ->
-                this.EncodeType(encoder.AddParameter().Type(false), parTy)
-        )
 
     member this.EncodeAttributeElementType (encoder: CustomAttributeElementTypeEncoder, handle: ClrTypeHandle) =
         match handle with
@@ -616,99 +878,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             // TODO: Handle enum
             failwith "assert"
 
-    member this.EncodeType (encoder: SignatureTypeEncoder, handle: ClrTypeHandle) =
-        match handle with
-        | ClrTypeHandle.TypeSpecification(_, isValueType, tyRefHandle, tyInst) ->
-            let mutable encoderInst = encoder.GenericInstantiation(tyRefHandle.EntityHandle, tyInst.Length, isValueType)
-            tyInst
-            |> ImArray.iter (fun ty ->
-                this.EncodeType(encoderInst.AddArgument(), ty)
-            )
-        | ClrTypeHandle.Array(elementTyHandle, rank) ->
-            if rank < 1 then failwith "Invalid rank."
-            if rank = 1 then
-                let mutable elementEncoder = encoder.SZArray()
-                this.EncodeType(elementEncoder, elementTyHandle)
-            else
-                
-                let mutable elementEncoder = Unchecked.defaultof<_>
-                let mutable arrayShape = Unchecked.defaultof<_>
-                encoder.Array(&elementEncoder, &arrayShape)
-                arrayShape.Shape(rank, ImArray.empty, ImArray.init rank (fun _ -> 0))
-                
-        | ClrTypeHandle.TypeVariable(index, kind) ->
-            match kind with
-            | ClrTypeVariableKind.Type ->
-                encoder.GenericTypeParameter(index)
-            | ClrTypeVariableKind.Method ->
-                encoder.GenericMethodTypeParameter(index)
-        | ClrTypeHandle.ByRef(ty) ->
-            this.EncodeType(encoder, ty)
-        | ClrTypeHandle.ModReq(modifier, ty) ->
-            this.EncodeType(encoder, ty)
-            encoder.CustomModifiers().AddModifier(modifier.EntityHandle, false)
-            |> ignore
-        | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->
-            let mutable parEncoder = Unchecked.defaultof<_>
-            let mutable returnTyEncoder = Unchecked.defaultof<_>
-            encoder.FunctionPointer(convention = cc).Parameters(parTys.Length, &returnTyEncoder, &parEncoder)
-            this.EncodeReturnType(returnTyEncoder, returnTy)
-            this.EncodeParameters(parEncoder, parTys)
-        | ClrTypeHandle.NativePointer(elementTy) ->
-            if elementTy = this.TypeReferenceVoid then
-                encoder.VoidPointer()
-            else
-                this.EncodeType(encoder.Pointer(), elementTy)
-
-        | _ ->
-
-        let entityHandle = handle.EntityHandle
-
-        if entityHandle.Equals(this.TypeReferenceString.EntityHandle) then
-            encoder.String()
-        elif entityHandle.Equals(this.TypeReferenceObject.EntityHandle) then
-            encoder.Object()
-        elif entityHandle.Equals(this.TypeReferenceBoolean.EntityHandle) then
-            encoder.Boolean()
-        elif entityHandle.Equals(this.TypeReferenceByte.EntityHandle) then
-            encoder.Byte()
-        elif entityHandle.Equals(this.TypeReferenceSByte.EntityHandle) then
-            encoder.SByte()
-        elif entityHandle.Equals(this.TypeReferenceInt16.EntityHandle) then
-            encoder.Int16()
-        elif entityHandle.Equals(this.TypeReferenceUInt16.EntityHandle) then
-            encoder.UInt16()
-        elif entityHandle.Equals(this.TypeReferenceInt32.EntityHandle) then
-            encoder.Int32()
-        elif entityHandle.Equals(this.TypeReferenceUInt32.EntityHandle) then
-            encoder.UInt32()
-        elif entityHandle.Equals(this.TypeReferenceInt64.EntityHandle) then
-            encoder.Int64()
-        elif entityHandle.Equals(this.TypeReferenceUInt64.EntityHandle) then
-            encoder.UInt64()
-        elif entityHandle.Equals(this.TypeReferenceSingle.EntityHandle) then
-            encoder.Single()
-        elif entityHandle.Equals(this.TypeReferenceDouble.EntityHandle) then
-            encoder.Double()
-        elif entityHandle.Equals(this.TypeReferenceChar.EntityHandle) then
-            encoder.Char()
-        elif entityHandle.Equals(this.TypeReferenceIntPtr.EntityHandle) then
-            encoder.IntPtr()
-        elif entityHandle.Equals(this.TypeReferenceUIntPtr.EntityHandle) then
-            encoder.UIntPtr()
-        else
-            encoder.Type(handle.EntityHandle, handle.IsValueType)
-
     member internal this.CreateMethodSignature(convention, tyParCount: int, isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        let signature = BlobBuilder()
-        BlobEncoder(signature).MethodSignature(convention, tyParCount, isInstance).Parameters(
-            parTys.Length,
-            (fun encoder ->
-                this.EncodeReturnType(encoder, returnTy)),
-            (fun encoder -> 
-                this.EncodeParameters(encoder, parTys))
-        )
-        signature
+        MetadataHelpers.createMethodSignature(convention, tyParCount, isInstance, parTys, returnTy, this)
         |> metadataBuilder.GetOrAddBlob
 
     member internal this.CreateStandaloneSignature(locals: ClrLocal imarray) =
@@ -718,7 +889,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         locals
         |> ImArray.iter (fun local ->
-            this.EncodeType(localVarSignature.AddVariable().Type(local.Type.IsByRef_t), local.Type)
+            MetadataHelpers.encodeType(localVarSignature.AddVariable().Type(local.Type.IsByRef_t), local.Type, this)
         )
 
         signature
@@ -735,9 +906,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                     | x when x = this.TypeReferenceVoid.EntityHandle -> 
                         encoder.Void()
                     | _ ->
-                        this.EncodeType(encoder.Type(returnTy.IsByRef_t), returnTy)
+                        MetadataHelpers.encodeType(encoder.Type(returnTy.IsByRef_t), returnTy, this)
                 else
-                    this.EncodeType(encoder.Type(returnTy.IsByRef_t), returnTy)),
+                    MetadataHelpers.encodeType(encoder.Type(returnTy.IsByRef_t), returnTy, this)),
             (fun _ -> ())
         )
         signature
@@ -745,7 +916,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member internal this.CreateFieldSignature(ty: ClrTypeHandle) =
         let signature = BlobBuilder()
-        this.EncodeType(BlobEncoder(signature).FieldSignature(), ty)
+        MetadataHelpers.encodeType(BlobEncoder(signature).FieldSignature(), ty, this)
         signature
         |> metadataBuilder.GetOrAddBlob
 
@@ -767,7 +938,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                     encoder.GenericInstantiation(genericTyHandle.EntityHandle, tyInst.Length, isValueType)
                 tyInst
                 |> ImArray.iter (fun ty ->
-                    this.EncodeType(encoderInst.AddArgument(), ty)
+                    MetadataHelpers.encodeType(encoderInst.AddArgument(), ty, this)
                 )
 
                 metadataBuilder.AddTypeSpecification(metadataBuilder.GetOrAddBlob(signature))
@@ -819,7 +990,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         let pdbBuilder = 
             PortablePdbBuilder(
-                pdbMetadataBuilder, 
+                pdbBuilder.Internal, 
                 rootBuilder.Sizes.RowCounts, 
                 entryPoint,
                 idProvider = portablePdbIdProvider
@@ -908,7 +1079,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
             tyArgs
             |> ImArray.iter (fun tyArg ->
-                this.EncodeType(encoder.AddArgument(), tyArg)
+                MetadataHelpers.encodeType(encoder.AddArgument(), tyArg, this)
             )
 
             let handleSig = metadataBuilder.GetOrAddBlob(encoder.Builder)
@@ -940,7 +1111,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
             tyArgs
             |> ImArray.iter (fun tyArg ->
-                this.EncodeType(encoder.AddArgument(), tyArg)
+                MetadataHelpers.encodeType(encoder.AddArgument(), tyArg, this)
             )
 
             let handleSig = metadataBuilder.GetOrAddBlob(encoder.Builder)
@@ -986,8 +1157,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             2,
             (fun encoder -> encoder.Void()),
             (fun encoder -> 
-                this.EncodeType(encoder.AddParameter().Type(), this.TypeReferenceObject)
-                this.EncodeType(encoder.AddParameter().Type(), this.TypeReferenceIntPtr))
+                MetadataHelpers.encodeType(encoder.AddParameter().Type(), this.TypeReferenceObject, this)
+                MetadataHelpers.encodeType(encoder.AddParameter().Type(), this.TypeReferenceIntPtr, this))
         )
 
         let name = metadataBuilder.GetOrAddString(".ctor")
@@ -1034,6 +1205,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             )
 
         createMemRef realHandle name signature
+
+    member this.EncodeType(encoder, handle) =
+        MetadataHelpers.encodeType(encoder, handle, this)
 
     member this.AddArrayType(elementTy: ClrTypeHandle, rank) =
         ClrTypeHandle.Array(elementTy, rank)
@@ -1284,8 +1458,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             let mutable parEncoder = Unchecked.defaultof<_>
             let mutable returnTyEncoder = Unchecked.defaultof<_>
             encoder.MethodSignature(convention = cc).Parameters(parTys.Length, &returnTyEncoder, &parEncoder)
-            asmBuilder.EncodeReturnType(returnTyEncoder, returnTy)
-            asmBuilder.EncodeParameters(parEncoder, parTys)
+            MetadataHelpers.encodeReturnType(returnTyEncoder, returnTy, asmBuilder)
+            MetadataHelpers.encodeParameters(parEncoder, parTys, asmBuilder)
             let handle = asmBuilder.MetadataBuilder.AddStandaloneSignature(asmBuilder.MetadataBuilder.GetOrAddBlob(signature))
             il.CallIndirect(handle)
 
@@ -1496,8 +1670,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Brtrue _
         | I.Brfalse _
         | I.Br _
-        | I.Label _ ->
-            failwith "Unexpected branch instruction."
+        | I.Label _
+        | I.SequencePoint _ ->
+            failwith "Unexpected instruction."
 
     static let estimateSizeOfInstr instr =
         match instr with
@@ -1733,7 +1908,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Brfalse _
         | I.Br _ ->
             1 + 4
-        | I.Label _ ->
+
+        | I.Label _
+        | I.SequencePoint _ ->
             0
 
     static let createInstructionEncoder() =
@@ -1809,6 +1986,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Label labelId ->
                 dummyIL.MarkLabel(labels[labelId])
 
+            | I.SequencePoint _ ->
+                ()
+
             | _ ->
                 emitInstr asmBuilder &maxStack &dummyIL instr
 #endif
@@ -1838,6 +2018,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         // In Debug, we emit the IL instructions twice.
         OlyAssert.Equal(dummyIL.Offset, totalSize)
 #endif
+
+        let ilBuilder = asmBuilder.ILBuilder
+        ilBuilder.Align(4)
+
+        let localSig = asmBuilder.CreateStandaloneSignature(this.Locals)
+        let localSigToken = MetadataTokens.GetRowNumber(localSig)
+        let mutable firstDocument = None
+
+        let seqPoints = ImArray.builder()
 
         let mutable maxStack = 8 // TODO: We could optimize this.
 
@@ -1875,20 +2064,41 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Label labelId ->
                 il.MarkLabel(labels[labelId])
 
+            | I.SequencePoint(documentPath, startLine, endLine, startColumn, endColumn) ->
+                if String.IsNullOrWhiteSpace documentPath then
+                    ()
+                else
+                    let document = asmBuilder.PdbBuilder.GetOrAddDocument(documentPath)
+                    match firstDocument with
+                    | None -> 
+                        firstDocument <- Some document
+                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
+                    | _ when il.Offset > 0 -> 
+                        seqPoints.Add(ClrSequencePoint(Unchecked.defaultof<_>, il.Offset, startLine, endLine, startColumn, endColumn))
+                    | _ ->
+                        ()
+
             | _ ->
                 emitInstr asmBuilder &maxStack &il instr
 
         //---------------------------------------------------------
 
-        let ilBuilder = asmBuilder.ILBuilder
-        ilBuilder.Align(4)
         let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)
 
         let bodyOffset =
             if this.Locals.IsEmpty then
                 methBodyStream.AddMethodBody(il, maxStack = maxStack)
             else
-                methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = asmBuilder.CreateStandaloneSignature(this.Locals))
+                methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = localSig)
+
+        match firstDocument with
+        | Some document ->
+            for i = 0 to seqPoints.Count - 1 do
+                seqPoints[i].Offset <- seqPoints[i].Offset + bodyOffset
+            asmBuilder.PdbBuilder.AddMethodDebugInformation(document, localSigToken, seqPoints.ToImmutable()) 
+            |> ignore
+        | _ ->
+            ()
 
         bodyOffset
 

@@ -602,9 +602,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             emitter.Write(exeFile, pdbFile)
             exeFile.Close()
             pdbFile.Close()
-            // TODO: Fix this.
-            //if not emitPdb then
-            try File.Delete(pdbPath) with | _ -> ()
             return Ok exePath
         else
             let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
@@ -614,9 +611,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             emitter.Write(dllFile, pdbFile)
             dllFile.Close()
             pdbFile.Close()
-            // TODO: Fix this.
-            //if not emitPdb then
-            try File.Delete(pdbPath) with | _ -> ()
             return Ok dllPath
         }
 
