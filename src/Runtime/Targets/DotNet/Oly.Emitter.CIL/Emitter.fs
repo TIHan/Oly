@@ -1053,14 +1053,11 @@ module rec ClrCodeGen =
 
         | E.Value(textRange, irValue) ->
             GenValue cenv env irValue
-            if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
-                I.SequencePoint(textRange.Path.ToString(), textRange.StartLine, textRange.EndLine, textRange.StartColumn, textRange.EndColumn) |> emitInstruction cenv
-
 
         | E.Operation(textRange, irOp) ->
-            GenOperation cenv env irOp
             if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
                 I.SequencePoint(textRange.Path.ToString(), textRange.StartLine, textRange.EndLine, textRange.StartColumn, textRange.EndColumn) |> emitInstruction cenv
+            GenOperation cenv env irOp
 
         | E.Sequential(irExpr1, irExpr2) ->
             GenExpression cenv (setNotReturnable env) irExpr1

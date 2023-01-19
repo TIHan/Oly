@@ -9,13 +9,29 @@ MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 chicken(): () =
     print("chicken")
 
+    print("chicken")
+
+    print("chicken")
+
+DoWork(): int32 = 1
+
+DoWork2(x: int32): () = ()
+
 main(): () =
+    let x = DoWork()
+    let y = DoWork()
+
+    DoWork2(DoWork())
+
+    DoWork2(
+
+
+        DoWork()
 
 
 
-
+    )
 
     chicken()
-
 
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
