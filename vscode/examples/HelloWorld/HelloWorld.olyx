@@ -5,7 +5,6 @@
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
-#[not inline]
 chicken(): () =
     print("chicken")
 
@@ -13,25 +12,44 @@ chicken(): () =
 
     print("chicken")
 
-DoWork(): int32 = 1
+#[inline]
+DoWork(): () = print("beefffff\n")
 
-DoWork2(x: int32): () = ()
+DoWork2(x: int32): () = print("doot")
+
+DoWork3(): int32 = 5
 
 main(): () =
-    let x = DoWork()
-    let y = DoWork()
 
-    DoWork2(DoWork())
+  //  DoWork()
+    let y = 1
+    let x = DoWork3()
+    // DoWork()
 
-    DoWork2(
+    // static let f(x) = x
 
+    // if (x == f(5))
+    //     DoWork2(DoWork3())
 
-        DoWork()
+    match (x, x, x, x)
+    | 5, 5, 5, 4 => print("failed")
+    | 5, 5, 4, 4 => print("failed")
+    // | 5, 4, 4, 4 => DoWork2(x)
+    // | 5, 5, 5, 5 => DoWork2(x)
+    | _ => 
+      DoWork()
 
+    print("the end")
 
+    // DoWork()
 
-    )
+    // DoWork()
 
-    chicken()
+    // chicken()
 
-    let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    // chicken()
+
+    // DoWork()
+
+    // let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    // let result = MessageBox(default, "Hello World!", "Message Box", 0)

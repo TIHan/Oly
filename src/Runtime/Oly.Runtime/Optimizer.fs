@@ -86,7 +86,7 @@ type optenv<'Type, 'Function, 'Field> =
 
     member this.IsDebuggable =
         match this.irTier with
-        | OlyIRFunctionTier.Tier0 -> true
+        | OlyIRFunctionTier.Tier0 true -> true
         | _ -> false
 
     member this.LocalCount =

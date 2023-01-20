@@ -293,10 +293,9 @@ type ClrPdbBuilder() =
 
             let mutable currentDocument = sps[0].Document
 
-            if not currentDocument.IsNil then
-                builder.WriteCompressedInteger(
-                    MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
-                )
+            builder.WriteCompressedInteger(
+                MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
+            )
 
             let mutable previousNonHiddenStartLine = -1
             let mutable previousNonHiddenStartColumn = 0
@@ -381,7 +380,7 @@ type ClrPdbBuilder() =
 
             metadata.GetOrAddBlob builder
 
-    member this.AddMethodDebugInformation(document, localSigToken, sequencePoints) =
+    member this.AddMethodDebugInformation(localSigToken, sequencePoints) =
         metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, sequencePoints))
 
 [<Sealed>]
@@ -563,6 +562,14 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             metadataBuilder.GetOrAddString("DebuggingModes")
         )
 
+    let addDebuggerStepperBoundaryAttributeTyRef () =
+        let asmRef = createAsmRef (primaryAssembly)
+        metadataBuilder.AddTypeReference(
+            AssemblyReferenceHandle.op_Implicit asmRef,
+            metadataBuilder.GetOrAddString("System.Diagnostics"),
+            metadataBuilder.GetOrAddString("DebuggerStepperBoundaryAttribute")
+        )
+
     let sysTy name isValueType =
         createTyRef ("System." + name) isValueType (addBuiltInTyRef "System" name)
 
@@ -603,6 +610,28 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         let realHandle =
             metadataBuilder.AddMemberReference(
                 addDebuggableTyRef(),
+                name,
+                signature
+            )
+
+        createMemRef realHandle name signature
+
+    let createDebuggerStepperBoundaryAttributeConstructor() =
+        let signature = BlobBuilder()
+        let mutable encoder = BlobEncoder(signature)
+        let mutable encoder = encoder.MethodSignature(isInstanceMethod = true)
+        encoder.Parameters(
+            0,
+            (fun encoder -> encoder.Void()),
+            (fun _ -> ())
+        )
+
+        let name = metadataBuilder.GetOrAddString(".ctor")
+        let signature = metadataBuilder.GetOrAddBlob(signature)
+
+        let realHandle =
+            metadataBuilder.AddMemberReference(
+                addDebuggerStepperBoundaryAttributeTyRef(),
                 name,
                 signature
             )
@@ -844,18 +873,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             ("System.Runtime.CompilerServices.IsReadOnlyAttribute") 
             false 
             (addBuiltInTyRef "System.Runtime.CompilerServices" "IsReadOnlyAttribute")
-            
-    member val tr_DebuggableAttribute =
-        createTyRef 
-            ("System.Diagnostics.DebuggableAttribute") 
-            false 
-            (addBuiltInTyRef "System.Diagnostics" "DebuggableAttribute")
 
     member val ``ConsoleWriteMethod`` = lazy createConsoleWriteMethod()
     member val ``ConsoleWriteMethod_Int32`` = lazy createConsoleWriteMethod_Int32()
     member val ``ConsoleWriteMethod_String`` = lazy createConsoleWriteMethod_String()
     member val ``GetTypeFromHandleMethod`` = lazy createGetTypeFromHandleMethod()
     member val ``DebuggableAttributeConstructor`` = lazy createDebuggableConstructor()
+    member val ``DebuggerStepperBoundaryAttribute`` = lazy createDebuggerStepperBoundaryAttributeConstructor()
 
     member val EntryPoint = ClrMethodHandle.None with get, set
 
@@ -1380,6 +1404,22 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         )
 
     member _.AddMethodAttribute(parent: ClrMethodHandle, ctor: ClrMethodHandle, blobHandle) =
+        attrQueue.Enqueue(fun () ->
+            metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
+        )
+
+    member _.AddMethodAttribute(parent: ClrMethodHandle, ctor: ClrMethodHandle) =
+        let b = BlobBuilder()
+
+        // Prolog
+        b.WriteByte(1uy)
+        b.WriteByte(0uy)
+
+        // NumNamed
+        b.WriteByte(0uy)
+        b.WriteByte(0uy)        
+
+        let blobHandle = this.AddBlob(b)
         attrQueue.Enqueue(fun () ->
             metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
         )
@@ -2134,9 +2174,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     match firstDocument with
                     | None -> 
                         firstDocument <- Some document
-                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine + 1, endLine + 1, startColumn + 1, endColumn + 1))
+                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
                     | _ when il.Offset > 0 -> 
-                        seqPoints.Add(ClrSequencePoint(Unchecked.defaultof<_>, il.Offset, startLine + 1, endLine + 1, startColumn + 1, endColumn + 1))
+                        seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
                     | _ ->
                         ()
 
@@ -2154,10 +2194,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = localSig)
 
         match firstDocument with
-        | Some document ->
-            for i = 0 to seqPoints.Count - 1 do
-                seqPoints[i].Offset <- seqPoints[i].Offset + bodyOffset
-            asmBuilder.PdbBuilder.AddMethodDebugInformation(document, localSigToken, seqPoints.ToImmutable()) 
+        | Some _ ->
+            asmBuilder.PdbBuilder.AddMethodDebugInformation(localSigToken, seqPoints.ToImmutable()) 
             |> ignore
         | _ ->
             ()

@@ -5,9 +5,14 @@ open Oly.Core
 
 [<RequireQualifiedAccess>]
 type OlyIRFunctionTier =
-    | Tier0
+    | Tier0 of minOpts: bool
     | Tier1
     | Tier2
+
+    member this.HasMinimalOptimizations =
+        match this with
+        | Tier0 true -> true
+        | _ -> false
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 

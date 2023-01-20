@@ -3623,6 +3623,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         // TODO: At the moment, we do not use Tier1. We will have to do work if we want to make this
         //       a tiered JIT.
         if assemblies[func.EnclosingType.AssemblyIdentity].ilAsm.IsDebuggable then
-            OlyIRFunctionTier.Tier0
+            OlyIRFunctionTier.Tier0(true)
         else
             OlyIRFunctionTier.Tier2
