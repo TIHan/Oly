@@ -948,8 +948,10 @@ let private importFunctionFlags (ilFuncFlags: OlyILFunctionFlags) =
     let funcFlags =
         if ilFuncFlags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.Inline then
             funcFlags ||| FunctionFlags.Inline
-        elif ilFuncFlags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.NotInline then
-            funcFlags ||| FunctionFlags.NotInline
+        elif ilFuncFlags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineNever then
+            funcFlags ||| FunctionFlags.InlineNever
+        elif ilFuncFlags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineAlways then
+            funcFlags ||| FunctionFlags.InlineAlways
         else
             funcFlags
 

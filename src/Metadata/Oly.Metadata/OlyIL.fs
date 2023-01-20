@@ -116,7 +116,8 @@ type OlyILFunctionFlags =
     | None                          = 0x000000
     | Constructor                   = 0x000001
     | Inline                        = 0x000010
-    | NotInline                     = 0x000020
+    | InlineNever                   = 0x000020
+    | InlineAlways                  = 0x000030
     | InlineMask                    = 0x000070
 
     /// Marks the function as 'mutable'.

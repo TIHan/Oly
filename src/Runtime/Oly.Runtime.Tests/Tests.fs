@@ -161,7 +161,7 @@ let ``Should get function body because it is invoked in main`` () =
             "test", 
             ImArray.empty,
             ImArray.empty,
-            OlyILFunctionFlags.NotInline, 
+            OlyILFunctionFlags.InlineNever, 
             OlyILMemberFlags.Static, 
             ilLocals,
             ilExpr,

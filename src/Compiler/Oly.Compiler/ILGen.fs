@@ -703,11 +703,14 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
             if func.IsInline then
                 if func.IsAbstract then
                     failwith "Abstract function cannot be marked as inlineable."
-                ilFuncFlags ||| OlyILFunctionFlags.Inline
-            elif func.IsNotInline then
+                if func.IsInlineAlways then
+                    ilFuncFlags ||| OlyILFunctionFlags.InlineAlways
+                else
+                    ilFuncFlags ||| OlyILFunctionFlags.Inline
+            elif func.IsInlineNever then
                 if func.IsAbstract then
                     failwith "Abstract function cannot be marked as not inlineable."
-                ilFuncFlags ||| OlyILFunctionFlags.NotInline
+                ilFuncFlags ||| OlyILFunctionFlags.InlineNever
             else
                 ilFuncFlags
 

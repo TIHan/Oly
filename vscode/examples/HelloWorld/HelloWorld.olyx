@@ -23,7 +23,7 @@ main(): () =
 
   //  DoWork()
     let y = 1
-    let x = DoWork3()
+    let mutable x = DoWork3()
     // DoWork()
 
     // static let f(x) = x
@@ -31,9 +31,11 @@ main(): () =
     // if (x == f(5))
     //     DoWork2(DoWork3())
 
-    match (x, x, x, x)
+    match (x, x + x, x, x)
     | 5, 5, 5, 4 => print("failed")
     | 5, 5, 4, 4 => print("failed")
+    | _, _, z, _ when (y == (6 - z)) => print("doot")
+    | _, 10, _, 5 when (y == (0 + 1)) => print("zooot")
     // | 5, 4, 4, 4 => DoWork2(x)
     // | 5, 5, 5, 5 => DoWork2(x)
     | _ => 

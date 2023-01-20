@@ -122,9 +122,13 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
 let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILFunctionDefinition) =
     if ilFuncDef.IsConstructor || ilFuncDef.IsAbstract || (ilFuncDef.IsVirtual && not ilFuncDef.IsSealed) || ilFuncDef.IsExported || ilFuncDef.IsImported then
         false
-    elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.NotInline) then
+    elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineNever then
         false
-    elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Inline) then
+    elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineAlways then
+        true
+    elif ilAsm.IsDebuggable then
+        false
+    elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.Inline then
         true
     else
         let ilFuncBody = ilAsm.GetFunctionBody(ilFuncDef.BodyHandle.contents.Value)
@@ -695,7 +699,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             
         let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =
             
-            if (not(env.ILAssembly.IsDebuggable) && func.Flags.IsInlineable) then
+            if func.Flags.IsInlineable then
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr

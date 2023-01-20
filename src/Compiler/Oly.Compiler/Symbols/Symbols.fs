@@ -1565,7 +1565,9 @@ type FunctionFlags =
     | Inline                        = 0x000000000100L
 
     /// Function is marked 'not inline' and will never be inlined by the runtime.
-    | NotInline                     = 0x000000000200L
+    | InlineNever                   = 0x000000000200L
+
+    | InlineAlways                  = 0x000000000300L
 
     | InlineMask                    = 0x000000000700L
 

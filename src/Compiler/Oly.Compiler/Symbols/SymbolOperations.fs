@@ -1749,7 +1749,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
         if attributesContainInline attrs then
             funcFlags ||| FunctionFlags.Inline
         elif attributesContainNotInline attrs then
-            funcFlags ||| FunctionFlags.NotInline
+            funcFlags ||| FunctionFlags.InlineNever
         else
             funcFlags
 

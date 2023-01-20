@@ -964,11 +964,16 @@ type BoundExpression with
 
 type IFunctionSymbol with
 
+    /// Fucntion is inlineable or always inlineable.
     member this.IsInline =
-        this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.Inline
+        (this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.Inline) ||
+        (this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.InlineAlways)
 
-    member this.IsNotInline =
-        this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.NotInline
+    member this.IsInlineNever =
+        this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.InlineNever
+
+    member this.IsInlineAlways =
+        this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.InlineAlways
 
 // ************************************************************************
 

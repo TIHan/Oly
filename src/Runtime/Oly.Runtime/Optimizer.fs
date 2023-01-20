@@ -556,7 +556,7 @@ let tryGetFunctionBody optenv func =
 let tryInlineFunction optenv irExpr =
     match irExpr with
     | E.Operation(irTextRange, O.Call(irFunc, irArgExprs, resultTy)) 
-            when (not optenv.IsDebuggable && irFunc.IsInlineable) ->
+            when (irFunc.IsInlineable) ->
         let func = irFunc.RuntimeFunction
 
         if not <| pushInline optenv func then
