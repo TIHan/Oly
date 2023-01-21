@@ -784,13 +784,15 @@ let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
                     | E.None _ 
                     | E.Let _ -> true
                     | E.IfElse _ -> true
+                    | Ignore _ -> true
                     | _ -> false
                 )
                 match bodyExpr with
                 | E.None _ ->
                     E.Let(syntaxInfo, bindingInfo, rhsExpr, expr)
                 | E.Let _ 
-                | E.IfElse _ ->
+                | E.IfElse _
+                | Ignore _ ->
                     E.Let(syntaxInfo, bindingInfo, rhsExpr, transform bodyExpr)
                 | _ ->
                     OlyAssert.Fail("bad expression")

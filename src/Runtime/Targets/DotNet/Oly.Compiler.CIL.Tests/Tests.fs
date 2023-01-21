@@ -12874,6 +12874,26 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Regression - pattern match for nested tuple should work``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 5
+    match ((x, (x, x)))
+    | (y, _) => 
+        print("pass")
+    | _ =>
+        print("fail")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "pass"
+    |> ignore
+
+[<Fact>]
 let ``Enum should work with extensions``() =
     let src =
         """
