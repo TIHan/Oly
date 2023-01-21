@@ -44,20 +44,14 @@ main(): () =
     //     DoWork4(DoWork3()) + 
     //       DoWork4(DoWork3()))
 
-    match (x, x + x, (x, x), (x, (x, x)))
-    | 5, z, (_, w), (99, _) => 
-      print(z)
-      print(w)
-    //  print(b)
-      print("5\n")
-    | 5, beef, (_, 5), (y, _) => 
-      print(y)
-    //  print(d)
-      print(beef)
-      print("nope\n")
-    | _, 8, _, _ => print("doot\n")
+    match (x, x, x)
+    | 2, y, 10
+    | 8, 3, y
+    | y, 1, 1 => 
+        print("fail")
+        print(y)
     | _ => 
-      DoWork()
+        print("pass")
 
     // chicken()
 

@@ -12894,6 +12894,52 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Regression - pattern match should work with Or cases when binding a value``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 5
+    match (x, x, x)
+    | 2, y, 10
+    | 8, 3, y
+    | y, 1, 1 => 
+        print("fail")
+        print(y)
+    | _ => 
+        print("pass")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "pass"
+    |> ignore
+
+[<Fact>]
+let ``Regression - pattern match should work with Or cases when binding a value 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 5
+    match ((x, x, x))
+    | (2, y, 10)
+    | (8, 3, y)
+    | (y, 1, 1) => 
+        print("fail")
+        print(y)
+    | _ => 
+        print("pass")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "pass"
+    |> ignore
+
+[<Fact>]
 let ``Enum should work with extensions``() =
     let src =
         """
