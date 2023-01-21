@@ -1012,28 +1012,30 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member internal this.EnqueueOverride(f) =
         overrideQueue.Enqueue(f)
-    
-    member this.Write(stream: IO.Stream, pdbStream: IO.Stream) =
 
+    member private this.AddDebuggableAttribute(asmDefHandle) =
+        let b = BlobBuilder()
+
+        // Prolog
+        b.WriteByte(1uy)
+        b.WriteByte(0uy)
+
+        b.WriteInt32(1 ||| 256)
+
+        // NumNamed
+        b.WriteByte(0uy)
+        b.WriteByte(0uy)        
+
+        let blobHandle = this.AddBlob(b)
+
+        metadataBuilder.AddCustomAttribute(asmDefHandle, this.DebuggableAttributeConstructor.Value.UnsafeLazilyEvaluateEntityHandle(), blobHandle)
+        |> ignore
+    
+    member this.Write(stream: IO.Stream, pdbStream: IO.Stream, isDebuggable: bool) =
         let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
 
-        let writeAttrArgs () =
-            let b = BlobBuilder()
-
-            // Prolog
-            b.WriteByte(1uy)
-            b.WriteByte(0uy)
-
-            b.WriteInt32(1 ||| 256)
-
-            // NumNamed
-            b.WriteByte(0uy)
-            b.WriteByte(0uy)        
-
-            this.AddBlob(b)
-
-        metadataBuilder.AddCustomAttribute(asmDefHandle, this.DebuggableAttributeConstructor.Value.UnsafeLazilyEvaluateEntityHandle(), writeAttrArgs())
-        |> ignore
+        if isDebuggable then
+            this.AddDebuggableAttribute(asmDefHandle)
 
         while tyDefQueue.Count > 0 do
             processQueue tyDefQueue
@@ -1773,7 +1775,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Brfalse _
         | I.Br _
         | I.Label _
-        | I.SequencePoint _ ->
+        | I.SequencePoint _
+        | I.Skip ->
             failwith "Unexpected instruction."
 
     static let estimateSizeOfInstr instr =
@@ -2012,7 +2015,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             1 + 4
 
         | I.Label _
-        | I.SequencePoint _ ->
+        | I.SequencePoint _
+        | I.Skip ->
             0
 
     static let createInstructionEncoder() =
@@ -2088,7 +2092,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Label labelId ->
                 dummyIL.MarkLabel(labels[labelId])
 
-            | I.SequencePoint _ ->
+            | I.SequencePoint _
+            | I.Skip ->
                 ()
 
             | _ ->
@@ -2179,6 +2184,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                         seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
                     | _ ->
                         ()
+
+            | I.Skip ->
+                ()
 
             | _ ->
                 emitInstr asmBuilder &maxStack &il instr

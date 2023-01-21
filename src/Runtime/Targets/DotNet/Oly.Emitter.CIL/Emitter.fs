@@ -175,6 +175,7 @@ module rec ClrCodeGen =
             irTier: OlyIRFunctionTier
             mutable localCount: int ref
             mutable nextLabelId: int32 ref
+            mutable seqPointCount: int ref
         }
 
         member this.NewBuffer() =
@@ -198,10 +199,24 @@ module rec ClrCodeGen =
             | OlyIRFunctionTier.Tier0 true -> true
             | _ -> false
 
+        member this.GetSequencePointCount() =
+            this.seqPointCount.contents
+
+        member this.IncrementSequencePointCount() =
+            this.seqPointCount.contents <- this.seqPointCount.contents + 1
+
+        member this.DecrementSequencePointCount() =
+            this.seqPointCount.contents <- this.seqPointCount.contents - 1
+
+    type SequencePointBehavior =
+        | EnableSequencePoint
+        | DisableSequencePoint
+
     type env =
         {
             isInWhileLoop: bool
             isReturnable: bool
+            spb: SequencePointBehavior
         }
 
     let private tryGetLastInstruction cenv =
@@ -211,6 +226,12 @@ module rec ClrCodeGen =
         else
             ValueNone
 
+    let private setLastInstruction cenv instr =
+        if cenv.buffer.Count > 0 then
+            cenv.buffer[cenv.buffer.Count - 1] <- instr
+        else
+            OlyAssert.Fail("Cannot set last instruction as no instructions have been emitted.")
+
     let private setReturnable env =
         if env.isReturnable then env
         else { env with isReturnable = true }
@@ -218,6 +239,11 @@ module rec ClrCodeGen =
     let private setNotReturnable env =
         if env.isReturnable then { env with isReturnable = false }
         else env
+
+    let private setDisableSequencePoint env =
+        match env.spb with
+        | DisableSequencePoint -> env
+        | _ -> { env with spb = DisableSequencePoint }
 
     let private getPrimitiveTypeCode cenv (ty: ClrTypeInfo) =
         if ty.IsDefinitionEnum then
@@ -333,6 +359,28 @@ module rec ClrCodeGen =
     let GenAnonymousFunctionInvoke cenv (argTys: ClrTypeInfo imarray) (returnTy: ClrTypeInfo) =
         cenv.assembly.AddAnonymousFunctionInvoke(argTys |> Seq.map (fun x -> x.Handle) |> ImArray.ofSeq, returnTy.Handle)
 
+    let GenArgumentExpression (cenv: cenv) (env: env) expr =
+        match expr with
+        | E.Value _ -> 
+            GenExpression cenv (setDisableSequencePoint env) expr
+        ////| E.Operation(_, op) ->
+        ////    if cenv.IsDebuggable then
+        ////        if op.ArgumentCount = 0 || hasAllValues op then
+        ////            GenExpression cenv (setDisableSequencePoint env) expr
+        ////        else                   
+        ////            let localTy = expr.ResultType
+        ////            let localIndex = cenv.NewLocal(localTy)
+
+        ////            GenExpression cenv (setDisableSequencePoint env) expr
+        ////            let textRange = expr.DebugSourceTextRange
+        ////            emitSequencePoint cenv env &textRange
+        ////            I.Stloc localIndex |> emitInstruction cenv
+        ////            I.Ldloc localIndex |> emitInstruction cenv
+        ////    else
+        ////        GenExpression cenv (setDisableSequencePoint env) expr
+        | _ ->
+            GenExpression cenv env expr
+
     let GenOperation (cenv: cenv) prevEnv (textRange: inref<OlyIRDebugSourceTextRange>) (irOp: O<ClrTypeInfo, _, _>) =
         let env = { prevEnv with isReturnable = false }
         match irOp with
@@ -340,8 +388,8 @@ module rec ClrCodeGen =
             let parTys = irFunc.EmittedFunction.Parameters.RemoveAt(0) |> ImArray.map (fun (_, x) -> x.Handle)
             let returnTy = irFunc.EmittedFunction.ReturnType.Handle
 
-            GenExpression cenv env receiverExpr
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env receiverExpr
+
             emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
             I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
 
@@ -351,30 +399,29 @@ module rec ClrCodeGen =
             ()
 
         | O.LoadArrayLength(irReceiver, rank, _) ->
-            GenExpression cenv env irReceiver
+            GenArgumentExpression cenv env irReceiver
+
             if rank > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
                 emitInstruction cenv I.Ldlen
 
         | O.LoadArrayElement(irReceiver, irIndexArgs, resultTy) ->
-            GenExpression cenv env irReceiver
+            GenArgumentExpression cenv env irReceiver
             if irIndexArgs.Length > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
-                GenExpression cenv env irIndexArgs[0]
-                emitSequencePoint cenv &textRange
+                GenArgumentExpression cenv env irIndexArgs[0]
                 emitInstruction cenv (I.Ldelem resultTy.Handle)
 
         | O.LoadArrayElementAddress(irReceiver, irIndexArgs, _, resultTy) ->
-            GenExpression cenv env irReceiver
+            GenArgumentExpression cenv env irReceiver
             if irIndexArgs.Length > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
-                GenExpression cenv env irIndexArgs[0]
+                GenArgumentExpression cenv env irIndexArgs[0]
                 match resultTy.TryByRefElementType with
                 | ValueSome resultTy ->
-                    emitSequencePoint cenv &textRange
                     emitInstruction cenv (I.Ldelema resultTy.Handle)
                 | _ ->
                     failwith "assert"
@@ -385,53 +432,46 @@ module rec ClrCodeGen =
                 | ValueSome ty -> ty
                 | _ -> failwith "Expecting a type with an element."
 
-            GenExpression cenv env irReceiver
+            GenArgumentExpression cenv env irReceiver
             if irIndexArgs.Length > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
-                GenExpression cenv env irIndexArgs[0]
-                GenExpression cenv env irRhsArg
-                emitSequencePoint cenv &textRange
+                GenArgumentExpression cenv env irIndexArgs[0]
+                GenArgumentExpression cenv env irRhsArg
                 emitInstruction cenv (I.Stelem tyHandle)
 
         | O.BitwiseNot(irArg, resultTy) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             emitInstruction cenv I.Not
             emitConvForOp cenv resultTy
 
         | O.BitwiseOr(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             emitInstruction cenv I.Or
             emitConvForOp cenv resultTy
 
         | O.BitwiseExclusiveOr(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             emitInstruction cenv I.Xor
             emitConvForOp cenv resultTy
 
         | O.BitwiseAnd(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             emitInstruction cenv I.And
             emitConvForOp cenv resultTy
 
         | O.BitwiseShiftLeft(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             emitInstruction cenv I.Shl
             emitConvForOp cenv resultTy
 
         | O.BitwiseShiftRight(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             let ty = getPrimitiveTypeCode cenv resultTy
             match ty with
             | PrimitiveTypeCode.Byte
@@ -444,11 +484,10 @@ module rec ClrCodeGen =
                 emitInstruction cenv I.Shr  
             emitConvForOp cenv resultTy
 
-        | O.Witness(irBody, witnessTy, resultTy) ->
+        | O.Witness(irBody, witnessTy, _) ->
             GenExpression cenv env irBody
-            emitSequencePoint cenv &textRange
             match witnessTy with
-            | ClrTypeInfo.TypeDefinition(typeExtensionInfo=ValueSome(_, instanceTyInfo, fieldHandle)) ->
+            | ClrTypeInfo.TypeDefinition(typeExtensionInfo=ValueSome(_, instanceTyInfo, _)) ->
                 let ctorHandle =
                     match instanceTyInfo with
                     | ClrTypeInfo.TypeDefinition(_, instanceTyDefBuilder, _, _, _, _, _, _) ->
@@ -466,47 +505,31 @@ module rec ClrCodeGen =
             | _ ->
                 failwith "Expected a type definition."
 
-        | O.Upcast(irArg, resultTy) ->
-            GenExpression cenv env irArg
-
-            // TODO/REVIEW: Should we include this for up-casting?
-            //if irArg.ResultType.IsStruct && not resultTy.IsStruct then
-            //    emitInstruction cenv (I.Box(irArg.ResultType.Handle))
+        | O.Upcast(irArg, _) ->
+            GenArgumentExpression cenv env irArg
 
         | O.Box(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             emitInstruction cenv (I.Box(irArg.ResultType.Handle))
 
         | O.Unbox(irArg, resultTy) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             emitInstruction cenv (I.Unbox_any(resultTy.Handle))
 
         | O.Print(E.Operation(op=O.Box(irArg, _)), _) when irArg.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Call(cenv.assembly.ConsoleWriteMethod_Int32.Value, 1) |> emitInstruction cenv
-            if canEmitDebugNop cenv then
-                I.Nop |> emitInstruction cenv
 
         | O.Print(E.Operation(op=O.Upcast(irArg, _)), _) when irArg.ResultType.Handle = cenv.assembly.TypeReferenceString ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Call(cenv.assembly.ConsoleWriteMethod_String.Value, 1) |> emitInstruction cenv
-            if canEmitDebugNop cenv then
-                I.Nop |> emitInstruction cenv
 
         | O.Print(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Call(cenv.assembly.ConsoleWriteMethod.Value, 1) |> emitInstruction cenv
-            if canEmitDebugNop cenv then
-                I.Nop |> emitInstruction cenv
 
         | O.Cast(irArg, resultTy) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
 
             let castFromTy = irArg.ResultType |> getPrimitiveTypeCode cenv
             let castToTy = resultTy |> getPrimitiveTypeCode cenv
@@ -534,84 +557,71 @@ module rec ClrCodeGen =
                 emitConv cenv castToTy     
 
         | O.Throw(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Throw |> emitInstruction cenv
 
         | O.Ignore(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             match irArg with
             | E.Operation(op=O.Throw _) -> () // do not emit a pop for a Throw.
             | _ ->
                 I.Pop |> emitInstruction cenv
 
         | O.Add(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Add |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Subtract(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Sub |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Multiply(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Mul |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Divide(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Div |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Remainder(irArg1, irArg2, resultTy) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Rem |> emitInstruction cenv
             emitConvForOp cenv resultTy
 
         | O.Not(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.LdcI4 0 |> emitInstruction cenv
             I.Ceq |> emitInstruction cenv
 
         | O.Negate(irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Neg |> emitInstruction cenv
 
         | O.Equal(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Ceq |> emitInstruction cenv
         | O.NotEqual(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Ceq |> emitInstruction cenv
             I.LdcI4 0 |> emitInstruction cenv
             I.Ceq |> emitInstruction cenv
 
         | O.Utf16Equal(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             let methHandle = cenv.assembly.String_Equals.Value
             I.Call(methHandle, 2) |> emitInstruction cenv
 
         | O.GreaterThan(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             if irArg1.ResultType.Handle = cenv.assembly.TypeReferenceSByte ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
@@ -620,9 +630,8 @@ module rec ClrCodeGen =
             else
                 I.Cgt_un |> emitInstruction cenv
         | O.GreaterThanOrEqual(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             if irArg1.ResultType.Handle = cenv.assembly.TypeReferenceSByte ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
@@ -635,9 +644,8 @@ module rec ClrCodeGen =
                 I.LdcI4 0 |> emitInstruction cenv
                 I.Ceq |> emitInstruction cenv
         | O.LessThan(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             if irArg1.ResultType.Handle = cenv.assembly.TypeReferenceSByte ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
@@ -646,9 +654,8 @@ module rec ClrCodeGen =
             else
                 I.Clt_un |> emitInstruction cenv
         | O.LessThanOrEqual(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             if irArg1.ResultType.Handle = cenv.assembly.TypeReferenceSByte ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt16 ||
                irArg1.ResultType.Handle = cenv.assembly.TypeReferenceInt32 ||
@@ -662,14 +669,12 @@ module rec ClrCodeGen =
                 I.Ceq |> emitInstruction cenv
 
         | O.LoadRefCellContents(irArg, resultTy) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.LdcI4 0 |> emitInstruction cenv
             I.Ldelem(resultTy.Handle) |> emitInstruction cenv
 
         | O.LoadTupleElement(irArg, index, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             let methHandle =
                 match irArg.ResultType with
                 | ClrTypeInfo.TypeReference(asmBuilder, tyHandle, _, _) ->
@@ -703,26 +708,22 @@ module rec ClrCodeGen =
                 | ValueSome ty -> ty
                 | _ -> failwith "Expecting a type with an element."
 
-            GenExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg1
             I.LdcI4 0 |> emitInstruction cenv
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg2
             I.Stelem(tyHandle) |> emitInstruction cenv
 
         | O.Store(n, irArg1, _) ->
-            GenExpression cenv env irArg1
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
             I.Stloc n |> emitInstruction cenv
 
         | O.StoreArgument(n, irArg1, _) ->
-            GenExpression cenv env irArg1
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
             I.Starg n |> emitInstruction cenv
 
         | O.StoreToAddress(irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             let ty = irArg2.ResultType
             if ty.Handle = cenv.assembly.TypeReferenceInt32 then
                 I.Stind_i4 |> emitInstruction cenv
@@ -737,19 +738,16 @@ module rec ClrCodeGen =
                     I.Stind_ref |> emitInstruction cenv
 
         | O.StoreField(irField: OlyIRField<_, _, ClrFieldInfo>, irArg1, irArg2, _) ->
-            GenExpression cenv env irArg1
-            GenExpression cenv env irArg2
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg1
+            GenArgumentExpression cenv env irArg2
             I.Stfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.StoreStaticField(irField, irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Stsfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.LoadFromAddress(irArg, returnTy) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             if returnTy.IsStruct then
                 if returnTy.Handle = cenv.assembly.TypeReferenceInt32 then
                     I.Ldind_i4 |> emitInstruction cenv
@@ -763,26 +761,22 @@ module rec ClrCodeGen =
                 I.LdindRef |> emitInstruction cenv
 
         | O.LoadField(irField, irArg, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Ldfld irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.LoadFieldAddress(irField, irArg, _, _) ->
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Ldflda irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.NewTuple(itemTys, irArgs, _) ->
-            irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
-            emitSequencePoint cenv &textRange
+            irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
             let tyArgs =
                 itemTys
                 |> ImArray.map (fun x -> x.Handle)
             I.Newobj(cenv.assembly.AddTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
             
         | O.NewMutableArray(elementTy, irSizeArgExpr, _) ->
-            GenExpression cenv env irSizeArgExpr
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irSizeArgExpr
             I.Newarr(elementTy.Handle) |> emitInstruction cenv
 
         | O.NewArray(elementTy, _irKind, irArgExprs, _) ->
@@ -791,17 +785,15 @@ module rec ClrCodeGen =
             for i = 0 to irArgExprs.Length - 1 do
                 I.Dup |> emitInstruction cenv
                 I.LdcI4 i |> emitInstruction cenv
-                GenExpression cenv env irArgExprs[i]
+                GenArgumentExpression cenv env irArgExprs[i]
                 I.Stelem(elementTy.Handle) |> emitInstruction cenv
-            emitSequencePoint cenv &textRange
 
         | O.NewRefCell(contentTy, irArg, _) ->
             I.LdcI4 1 |> emitInstruction cenv
             I.Newarr(contentTy.Handle) |> emitInstruction cenv
             I.Dup |> emitInstruction cenv
             I.LdcI4 0 |> emitInstruction cenv
-            GenExpression cenv env irArg
-            emitSequencePoint cenv &textRange
+            GenArgumentExpression cenv env irArg
             I.Stelem(contentTy.Handle) |> emitInstruction cenv
 
         | O.New(irFunc, irArgs, _) ->
@@ -910,16 +902,13 @@ module rec ClrCodeGen =
             raise(System.NotImplementedException("Clr FunctionPointer"))
         | _ ->
 
-        irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
-        emitSequencePoint cenv &textRange
+        irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         match func.specialKind with
         | ClrMethodSpecialKind.None ->
             if func.IsStatic || not isVirtual then
                 if isReturnable && canTailCall cenv func then
                     I.Tail |> emitInstruction cenv
                 I.Call(func.handle, irArgs.Length) |> emitInstruction cenv
-                if canEmitDebugNopByType cenv func.ReturnType.Handle then
-                    I.Nop |> emitInstruction cenv
             else
                 let argTy0 = irArgs.[0].ResultType
                 if isVirtual && func.IsInstance then
@@ -930,37 +919,30 @@ module rec ClrCodeGen =
                         | _ ->
                             failwith "Expected by-ref element type."
                 I.Callvirt(func.handle, irArgs.Length) |> emitInstruction cenv
-                if canEmitDebugNopByType cenv func.ReturnType.Handle then
-                    I.Nop |> emitInstruction cenv
 
         | ClrMethodSpecialKind.TypeOf ->
             I.Ldtoken func.tyInst.[0].Handle |> emitInstruction cenv
             I.Call(cenv.assembly.GetTypeFromHandleMethod.Value, 1) |> emitInstruction cenv
-            if canEmitDebugNopByType cenv func.ReturnType.Handle then
-                I.Nop |> emitInstruction cenv
 
         | _ ->
             failwith "Invalid special method."
 
     let GenNew cenv env (textRange: inref<OlyIRDebugSourceTextRange>) (func: ClrMethodInfo) irArgs =
-        irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
-        emitSequencePoint cenv &textRange
+        irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
     let GenCallIndirect (cenv: cenv) env (textRange: inref<OlyIRDebugSourceTextRange>) (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
+        GenArgumentExpression cenv env irFunArg
+
         match irFunArg.ResultType.Handle with
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->            
             let localIndex = cenv.NewLocal(irFunArg.ResultType)
-            GenExpression cenv env irFunArg
             I.Stloc localIndex |> emitInstruction cenv
-            irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
+            irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
             I.Ldloc localIndex |> emitInstruction cenv
             I.Calli(cc, parTys, returnTy) |> emitInstruction cenv
-            if canEmitDebugNopByType cenv returnTy then
-                I.Nop |> emitInstruction cenv
         | _ ->
-            GenExpression cenv env irFunArg
-            irArgs |> ImArray.iter (fun x -> GenExpression cenv env x)
+            irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
 
             let argTys =
                 runtimeArgTys
@@ -974,8 +956,6 @@ module rec ClrCodeGen =
 
             let methRef = cenv.assembly.AddAnonymousFunctionInvoke(argTys, runtimeReturnTy.Handle)
             I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
-            if canEmitDebugNopByType cenv runtimeReturnTy.Handle then
-                I.Nop |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
     let rec MorphExpression (cenv: cenv) (expr: E<ClrTypeInfo, _, _>) =
@@ -1013,17 +993,20 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let emitSequencePoint cenv (textRange: inref<OlyIRDebugSourceTextRange>) =
-        if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
-            I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1) |> emitInstruction cenv
-            if canEmitDebugNop cenv then
-                I.Nop |> emitInstruction cenv
+    let emitSequencePoint cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
+        match env.spb with
+        | EnableSequencePoint ->
+            if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
+                I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1) |> emitInstruction cenv
+                cenv.IncrementSequencePointCount()
+        | _ ->
+            ()
 
     let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
         if cenv.IsDebuggable then
-            GenExpression cenv env conditionExpr
+            GenArgumentExpression cenv env conditionExpr
             I.Brfalse falseTargetLabelId |> emitInstruction cenv 
         else
             match conditionExpr with
@@ -1035,35 +1018,35 @@ module rec ClrCodeGen =
                 match arg1, arg2 with
                 | _, Null
                 | _, IntegralZero ->
-                    GenExpression cenv env arg1
+                    GenArgumentExpression cenv env arg1
                     I.Brfalse falseTargetLabelId |> emitInstruction cenv
 
                 | _ ->
-                    GenExpression cenv env arg1
-                    GenExpression cenv env arg2
+                    GenArgumentExpression cenv env arg1
+                    GenArgumentExpression cenv env arg2
                     I.Beq falseTargetLabelId |> emitInstruction cenv
 
             | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
                 match arg1, arg2 with
                 | _, Null
                 | _, IntegralZero ->
-                    GenExpression cenv env arg1
+                    GenArgumentExpression cenv env arg1
                     I.Brtrue falseTargetLabelId |> emitInstruction cenv
 
                 | _ ->
-                    GenExpression cenv env arg1
-                    GenExpression cenv env arg2
+                    GenArgumentExpression cenv env arg1
+                    GenArgumentExpression cenv env arg2
                     I.Bne_un falseTargetLabelId |> emitInstruction cenv
 
             | _ ->
-                GenExpression cenv env conditionExpr
+                GenArgumentExpression cenv env conditionExpr
                 I.Brfalse falseTargetLabelId |> emitInstruction cenv       
 
     let GenConditionExpressionForTrueTarget (cenv: cenv) env trueTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
         if cenv.IsDebuggable then
-            GenExpression cenv env conditionExpr
+            GenArgumentExpression cenv env conditionExpr
             I.Brtrue trueTargetLabelId |> emitInstruction cenv
         else
             match conditionExpr with
@@ -1071,28 +1054,28 @@ module rec ClrCodeGen =
                 match arg1, arg2 with
                 | _, Null
                 | _, IntegralZero ->
-                    GenExpression cenv env arg1
+                    GenArgumentExpression cenv env arg1
                     I.Brtrue trueTargetLabelId |> emitInstruction cenv
 
                 | _ ->
-                    GenExpression cenv env arg1
-                    GenExpression cenv env arg2
+                    GenArgumentExpression cenv env arg1
+                    GenArgumentExpression cenv env arg2
                     I.Bne_un trueTargetLabelId |> emitInstruction cenv
 
             | E.Operation(_, O.Equal(arg1, arg2, _)) ->                        
                 match arg1, arg2 with
                 | _, Null
                 | _, IntegralZero ->
-                    GenExpression cenv env arg1
+                    GenArgumentExpression cenv env arg1
                     I.Brfalse trueTargetLabelId |> emitInstruction cenv
 
                 | _ ->
-                    GenExpression cenv env arg1
-                    GenExpression cenv env arg2
+                    GenArgumentExpression cenv env arg1
+                    GenArgumentExpression cenv env arg2
                     I.Beq trueTargetLabelId |> emitInstruction cenv
 
             | _ ->
-                GenExpression cenv env conditionExpr
+                GenArgumentExpression cenv env conditionExpr
                 I.Brtrue trueTargetLabelId |> emitInstruction cenv  
 
     let private GenConditionOrExpression cenv env continuationLabelIdOpt expr1 expr2 trueTargetLabelId falseTargetLabelId =
@@ -1124,11 +1107,38 @@ module rec ClrCodeGen =
             GenExpression cenv env irBodyExpr
 
         | E.Value(textRange, irValue) ->
-            emitSequencePoint cenv &textRange
+            emitSequencePoint cenv env &textRange
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
+            let seqPointPosition = cenv.buffer.Count
+            if cenv.IsDebuggable then
+                emitSequencePoint cenv env &textRange
+
+            let prevSeqPointCount = cenv.GetSequencePointCount()
             GenOperation cenv env &textRange irOp
+            let didEmitSeqPoints = (cenv.GetSequencePointCount() - prevSeqPointCount) <> 0
+
+            if cenv.IsDebuggable && didEmitSeqPoints then
+                if seqPointPosition < cenv.buffer.Count then
+                    match cenv.buffer[seqPointPosition] with
+                    | I.SequencePoint _ ->
+                        cenv.buffer[seqPointPosition] <- I.Skip
+                        cenv.DecrementSequencePointCount()
+                    | _ -> 
+                        ()
+                match tryGetLastInstruction cenv with
+                | ValueSome(instr) ->
+                    if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
+                        setLastInstruction cenv (I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1))
+                        cenv.IncrementSequencePointCount()
+                        emitInstruction cenv I.Nop
+                        emitInstruction cenv instr
+                | _ ->
+                    ()
+
+            if canEmitDebugNopByType cenv irOp.ResultType.Handle then
+                I.Nop |> emitInstruction cenv
 
         | E.Sequential(irExpr1, irExpr2) ->
             GenExpression cenv (setNotReturnable env) irExpr1
@@ -1189,7 +1199,7 @@ module rec ClrCodeGen =
 
             I.Label loopStartLabelId |> emitInstruction cenv
 
-            GenExpression cenv envLoop conditionExpr
+            GenArgumentExpression cenv envLoop conditionExpr
             I.Brfalse loopEndLabelId |> emitInstruction cenv
 
             GenExpression cenv envLoop bodyExpr
@@ -1445,8 +1455,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         asmBuilder.AddBlob(b)
 
-    member this.Write(stream) =
-        asmBuilder.Write(stream)
+    member this.Write(stream, pdbStream, isDebuggable) =
+        asmBuilder.Write(stream, pdbStream, isDebuggable)
 
     interface IOlyRuntimeEmitter<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo> with
 
@@ -2255,12 +2265,14 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     dups = System.Collections.Generic.HashSet()
                     localCount = ref bodyResult.LocalCount
                     nextLabelId = ref 0
+                    seqPointCount = ref 0
                 } : ClrCodeGen.cenv
 
             let env =
                 {
                     isInWhileLoop = false
                     isReturnable = true
+                    spb = ClrCodeGen.EnableSequencePoint
                 } : ClrCodeGen.env
 
             ClrCodeGen.GenExpression cenv env expr

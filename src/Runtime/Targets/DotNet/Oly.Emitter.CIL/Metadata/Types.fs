@@ -348,6 +348,8 @@ type ClrInstruction =
 
     | SequencePoint of documentPath: string * startLine: int * endLine: int * startColumn: int * endColumn: int
 
+    | Skip
+
 [<RequireQualifiedAccess>]
 module ClrElementTypes =
 

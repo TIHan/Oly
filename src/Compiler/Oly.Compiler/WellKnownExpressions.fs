@@ -1,6 +1,7 @@
 ﻿module internal rec Oly.Compiler.Internal.WellKnownExpressions
 
 open Oly.Core
+open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
@@ -11,12 +12,14 @@ let Ignore (expr: BoundExpression) =
     let argExprs = ImArray.createOne expr
     BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.IgnoreFunction, false)
 
-let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
+let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
+    if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.equalFunc, false)
+    BoundExpression.Call(syntaxInfo, None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.equalFunc, false)
+
+let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
+    EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
 
 let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree

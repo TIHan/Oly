@@ -12,46 +12,33 @@ chicken(): () =
 
     print("chicken")
 
-#[inline]
-DoWork(): () = print("beefffff\n")
+DoWork(): () = 
+   // let x = 1
+    print("DoWork\n")
 
 DoWork2(x: int32): () = print("doot")
 
 DoWork3(): int32 = 5
 
+DoWork4(x: int32): int32 = x
+
 main(): () =
+    let x = 5
 
-  //  DoWork()
-    let y = 1
-    let mutable x = DoWork3()
-    // DoWork()
+    DoWork2(
+        DoWork4(DoWork3()) + 
+          DoWork4(DoWork3()))
 
-    // static let f(x) = x
-
-    // if (x == f(5))
-    //     DoWork2(DoWork3())
-
-    match (x, x + x, x, x)
-    | 5, 5, 5, 4 => print("failed")
-    | 5, 5, 4, 4 => print("failed")
-    | _, _, z, _ when (y == (6 - z)) => print("doot")
-    | _, 10, _, 5 when (y == (0 + 1)) => print("zooot")
-    // | 5, 4, 4, 4 => DoWork2(x)
-    // | 5, 5, 5, 5 => DoWork2(x)
+    match (x, x + x, x, (x, x))
+    | 5, 10, 4, (3, 3) => print("5\n")
+    | 5, 10, 5, (4, 4) => print("nope\n")
+    | _, _, _, (5, 5) => print("doot\n")
     | _ => 
       DoWork()
 
-    print("the end")
+    chicken()
 
-    // DoWork()
-
-    // DoWork()
-
-    // chicken()
-
-    // chicken()
-
-    // DoWork()
+    print("the end\n")
 
     // let result = MessageBox(default, "Hello World!", "Message Box", 0)
     // let result = MessageBox(default, "Hello World!", "Message Box", 0)

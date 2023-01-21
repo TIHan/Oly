@@ -599,7 +599,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
             let exeFile = new System.IO.FileStream(exePath, IO.FileMode.Create)
             let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
-            emitter.Write(exeFile, pdbFile)
+            emitter.Write(exeFile, pdbFile, asm.IsDebuggable)
             exeFile.Close()
             pdbFile.Close()
             return Ok exePath
@@ -608,7 +608,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
             let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
             let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
-            emitter.Write(dllFile, pdbFile)
+            emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
             dllFile.Close()
             pdbFile.Close()
             return Ok dllPath

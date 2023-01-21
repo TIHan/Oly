@@ -317,14 +317,8 @@ let createCallExpression syntaxInfo (func: IFunctionSymbol) witnessArgs argExprs
     )
 
 let createLiteralInfo cenv syntax benv matchValueExpr literal =
-    let literalExpr =
-        match syntax with
-        | OlySyntaxPattern.Literal(syntaxLiteral) ->
-            E.Literal(BoundSyntaxInfo.User(syntaxLiteral, benv), literal)
-        | _ ->
-            E.Literal(cenv.GeneratedSyntaxInfo, literal)
-
-    createInfo None (Equal matchValueExpr literalExpr) cenv.NoneExpression
+    let literalExpr = E.Literal(cenv.GeneratedSyntaxInfo, literal)
+    createInfo None (EqualWithSyntax (BoundSyntaxInfo.User(syntax, benv)) matchValueExpr literalExpr) cenv.NoneExpression
 
 let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex matchValueExpr (pattern: BoundCasePattern) (contExprOpt: E option) =
     let trueLiteralExpr = cenv.TrueLiteralExpression
