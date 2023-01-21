@@ -224,11 +224,21 @@ type cenv =
         CachedExpressionType: TypeSymbol
     }
 
+let isSimpleCasePattern casePat =
+    match casePat with
+    | BoundCasePattern.Literal _
+    | BoundCasePattern.Discard _ 
+    | BoundCasePattern.FieldConstant _ -> true
+    | BoundCasePattern.Tuple(_, casePats) ->
+        casePats |> ImArray.forall isSimpleCasePattern
+    | _ -> 
+        false
+
 let isSimpleMatchClause (matchClause: BoundMatchClause) =
     match matchClause with
-    | BoundMatchClause.MatchClause(_, BoundMatchPattern.Cases(_, casePats), None, _) when casePats.Length = 1 && 
-            (match casePats[0] with BoundCasePattern.Literal _ -> true | _ -> false) ->
-        true
+    | BoundMatchClause.MatchClause(_, BoundMatchPattern.Cases(_, casePats), None, _) ->
+        casePats 
+        |> ImArray.forall isSimpleCasePattern
     | _ ->
         false
 
@@ -644,9 +654,9 @@ let tryCombineDecision (cenv: cenv) (decision1: Decision) (decision2: Decision) 
         Decision.Condition(matchIndex1, OptimizedAnd conditionExpr1 conditionExpr2)
         |> Some
     | Decision.ConditionContinuation(matchIndex1, None, conditionExpr1, E.None _, contExpr1),
-      Decision.ConditionContinuation(matchIndex2, None, conditionExpr2, E.None _, contExpr2)
+      Decision.ConditionContinuation(matchIndex2, None, conditionExpr2, postExpr, contExpr2)
             when matchIndex1 = matchIndex2 && areTargetExpressionsEqual contExpr1 contExpr2 ->
-      Decision.ConditionContinuation(matchIndex1, None, OptimizedAnd conditionExpr1 conditionExpr2, cenv.NoneExpression, contExpr1)
+      Decision.ConditionContinuation(matchIndex1, None, OptimizedAnd conditionExpr1 conditionExpr2, postExpr, contExpr1)
       |> Some
 
     | _ ->
@@ -918,14 +928,6 @@ let transformMatchPattern (cenv: cenv) (matchPatternLookup: MatchPatternLookup) 
         if decisionGroup2.Length = 1 && 
            decisionGroup2[0].Length = 1 && 
            (match decisionGroup2[0][0] with Decision.ConditionContinuation(_, None, _, E.None _, _) -> true | _ -> false) then
-            //match decisionGroup2[0][0] with 
-            //| Decision.ConditionContinuation(_, _, _, _, contExpr) when areTargetExpressionsEqual contExpr targetExpr ->
-            //    let decisionGroup1 = 
-            //        transformMatchPattern cenv matchPatternLookup (matchPatternIndex + decisionGroup2.Length) (Some contExpr) targetExpr guardExprOpt matchPattern1
-            //        |> combineDecisionGroup cenv
-
-            //    decisionGroup1.AddRange(decisionGroup2)
-            //| _ ->
                 let contExpr = 
                     decisionGroup2
                     |> decisionsToClauseExpressions cenv matchPatternLookup targetExpr guardExprOpt
@@ -955,7 +957,13 @@ let transformMatchClause (cenv: cenv) contExprOpt matchClause : (E * E) imarray 
     let matchPatternLookup = ResizeArray<ResizeArray<ILocalSymbol * _>>()
     match matchClause with
     | BoundMatchClause.MatchClause(_, matchPattern, guardExprOpt, targetExpr) ->
-        let targetExpr = normalizeTargetExpression cenv targetExpr matchPattern
+        let targetExpr = 
+            // TP optimization - we don't need to create a lambda continuation if the next match clause is very simple
+            //                   by not having divergent paths.
+            if isSimpleMatchClause matchClause then
+                targetExpr
+            else
+                normalizeTargetExpression cenv targetExpr matchPattern
         transformMatchPattern cenv matchPatternLookup 0 contExprOpt targetExpr guardExprOpt matchPattern
         |> decisionsToClauseExpressions cenv matchPatternLookup targetExpr guardExprOpt
 

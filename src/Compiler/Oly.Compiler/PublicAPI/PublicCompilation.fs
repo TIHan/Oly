@@ -390,7 +390,7 @@ module private CompilationPhases =
                 ImArray.map f
 
         let outputTree (tree: BoundTree) =
-            System.IO.File.WriteAllText("output.txt", Oly.Compiler.Internal.Dump.dumpTree tree)
+            System.IO.File.WriteAllText(OlyPath.ChangeExtension(tree.SyntaxTree.Path, ".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
             tree
 
         // Lowering is REQUIRED before codegen, 
@@ -403,7 +403,7 @@ module private CompilationPhases =
                 let loweredBoundTree =
                     boundTree
                     |> PatternMatchCompilation.Lower ct
-                 //   |> outputTree
+                  //  |> outputTree
                     |> CommonLowering.Lower ct
                     |> Optimizer.Lower ct { LocalValueElimination = not state.options.Debuggable; BranchElimination = true }
                   //  |> outputTree

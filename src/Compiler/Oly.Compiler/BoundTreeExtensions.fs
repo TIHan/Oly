@@ -1138,27 +1138,29 @@ let areLiteralsEqual (literal1: BoundLiteral) (literal2: BoundLiteral) =
     | _ -> false
 
 let areTargetExpressionsEqual (expr1: E) (expr2: E) =
-    match expr1, expr2 with
-    | E.Call(_, None, witnessArgs1, argExprs1, _, value1, false),
-        E.Call(_, None, witnessArgs2, argExprs2, _, value2, false) ->
-        value1.IsFunction &&
-        areValueSignaturesEqual value1 value2 && 
-        argExprs1.Length = argExprs2.Length &&
-        (witnessArgs1.GetValue(None, CancellationToken.None).IsEmpty) &&
-        (witnessArgs2.GetValue(None, CancellationToken.None).IsEmpty) &&
-        (argExprs1, argExprs2)
-        ||> ImArray.forall2 (fun expr1 expr2 ->
-            match expr1, expr2 with
-            | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
-                areValueSignaturesEqual value1 value2
-            | E.Literal(_, literal1), E.Literal(_, literal2) ->
-                areLiteralsEqual literal1 literal2
-            | _ ->
-                false
-        )
-    | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
-        areValueSignaturesEqual value1 value2
-    | E.Literal(_, literal1), E.Literal(_, literal2) ->
-        areLiteralsEqual literal1 literal2
-    | _ ->
-        false
+    if obj.ReferenceEquals(expr1, expr2) then true
+    else
+        match expr1, expr2 with
+        | E.Call(_, None, witnessArgs1, argExprs1, _, value1, false),
+            E.Call(_, None, witnessArgs2, argExprs2, _, value2, false) ->
+            value1.IsFunction &&
+            areValueSignaturesEqual value1 value2 && 
+            argExprs1.Length = argExprs2.Length &&
+            (witnessArgs1.GetValue(None, CancellationToken.None).IsEmpty) &&
+            (witnessArgs2.GetValue(None, CancellationToken.None).IsEmpty) &&
+            (argExprs1, argExprs2)
+            ||> ImArray.forall2 (fun expr1 expr2 ->
+                match expr1, expr2 with
+                | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+                    areValueSignaturesEqual value1 value2
+                | E.Literal(_, literal1), E.Literal(_, literal2) ->
+                    areLiteralsEqual literal1 literal2
+                | _ ->
+                    false
+            )
+        | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+            areValueSignaturesEqual value1 value2
+        | E.Literal(_, literal1), E.Literal(_, literal2) ->
+            areLiteralsEqual literal1 literal2
+        | _ ->
+            false

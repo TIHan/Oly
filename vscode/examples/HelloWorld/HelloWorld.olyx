@@ -22,23 +22,46 @@ DoWork3(): int32 = 5
 
 DoWork4(x: int32): int32 = x
 
+// pattern addOne(x: int32): int32 = 
+//   print("(side effect)")
+//   __oly_add(x, 1)
+
+// test(x1: int32, x2: int32, x3: int32): () =
+//   match (x1, x2, x3)
+//   | 5, addOne(y), 2 => print(y)
+//   | 8, addOne(y), _ => print(y)
+//   | 99, addOne(y), 4 when (y == 49) => print(y)
+//   | 99, addOne(y), 5 when (y == 50) => print(y)
+//   | _ => print(x1)
+
+// main2(): () =
+//   test(99, 49, 5)
+
 main(): () =
     let x = 5
+   // main2()
+    // DoWork2(
+    //     DoWork4(DoWork3()) + 
+    //       DoWork4(DoWork3()))
 
-    DoWork2(
-        DoWork4(DoWork3()) + 
-          DoWork4(DoWork3()))
-
-    match (x, x + x, x, (x, x))
-    | 5, 10, 4, (3, 3) => print("5\n")
-    | 5, 10, 5, (4, 4) => print("nope\n")
-    | _, _, _, (5, 5) => print("doot\n")
+    match (x, x + x, (x, x), (x, (x, x)))
+    | 5, z, (_, w), (99, _) => 
+      print(z)
+      print(w)
+    //  print(b)
+      print("5\n")
+    | 5, beef, y, (70, _) => 
+      print(y)
+    //  print(d)
+      print(beef)
+      print("nope\n")
+    | _, 8, _, _ => print("doot\n")
     | _ => 
       DoWork()
 
-    chicken()
+    // chicken()
 
-    print("the end\n")
+    // print("the end\n")
 
     // let result = MessageBox(default, "Hello World!", "Message Box", 0)
     // let result = MessageBox(default, "Hello World!", "Message Box", 0)

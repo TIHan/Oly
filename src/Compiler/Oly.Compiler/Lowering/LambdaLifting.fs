@@ -893,7 +893,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 pars
                                 returnTy
                                 MemberFlags.Private
-                                ((func.FunctionFlags &&& ~~~FunctionFlags.TargetJump) ||| FunctionFlags.StaticLocal ||| FunctionFlags.InlineAlways)
+                                ((func.FunctionFlags &&& ~~~FunctionFlags.TargetJump) ||| FunctionFlags.StaticLocal)
                                 WellKnownFunction.None
                                 None
                                 false
