@@ -629,10 +629,11 @@ let transformTopLevelPattern (cenv: cenv) (valueInfos: {| syntaxInfo: BoundSynta
     /// if (true) ...
     | BoundCasePattern.Local _ ->
         let valueExpr = E.Value(cenv.GeneratedSyntaxInfo, valueInfos.[column].value)
-        let info = transformPattern cenv valueLookup matchPatternIndex valueExpr casePat contExprOpt
-        beforeMatchExprs.Add(info.Post)
+        transformPattern cenv valueLookup matchPatternIndex valueExpr casePat contExprOpt
 
-        createInfo info.Pre info.Condition cenv.NoneExpression
+        // TODO: Remove 'beforeMatchExprs' entirely after we see how just using the normal transformPattern works at the top-level.
+        //beforeMatchExprs.Add(info.Post)
+        //createInfo info.Pre info.Condition cenv.NoneExpression
 
     | BoundCasePattern.Tuple(_, casePatArgs) ->
         transformTuplePattern

@@ -50,7 +50,7 @@ main(): () =
       print(w)
     //  print(b)
       print("5\n")
-    | 5, beef, y, (70, _) => 
+    | 5, beef, (_, 5), (y, _) => 
       print(y)
     //  print(d)
       print(beef)
