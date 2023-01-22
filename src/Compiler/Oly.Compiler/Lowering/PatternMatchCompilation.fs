@@ -713,11 +713,11 @@ let transformPatterns (cenv: cenv) (matchPatternLookup: MatchPatternLookup) matc
 /// Using this example:
 ///     ...
 ///     match (x, x, x, x, x, x, x, x, x, x)
-///     | _, y, _, _, _, _, _, _, _, _
-///     | _, _, y, _, _, _, _, _, _, _
-///     | y, _, _, _, _, _, _, _, _, _
-///     | _, _, _, _, y, _, _, _, _, _ 
-///     | _, _, _, _, _, _, _, y, _, _ => $(targetExpr)
+///     | _, y, _, _, _, _, _, _, _, 1
+///     | _, _, y, _, _, _, _, _, _, 2
+///     | y, _, _, _, _, _, _, _, _, 3
+///     | _, _, _, _, y, _, _, _, _, 4 
+///     | _, _, _, _, _, _, _, y, _, 5 => $(targetExpr)
 ///     ...
 ///
 ///     'PatternMatchCompilation' will generate five instance of 'y' with different 'IValueSymbol.Id's.

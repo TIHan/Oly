@@ -550,10 +550,10 @@ export function activate(context: ExtensionContext) {
 				}
 				else if (assemblyPath.endsWith(".dll"))
 				{
-					ch.appendLine("Running '" + assemblyPath + "' on DotNet")
-					var sh = new vscode.ShellExecution('dotnet ' + assemblyPath);
-					var task = new vscode.Task({ type: 'dotnet' }, vscode.workspace.workspaceFolders[0], 'dotnet', 'dotnet', sh);
-					vscode.tasks.executeTask(task);
+					// ch.appendLine("Running '" + assemblyPath + "' on DotNet")
+					// var sh = new vscode.ShellExecution('dotnet ' + assemblyPath);
+					// var task = new vscode.Task({ type: 'dotnet' }, vscode.workspace.workspaceFolders[0], 'dotnet', 'dotnet', sh);
+					// vscode.tasks.executeTask(task);
 				}
 				else
 				{
