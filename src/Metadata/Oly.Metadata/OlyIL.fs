@@ -941,7 +941,7 @@ type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startL
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 type OlyILExpression =
-    | None
+    | None of textRange: OlyILDebugSourceTextRange
     | Let of localIndex: int32 * rhsExpr: OlyILExpression * bodyExpr: OlyILExpression
     | Value of textRange: OlyILDebugSourceTextRange * value: OlyILValue
     | Operation of textRange: OlyILDebugSourceTextRange * op: OlyILOperation

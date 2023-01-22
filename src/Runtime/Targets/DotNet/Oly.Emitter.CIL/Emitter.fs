@@ -254,6 +254,11 @@ module rec ClrCodeGen =
         | DisableSequencePoint -> env
         | _ -> { env with spb = DisableSequencePoint }
 
+    let private setEnableSequencePoint env =
+        match env.spb with
+        | EnableSequencePoint -> env
+        | _ -> { env with spb = EnableSequencePoint }
+
     let private getPrimitiveTypeCode cenv (ty: ClrTypeInfo) =
         if ty.IsDefinitionEnum then
             getPrimitiveTypeCode cenv (ty.TryGetEnumBaseType().Value)
@@ -1081,10 +1086,13 @@ module rec ClrCodeGen =
         | _ ->
             GenConditionExpressionForFalseTarget cenv (setNotReturnable env) falseTargetLabelId expr2
 
-    let GenExpressionAux cenv env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+    let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
-        | E.None _ ->
-            () // Nop
+        | E.None(textRange, _) ->
+            if cenv.IsDebuggable then
+                if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
+                    emitSequencePoint cenv (setEnableSequencePoint env) &textRange
+                    emitInstruction cenv I.Nop
 
         | E.Let(_, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.dups.Contains(n) |> not

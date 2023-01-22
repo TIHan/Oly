@@ -13,6 +13,8 @@ open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 
+let private OlyILExpressionNone = OlyILExpression.None(OlyILDebugSourceTextRange.Empty)
+
 type FunctionEnv =
     {
         mutable localNumber: int32
@@ -1274,8 +1276,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     let syntaxNode = expr.Syntax
     let ilTextRange = emitTextRange cenv syntaxNode
     match expr with
-    // These expressions are not meant for code-gen, but only for informational purposes for tooling.
-    | E.None _ -> OlyILExpression.None
+    | E.None _ -> OlyILExpressionNone
 
     | E.Witness(expr, witnessArg, ty) ->
         if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then
@@ -1387,11 +1388,11 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
             |> ignore
             GenExpression cenv (setLocalContext env ent) body
         else
-            OlyILExpression.None
+            OlyILExpressionNone
 
     | E.Value(value=value) ->
         match stripTypeEquations value.Type with
-        | TypeSymbol.Unit -> OlyILExpression.None
+        | TypeSymbol.Unit -> OlyILExpressionNone
         | _ -> GenValueExpression cenv possiblyReturnableEnv ilTextRange ValueNone ImArray.empty value ImArray.empty
 
     | E.Literal(_, lit) ->
@@ -1409,19 +1410,19 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         | BoundBinding.Signature(bindingInfo=bindingInfo) when bindingInfo.Value.IsFunction ->
             GenFunctionAsILFunctionDefinition cenv env (bindingInfo.Value :?> IFunctionSymbol)
             |> ignore
-            OlyILExpression.None
+            OlyILExpressionNone
 
         | BoundBinding.Signature(bindingInfo=bindingInfo) when bindingInfo.Value.IsProperty ->
             match bindingInfo with
             | BindingProperty(_, prop) ->
                 GenAutoOrSignatureProperty cenv env prop
                 |> ignore
-                OlyILExpression.None
+                OlyILExpressionNone
             | _ ->
                 OlyAssert.Fail("Expected binding property.")
 
         | _ ->
-            OlyILExpression.None
+            OlyILExpressionNone
 
     | E.GetField(receiver=receiver;field=field) ->
         GenGetFieldExpression cenv env ilTextRange ValueNone receiver field
@@ -1935,10 +1936,10 @@ and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhs
         GenFunctionDefinitionExpression cenv env func rhsExpr
         OlyAssert.False(func.IsLocal)
         OlyAssert.True(bodyExprOpt.IsNone)
-        OlyILExpression.None
+        OlyILExpressionNone
       
     | BindingField _ ->
-        OlyILExpression.None
+        OlyILExpressionNone
 
 and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
     match bindingInfo with
@@ -1990,7 +1991,7 @@ and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E)
             | Some bodyExpr ->
                 GenExpression cenv { env with locals = env.locals.Add(value.Id) } bodyExpr
             | _ ->
-                OlyILExpression.None
+                OlyILExpression.None(OlyILDebugSourceTextRange.Empty)
 
         if mustBeRealUnit then
             match stripTypeEquations rhsExpr.Type with
@@ -2052,6 +2053,18 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rh
             | _ ->
                 failwith "Expected lambda expression for function definition."
         let ilLocals = cenv.funEnv.ilLocals.ToImmutable() // We need to create the locals after we finished going through the right-hand expr.
+
+        let ilBodyExpr =
+            if cenv.assembly.IsDebuggable then
+                OlyILExpression.Sequential(
+                    OlyILExpression.None(
+                        OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
+                    ),
+                    ilBodyExpr
+                )
+            else
+                ilBodyExpr
+
         ilFuncDef.BodyHandle.contents <- cenv.assembly.AddFunctionBody(OlyILFunctionBody(ilLocals, ilBodyExpr)) |> Some
 
 [<Sealed>]

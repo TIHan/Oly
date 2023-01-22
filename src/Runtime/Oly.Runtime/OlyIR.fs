@@ -654,7 +654,7 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
 [<RequireQualifiedAccess>]
 [<DebuggerDisplay("{ToString()}")>]
 type OlyIRExpression<'Type, 'Function, 'Field> =
-    | None of           resultTy: 'Type
+    | None of           textRange: OlyIRDebugSourceTextRange * resultTy: 'Type
     | Let of            name: string * localIndex: int * rhsExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field>
     | Value of          textRange: OlyIRDebugSourceTextRange * value: OlyIRValue<'Type, 'Function, 'Field>
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
@@ -687,7 +687,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
 
     member this.ResultType =
         match this with
-        | None(returnTy) -> returnTy
+        | None(_, returnTy) -> returnTy
         | Let(_, _, _, bodyExpr) -> bodyExpr.ResultType
         | Value(_, value) -> value.ResultType
         | Operation(_, op) -> op.ResultType
@@ -695,15 +695,15 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
 
-    member this.DebugSourceTextRange =
+    member this.TextRange =
         match this with
-        | OlyIRExpression.None _ -> OlyIRDebugSourceTextRange.Empty
-        | Let(_, _, rhsExpr, _) -> rhsExpr.DebugSourceTextRange
+        | OlyIRExpression.None(textRange, _) -> textRange
+        | Let(_, _, rhsExpr, _) -> rhsExpr.TextRange
         | Value(textRange, _) -> textRange
         | Operation(textRange, _) -> textRange
-        | Sequential(expr, _) -> expr.DebugSourceTextRange
+        | Sequential(expr, _) -> expr.TextRange
         | IfElse(conditionExpr, _, _, _)
-        | While(conditionExpr, _, _) -> conditionExpr.DebugSourceTextRange
+        | While(conditionExpr, _, _) -> conditionExpr.TextRange
 
     override this.ToString() =
         Dump.DumpExpression this

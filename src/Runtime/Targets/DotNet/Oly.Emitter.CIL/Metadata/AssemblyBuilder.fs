@@ -281,7 +281,7 @@ type ClrPdbBuilder() =
             docs.Add(name, handle)
             handle
 
-    member private _.BuildSequencePoints(localSigToken, sps: ClrSequencePoint imarray) =
+    member private _.BuildSequencePoints(localSigToken, sps: ClrSequencePoint imarray, hasMultipleDocuments: bool) =
         let builder = BlobBuilder()
         builder.WriteCompressedInteger(localSigToken)
 
@@ -292,17 +292,17 @@ type ClrPdbBuilder() =
         else
 
             let mutable currentDocument = sps[0].Document
-
-            builder.WriteCompressedInteger(
-                MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
-            )
+            if hasMultipleDocuments then
+                builder.WriteCompressedInteger(
+                    MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
+                )
 
             let mutable previousNonHiddenStartLine = -1
             let mutable previousNonHiddenStartColumn = 0
 
             for i in 0 .. (sps.Length - 1) do
 
-                if not sps[i].Document.IsNil && sps[i].Document <> currentDocument then
+                if hasMultipleDocuments && not sps[i].Document.IsNil && sps[i].Document <> currentDocument then
                     currentDocument <- sps[i].Document
 
                     builder.WriteCompressedInteger(0)
@@ -310,78 +310,85 @@ type ClrPdbBuilder() =
                     builder.WriteCompressedInteger(
                         MetadataTokens.GetRowNumber(DocumentHandle.op_Implicit (currentDocument))
                     )
-                else
-                    //=============================================================================================================================================
-                    // Sequence-point-record
-                    // Validate these with magic numbers according to the portable pdb spec Sequence point dexcription:
-                    // https://github.com/dotnet/corefx/blob/master/src/System.Reflection.Metadata/specs/PortablePdb-Metadata.md#methoddebuginformation-table-0x31
-                    //
-                    // So the spec is actually bit iffy!!!!! (More like guidelines really.  )
-                    //  It uses code similar to this to validate the values
-                    //    if (result < 0 || result >= ushort.MaxValue)  // be errorfull
-                    // Spec Says 0x10000 and value max = 0xFFFF but it can't even be = to maxvalue, and so the range is 0 .. 0xfffe inclusive
-                    //=============================================================================================================================================
+             //   else
 
-                    let capValue v maxValue =
-                        if v < 0 then 0
-                        elif v > maxValue then maxValue
-                        else v
+                //=============================================================================================================================================
+                // Sequence-point-record
+                // Validate these with magic numbers according to the portable pdb spec Sequence point dexcription:
+                // https://github.com/dotnet/corefx/blob/master/src/System.Reflection.Metadata/specs/PortablePdb-Metadata.md#methoddebuginformation-table-0x31
+                //
+                // So the spec is actually bit iffy!!!!! (More like guidelines really.  )
+                //  It uses code similar to this to validate the values
+                //    if (result < 0 || result >= ushort.MaxValue)  // be errorfull
+                // Spec Says 0x10000 and value max = 0xFFFF but it can't even be = to maxvalue, and so the range is 0 .. 0xfffe inclusive
+                //=============================================================================================================================================
 
-                    let capOffset v = capValue v 0xfffe
-                    let capLine v = capValue v 0x1ffffffe
-                    let capColumn v = capValue v 0xfffe
+                let capValue v maxValue =
+                    if v < 0 then 0
+                    elif v > maxValue then maxValue
+                    else v
 
-                    let offset = capOffset sps[i].Offset
-                    let startLine = capLine sps[i].Line
-                    let endLine = capLine sps[i].EndLine
-                    let startColumn = capColumn sps[i].Column
-                    let endColumn = capColumn sps[i].EndColumn
+                let capOffset v = capValue v 0xfffe
+                let capLine v = capValue v 0x1ffffffe
+                let capColumn v = capValue v 0xfffe
 
-                    let offsetDelta = // delta from previous offset
-                        if i > 0 then
-                            offset - capOffset sps[i - 1].Offset
+                let offset = capOffset sps[i].Offset
+                let startLine = capLine sps[i].Line
+                let endLine = capLine sps[i].EndLine
+                let startColumn = capColumn sps[i].Column
+                let endColumn = capColumn sps[i].EndColumn
+
+                let offsetDelta = // delta from previous offset
+                    if i > 0 then
+                        offset - capOffset sps[i - 1].Offset
+                    else
+                        offset
+
+                if i < 1 || offsetDelta > 0 then
+                    builder.WriteCompressedInteger offsetDelta
+
+                    // Check for hidden-sequence-point-record
+                    if
+                        startLine = 0xfeefee
+                        || endLine = 0xfeefee
+                        || (startColumn = 0 && endColumn = 0)
+                        || ((endLine - startLine) = 0 && (endColumn - startColumn) = 0)
+                    then
+                        // Hidden-sequence-point-record
+                        builder.WriteCompressedInteger 0
+                        builder.WriteCompressedInteger 0
+                    else
+                        // Non-hidden-sequence-point-record
+                        let deltaLines = endLine - startLine // lines
+                        builder.WriteCompressedInteger deltaLines
+
+                        let deltaColumns = endColumn - startColumn // Columns
+
+                        if deltaLines = 0 then
+                            builder.WriteCompressedInteger deltaColumns
                         else
-                            offset
+                            builder.WriteCompressedSignedInteger deltaColumns
 
-                    if i < 1 || offsetDelta > 0 then
-                        builder.WriteCompressedInteger offsetDelta
-
-                        // Check for hidden-sequence-point-record
-                        if
-                            startLine = 0xfeefee
-                            || endLine = 0xfeefee
-                            || (startColumn = 0 && endColumn = 0)
-                            || ((endLine - startLine) = 0 && (endColumn - startColumn) = 0)
-                        then
-                            // Hidden-sequence-point-record
-                            builder.WriteCompressedInteger 0
-                            builder.WriteCompressedInteger 0
+                        if previousNonHiddenStartLine < 0 then // delta Start Line & Column:
+                            builder.WriteCompressedInteger startLine
+                            builder.WriteCompressedInteger startColumn
                         else
-                            // Non-hidden-sequence-point-record
-                            let deltaLines = endLine - startLine // lines
-                            builder.WriteCompressedInteger deltaLines
+                            builder.WriteCompressedSignedInteger(startLine - previousNonHiddenStartLine)
+                            builder.WriteCompressedSignedInteger(startColumn - previousNonHiddenStartColumn)
 
-                            let deltaColumns = endColumn - startColumn // Columns
-
-                            if deltaLines = 0 then
-                                builder.WriteCompressedInteger deltaColumns
-                            else
-                                builder.WriteCompressedSignedInteger deltaColumns
-
-                            if previousNonHiddenStartLine < 0 then // delta Start Line & Column:
-                                builder.WriteCompressedInteger startLine
-                                builder.WriteCompressedInteger startColumn
-                            else
-                                builder.WriteCompressedSignedInteger(startLine - previousNonHiddenStartLine)
-                                builder.WriteCompressedSignedInteger(startColumn - previousNonHiddenStartColumn)
-
-                            previousNonHiddenStartLine <- startLine
-                            previousNonHiddenStartColumn <- startColumn
+                        previousNonHiddenStartLine <- startLine
+                        previousNonHiddenStartColumn <- startColumn
 
             metadata.GetOrAddBlob builder
 
+    member this.AddMethodDebugInformation(document, localSigToken, sequencePoints) =
+        metadata.AddMethodDebugInformation(document, this.BuildSequencePoints(localSigToken, sequencePoints, false))
+
     member this.AddMethodDebugInformation(localSigToken, sequencePoints) =
-        metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, sequencePoints))
+        metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, sequencePoints, true))
+
+    member this.AddEmptyMethodDebugInformation(localSigToken) =
+        metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, ImArray.empty, false))
 
 [<Sealed>]
 type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: AssemblyName, consoleAssembly: AssemblyName) as this =
@@ -1059,6 +1066,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 realHandle.Value
             | _ ->
                 MethodDefinitionHandle()
+
+#if DEBUG
+        OlyAssert.Equal(metadataBuilder.GetRowCount(TableIndex.MethodDef), pdbBuilder.Internal.GetRowCount(TableIndex.MethodDebugInformation))
+#endif
 
         let rootBuilder = new MetadataRootBuilder(metadataBuilder)
 
@@ -2047,7 +2058,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     member _.Handle: ClrMethodHandle = handle
 
     member private this.PopulateMethodBody() =
-        if this.BodyInstructions.IsEmpty then -1 // no body - this makes the RVA zero
+        let localSig = asmBuilder.CreateStandaloneSignature(this.Locals)
+        let localSigToken = MetadataTokens.GetRowNumber(localSig)
+
+        if this.BodyInstructions.IsEmpty then 
+            asmBuilder.PdbBuilder.AddEmptyMethodDebugInformation(localSigToken)
+            |> ignore
+            -1 // no body - this makes the RVA zero
         else
 
         let instrs = this.BodyInstructions
@@ -2129,13 +2146,14 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let ilBuilder = asmBuilder.ILBuilder
         ilBuilder.Align(4)
 
-        let localSig = asmBuilder.CreateStandaloneSignature(this.Locals)
-        let localSigToken = MetadataTokens.GetRowNumber(localSig)
+        // ----
         let mutable firstDocument = None
 
         let seqPoints = ImArray.builder()
 
         let mutable maxStack = 8 // TODO: We could optimize this.
+
+        let mutable hasMultipleDocuments = false
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
@@ -2178,9 +2196,11 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     let document = asmBuilder.PdbBuilder.GetOrAddDocument(documentPath)
                     match firstDocument with
                     | None -> 
-                        firstDocument <- Some document
+                        firstDocument <- Some(documentPath, document)
                         seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
-                    | _ when il.Offset > 0 -> 
+                    | Some(firstDocumentPath, _) when il.Offset > 0 -> 
+                        if not(OlyPath.Equals(documentPath, firstDocumentPath)) then
+                            hasMultipleDocuments <- true
                         seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
                     | _ ->
                         ()
@@ -2202,11 +2222,16 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = localSig)
 
         match firstDocument with
-        | Some _ ->
-            asmBuilder.PdbBuilder.AddMethodDebugInformation(localSigToken, seqPoints.ToImmutable()) 
-            |> ignore
+        | Some(_, document) ->
+            if hasMultipleDocuments then
+                asmBuilder.PdbBuilder.AddMethodDebugInformation(localSigToken, seqPoints.ToImmutable()) 
+                |> ignore
+            else
+                asmBuilder.PdbBuilder.AddMethodDebugInformation(document, localSigToken, seqPoints.ToImmutable()) 
+                |> ignore
         | _ ->
-            ()
+            asmBuilder.PdbBuilder.AddEmptyMethodDebugInformation(localSigToken)
+            |> ignore
 
         bodyOffset
 

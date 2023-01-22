@@ -444,7 +444,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -705,7 +705,7 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -755,7 +755,13 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) checkAddressExposed depth (irExpr
     else
 
     match irExpr with
-    | E.None _ -> false
+    | E.None(textRange, _) -> 
+        if optenv.IsDebuggable then
+            // We consider this a side effect as we do not want to remove the expression.
+            // This is for debugging purposes.
+            not(String.IsNullOrWhiteSpace(textRange.Path.ToString()))
+        else
+            false
     | E.Value(value=value) when checkAddressExposed ->
         match value with
         | V.Local(localIndex, _) -> 
@@ -848,7 +854,7 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
                 if hasSideEffect optenv irArgExpr then
                     E.Operation(irTextRange, irOp)
                 else
-                    E.None(resultTy)
+                    E.None(NoRange, resultTy)
 
             | O.StoreToAddress(E.Value(_, V.LocalAddress(localIndex, irByRefKind, _)), irRhsExpr, resultTy) ->
                 match irByRefKind with
@@ -976,7 +982,7 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = optimizeExpression irBodyExpr
 
@@ -1415,7 +1421,7 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -1599,7 +1605,7 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
     
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression env irBodyExpr
     
@@ -1723,7 +1729,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -1810,7 +1816,7 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(resultTy)
+                E.None(NoRange, resultTy)
             | _ ->
                 let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -2122,7 +2128,7 @@ let assertionPropagateExpression (optenv: optenv<'Type, 'Function, 'Field>) (ori
 
         match irNewConditionExpr with
         | E.Value(value=V.Constant(C.False, _)) ->
-            E.None(resultTy)
+            E.None(NoRange, resultTy)
         | _ ->
             let irNewBodyExpr = assertionPropagateExpression optenv origEnv irBodyExpr
 

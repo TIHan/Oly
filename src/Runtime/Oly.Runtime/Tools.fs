@@ -183,7 +183,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
             OlyILFunctionFlags.None 
             OlyILMemberFlags.Static
             ImArray.empty
-            OlyILExpression.None
+            (OlyILExpression.None(OlyILDebugSourceTextRange.Empty))
             OlyILTypeVoid
         |> fst
 

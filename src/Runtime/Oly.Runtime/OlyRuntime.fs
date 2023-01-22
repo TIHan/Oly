@@ -43,7 +43,7 @@ let areSimpleILExpressions depth (ilExprs: OlyILExpression imarray) =
 
 let isSimpleILExpression depth (ilExpr: OlyILExpression) =
     match ilExpr with
-    | OlyILExpression.None
+    | OlyILExpression.None _
     | OlyILExpression.Value _ -> true
     | OlyILExpression.Sequential(ilExpr1, ilExpr2) when depth <= 1 ->
         isSimpleILExpression (depth + 1) ilExpr1 && isSimpleILExpression (depth + 1) ilExpr2
@@ -473,7 +473,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
 
     match ilExpr with
-    | OlyILExpression.None -> E.None(cenv.EmittedTypeVoid), RuntimeType.Void
+    | OlyILExpression.None(ilTextRange) -> 
+        E.None(readTextRange env.ILAssembly ilTextRange, cenv.EmittedTypeVoid), RuntimeType.Void
 
     | OlyILExpression.While(ilConditionExpr, ilBodyExpr) ->
         // TODO: Fail if this is in a "non-imperative" context.
@@ -3436,7 +3437,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     |> ImArray.filter (fun x -> x.IsStatic)
 
                 let setStaticFieldsToDefaultValueExprs =
-                    (E.None(this.EmitType(RuntimeType.Void)), staticFields)
+                    (E.None(NoRange, this.EmitType(RuntimeType.Void)), staticFields)
                     ||> ImArray.fold (fun irExpr field ->
                         let setfieldToDefaultValueExpr =
                             E.Operation(

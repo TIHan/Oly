@@ -5,30 +5,6 @@
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
-chicken(): () =
-    print("chicken")
-
-    print("chicken")
-
-    print("chicken")
-
-DoWork(): () = 
-   // let x = 1
-    print("DoWork\n")
-
-DoWork2(x: int32): () = print("doot")
-
-DoWork3(): int32 = 5
-
-DoWork4(x: int32): int32 = x
-
 main(): () =
-
-    DoWork2(DoWork4(DoWork3()) + DoWork4(DoWork3()))
-
-    chicken()
-
-    print("the end\n")
-
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
-    let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    print(result)
