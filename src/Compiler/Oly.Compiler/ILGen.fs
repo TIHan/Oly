@@ -1273,7 +1273,10 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         else
             prevEnv
 
-    let syntaxNode = expr.Syntax
+    let syntaxNode =
+        // We try to get the root name for consistent debugging experiences when using
+        // fully-qualified values i.e. 'ModuleA.ModuleB.callingFunction()'
+        expr.Syntax.GetRootNameIfPossible()
     let ilTextRange = emitTextRange cenv syntaxNode
     match expr with
     | E.None _ -> OlyILExpressionNone

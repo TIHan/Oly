@@ -606,7 +606,6 @@ let transformTuplePattern cenv (valueLookup: MatchPatternLookup) matchPatternInd
             failwith "Invalid expression"
     )
 
-/// TODO: This needs a bit of cleanup as it does not make a lot of sense to me, but it was the best I came up with at the time.
 let transformTopLevelPattern (cenv: cenv) (valueInfos: {| syntaxInfo: BoundSyntaxInfo; value: ILocalSymbol; isTmp: bool; index: int32 |} imarray) (valueLookup: MatchPatternLookup) matchPatternIndex column (casePat: BoundCasePattern) contExprOpt =
     let trueLiteralExpr = cenv.TrueLiteralExpression
 

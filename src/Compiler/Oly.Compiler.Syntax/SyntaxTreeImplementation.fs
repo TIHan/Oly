@@ -678,6 +678,14 @@ module OlySyntaxTreeExtensions =
             | :? 'T as x -> Some x
             | _ ->  None
 
+        /// Returns the root name if there is any.
+        member this.GetRootNameIfPossible() =
+            match this.Parent with
+            | :? OlySyntaxName as name ->
+                name.GetRootNameIfPossible()
+            | _ ->
+                this
+
         member this.TryGetParentExpression(?ignoreSequentialExpr: bool, ?ct: CancellationToken) =
             let ignoreSequentialExpr = defaultArg ignoreSequentialExpr false
             let ct = defaultArg ct CancellationToken.None
