@@ -2,9 +2,22 @@
 
 #reference "../core/prelude.olyx"
 
+enum TestEnum =
+    | A = 0
+    | B = 1
+    | C = 2
+
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
 main(): () =
+    let e = TestEnum.A
+
+    let result =
+        match (e)
+        | TestEnum.A => true
+        | TestEnum.B => false
+        | _ => false
+
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
     print(result)
