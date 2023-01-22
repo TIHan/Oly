@@ -2275,6 +2275,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     spb = ClrCodeGen.EnableSequencePoint
                 } : ClrCodeGen.env
 
+            if ClrCodeGen.canEmitDebugNop cenv then
+                let textRange = expr.DebugSourceTextRange
+                ClrCodeGen.emitSequencePoint cenv env &textRange
+                ClrCodeGen.emitInstruction cenv I.Nop
             ClrCodeGen.GenExpression cenv env expr
 
             match func.builder with
