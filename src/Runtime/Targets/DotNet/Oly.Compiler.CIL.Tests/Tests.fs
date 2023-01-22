@@ -12903,17 +12903,67 @@ print(__oly_object): ()
 main(): () =
     let x = 5
     match (x, x, x)
-    | 2, y, 10
-    | 8, 3, y
-    | y, 1, 1 => 
-        print("fail")
+    | _, y, _
+    | _, _, y
+    | y, _, _ => 
+        print("pass")
         print(y)
     | _ => 
-        print("pass")
+        print("fail")
         """
     Oly src
     |> shouldCompile
-    |> shouldRunWithExpectedOutput "pass"
+    |> shouldRunWithExpectedOutput "pass5"
+    |> ignore
+
+[<Fact>]
+let ``Regression - pattern match (large) should work with Or cases when binding a value``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 5
+    match (x, x, x, x, x, x, x, x, x, x)
+    | _, y, _, _, _, _, _, _, _, _
+    | _, _, y, _, _, _, _, _, _, _
+    | y, _, _, _, _, _, _, _, _, _
+    | _, _, _, _, y, _, _, _, _, _ 
+    | _, _, _, _, _, _, _, y, _, _ => 
+        print("pass")
+        print(y)
+    | _ => 
+        print("fail")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "pass5"
+    |> ignore
+
+[<Fact>]
+let ``Regression - pattern match (large) should work with Or cases when binding a value 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 5
+    match (x, x, x, x, x, x, x, x, x, x)
+    | _, y, _, _, _, _, 5, 5, _, _
+    | 5, _, y, _, _, _, _, _, _, 5
+    | y, 5, _, 5, _, _, _, _, _, _
+    | _, _, _, _, y, _, _, 5, _, _ 
+    | _, 5, 5, _, _, _, _, y, _, _ => 
+        print("pass")
+        print(y)
+    | _ => 
+        print("fail")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "pass5"
     |> ignore
 
 [<Fact>]

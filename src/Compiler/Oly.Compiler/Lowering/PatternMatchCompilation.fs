@@ -609,7 +609,6 @@ let transformTuplePattern cenv (valueLookup: MatchPatternLookup) matchPatternInd
 /// TODO: This needs a bit of cleanup as it does not make a lot of sense to me, but it was the best I came up with at the time.
 let transformTopLevelPattern (cenv: cenv) (valueInfos: {| syntaxInfo: BoundSyntaxInfo; value: ILocalSymbol; isTmp: bool; index: int32 |} imarray) (valueLookup: MatchPatternLookup) matchPatternIndex column (casePat: BoundCasePattern) contExprOpt =
     let trueLiteralExpr = cenv.TrueLiteralExpression
-    let beforeMatchExprs = cenv.BeforeMatchExpressions
 
     let valueExpr = E.Value(cenv.GeneratedSyntaxInfo, valueInfos.[column].value)
     match casePat with
@@ -622,18 +621,9 @@ let transformTopLevelPattern (cenv: cenv) (valueInfos: {| syntaxInfo: BoundSynta
         OlyAssert.True(info.Pre.IsNone)
         createInfo None info.Condition info.Post
 
-    /// match (x)
-    /// | y => ...
-    /// -----------------------
-    /// let y = x
-    /// if (true) ...
     | BoundCasePattern.Local _ ->
         let valueExpr = E.Value(cenv.GeneratedSyntaxInfo, valueInfos.[column].value)
         transformPattern cenv valueLookup matchPatternIndex valueExpr casePat contExprOpt
-
-        // TODO: Remove 'beforeMatchExprs' entirely after we see how just using the normal transformPattern works at the top-level.
-        //beforeMatchExprs.Add(info.Post)
-        //createInfo info.Pre info.Condition cenv.NoneExpression
 
     | BoundCasePattern.Tuple(_, casePatArgs) ->
         transformTuplePattern
@@ -720,7 +710,20 @@ let transformPatterns (cenv: cenv) (matchPatternLookup: MatchPatternLookup) matc
         handlePatterns 0 (casePats.AsMemory()) decisions
         decisions.ToImmutable()
 
-let transformExpression (cenv: cenv) (valueLookup: MatchPatternLookup) i (expr: E) =
+/// Using this example:
+///     ...
+///     match (x, x, x, x, x, x, x, x, x, x)
+///     | _, y, _, _, _, _, _, _, _, _
+///     | _, _, y, _, _, _, _, _, _, _
+///     | y, _, _, _, _, _, _, _, _, _
+///     | _, _, _, _, y, _, _, _, _, _ 
+///     | _, _, _, _, _, _, _, y, _, _ => $(targetExpr)
+///     ...
+///
+///     'PatternMatchCompilation' will generate five instance of 'y' with different 'IValueSymbol.Id's.
+///     The original 'y' (before PatternMatchCompilation) is still used in $(targetExpr).
+///     This function's responsibility is to replace the original 'y' with one of the generated 'y' instances.
+let replaceTargetExpressionByValue (valueLookup: MatchPatternLookup) i (expr: E) =
     let tmpValues, patternValues = 
         valueLookup.[i]
         |> Array.ofSeq
@@ -732,9 +735,14 @@ let transformExpression (cenv: cenv) (valueLookup: MatchPatternLookup) i (expr: 
         expr.Rewrite(fun expr ->
             match expr with
             | E.Value(syntaxInfo, value) ->
-                match patternValues |> Array.tryFindIndex (fun value2 -> value2.Id = value.Id) with
+                // Try to get the largest index from 'patternValues' that has our value; this is why we use 'Array.rev' and 'flipIndex'.
+                // This is the way to get the latest generated value.
+                // Think of it like 'Array.tryBackFindIndex' would be.
+                match patternValues |> Array.rev |> Array.tryFindIndex (fun value2 -> value2.Id = value.Id) with
                 | Some index ->
-                    E.Value(syntaxInfo, tmpValues.[index])
+                    let flipIndex index =
+                        patternValues.Length - 1 - index
+                    E.Value(syntaxInfo, tmpValues.[flipIndex index])
                 | _ ->
                     expr
             | _ ->
@@ -762,7 +770,7 @@ let tryTransformTargetExpression (cenv: cenv) (valueLookup: MatchPatternLookup) 
                     cenv.NoneExpression
                 )
             )
-        Some(valueDeclExprs, transformExpression cenv valueLookup i expr)
+        Some(valueDeclExprs, replaceTargetExpressionByValue valueLookup i expr)
     else
         None
 
@@ -824,7 +832,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
     let decisions =
         match guardExprOpt with
         | Some(guardExpr) ->
-            Decision.Condition(i, transformExpression cenv matchPatternLookup i guardExpr)
+            Decision.Condition(i, replaceTargetExpressionByValue matchPatternLookup i guardExpr)
             |> decisions.Add
         | _ ->
             decisions

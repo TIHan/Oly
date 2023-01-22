@@ -47,7 +47,7 @@ main(): () =
     match (x, x, x)
     | 2, y, 10
     | 8, 3, y
-    | y, 1, 1 => 
+    | y, 5, 5 => 
         print("fail")
         print(y)
     | _ => 
