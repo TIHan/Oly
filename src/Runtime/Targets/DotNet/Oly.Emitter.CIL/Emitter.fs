@@ -226,15 +226,24 @@ module rec ClrCodeGen =
         else
             ValueNone
 
+    let private tryGetSecondToLastInstruction cenv =
+        if cenv.buffer.Count > 1 then
+            cenv.buffer[cenv.buffer.Count - 2]
+            |> ValueSome
+        else
+            ValueNone
+
     let private setLastInstruction cenv instr =
         if cenv.buffer.Count > 0 then
             cenv.buffer[cenv.buffer.Count - 1] <- instr
         else
             OlyAssert.Fail("Cannot set last instruction as no instructions have been emitted.")
 
-    let private setReturnable env =
-        if env.isReturnable then env
-        else { env with isReturnable = true }
+    let private setSecondToLastInstruction cenv instr =
+        if cenv.buffer.Count > 1 then
+            cenv.buffer[cenv.buffer.Count - 2] <- instr
+        else
+            OlyAssert.Fail("Cannot set second-to-last instruction as not enough instructions have been emitted.")
 
     let private setNotReturnable env =
         if env.isReturnable then { env with isReturnable = false }
@@ -363,21 +372,6 @@ module rec ClrCodeGen =
         match expr with
         | E.Value _ -> 
             GenExpression cenv (setDisableSequencePoint env) expr
-        ////| E.Operation(_, op) ->
-        ////    if cenv.IsDebuggable then
-        ////        if op.ArgumentCount = 0 || hasAllValues op then
-        ////            GenExpression cenv (setDisableSequencePoint env) expr
-        ////        else                   
-        ////            let localTy = expr.ResultType
-        ////            let localIndex = cenv.NewLocal(localTy)
-
-        ////            GenExpression cenv (setDisableSequencePoint env) expr
-        ////            let textRange = expr.DebugSourceTextRange
-        ////            emitSequencePoint cenv env &textRange
-        ////            I.Stloc localIndex |> emitInstruction cenv
-        ////            I.Ldloc localIndex |> emitInstruction cenv
-        ////    else
-        ////        GenExpression cenv (setDisableSequencePoint env) expr
         | _ ->
             GenExpression cenv env expr
 
@@ -797,16 +791,16 @@ module rec ClrCodeGen =
             I.Stelem(contentTy.Handle) |> emitInstruction cenv
 
         | O.New(irFunc, irArgs, _) ->
-            GenNew cenv env &textRange irFunc.EmittedFunction irArgs
+            GenNew cenv env irFunc.EmittedFunction irArgs
 
         | O.Call(irFunc, irArgs, _) ->
-            GenCall cenv env &textRange prevEnv.isReturnable irFunc.EmittedFunction irArgs false
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false
 
         | O.CallVirtual(irFunc, irArgs, _) ->
-            GenCall cenv env &textRange prevEnv.isReturnable irFunc.EmittedFunction irArgs true
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs true
 
         | O.CallIndirect(runtimeArgTys, irFunArg, irArgs, runtimeResultTy) ->
-            GenCallIndirect cenv env &textRange irFunArg irArgs runtimeArgTys runtimeResultTy
+            GenCallIndirect cenv env irFunArg irArgs runtimeArgTys runtimeResultTy
 
     let GenValue cenv env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
@@ -896,7 +890,7 @@ module rec ClrCodeGen =
     let canEmitDebugNopByType cenv (ty: ClrTypeHandle) =
         canEmitDebugNop cenv && (ty = cenv.assembly.TypeReferenceVoid)
 
-    let GenCall (cenv: cenv) env (textRange: inref<OlyIRDebugSourceTextRange>) isReturnable (func: ClrMethodInfo) irArgs isVirtual =
+    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual =
         match func.specialKind with
         | ClrMethodSpecialKind.FunctionPointer ->
             raise(System.NotImplementedException("Clr FunctionPointer"))
@@ -927,11 +921,11 @@ module rec ClrCodeGen =
         | _ ->
             failwith "Invalid special method."
 
-    let GenNew cenv env (textRange: inref<OlyIRDebugSourceTextRange>) (func: ClrMethodInfo) irArgs =
+    let GenNew cenv env (func: ClrMethodInfo) irArgs =
         irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
-    let GenCallIndirect (cenv: cenv) env (textRange: inref<OlyIRDebugSourceTextRange>) (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
+    let GenCallIndirect (cenv: cenv) env (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
         GenArgumentExpression cenv env irFunArg
 
         match irFunArg.ResultType.Handle with
@@ -1119,23 +1113,24 @@ module rec ClrCodeGen =
             GenOperation cenv env &textRange irOp
             let didEmitSeqPoints = (cenv.GetSequencePointCount() - prevSeqPointCount) <> 0
 
-            if cenv.IsDebuggable && didEmitSeqPoints then
-                if seqPointPosition < cenv.buffer.Count then
-                    match cenv.buffer[seqPointPosition] with
-                    | I.SequencePoint _ ->
-                        cenv.buffer[seqPointPosition] <- I.Skip
-                        cenv.DecrementSequencePointCount()
-                    | _ -> 
+            if cenv.IsDebuggable then
+                if didEmitSeqPoints then
+                    if seqPointPosition < cenv.buffer.Count then
+                        match cenv.buffer[seqPointPosition] with
+                        | I.SequencePoint _ ->
+                            cenv.buffer[seqPointPosition] <- I.Skip
+                            cenv.DecrementSequencePointCount()
+                        | _ -> 
+                            ()
+                    match tryGetLastInstruction cenv with
+                    | ValueSome(instr) ->
+                        if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
+                            setLastInstruction cenv (I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1))
+                            cenv.IncrementSequencePointCount()
+                            emitInstruction cenv I.Nop
+                            emitInstruction cenv instr
+                    | _ ->
                         ()
-                match tryGetLastInstruction cenv with
-                | ValueSome(instr) ->
-                    if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
-                        setLastInstruction cenv (I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1))
-                        cenv.IncrementSequencePointCount()
-                        emitInstruction cenv I.Nop
-                        emitInstruction cenv instr
-                | _ ->
-                    ()
 
             if canEmitDebugNopByType cenv irOp.ResultType.Handle then
                 I.Nop |> emitInstruction cenv
@@ -2275,10 +2270,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     spb = ClrCodeGen.EnableSequencePoint
                 } : ClrCodeGen.env
 
-            if ClrCodeGen.canEmitDebugNop cenv then
-                let textRange = expr.DebugSourceTextRange
-                ClrCodeGen.emitSequencePoint cenv env &textRange
-                ClrCodeGen.emitInstruction cenv I.Nop
             ClrCodeGen.GenExpression cenv env expr
 
             match func.builder with

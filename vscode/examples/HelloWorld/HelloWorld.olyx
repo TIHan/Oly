@@ -30,5 +30,5 @@ main(): () =
 
     print("the end\n")
 
-    // let result = MessageBox(default, "Hello World!", "Message Box", 0)
-    // let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    let result = MessageBox(default, "Hello World!", "Message Box", 0)
