@@ -14,10 +14,15 @@ main(): () =
     let e = TestEnum.A
 
     let result =
-        match (e)
-        | TestEnum.A => true
-        | TestEnum.B => false
-        | _ => false
+        if (fromEnum(e) == fromEnum(TestEnum.A))
+            print("60")
+            60
+        else
+            print("70")
+            70
+        // match (e)
+        // | TestEnum.A => 6
+        // | _ => 70
 
-    let result = MessageBox(default, "Hello World!", "Message Box", 0)
+  //  let result = MessageBox(default, "Hello World!", "Message Box", 0)
     print(result)

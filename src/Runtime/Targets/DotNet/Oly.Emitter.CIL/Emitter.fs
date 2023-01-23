@@ -1095,7 +1095,7 @@ module rec ClrCodeGen =
                     emitInstruction cenv I.Nop
 
         | E.Let(_, n, irRhsExpr, irBodyExpr) ->
-            let hasNoDup = cenv.dups.Contains(n) |> not
+            let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
             
             if hasNoDup then
                 let rhsExprTy = irRhsExpr.ResultType
@@ -1110,6 +1110,8 @@ module rec ClrCodeGen =
 
         | E.Value(textRange, irValue) ->
             emitSequencePoint cenv env &textRange
+            if canEmitDebugNop cenv then
+                I.Nop |> emitInstruction cenv
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
@@ -1147,7 +1149,8 @@ module rec ClrCodeGen =
             GenExpression cenv (setNotReturnable env) irExpr1
             GenExpression cenv env irExpr2
 
-        | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+        | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
+
             let continuationLabelIdOpt =
                 if not env.isReturnable then
                     cenv.NewLabel() |> ValueSome
