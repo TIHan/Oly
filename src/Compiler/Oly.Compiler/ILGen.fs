@@ -1470,7 +1470,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Typed _ ->
         failwith "Unexpected expression. Should be removed in lowering."
 
-and GenSetFieldExpression (cenv: cenv) env ilTextRange receiverOpt field rhsExpr =
+and GenSetFieldExpression (cenv: cenv) env _ilTextRange receiverOpt field rhsExpr =
     let ilReceiverOpt : OlyILExpression option =
         receiverOpt
         |> Option.map (fun receiver ->
@@ -1485,7 +1485,7 @@ and GenSetFieldExpression (cenv: cenv) env ilTextRange receiverOpt field rhsExpr
             OlyILOperation.StoreField(ilFieldRef, ilReceiver, ilRhsExpr)
         | _ ->
             OlyILOperation.StoreStaticField(ilFieldRef, ilRhsExpr)
-    OlyILExpression.Operation(ilTextRange, ilOp)
+    OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
 
 and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
     match value with
@@ -1496,16 +1496,16 @@ and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
         match cenv.funEnv.scopedLocals.TryGetValue value.Id with
         | true, local ->
             let ilOp = OlyILOperation.Store(local.Index, ilRhsExpr)
-            OlyILExpression.Operation(ilTextRange, ilOp)
+            OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
         | _ ->
             match cenv.funEnv.arguments.TryGetValue value.Id with
             | true, n ->
                 let ilOp = OlyILOperation.StoreArgument(n, ilRhsExpr)
-                OlyILExpression.Operation(ilTextRange, ilOp)
+                OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
             | _ ->
                 failwithf "Local '%s' does not exist" value.Name
 
-and GenSetContentsOfAddressExpression (cenv: cenv) env ilTextRange lhsExpr rhsExpr =
+and GenSetContentsOfAddressExpression (cenv: cenv) env _ilTextRange lhsExpr rhsExpr =
 #if DEBUG
     OlyAssert.True(lhsExpr.Type.IsByRef_t || lhsExpr.Type.IsAnyPtr)
     OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef)
@@ -1513,7 +1513,7 @@ and GenSetContentsOfAddressExpression (cenv: cenv) env ilTextRange lhsExpr rhsEx
     let ilLhsExpr = GenExpression cenv env lhsExpr
     let ilRhsExpr = GenExpression cenv env rhsExpr
     let ilOp = OlyILOperation.StoreToAddress(ilLhsExpr, ilRhsExpr)
-    OlyILExpression.Operation(ilTextRange, ilOp)
+    OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
 
 and GenLoadFieldExpression cenv env ilTextRange (takeAddress: OlyILByRefKind voption) (field: IFieldSymbol) (ilArgExprs: OlyILExpression imarray) =
     match field.Constant with

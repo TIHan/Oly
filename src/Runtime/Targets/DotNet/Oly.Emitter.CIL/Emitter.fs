@@ -380,7 +380,7 @@ module rec ClrCodeGen =
         | _ ->
             GenExpression cenv env expr
 
-    let GenOperation (cenv: cenv) prevEnv (textRange: inref<OlyIRDebugSourceTextRange>) (irOp: O<ClrTypeInfo, _, _>) =
+    let GenOperation (cenv: cenv) prevEnv (irOp: O<ClrTypeInfo, _, _>) =
         let env = { prevEnv with isReturnable = false }
         match irOp with
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, _) ->
@@ -998,6 +998,17 @@ module rec ClrCodeGen =
             if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
                 I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1) |> emitInstruction cenv
                 cenv.IncrementSequencePointCount()
+            else
+                I.HiddenSequencePoint |> emitInstruction cenv
+                cenv.IncrementSequencePointCount()
+        | _ ->
+            ()
+
+    let emitHiddenSequencePoint cenv (env: env) =
+        match env.spb with
+        | EnableSequencePoint ->
+            I.HiddenSequencePoint |> emitInstruction cenv
+            cenv.IncrementSequencePointCount()
         | _ ->
             ()
 
@@ -1120,22 +1131,28 @@ module rec ClrCodeGen =
                 emitSequencePoint cenv env &textRange
 
             let prevSeqPointCount = cenv.GetSequencePointCount()
-            GenOperation cenv env &textRange irOp
+            GenOperation cenv env irOp
             let didEmitSeqPoints = (cenv.GetSequencePointCount() - prevSeqPointCount) <> 0
 
             if cenv.IsDebuggable then
                 if didEmitSeqPoints then
-                    if seqPointPosition < cenv.buffer.Count then
-                        match cenv.buffer[seqPointPosition] with
-                        | I.SequencePoint _ ->
-                            cenv.buffer[seqPointPosition] <- I.Skip
-                            cenv.DecrementSequencePointCount()
-                        | _ -> 
-                            ()
-                    match tryGetLastInstruction cenv with
-                    | ValueSome(instr) ->
+                    let instrToSetLastOpt =
+                        if seqPointPosition < cenv.buffer.Count then
+                            let instr = cenv.buffer[seqPointPosition]
+                            match instr with
+                            | I.SequencePoint _
+                            | I.HiddenSequencePoint ->
+                                cenv.buffer[seqPointPosition] <- I.Skip
+                                cenv.DecrementSequencePointCount()
+                                Some instr
+                            | _ -> 
+                                None
+                        else
+                            None
+                    match tryGetLastInstruction cenv, instrToSetLastOpt with
+                    | ValueSome(instr), Some(instrToSetLast) ->
                         if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
-                            setLastInstruction cenv (I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1))
+                            setLastInstruction cenv instrToSetLast
                             cenv.IncrementSequencePointCount()
                             emitInstruction cenv I.Nop
                             emitInstruction cenv instr
@@ -1156,6 +1173,12 @@ module rec ClrCodeGen =
                     cenv.NewLabel() |> ValueSome
                 else
                     ValueNone
+
+            let debugTmpOpt =
+                if cenv.IsDebuggable && not env.isReturnable && (resultTy.Handle <> cenv.assembly.TypeReferenceVoid) then
+                    cenv.NewLocal(resultTy) |> Some
+                else
+                    None
 
             let falseTargetLabelId = cenv.NewLabel()
 
@@ -1179,6 +1202,12 @@ module rec ClrCodeGen =
                 GenConditionExpressionForFalseTarget cenv (setNotReturnable env) falseTargetLabelId conditionExpr          
                 GenExpression cenv env trueTargetExpr
 
+            match debugTmpOpt with
+            | Some(debugTmp) ->
+                I.Stloc debugTmp |> emitInstruction cenv
+            | _ ->
+                ()
+
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
                 I.Br(contLabelId) |> emitInstruction cenv
@@ -1188,9 +1217,24 @@ module rec ClrCodeGen =
             I.Label falseTargetLabelId |> emitInstruction cenv
             GenExpression cenv env falseTargetExpr
 
+            match debugTmpOpt with
+            | Some(debugTmp) ->
+                emitHiddenSequencePoint cenv env
+                if canEmitDebugNop cenv then
+                    I.Nop |> emitInstruction cenv
+                I.Stloc debugTmp |> emitInstruction cenv
+            | _ ->
+                ()
+
             match continuationLabelIdOpt with
             | ValueSome(contLabelId) ->
                 I.Label(contLabelId) |> emitInstruction cenv
+            | _ ->
+                ()
+
+            match debugTmpOpt with
+            | Some(debugTmp) ->
+                I.Ldloc debugTmp |> emitInstruction cenv
             | _ ->
                 ()
 

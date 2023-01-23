@@ -1787,6 +1787,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Br _
         | I.Label _
         | I.SequencePoint _
+        | I.HiddenSequencePoint
         | I.Skip ->
             failwith "Unexpected instruction."
 
@@ -2027,6 +2028,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         | I.Label _
         | I.SequencePoint _
+        | I.HiddenSequencePoint
         | I.Skip ->
             0
 
@@ -2110,6 +2112,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 dummyIL.MarkLabel(labels[labelId])
 
             | I.SequencePoint _
+            | I.HiddenSequencePoint
             | I.Skip ->
                 ()
 
@@ -2204,6 +2207,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                         seqPoints.Add(ClrSequencePoint(document, il.Offset, startLine, endLine, startColumn, endColumn))
                     | _ ->
                         ()
+
+            | I.HiddenSequencePoint ->
+                match firstDocument with
+                | Some(firstDocumentPath, firstDocument) when il.Offset > 0 ->
+                    seqPoints.Add(ClrSequencePoint(firstDocument, il.Offset, 1, 1, 1, 1))
+                | _ ->
+                    ()
 
             | I.Skip ->
                 ()
