@@ -73,12 +73,6 @@ module SymbolComparers =
             member _.Equals(tyPar1, tyPar2) = tyPar1.Id = tyPar2.Id
         }
 
-[<Obsolete("remove this")>]
-let isVariableTy (ty: TypeSymbol) =
-    match stripTypeEquations ty with
-    | TypeSymbol.Variable _ -> true
-    | _ -> false
-
 type TypeVariableRigidity =
     /// Can solve inference variables.
     | Flexible

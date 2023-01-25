@@ -93,7 +93,7 @@ type cenv =
         }
 
     member this.GenerateName() =
-        let newId = !this.genNameNumber
+        let newId = this.genNameNumber.contents
         this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_gen_" + string newId
 

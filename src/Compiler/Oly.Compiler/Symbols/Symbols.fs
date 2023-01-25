@@ -228,7 +228,7 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
         member _.Entities = entsHole.contents
         member _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
         member _.InstanceConstructors =
-            !funcs
+            funcs.contents
             |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
             |> ImArray.map (fun x -> x :> IFunctionSymbol)
         member _.Enclosing = enclosing
