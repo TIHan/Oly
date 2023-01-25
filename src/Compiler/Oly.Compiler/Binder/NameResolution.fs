@@ -1871,7 +1871,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
             | TypeSymbol.Variable(tyPar) -> 
                 tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                if tyArgs |> Seq.exists (fun x -> isInferenceVariableType x |> not) then
+                if tyArgs |> Seq.exists (fun x -> x.IsSolved) then
                     cenv.diagnostics.Error("A type parameter with a generic instantiation is not allowed.", 10, syntaxTy)
                 tyPar
             | _ ->

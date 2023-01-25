@@ -79,12 +79,6 @@ let isVariableTy (ty: TypeSymbol) =
     | TypeSymbol.Variable _ -> true
     | _ -> false
 
-[<Obsolete("remove this")>]
-let isInferenceVariableType (ty: TypeSymbol) =
-    match stripTypeEquations ty with
-    | TypeSymbol.InferenceVariable _ -> true
-    | _ -> false
-
 type TypeVariableRigidity =
     /// Can solve inference variables.
     | Flexible
