@@ -889,12 +889,6 @@ module rec ClrCodeGen =
         not(func.Parameters |> ImArray.exists (fun (_, x) -> x.IsByRef)) &&
         not func.ReturnType.IsByRef
 
-    let canEmitDebugNop cenv =
-        cenv.irTier.HasMinimalOptimizations
-
-    let canEmitDebugNopByType cenv (ty: ClrTypeHandle) =
-        canEmitDebugNop cenv && (ty = cenv.assembly.TypeReferenceVoid)
-
     let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual =
         match func.specialKind with
         | ClrMethodSpecialKind.FunctionPointer ->
@@ -992,7 +986,10 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let emitSequencePoint cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
+    let canEmitDebugNop cenv =
+        cenv.irTier.HasMinimalOptimizations
+
+    let emitSequencePointIfPossible cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
         match env.spb with
         | EnableSequencePoint ->
             if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
@@ -1004,7 +1001,15 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
-    let emitHiddenSequencePoint cenv (env: env) =
+    let emitDebugNopIfPossible cenv : unit =
+        if canEmitDebugNop cenv then
+            emitInstruction cenv I.Nop
+
+    let emitDebugNopIfTypeVoid cenv (ty: ClrTypeInfo) =
+        if canEmitDebugNop cenv && (cenv.assembly.TypeReferenceVoid = ty.Handle) then
+            emitInstruction cenv I.Nop
+
+    let emitHiddenSequencePointIfPossible cenv (env: env) =
         match env.spb with
         | EnableSequencePoint ->
             I.HiddenSequencePoint |> emitInstruction cenv
@@ -1100,10 +1105,8 @@ module rec ClrCodeGen =
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
         | E.None(textRange, _) ->
-            if cenv.IsDebuggable then
-                if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
-                    emitSequencePoint cenv (setEnableSequencePoint env) &textRange
-                    emitInstruction cenv I.Nop
+            emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
+            emitDebugNopIfPossible cenv
 
         | E.Let(_, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
@@ -1111,7 +1114,7 @@ module rec ClrCodeGen =
             if hasNoDup then
                 let rhsExprTy = irRhsExpr.ResultType
                 cenv.locals.[n] <- rhsExprTy
-            GenExpression cenv { env with isReturnable = false } irRhsExpr
+            GenExpression cenv (setNotReturnable env) irRhsExpr
             if hasNoDup then
                 I.Stloc n |> emitInstruction cenv
             else
@@ -1120,60 +1123,74 @@ module rec ClrCodeGen =
             GenExpression cenv env irBodyExpr
 
         | E.Value(textRange, irValue) ->
-            emitSequencePoint cenv env &textRange
-            if canEmitDebugNop cenv then
-                I.Nop |> emitInstruction cenv
+            emitSequencePointIfPossible cenv env &textRange
+            emitDebugNopIfPossible cenv
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
             let seqPointPosition = cenv.buffer.Count
-            if cenv.IsDebuggable then
-                emitSequencePoint cenv env &textRange
+            emitSequencePointIfPossible cenv env &textRange
 
             let prevSeqPointCount = cenv.GetSequencePointCount()
             GenOperation cenv env irOp
             let didEmitSeqPoints = (cenv.GetSequencePointCount() - prevSeqPointCount) <> 0
 
-            if cenv.IsDebuggable then
-                if didEmitSeqPoints then
-                    let instrToSetLastOpt =
+            if didEmitSeqPoints then
+                match tryGetLastInstruction cenv with
+                | ValueSome(instr) ->
+                    let seqPointInstrOpt =
                         if seqPointPosition < cenv.buffer.Count then
                             let instr = cenv.buffer[seqPointPosition]
                             match instr with
                             | I.SequencePoint _
                             | I.HiddenSequencePoint ->
                                 cenv.buffer[seqPointPosition] <- I.Skip
-                                cenv.DecrementSequencePointCount()
                                 Some instr
                             | _ -> 
                                 None
                         else
                             None
-                    match tryGetLastInstruction cenv, instrToSetLastOpt with
-                    | ValueSome(instr), Some(instrToSetLast) ->
-                        if not(String.IsNullOrWhiteSpace(textRange.Path.ToString())) then
+
+                    match seqPointInstrOpt with
+                    | Some(instrToSetLast) ->
+                        match tryGetSecondToLastInstruction cenv with
+                        // Handle calls with prefixes. 
+                        // We do this because, as an example, we cannot insert a Nop in-between an I.Constrained and I.Call
+                        | ValueSome(I.Tail as secondToLastInstr)
+                        | ValueSome(I.Constrained _ as secondToLastInstr) ->
+                            setSecondToLastInstruction cenv instrToSetLast
+                            emitDebugNopIfPossible cenv
+                            setLastInstruction cenv secondToLastInstr
+                        | _ ->
                             setLastInstruction cenv instrToSetLast
-                            cenv.IncrementSequencePointCount()
-                            emitInstruction cenv I.Nop
-                            emitInstruction cenv instr
+                            emitDebugNopIfPossible cenv
+                        emitInstruction cenv instr
                     | _ ->
                         ()
+                | _ ->
+                    ()
 
-            if canEmitDebugNopByType cenv irOp.ResultType.Handle then
-                I.Nop |> emitInstruction cenv
+            emitDebugNopIfTypeVoid cenv irOp.ResultType
 
         | E.Sequential(irExpr1, irExpr2) ->
             GenExpression cenv (setNotReturnable env) irExpr1
             GenExpression cenv env irExpr2
 
         | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
-
             let continuationLabelIdOpt =
                 if not env.isReturnable then
                     cenv.NewLabel() |> ValueSome
                 else
                     ValueNone
 
+            // 'debugTmp' is only emitted in debugging and its purpose is to provide a better debugging experience if you have this code:
+            //     let result =
+            //         if (condition)
+            //             1
+            //         else
+            //             2
+            // Without using the 'debugTmp' and a hidden sequence point, 
+            //     stepping through the code when breaked on '1' will result to breaking on '2' which is not right.
             let debugTmpOpt =
                 if cenv.IsDebuggable && not env.isReturnable && (resultTy.Handle <> cenv.assembly.TypeReferenceVoid) then
                     cenv.NewLocal(resultTy) |> Some
@@ -1219,9 +1236,8 @@ module rec ClrCodeGen =
 
             match debugTmpOpt with
             | Some(debugTmp) ->
-                emitHiddenSequencePoint cenv env
-                if canEmitDebugNop cenv then
-                    I.Nop |> emitInstruction cenv
+                emitHiddenSequencePointIfPossible cenv env
+                emitDebugNopIfPossible cenv
                 I.Stloc debugTmp |> emitInstruction cenv
             | _ ->
                 ()

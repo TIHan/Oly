@@ -131,7 +131,7 @@ let ``Should not get function body because it is not invoked in main`` () =
             OlyILFunctionFlags.None, 
             OlyILMemberFlags.Static, 
             ImArray.empty,
-            OlyILExpression.None,
+            OlyILExpression.None(OlyILDebugSourceTextRange.Empty),
             OlyILTypeVoid
         )
         |> fst
@@ -152,7 +152,7 @@ let ``Should get function body because it is invoked in main`` () =
     let builder = DummyAssemblyBuilder(true)
 
     let ilLocals = ImArray.empty
-    let ilExpr = OlyILExpression.None
+    let ilExpr = OlyILExpression.None(OlyILDebugSourceTextRange.Empty)
     let ilExprTy = OlyILTypeVoid
 
     let ilEntDefHandle = builder.CreateEntityDefinitionHandle()

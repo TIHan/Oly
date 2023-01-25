@@ -9,4 +9,4 @@ main(): () =
     let x = 1
     let mutable y = 0
     y <- x + x
-   // let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    let result = MessageBox(default, "Hello World!", "Message Box", 0)

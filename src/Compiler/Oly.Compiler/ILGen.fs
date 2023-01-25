@@ -2059,12 +2059,26 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rh
 
         let ilBodyExpr =
             if cenv.assembly.IsDebuggable then
-                OlyILExpression.Sequential(
-                    OlyILExpression.None(
+                // The first expression should be a 'None' to indicate the function body is correlated with the source.
+                let ilTextRange =
+                    match rhsExpr with
+                    | E.Lambda(body=lazyBodyExpr) ->
+                        match lazyBodyExpr.Expression.Syntax with
+                        | :? OlySyntaxExpression as syntaxExpr ->
+                            match syntaxExpr.Parent with
+                            | :? OlySyntaxBinding as syntaxParentBinding ->
+                                match syntaxParentBinding with
+                                | OlySyntaxBinding.Implementation(_, equalToken, _) ->
+                                    emitTextRange cenv equalToken
+                                | _ ->
+                                    OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
+                            | _ ->
+                                OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
+                        | _ ->
+                            OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
+                    | _ ->
                         OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
-                    ),
-                    ilBodyExpr
-                )
+                OlyILExpression.Sequential(OlyILExpression.None(ilTextRange), ilBodyExpr)
             else
                 ilBodyExpr
 
