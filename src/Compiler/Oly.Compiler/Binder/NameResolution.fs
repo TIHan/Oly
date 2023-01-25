@@ -1607,7 +1607,7 @@ let bindTypeAndInferConstraints (cenv: cenv) (env: BinderEnvironment) syntaxTy =
         ty.TypeParameters
         |> Seq.iteri (fun i tyPar ->
             let constrsHole = lookup.[i]
-            constrsHole := (!constrsHole).AddRange(tyPar.Constraints)
+            constrsHole.contents <- constrsHole.contents.AddRange(tyPar.Constraints)
         )
 
         envWithTyPars, ty

@@ -424,8 +424,8 @@ type cenv =
     }
 
     member this.GenerateClosureName() =
-        let newId = !this.genNameNumber
-        this.genNameNumber := !this.genNameNumber + 1
+        let newId = this.genNameNumber.contents
+        this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_closure_" + string newId
 
 let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: ReadOnlyDictionary<_, _>) (fields: IFieldSymbol imarray) (closure: IEntitySymbol) =

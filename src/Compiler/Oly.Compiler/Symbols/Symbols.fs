@@ -193,7 +193,7 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
     //         Could we make this less error prone? We haven't had a problem with it yet but it can be surprising.
     let lazyFlags =
         lazy
-            let fields = !fields
+            let fields = fields.contents
             if ImArray.isEmpty fields then flags
             else
                 let isReadOnly =
@@ -210,23 +210,23 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
 
     member _.Id = id
     member _.Name = name
-    member _.Attributes = !attrs
+    member _.Attributes = attrs.contents
     member _.Enclosing = enclosing
-    member _.TypeParameters = !tyPars
-    member _.TypeArguments = !tyPars |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
-    member _.Functions = !funcs
-    member _.Properties = !props
-    member _.Fields = !fields
-    member _.Patterns = !pats
-    member _.Implements = !implements
-    member _.Extends = !extends
+    member _.TypeParameters = tyPars.contents
+    member _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
+    member _.Functions = funcs.contents
+    member _.Properties = props.contents
+    member _.Fields = fields.contents
+    member _.Patterns = pats.contents
+    member _.Implements = implements.contents
+    member _.Extends = extends.contents
     member _.InstanceConstructors =
-        !funcs
+        funcs.contents
         |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
 
     interface IEntitySymbol with
-        member _.Entities = !entsHole
-        member _.Functions = !funcs |> ImArray.map (fun x -> x :> IFunctionSymbol)
+        member _.Entities = entsHole.contents
+        member _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
         member _.InstanceConstructors =
             !funcs
             |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
@@ -234,17 +234,17 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
         member _.Enclosing = enclosing
         member _.Id = id
         member _.Name = name 
-        member _.Fields = !fields
-        member _.Properties = !props |> ImArray.map (fun x -> x :> IPropertySymbol)
+        member _.Fields = fields.contents
+        member _.Properties = props.contents |> ImArray.map (fun x -> x :> IPropertySymbol)
         member _.Patterns = pats.contents |> ImArray.map (fun x -> x :> IPatternSymbol)
-        member _.TypeArguments = !tyPars |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
-        member _.Implements = !implements
-        member _.Extends = !extends
-        member _.TypeParameters = !tyPars
+        member _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
+        member _.Implements = implements.contents
+        member _.Extends = extends.contents
+        member _.TypeParameters = tyPars.contents
         member _.Kind = kind
         member _.ContainingAssembly = containingAsmOpt
         member this.Formal = this
-        member _.Attributes = !attrs
+        member _.Attributes = attrs.contents
         member _.Flags = lazyFlags.Value
 
 let takeTypeArguments (tyArgs: ImmutableArray<TypeSymbol>) tyParCount =

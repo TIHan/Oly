@@ -150,18 +150,6 @@ let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty:
         true
 
 let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression imarray) (valueTy: TypeSymbol) =
-    let valueTy =
-        // TODO: remove this.
-        let ty = valueTy
-        if isInferenceVariableType ty then
-            let argTys = ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None)
-            let returnTy = mkInferenceVariableType None
-            let funTy = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, returnTy)
-            solveTypes env syntaxNode ty funTy
-            funTy
-        else
-            ty
-
     match valueTy.TryFunction with
     | ValueSome(expectedArgTys, _) ->        
         let argTysWithSyntax =

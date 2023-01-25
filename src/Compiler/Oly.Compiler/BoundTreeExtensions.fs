@@ -528,11 +528,11 @@ module private FreeVariablesHelper =
 
         match expr with
         | BoundExpression.Lambda(freeVars=freeVarsRef) ->
-            match !freeVarsRef with
+            match freeVarsRef.contents with
             | ValueSome(freeVars) -> freeVars
             | _ ->
                 let freeVars = find expr
-                freeVarsRef := ValueSome(freeVars)
+                freeVarsRef.contents <- ValueSome(freeVars)
                 freeVars
         | _ ->
             find expr

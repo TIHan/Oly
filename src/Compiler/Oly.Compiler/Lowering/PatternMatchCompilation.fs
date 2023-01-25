@@ -209,7 +209,7 @@ type Decision =
         | Condition(matchIndex=matchIndex)
         | ConditionContinuation(matchIndex=matchIndex) -> matchIndex
 
-type MatchPatternLookup = ResizeArray<ResizeArray<ILocalSymbol * IValueSymbol>>
+type private MatchPatternLookup = ResizeArray<ResizeArray<ILocalSymbol * IValueSymbol>>
 
 [<NoEquality;NoComparison>]
 type cenv =

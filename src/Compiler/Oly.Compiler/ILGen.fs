@@ -94,7 +94,7 @@ type cenv =
 
     member this.GenerateName() =
         let newId = !this.genNameNumber
-        this.genNameNumber := !this.genNameNumber + 1
+        this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_gen_" + string newId
 
     static member Create(syntaxTree, asm) =
