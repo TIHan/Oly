@@ -151,8 +151,6 @@ type ClrTypeHandle =
             failwith "NativePointer does not have a handle."
         | FunctionPointer _ ->
             failwith "FunctionPointer does not have a handle."
-        | VoidPointer ->
-            failwith "VoidPointer does not have a handle."
         | ModReq _ ->
             failwith "ModReq does not have a handle."
 

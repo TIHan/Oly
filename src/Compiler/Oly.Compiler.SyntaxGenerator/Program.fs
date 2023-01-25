@@ -359,11 +359,12 @@ let computePublicNode cenv (node: XmlNode) =
             $"            Option.Some()\n"
             |> add cenv
 
-        $"        | _ ->\n"
-        |> add cenv
+        if node.ChildNodes.Count > 1 then
+            $"        | _ ->\n"
+            |> add cenv
 
-        $"            Option.None\n"
-        |> add cenv
+            $"            Option.None\n"
+            |> add cenv
 
     add cenv "\n"
 
@@ -397,9 +398,6 @@ let computeConversionTree cenv (tree: XmlElement) =
     // HACKY
 
     $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
-    |> add cenv
-
-    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
     $"        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode\n"

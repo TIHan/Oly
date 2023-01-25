@@ -382,8 +382,6 @@ module OlySyntaxBlittable =
         match node.Internal with
         | SyntaxBlittable.Blittable _ ->
             Option.Some (node.Children.[0] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxBlittableOptional internal (tree, start: int, parent, internalNode: SyntaxBlittableOptional) as this =
@@ -624,8 +622,6 @@ module OlySyntaxHashAttribute =
         match node.Internal with
         | SyntaxHashAttribute.HashAttribute _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxAttributes internal (tree, start: int, parent, internalNode: SyntaxAttributes) as this =
@@ -1777,8 +1773,6 @@ module OlySyntaxPropertyBinding =
         match node.Internal with
         | SyntaxPropertyBinding.Binding _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _, node.Children.[3] :?> _, node.Children.[4] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxGuardBinding internal (tree, start: int, parent, internalNode: SyntaxGuardBinding) as this =
@@ -2345,8 +2339,6 @@ module OlySyntaxNamedArgument =
         match node.Internal with
         | SyntaxNamedArgument.NamedArgument _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxArguments internal (tree, start: int, parent, internalNode: SyntaxArguments) as this =
@@ -2621,8 +2613,6 @@ module OlySyntaxValueDeclarationPostmodifier =
         match node.Internal with
         | SyntaxValueDeclarationPostmodifier.Mutable _ ->
             Option.Some (node.Children.[0] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxValueDeclarationKind internal (tree, start: int, parent, internalNode: SyntaxValueDeclarationKind) as this =
@@ -3332,8 +3322,6 @@ module OlySyntaxMatchClause =
         match node.Internal with
         | SyntaxMatchClause.MatchClause _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _, node.Children.[3] :?> _, node.Children.[4] :?> _)
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: SyntaxConstructType) as this =
@@ -3709,7 +3697,6 @@ module private Convert =
         match internalNode with
         | :? SyntaxToken as internalNode -> OlySyntaxToken(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode

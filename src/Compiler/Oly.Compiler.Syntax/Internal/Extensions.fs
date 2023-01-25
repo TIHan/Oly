@@ -220,14 +220,11 @@ type SyntaxBindingDeclaration with
 
 type ISyntaxNode with
 
-    static member private GetLeadingTriviaWidth(node: ISyntaxNode) =
-        if node.IsToken then
-            (node :?> SyntaxToken).LeadingTriviaWidth
+    member this.GetLeadingTriviaWidth() =
+        if this.IsToken then
+            (this :?> SyntaxToken).LeadingTriviaWidth
         else
-            if node.SlotCount > 0 then
-                ISyntaxNode.GetLeadingTriviaWidth(node.GetSlot(0))
+            if this.SlotCount > 0 then
+                this.GetSlot(0).GetLeadingTriviaWidth()
             else
                 0
-
-    member this.GetLeadingTriviaWidth() =
-        ISyntaxNode.GetLeadingTriviaWidth(this)

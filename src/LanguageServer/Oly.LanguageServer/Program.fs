@@ -739,6 +739,134 @@ type ITextDocumentIdentifierParams with
 
 [<AutoOpen>]
 module ExtensionHelpers =
+
+    let rec getViewModel ct (nextId: int ref) (node: OlySyntaxNode) =
+        if node.FullTextSpan.Width = 0 then 
+            [||]
+        elif node.IsSequentialExpression then
+            let children = node.Children
+            let nodes1 = children |> Seq.item 0 |> getViewModel ct nextId
+            let nodes2 = children |> Seq.item 1 |> getViewModel ct nextId
+            Array.append nodes1 nodes2
+            |> Array.ofSeq
+        else
+            let children = 
+                node.Children 
+                |> Seq.map (getViewModel ct nextId)
+                |> Array.ofSeq
+
+            let classifyToken (token: OlyToken) =
+                let icon =
+                    if token.IsNumericLiteral then
+                        "symbol-numeric"
+                    elif token.IsBoolLiteral then
+                        "symbol-boolean"
+                    elif token.IsCharLiteral || token.IsStringLiteral then
+                        "symbol-string"
+                    elif token.IsKeyword then
+                        "symbol-keyword"
+                    elif token.IsOperator then
+                        "symbol-operator"
+                    elif token.IsTrivia then
+                        "symbol-misc"
+                    elif token.IsIdentifier then
+                        "symbol-text"
+                    else
+                        "symbol-key"
+
+                let label =
+                    if token.IsEndOfSource then
+                        "End of Source"
+                    elif token.IsTrivia then
+                        if token.IsWhitespaceTrivia then
+                            "Whitespace"
+                        elif token.IsSingleLineCommentTrivia || token.IsMultiLineCommentTrivia then
+                            "Comment"
+                        elif token.IsNewLineTrivia then
+                            """\n"""
+                        elif token.IsCarriageReturnTrivia then
+                            """\r"""
+                        elif token.IsCarriageReturnNewLineTrivia then
+                            """\r\n"""
+                        else
+                            token.Text
+                    else
+                        token.Text
+
+                label, icon
+
+            let label, icon =
+                match node.TryGetToken() with
+                | Some token -> classifyToken token
+                | _ -> 
+                    let icon =
+                        if node.IsError then
+                            "error"
+                        elif node.IsName then
+                            "symbol-text"
+                        elif node.IsValueBindingDeclaration then
+                            "symbol-value"
+                        elif node.IsFunctionBindingDeclaration then
+                            "symbol-function"
+                        elif node.IsParameter then
+                            "symbol-parameter"
+                        elif node.IsParameters then
+                            "list-tree"
+                        elif node.IsTypeParameter || node.IsTypeArgument then
+                            "symbol-type-parameter"
+                        elif node.IsTypeParameters then
+                            "list-tree"
+                        elif node.IsArguments then
+                            "list-tree"
+                        elif node.IsTypeArguments then
+                            "list-tree"
+                        elif node.IsConstraints then
+                            "list-tree"
+                        elif node.IsSeparatorList then
+                            "list-flat"
+                        elif node.IsAttributes then
+                            "list-tree"
+                        elif node.IsType then
+                            "symbol-class"
+                        elif node.IsLiteral then
+                            "symbol-constant"
+                        elif node.IsAttribute then
+                            "symbol-color"
+                        elif node.IsCompilationUnit then
+                            "symbol-file"
+                        elif node.IsTypeDeclarationKind || node.IsLambdaKind || node.IsValueKind then
+                            "symbol-enum"
+                        else
+                            "symbol-object"
+
+                    node.DebugName, icon
+
+            let description = 
+                match node.TryGetToken() with
+                | Some(token) when token.IsTrivia -> "SyntaxTrivia"
+                | _ -> node.KindName
+
+            let color =
+                if node.IsError then "errorForeground"
+                else ""
+
+            [|
+                let id = nextId.contents
+                nextId.contents <- nextId.contents + 1
+                {
+                    id = string id
+                    color = color
+                    range = node.GetTextRange(ct)
+                    label = label
+                    description = description
+                    tooltip = ""
+                    children = children |> Array.concat
+                    collapsibleState = if children.Length > 0 then 1 else 0
+                    icon = icon
+                    isToken = node.IsToken
+                }
+            |]
+
     type IOlyRequest<'T> with
 
         member this.HandleOlyDocument(ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
@@ -1740,138 +1868,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.Handle(request, ct) =
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
-                    let syntaxTree = doc.SyntaxTree
-
-                    let mutable nextId = 1
-                    let rec getViewModel (node: OlySyntaxNode) =
-                        if node.FullTextSpan.Width = 0 then 
-                            [||]
-                        elif node.IsSequentialExpression then
-                            let children = node.Children
-                            let nodes1 = children |> Seq.item 0 |> getViewModel
-                            let nodes2 = children |> Seq.item 1 |> getViewModel
-                            Array.append nodes1 nodes2
-                            |> Array.ofSeq
-                        else
-                            let children = 
-                                node.Children 
-                                |> Seq.map getViewModel 
-                                |> Array.ofSeq
-
-                            let classifyToken (token: OlyToken) =
-                                let icon =
-                                    if token.IsNumericLiteral then
-                                        "symbol-numeric"
-                                    elif token.IsBoolLiteral then
-                                        "symbol-boolean"
-                                    elif token.IsCharLiteral || token.IsStringLiteral then
-                                        "symbol-string"
-                                    elif token.IsKeyword then
-                                        "symbol-keyword"
-                                    elif token.IsOperator then
-                                        "symbol-operator"
-                                    elif token.IsTrivia then
-                                        "symbol-misc"
-                                    elif token.IsIdentifier then
-                                        "symbol-text"
-                                    else
-                                        "symbol-key"
-
-                                let label =
-                                    if token.IsEndOfSource then
-                                        "End of Source"
-                                    elif token.IsTrivia then
-                                        if token.IsWhitespaceTrivia then
-                                            "Whitespace"
-                                        elif token.IsSingleLineCommentTrivia || token.IsMultiLineCommentTrivia then
-                                            "Comment"
-                                        elif token.IsNewLineTrivia then
-                                            """\n"""
-                                        elif token.IsCarriageReturnTrivia then
-                                            """\r"""
-                                        elif token.IsCarriageReturnNewLineTrivia then
-                                            """\r\n"""
-                                        else
-                                            token.Text
-                                    else
-                                        token.Text
-
-                                label, icon
-
-                            let label, icon =
-                                match node.TryGetToken() with
-                                | Some token -> classifyToken token
-                                | _ -> 
-                                    let icon =
-                                        if node.IsError then
-                                            "error"
-                                        elif node.IsName then
-                                            "symbol-text"
-                                        elif node.IsValueBindingDeclaration then
-                                            "symbol-value"
-                                        elif node.IsFunctionBindingDeclaration then
-                                            "symbol-function"
-                                        elif node.IsParameter then
-                                            "symbol-parameter"
-                                        elif node.IsParameters then
-                                            "list-tree"
-                                        elif node.IsTypeParameter || node.IsTypeArgument then
-                                            "symbol-type-parameter"
-                                        elif node.IsTypeParameters then
-                                            "list-tree"
-                                        elif node.IsArguments then
-                                            "list-tree"
-                                        elif node.IsTypeArguments then
-                                            "list-tree"
-                                        elif node.IsConstraints then
-                                            "list-tree"
-                                        elif node.IsSeparatorList then
-                                            "list-flat"
-                                        elif node.IsAttributes then
-                                            "list-tree"
-                                        elif node.IsType then
-                                            "symbol-class"
-                                        elif node.IsLiteral then
-                                            "symbol-constant"
-                                        elif node.IsAttribute then
-                                            "symbol-color"
-                                        elif node.IsCompilationUnit then
-                                            "symbol-file"
-                                        elif node.IsTypeDeclarationKind || node.IsLambdaKind || node.IsValueKind then
-                                            "symbol-enum"
-                                        else
-                                            "symbol-object"
-
-                                    node.DebugName, icon
-
-                            let description = 
-                                match node.TryGetToken() with
-                                | Some(token) when token.IsTrivia -> "SyntaxTrivia"
-                                | _ -> node.KindName
-
-                            let color =
-                                if node.IsError then "errorForeground"
-                                else ""
-
-                            [|
-                                let id = nextId
-                                nextId <- nextId + 1
-                                {
-                                    id = string id
-                                    color = color
-                                    range = node.GetTextRange(ct)
-                                    label = label
-                                    description = description
-                                    tooltip = ""
-                                    children = children |> Array.concat
-                                    collapsibleState = if children.Length > 0 then 1 else 0
-                                    icon = icon
-                                    isToken = node.IsToken
-                                }
-                            |]
-
-                    let nodes = syntaxTree.GetRoot(ct) |> getViewModel
-
+                    let mutable nextId = ref 1               
+                    let nodes = doc.SyntaxTree.GetRoot(ct) |> getViewModel ct nextId
                     return { nodes = nodes }
                 }
             )
