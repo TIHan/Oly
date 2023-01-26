@@ -2,6 +2,47 @@
 
 open System
 open System.Threading
+open System.Collections.Generic
+
+/// Least-Recently-Used Cache
+/// Least-recently-used is the eviction policy of the cache.
+[<Sealed>]
+type LruCache<'TKey, 'TValue when 'TKey: equality> (maxCount: int) =
+    do
+        if maxCount <= 0 then
+            invalidArg (nameof(maxCount)) "Must greater than zero."
+
+    let linkedItems = LinkedList<'TKey * 'TValue>()
+    let itemsLookup = Dictionary<'TKey, LinkedListNode<'TKey * 'TValue>>()
+
+    let lockObj = obj()
+
+    member this.SetItem(key, item) =
+        lock lockObj (fun () ->
+            match itemsLookup.TryGetValue(key) with
+            | true, linkedItem ->
+                linkedItems.Remove(linkedItem)
+            | _ ->
+                ()
+
+            if itemsLookup.Count >= maxCount then
+                let key, _ = linkedItems.Last.Value
+                linkedItems.RemoveLast()
+                itemsLookup.Remove(key) |> ignore
+
+            itemsLookup[key] <- linkedItems.AddFirst((key, item))
+        )
+
+    member this.TryGetValue(key) =
+        lock lockObj (fun () ->
+            match itemsLookup.TryGetValue(key) with
+            | true, linkedItem -> 
+                linkedItems.Remove(linkedItem)
+                linkedItems.AddFirst(linkedItem)
+                ValueSome(linkedItem.Value |> snd)
+            | _ -> 
+                ValueNone
+        )
 
 [<Sealed;NoComparison;NoEquality>]
 type CacheValue<'T> =

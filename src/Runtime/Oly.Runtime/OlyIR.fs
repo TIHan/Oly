@@ -302,7 +302,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
     | CallStaticConstructor of      func: OlyIRFunction<'Type, 'Function, 'Field> * resultTy: 'Type
 
-    member this.ForEachArgument f =
+    member inline this.ForEachArgument ([<InlineIfLambda>] f) =
         match this with
         | Add(arg1, arg2, _)
         | Subtract(arg1, arg2, _)
@@ -378,7 +378,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
         | CallStaticConstructor _ -> ()
 
-    member this.MapArguments mapper : OlyIRExpression<_, _, _> imarray =
+    member inline this.MapArguments ([<InlineIfLambda>] mapper: int -> OlyIRExpression<_, _, _> -> OlyIRExpression<_, _, _>) : OlyIRExpression<_, _, _> imarray =
         let args = ImArray.builderWithSize this.ArgumentCount
         this.ForEachArgument (fun i arg ->
             args.Add(mapper i arg)
