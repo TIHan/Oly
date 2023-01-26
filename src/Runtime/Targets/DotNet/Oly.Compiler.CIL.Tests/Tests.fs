@@ -13954,3 +13954,223 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Overload with newtype similar to actual type``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype NewInt32 =
+    Value: int32
+
+test(x: int32): () =
+    print(x)
+
+test(x: NewInt32): () =
+    print(x)
+    print("newtype")
+
+test2(x: int32): int32 =
+    x
+
+test2(x: NewInt32): NewInt32 =
+    x
+
+main(): () =
+    test(88)
+    test(NewInt32(77))
+    test(88)
+    test(88)
+    test(NewInt32(77))
+    test(test2(NewInt32(55)))
+    test(test2(22))
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "8877newtype888877newtype55newtype22"
+    |> ignore
+
+
+[<Fact>]
+let ``Overload with newtype similar to actual type 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype NewInt32 =
+    Value: int32
+
+interface ITest =
+    test(x: int32): ()
+    test(x: NewInt32): ()
+
+class TestClass =
+    implements ITest
+
+    test(x: int32): () =
+        print(x)
+
+    test(x: NewInt32): () =
+        print("newtype")
+        print(x)
+
+main(): () =
+    let x = 88
+    let y = 77
+
+    let t = TestClass()
+
+    t.test(x)
+    t.test(y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "88newtype77"
+    |> ignore
+
+[<Fact>]
+let ``Overload with byref/inref``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+test(x: byref<int32>): () =
+    print(x)
+    print("byref")
+
+test(x: inref<int32>): () =
+    print(x)
+    print("inref")
+
+main(): () =
+    let mutable x = 88
+    let y = 77
+    test(&x)
+    test(&y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "88byref77inref"
+    |> ignore
+
+[<Fact>]
+let ``Overload with byref/inref 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+test(x: byref<int32>): byref<int32> =
+    print("byref")
+    &x
+
+test(x: inref<int32>): inref<int32> =
+    print("inref")
+    &x
+
+main(): () =
+    let mutable x = 88
+    let y = 77
+    let by = &test(&y)
+    let bx = &test(&x)
+    bx <- 22
+    print(x)
+    print(bx)
+    print(by)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "inrefbyref222277"
+    |> ignore
+
+
+[<Fact>]
+let ``Overload with byref/inref 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface ITest =
+    test(x: byref<int32>): ()
+    test(x: inref<int32>): ()
+
+class TestClass =
+    implements ITest
+
+    test(x: byref<int32>): () =
+        print("byref")
+        print(x)
+
+    test(x: inref<int32>): () =
+        print("inref")
+        print(x)
+
+main(): () =
+    let mutable x = 88
+    let y = 77
+
+    let t = TestClass()
+
+    t.test(&x)
+    t.test(&y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "byref88inref77"
+    |> ignore
