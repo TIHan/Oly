@@ -5,5 +5,36 @@
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 
+newtype NewInt32 =
+    Value: int32
+
+    Doot(x: int32): int32 =
+        x
+
+interface ITest =
+    test(x: int32): ()
+    test(x: NewInt32): ()
+
+class TestClass =
+    implements ITest
+
+    test(x: int32): () =
+        print(x)
+
+    test(x: NewInt32): () =
+        print("newtype")
+        print(x)
+
 main(): () =
-    let result = MessageBox(default, "Hello World!", "Message Box", 0)
+    let x = 88
+    let y = 77
+
+    let t = TestClass()
+
+    let newint = NewInt32(77)
+
+    t.test(newint.Doot(x))
+    t.test(newint)
+
+// main(): () =
+//     let result = MessageBox(default, "Hello World!", "Message Box", 0)

@@ -1124,7 +1124,8 @@ module rec ClrCodeGen =
 
         | E.Value(textRange, irValue) ->
             emitSequencePointIfPossible cenv env &textRange
-            emitDebugNopIfPossible cenv
+            if not env.isReturnable then
+                emitDebugNopIfPossible cenv
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
@@ -1279,7 +1280,23 @@ module rec ClrCodeGen =
             // If the last emitted instruction is a return, then we do not need to emit another one.
             match tryGetLastInstruction cenv with
             | ValueSome(I.Ret) -> ()
-            | _ -> I.Ret |> emitInstruction cenv
+            | _ ->
+                //if cenv.IsDebuggable then
+                //    let exprTy = irExpr.ResultType
+                //    // We do this to provide a consistent debugging experience.
+                //    if exprTy.Handle <> cenv.assembly.TypeReferenceVoid then
+                //        let tmp = cenv.NewLocal(exprTy)
+                //        let label = cenv.NewLabel()
+                //        I.Stloc tmp |> emitInstruction cenv
+                //        I.Br label |> emitInstruction cenv
+                //        I.Label label |> emitInstruction cenv
+                //        I.HiddenSequencePoint |> emitInstruction cenv
+                //        I.Ldloc tmp |> emitInstruction cenv
+                //        I.Ret |> emitInstruction cenv
+                //    else
+                //        I.Ret |> emitInstruction cenv
+                //else
+                    I.Ret |> emitInstruction cenv
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
     let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)
@@ -1487,7 +1504,53 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         fun () -> System.Threading.Interlocked.Increment i
 
     let newUniquePrivateTypeName () =
-        "__oly_private_type_" + string (newUniqueId ())
+        "__oly_unique_" + string (newUniqueId ())
+
+    let createMethodName 
+            (externalInfoOpt: OlyIRFunctionExternalInfo option)
+            (flags: OlyIRFunctionFlags) 
+            (name: string) 
+            (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) 
+            (pars: OlyIRParameter<ClrTypeInfo> imarray) 
+            (returnTy: ClrTypeInfo) =
+
+        // Exported functions will always use the name represented in the source.
+        // TODO: How will we solve generic interface implementations?
+        if flags.IsExported then
+            OlyAssert.False(flags.AreGenericsErased)
+        
+            if flags.SignatureUsesNewType then
+                OlyAssert.Fail($"Method '{name}' cannot be exported as it uses newtypes in its signature.")
+
+            match externalInfoOpt with
+            | Some(externalInfo) ->
+                if externalInfo.Platform = "C" then
+                    name
+                else
+                    externalInfo.Name
+            | _ ->
+                name
+        else
+            if flags.SignatureUsesNewType then
+                name + "__oly_unique_" + (newUniqueId().ToString())
+            else if flags.AreGenericsErased then
+                name + "__oly_erased_" + tyPars.Length.ToString()
+            else
+                // We do not need to check the type arguments for byref/inref because
+                // they are not legal in the CLR, therefore the generics should be erased.
+                let mutable readOnlyByRefCount = 0
+                pars
+                |> ImArray.iter (fun x ->
+                    if x.Type.IsByRef && x.Type.IsReadOnly then
+                        readOnlyByRefCount <- readOnlyByRefCount + 1
+                )
+                if returnTy.IsByRef && returnTy.IsReadOnly then
+                    readOnlyByRefCount <- readOnlyByRefCount + 1
+            
+                if readOnlyByRefCount > 0 then
+                    name + "__oly_read_only_" + readOnlyByRefCount.ToString()
+                else
+                    name
 
     let voidTy = ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceVoid, false, false)
 
@@ -2053,20 +2116,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitFunctionDefinition(externalInfoOpt, enclosingTy, flags, name, tyPars, pars, returnTy, originalOverridesOpt, _, irAttrs) =
             let name =
-                if flags.AreGenericsErased then
-                    name + "__oly_erased_" + tyPars.Length.ToString()
-                else
-                    match externalInfoOpt with
-                    | Some(externalInfo) ->
-                        if externalInfo.Platform = "C" then
-                            name
-                        else
-                            externalInfo.Name
-                    | _ ->
-                        if not flags.IsExported && returnTy.IsByRef && returnTy.IsReadOnly then
-                            name + "__oly_read_only"
-                        else
-                            name
+                createMethodName
+                    externalInfoOpt
+                    flags
+                    name
+                    tyPars
+                    pars
+                    returnTy
             let isCtor = flags.IsConstructor
             let isTypeExtension =
                 match enclosingTy with

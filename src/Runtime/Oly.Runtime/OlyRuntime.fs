@@ -270,6 +270,21 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         else
             flags
 
+    let flags =
+        let rec checkForNewtype (x: RuntimeType) =
+            let x = x.StripAlias()
+            if x.IsNewtype then true
+            else
+                if x.TypeArguments.IsEmpty then
+                    false
+                else
+                    x.TypeArguments |> ImArray.exists checkForNewtype
+                
+        if checkForNewtype returnTy || (pars |> ImArray.exists (fun x -> checkForNewtype x.Type)) then
+            flags.SetSignatureUsesNewType()
+        else
+            flags
+
     let funcState =
         {
             RuntimeFunctionState.Formal = Unchecked.defaultof<_>

@@ -74,12 +74,13 @@ type OlyIRTypeFlags =
     | Exported       = 0x000000100
 
 type internal RuntimeFunctionFlags =
-    | None =             0b00000000
-    | Exported =         0b00000010
-    | Inlineable =       0b00000100
-    | External =         0b00001000
-    | GenericsErased =   0b00010000
-    | EntryPoint =       0b00100000
+    | None                 = 0b00000000
+    | Exported             = 0b00000010
+    | Inlineable           = 0b00000100
+    | External             = 0b00001000
+    | GenericsErased       = 0b00010000
+    | SignatureUsesNewType = 0b00100000
+    | EntryPoint           = 0b01000000
 
 [<Sealed>]
 type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray, name: string) =
@@ -91,19 +92,22 @@ type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray,
     member _.Name = name
 
 [<Struct>]
-type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, irFuncFlags: RuntimeFunctionFlags) =
+type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, funcFlags: RuntimeFunctionFlags) =
 
     member internal _.SetGenericsErased() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, irFuncFlags ||| RuntimeFunctionFlags.GenericsErased)
+        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.GenericsErased)
 
     member internal _.SetStatic() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags ||| OlyILMemberFlags.Static, irFuncFlags)
+        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags ||| OlyILMemberFlags.Static, funcFlags)
 
     member internal _.SetInlineable() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, irFuncFlags ||| RuntimeFunctionFlags.Inlineable)
+        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.Inlineable)
+
+    member internal _.SetSignatureUsesNewType() =
+        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.SignatureUsesNewType)
 
     /// Function is able to be inlined in all situations.
-    member _.IsInlineable = irFuncFlags &&& RuntimeFunctionFlags.Inlineable = RuntimeFunctionFlags.Inlineable
+    member _.IsInlineable = funcFlags &&& RuntimeFunctionFlags.Inlineable = RuntimeFunctionFlags.Inlineable
 
     member _.IsConstructor = ilFuncFlags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
 
@@ -121,13 +125,15 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
 
     member _.IsNewSlot = ilMemberFlags &&& OlyILMemberFlags.NewSlot = OlyILMemberFlags.NewSlot
 
-    member _.AreGenericsErased = irFuncFlags &&& RuntimeFunctionFlags.GenericsErased = RuntimeFunctionFlags.GenericsErased
+    member _.AreGenericsErased = funcFlags &&& RuntimeFunctionFlags.GenericsErased = RuntimeFunctionFlags.GenericsErased
 
-    member _.IsEntryPoint = irFuncFlags &&& RuntimeFunctionFlags.EntryPoint = RuntimeFunctionFlags.EntryPoint
+    member _.SignatureUsesNewType = funcFlags &&& RuntimeFunctionFlags.SignatureUsesNewType = RuntimeFunctionFlags.SignatureUsesNewType
 
-    member _.IsExported = irFuncFlags &&& RuntimeFunctionFlags.Exported = RuntimeFunctionFlags.Exported
+    member _.IsEntryPoint = funcFlags &&& RuntimeFunctionFlags.EntryPoint = RuntimeFunctionFlags.EntryPoint
 
-    member _.IsExternal = irFuncFlags &&& RuntimeFunctionFlags.External = RuntimeFunctionFlags.External
+    member _.IsExported = funcFlags &&& RuntimeFunctionFlags.Exported = RuntimeFunctionFlags.Exported
+
+    member _.IsExternal = funcFlags &&& RuntimeFunctionFlags.External = RuntimeFunctionFlags.External
 
     member _.IsPublic = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Public
 

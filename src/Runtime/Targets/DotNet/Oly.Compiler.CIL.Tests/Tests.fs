@@ -14030,7 +14030,7 @@ main(): () =
     let t = TestClass()
 
     t.test(x)
-    t.test(y)
+    t.test(NewInt32(77))
         """
     Oly src
     |> shouldCompile
