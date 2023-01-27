@@ -1280,23 +1280,7 @@ module rec ClrCodeGen =
             // If the last emitted instruction is a return, then we do not need to emit another one.
             match tryGetLastInstruction cenv with
             | ValueSome(I.Ret) -> ()
-            | _ ->
-                //if cenv.IsDebuggable then
-                //    let exprTy = irExpr.ResultType
-                //    // We do this to provide a consistent debugging experience.
-                //    if exprTy.Handle <> cenv.assembly.TypeReferenceVoid then
-                //        let tmp = cenv.NewLocal(exprTy)
-                //        let label = cenv.NewLabel()
-                //        I.Stloc tmp |> emitInstruction cenv
-                //        I.Br label |> emitInstruction cenv
-                //        I.Label label |> emitInstruction cenv
-                //        I.HiddenSequencePoint |> emitInstruction cenv
-                //        I.Ldloc tmp |> emitInstruction cenv
-                //        I.Ret |> emitInstruction cenv
-                //    else
-                //        I.Ret |> emitInstruction cenv
-                //else
-                    I.Ret |> emitInstruction cenv
+            | _ -> I.Ret |> emitInstruction cenv
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
     let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)

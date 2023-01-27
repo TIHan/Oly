@@ -828,7 +828,7 @@ and GenAutoOrSignatureProperty cenv env (prop: IPropertySymbol) =
                             ref ValueNone
                         )
                     rhsExprTy.Expression <- rhsExpr
-                    GenFunctionDefinitionExpression cenv env getter rhsExpr
+                    GenFunctionDefinitionExpression cenv env cenv.syntaxTree.DummyNode getter rhsExpr
                     GenFunctionAsILFunctionDefinition cenv env getter
                 | _ ->
                     OlyILFunctionDefinition.NilHandle
@@ -869,7 +869,7 @@ and GenAutoOrSignatureProperty cenv env (prop: IPropertySymbol) =
                             ref ValueNone
                         )
                     rhsExprTy.Expression <- rhsExpr
-                    GenFunctionDefinitionExpression cenv env setter rhsExpr
+                    GenFunctionDefinitionExpression cenv env cenv.syntaxTree.DummyNode setter rhsExpr
                     GenFunctionAsILFunctionDefinition cenv env setter
                 | _ ->
                     OlyILFunctionDefinition.NilHandle
@@ -1303,8 +1303,22 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
       )
       |> GenExpression cenv prevEnv
 
-    | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
-        GenLetExpression cenv possiblyReturnableEnv bindingInfo rhsExpr (Some bodyExpr)
+    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
+        let syntaxDebugNode =
+            match syntaxInfo.Syntax with
+            | :? OlySyntaxExpression as syntaxExpr ->
+                match syntaxExpr with
+                | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
+                    match syntaxBinding with
+                    | OlySyntaxBinding.Implementation(_, equalToken, _) ->
+                        equalToken :> OlySyntaxNode
+                    | _ ->
+                        cenv.syntaxTree.DummyNode
+                | _ ->
+                    cenv.syntaxTree.DummyNode
+            | _ ->
+                cenv.syntaxTree.DummyNode
+        GenLetExpression cenv possiblyReturnableEnv syntaxDebugNode bindingInfo rhsExpr (Some bodyExpr)
 
     | E.Sequential(_, expr1, expr2) ->
         match expr1 with
@@ -1407,8 +1421,18 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         OlyAssert.True(binding.Info.Value.IsFormal)
 #endif
         match binding with
-        | BoundBinding.Implementation(_, bindingInfo, rhs) when not bindingInfo.Value.IsField ->
-            GenMemberDefinitionExpression cenv env bindingInfo rhs None
+        | BoundBinding.Implementation(syntaxInfo, bindingInfo, rhs) when not bindingInfo.Value.IsField ->
+            let syntaxDebugNode =
+                match syntaxInfo.Syntax with
+                | :? OlySyntaxBinding as syntaxBinding ->
+                    match syntaxBinding with
+                    | OlySyntaxBinding.Implementation(_, equalToken, _) ->
+                        equalToken :> OlySyntaxNode
+                    | _ ->
+                        cenv.syntaxTree.DummyNode
+                | _ ->
+                    cenv.syntaxTree.DummyNode
+            GenMemberDefinitionExpression cenv env syntaxDebugNode bindingInfo rhs None
 
         | BoundBinding.Signature(bindingInfo=bindingInfo) when bindingInfo.Value.IsFunction ->
             GenFunctionAsILFunctionDefinition cenv env (bindingInfo.Value :?> IFunctionSymbol)
@@ -1928,7 +1952,7 @@ and GenGetFieldExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefK
     let ilReceiver = GenExpression cenv noReturnEnv receiver
     GenLoadFieldExpression cenv env ilTextRange takeAddress field (ImArray.createOne ilReceiver)
 
-and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
+and GenMemberDefinitionExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: BindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
     match bindingInfo with
     | BindingProperty _ ->
         OlyAssert.True(bodyExprOpt.IsNone)
@@ -1936,7 +1960,7 @@ and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhs
 
     | BindingFunction(func)
     | BindingPattern(_, func) ->
-        GenFunctionDefinitionExpression cenv env func rhsExpr
+        GenFunctionDefinitionExpression cenv env syntaxDebugNode func rhsExpr
         OlyAssert.False(func.IsLocal)
         OlyAssert.True(bodyExprOpt.IsNone)
         OlyILExpressionNone
@@ -1944,12 +1968,12 @@ and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhs
     | BindingField _ ->
         OlyILExpressionNone
 
-and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
+and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
     match bindingInfo with
     | BindingLocalFunction(func) ->
         OlyAssert.True(bodyExprOpt.IsSome)
         OlyAssert.True(func.IsLocal)
-        GenFunctionDefinitionExpression cenv env func rhsExpr
+        GenFunctionDefinitionExpression cenv env syntaxDebugNode func rhsExpr
         GenExpression cenv env bodyExprOpt.Value
       
     | BindingLocal(value) ->
@@ -2015,7 +2039,7 @@ and GenFunctionDefinitionLambdaExpression (cenv: cenv) env (pars: ILocalParamete
     |> ImArray.iter (addLocalArgument cenv.funEnv)
     GenExpression cenv { env with isReturnable = true } body
 
-and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rhsExpr: E) : unit =
+and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntaxNode) (func: IFunctionSymbol) (rhsExpr: E) : unit =
 #if DEBUG
     OlyAssert.True(func.IsFormal)
     OlyAssert.False(func.Enclosing.IsShape)
@@ -2059,24 +2083,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rh
 
         let ilBodyExpr =
             if cenv.assembly.IsDebuggable then
-                // The first expression should be a 'None' so we can debug right at the equals token of a function definition.
-                let ilTextRange =
-                    match rhsExpr with
-                    | E.Lambda(body=lazyBodyExpr) ->
-                        match lazyBodyExpr.Expression.Syntax with
-                        | syntax ->
-                            match syntax.Parent with
-                            | :? OlySyntaxBinding as syntaxParentBinding ->
-                                match syntaxParentBinding with
-                                | OlySyntaxBinding.Implementation(_, equalToken, _) ->
-                                    emitTextRange cenv equalToken
-                                | _ ->
-                                    OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
-                            | _ ->
-                                OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
-                    | _ ->
-                        OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv cenv.syntaxTree.Path, 0, 0, 0, 0)
-                OlyILExpression.Sequential(OlyILExpression.None(ilTextRange), ilBodyExpr)
+                OlyILExpression.Sequential(OlyILExpression.None(emitTextRange cenv syntaxDebugNode), ilBodyExpr)
             else
                 ilBodyExpr
 
