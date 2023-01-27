@@ -1124,13 +1124,13 @@ module rec ClrCodeGen =
 
         | E.Value(textRange, irValue) ->
             emitSequencePointIfPossible cenv env &textRange
-            if not env.isReturnable then
-                emitDebugNopIfPossible cenv
+            emitDebugNopIfPossible cenv
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
             let seqPointPosition = cenv.buffer.Count
             emitSequencePointIfPossible cenv env &textRange
+            emitDebugNopIfPossible cenv
 
             let prevSeqPointCount = cenv.GetSequencePointCount()
             GenOperation cenv env irOp
