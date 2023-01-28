@@ -1276,6 +1276,7 @@ module rec ClrCodeGen =
             let loopStartLabelId = cenv.NewLabel()
             let loopEndLabelId = cenv.NewLabel()
 
+            emitHiddenSequencePointIfPossible cenv env
             I.Label loopStartLabelId |> emitInstruction cenv
 
             GenArgumentExpression cenv envLoop conditionExpr

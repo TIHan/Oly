@@ -620,9 +620,13 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
         ()
 
     if value.IsProperty then
+        let syntaxNode =
+            match syntaxNameOpt with
+            | Some syntaxName -> syntaxName :> OlySyntaxNode
+            | _ -> syntaxToCapture
         let getPropertyExpr =
             E.GetProperty(
-                BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+                BoundSyntaxInfo.User(syntaxNode, env.benv),
                 receiverOpt,
                 syntaxNameOpt,
                 value.AsProperty
