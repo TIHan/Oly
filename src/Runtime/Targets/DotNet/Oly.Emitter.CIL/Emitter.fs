@@ -1029,35 +1029,6 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
-    let emitDebugPointIfPossibleBeforeCall cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
-        match env.spb with
-        | EnableSequencePoint ->
-            match tryGetLastInstruction cenv with
-            | ValueSome(lastInstr) ->
-                match lastInstr with
-                | I.Call _
-                | I.Callvirt _
-                | I.Calli _ ->
-                    let seqPointInstr = createSequencePointInstruction &textRange
-                    match tryGetSecondToLastInstruction cenv with
-                    // Handle calls with prefixes. 
-                    // We do this because, as an example, we cannot insert a Nop in-between an I.Constrained and I.Call
-                    | ValueSome(I.Tail as secondToLastInstr)
-                    | ValueSome(I.Constrained _ as secondToLastInstr) ->
-                        setSecondToLastInstruction cenv seqPointInstr
-                        emitDebugNopIfPossible cenv
-                        setLastInstruction cenv secondToLastInstr
-                    | _ ->
-                        setLastInstruction cenv seqPointInstr
-                        emitDebugNopIfPossible cenv
-                    emitInstruction cenv lastInstr
-                | _ ->
-                    ()
-            | _ ->
-                ()
-        | _ ->
-            ()
-
     let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
