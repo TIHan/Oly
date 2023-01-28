@@ -989,6 +989,12 @@ module rec ClrCodeGen =
     let canEmitDebugNop cenv =
         cenv.irTier.HasMinimalOptimizations
 
+    let createSequencePointInstruction (textRange: inref<OlyIRDebugSourceTextRange>) =
+        if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
+            I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1)
+        else
+            I.HiddenSequencePoint
+
     let emitSequencePointIfPossible cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
         match env.spb with
         | EnableSequencePoint ->
@@ -1003,11 +1009,17 @@ module rec ClrCodeGen =
 
     let emitDebugNopIfPossible cenv : unit =
         if canEmitDebugNop cenv then
-            emitInstruction cenv I.Nop
+            match tryGetLastInstruction cenv with
+            | ValueSome(I.Nop) -> ()
+            | _ ->
+                emitInstruction cenv I.Nop
 
     let emitDebugNopIfTypeVoid cenv (ty: ClrTypeInfo) =
-        if canEmitDebugNop cenv && (cenv.assembly.TypeReferenceVoid = ty.Handle) then
-            emitInstruction cenv I.Nop
+        if canEmitDebugNop cenv then
+            match tryGetLastInstruction cenv with
+            | ValueSome(I.Nop) -> ()
+            | _ ->
+                emitInstruction cenv I.Nop
 
     let emitHiddenSequencePointIfPossible cenv (env: env) =
         match env.spb with
@@ -1017,12 +1029,41 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
+    let emitDebugPointIfPossibleBeforeCall cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
+        match env.spb with
+        | EnableSequencePoint ->
+            match tryGetLastInstruction cenv with
+            | ValueSome(lastInstr) ->
+                match lastInstr with
+                | I.Call _
+                | I.Callvirt _
+                | I.Calli _ ->
+                    let seqPointInstr = createSequencePointInstruction &textRange
+                    match tryGetSecondToLastInstruction cenv with
+                    // Handle calls with prefixes. 
+                    // We do this because, as an example, we cannot insert a Nop in-between an I.Constrained and I.Call
+                    | ValueSome(I.Tail as secondToLastInstr)
+                    | ValueSome(I.Constrained _ as secondToLastInstr) ->
+                        setSecondToLastInstruction cenv seqPointInstr
+                        emitDebugNopIfPossible cenv
+                        setLastInstruction cenv secondToLastInstr
+                    | _ ->
+                        setLastInstruction cenv seqPointInstr
+                        emitDebugNopIfPossible cenv
+                    emitInstruction cenv lastInstr
+                | _ ->
+                    ()
+            | _ ->
+                ()
+        | _ ->
+            ()
+
     let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
 
         if cenv.IsDebuggable then
             GenArgumentExpression cenv env conditionExpr
-            I.Brfalse falseTargetLabelId |> emitInstruction cenv 
+            I.Brfalse falseTargetLabelId |> emitInstruction cenv
         else
             match conditionExpr with
             | And(E.Operation(_, O.Equal _) as arg1, arg2, _) ->
@@ -1280,7 +1321,9 @@ module rec ClrCodeGen =
             // If the last emitted instruction is a return, then we do not need to emit another one.
             match tryGetLastInstruction cenv with
             | ValueSome(I.Ret) -> ()
-            | _ -> I.Ret |> emitInstruction cenv
+            | _ ->
+                emitHiddenSequencePointIfPossible cenv env
+                I.Ret |> emitInstruction cenv
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
     let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)
@@ -2135,7 +2178,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                 cilTy
                         | _ -> cilTy
                     Seq.append
-                        (seq { "", cilTy })
+                        (seq { "this", cilTy })
                         pars
                     |> ImArray.ofSeq
                 else
