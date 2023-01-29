@@ -1153,9 +1153,23 @@ module rec ClrCodeGen =
                 I.Dup |> emitInstruction cenv
 
             if cenv.IsDebuggable then
-                cenv.debugLocalsInScope.Add(n, ClrDebugLocal(name, n))
-                I.BeginLocalScope (cenv.debugLocalsInScope.Values |> ImArray.ofSeq) |> emitInstruction cenv
+                let newDebugLocal = ClrDebugLocal(name, n)
+                let debugLocals =
+                    // Shadowing support
+                    cenv.debugLocalsInScope.Values
+                    |> Seq.map (fun debugLocal ->
+                        if debugLocal.Name = name then
+                            ClrDebugLocal(debugLocal.Name + " (shadowed)", debugLocal.Index)
+                        else
+                            debugLocal
+                    )
+                    |> Seq.append (seq { newDebugLocal })
+                    |> ImArray.ofSeq
+                cenv.debugLocalsInScope.Add(n, newDebugLocal)
+                I.BeginLocalScope debugLocals |> emitInstruction cenv
+
             GenExpression cenv env irBodyExpr
+
             if cenv.IsDebuggable then
                 cenv.debugLocalsInScope.Remove(n) |> ignore
                 I.EndLocalScope |> emitInstruction cenv
