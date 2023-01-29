@@ -12,6 +12,14 @@ open System.Collections.Concurrent
 open System.Security.Cryptography
 open ClrPatterns
 
+[<NoEquality;NoComparison>]
+type private DebugLocalScope =
+    {
+        Locals: ClrDebugLocal imarray
+        StartOffset: int
+        Length: int
+    }
+
 [<RequireQualifiedAccess>]
 module private MetadataHelpers =
 
@@ -187,8 +195,9 @@ module private MetadataHelpers =
         signature
 
 [<Sealed>]
-type ClrLocal(ty: ClrTypeHandle) =
+type ClrLocal(name: string, ty: ClrTypeHandle) =
 
+    member _.Name = name
     member _.Type = ty
 
 /// The specified Hash algorithm to use on portable pdb files.
@@ -1788,6 +1797,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Label _
         | I.SequencePoint _
         | I.HiddenSequencePoint
+        | I.BeginLocalScope _
+        | I.EndLocalScope
         | I.Skip ->
             failwith "Unexpected instruction."
 
@@ -2029,6 +2040,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Label _
         | I.SequencePoint _
         | I.HiddenSequencePoint
+        | I.BeginLocalScope _
+        | I.EndLocalScope
         | I.Skip ->
             0
 
@@ -2066,7 +2079,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         if this.BodyInstructions.IsEmpty then 
             asmBuilder.PdbBuilder.AddEmptyMethodDebugInformation(localSigToken)
             |> ignore
-            -1 // no body - this makes the RVA zero
+            -1, ImArray.empty // no body - this makes the RVA zero
         else
 
         let instrs = this.BodyInstructions
@@ -2113,6 +2126,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             | I.SequencePoint _
             | I.HiddenSequencePoint
+            | I.BeginLocalScope _
+            | I.EndLocalScope
             | I.Skip ->
                 ()
 
@@ -2157,6 +2172,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let mutable maxStack = 8 // TODO: We could optimize this.
 
         let mutable hasMultipleDocuments = false
+
+        let debugILOffsetStack = Stack()
+        let localScopes = ImArray.builder()
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
@@ -2215,6 +2233,16 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 | _ ->
                     ()
 
+            | I.BeginLocalScope debugLocals ->
+                debugILOffsetStack.Push(il.Offset, debugLocals)
+
+            | I.EndLocalScope ->
+                match debugILOffsetStack.TryPop() with
+                | true, (ilOffset, debugLocals) ->
+                    localScopes.Add({ Locals = debugLocals; StartOffset = ilOffset; Length = il.Offset - ilOffset })
+                | _ ->
+                    OlyAssert.Fail("Unexpected 'EndLocalScope'. No 'BeginLocalScope' instruction was found.")
+
             | I.Skip ->
                 ()
 
@@ -2243,7 +2271,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             asmBuilder.PdbBuilder.AddEmptyMethodDebugInformation(localSigToken)
             |> ignore
 
-        bodyOffset
+        // Sort by Length in descending order, then by StartOffset in ascending order.
+        // This is a requirement to get debug local variables working.
+        let localScopes =
+            localScopes.ToImmutable()
+            |> Seq.sortByDescending (fun x -> x.Length)
+            |> Seq.sortBy (fun x -> x.StartOffset)
+            |> ImArray.ofSeq
+
+        bodyOffset, localScopes
 
     member internal this.Build() =
         getInlineCache &cachedHandle (fun () ->
@@ -2268,14 +2304,16 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             let nameHandle = metadataBuilder.GetOrAddString(name)
            
-            let handle =
+            let handle, debugLocalScopes =
+                let methSig = asmBuilder.CreateMethodSignature(this.Convention, tyPars.Length, this.IsInstance, parTys, returnTy)
+                let bodyOffset, debugLocalScopes = this.PopulateMethodBody()
                 metadataBuilder.AddMethodDefinition(
                     this.Attributes,
                     this.ImplementationAttributes,
                     nameHandle,
-                    asmBuilder.CreateMethodSignature(this.Convention, tyPars.Length, this.IsInstance, parTys, returnTy),
-                    this.PopulateMethodBody(),
-                    parList)
+                    methSig,
+                    bodyOffset,
+                    parList), debugLocalScopes
 
             if this.Attributes &&& MethodAttributes.PinvokeImpl = MethodAttributes.PinvokeImpl then
                 match pinvokeInfoOpt with
@@ -2300,6 +2338,58 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     |> ignore
             if not tyPars.IsEmpty then
                 asmBuilder.GenericParameterQueue.Enqueue(f, index)
+
+            // ------------------ Local Scopes (Debug info) ------------------
+
+            debugLocalScopes
+            |> ImArray.iter (fun debugLocalScope ->
+                let importScopeHandle = 
+                    Unchecked.defaultof<_>
+                
+                // Debug Local Variables
+                // ------------------
+                let localVars = ResizeArray()
+                for i = 0 to debugLocalScope.Locals.Length - 1 do
+                    let debugLocal = debugLocalScope.Locals[i]
+                    let nameHandle =  
+                        let name = debugLocal.Name
+                        if String.IsNullOrWhiteSpace name then
+                            StringHandle()
+                        else
+                            asmBuilder.PdbBuilder.Internal.GetOrAddString(name)
+                
+                    let localVarAttrs =
+                        if String.IsNullOrWhiteSpace name then
+                            LocalVariableAttributes.DebuggerHidden
+                        else
+                            LocalVariableAttributes.None
+                    asmBuilder.PdbBuilder.Internal.AddLocalVariable(
+                        localVarAttrs,
+                        debugLocal.Index,
+                        nameHandle
+                    )
+                    |> localVars.Add
+                
+                let localVarListHandle =
+                    if localVars.Count = 0 then
+                        MetadataTokens.LocalVariableHandle(asmBuilder.PdbBuilder.Internal.GetRowCount(TableIndex.LocalVariable) + 1)
+                    else
+                        localVars.[0]
+                // ------------------
+                
+                let localConstantListHandle =
+                    MetadataTokens.LocalConstantHandle(asmBuilder.PdbBuilder.Internal.GetRowCount(TableIndex.LocalConstant) + 1)
+                
+                asmBuilder.PdbBuilder.Internal.AddLocalScope(
+                    handle,
+                    importScopeHandle,
+                    localVarListHandle,
+                    localConstantListHandle,
+                    debugLocalScope.StartOffset,
+                    debugLocalScope.Length
+                )
+                |> ignore
+            )
 
             handle
         )

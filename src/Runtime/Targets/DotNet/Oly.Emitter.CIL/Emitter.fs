@@ -170,12 +170,14 @@ module rec ClrCodeGen =
             assembly: ClrAssemblyBuilder
             emitTailCalls: bool
             buffer: imarrayb<I>
-            locals: System.Collections.Generic.Dictionary<int, ClrTypeInfo>
+            locals: System.Collections.Generic.Dictionary<int, string * ClrTypeInfo>
             dups: System.Collections.Generic.HashSet<int>
             irTier: OlyIRFunctionTier
+            debugLocalsInScope: System.Collections.Generic.Dictionary<int, ClrDebugLocal>
             mutable localCount: int ref
             mutable nextLabelId: int32 ref
             mutable seqPointCount: int ref
+            mutable retEmitted: bool ref
         }
 
         member this.NewBuffer() =
@@ -186,7 +188,7 @@ module rec ClrCodeGen =
         member this.NewLocal(ty: ClrTypeInfo) =
             let localIndex = this.localCount.contents
             this.localCount.contents <- this.localCount.contents + 1
-            this.locals.[localIndex] <- ty
+            this.locals.[localIndex] <- (String.Empty, ty)
             localIndex
 
         member this.NewLabel() =
@@ -207,6 +209,15 @@ module rec ClrCodeGen =
 
         member this.DecrementSequencePointCount() =
             this.seqPointCount.contents <- this.seqPointCount.contents - 1
+
+        member this.SetRetEmitted() =
+            this.retEmitted.contents <- true
+
+        member this.UnsetRetEmitted() =
+            this.retEmitted.contents <- false
+
+        member this.IsRetEmitted =
+            this.retEmitted.contents
 
     type SequencePointBehavior =
         | EnableSequencePoint
@@ -321,6 +332,15 @@ module rec ClrCodeGen =
             PrimitiveTypeCode.Object
 
     let emitInstruction (cenv: cenv) (instr: I) =
+        match instr with
+        | I.Ret ->
+            cenv.SetRetEmitted()
+        | I.BeginLocalScope _
+        | I.EndLocalScope
+        | I.SequencePoint _
+        | I.HiddenSequencePoint _ -> ()
+        | _ ->
+            cenv.UnsetRetEmitted()
         cenv.buffer.Add(instr)
 
     let emitInstructions cenv (instrs: imarrayb<_>) =
@@ -1007,6 +1027,14 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
+    let emitHiddenSequencePointIfPossible cenv (env: env) =
+        match env.spb with
+        | EnableSequencePoint ->
+            I.HiddenSequencePoint |> emitInstruction cenv
+            cenv.IncrementSequencePointCount()
+        | _ ->
+            ()
+
     let emitDebugNopIfPossible cenv : unit =
         if canEmitDebugNop cenv then
             match tryGetLastInstruction cenv with
@@ -1020,14 +1048,6 @@ module rec ClrCodeGen =
             | ValueSome(I.Nop) -> ()
             | _ ->
                 emitInstruction cenv I.Nop
-
-    let emitHiddenSequencePointIfPossible cenv (env: env) =
-        match env.spb with
-        | EnableSequencePoint ->
-            I.HiddenSequencePoint |> emitInstruction cenv
-            cenv.IncrementSequencePointCount()
-        | _ ->
-            ()
 
     let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
@@ -1120,19 +1140,25 @@ module rec ClrCodeGen =
             emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
             emitDebugNopIfPossible cenv
 
-        | E.Let(_, n, irRhsExpr, irBodyExpr) ->
+        | E.Let(name, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
             
             if hasNoDup then
                 let rhsExprTy = irRhsExpr.ResultType
-                cenv.locals.[n] <- rhsExprTy
+                cenv.locals.[n] <- (name, rhsExprTy)
             GenExpression cenv (setNotReturnable env) irRhsExpr
             if hasNoDup then
                 I.Stloc n |> emitInstruction cenv
             else
                 I.Dup |> emitInstruction cenv
 
+            if cenv.IsDebuggable then
+                cenv.debugLocalsInScope.Add(n, ClrDebugLocal(name, n))
+                I.BeginLocalScope (cenv.debugLocalsInScope.Values |> ImArray.ofSeq) |> emitInstruction cenv
             GenExpression cenv env irBodyExpr
+            if cenv.IsDebuggable then
+                cenv.debugLocalsInScope.Remove(n) |> ignore
+                I.EndLocalScope |> emitInstruction cenv
 
         | E.Value(textRange, irValue) ->
             emitSequencePointIfPossible cenv env &textRange
@@ -1291,9 +1317,8 @@ module rec ClrCodeGen =
         GenExpressionAux cenv env irExpr
         if env.isReturnable then
             // If the last emitted instruction is a return, then we do not need to emit another one.
-            match tryGetLastInstruction cenv with
-            | ValueSome(I.Ret) -> ()
-            | _ ->
+            if cenv.IsRetEmitted then ()
+            else
                 emitHiddenSequencePointIfPossible cenv env
                 I.Ret |> emitInstruction cenv
 
@@ -2384,9 +2409,11 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     buffer = output
                     locals = System.Collections.Generic.Dictionary()
                     dups = System.Collections.Generic.HashSet()
+                    debugLocalsInScope = System.Collections.Generic.Dictionary()
                     localCount = ref bodyResult.LocalCount
                     nextLabelId = ref 0
                     seqPointCount = ref 0
+                    retEmitted = ref false
                 } : ClrCodeGen.cenv
 
             let env =
@@ -2403,7 +2430,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 methDefBuilder.Locals <-
                     cenv.locals
                     |> Seq.sortBy (fun x -> x.Key)
-                    |> Seq.map (fun x -> ClrLocal(x.Value.Handle))
+                    |> Seq.map (fun x -> 
+                        let name, ty = x.Value
+                        ClrLocal(name, ty.Handle))
                     |> ImArray.ofSeq
                 methDefBuilder.BodyInstructions <- cenv.buffer.ToImmutable()
 

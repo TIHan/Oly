@@ -216,6 +216,11 @@ type ClrMethodHandle =
         | MethodSpecification(name=name)
         | LazyMethodDefinition(name=name) -> name 
 
+[<Sealed>]
+type ClrDebugLocal(name: string, index: int) =
+    member _.Name = name
+    member _.Index = index
+
 [<NoComparison;ReferenceEquality;RequireQualifiedAccess>]
 type ClrInstruction =
     | Nop
@@ -341,11 +346,14 @@ type ClrInstruction =
     | Brfalse of labelId: int32
     /// Branch
     | Br of labelId: int32
-    /// Branch label marker
+    /// Branch label marker, not a real instruction.
     | Label of labelId: int32
 
+    // Debugger only - not real instructions.
     | SequencePoint of documentPath: string * startLine: int * endLine: int * startColumn: int * endColumn: int
     | HiddenSequencePoint
+    | BeginLocalScope of ClrDebugLocal imarray
+    | EndLocalScope
 
     | Skip
 
