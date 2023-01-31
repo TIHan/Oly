@@ -359,7 +359,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
         createInfo None trueLiteralExpr postExpr
 
     | BoundCasePattern.Tuple(_, casePatArgs) ->
-        let tmpValue = createLocalValue "matchValue" matchValueExpr.Type
+        let tmpValue = createLocalValue "tmp" matchValueExpr.Type
         let matchValueLetExpr =
             E.Let(
                 cenv.GeneratedSyntaxInfo,
@@ -379,13 +379,17 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
         createInfo (Some matchValueLetExpr) info.Condition info.Post
 
-    | BoundCasePattern.Function(_, _, pat, witnessArgs, casePatArgs) ->
+    | BoundCasePattern.Function(syntax, benv, pat, witnessArgs, casePatArgs) ->
         let patFunc = pat.PatternFunction
 
         match pat.PatternGuardFunction with
         | Some(patGuardFunc) ->
             let matchValueExpr, matchValueLetExpr =
-                let tmpValue = createLocalValue "matchValue" matchValueExpr.Type
+                let tmpValueName =
+                    match matchValueExpr with
+                    | E.Value(_, value) -> value.Name
+                    | _ -> "tmp"
+                let tmpValue = createLocalValue tmpValueName matchValueExpr.Type
                 E.Value(cenv.GeneratedSyntaxInfo, tmpValue),
                 E.Let(
                     cenv.GeneratedSyntaxInfo,
@@ -396,7 +400,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             let callGuardExpr =
                 createCallExpression
-                    cenv.GeneratedSyntaxInfo
+                    (BoundSyntaxInfo.User(syntax, benv))
                     patGuardFunc
                     witnessArgs
                     (ImArray.createOne matchValueExpr)
@@ -441,7 +445,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
                 createInfo (Some matchValueLetExpr) callGuardExpr postExpr
 
             | _ ->
-                let tmpTupleValue = createLocalValue "tmpTuple" callExpr.Type
+                let tmpTupleValue = createLocalValue "tmp" callExpr.Type
                 let tmpTupleValueLetExpr =
                     E.Let(
                         cenv.GeneratedSyntaxInfo,
@@ -488,7 +492,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
         | _ ->
             let callExpr =
                 createCallExpression
-                    cenv.GeneratedSyntaxInfo
+                    (BoundSyntaxInfo.User(syntax, benv))
                     patFunc
                     witnessArgs
                     (ImArray.createOne matchValueExpr)
@@ -500,7 +504,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
             | 1 ->
                 transformPattern cenv valueLookup matchPatternIndex callExpr casePatArgs[0] contExprOpt
             | _ ->
-                let tmpTupleValue = createLocalValue "tmpTuple" callExpr.Type
+                let tmpTupleValue = createLocalValue "tmp" callExpr.Type
                 let tmpTupleValueLetExpr =
                     E.Let(
                         cenv.GeneratedSyntaxInfo,

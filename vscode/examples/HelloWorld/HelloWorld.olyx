@@ -4,6 +4,6 @@
 
 #[import("C", "user32.dll", "MessageBox")]
 MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
-
+    
 main(): () =
     let result = MessageBox(default, "Hello World!", "Message Box", 0)
