@@ -221,13 +221,11 @@ type OlyCompilationReference =
         ct.ThrowIfCancellationRequested()
         match this with
         | CompilationReference(_, compilation) -> 
-            match compilation().GetILAssembly(ct) with
-            | Result.Ok(ilAsm) -> ilAsm
-            | Result.Error(ex) -> raise ex
+            compilation().GetILAssembly(ct)
         | AssemblyReference(_, _, ilAsmLazy) -> 
             match ilAsmLazy.Value with
-            | Result.Ok(ilAsm) -> ilAsm
-            | Result.Error(diag) -> failwithf "%s" diag.Message
+            | Result.Ok(ilAsm) -> Result.Ok(ilAsm)
+            | Result.Error(diag) -> Result.Error(ImArray.createOne diag)
 
     member this.Version =
         match this with
@@ -430,9 +428,9 @@ module private CompilationPhases =
 [<Sealed>] 
 type OlyCompilation private (state: CompilationState) =
 
-    static let checkDiags (diags: OlyDiagnostic imarray) =
+    static let checkHasErrors (diags: OlyDiagnostic imarray) =
         diags
-        |> ImArray.iter (fun x -> if x.IsError then failwithf "%A" x)
+        |> ImArray.exists (fun x -> x.IsError)
 
     let lazySigPhase =
         CacheValue(fun ct -> CompilationPhases.signature state ct)
@@ -648,19 +646,28 @@ type OlyCompilation private (state: CompilationState) =
         
     member this.Version = state.version
 
-    member this.GetILAssembly(ct) : Result<OlyILAssembly, Exception> = 
-       // try
-            checkDiags (this.GetImportDiagnostics(ct))
-            let binders4 = lazySigPhase.GetValue(ct)
-            let boundTrees = CompilationPhases.implementation state binders4 ct
-            boundTrees
-            |> ImArray.iter (fun (_, diags) -> checkDiags diags)
-            let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
-            CompilationPhases.generateAssembly state loweredBoundTrees ct
-            |> Result.Ok
-        //with
-        //| ex ->
-        //    Result.Error(ex)        
+    member this.GetILAssembly(ct) : Result<OlyILAssembly, OlyDiagnostic imarray> = 
+       try
+            let importDiags = this.GetImportDiagnostics(ct)
+            if checkHasErrors importDiags then
+                Result.Error(importDiags)
+            else
+                let binders4 = lazySigPhase.GetValue(ct)
+                let boundTrees = CompilationPhases.implementation state binders4 ct
+
+                let hasErrors =
+                    boundTrees
+                    |> ImArray.exists (fun (_, diags) -> checkHasErrors diags)
+
+                if hasErrors then
+                    Result.Error(this.GetDiagnostics(ct))
+                else
+                    let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
+                    CompilationPhases.generateAssembly state loweredBoundTrees ct
+                    |> Result.Ok
+        with
+        | ex ->
+            Result.Error(ImArray.createOne (OlyDiagnostic.CreateError($"Internal Compiler Error: {ex}")))        
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity

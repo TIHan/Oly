@@ -12,6 +12,7 @@ import {
 	CancellationId,
 	CancellationToken,
 	CancellationTokenSource,
+	integer,
 	LanguageClient,
 	LanguageClientOptions,
 	MessageConnection,
@@ -340,6 +341,11 @@ module OlyClientCommands {
 		}	
 	}
 
+	interface OlyLspCompilationResult {
+		resultPath: string,
+		error: string
+	}
+
 	export const compileCurrentDocument = async (ch: vscode.OutputChannel) => {
 		let document = getActiveDocument()
 		if (document != null && document.languageId == 'oly')
@@ -347,30 +353,22 @@ module OlyClientCommands {
 			await document.save();
 			let name = document.fileName;
 			ch.appendLine("Compiling " + "'" + name + "'");
-			try
+			let timeStart = new Date().getTime();
+			let result: OlyLspCompilationResult = await client.sendRequest("oly/compile", { documentPath: document.uri.path });
+			let assemblyPath = result.resultPath;
+			if (assemblyPath != null)
 			{
-				let timeStart = new Date().getTime();
-				let assemblyPath: string = await client.sendRequest("oly/compile", { documentPath: document.uri.path });
-				if (assemblyPath != null)
-				{
-					let timeEnd = new Date().getTime();
-					let time = timeEnd - timeStart
-					ch.appendLine("Compiled '" + name + "' successfully - " + time + "ms");
-					return assemblyPath;
-				}
-				else
-				{
-					let timeEnd = new Date().getTime();
-					let time = timeEnd - timeStart
-					ch.appendLine("Compilation failed for '" + name + "' - " + time + "ms");
-					return null;
-				}
+				let timeEnd = new Date().getTime();
+				let time = timeEnd - timeStart
+				ch.appendLine("Compiled '" + name + "' successfully - " + time + "ms");
+				return result;
 			}
-			catch(ex)
+			else
 			{
-				ch.appendLine("Compilation failed for '" + name + "'");
-				ch.appendLine(ex);
-				return null;
+				let timeEnd = new Date().getTime();
+				let time = timeEnd - timeStart
+				ch.appendLine("Compilation failed for '" + name + "' - " + time + "ms");
+				return result;
 			}
 		}
 		else
@@ -522,46 +520,16 @@ export function activate(context: ExtensionContext) {
 			let ch = OlyClientCommands.buildOutputChannel;
 			
 			ch.show(true);
-			let assemblyPath = await OlyClientCommands.compileCurrentDocument(ch);
-			ch.appendLine("=====================================================")
-			ch.appendLine("")
-			if (assemblyPath != null)
+			let result = await OlyClientCommands.compileCurrentDocument(ch);
+			if (result == null)
 			{
-				if (assemblyPath.endsWith(".ts"))
-				{
-					var sh = new vscode.ShellExecution('tsc ' + assemblyPath + ' -i --tsBuildInfoFile ' + assemblyPath.replace(".ts", ".tsBuildInfo"));
-					var task = new vscode.Task({ type: 'tsc' }, vscode.workspace.workspaceFolders[0], 'tsc', 'tsc', sh);
-					let taskPromise =
-						new Promise<void>(resolve => {
-							let disposable = vscode.tasks.onDidEndTask(e => {
-								if (e.execution.task === task) {
-									disposable.dispose();
-									resolve();
-								}
-							});
-						});
-					vscode.tasks.executeTask(task);
-					await taskPromise;
-					var assemblyPathJs = assemblyPath.replace(".ts", ".js");
-					ch.appendLine("Running '" + assemblyPathJs + "' on Node.js")
-					var sh = new vscode.ShellExecution('node ' + assemblyPathJs);
-					var task = new vscode.Task({ type: 'node' }, vscode.workspace.workspaceFolders[0], 'node', 'node', sh);
-					vscode.tasks.executeTask(task);
-				}
-				else if (assemblyPath.endsWith(".dll"))
-				{
-					// ch.appendLine("Running '" + assemblyPath + "' on DotNet")
-					// var sh = new vscode.ShellExecution('dotnet ' + assemblyPath);
-					// var task = new vscode.Task({ type: 'dotnet' }, vscode.workspace.workspaceFolders[0], 'dotnet', 'dotnet', sh);
-					// vscode.tasks.executeTask(task);
-				}
-				else
-				{
-					ch.appendLine("'" + assemblyPath + "' " + "is not an executable, therefore it cannot run.")
-				}
-
-				ch.appendLine("=====================================================")
-				ch.appendLine("")
+				throw new Error("Oly Compilation Failed");
+			}
+			else if (result.resultPath == null)
+			{
+				ch.appendLine("========================================================");
+				ch.append(result.error);
+				throw new Error("Oly Compilation Failed");
 			}
 		}));
 

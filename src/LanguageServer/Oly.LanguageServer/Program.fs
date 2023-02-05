@@ -176,10 +176,10 @@ type IOlyRequest<'T> =
     abstract DocumentPath: string with get, set
 
 [<NoEquality;NoComparison>]
-type CompileResult =
+type OlyLspCompilationResult =
     {
-        mutable AssemblyPath: string
-        mutable Configuration: string
+        mutable resultPath: string
+        mutable error: string
     }
 
 [<Method("oly/compile", Direction.ClientToServer)>]
@@ -187,7 +187,7 @@ type OlyCompileRequest() =
 
     member val DocumentPath: string = null with get, set
 
-    interface IOlyRequest<string> with
+    interface IOlyRequest<OlyLspCompilationResult> with
 
         member this.DocumentPath
             with get() = this.DocumentPath
@@ -1803,14 +1803,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.SetCapability(capability: CompletionCapability, clientCapabilities: ClientCapabilities): unit = 
             ()
 
-    interface IJsonRpcRequestHandler<OlyCompileRequest, string> with
+    interface IJsonRpcRequestHandler<OlyCompileRequest, OlyLspCompilationResult> with
 
         member _.Handle(request, ct) =
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
                     match! workspace.BuildProjectAsync(doc.Project.Path, ct) with
-                    | Ok result -> return result
-                    | _ -> return null
+                    | Ok result -> return { resultPath = result; error = null }
+                    | Error error -> return { resultPath = null; error = error }
                 }
             )
 
@@ -1831,14 +1831,22 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     c.References
                                     |> ImArray.map (fun x -> x.GetILAssembly(ct))
                                 match c.GetILAssembly(ct) with
-                                | Error(ex) ->
-                                    return ex.Message
+                                | Error(_) ->
+                                    return "Compilation has failures."
                                 | Ok(ilAsm) ->
-                                    let allRefs = allRefs.Add(ilAsm)
                                     let dummyEmitter = DummyEmitter()
                                     let runtime = OlyRuntime(dummyEmitter)
+
+                                    runtime.ImportAssembly(ilAsm.ToReadOnly())
+
                                     allRefs
-                                    |> ImArray.iter (fun x -> runtime.ImportAssembly(x.ToReadOnly()))
+                                    |> ImArray.iter (fun x -> 
+                                        match x with
+                                        | Ok asm ->
+                                            runtime.ImportAssembly(asm.ToReadOnly())
+                                        | _ ->
+                                            ()
+                                    )
                                     runtime.EmitEntryPoint()
                                     let fullQualifiedTyName =
                                         match valueSymbol.Enclosing.TryType with

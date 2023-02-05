@@ -3,7 +3,15 @@
     "tasks": [
       {
         "label": "oly-compile",
-        "command": "${command:oly.compile}"
+        "command": "${command:oly.compile}",
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        }
       }
     ]
   }

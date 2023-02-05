@@ -56,9 +56,17 @@ type OlyDiagnostic internal () =
     abstract Kind : OlyDiagnosticKind
 
     override this.ToString() = 
+        this.ToString(CancellationToken.None)
+
+    member private this.ToString(ct) =
+        let helperText = this.GetHelperText(ct)
+        if String.IsNullOrWhiteSpace helperText then
+            this.Message
+        else
+
         $"{this.Message}
 -----------------------------
-{this.GetHelperText()}
+{helperText}
         "
 
     member this.GetHelperText(?ct: CancellationToken) =
@@ -180,6 +188,17 @@ type OlyDiagnostic internal () =
             member _.Code = -1
             member _.Kind = OlyDiagnosticKind.Semantic
         }
+
+    static member PrepareForOutput(diags: OlyDiagnostic imarray, ct: CancellationToken) =
+        if diags.IsEmpty then
+            String.Empty
+        else
+            let s = StringBuilder(diags.Length)
+            diags
+            |> ImArray.iter (fun diag ->
+                s.AppendLine(diag.ToString(ct)) |> ignore
+            )
+            s.ToString()
 
 [<Sealed>]
 type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsidesAmount, syntaxTreeOpt) =

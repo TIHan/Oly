@@ -166,11 +166,11 @@ let shouldCompile (c: TestCompilation) =
     let ilAsm =
         match c.c.GetILAssembly(CancellationToken.None) with
         | Ok ilAsm -> ilAsm
-        | Error ex -> raise ex
+        | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     let ilAsmDebug =
         match c.debugc.GetILAssembly(CancellationToken.None) with
         | Ok ilAsm -> ilAsm
-        | Error ex -> raise ex
+        | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     {
         c = c
         ilAsm = ilAsm

@@ -470,7 +470,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
-        | Error msg -> return Error msg.Message
+        | Error diags -> return Error(OlyDiagnostic.PrepareForOutput(diags, ct))
         | Ok asm ->
 
         let netInfo = netInfos[proj.Path]
@@ -565,8 +565,18 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
+        let refDiags = ImArray.builder()
         comp.References
-        |> ImArray.iter (fun x -> x.GetILAssembly(ct).ToReadOnly() |> runtime.ImportAssembly)
+        |> ImArray.iter (fun x ->
+            match x.GetILAssembly(ct) with
+            | Ok x -> x.ToReadOnly() |> runtime.ImportAssembly
+            | Error diags -> refDiags.AddRange(diags |> ImArray.filter (fun x -> x.IsError))
+        )
+
+        if refDiags.Count > 0 then
+            return Error(OlyDiagnostic.PrepareForOutput(refDiags.ToImmutable(), ct))
+        else
+
         runtime.ImportAssembly(asm.ToReadOnly())
 
         if asm.EntryPoint.IsSome then

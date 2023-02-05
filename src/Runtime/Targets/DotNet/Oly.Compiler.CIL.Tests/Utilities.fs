@@ -6,6 +6,7 @@ open Oly.Metadata
 open Oly.Runtime
 open Oly.Core
 open Oly.Compiler
+open Oly.Compiler.Syntax
 
 let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     let emitter = TestPlatform.createEmitter(asm)
@@ -22,7 +23,11 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
 let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
     let refAsms =
         output.c.Compilation.References
-        |> ImArray.map (fun x -> x.GetILAssembly(CancellationToken.None))
+        |> ImArray.map (fun x -> 
+            match x.GetILAssembly(CancellationToken.None) with
+            | Ok ilAsm -> ilAsm
+            | Error diags -> raise(System.Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
+        )
     TestPlatform.run(emitAssembly refAsms output.ilAsm, expectedOutput)
     TestPlatform.run(emitAssembly refAsms output.ilAsmDebug, expectedOutput)
 
@@ -40,7 +45,11 @@ let runWithExpectedExceptionMessage expectedExceptionMsg (c: OlyCompilation) =
         |> shouldCompile
     let refAsms =
         output.c.Compilation.References
-        |> ImArray.map (fun x -> x.GetILAssembly(CancellationToken.None))
+        |> ImArray.map (fun x -> 
+            match x.GetILAssembly(CancellationToken.None) with
+            | Ok ilAsm -> ilAsm
+            | Error diags -> raise(System.Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
+        )
     try
         TestPlatform.run(emitAssembly refAsms output.ilAsm, "(EXPECTED AN EXCEPTION MESSAGE)")
     with
