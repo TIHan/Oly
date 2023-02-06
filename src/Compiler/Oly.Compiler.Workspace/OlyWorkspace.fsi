@@ -54,14 +54,14 @@ type OlyBuild =
     member PlatformName : string
 
     /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\.olycache\{platformName}\{targetName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\.olycache\{platformName}\{targetName}\CoolProject.project.oly\'
-    member GetAbsoluteCacheDirectory : targetInfo: OlyTargetInfo * absolutePath: OlyPath -> OlyPath
+    /// Directory example: 'C:\work\' -> 'C:\work\.olycache\{platformName}\'
+    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\.olycache\{platformName}\CoolProject.project.oly\'
+    member GetAbsoluteCacheDirectory : absolutePath: OlyPath -> OlyPath
 
     /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\bin\{platformName}\{targetName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\bin\{platformName}\{targetName}\CoolProject.project.oly\'
-    member GetAbsoluteBinDirectory : targetInfo: OlyTargetInfo * absolutePath: OlyPath -> OlyPath
+    /// Directory example: 'C:\work\' -> 'C:\work\bin\{platformName}\'
+    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\bin\{platformName}\CoolProject.project.oly\'
+    member GetAbsoluteBinDirectory : absolutePath: OlyPath -> OlyPath
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 

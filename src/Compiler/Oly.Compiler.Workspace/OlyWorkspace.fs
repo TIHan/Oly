@@ -72,8 +72,7 @@ type OlyBuild(platformName: string) =
 
     member _.PlatformName = platformName
 
-    member _.GetAbsoluteCacheDirectory(targetInfo: OlyTargetInfo, absolutePath: OlyPath) =
-        let relativeCacheDir = OlyPath.Combine(relativeCacheDir, targetInfo.Name + "/")
+    member _.GetAbsoluteCacheDirectory(absolutePath: OlyPath) =
         if absolutePath.IsFile then
             let fileName = OlyPath.GetFileName(absolutePath)
             let dir = OlyPath.GetDirectory(absolutePath)
@@ -81,8 +80,7 @@ type OlyBuild(platformName: string) =
         else
             OlyPath.Combine(absolutePath, relativeCacheDir)
 
-    member _.GetAbsoluteBinDirectory(targetInfo: OlyTargetInfo, absolutePath: OlyPath) =
-        let relativeBinDir = OlyPath.Combine(relativeBinDir, targetInfo.Name + "/")
+    member _.GetAbsoluteBinDirectory(absolutePath: OlyPath) =
         if absolutePath.IsFile then
             let fileName = OlyPath.GetFileName(absolutePath)
             let dir = OlyPath.GetDirectory(absolutePath)

@@ -387,7 +387,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                 | _ ->
                     if ext.Equals(".cs") then
                         // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
-                        let cacheDir = this.GetAbsoluteCacheDirectory(targetInfo, path)
+                        let cacheDir = this.GetAbsoluteCacheDirectory(path)
                         let! netInfo = DotNetReferences.getDotNetInfo cacheDir false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
@@ -455,7 +455,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                 let packageInfos =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
-                let cacheDir = this.GetAbsoluteCacheDirectory(targetInfo, projPath)
+                let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
                 let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, ImArray.empty)
@@ -584,7 +584,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         else
             runtime.EmitAheadOfTime()
         
-        let outputPath = this.GetAbsoluteBinDirectory(proj.TargetInfo, proj.Path)
+        let outputPath = this.GetAbsoluteBinDirectory(proj.Path)
         let dirInfo = outputPath.ToDirectoryInfo()
         dirInfo.Create()
         let outputPath = outputPath.ToString()
