@@ -90,21 +90,6 @@
 					"light": "./icons/oly-light.png",
 					"dark": "./icons/oly-dark.png"
 				}
-			},
-			{
-				"id": "oly-ir",
-				"aliases": [
-					"Oly-IR",
-					"oly-ir"
-				],
-				"extensions": [
-					"oly-ir"
-				],
-				"configuration": "./language-ir-configuration.json",
-				"icon": {
-					"light": "./icons/oly-light.png",
-					"dark": "./icons/oly-dark.png"
-				}
 			}
 		],
 		"grammars": [
@@ -112,11 +97,6 @@
 				"language": "oly",
 				"scopeName": "source.oly",
 				"path": "./syntaxes/oly.tmLanguage.json"
-			},
-			{
-				"language": "oly-ir",
-				"scopeName": "source.oly-ir",
-				"path": "./syntaxes/oly-ir.tmLanguage.json"
 			}
 		],
 		"configuration": {
