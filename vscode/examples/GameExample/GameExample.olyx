@@ -1,0 +1,26 @@
+#target "dotnet: net7"
+
+#reference "../core/prelude.olyx"
+#package "Veldrid,4.9.0"
+#package "Veldrid.StartupUtilities,4.9.0"
+#package "Veldrid.SPIRV,1.0.15"
+#package "BepuPhysics,2.5.0-beta.10"
+
+open Veldrid
+open Veldrid.Sdl2
+open Veldrid.StartupUtilities
+
+mutable graphicsDevice: GraphicsDevice = null
+
+main(): () =
+    let windowCreateInfo = WindowCreateInfo(100, 100, 960, 540, WindowState.Normal, "Oly Game Example")
+    let window = VeldridStartup.CreateWindow(windowCreateInfo)
+
+    let mutable options = default: GraphicsDeviceOptions
+    options.PreferStandardClipSpaceYDirection <- true
+    options.PreferDepthRangeZeroToOne <- true
+
+    graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window, options)
+
+    while (window.Exists)
+        let snapshot = window.PumpEvents()
