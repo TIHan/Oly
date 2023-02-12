@@ -6,13 +6,57 @@
 #package "Veldrid.SPIRV,1.0.15"
 #package "BepuPhysics,2.5.0-beta.10"
 
+open System
+open System.Numerics
 open Veldrid
 open Veldrid.Sdl2
 open Veldrid.StartupUtilities
+open Veldrid.SPIRV
 
 mutable graphicsDevice: GraphicsDevice = null
+mutable commandList: CommandList = null
+mutable vertexBuffer: DeviceBuffer = null
+mutable indexBuffer: DeviceBuffer = null
+mutable shaders: Shader[||] = [||]
+mutable pipeline: Pipeline = null
 
-main(): () =
+VertexCode: string = "#version 450
+
+layout(location = 0) in vec2 Position;
+layout(location = 1) in vec4 Color;
+
+layout(location = 0) out vec4 fsin_Color;
+
+void main()
+{
+    gl_Position = vec4(Position, 0, 1);
+    fsin_Color = Color;
+}"
+
+FragmentCode: string = "#version 450
+
+layout(location = 0) in vec4 fsin_Color;
+layout(location = 0) out vec4 fsout_Color;
+
+void main()
+{
+    fsout_Color = fsin_Color;
+}"
+
+struct VertexPositionColor =
+    Position: Vector2
+    Color: RgbaFloat
+
+    new(position: Vector2, color: RgbaFloat) =
+        {
+            Position = position
+            Color = color
+        }
+
+// TODO: Make this part of VertexPositionColor but there is a language bug.
+SizeInBytes: uint32 = 24
+
+init(): () =
     let windowCreateInfo = WindowCreateInfo(100, 100, 960, 540, WindowState.Normal, "Oly Game Example")
     let window = VeldridStartup.CreateWindow(windowCreateInfo)
 
@@ -20,7 +64,134 @@ main(): () =
     options.PreferStandardClipSpaceYDirection <- true
     options.PreferDepthRangeZeroToOne <- true
 
-    graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window, options)
+    graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window, options, GraphicsBackend.OpenGL)
+
+    createResources()
 
     while (window.Exists)
         let snapshot = window.PumpEvents()
+
+        if (window.Exists)
+            draw()
+
+    disposeResources()
+
+createResources(): () =
+    let factory = graphicsDevice.ResourceFactory
+
+    let quadVertices =
+        [|
+            VertexPositionColor(Vector2(-0.75, 0.75), RgbaFloat.Red);
+            VertexPositionColor(Vector2(0.75, 0.75), RgbaFloat.Green);
+            VertexPositionColor(Vector2(-0.75, -0.75), RgbaFloat.Blue);
+            VertexPositionColor(Vector2(0.75, -0.75), RgbaFloat.Yellow)
+        |]
+
+    let quadIndices = [| 0: uint16; 1; 2; 3 |]
+
+    vertexBuffer <- factory.CreateBuffer(BufferDescription(4 * SizeInBytes, BufferUsage.VertexBuffer))
+    indexBuffer <- factory.CreateBuffer(BufferDescription((4: uint32) * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+
+    graphicsDevice.UpdateBuffer(vertexBuffer, 0, quadVertices)
+    graphicsDevice.UpdateBuffer(indexBuffer, 0, quadIndices)
+
+    let vertexLayout =
+        VertexLayoutDescription(
+            SizeInBytes, /* stride */
+            [|
+                VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
+                VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
+            |]
+        )
+
+    let vertexShaderDesc =
+        ShaderDescription(
+            ShaderStages.Vertex,
+            /* TODO: language bug, we should be able to use Text.Encoding */
+            System.Text.Encoding.UTF8.GetBytes(VertexCode),
+            "main"
+        )
+
+    let fragmentShaderDesc =
+        ShaderDescription(
+            ShaderStages.Fragment,
+            /* TODO: language bug, we should be able to use Text.Encoding */
+            System.Text.Encoding.UTF8.GetBytes(FragmentCode),
+            "main"
+        )
+
+    shaders <- ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
+
+    let mutable pipelineDesc = default: GraphicsPipelineDescription
+    pipelineDesc.BlendState <- BlendStateDescription.SingleOverrideBlend
+
+    pipelineDesc.DepthStencilState <-
+        let mutable desc = default: DepthStencilStateDescription
+        desc.DepthTestEnabled <- true
+        desc.DepthWriteEnabled <- true
+        desc.DepthComparison <- ComparisonKind.LessEqual
+        desc
+
+    pipelineDesc.RasterizerState <-
+        let mutable desc = default: RasterizerStateDescription
+        desc.CullMode <- FaceCullMode.Back
+        desc.FillMode <- PolygonFillMode.Solid
+        desc.FrontFace <- FrontFace.Clockwise
+        desc.DepthClipEnabled <- true
+        desc.ScissorTestEnabled <- false
+        desc
+
+    pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleStrip
+    pipelineDesc.ResourceLayouts <- [||]
+
+    pipelineDesc.ShaderSet <-
+        let mutable desc = default: ShaderSetDescription
+        desc.VertexLayouts <- [|vertexLayout|]
+        desc.Shaders <- shaders
+        desc
+
+    pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
+    pipeline <- factory.CreateGraphicsPipeline(pipelineDesc)
+
+    commandList <- factory.CreateCommandList()
+
+disposeResources(): () =
+    pipeline.Dispose()
+    shaders[0].Dispose()
+    shaders[1].Dispose()
+    commandList.Dispose()
+    vertexBuffer.Dispose()
+    indexBuffer.Dispose()
+    graphicsDevice.Dispose()
+
+draw(): () =
+    // Begin() must be called before commands can be issued
+    commandList.Begin()
+
+    // We want to render directly to the output window.
+    commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
+    commandList.ClearColorTarget(0, RgbaFloat.Black)
+
+    // Set all relevant state to draw our quad
+    commandList.SetVertexBuffer(0, vertexBuffer)
+    commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
+    commandList.SetPipeline(pipeline)
+
+    //Issue a Draw command for a single instance with 4 indices.
+    commandList.DrawIndexed(
+        4, /* indexCount */
+        1, /* instanceCount */
+        0, /* indexStart */
+        0, /* vertexOffset */
+        0  /* instanceStart */
+    )
+
+    // End() must be called before commands can be submitted for execution.
+    commandList.End()
+    graphicsDevice.SubmitCommands(commandList)
+
+    // Once commands have been submitted, the rendered image can be presented to the application window.
+    graphicsDevice.SwapBuffers()
+
+main(): () =
+    init()
