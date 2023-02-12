@@ -97,7 +97,6 @@ createResources(): () =
 
     let vertexLayout =
         VertexLayoutDescription(
-            SizeInBytes, /* stride */
             [|
                 VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
                 VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
