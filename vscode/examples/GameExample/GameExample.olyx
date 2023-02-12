@@ -57,6 +57,9 @@ struct VertexPositionColor =
 SizeInBytes: uint32 = 24
 
 init(): () =
+    // We must set these variables otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
+    Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
+
     let windowCreateInfo = WindowCreateInfo(100, 100, 960, 540, WindowState.Normal, "Oly Game Example")
     let window = VeldridStartup.CreateWindow(windowCreateInfo)
 
@@ -64,7 +67,9 @@ init(): () =
     options.PreferStandardClipSpaceYDirection <- true
     options.PreferDepthRangeZeroToOne <- true
 
-    graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window, options, GraphicsBackend.OpenGL)
+    graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window, options, GraphicsBackend.Vulkan)
+
+    print("Graphics Device: " + graphicsDevice.DeviceName + "\n")
 
     createResources()
 
