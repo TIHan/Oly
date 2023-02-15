@@ -66,7 +66,8 @@ init(): () =
 
     print("Graphics Device: " + graphicsDevice.DeviceName + "\n")
 
-    createResources()
+    let factory = graphicsDevice.ResourceFactory
+    commandList <- factory.CreateCommandList()
 
     let meshDesc = MeshDescription.CreateQuad()
     let materialDesc = MaterialDescription.Create()
@@ -83,7 +84,14 @@ init(): () =
         if (window.Exists)
             draw(drawCmds)
 
-    //disposeResources()
+    let mutable i = 0
+    let length = getLength(drawCmds)
+    while (i < length)
+        let cmd = drawCmds[i]
+        i <- i + 1
+
+    commandList.Dispose()
+    graphicsDevice.Dispose()
 
 struct MeshDescription =
     mutable Vertices: Vector3[||]
@@ -243,19 +251,6 @@ struct DrawCommand =
             Mesh = mesh;
             Material = material
         }
-
-createResources(): () =
-    let factory = graphicsDevice.ResourceFactory
-    commandList <- factory.CreateCommandList()
-
-disposeResources(): () =
-   // pipeline.Dispose()
-   // shaders[0].Dispose()
-   // shaders[1].Dispose()
-    commandList.Dispose()
-   // vertexBuffer.Dispose()
-   // indexBuffer.Dispose()
-    graphicsDevice.Dispose()
 
 draw(drawCommands: DrawCommand[]): () =
     // Begin() must be called before commands can be issued
