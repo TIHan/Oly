@@ -39,18 +39,6 @@ void main()
     fsout_Color = fsin_Color;
 }"
 
-struct VertexPositionColor =
-    Position: Vector2
-    Color: RgbaFloat
-
-    new(position: Vector2, color: RgbaFloat) =
-        {
-            Position = position
-            Color = color
-        }
-
-    static SizeInBytes: uint32 = 24
-
 init(): () =
     // We must set these variables otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
     Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
