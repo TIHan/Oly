@@ -16,22 +16,17 @@ open Veldrid.SPIRV
 
 mutable graphicsDevice: GraphicsDevice = null
 mutable commandList: CommandList = null
-mutable vertexBuffer: DeviceBuffer = null
-mutable indexBuffer: DeviceBuffer = null
-mutable shaders: Shader[||] = [||]
-mutable pipeline: Pipeline = null
 
 VertexCode: string = "#version 450
 
-layout(location = 0) in vec2 Position;
-layout(location = 1) in vec4 Color;
+layout(location = 0) in vec3 Position;
 
 layout(location = 0) out vec4 fsin_Color;
 
 void main()
 {
-    gl_Position = vec4(Position, 0, 1);
-    fsin_Color = Color;
+    gl_Position = vec4(Position, 1);
+    fsin_Color = vec4(1, 0.5, 0.5, 1);
 }"
 
 FragmentCode: string = "#version 450
@@ -73,13 +68,22 @@ init(): () =
 
     createResources()
 
+    let meshDesc = MeshDescription.CreateQuad()
+    let materialDesc = MaterialDescription.Create()
+
+    let mesh = createMesh(meshDesc)
+    let material = createMaterial(materialDesc)
+    let drawCmd = DrawCommand(mesh, material)
+
+    let drawCmds = [drawCmd]
+
     while (window.Exists)
         let snapshot = window.PumpEvents()
 
         if (window.Exists)
-            draw()
+            draw(drawCmds)
 
-    disposeResources()
+    //disposeResources()
 
 struct MeshDescription =
     mutable Vertices: Vector3[||]
@@ -136,8 +140,7 @@ struct MaterialDescription =
         let vertexLayout =
             VertexLayoutDescription(
                 [|
-                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
-                    VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
+                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
                 |]
             )
     
@@ -160,13 +163,15 @@ struct MaterialDescription =
 struct Material =
     implements IDisposable
 
-    VertexShader: Shader
+    VertexShader:   Shader
     FragmentShader: Shader
+    Pipeline:       Pipeline
 
-    new(vertexShader: Shader, fragmentShader: Shader) =
+    new(vertexShader: Shader, fragmentShader: Shader, pipeline: Pipeline) =
         {
             VertexShader = vertexShader;
-            FragmentShader = fragmentShader
+            FragmentShader = fragmentShader;
+            Pipeline = pipeline
         }
 
     Dispose(): () =
@@ -180,8 +185,8 @@ createMesh(meshDesc: MeshDescription): Mesh =
 
     let count = uint32(vertices.Length)
 
-    vertexBuffer <- factory.CreateBuffer(BufferDescription(count * ((4: uint32) * 3), BufferUsage.VertexBuffer))
-    indexBuffer <- factory.CreateBuffer(BufferDescription(count * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+    let vertexBuffer = factory.CreateBuffer(BufferDescription(count * ((4: uint32) * 3), BufferUsage.VertexBuffer))
+    let indexBuffer = factory.CreateBuffer(BufferDescription(count * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
 
     graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
     graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
@@ -189,56 +194,12 @@ createMesh(meshDesc: MeshDescription): Mesh =
     Mesh(vertexBuffer, indexBuffer)
 
 createMaterial(materialDesc: MaterialDescription): Material =
+    let vertexLayout       = materialDesc.VertexLayout
     let vertexShaderDesc   = materialDesc.VertexShader
     let fragmentShaderDesc = materialDesc.FragmentShader
     let factory            = graphicsDevice.ResourceFactory
 
     let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
-
-    Material(shaders[0], shaders[1])
-
-createResources(): () =
-    let factory = graphicsDevice.ResourceFactory
-
-    let vertices =
-        [|
-            VertexPositionColor(Vector2(-0.75, 0.75), RgbaFloat.Red);
-            VertexPositionColor(Vector2(0.75, 0.75), RgbaFloat.Green);
-            VertexPositionColor(Vector2(-0.75, -0.75), RgbaFloat.Blue);
-            VertexPositionColor(Vector2(0.75, -0.75), RgbaFloat.Yellow)
-        |]
-
-    let indices = [| 0: uint16; 1; 2; 3 |]
-
-    vertexBuffer <- factory.CreateBuffer(BufferDescription(4 * VertexPositionColor.SizeInBytes, BufferUsage.VertexBuffer))
-    indexBuffer <- factory.CreateBuffer(BufferDescription((4: uint32) * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
-
-    graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
-    graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
-
-    let vertexLayout =
-        VertexLayoutDescription(
-            [|
-                VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
-                VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
-            |]
-        )
-
-    let vertexShaderDesc =
-        ShaderDescription(
-            ShaderStages.Vertex,
-            Encoding.UTF8.GetBytes(VertexCode),
-            "main"
-        )
-
-    let fragmentShaderDesc =
-        ShaderDescription(
-            ShaderStages.Fragment,
-            Encoding.UTF8.GetBytes(FragmentCode),
-            "main"
-        )
-
-    shaders <- ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
 
     let mutable pipelineDesc = default: GraphicsPipelineDescription
     pipelineDesc.BlendState <- BlendStateDescription.SingleOverrideBlend
@@ -269,20 +230,34 @@ createResources(): () =
         desc
 
     pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
-    pipeline <- factory.CreateGraphicsPipeline(pipelineDesc)
+    let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
 
+    Material(shaders[0], shaders[1], pipeline)
+
+struct DrawCommand =
+    Mesh:     Mesh
+    Material: Material
+
+    new(mesh: Mesh, material: Material) =
+        {
+            Mesh = mesh;
+            Material = material
+        }
+
+createResources(): () =
+    let factory = graphicsDevice.ResourceFactory
     commandList <- factory.CreateCommandList()
 
 disposeResources(): () =
-    pipeline.Dispose()
-    shaders[0].Dispose()
-    shaders[1].Dispose()
+   // pipeline.Dispose()
+   // shaders[0].Dispose()
+   // shaders[1].Dispose()
     commandList.Dispose()
-    vertexBuffer.Dispose()
-    indexBuffer.Dispose()
+   // vertexBuffer.Dispose()
+   // indexBuffer.Dispose()
     graphicsDevice.Dispose()
 
-draw(): () =
+draw(drawCommands: DrawCommand[]): () =
     // Begin() must be called before commands can be issued
     commandList.Begin()
 
@@ -291,18 +266,29 @@ draw(): () =
     commandList.ClearColorTarget(0, RgbaFloat.Black)
 
     // Set all relevant state to draw our quad
-    commandList.SetVertexBuffer(0, vertexBuffer)
-    commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
-    commandList.SetPipeline(pipeline)
+    let mutable i = 0
+    let length = getLength(drawCommands)
+    while (i < length)
+        let cmd = drawCommands[i]
 
-    //Issue a Draw command for a single instance with 4 indices.
-    commandList.DrawIndexed(
-        4, /* indexCount */
-        1, /* instanceCount */
-        0, /* indexStart */
-        0, /* vertexOffset */
-        0  /* instanceStart */
-    )
+        let vertexBuffer = cmd.Mesh.VertexBuffer
+        let indexBuffer  = cmd.Mesh.IndexBuffer
+        let pipeline     = cmd.Material.Pipeline
+
+        commandList.SetVertexBuffer(0, vertexBuffer)
+        commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
+        commandList.SetPipeline(pipeline)
+
+        //Issue a Draw command for a single instance with 4 indices.
+        commandList.DrawIndexed(
+            4, /* indexCount */
+            1, /* instanceCount */
+            0, /* indexStart */
+            0, /* vertexOffset */
+            0  /* instanceStart */
+        )
+
+        i <- i + 1
 
     // End() must be called before commands can be submitted for execution.
     commandList.End()
