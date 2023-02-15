@@ -26,7 +26,7 @@ layout(location = 0) out vec4 fsin_Color;
 void main()
 {
     gl_Position = vec4(Position, 1);
-    fsin_Color = vec4(1, 0.5, 0.5, 1);
+    fsin_Color = vec4(Position.x, Position.y, 1, 1);
 }"
 
 FragmentCode: string = "#version 450
@@ -55,7 +55,7 @@ init(): () =
     // We must set these variables otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
     Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
 
-    let windowCreateInfo = WindowCreateInfo(100, 100, 960, 540, WindowState.Normal, "Oly Game Example")
+    let windowCreateInfo = WindowCreateInfo(100, 100, 512, 512, WindowState.Normal, "Oly Game Example")
     let window = VeldridStartup.CreateWindow(windowCreateInfo)
 
     let mutable options = default: GraphicsDeviceOptions
@@ -69,7 +69,7 @@ init(): () =
     let factory = graphicsDevice.ResourceFactory
     commandList <- factory.CreateCommandList()
 
-    let meshDesc = MeshDescription.CreateQuad()
+    let meshDesc = MeshDescription.CreateHexagon(0.75)
     let materialDesc = MaterialDescription.Create()
 
     let mesh = createMesh(meshDesc)
@@ -103,16 +103,41 @@ struct MeshDescription =
             Indices = indices
         }
 
-    static CreateQuad(): MeshDescription =
+    static CreateQuad(scale: float32): MeshDescription =
         let vertices =
             [|
-                Vector3(-0.75, 0.75, 0);
-                Vector3(0.75, 0.75, 0);
-                Vector3(-0.75, -0.75, 0);
-                Vector3(0.75, -0.75, 0)
+                Vector3(-scale,  scale, 0);
+                Vector3( scale,  scale, 0);
+                Vector3(-scale, -scale, 0);
+                Vector3( scale, -scale, 0)
             |]
     
         let indices = [| 0: uint16; 1; 2; 3 |]
+
+        MeshDescription(vertices, indices)
+
+    static CreateHexagon(scale: float32): MeshDescription =
+        let vertices =
+            [|
+                Vector3(     0,              0, 0); // center
+                Vector3(  -0.5 * scale,  scale, 0); // left top
+                Vector3(   0.5 * scale,  scale, 0); // right top
+                Vector3(         scale,      0, 0); // right
+                Vector3(   0.5 * scale, -scale, 0); // right bottom
+                Vector3(  -0.5 * scale, -scale, 0); // left bottom
+                Vector3(        -scale,      0, 0)  // left
+            |]
+
+        let indices =
+            [|
+                0; 1; 2;
+                0; 2; 3;               
+                0; 3; 4;
+                0; 4; 5;
+                0; 5; 6;
+                0; 6; 1;
+                0: uint16
+            |]
 
         MeshDescription(vertices, indices)
 
@@ -120,12 +145,14 @@ struct Mesh =
     implements IDisposable
 
     VertexBuffer: DeviceBuffer
-    IndexBuffer: DeviceBuffer
+    IndexBuffer:  DeviceBuffer
+    IndexCount:   uint32
 
-    new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer) =
+    new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer, indexCount: uint32) =
         {
             VertexBuffer = vertexBuffer;
-            IndexBuffer = indexBuffer
+            IndexBuffer = indexBuffer;
+            IndexCount = indexCount
         }
 
     Dispose(): () =
@@ -191,15 +218,16 @@ createMesh(meshDesc: MeshDescription): Mesh =
     let indices  = meshDesc.Indices
     let factory  = graphicsDevice.ResourceFactory
 
-    let count = uint32(vertices.Length)
+    let vertexCount = uint32(vertices.Length)
+    let indexCount  = uint32(indices.Length)
 
-    let vertexBuffer = factory.CreateBuffer(BufferDescription(count * ((4: uint32) * 3), BufferUsage.VertexBuffer))
-    let indexBuffer = factory.CreateBuffer(BufferDescription(count * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+    let vertexBuffer = factory.CreateBuffer(BufferDescription(vertexCount * ((4: uint32) * 3), BufferUsage.VertexBuffer))
+    let indexBuffer = factory.CreateBuffer(BufferDescription(indexCount * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
 
     graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
     graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
 
-    Mesh(vertexBuffer, indexBuffer)
+    Mesh(vertexBuffer, indexBuffer, indexCount)
 
 createMaterial(materialDesc: MaterialDescription): Material =
     let vertexLayout       = materialDesc.VertexLayout
@@ -243,8 +271,8 @@ createMaterial(materialDesc: MaterialDescription): Material =
     Material(shaders[0], shaders[1], pipeline)
 
 struct DrawCommand =
-    Mesh:     Mesh
-    Material: Material
+    Mesh:       Mesh
+    Material:   Material
 
     new(mesh: Mesh, material: Material) =
         {
@@ -268,19 +296,19 @@ draw(drawCommands: DrawCommand[]): () =
 
         let vertexBuffer = cmd.Mesh.VertexBuffer
         let indexBuffer  = cmd.Mesh.IndexBuffer
+        let indexCount   = cmd.Mesh.IndexCount
         let pipeline     = cmd.Material.Pipeline
 
         commandList.SetVertexBuffer(0, vertexBuffer)
         commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
         commandList.SetPipeline(pipeline)
 
-        //Issue a Draw command for a single instance with 4 indices.
         commandList.DrawIndexed(
-            4, /* indexCount */
-            1, /* instanceCount */
-            0, /* indexStart */
-            0, /* vertexOffset */
-            0  /* instanceStart */
+            indexCount,     /* indexCount */
+            1,              /* instanceCount */
+            0,              /* indexStart */
+            0,              /* vertexOffset */
+            0               /* instanceStart */
         )
 
         i <- i + 1
