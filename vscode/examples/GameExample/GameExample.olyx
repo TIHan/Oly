@@ -81,10 +81,126 @@ init(): () =
 
     disposeResources()
 
+struct MeshDescription =
+    mutable Vertices: Vector3[||]
+    mutable Indices:  uint16[||]
+
+    new(vertices: Vector3[||], indices: uint16[||]) =
+        {
+            Vertices = vertices;
+            Indices = indices
+        }
+
+    static CreateQuad(): MeshDescription =
+        let vertices =
+            [|
+                Vector3(-0.75, 0.75, 0);
+                Vector3(0.75, 0.75, 0);
+                Vector3(-0.75, -0.75, 0);
+                Vector3(0.75, -0.75, 0)
+            |]
+    
+        let indices = [| 0: uint16; 1; 2; 3 |]
+
+        MeshDescription(vertices, indices)
+
+struct Mesh =
+    implements IDisposable
+
+    VertexBuffer: DeviceBuffer
+    IndexBuffer: DeviceBuffer
+
+    new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer) =
+        {
+            VertexBuffer = vertexBuffer;
+            IndexBuffer = indexBuffer
+        }
+
+    Dispose(): () =
+        this.VertexBuffer.Dispose()
+        this.IndexBuffer.Dispose()
+
+struct MaterialDescription =
+    mutable VertexLayout:   VertexLayoutDescription
+    mutable VertexShader:   ShaderDescription
+    mutable FragmentShader: ShaderDescription
+
+    private new(vertexLayout: VertexLayoutDescription, vertexShader: ShaderDescription, fragmentShader: ShaderDescription) =
+        {
+            VertexLayout = vertexLayout;
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader
+        }
+
+    static Create(): MaterialDescription =
+        let vertexLayout =
+            VertexLayoutDescription(
+                [|
+                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
+                    VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
+                |]
+            )
+    
+        let vertexShader =
+            ShaderDescription(
+                ShaderStages.Vertex,
+                Encoding.UTF8.GetBytes(VertexCode),
+                "main"
+            )
+    
+        let fragmentShader =
+            ShaderDescription(
+                ShaderStages.Fragment,
+                Encoding.UTF8.GetBytes(FragmentCode),
+                "main"
+            )
+
+        MaterialDescription(vertexLayout, vertexShader, fragmentShader)
+
+struct Material =
+    implements IDisposable
+
+    VertexShader: Shader
+    FragmentShader: Shader
+
+    new(vertexShader: Shader, fragmentShader: Shader) =
+        {
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader
+        }
+
+    Dispose(): () =
+        this.VertexShader.Dispose()
+        this.FragmentShader.Dispose()
+
+createMesh(meshDesc: MeshDescription): Mesh =
+    let vertices = meshDesc.Vertices
+    let indices  = meshDesc.Indices
+    let factory  = graphicsDevice.ResourceFactory
+
+    let count = uint32(vertices.Length)
+
+    vertexBuffer <- factory.CreateBuffer(BufferDescription(count * ((4: uint32) * 3), BufferUsage.VertexBuffer))
+    indexBuffer <- factory.CreateBuffer(BufferDescription(count * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+
+    graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
+    graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
+
+    Mesh(vertexBuffer, indexBuffer)
+
+createMaterial(materialDesc: MaterialDescription): Material =
+    let vertexShaderDesc   = materialDesc.VertexShader
+    let fragmentShaderDesc = materialDesc.FragmentShader
+    let factory            = graphicsDevice.ResourceFactory
+
+    let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
+
+    Material(shaders[0], shaders[1])
+
 createResources(): () =
     let factory = graphicsDevice.ResourceFactory
 
-    let quadVertices =
+    let vertices =
         [|
             VertexPositionColor(Vector2(-0.75, 0.75), RgbaFloat.Red);
             VertexPositionColor(Vector2(0.75, 0.75), RgbaFloat.Green);
@@ -92,13 +208,13 @@ createResources(): () =
             VertexPositionColor(Vector2(0.75, -0.75), RgbaFloat.Yellow)
         |]
 
-    let quadIndices = [| 0: uint16; 1; 2; 3 |]
+    let indices = [| 0: uint16; 1; 2; 3 |]
 
     vertexBuffer <- factory.CreateBuffer(BufferDescription(4 * VertexPositionColor.SizeInBytes, BufferUsage.VertexBuffer))
     indexBuffer <- factory.CreateBuffer(BufferDescription((4: uint32) * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
 
-    graphicsDevice.UpdateBuffer(vertexBuffer, 0, quadVertices)
-    graphicsDevice.UpdateBuffer(indexBuffer, 0, quadIndices)
+    graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
+    graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
 
     let vertexLayout =
         VertexLayoutDescription(
