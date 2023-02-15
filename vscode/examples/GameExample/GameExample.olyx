@@ -7,6 +7,7 @@
 #package "BepuPhysics,2.5.0-beta.10"
 
 open System
+open System.Text
 open System.Numerics
 open Veldrid
 open Veldrid.Sdl2
@@ -53,8 +54,7 @@ struct VertexPositionColor =
             Color = color
         }
 
-// TODO: Make this part of VertexPositionColor but there is a language bug.
-SizeInBytes: uint32 = 24
+    static SizeInBytes: uint32 = 24
 
 init(): () =
     // We must set these variables otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
@@ -94,7 +94,7 @@ createResources(): () =
 
     let quadIndices = [| 0: uint16; 1; 2; 3 |]
 
-    vertexBuffer <- factory.CreateBuffer(BufferDescription(4 * SizeInBytes, BufferUsage.VertexBuffer))
+    vertexBuffer <- factory.CreateBuffer(BufferDescription(4 * VertexPositionColor.SizeInBytes, BufferUsage.VertexBuffer))
     indexBuffer <- factory.CreateBuffer(BufferDescription((4: uint32) * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
 
     graphicsDevice.UpdateBuffer(vertexBuffer, 0, quadVertices)
@@ -111,16 +111,14 @@ createResources(): () =
     let vertexShaderDesc =
         ShaderDescription(
             ShaderStages.Vertex,
-            /* TODO: language bug, we should be able to use Text.Encoding */
-            System.Text.Encoding.UTF8.GetBytes(VertexCode),
+            Encoding.UTF8.GetBytes(VertexCode),
             "main"
         )
 
     let fragmentShaderDesc =
         ShaderDescription(
             ShaderStages.Fragment,
-            /* TODO: language bug, we should be able to use Text.Encoding */
-            System.Text.Encoding.UTF8.GetBytes(FragmentCode),
+            Encoding.UTF8.GetBytes(FragmentCode),
             "main"
         )
 

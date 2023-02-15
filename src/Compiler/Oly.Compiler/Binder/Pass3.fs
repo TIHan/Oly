@@ -372,7 +372,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             if not ent.IsNewtype && not isImpl && ((binding.Value.IsInstance && hasImplicitInstanceDefaultCtor) || (not binding.Value.IsInstance && hasImplicitStaticDefaultCtor)) then
                 cenv.diagnostics.Error($"The field '{binding.Value.Name}' must be given a default value.", 10, syntax.Identifier)
 
-            if not ent.IsModule && isImpl && not hasImplicitInstanceDefaultCtor then
+            if not ent.IsModule && isImpl && not hasImplicitInstanceDefaultCtor && binding.Value.IsInstance then
                 cenv.diagnostics.Error($"The field '{binding.Value.Name}' must not be given a default value.", 10, syntax.Identifier)
 
             if ent.IsNewtype then
