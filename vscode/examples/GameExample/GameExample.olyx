@@ -37,12 +37,15 @@ main(): () =
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let meshDesc = MeshDescription.CreateHexagon(0.1)
+    let meshDesc   = MeshDescription.CreateHexagon(0.1)
     let shaderDesc = 
-            ShaderDescription.Create(
-                Encoding.UTF8.GetBytes(DefaultVertexCode), 
-                Encoding.UTF8.GetBytes(DefaultFragmentCode)
-            )
+        ShaderDescription.Create(
+            Encoding.UTF8.GetBytes(DefaultVertexCode), 
+            Encoding.UTF8.GetBytes(DefaultFragmentCode)
+        )
+
+    let mesh   = Graphics.CreateMesh(meshDesc)
+    let shader = Graphics.CreateShader(shaderDesc)
 
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
@@ -50,27 +53,22 @@ main(): () =
     while (i <= 3)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-0.2 * float32(i), 0, 0)))
         i <- i + 1
+    let hexagons1 = hexagons.ToArray()
+
+    hexagons.Clear()
     let mutable i = 1
     while (i <= 3)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(0.2 * float32(i), 0, 0)))
         i <- i + 1
-    let mutable i = 1
-    while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(0, -0.2 * float32(i), 0)))
-        i <- i + 1
-    let mutable i = 1
-    while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(0, 0.2 * float32(i), 0)))
-        i <- i + 1
-    let hexagons = hexagons.ToArray()
+    let hexagons2 = hexagons.ToArray()
 
-    let mesh      = Graphics.CreateMesh(meshDesc)
-    let shader    = Graphics.CreateShader(shaderDesc)
-    Graphics.UpdateShader(shader, shaderDesc)
-    let instances = Graphics.CreateInstances(hexagons)
-    let drawCmd   = DrawCommand(mesh, shader, instances)
+    let instances1 = Graphics.CreateInstances(hexagons1)
+    let drawCmd1   = DrawCommand(mesh, shader, instances1)
 
-    let drawCmds = [drawCmd]
+    let instances2 = Graphics.CreateInstances(hexagons2)
+    let drawCmd2   = DrawCommand(mesh, shader, instances2)
+
+    let drawCmds = [drawCmd1;drawCmd2]
 
     while (window.Exists)
         let inputState = window.GetInputState()

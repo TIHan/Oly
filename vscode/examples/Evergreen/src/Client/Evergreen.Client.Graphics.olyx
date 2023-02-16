@@ -341,8 +341,10 @@ module Graphics =
     
         // We want to render directly to the output window.
         commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
-        commandList.ClearColorTarget(0, RgbaFloat.Black)
-    
+        commandList.ClearColorTarget(0, RgbaFloat.Black)   
+
+        let mutable currentPipeline = unchecked default
+
         // Set all relevant state to draw our quad
         let mutable i = 0
         let length = getLength(drawCmds)
@@ -352,17 +354,19 @@ module Graphics =
             let instanceCount = uint32(cmd.Instances.Count)
 
             if (instanceCount > 0)   
-                let shaderState     = cmd.Shader.State
+                let pipeline = cmd.Shader.State.Pipeline
+                if (pipeline !== currentPipeline)
+                    commandList.SetPipeline(pipeline)
+                    currentPipeline <- pipeline
+
                 let transformBuffer = cmd.Instances.TransformBuffer
                 let vertexBuffer    = cmd.Mesh.VertexBuffer
                 let indexBuffer     = cmd.Mesh.IndexBuffer
                 let indexCount      = cmd.Mesh.IndexCount
-                let pipeline        = shaderState.Pipeline
 
                 commandList.SetVertexBuffer(0, vertexBuffer)
                 commandList.SetVertexBuffer(1, transformBuffer)
                 commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
-                commandList.SetPipeline(pipeline)
         
                 commandList.DrawIndexed(
                     indexCount,     /* indexCount */
