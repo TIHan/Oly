@@ -33,7 +33,7 @@ void main()
 }"
 
 main(): () =
-    let window = Graphics.InitializeWindow(100, 100, 512, 512, "Evergreen Game Example")
+    let window = Graphics.CreateWindow(100, 100, 512, 512, "Evergreen Game Example")
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
@@ -84,4 +84,4 @@ main(): () =
         let cmd = drawCmds[i]
         i <- i + 1
 
-    Graphics.Destroy()
+    Graphics.DestroyWindow()

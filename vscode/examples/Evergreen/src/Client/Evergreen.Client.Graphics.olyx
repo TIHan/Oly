@@ -219,17 +219,21 @@ sealed class Window =
 
 module Graphics =
 
+    private mutable window: Window = unchecked default
     private mutable graphicsDevice: GraphicsDevice = null
     private mutable factory: ResourceFactory = null
     private mutable commandList: CommandList = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
-    InitializeWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
+    CreateWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
+        if (Interlocked.CompareExchange(&window, (unchecked default: Window), (unchecked default: Window)) !== unchecked default)
+            fail("Window already created.")
+
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
         Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
 
-        let window = Window(x, y, width, height, title)
+        window <- Window(x, y, width, height, title)
 
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
@@ -377,6 +381,11 @@ module Graphics =
         // Once commands have been submitted, the rendered image can be presented to the application window.
         graphicsDevice.SwapBuffers()
 
-    Destroy(): () =
+    DestroyWindow(): () =
+        if (Interlocked.CompareExchange(&window, (unchecked default: Window), (unchecked default: Window)) === unchecked default)
+            fail("Window not created. Unable to destroy window.")
+
+        window.Close()
+        window <- unchecked default
         commandList.Dispose()
         graphicsDevice.Dispose()
