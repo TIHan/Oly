@@ -66,6 +66,7 @@ main(): () =
 
     let mesh      = Graphics.CreateMesh(meshDesc)
     let shader    = Graphics.CreateShader(shaderDesc)
+    Graphics.UpdateShader(shader, shaderDesc)
     let instances = Graphics.CreateInstances(hexagons)
     let drawCmd   = DrawCommand(mesh, shader, instances)
 

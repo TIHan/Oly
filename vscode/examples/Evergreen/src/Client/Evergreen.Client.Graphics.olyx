@@ -11,6 +11,8 @@ namespace Evergreen.Client.Graphics
 open System
 open System.Text
 open System.Numerics
+open System.Threading
+open System.Collections.Concurrent
 open Veldrid
 open Veldrid.Sdl2
 open Veldrid.StartupUtilities
@@ -147,9 +149,7 @@ sealed class Instances =
     Dispose(): () =
         this.TransformBuffer.Dispose()
 
-sealed class Shader =
-    implements IDisposable
-
+private sealed class ShaderState =
     internal VertexShader:   VeldridShader
     internal FragmentShader: VeldridShader
     internal Pipeline:       Pipeline
@@ -161,9 +161,19 @@ sealed class Shader =
             Pipeline = pipeline
         }
 
+sealed class Shader =
+    implements IDisposable
+
+    internal mutable State: ShaderState
+
+    internal new(state: ShaderState) =
+        {
+            State = state
+        }
+
     Dispose(): () =
-        this.VertexShader.Dispose()
-        this.FragmentShader.Dispose()
+        this.State.VertexShader.Dispose()
+        this.State.FragmentShader.Dispose()
 
 struct DrawCommand =
     Mesh:      Mesh
@@ -246,7 +256,7 @@ module Graphics =
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
     
-    CreateShader(shaderDesc: ShaderDescription): Shader =
+    private CreateShaderState(shaderDesc: ShaderDescription): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -284,9 +294,12 @@ module Graphics =
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
-        Shader(shaders[0], shaders[1], pipeline)
+        ShaderState(shaders[0], shaders[1], pipeline)
 
-    private delayed: System.Collections.Concurrent.ConcurrentQueue<() -> ()> = System.Collections.Concurrent.ConcurrentQueue()
+    CreateShader(shaderDesc: ShaderDescription): Shader =
+        Shader(CreateShaderState(shaderDesc))
+
+    private delayed: ConcurrentQueue<() -> ()> = ConcurrentQueue()
 
     CreateInstances(transforms: Matrix4x4[||]): Instances =
         let transformBuffer = factory.CreateBuffer(BufferDescription(uint32(transforms.Length) * 64, BufferUsage.VertexBuffer))  
@@ -296,8 +309,15 @@ module Graphics =
         instances.Count <- transforms.Length
         instances
 
+    UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
+        let newState = CreateShaderState(shaderDesc)
+        let oldState = Interlocked.Exchange(&shader.State, newState)
+        oldState.Pipeline.Dispose()
+        oldState.FragmentShader.Dispose()
+        oldState.VertexShader.Dispose()
+
     // AddTransform(instances: Instances, transform: Matrix4x4): uint32 =
-    //     let index = uint32(System.Threading.Interlocked.Increment(&instances.Count) - 1)
+    //     let index = uint32(Interlocked.Increment(&instances.Count) - 1)
 
     //     let f() =
     //         if ((index * 64) > instances.TransformBuffer.SizeInBytes)
@@ -328,11 +348,12 @@ module Graphics =
             let instanceCount = uint32(cmd.Instances.Count)
 
             if (instanceCount > 0)   
+                let shaderState     = cmd.Shader.State
                 let transformBuffer = cmd.Instances.TransformBuffer
                 let vertexBuffer    = cmd.Mesh.VertexBuffer
                 let indexBuffer     = cmd.Mesh.IndexBuffer
                 let indexCount      = cmd.Mesh.IndexCount
-                let pipeline        = cmd.Shader.Pipeline
+                let pipeline        = shaderState.Pipeline
 
                 commandList.SetVertexBuffer(0, vertexBuffer)
                 commandList.SetVertexBuffer(1, transformBuffer)
