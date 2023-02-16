@@ -5,8 +5,32 @@
 #package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.SPIRV,1.0.15" // TODO: Remove this when we fix transitive packages.
 
+open System.Text
 open System.Numerics
 open Evergreen.Client.Graphics
+
+DefaultVertexCode: string = "#version 450
+
+layout(location = 0) in vec3 Position;
+layout(location = 1) in mat4 Transform;
+
+layout(location = 0) out vec4 fsin_Color;
+
+void main()
+{
+    gl_Position = Transform * vec4(Position, 1);
+    fsin_Color = vec4(Position.x, Position.y, 1, 1);
+}"
+
+DefaultFragmentCode: string = "#version 450
+
+layout(location = 0) in vec4 fsin_Color;
+layout(location = 0) out vec4 fsout_Color;
+
+void main()
+{
+    fsout_Color = fsin_Color;
+}"
 
 main(): () =
     let window = Graphics.InitializeWindow(100, 100, 512, 512, "Evergreen Game Example")
@@ -14,7 +38,11 @@ main(): () =
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
     let meshDesc = MeshDescription.CreateHexagon(0.1)
-    let materialDesc = MaterialDescription.Create()
+    let shaderDesc = 
+            ShaderDescription.Create(
+                Encoding.UTF8.GetBytes(DefaultVertexCode), 
+                Encoding.UTF8.GetBytes(DefaultFragmentCode)
+            )
 
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
@@ -36,10 +64,10 @@ main(): () =
         i <- i + 1
     let hexagons = hexagons.ToArray()
 
-    let mesh = Graphics.CreateMesh(meshDesc)
-    let material = Graphics.CreateMaterial(materialDesc)
+    let mesh      = Graphics.CreateMesh(meshDesc)
+    let shader    = Graphics.CreateShader(shaderDesc)
     let instances = Graphics.CreateInstances(hexagons)
-    let drawCmd = DrawCommand(mesh, material, instances)
+    let drawCmd   = DrawCommand(mesh, shader, instances)
 
     let drawCmds = [drawCmd]
 

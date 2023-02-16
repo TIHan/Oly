@@ -16,6 +16,9 @@ open Veldrid.Sdl2
 open Veldrid.StartupUtilities
 open Veldrid.SPIRV
 
+private alias VeldridShaderDescription = Veldrid.ShaderDescription
+private alias VeldridShader = Veldrid.Shader
+
 sealed class MeshDescription =
     mutable Vertices: Vector3[||]
     mutable Indices:  uint16[||]
@@ -64,19 +67,19 @@ sealed class MeshDescription =
 
         MeshDescription(vertices, indices)
 
-sealed class MaterialDescription =
+sealed class ShaderDescription =
     internal mutable VertexLayouts:  VertexLayoutDescription[||]
-    internal mutable VertexShader:   ShaderDescription
-    internal mutable FragmentShader: ShaderDescription
+    internal mutable VertexShader:   VeldridShaderDescription
+    internal mutable FragmentShader: VeldridShaderDescription
 
-    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: ShaderDescription, fragmentShader: ShaderDescription) =
+    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
         {
             VertexLayouts = vertexLayouts;
             VertexShader = vertexShader;
             FragmentShader = fragmentShader
         }
 
-    static Create(): MaterialDescription =
+    static Create(vertexShaderBytes: byte[||], fragmentShaderBytes: byte[||]): ShaderDescription =
         let vertexLayout =
             VertexLayoutDescription(
                 [|
@@ -98,18 +101,18 @@ sealed class MaterialDescription =
         let vertexShader =
             ShaderDescription(
                 ShaderStages.Vertex,
-                Encoding.UTF8.GetBytes(Graphics.DefaultVertexCode),
+                vertexShaderBytes,
                 "main"
             )
     
         let fragmentShader =
             ShaderDescription(
                 ShaderStages.Fragment,
-                Encoding.UTF8.GetBytes(Graphics.DefaultFragmentCode),
+                fragmentShaderBytes,
                 "main"
             )
 
-        MaterialDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
+        ShaderDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
 
 sealed class Mesh =
     implements IDisposable
@@ -144,14 +147,14 @@ sealed class Instances =
     Dispose(): () =
         this.TransformBuffer.Dispose()
 
-sealed class Material =
+sealed class Shader =
     implements IDisposable
 
-    internal VertexShader:   Shader
-    internal FragmentShader: Shader
+    internal VertexShader:   VeldridShader
+    internal FragmentShader: VeldridShader
     internal Pipeline:       Pipeline
 
-    internal new(vertexShader: Shader, fragmentShader: Shader, pipeline: Pipeline) =
+    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, pipeline: Pipeline) =
         {
             VertexShader = vertexShader;
             FragmentShader = fragmentShader;
@@ -164,13 +167,13 @@ sealed class Material =
 
 struct DrawCommand =
     Mesh:      Mesh
-    Material:  Material
+    Shader:    Shader
     Instances: Instances
 
-    new(mesh: Mesh, material: Material, instances: Instances) =
+    new(mesh: Mesh, shader: Shader, instances: Instances) =
         {
             Mesh = mesh;
-            Material = material;
+            Shader = shader;
             Instances = instances
         }
 
@@ -212,29 +215,6 @@ module Graphics =
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
-    internal DefaultVertexCode: string = "#version 450
-
-layout(location = 0) in vec3 Position;
-layout(location = 1) in mat4 Transform;
-
-layout(location = 0) out vec4 fsin_Color;
-
-void main()
-{
-    gl_Position = Transform * vec4(Position, 1);
-    fsin_Color = vec4(Position.x, Position.y, 1, 1);
-}"
-
-    internal DefaultFragmentCode: string = "#version 450
-
-layout(location = 0) in vec4 fsin_Color;
-layout(location = 0) out vec4 fsout_Color;
-
-void main()
-{
-    fsout_Color = fsin_Color;
-}"
-
     InitializeWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
         Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
@@ -266,10 +246,10 @@ void main()
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
     
-    CreateMaterial(materialDesc: MaterialDescription): Material =
-        let vertexLayouts      = materialDesc.VertexLayouts
-        let vertexShaderDesc   = materialDesc.VertexShader
-        let fragmentShaderDesc = materialDesc.FragmentShader
+    CreateShader(shaderDesc: ShaderDescription): Shader =
+        let vertexLayouts      = shaderDesc.VertexLayouts
+        let vertexShaderDesc   = shaderDesc.VertexShader
+        let fragmentShaderDesc = shaderDesc.FragmentShader
     
         let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
     
@@ -304,7 +284,7 @@ void main()
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
-        Material(shaders[0], shaders[1], pipeline)
+        Shader(shaders[0], shaders[1], pipeline)
 
     private delayed: System.Collections.Concurrent.ConcurrentQueue<() -> ()> = System.Collections.Concurrent.ConcurrentQueue()
 
@@ -327,7 +307,7 @@ void main()
             
     //     index
 
-    Draw(drawCommands: DrawCommand[]): () =
+    Draw(drawCmds: DrawCommand[]): () =
         // Begin() must be called before commands can be issued
         commandList.Begin()
 
@@ -341,9 +321,9 @@ void main()
     
         // Set all relevant state to draw our quad
         let mutable i = 0
-        let length = getLength(drawCommands)
+        let length = getLength(drawCmds)
         while (i < length)
-            let cmd = drawCommands[i]
+            let cmd = drawCmds[i]
 
             let instanceCount = uint32(cmd.Instances.Count)
 
@@ -352,7 +332,7 @@ void main()
                 let vertexBuffer    = cmd.Mesh.VertexBuffer
                 let indexBuffer     = cmd.Mesh.IndexBuffer
                 let indexCount      = cmd.Mesh.IndexCount
-                let pipeline        = cmd.Material.Pipeline
+                let pipeline        = cmd.Shader.Pipeline
 
                 commandList.SetVertexBuffer(0, vertexBuffer)
                 commandList.SetVertexBuffer(1, transformBuffer)
