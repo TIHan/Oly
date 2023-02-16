@@ -928,7 +928,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         [
             InterpreterTarget() :> OlyBuild
             DotNetTarget()
-            UnityTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets, rs = rs)
 

@@ -274,8 +274,12 @@ module WorkspaceHelpers =
                     | OlyProjectReference.Project(projectId) ->
                         if h.Add(projectId) then
                             match solution.TryGetProject projectId with
-                            | Some r -> builder.Add(r.AsCompilationReference)
-                            | _ -> failwith "Unable to find project."
+                            | Some refProj -> 
+                                let compRef = refProj.AsCompilationReference
+                                builder.Add(compRef)
+                                loop refProj.References
+                            | _ -> 
+                                OlyAssert.Fail("Unable to find project.")
                     | OlyProjectReference.Compilation(r) ->
                         if h.Add(r.Path) then
                             builder.Add(r)

@@ -2419,7 +2419,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     member this.ImportAssembly(ilAsm: OlyILReadOnlyAssembly) =
         if assemblies.ContainsKey(ilAsm.Identity) then
-            failwithf "Assembly %A already imported." ilAsm.Identity
+            // TODO: Should we error on this?
+            ()
+            //failwithf "Assembly %A already imported." ilAsm.Identity
         else
 
         assemblies[ilAsm.Identity] <- {

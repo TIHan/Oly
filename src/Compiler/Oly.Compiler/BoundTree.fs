@@ -963,9 +963,21 @@ type QueryField =
     | IntrinsicAndExtrinsic
 
 let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
-    // TODO: Handle Internal
-
     if value.IsPublic then true
+    elif value.IsInternal then
+        // TODO: There a way to make this a faster check?
+        match benv.ac.Entity, value.Enclosing.TryEntity with
+        | Some ent1, Some ent2 ->
+            match ent1.ContainingAssembly, ent2.ContainingAssembly with
+            | Some asm1, Some asm2 ->
+                let ident1 = asm1.Identity
+                let ident2 = asm2.Identity
+                ident1.Name.Equals(ident2.Name) &&
+                ident1.Key.Equals(ident2.Key)
+            | _ ->
+                false
+        | _ -> 
+            false
     elif value.IsProtected then
         match benv.ac.Entity, value.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> subsumesEntity ent1 ent2 || subsumesEntity ent2 ent1

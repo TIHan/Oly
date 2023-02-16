@@ -244,8 +244,8 @@ let isSimpleMatchClause (matchClause: BoundMatchClause) =
 
 let isReallySimpleExpression (expr: E) =
     match expr with
-    | E.Literal _
-    | E.Value _ -> true
+    | E.Literal _ -> true
+    | E.Value(value=value) -> value.IsLocal || value.IsFieldConstant
     | _ -> false
 
 let isSimpleExpression (expr: E) =
@@ -257,7 +257,12 @@ let isSimpleExpression (expr: E) =
         if value.IsTargetJump then
 #if DEBUG
             argExprs
-            |> ImArray.forall isReallySimpleExpression
+            |> ImArray.forall (function 
+                | E.Value(value=value) -> 
+                    value.IsLocal && not value.IsFunction 
+                | _ -> 
+                    false
+            )
             |> OlyAssert.True
 #endif
             true
@@ -951,12 +956,12 @@ let transformMatchPattern (cenv: cenv) (matchPatternLookup: MatchPatternLookup) 
                 |> combineDecisionGroup cenv
         else
 
-        let targetJumpBodyExpr = 
+        let contExpr = 
             decisionGroup2
             |> decisionsToClauseExpressions cenv matchPatternLookup targetExpr guardExprOpt
             |> finalizeClauseExpressions cenv
             
-        let contExprOpt = Some(normalizeContinuationExpression cenv targetJumpBodyExpr)
+        let contExprOpt = Some(normalizeContinuationExpression cenv contExpr)
 
         transformMatchPattern cenv matchPatternLookup (matchPatternIndex + decisionGroup2.Length) contExprOpt targetExpr guardExprOpt matchPattern1
         |> combineDecisionGroup cenv

@@ -313,7 +313,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
             TypeSymbol.CreateTuple(tyArgs)
         
     | _ ->
-        raise(NotImplementedException())
+        raise(NotImplementedException(ty.GetType().Name))
 
 let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
     // TODO: This could be a little more memory efficient by not constructing new type symbols if they didn't change.

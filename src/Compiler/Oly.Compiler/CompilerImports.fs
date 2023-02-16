@@ -156,6 +156,11 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             ent.Implements
             |> ImArray.map (retargetType currentAsmIdent importer tyPars)
 
+    let lazyInstanceCtors =
+        lazy
+            ent.InstanceConstructors
+            |> ImArray.map (retargetFunction currentAsmIdent importer asEnclosing)
+
     do
         OlyAssert.True(ent.IsFormal || ent.IsNamespace)
 
@@ -173,7 +178,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
         member this.Functions = lazyFunctions.Value
         member this.Id = id
         member this.Implements = lazyImplements.Value
-        member this.InstanceConstructors = ent.InstanceConstructors
+        member this.InstanceConstructors = lazyInstanceCtors.Value
         member this.Kind = ent.Kind
         member this.Name = ent.Name
         member this.Patterns = ent.Patterns
@@ -275,8 +280,14 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
                 TypeSymbol.Entity(formalREnt.Apply(tyArgs))
 
     | _ ->
-        // TODO:
-        ty
+        if ty.Arity > 0 then
+            if ty.IsFormal then
+                ty
+            else
+                let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+                actualType tyArgs ty.Formal
+        else
+            ty
 
 /// L2 cache that is to the current compilation.
 [<NoEquality;NoComparison>]

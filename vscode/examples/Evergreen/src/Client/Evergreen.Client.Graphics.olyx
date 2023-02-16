@@ -1,0 +1,381 @@
+#target "dotnet: net7"
+#library
+
+#reference "../../../core/prelude.olyx"
+#package "Veldrid,4.9.0"
+#package "Veldrid.StartupUtilities,4.9.0"
+#package "Veldrid.SPIRV,1.0.15"
+
+namespace Evergreen.Client.Graphics
+
+open System
+open System.Text
+open System.Numerics
+open Veldrid
+open Veldrid.Sdl2
+open Veldrid.StartupUtilities
+open Veldrid.SPIRV
+
+sealed class MeshDescription =
+    mutable Vertices: Vector3[||]
+    mutable Indices:  uint16[||]
+
+    new(vertices: Vector3[||], indices: uint16[||]) =
+        {
+            Vertices = vertices;
+            Indices = indices
+        }
+
+    static CreateQuad(scale: float32): MeshDescription =
+        let vertices =
+            [|
+                Vector3(-scale,  scale, 0);
+                Vector3( scale,  scale, 0);
+                Vector3(-scale, -scale, 0);
+                Vector3( scale, -scale, 0)
+            |]
+    
+        let indices = [| 0: uint16; 1; 2; 3 |]
+
+        MeshDescription(vertices, indices)
+
+    static CreateHexagon(scale: float32): MeshDescription =
+        let vertices =
+            [|
+                Vector3(     0,              0, 0); // center
+                Vector3(  -0.5 * scale,  scale, 0); // left top
+                Vector3(   0.5 * scale,  scale, 0); // right top
+                Vector3(         scale,      0, 0); // right
+                Vector3(   0.5 * scale, -scale, 0); // right bottom
+                Vector3(  -0.5 * scale, -scale, 0); // left bottom
+                Vector3(        -scale,      0, 0)  // left
+            |]
+
+        let indices =
+            [|
+                0; 1; 2;
+                0; 2; 3;               
+                0; 3; 4;
+                0; 4; 5;
+                0; 5; 6;
+                0; 6; 1;
+                0: uint16
+            |]
+
+        MeshDescription(vertices, indices)
+
+sealed class MaterialDescription =
+    internal mutable VertexLayouts:  VertexLayoutDescription[||]
+    internal mutable VertexShader:   ShaderDescription
+    internal mutable FragmentShader: ShaderDescription
+
+    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: ShaderDescription, fragmentShader: ShaderDescription) =
+        {
+            VertexLayouts = vertexLayouts;
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader
+        }
+
+    static Create(): MaterialDescription =
+        let vertexLayout =
+            VertexLayoutDescription(
+                [|
+                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
+                |]
+            )
+
+        let mutable instanceLayout =
+            VertexLayoutDescription(
+                [|
+                    VertexElementDescription("Transform_Column0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
+                    VertexElementDescription("Transform_Column1", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
+                    VertexElementDescription("Transform_Column2", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
+                    VertexElementDescription("Transform_Column3", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
+                |]
+            )
+        instanceLayout.InstanceStepRate <- 1
+    
+        let vertexShader =
+            ShaderDescription(
+                ShaderStages.Vertex,
+                Encoding.UTF8.GetBytes(Graphics.DefaultVertexCode),
+                "main"
+            )
+    
+        let fragmentShader =
+            ShaderDescription(
+                ShaderStages.Fragment,
+                Encoding.UTF8.GetBytes(Graphics.DefaultFragmentCode),
+                "main"
+            )
+
+        MaterialDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
+
+sealed class Mesh =
+    implements IDisposable
+
+    internal VertexBuffer: DeviceBuffer
+    internal IndexBuffer:  DeviceBuffer
+    internal IndexCount:   uint32
+
+    internal new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer, indexCount: uint32) =
+        {
+            VertexBuffer = vertexBuffer;
+            IndexBuffer = indexBuffer;
+            IndexCount = indexCount
+        }
+
+    Dispose(): () =
+        this.VertexBuffer.Dispose()
+        this.IndexBuffer.Dispose()
+
+sealed class Instances =
+    implements IDisposable
+
+    internal mutable Count: int32
+    internal mutable TransformBuffer: DeviceBuffer
+
+    internal new(transformBuffer: DeviceBuffer) =
+        {
+            Count = 0
+            TransformBuffer = transformBuffer
+        }
+
+    Dispose(): () =
+        this.TransformBuffer.Dispose()
+
+sealed class Material =
+    implements IDisposable
+
+    internal VertexShader:   Shader
+    internal FragmentShader: Shader
+    internal Pipeline:       Pipeline
+
+    internal new(vertexShader: Shader, fragmentShader: Shader, pipeline: Pipeline) =
+        {
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader;
+            Pipeline = pipeline
+        }
+
+    Dispose(): () =
+        this.VertexShader.Dispose()
+        this.FragmentShader.Dispose()
+
+struct DrawCommand =
+    Mesh:      Mesh
+    Material:  Material
+    Instances: Instances
+
+    new(mesh: Mesh, material: Material, instances: Instances) =
+        {
+            Mesh = mesh;
+            Material = material;
+            Instances = instances
+        }
+
+sealed class InputState =
+    private snapshot: InputSnapshot
+
+    internal new(snapshot: InputSnapshot) =
+        {
+            snapshot = snapshot
+        }
+
+    IsKeyPressed(key: char): bool =
+        System.Linq.Enumerable.Contains<char>(this.snapshot.KeyCharPresses, key)
+
+sealed class Window =
+    internal window: Sdl2Window
+
+    internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
+        let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.Normal, title)
+        let window = VeldridStartup.CreateWindow(windowCreateInfo)
+        {
+            window = window
+        }
+
+    GetInputState(): InputState =
+        InputState(this.window.PumpEvents())
+
+    Close(): () =
+        this.window.Close()
+
+    Exists: bool
+        get() = this.window.Exists
+
+module Graphics =
+
+    private mutable graphicsDevice: GraphicsDevice = null
+    private mutable factory: ResourceFactory = null
+    private mutable commandList: CommandList = null
+
+    DeviceName: string get() = graphicsDevice.DeviceName
+
+    internal DefaultVertexCode: string = "#version 450
+
+layout(location = 0) in vec3 Position;
+layout(location = 1) in mat4 Transform;
+
+layout(location = 0) out vec4 fsin_Color;
+
+void main()
+{
+    gl_Position = Transform * vec4(Position, 1);
+    fsin_Color = vec4(Position.x, Position.y, 1, 1);
+}"
+
+    internal DefaultFragmentCode: string = "#version 450
+
+layout(location = 0) in vec4 fsin_Color;
+layout(location = 0) out vec4 fsout_Color;
+
+void main()
+{
+    fsout_Color = fsin_Color;
+}"
+
+    InitializeWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
+        // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
+        Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
+
+        let window = Window(x, y, width, height, title)
+
+        let mutable options = default: GraphicsDeviceOptions
+        options.PreferStandardClipSpaceYDirection <- true
+        options.PreferDepthRangeZeroToOne <- true
+
+        graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
+        factory <- graphicsDevice.ResourceFactory
+        commandList <- factory.CreateCommandList()
+
+        window
+
+    CreateMesh(meshDesc: MeshDescription): Mesh =
+        let vertices = meshDesc.Vertices
+        let indices  = meshDesc.Indices
+    
+        let vertexCount = uint32(vertices.Length)
+        let indexCount  = uint32(indices.Length)
+    
+        let vertexBuffer = factory.CreateBuffer(BufferDescription(vertexCount * ((4: uint32) * 3), BufferUsage.VertexBuffer))
+        let indexBuffer = factory.CreateBuffer(BufferDescription(indexCount * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+    
+        graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
+        graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
+    
+        Mesh(vertexBuffer, indexBuffer, indexCount)
+    
+    CreateMaterial(materialDesc: MaterialDescription): Material =
+        let vertexLayouts      = materialDesc.VertexLayouts
+        let vertexShaderDesc   = materialDesc.VertexShader
+        let fragmentShaderDesc = materialDesc.FragmentShader
+    
+        let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
+    
+        let mutable pipelineDesc = default: GraphicsPipelineDescription
+        pipelineDesc.BlendState <- BlendStateDescription.SingleOverrideBlend
+    
+        pipelineDesc.DepthStencilState <-
+            let mutable desc = default: DepthStencilStateDescription
+            desc.DepthTestEnabled <- true
+            desc.DepthWriteEnabled <- true
+            desc.DepthComparison <- ComparisonKind.LessEqual
+            desc
+    
+        pipelineDesc.RasterizerState <-
+            let mutable desc = default: RasterizerStateDescription
+            desc.CullMode <- FaceCullMode.Back
+            desc.FillMode <- PolygonFillMode.Solid
+            desc.FrontFace <- FrontFace.Clockwise
+            desc.DepthClipEnabled <- true
+            desc.ScissorTestEnabled <- false
+            desc
+    
+        pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleStrip
+        pipelineDesc.ResourceLayouts <- [||]
+    
+        pipelineDesc.ShaderSet <-
+            let mutable desc = default: ShaderSetDescription
+            desc.VertexLayouts <- vertexLayouts
+            desc.Shaders <- shaders
+            desc
+    
+        pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
+        let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
+    
+        Material(shaders[0], shaders[1], pipeline)
+
+    private delayed: System.Collections.Concurrent.ConcurrentQueue<() -> ()> = System.Collections.Concurrent.ConcurrentQueue()
+
+    CreateInstances(transforms: Matrix4x4[||]): Instances =
+        let transformBuffer = factory.CreateBuffer(BufferDescription(uint32(transforms.Length) * 64, BufferUsage.VertexBuffer))  
+        graphicsDevice.UpdateBuffer(transformBuffer, 0, transforms)
+
+        let instances = Instances(transformBuffer)
+        instances.Count <- transforms.Length
+        instances
+
+    // AddTransform(instances: Instances, transform: Matrix4x4): uint32 =
+    //     let index = uint32(System.Threading.Interlocked.Increment(&instances.Count) - 1)
+
+    //     let f() =
+    //         if ((index * 64) > instances.TransformBuffer.SizeInBytes)
+    //             let newBuffer = factory.CreateBuffer(BufferDescription(index * 64 * 2, BufferUsage.StructuredBufferReadWrite))
+
+    //     delayed.Enqueue(f)
+            
+    //     index
+
+    Draw(drawCommands: DrawCommand[]): () =
+        // Begin() must be called before commands can be issued
+        commandList.Begin()
+
+        let mutable f = unchecked default
+        while (delayed.TryDequeue(&f))
+            f()
+    
+        // We want to render directly to the output window.
+        commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
+        commandList.ClearColorTarget(0, RgbaFloat.Black)
+    
+        // Set all relevant state to draw our quad
+        let mutable i = 0
+        let length = getLength(drawCommands)
+        while (i < length)
+            let cmd = drawCommands[i]
+
+            let instanceCount = uint32(cmd.Instances.Count)
+
+            if (instanceCount > 0)   
+                let transformBuffer = cmd.Instances.TransformBuffer
+                let vertexBuffer    = cmd.Mesh.VertexBuffer
+                let indexBuffer     = cmd.Mesh.IndexBuffer
+                let indexCount      = cmd.Mesh.IndexCount
+                let pipeline        = cmd.Material.Pipeline
+
+                commandList.SetVertexBuffer(0, vertexBuffer)
+                commandList.SetVertexBuffer(1, transformBuffer)
+                commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
+                commandList.SetPipeline(pipeline)
+        
+                commandList.DrawIndexed(
+                    indexCount,     /* indexCount */
+                    instanceCount,  /* instanceCount */
+                    0,              /* indexStart */
+                    0,              /* vertexOffset */
+                    0               /* instanceStart */
+                )
+    
+            i <- i + 1
+    
+        // End() must be called before commands can be submitted for execution.
+        commandList.End()
+        graphicsDevice.SubmitCommands(commandList)
+    
+        // Once commands have been submitted, the rendered image can be presented to the application window.
+        graphicsDevice.SwapBuffers()
+
+    Destroy(): () =
+        commandList.Dispose()
+        graphicsDevice.Dispose()

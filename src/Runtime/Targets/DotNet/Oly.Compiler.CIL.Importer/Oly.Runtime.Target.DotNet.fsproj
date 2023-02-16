@@ -7,7 +7,6 @@
   <ItemGroup>
     <Compile Include="Importer.fs" />
     <Compile Include="DotNetTarget.fs" />
-    <Compile Include="UnityTarget.fs" />
   </ItemGroup>
 
   <ItemGroup>
