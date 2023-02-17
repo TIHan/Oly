@@ -25,13 +25,18 @@ sealed class MeshDescription =
     mutable Vertices: Vector3[||]
     mutable Indices:  uint16[||]
 
-    new(vertices: Vector3[||], indices: uint16[||]) =
+    private new(vertices: Vector3[||], indices: uint16[||]) =
         {
             Vertices = vertices;
             Indices = indices
         }
 
-    static CreateQuad(scale: float32): MeshDescription =
+    static Create(vertices: Vector3[||], indices: uint16[||]): MeshDescription =
+        MeshDescription(vertices, indices)
+
+    static CreateQuad(): MeshDescription =
+        let scale = 1: float32
+
         let vertices =
             [|
                 Vector3(-scale,  scale, 0);
@@ -40,11 +45,12 @@ sealed class MeshDescription =
                 Vector3( scale, -scale, 0)
             |]
     
-        let indices = [| 0: uint16; 1; 2; 3 |]
+        let indices = [| 0; 1; 2; 3: uint16 |]
 
         MeshDescription(vertices, indices)
 
-    static CreateHexagon(scale: float32): MeshDescription =
+    static CreateHexagon(): MeshDescription =
+        let scale = 1: float32
         let vertices =
             [|
                 Vector3(     0,              0, 0); // center
@@ -175,17 +181,39 @@ sealed class Shader =
         this.State.VertexShader.Dispose()
         this.State.FragmentShader.Dispose()
 
-struct DrawCommand =
-    Mesh:      Mesh
-    Shader:    Shader
-    Instances: Instances
+enum DrawCommandKind =
+    | SetUniform
+    | DrawMesh
 
-    new(mesh: Mesh, shader: Shader, instances: Instances) =
+class DrawCommand =
+    Kind: DrawCommandKind
+
+    new(kind: DrawCommandKind) =
         {
-            Mesh = mesh;
-            Shader = shader;
-            Instances = instances
+            Kind = kind
         }
+
+    private sealed class DrawMeshImpl =
+        inherits DrawCommand
+
+        Mesh:      Mesh
+        Shader:    Shader
+        Instances: Instances
+
+        new(mesh: Mesh, shader: Shader, instances: Instances) =
+            base(DrawCommandKind.DrawMesh) with
+                {
+                    Mesh = mesh;
+                    Shader = shader;
+                    Instances = instances
+                }
+
+    static CreateDrawMesh(mesh: Mesh, shader: Shader, instances: Instances): DrawCommand =
+        DrawCommand.DrawMeshImpl(mesh, shader, instances)
+
+    pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
+        let impl = UnsafeCast<DrawCommand.DrawMeshImpl>(cmd)
+        (impl.Mesh, impl.Shader, impl.Instances)
 
 sealed class InputState =
     private snapshot: InputSnapshot
@@ -227,7 +255,8 @@ module Graphics =
     DeviceName: string get() = graphicsDevice.DeviceName
 
     CreateWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
-        if (Interlocked.CompareExchange(&window, (unchecked default: Window), (unchecked default: Window)) !== unchecked default)
+        // TODO: Use a lock, but we need to implement try-catch in Oly.
+        if (window !== unchecked default)
             fail("Window already created.")
 
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
@@ -349,32 +378,34 @@ module Graphics =
         let mutable i = 0
         let length = getLength(drawCmds)
         while (i < length)
-            let cmd = drawCmds[i]
+            match (drawCmds[i])
+            | DrawCommand.DrawMesh(mesh, shader, instances) =>
+                let instanceCount = uint32(instances.Count)
 
-            let instanceCount = uint32(cmd.Instances.Count)
+                if (instanceCount > 0)   
+                    let pipeline = shader.State.Pipeline
+                    if (pipeline !== currentPipeline)
+                        commandList.SetPipeline(pipeline)
+                        currentPipeline <- pipeline
 
-            if (instanceCount > 0)   
-                let pipeline = cmd.Shader.State.Pipeline
-                if (pipeline !== currentPipeline)
-                    commandList.SetPipeline(pipeline)
-                    currentPipeline <- pipeline
+                    let transformBuffer = instances.TransformBuffer
+                    let vertexBuffer    = mesh.VertexBuffer
+                    let indexBuffer     = mesh.IndexBuffer
+                    let indexCount      = mesh.IndexCount
 
-                let transformBuffer = cmd.Instances.TransformBuffer
-                let vertexBuffer    = cmd.Mesh.VertexBuffer
-                let indexBuffer     = cmd.Mesh.IndexBuffer
-                let indexCount      = cmd.Mesh.IndexCount
-
-                commandList.SetVertexBuffer(0, vertexBuffer)
-                commandList.SetVertexBuffer(1, transformBuffer)
-                commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
-        
-                commandList.DrawIndexed(
-                    indexCount,     /* indexCount */
-                    instanceCount,  /* instanceCount */
-                    0,              /* indexStart */
-                    0,              /* vertexOffset */
-                    0               /* instanceStart */
-                )
+                    commandList.SetVertexBuffer(0, vertexBuffer)
+                    commandList.SetVertexBuffer(1, transformBuffer)
+                    commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
+            
+                    commandList.DrawIndexed(
+                        indexCount,     /* indexCount */
+                        instanceCount,  /* instanceCount */
+                        0,              /* indexStart */
+                        0,              /* vertexOffset */
+                        0               /* instanceStart */
+                    )
+            | _ =>
+                ()
     
             i <- i + 1
     
@@ -386,7 +417,8 @@ module Graphics =
         graphicsDevice.SwapBuffers()
 
     DestroyWindow(): () =
-        if (Interlocked.CompareExchange(&window, (unchecked default: Window), (unchecked default: Window)) === unchecked default)
+        // TODO: Use a lock, but we need to implement try-catch in Oly.
+        if (window === unchecked default)
             fail("Window not created. Unable to destroy window.")
 
         window.Close()

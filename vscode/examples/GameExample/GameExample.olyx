@@ -37,7 +37,7 @@ main(): () =
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let meshDesc   = MeshDescription.CreateHexagon(0.1)
+    let meshDesc   = MeshDescription.CreateHexagon()
     let shaderDesc = 
         ShaderDescription.Create(
             Encoding.UTF8.GetBytes(DefaultVertexCode), 
@@ -51,22 +51,22 @@ main(): () =
 
     let mutable i = 1
     while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-0.2 * float32(i), 0, 0)))
+        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i), 0, 0)))
         i <- i + 1
     let hexagons1 = hexagons.ToArray()
 
     hexagons.Clear()
     let mutable i = 1
     while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(0.2 * float32(i), 0, 0)))
+        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i), 0, 0)))
         i <- i + 1
     let hexagons2 = hexagons.ToArray()
 
     let instances1 = Graphics.CreateInstances(hexagons1)
-    let drawCmd1   = DrawCommand(mesh, shader, instances1)
+    let drawCmd1   = DrawCommand.CreateDrawMesh(mesh, shader, instances1)
 
     let instances2 = Graphics.CreateInstances(hexagons2)
-    let drawCmd2   = DrawCommand(mesh, shader, instances2)
+    let drawCmd2   = DrawCommand.CreateDrawMesh(mesh, shader, instances2)
 
     let drawCmds = [drawCmd1;drawCmd2]
 
