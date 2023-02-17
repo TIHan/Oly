@@ -3022,3 +3022,73 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
+
+[<Fact>]
+let ``Use 'Length' property from string``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("utf16")]
+alias string
+
+main(): () =
+    let str: System.String = "asdf"
+    print(str.Length)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "4"
+
+[<Fact>]
+let ``Use 'Length' property from string 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("utf16")]
+alias string
+
+main(): () =
+    let str = "asdf"
+    print(str.Length)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "4"
+
+[<Fact>]
+let ``Use 'Length' property from string 3``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("utf16")]
+alias string
+
+main(): () =
+    print("asdf".Length)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "4"
+
+[<Fact>]
+let ``Use 'MaxValue' from uint16``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("uint16")]
+alias uint16
+
+main(): () =
+    print(uint16.MaxValue)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "65535"

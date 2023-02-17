@@ -64,6 +64,7 @@ module private Helpers =
         Seq.append inheritedProperties fields
     
     let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
+        let ty = findIntrinsicTypeIfPossible benv ty
         let intrinsicFields =
             match stripTypeEquations ty with
             | TypeSymbol.Variable(tyPar) ->
@@ -101,6 +102,7 @@ module private Helpers =
         Seq.append intrinsicFields extrinsicFields
 
     let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
+        let ty = findIntrinsicTypeIfPossible benv ty
         let intrinsicProps =
             match stripTypeEquations ty with
             | TypeSymbol.Variable(tyPar) 
@@ -160,6 +162,15 @@ module private Helpers =
     
         Seq.append intrinsicProps extrinsicProps
         |> filterValuesByAccessibility benv queryMemberFlags
+
+    let findNestedEntitiesOfType (benv: BoundEnvironment) ty =
+        let ty = findIntrinsicTypeIfPossible benv ty
+        match stripTypeEquations ty with
+        | TypeSymbol.Entity(ent) ->
+            // TODO: Handle accessibility
+            ent.Entities
+        | _ ->
+            ImArray.empty
 
     type Locals = System.Collections.Generic.HashSet<int64>
 
@@ -680,6 +691,9 @@ type TypeSymbol with
 
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
         findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
+
+    member this.FindNestedEntities(benv) =
+        findNestedEntitiesOfType benv this
 
     member this.TryFindNestedEntity(benv: BoundEnvironment, name, tyArity) =
         match benv.TryGetEntity this with

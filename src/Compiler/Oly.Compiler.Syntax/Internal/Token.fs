@@ -381,7 +381,8 @@ type internal Token =
 
     member this.ValueText =
         match this with
-        | StringLiteral(_, text, _, _, _) -> text
+        | CharLiteral(_, text, _)
+        | StringLiteral(_, text, _, _, _)
         | ExplicitIdentifier(_, text, _) -> text
         | _ -> this.Text
 

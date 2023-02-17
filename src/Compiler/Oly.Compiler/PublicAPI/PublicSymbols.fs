@@ -175,35 +175,26 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | _ -> true
 
     member _.Fields =
-        match stripTypeEquations ty with
-        | TypeSymbol.Entity(ent) -> 
-            ent.FindIntrinsicFields(benv, QueryMemberFlags.StaticOrInstance) 
-            |> Seq.map (fun x -> 
-                OlyValueSymbol(boundModel, benv, location, x)
-            )
-        | _ -> Seq.empty
+        ty.FindFields(benv, QueryMemberFlags.StaticOrInstance, QueryField.IntrinsicAndExtrinsic)
+        |> Seq.map (fun x -> 
+            OlyValueSymbol(boundModel, benv, location, x)
+        )
 
     member _.Functions =
-        let ty = stripTypeEquations ty
         ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
         |> ImArray.map (fun x ->
             OlyValueSymbol(boundModel, benv, location, x)
         )
 
     member _.Properties =
-        let ty = stripTypeEquations ty
         ty.FindProperties(benv, QueryMemberFlags.StaticOrInstance, QueryField.IntrinsicAndExtrinsic)
         |> Seq.map (fun x ->
             OlyValueSymbol(boundModel, benv, location, x)
         )
 
     member _.Types =
-        match stripTypeEquations ty with
-        | TypeSymbol.Entity(ent) ->
-            ent.FindNestedEntities(benv)
-            |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x.AsType))
-        | _ ->
-            ImArray.empty
+        ty.FindNestedEntities(benv)
+        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x.AsType))
 
     member _.IsInterface = ty.IsInterface
 

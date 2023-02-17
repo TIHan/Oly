@@ -869,6 +869,17 @@ module EntitySymbolExtensions =
             else
                 this.ExtendsForMemberLookup.AddRange(this.Implements)
 
+let findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
+    match benv.TryFindIntrinsicTypeByAliasType(ty) with
+    | ValueSome intrinsicTy ->
+        match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
+        | ValueSome ent -> ent.AsType
+        | _ -> ty
+    | _ ->
+        match benv.TryFindEntityByIntrinsicType(ty) with
+        | ValueSome ent -> ent.AsType
+        | _ -> ty
+
 let findIntrinsicAndExtrinsicInheritsAndImplementsOfType (benv: BoundEnvironment) (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.Variable(tyPar)
@@ -989,13 +1000,11 @@ let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
 
 let filterValuesByAccessibility<'T when 'T :> IValueSymbol> (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
     // We are querying for functions that override, we must include private functions in this case.
-    if queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides then values
+    if queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides then 
+        values
     else
-
-    // TODO: Handle Internal
-
-    values
-    |> Seq.filter (canAccessValue benv)
+        values
+        |> Seq.filter (canAccessValue benv)
 
 let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: IEntitySymbol) =
     filterFunctions queryMemberFlags funcFlags nameOpt ent.Functions
@@ -1045,16 +1054,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
     |> filterMostSpecificFunctions
 
 and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
-    let ty =
-        match benv.TryFindIntrinsicTypeByAliasType(ty) with
-        | ValueSome intrinsicTy ->
-            match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
-            | ValueSome ent -> ent.AsType
-            | _ -> ty
-        | _ ->
-            match benv.TryFindEntityByIntrinsicType(ty) with
-            | ValueSome ent -> ent.AsType
-            | _ -> ty
+    let ty = findIntrinsicTypeIfPossible benv ty
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
         findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent

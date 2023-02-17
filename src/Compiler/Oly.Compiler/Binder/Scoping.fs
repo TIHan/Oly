@@ -26,6 +26,7 @@ let scopeInInstanceConstructors (env: BinderEnvironment) (ent: IEntitySymbol) =
 
 let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: IEntitySymbol) =
     if ent.IsNamespace then
+        // REVIEW: This will not partially open namespaces. We should consider doing this as a feature.
         env
     elif ent.IsShape || ent.IsTypeExtension then
         let arity =

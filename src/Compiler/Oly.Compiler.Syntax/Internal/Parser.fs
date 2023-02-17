@@ -1356,6 +1356,11 @@ let tryParseLiteral state =
         SyntaxLiteral.Utf16(valueToken) |> Some
     | _ ->
 
+    match bt CHAR_LITERAL state with
+    | Some(valueToken) ->
+        SyntaxLiteral.Char16(valueToken) |> Some
+    | _ ->
+
     match bt NULL state with
     | Some(nullToken) ->
         SyntaxLiteral.Null(nullToken) |> Some
