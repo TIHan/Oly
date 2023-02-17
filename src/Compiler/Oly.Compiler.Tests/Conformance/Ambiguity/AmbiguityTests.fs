@@ -1207,3 +1207,23 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Pattern match ambiguity with constructor``() =
+    let src =
+        """
+class A =
+
+    class B
+
+    pattern B(x: A): A = x
+
+main(): () =
+    let a = A()
+    match (a)
+    | A.B(y) => ()
+    | _ => ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

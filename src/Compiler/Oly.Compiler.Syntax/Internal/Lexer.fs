@@ -510,30 +510,78 @@ module Lexer =
         | _ ->
             ident
 
+    let endScanCharLiteral lexer c startPos hasNewLine endColumn =
+        let text = lexeme lexer
+        advance lexer
+        resetLexeme lexer
+        let terminalToken =
+            match c with
+            | ''' -> SingleQuotation
+            | _ -> EndOfSource
+
+        if hasNewLine then
+            let endPos = 
+                match terminalToken with
+                | EndOfSource -> lexer.window.LexemeEnd - 1
+                | _ -> lexer.window.LexemeEnd
+            lexer.diagnostics.Add(startPos, endPos, "New-lines are not valid in character literals.", true, 170)
+        else
+            match terminalToken with
+            | EndOfSource ->
+                let endPos = lexer.window.LexemeEnd - 1
+                lexer.diagnostics.Add(startPos, endPos, "Character literal reached end-of-source.", true, 171)
+            | _ ->
+                ()
+
+        lexer.currentColumn <- endColumn
+        CharLiteral(SingleQuotation, text, terminalToken)
+
+    let rec scanCharLiteral lexer startPos hasNewLine endColumn began =
+        match peek lexer with
+        | ''' when began ->
+            advance lexer
+            resetLexeme lexer
+            scanCharLiteral lexer startPos hasNewLine (endColumn + 1) false
+        | c when c = ''' ->
+            endScanCharLiteral lexer c startPos hasNewLine (endColumn + 1)
+        | c when c = InvalidCharacter ->
+            endScanCharLiteral lexer c startPos hasNewLine endColumn
+        | c ->
+            let hasNewLine, endColumn =
+                if c = '\n' then
+                    true, 0
+                elif c = '\r' then
+                    true, 0
+                else
+                    hasNewLine, endColumn + 1
+
+            advance lexer
+            scanCharLiteral lexer startPos hasNewLine endColumn began
+
     let rec scanStringLiteral lexer newLineCount endColumn began =
         match peek lexer with
         | '"' when began ->
             advance lexer
             resetLexeme lexer
             scanStringLiteral lexer newLineCount (endColumn + 1) false
-        | x when x = '"' || x = InvalidCharacter ->
+        | c when c = '"' || c = InvalidCharacter ->
             let text = lexeme lexer
             advance lexer
             resetLexeme lexer
             let terminalToken =
-                match x with
+                match c with
                 | '"' -> DoubleQuotation
                 | _ -> EndOfSource
             lexer.currentColumn <- endColumn + 1
             StringLiteral(DoubleQuotation, text, terminalToken, newLineCount, lexer.currentColumn)
-        | x ->
+        | c ->
             let newLineCount, endColumn =
-                if x = '\n' then
+                if c = '\n' then
                     if lexer.wasPrevCarriageReturn then
                         newLineCount, 0
                     else
                         newLineCount + 1, 0
-                elif x = '\r' then
+                elif c = '\r' then
                     newLineCount + 1, 0
                 else
                     newLineCount, endColumn + 1
@@ -943,14 +991,7 @@ module Lexer =
             Caret
 
         | ''' ->
-            advance lexer
-            // TODO: Not finished yet.
-            //match peek lexer with
-            //| ''' ->
-            //    advance lexer
-            //    CharLiteral(SingleQuote, "", SingleQuote)
-            //| c ->
-            SingleQuotation
+            scanCharLiteral lexer lexer.window.LexemeStart false lexer.currentColumn true
 
         | '"' ->
             scanStringLiteral lexer 0 lexer.currentColumn true

@@ -7017,3 +7017,22 @@ main(): () =
     |> ignore
 
 // *************(*****************************************
+
+[<Fact>]
+let ``Character literal should error``() =
+    let src =
+        """
+main(): () =
+    let x = 'xx'
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Invalid character literal.",
+            """
+    let x = 'xx'
+            ^^^^
+"""
+            )
+        ]
+    |> ignore

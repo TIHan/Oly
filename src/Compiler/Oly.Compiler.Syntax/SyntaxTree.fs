@@ -82,9 +82,7 @@ type OlyDiagnostic internal () =
             let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
             let sourceLineTest = sourceText.Lines.GetLineFromPosition(textSpan.End)
 
-            // Does not support multi-line diagnostic location
-            if sourceLine.LineIndex = sourceLineTest.LineIndex then
-        
+            if sourceLine.LineIndex = sourceLineTest.LineIndex then       
                 let startI = textSpan.Start - sourceLine.TextSpan.Start
 
                 let lineText = sourceLine.ToString()
@@ -94,7 +92,15 @@ type OlyDiagnostic internal () =
                     a + b
                 lineText + "\n" + locationText
             else
-                String.Empty
+                // TODO: Fix support for multi-line diagnostic location
+                let startI = textSpan.Start - sourceLine.TextSpan.Start
+
+                let lineText = sourceLine.ToString()
+                let locationText = 
+                    let a = String.init startI (fun _ -> " ")
+                    let b = String.init textSpan.Width (fun _ -> "^")
+                    a + b
+                lineText + "\n" + locationText
         | _ ->
             String.Empty
 

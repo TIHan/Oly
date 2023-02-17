@@ -14174,3 +14174,22 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "byref88inref77"
     |> ignore
+
+[<Fact>]
+let ``Simple character literal``() =
+    let src =
+        """
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 'y'
+    print(x)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "y"
+    |> ignore

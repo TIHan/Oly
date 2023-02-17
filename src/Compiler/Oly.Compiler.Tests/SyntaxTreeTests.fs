@@ -1751,3 +1751,58 @@ alias byte =uint8
     Oly src
     |> withNoSyntaxDiagnostics
     |> ignore
+
+[<Fact>]
+let ``Char literal example``() =
+    let src =
+        """
+main(): () =
+    let x = 'x'
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Char literal example should fail``() =
+    let src =
+        """
+main(): () =
+    let x = 'x
+'
+        """
+    Oly src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("New-lines are not valid in character literals.",
+                """
+    let x = 'x
+            ^^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Char literal example should fail 2``() =
+    let src =
+        """
+main(): () =
+    let x = 'x"""
+    Oly src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("Character literal reached end-of-source.",
+                """
+    let x = 'x
+            ^^
+"""         )
+        ]
+
+[<Fact>]
+let ``String literal example should pass``() =
+    let src =
+        """
+main(): () =
+    let x = "x"""
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore

@@ -683,7 +683,7 @@ type RuntimeType =
         | ReferenceCell(elementTy)
         | ByRef(elementTy, _)
         | NativePtr(elementTy) -> ImArray.createOne elementTy
-        | Array(elementTy, rank, kind) -> ImArray.createOne elementTy
+        | Array(elementTy, _, _) -> ImArray.createOne elementTy
         | Function(argTys, returnTy) 
         | NativeFunctionPtr(_, argTys, returnTy) ->
             argTys.Add(returnTy)
@@ -702,7 +702,8 @@ type RuntimeType =
         | Int64
         | Float32
         | Float64
-        | Bool 
+        | Bool
+        | Char16
         | NativeInt _
         | NativeUInt _
         | NativePtr _ 

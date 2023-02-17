@@ -330,14 +330,19 @@ let private determineConstructorOrTypeAsFormalItem (cenv: cenv) (env: BinderEnvi
         |> ResolutionFormalItem.Value
 
 let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) isPatternContext (ident: string) =
-    receiverTy.TryFindNestedEntity(env.benv, ident, resTyArity)
-    |> Option.map (fun nestedEnt ->
-        determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
-    )
-    |> Option.defaultWith (fun () ->
-        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs isPatternContext ident
+    if isPatternContext then
+        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) true) ident
         ResolutionFormalItem.Value(value)
-    )
+    else
+        // Nested entities of receiverTy take precedence over its member values.
+        receiverTy.TryFindNestedEntity(env.benv, ident, resTyArity)
+        |> Option.map (fun nestedEnt ->
+            determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
+        )
+        |> Option.defaultWith (fun () ->
+            let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) false) ident
+            ResolutionFormalItem.Value(value)
+        )
 
 let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (args: ResolutionArguments) (ident: string) =
     if System.String.IsNullOrWhiteSpace(ident) then
@@ -671,16 +676,24 @@ let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) synta
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
         let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         ResolutionItem.MemberCall(syntaxToCapture, prevReceiverInfoOpt, syntaxCallBodyExpr, syntaxArgs, Some syntaxMemberExpr)
+
     | OlySyntaxExpression.Indexer(syntaxReceiver, syntaxBrackets) ->
-        if prevReceiverInfoOpt.IsSome then
-            failwith "assert"
+        OlyAssert.True(prevReceiverInfoOpt.IsNone)
         ResolutionItem.MemberIndexerCall(syntaxToCapture, syntaxReceiver, syntaxBrackets, Some syntaxMemberExpr, None)
+
     | OlySyntaxExpression.Name(syntaxName) ->
         let resTyArity = typeResolutionArityOfName syntaxName
         let resInfo = ResolutionInfo.Create(ValueNone, resTyArity, ResolutionContext.ValueOnly)
         bindMemberExpressionAsItem cenv env syntaxToCapture (bindNameAsFormalItem cenv env (Some syntaxReceiver) prevReceiverInfoOpt resInfo syntaxName |> Choice2Of2) syntaxMemberExpr
+
     | OlySyntaxExpression.Parenthesis(_, syntaxExprList, _) when prevReceiverInfoOpt.IsNone ->
         ResolutionItem.Parenthesis(syntaxToCapture, syntaxExprList, Some syntaxMemberExpr)
+
+    | OlySyntaxExpression.Literal(syntaxLiteral) when prevReceiverInfoOpt.IsNone ->
+        let syntaxInfo = BoundSyntaxInfo.User(syntaxLiteral, env.benv)
+        let literal = bindLiteral cenv env None syntaxLiteral
+        bindMemberExpressionAsItem cenv env syntaxToCapture (Choice1Of2(E.Literal(syntaxInfo, literal))) syntaxMemberExpr
+
     | _ ->
         ResolutionItem.Invalid(syntaxReceiver)
 
@@ -1232,7 +1245,11 @@ let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (
             if value.IsFunction then
                 match resArgs with
                 | ResolutionArguments.NotAFunctionCall -> None
-                | _ -> ResolutionFormalItem.Value(value) |> Some
+                | _ -> 
+                    if value.AsFunction.IsPatternFunction = isPatternContext then
+                        ResolutionFormalItem.Value(value) |> Some
+                    else
+                        None
             else
                 ResolutionFormalItem.Value(value) |> Some
     | _ ->
@@ -2338,7 +2355,13 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
         else
             BoundLiteral.Constant(ConstantSymbol.False)
     | OlySyntaxLiteral.Char16(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Char16(syntaxToken.ValueText.[0]))
+        let text = unescapeText syntaxToken.ValueText
+        match Char.TryParse(text) with
+        | true, c ->
+            BoundLiteral.Constant(ConstantSymbol.Char16(c))
+        | _ ->
+            cenv.diagnostics.Error("Invalid character literal.", 100, syntaxToken)
+            BoundLiteral.Error
     | OlySyntaxLiteral.Utf16(syntaxToken) ->
         BoundLiteral.Constant(ConstantSymbol.Utf16(unescapeText syntaxToken.ValueText))
     | OlySyntaxLiteral.Null _ ->

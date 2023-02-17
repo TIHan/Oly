@@ -119,7 +119,7 @@ let withSyntaxErrorHelperTextDiagnostics (expected: (string * string) list) (c: 
     (expected, errorMsgs)
     ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
         Assert.Equal(expectedMsg, msg)
-        Assert.Equal(expectedText, text)
+        Assert.Equal(expectedText.Replace("\r", ""), text.Replace("\r", ""))
     )
     Assert.Equal(expected.Length, errorMsgs.Length)
     c
