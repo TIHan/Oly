@@ -79,15 +79,17 @@ sealed class ShaderDescription =
     internal mutable VertexLayouts:  VertexLayoutDescription[||]
     internal mutable VertexShader:   VeldridShaderDescription
     internal mutable FragmentShader: VeldridShaderDescription
+    internal mutable ResourceLayouts: ResourceLayoutDescription[||]
 
-    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
+    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription, resourceLayouts: ResourceLayoutDescription[||]) =
         {
             VertexLayouts = vertexLayouts;
             VertexShader = vertexShader;
             FragmentShader = fragmentShader
+            ResourceLayouts = resourceLayouts
         }
 
-    static Create(vertexShaderBytes: byte[||], fragmentShaderBytes: byte[||]): ShaderDescription =
+    static CreateMeshShader(vertexShaderBytes: byte[||], fragmentShaderBytes: byte[||]): ShaderDescription =
         let vertexLayout =
             VertexLayoutDescription(
                 [|
@@ -120,7 +122,14 @@ sealed class ShaderDescription =
                 "main"
             )
 
-        ShaderDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
+        let mvpLayout =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("MVP", ResourceKind.UniformBuffer, ShaderStages.Vertex)
+                |]
+            )
+
+        ShaderDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader, [|mvpLayout|])
 
 sealed class Mesh =
     implements IDisposable
@@ -181,8 +190,23 @@ sealed class Shader =
         this.State.VertexShader.Dispose()
         this.State.FragmentShader.Dispose()
 
+sealed class Uniform =
+    implements IDisposable
+
+    internal Buffer: DeviceBuffer
+    internal Slot: uint32
+
+    internal new(buffer: DeviceBuffer, slot: uint32) =
+        {
+            Buffer = buffer
+            Slot = slot
+        }
+
+    Dispose(): () =
+        this.Buffer.Dispose()
+
 enum DrawCommandKind =
-    | SetUniform
+    | BindUniform
     | DrawMesh
 
 class DrawCommand =
@@ -192,6 +216,24 @@ class DrawCommand =
         {
             Kind = kind
         }
+
+    private sealed class BindUniform =
+        inherits DrawCommand
+        
+        Uniform: Uniform
+
+        new(uniform: Uniform) =
+            base(DrawCommandKind.BindUniform) with
+                {
+                    Uniform = uniform
+                }
+
+    static CreateBindUniform(uniform: Uniform): DrawCommand =
+        DrawCommand.BindUniform(uniform)
+
+    pattern BindUniform(cmd: DrawCommand): Uniform when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindUniform)) =>
+        let impl = UnsafeCast<DrawCommand.BindUniform>(cmd)
+        impl.Uniform
 
     private sealed class DrawMesh =
         inherits DrawCommand
@@ -293,6 +335,7 @@ module Graphics =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
+        let resourceLayouts    = shaderDesc.ResourceLayouts
     
         let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
     
@@ -316,8 +359,9 @@ module Graphics =
             desc
     
         pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleStrip
-        pipelineDesc.ResourceLayouts <- [||]
-    
+        pipelineDesc.ResourceLayouts <-
+            map(resourceLayouts, desc -> factory.CreateResourceLayout(desc))
+
         pipelineDesc.ShaderSet <-
             let mutable desc = default: ShaderSetDescription
             desc.VertexLayouts <- vertexLayouts
@@ -332,6 +376,21 @@ module Graphics =
     CreateShader(shaderDesc: ShaderDescription): Shader =
         Shader(CreateShaderState(shaderDesc))
 
+    UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
+        let newState = CreateShaderState(shaderDesc)
+        let oldState = Interlocked.Exchange(&shader.State, newState)
+        oldState.Pipeline.Dispose()
+        oldState.FragmentShader.Dispose()
+        oldState.VertexShader.Dispose()
+
+    CreateUniform(value: Matrix4x4, slot: uint32): Uniform =
+        let buffer = factory.CreateBuffer(BufferDescription(64, BufferUsage.UniformBuffer))
+        graphicsDevice.UpdateBuffer(buffer, 0, value)
+        Uniform(buffer, slot)
+
+    UpdateUniform(uniform: Uniform, value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(uniform.Buffer, 0, value)
+
     private delayed: ConcurrentQueue<() -> ()> = ConcurrentQueue()
 
     CreateInstances(transforms: Matrix4x4[||]): Instances =
@@ -341,13 +400,6 @@ module Graphics =
         let instances = Instances(transformBuffer)
         instances.Count <- transforms.Length
         instances
-
-    UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
-        let newState = CreateShaderState(shaderDesc)
-        let oldState = Interlocked.Exchange(&shader.State, newState)
-        oldState.Pipeline.Dispose()
-        oldState.FragmentShader.Dispose()
-        oldState.VertexShader.Dispose()
 
     // AddTransform(instances: Instances, transform: Matrix4x4): uint32 =
     //     let index = uint32(Interlocked.Increment(&instances.Count) - 1)
@@ -379,6 +431,8 @@ module Graphics =
         let length = getLength(drawCmds)
         while (i < length)
             match (drawCmds[i])
+            | DrawCommand.BindUniform(uniform) =>
+                ()
             | DrawCommand.DrawMesh(mesh, shader, instances) =>
                 let instanceCount = uint32(instances.Count)
 

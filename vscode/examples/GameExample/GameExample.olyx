@@ -39,7 +39,7 @@ main(): () =
 
     let meshDesc   = MeshDescription.CreateHexagon()
     let shaderDesc = 
-        ShaderDescription.Create(
+        ShaderDescription.CreateMeshShader(
             Encoding.UTF8.GetBytes(DefaultVertexCode), 
             Encoding.UTF8.GetBytes(DefaultFragmentCode)
         )
