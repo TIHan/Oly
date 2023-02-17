@@ -193,7 +193,7 @@ class DrawCommand =
             Kind = kind
         }
 
-    private sealed class DrawMeshImpl =
+    private sealed class DrawMesh =
         inherits DrawCommand
 
         Mesh:      Mesh
@@ -209,10 +209,10 @@ class DrawCommand =
                 }
 
     static CreateDrawMesh(mesh: Mesh, shader: Shader, instances: Instances): DrawCommand =
-        DrawCommand.DrawMeshImpl(mesh, shader, instances)
+        DrawCommand.DrawMesh(mesh, shader, instances)
 
     pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
-        let impl = UnsafeCast<DrawCommand.DrawMeshImpl>(cmd)
+        let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
 sealed class InputState =
