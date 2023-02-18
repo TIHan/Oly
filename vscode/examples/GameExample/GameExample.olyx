@@ -1,5 +1,7 @@
 #target "dotnet: net7"
 
+#load "*.oly"
+
 #reference "../Evergreen/src/Client/Evergreen.Client.Graphics.olyx"
 #package "Veldrid,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
@@ -80,35 +82,18 @@ main(): () =
     let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
     Graphics.SetModelViewProjection(view * projection)
 
-    // async stress test
-    let mutable z = 5: float32
-    let task = System.Threading.Tasks.Task.Run(() ->
-                                                while (true)
-                                                    let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, z), Vector3.Zero, Vector3(0, 1, 0))
-                                                    Graphics.SetModelViewProjection(view * projection) 
-                                                    z <- z + 0.000001
-                                                ()
-               )
-
-    let mutable z = 10: float32
-    let task = System.Threading.Tasks.Task.Run(() ->
-                                                while (true)
-                                                    let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, z), Vector3.Zero, Vector3(0, 1, 0))
-                                                    Graphics.SetModelViewProjection(view * projection) 
-                                                    z <- z + 0.000001
-                                                ()
-               )
-
-    while (window.Exists)
-        let inputState = window.GetInputState()
-
-        if (window.Exists)
-            Graphics.Draw(drawCmds)
-
-    let mutable i = 0
-    let length = getLength(drawCmds)
-    while (i < length)
-        let cmd = drawCmds[i]
-        i <- i + 1
+    GameLoop.Start(
+        30,
+        deltaTime ->
+            let inputState = window.GetInputState()
+            !window.Exists,
+        deltaTime ->
+            !window.Exists,
+        (deltaTime, delta) ->
+            let windowExists = window.Exists
+            if (windowExists)
+                Graphics.Draw(drawCmds)
+            !windowExists
+    )
 
     Graphics.DestroyWindow()
