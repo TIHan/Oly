@@ -1337,7 +1337,6 @@ module rec ClrCodeGen =
             let tryStartLabelId = cenv.NewLabel()
             let tryEndLabelId = cenv.NewLabel()
 
-            emitHiddenSequencePointIfPossible cenv env
             I.Label tryStartLabelId |> emitInstruction cenv
 
             GenExpression cenv env bodyExpr
@@ -1379,7 +1378,6 @@ module rec ClrCodeGen =
                 let handlerStartLabelId = cenv.NewLabel()
                 let handlerEndLabelId = cenv.NewLabel()
 
-                emitHiddenSequencePointIfPossible cenv env
                 I.Label handlerStartLabelId |> emitInstruction cenv
 
                 GenExpression cenv env finallyBodyExpr
