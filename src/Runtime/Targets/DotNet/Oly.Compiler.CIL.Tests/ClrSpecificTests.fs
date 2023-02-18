@@ -3092,3 +3092,74 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "65535"
+
+[<Fact>]
+let ``Simple Try expression``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(Exception): TResult
+
+main(): () =
+    try
+        try
+            throw Exception("an exception")
+        catch (ex: Exception) =>
+            ()
+    finally
+        print("printing the finally")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "printing the finally"
+
+[<Fact>]
+let ``Simple Try expression 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(Exception): TResult
+
+main(): () =
+    try
+        throw Exception("an exception")
+    catch (ex: Exception) =>
+        ()
+    finally
+        print("printing the finally")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "printing the finally"
+
+[<Fact>]
+let ``Simple Try expression 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(Exception): TResult
+
+main(): () =
+    try
+        throw Exception("an exception")
+    catch (ex: Exception) =>
+        print(ex.Message)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "an exception"

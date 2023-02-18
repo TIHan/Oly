@@ -737,6 +737,9 @@ let inline PATTERN state = tryToken (function Pattern -> true | _ -> false) stat
 let inline IMPLICIT state = tryToken (function Implicit -> true | _ -> false) state
 let inline REQUIRE state = tryToken (function Require -> true | _ -> false) state
 let inline THROW state = tryToken (function Throw -> true | _ -> false) state
+let inline TRY state = tryToken (function Try -> true | _ -> false) state
+let inline CATCH state = tryToken (function Catch -> true | _ -> false) state
+let inline FINALLY state = tryToken (function Finally -> true | _ -> false) state
 
 //
 // These functions return 'nil' as to avoid Option allocations
@@ -2817,6 +2820,10 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
+        match bt (alignOrFlexAlignRecover tryParseTryExpression) state with
+        | Some result -> result
+        | _ ->
+
         match bt (alignOrFlexAlignRecover tryParseMatchExpression) state with
         | Some result -> result
         | _ ->
@@ -3013,6 +3020,77 @@ let tryParseIfExpression state =
         | Some(ifToken), _, _, _, _, _ ->
             let expr = SyntaxExpression.If(ifToken, dummyToken(), SyntaxExpression.Error(dummyToken ()), dummyToken (), SyntaxExpression.Error(dummyToken ()), SyntaxElseIfOrElseExpression.None(dummyToken ()), ep s state)
             error (ExpectedToken LeftParenthesis, expr) state
+
+        | _ ->
+            None
+    else
+        None
+
+let parseNextCatchOrFinallyExpression state =
+    match tryFlexAlign tryParseCatchOrFinallyExpression state with
+    | Some(catchOrFinallExpr) -> catchOrFinallExpr
+    | _ -> SyntaxCatchOrFinallyExpression.None(dummyToken())
+
+let tryParseCatchOrFinallyExpression state =
+    let s = sp state
+
+    match bt6 CATCH LEFT_PARENTHESIS tryParseParameter tryRecoverableRightParenthesis FAT_RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    | Some(catchToken), Some(leftParenToken), Some(par), Some(rightParenToken), Some(fatRightArrowToken), Some(catchBodyExpr) ->
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, par, rightParenToken, fatRightArrowToken, catchBodyExpr, catchOrFinallyExpr, ep s state) |> Some
+
+    | Some(catchToken), Some(leftParenToken), Some(par), Some(rightParenToken), Some(fatRightArrowToken), _ ->
+        errorDo (ExpectedSyntaxAfterToken("'catch' body expression", fatRightArrowToken.RawToken), fatRightArrowToken) state
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, par, rightParenToken, fatRightArrowToken, SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
+
+    | Some(catchToken), Some(leftParenToken), Some(par), Some(rightParenToken), _, _ ->
+        errorDo (ExpectedTokenAfterToken(FatRightArrow, rightParenToken.RawToken), rightParenToken) state
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, par, rightParenToken, dummyToken(), SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
+
+    | Some(catchToken), Some(leftParenToken), Some(par), _, _, _ ->
+        errorDo (ExpectedTokenAfterSyntax(RightParenthesis, "parameter"), par) state
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, par, dummyToken(), dummyToken(), SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
+
+    | Some(catchToken), Some(leftParenToken), _, _, _, _ ->
+        errorDo (ExpectedSyntaxAfterToken("parameter", leftParenToken.RawToken), leftParenToken) state
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, SyntaxParameter.Error(dummyToken()), dummyToken(), dummyToken(), SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
+
+    | Some(catchToken), _, _, _, _, _ ->
+        errorDo (ExpectedTokenAfterToken(LeftParenthesis, catchToken.RawToken), catchToken) state
+        let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
+        SyntaxCatchOrFinallyExpression.Catch(catchToken, dummyToken(), SyntaxParameter.Error(dummyToken()), dummyToken(), dummyToken(), SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
+    | _ ->
+
+    match bt2 FINALLY (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    | Some(finallyToken), Some(finallyBodyExpr) ->
+        SyntaxCatchOrFinallyExpression.Finally(finallyToken, finallyBodyExpr, ep s state) |> Some
+    
+    | Some(finallyToken), _ ->
+        errorDo (ExpectedSyntaxAfterToken("'finally' body expression", finallyToken.RawToken), finallyToken) state
+        SyntaxCatchOrFinallyExpression.Finally(finallyToken, SyntaxExpression.Error(dummyToken()), ep s state) |> Some
+    | _ ->
+
+    None
+
+let tryParseTryExpression state =
+    if isNextToken (function Try -> true | _ -> false) state then
+        let s = sp state
+
+        match bt3 TRY (tryParseOffsideExpression SyntaxTreeContext.Local) (tryFlexAlign tryParseCatchOrFinallyExpression) state with
+        | Some(tryToken), Some(bodyExpr), Some(catchOrFinallyExpr) ->
+            SyntaxExpression.Try(tryToken, bodyExpr, catchOrFinallyExpr, ep s state) |> Some
+
+        | Some(tryToken), Some(bodyExpr), _ ->
+            errorDo (ExpectedSyntaxAfterSyntax("'catch' or 'finally'", "'try' body expression"), tryToken) state
+            SyntaxExpression.Try(tryToken, bodyExpr, SyntaxCatchOrFinallyExpression.None(dummyToken()), ep s state) |> Some
+
+        | Some(tryToken), _, _ ->
+            errorDo (ExpectedSyntaxAfterToken("'try' body expression", tryToken.RawToken), tryToken) state
+            SyntaxExpression.Try(tryToken, SyntaxExpression.Error(dummyToken()), SyntaxCatchOrFinallyExpression.None(dummyToken()), ep s state) |> Some
 
         | _ ->
             None

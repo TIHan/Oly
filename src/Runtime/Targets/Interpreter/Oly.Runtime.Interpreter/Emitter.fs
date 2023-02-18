@@ -1376,6 +1376,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
         and evalExpr (stack: Stack<obj>) (expr: InterpreterExpression) =
             env.StackGuard.Guard <| fun () ->
             match expr with
+            | InterpreterExpression.Try _ ->
+                raise(NotImplementedException("'Try' expression"))
+
             | InterpreterExpression.IfElse(predicateExpr, trueExpr, falseExpr, _) ->
                 evalExpr stack predicateExpr
                 match stack.Pop() with

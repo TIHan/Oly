@@ -1190,6 +1190,26 @@ let private bindElseIfOrElseExpression (cenv: cenv) (env: BinderEnvironment) (ex
     | _ ->
         failwith "Invalid expression."
 
+let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (catchCasesBuilder: BoundCatchCase imarrayb) syntaxCatchOrFinallyExpr =
+    match syntaxCatchOrFinallyExpr with
+    | OlySyntaxCatchOrFinallyExpression.None _ ->
+        catchCasesBuilder.ToImmutable(), None
+
+    | OlySyntaxCatchOrFinallyExpression.Finally(_, syntaxFinallyBodyExpr) ->
+        let _, finallyBodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxFinallyBodyExpr syntaxFinallyBodyExpr
+        catchCasesBuilder.ToImmutable(), Some finallyBodyExpr
+
+    | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxCatchOrFinallyExpr) ->
+        let _, par = bindParameter cenv env None false syntaxPar
+        let envForCatchCase = env.SetUnqualifiedValue(par)
+        let _, catchBodyExpr = bindLocalExpression cenv envForCatchCase expectedTyOpt syntaxCatchBodyExpr syntaxCatchBodyExpr
+        let catchCase = BoundCatchCase.CatchCase(par, catchBodyExpr)
+        catchCasesBuilder.Add(catchCase)
+        bindCatchOrFinallyExpression cenv env expectedTyOpt catchCasesBuilder syntaxCatchOrFinallyExpr
+
+    | _ ->
+        raise(InternalCompilerUnreachedException())
+
 let private resolveLetBindFunction (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxNode (funcTy: TypeSymbol) =
     let resInfo = ResolutionInfo.Create(ValueNone, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
     let resInfo = { resInfo with resArgs = ResolutionArguments.ByFunctionType(funcTy) }
@@ -1717,6 +1737,11 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
             syntaxExprList.ChildrenOfType
             |> ImArray.map (fun syntaxExpr -> bindLocalExpression cenv (env.SetReturnable(false)) None syntaxExpr syntaxExpr |> snd)
         bindMatchExpression cenv env (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTyOpt syntaxToCapture syntaxMatchToken exprs syntaxMatchCaseList.ChildrenOfType
+
+    | OlySyntaxExpression.Try(_, syntaxBodyExpr, syntaxCatchOrFinallyExpr) ->
+        let bodyExpr = bindLocalExpression cenv env expectedTyOpt syntaxBodyExpr syntaxBodyExpr |> snd
+        let catchCases, finallyBodyExprOpt = bindCatchOrFinallyExpression cenv env expectedTyOpt (ImArray.builder()) syntaxCatchOrFinallyExpr
+        env, E.Try(BoundSyntaxInfo.User(syntaxToCapture, env.benv), bodyExpr, catchCases, finallyBodyExprOpt)
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyDefKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let syntaxIdent = syntaxTyDefName.Identifier

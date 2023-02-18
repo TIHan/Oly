@@ -37,6 +37,31 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
         if this.CanRewrite expr then
             let expr = this.PreorderRewrite(expr)
             match expr with
+            | BoundExpression.Try(syntaxInfo, bodyExpr, catchCases, finallyBodyExprOpt) ->
+                let newBodyExpr = this.Rewrite(bodyExpr)
+                let newCatchCases =
+                    catchCases
+                    |> ImArray.map (fun catchCase ->
+                        match catchCase with
+                        | BoundCatchCase.CatchCase(local, catchBodyExpr) ->
+                            let newCatchBodyExpr = this.Rewrite(catchBodyExpr)
+
+                            if newCatchBodyExpr = catchBodyExpr then
+                                catchCase
+                            else
+                                BoundCatchCase.CatchCase(local, newCatchBodyExpr)
+                    )
+                let newFinallyBodyExprOpt =
+                    finallyBodyExprOpt
+                    |> Option.map (fun finallyBodyExpr ->
+                        this.Rewrite(finallyBodyExpr)
+                    )
+
+                if newBodyExpr = bodyExpr && ((catchCases, newCatchCases) ||> ImArray.forall2 (=)) && finallyBodyExprOpt = newFinallyBodyExprOpt then
+                    expr
+                else
+                    BoundExpression.Try(syntaxInfo, newBodyExpr, newCatchCases, newFinallyBodyExprOpt)
+
             | BoundExpression.While(syntaxInfo, conditionExpr, bodyExpr) ->
                 let newConditionExpr = this.Rewrite(conditionExpr)
                 let newBodyExpr = this.Rewrite(bodyExpr)

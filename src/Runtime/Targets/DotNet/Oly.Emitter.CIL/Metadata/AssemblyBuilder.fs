@@ -1781,6 +1781,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Shr_un ->
             il.OpCode(ILOpCode.Shr_un)
 
+        | I.Endfinally ->
+            il.OpCode(ILOpCode.Endfinally)
+
         | I.Beq _
         | I.Bge _
         | I.Bge_un _
@@ -1795,10 +1798,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Brfalse _
         | I.Br _
         | I.Label _
+        | I.CatchRegion _
+        | I.FinallyRegion _
         | I.SequencePoint _
         | I.HiddenSequencePoint
         | I.BeginLocalScope _
         | I.EndLocalScope
+        | I.Leave _
         | I.Skip ->
             failwith "Unexpected instruction."
 
@@ -2037,7 +2043,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Br _ ->
             1 + 4
 
+        | I.Endfinally ->
+            1
+
+        | I.Leave _ ->
+            1 + 4
+
         | I.Label _
+        | I.CatchRegion _
+        | I.FinallyRegion _
         | I.SequencePoint _
         | I.HiddenSequencePoint
         | I.BeginLocalScope _
@@ -2124,6 +2138,26 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Label labelId ->
                 dummyIL.MarkLabel(labels[labelId])
 
+            | I.CatchRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId, catchTy) ->
+                dummyIL.ControlFlowBuilder.AddCatchRegion(
+                    labels[tryStartLabelId],
+                    labels[tryEndLabelId],
+                    labels[handlerStartLabelId],
+                    labels[handlerEndLabelId],
+                    catchTy.EntityHandle
+                )
+
+            | I.FinallyRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId) ->
+                dummyIL.ControlFlowBuilder.AddFinallyRegion(
+                    labels[tryStartLabelId],
+                    labels[tryEndLabelId],
+                    labels[handlerStartLabelId],
+                    labels[handlerEndLabelId]
+                )
+
+            | I.Leave labelId ->
+                dummyIL.Branch(ILOpCode.Leave, labels[labelId])
+
             | I.SequencePoint _
             | I.HiddenSequencePoint
             | I.BeginLocalScope _
@@ -2209,6 +2243,26 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             | I.Label labelId ->
                 il.MarkLabel(labels[labelId])
+
+            | I.Leave labelId ->
+                il.Branch(ILOpCode.Leave, labels[labelId])
+
+            | I.CatchRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId, catchTy) ->
+                il.ControlFlowBuilder.AddCatchRegion(
+                    labels[tryStartLabelId],
+                    labels[tryEndLabelId],
+                    labels[handlerStartLabelId],
+                    labels[handlerEndLabelId],
+                    catchTy.EntityHandle
+                )
+
+            | I.FinallyRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId) ->
+                il.ControlFlowBuilder.AddFinallyRegion(
+                    labels[tryStartLabelId],
+                    labels[tryEndLabelId],
+                    labels[handlerStartLabelId],
+                    labels[handlerEndLabelId]
+                )
 
             | I.SequencePoint(documentPath, startLine, endLine, startColumn, endColumn) ->
                 if String.IsNullOrWhiteSpace documentPath then

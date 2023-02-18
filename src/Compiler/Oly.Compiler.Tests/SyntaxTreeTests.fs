@@ -1806,3 +1806,83 @@ main(): () =
     Oly src
     |> withNoSyntaxDiagnostics
     |> ignore
+
+[<Fact>]
+let ``Simple Try expression``() =
+    let src =
+        """
+main(): () =
+    try
+        DoWork()
+    finally
+        FinallyDoWork()
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple Try expression 2``() =
+    let src =
+        """
+main(): () =
+    try
+        DoWork()
+    catch (ex: Exception) =>
+        ()
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple Try expression 3``() =
+    let src =
+        """
+main(): () =
+    try
+        DoWork()
+    catch (ex: Exception) =>
+        ()
+    catch (ex: Exception) =>
+        ()
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple Try expression 4``() =
+    let src =
+        """
+main(): () =
+    try
+        DoWork()
+    catch (ex: Exception) =>
+        ()
+    catch (ex: Exception) =>
+        ()
+    finally
+        ()
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple Try expression should fail``() =
+    let src =
+        """
+main(): () =
+    try
+        DoWork()
+        """
+    Oly src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("Expected ''catch' or 'finally'' after ''try' body expression'.",
+                """
+    try
+    ^^^
+"""         )
+        ]

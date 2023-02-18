@@ -1265,6 +1265,31 @@ and setLocalContextWithEnclosing env (enclosing: EnclosingSymbol) =
     | _ ->
         env
 
+and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchCases: BoundCatchCase imarray) (finallyBodyExprOpt: BoundExpression option) =
+    let ilBodyExpr = GenExpression cenv env bodyExpr
+    let ilCatchCases =
+        catchCases
+        |> ImArray.map (function
+            | BoundCatchCase.CatchCase(value, catchBodyExpr) ->
+                let ilTy = emitILType cenv env value.Type
+                let name = value.Name
+                let localId = value.Id
+                let ilLocal = 
+                    let flags = if value.IsMutable then OlyILLocalFlags.Mutable else OlyILLocalFlags.None
+                    OlyILLocal(cenv.funEnv.ilLocals.Count, GenString cenv name, ilTy, flags)
+
+                cenv.funEnv.scopedLocals.Add(localId, ilLocal) // this will protect against accidently adding the same local twice
+                cenv.funEnv.ilLocals.Add(ilLocal)
+
+                let ilCatchBodyExpr = GenExpression cenv env catchBodyExpr
+                OlyILCatchCase.CatchCase(ilLocal.Index, ilCatchBodyExpr)
+        )
+    let ilFinallyExprBodyOpt =
+        finallyBodyExprOpt
+        |> Option.map (GenExpression cenv {env with isReturnable = false })
+
+    OlyILExpression.Try(ilBodyExpr, ilCatchCases, ilFinallyExprBodyOpt)
+
 and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     let possiblyReturnableEnv = prevEnv
     let env =
@@ -1280,6 +1305,9 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     let ilTextRange = emitTextRange cenv syntaxNode
     match expr with
     | E.None _ -> OlyILExpressionNone
+
+    | E.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
+        GenTryExpression cenv env bodyExpr catchCases finallyBodyExprOpt
 
     | E.Witness(expr, witnessArg, ty) ->
         if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then

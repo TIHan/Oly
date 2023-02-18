@@ -2327,6 +2327,72 @@ type SyntaxElseIfOrElseExpression =
                 (x :> ISyntaxNode).FullWidth
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
+type SyntaxCatchOrFinallyExpression =
+    | Catch
+        of
+        catchToken: SyntaxToken *
+        leftParenToken: SyntaxToken *
+        par: SyntaxParameter *
+        rightParenToken: SyntaxToken *
+        fatRightToken: SyntaxToken *
+        catchBodyExpr: SyntaxExpression *
+        nextExpr: SyntaxCatchOrFinallyExpression *
+        fullWidth: int
+    | Finally
+        of
+        finallyToken: SyntaxToken *
+        finallyBodyExpr: SyntaxExpression *
+        fullWidth: int
+    | None
+        of
+        terminalToken: SyntaxToken
+
+    interface ISyntaxNode with
+
+        member this.IsTerminal = false
+
+        member this.IsToken = false
+
+        member this.IsError = false
+
+        member this.GetSlot(index) =
+            match this with
+            | Catch(catchToken, leftParenToken, par, rightParenToken, fatRightToken, catchBodyExpr, nextExpr, _) ->
+                match index with
+                | 0 -> catchToken :> ISyntaxNode
+                | 1 -> leftParenToken :> ISyntaxNode
+                | 2 -> par :> ISyntaxNode
+                | 3 -> rightParenToken :> ISyntaxNode
+                | 4 -> fatRightToken :> ISyntaxNode
+                | 5 -> catchBodyExpr :> ISyntaxNode
+                | 6 -> nextExpr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Finally(finallyToken, finallyBodyExpr, _) ->
+                match index with
+                | 0 -> finallyToken :> ISyntaxNode
+                | 1 -> finallyBodyExpr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | None(terminalToken) ->
+                match index with
+                | 0 -> terminalToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+
+        member this.SlotCount =
+            match this with
+            | Catch _ -> 7
+            | Finally _ -> 2
+            | None _ -> 1
+
+        member this.FullWidth =
+            match this with
+            | Catch(fullWidth=fullWidth) ->
+                fullWidth
+            | Finally(fullWidth=fullWidth) ->
+                fullWidth
+            | None(x) ->
+                (x :> ISyntaxNode).FullWidth
+
+[<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationPremodifier =
     | Static
         of
@@ -3232,6 +3298,12 @@ type SyntaxExpression =
         target: SyntaxExpression *
         elseIfOrElseExpr: SyntaxElseIfOrElseExpression *
         fullWidth: int
+    | Try
+        of
+        tryToken: SyntaxToken *
+        bodyExpr: SyntaxExpression *
+        catchOrFinallyExpr: SyntaxCatchOrFinallyExpression *
+        fullWidth: int
     | Match
         of
         matchToken: SyntaxToken *
@@ -3402,6 +3474,12 @@ type SyntaxExpression =
                 | 4 -> target :> ISyntaxNode
                 | 5 -> elseIfOrElseExpr :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Try(tryToken, bodyExpr, catchOrFinallyExpr, _) ->
+                match index with
+                | 0 -> tryToken :> ISyntaxNode
+                | 1 -> bodyExpr :> ISyntaxNode
+                | 2 -> catchOrFinallyExpr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | Match(matchToken, leftParenToken, matchExprList, rightParenToken, matchClauseList, _) ->
                 match index with
                 | 0 -> matchToken :> ISyntaxNode
@@ -3489,6 +3567,7 @@ type SyntaxExpression =
             | CreateRecord _ -> 1
             | UpdateRecord _ -> 3
             | If _ -> 6
+            | Try _ -> 3
             | Match _ -> 5
             | While _ -> 5
             | Typed _ -> 3
@@ -3535,6 +3614,8 @@ type SyntaxExpression =
             | UpdateRecord(fullWidth=fullWidth) ->
                 fullWidth
             | If(fullWidth=fullWidth) ->
+                fullWidth
+            | Try(fullWidth=fullWidth) ->
                 fullWidth
             | Match(fullWidth=fullWidth) ->
                 fullWidth

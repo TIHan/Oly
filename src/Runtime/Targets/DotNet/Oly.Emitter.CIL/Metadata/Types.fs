@@ -226,6 +226,8 @@ type ClrInstruction =
     | Nop
     | Pop
     | Ret
+    | Leave of labelId: int32
+    | Endfinally
 
     | Stloc of int32
     | Starg of int32
@@ -348,6 +350,10 @@ type ClrInstruction =
     | Br of labelId: int32
     /// Branch label marker, not a real instruction.
     | Label of labelId: int32
+
+    // Not real instructions
+    | CatchRegion of tryStartLabelId: int32 * tryEndLabelId: int32 * handlerStartLabelId: int32 * handlerEndLabelId: int32 * catchTy: ClrTypeHandle
+    | FinallyRegion of tryStartLabelId: int32 * tryEndLabelId: int32 * handlerStartLabelId: int32 * handlerEndLabelId: int32
 
     // Debugger only - not real instructions.
     | SequencePoint of documentPath: string * startLine: int * endLine: int * startColumn: int * endColumn: int

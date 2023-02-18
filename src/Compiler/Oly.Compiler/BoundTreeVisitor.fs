@@ -87,6 +87,18 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
 
         if result then
             match boundExpression with
+            | BoundExpression.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
+                this.VisitExpression(bodyExpr) |> ignore
+                catchCases
+                |> ImArray.iter (function
+                    | BoundCatchCase.CatchCase(_, catchBodyExpr) ->
+                        this.VisitExpression(catchBodyExpr) |> ignore
+                )
+                finallyBodyExprOpt
+                |> Option.iter (fun finallyBodyExpr ->
+                    this.VisitExpression(finallyBodyExpr) |> ignore
+                )
+
             | BoundExpression.While(_, conditionExpr, bodyExpr) ->
                 this.VisitExpression(conditionExpr) |> ignore
                 this.VisitExpression(bodyExpr) |> ignore

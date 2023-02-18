@@ -650,6 +650,11 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
     static member Empty =
         OlyIRDebugSourceTextRange(OlyPath.Empty, 0, 0, 0, 0)
 
+[<NoEquality;NoComparison>]
+[<RequireQualifiedAccess>]
+type OlyIRCatchCase<'Type, 'Function, 'Field> =
+    | CatchCase of localName: string * localIndex: int32 * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchTy: 'Type
+
 [<ReferenceEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 [<DebuggerDisplay("{ToString()}")>]
@@ -660,7 +665,8 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
     | Sequential of     expr1: OlyIRExpression<'Type, 'Function, 'Field> * expr2: OlyIRExpression<'Type, 'Function, 'Field>
     | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
-    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type        
+    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
+    | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
 
     member this.GetExpressions() : _ imarray =
         match this with
@@ -694,6 +700,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | While(returnTy=returnTy)
         | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
+        | Try(resultTy=resultTy) -> resultTy
 
     member this.TextRange =
         match this with
@@ -704,6 +711,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | Sequential(expr, _) -> expr.TextRange
         | IfElse(conditionExpr, _, _, _)
         | While(conditionExpr, _, _) -> conditionExpr.TextRange
+        | Try(bodyExpr=bodyExpr) -> bodyExpr.TextRange
 
     override this.ToString() =
         Dump.DumpExpression this
@@ -936,3 +944,7 @@ module Dump =
                 |> ImArray.map (fun argE -> leafLine (DumpExpression argE))
                 |> String.concat "\n"
             $"WHILE\n{args}"
+
+        | E.Try _ ->
+            // TODO: Implement this.
+            "TRY"
