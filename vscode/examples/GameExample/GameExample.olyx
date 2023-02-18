@@ -16,9 +16,14 @@ layout(location = 1) in mat4 Transform;
 
 layout(location = 0) out vec4 fsin_Color;
 
+layout(set = 0, binding = 0) uniform _ModelViewProjection
+{
+    mat4 ModelViewProjection;
+};
+
 void main()
 {
-    gl_Position = Transform * vec4(Position, 1);
+    gl_Position = ModelViewProjection * Transform * vec4(Position, 1);
     fsin_Color = vec4(Position.x, Position.y, 1, 1);
 }"
 
@@ -46,6 +51,7 @@ main(): () =
 
     let mesh   = Graphics.CreateMesh(meshDesc)
     let shader = Graphics.CreateShader(shaderDesc)
+    let shader2 = Graphics.CreateShader(shaderDesc)
 
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
@@ -66,7 +72,7 @@ main(): () =
     let drawCmd1   = DrawCommand.CreateDrawMesh(mesh, shader, instances1)
 
     let instances2 = Graphics.CreateInstances(hexagons2)
-    let drawCmd2   = DrawCommand.CreateDrawMesh(mesh, shader, instances2)
+    let drawCmd2   = DrawCommand.CreateDrawMesh(mesh, shader2, instances2)
 
     let drawCmds = [drawCmd1;drawCmd2]
 
