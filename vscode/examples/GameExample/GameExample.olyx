@@ -38,7 +38,7 @@ void main()
 }"
 
 main(): () =
-    let window = Graphics.CreateWindow(100, 100, 512, 512, "Evergreen Game Example")
+    let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Game Example")
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
@@ -57,14 +57,14 @@ main(): () =
 
     let mutable i = 1
     while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i), 0, 0)))
+        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
         i <- i + 1
     let hexagons1 = hexagons.ToArray()
 
     hexagons.Clear()
     let mutable i = 1
     while (i <= 3)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i), 0, 0)))
+        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
         i <- i + 1
     let hexagons2 = hexagons.ToArray()
 
@@ -75,6 +75,10 @@ main(): () =
     let drawCmd2   = DrawCommand.CreateDrawMesh(mesh, shader2, instances2)
 
     let drawCmds = [drawCmd1;drawCmd2]
+
+    let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
+    let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
+    Graphics.SetModelViewProjection(view * projection)
 
     while (window.Exists)
         let inputState = window.GetInputState()
