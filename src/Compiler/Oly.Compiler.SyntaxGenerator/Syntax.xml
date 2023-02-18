@@ -539,6 +539,25 @@
       <Field name="terminalToken">SyntaxToken</Field>
     </Case>
   </Node>
+	
+  <Node name="SyntaxCatchOrFinallyExpression">
+    <Case name="Catch">
+      <Field name="catchToken">SyntaxToken</Field>
+	  <Field name="leftParenToken">SyntaxToken</Field>
+      <Field name="par">SyntaxParameter</Field>
+      <Field name="rightParenToken">SyntaxToken</Field>
+	  <Field name="fatRightToken">SyntaxToken</Field>
+      <Field name="catchBodyExpr">SyntaxExpression</Field>
+      <Field name="nextExpr">SyntaxCatchOrFinallyExpression</Field>
+    </Case>
+    <Case name="Finally">
+      <Field name="finallyToken">SyntaxToken</Field>
+      <Field name="finallyBodyExpr">SyntaxExpression</Field>
+    </Case>
+    <Case name="None">
+      <Field name="terminalToken">SyntaxToken</Field>
+    </Case>
+  </Node>
 
   <Node name="SyntaxValueDeclarationPremodifier">
     <Case name="Static">
@@ -824,6 +843,11 @@
       <Field name="rightParenToken">SyntaxToken</Field>
       <Field name="target">SyntaxExpression</Field>
       <Field name="elseIfOrElseExpr">SyntaxElseIfOrElseExpression</Field>
+    </Case>
+	<Case name="Try">
+      <Field name="tryToken">SyntaxToken</Field>
+      <Field name="bodyExpr">SyntaxExpression</Field>
+      <Field name="catchOrFinallyExpr">SyntaxCatchOrFinallyExpression</Field>
     </Case>
     <Case name="Match">
       <Field name="matchToken">SyntaxToken</Field>

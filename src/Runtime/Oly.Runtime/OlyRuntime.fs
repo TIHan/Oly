@@ -483,6 +483,15 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
 let incrementArgumentUsage (cenv: cenv<'Type, 'Function, 'Field>) argIndex =
     cenv.ArgumentUsageCount[argIndex] <- cenv.ArgumentUsageCount[argIndex] + 1
 
+let importCatchCase (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTy: RuntimeType) (ilCatchCase: OlyILCatchCase) =
+    match ilCatchCase with
+    | OlyILCatchCase.CatchCase(localIndex, ilBodyExpr) ->
+        let ilLocal = env.ILLocals[localIndex]
+        let localName = env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle)
+        let irBodyExpr = importArgumentExpression cenv env expectedTy ilBodyExpr
+        let catchTy = env.LocalTypes[localIndex]
+        OlyIRCatchCase.CatchCase(localName, localIndex, irBodyExpr, cenv.EmitType(catchTy))
+
 let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let resolveFunction (ilFuncInst: OlyILFunctionInstance) =
         cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
@@ -490,6 +499,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
     match ilExpr with
     | OlyILExpression.None(ilTextRange) -> 
         E.None(readTextRange env.ILAssembly ilTextRange, cenv.EmittedTypeVoid), RuntimeType.Void
+
+    | OlyILExpression.Try(ilBodyExpr, ilCatchCases, ilFinallyBodyExprOpt) ->
+        let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr
+        let irCatchCases = ilCatchCases |> ImArray.map (importCatchCase cenv env resultTy)
+        let irFinallyBodyExprOpt = ilFinallyBodyExprOpt |> Option.map (fst << importExpression cenv env (Some RuntimeType.Void))
+        E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, cenv.EmitType(resultTy)), resultTy
 
     | OlyILExpression.While(ilConditionExpr, ilBodyExpr) ->
         // TODO: Fail if this is in a "non-imperative" context.

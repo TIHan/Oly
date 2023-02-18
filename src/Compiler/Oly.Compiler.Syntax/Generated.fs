@@ -2472,6 +2472,75 @@ module OlySyntaxElseIfOrElseExpression =
             Option.None
 
 [<Sealed;NoComparison>]
+type OlySyntaxCatchOrFinallyExpression internal (tree, start: int, parent, internalNode: SyntaxCatchOrFinallyExpression) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    
+    let mutable children: OlySyntaxNode imarray = ImArray.empty
+    let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
+
+    member private this.FullWidth =
+#if DEBUG
+        let fullWidth = (internalNode :> ISyntaxNode).FullWidth
+        this.Children
+        |> ImArray.iteri (fun i x ->
+            OlyAssert.Equal(x.FullTextSpan.Width, (internalNode :> ISyntaxNode).GetSlot(i).FullWidth)
+        )
+        fullWidth
+#else
+        (internalNode :> ISyntaxNode).FullWidth
+#endif
+
+    override this.TextSpan =
+        if textSpan.Start = 0 && textSpan.Width = 0 then
+            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
+        textSpan
+
+    override this.FullTextSpan =
+        OlyTextSpan.Create(start, this.FullWidth)
+
+    override _.Children =
+        if children.IsEmpty && (internalNode :> ISyntaxNode).SlotCount > 0 then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    (internalNode :> ISyntaxNode).SlotCount 
+                    (fun i -> 
+                        let slot = (internalNode :> ISyntaxNode).GetSlot(i)
+                        let t = Convert.From(tree, p, this, slot)
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        children
+    
+    member internal _.Internal = internalNode
+
+[<RequireQualifiedAccess>]
+module OlySyntaxCatchOrFinallyExpression =
+
+    let (|Catch|_|) (node: OlySyntaxCatchOrFinallyExpression) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxParameter * OlySyntaxToken * OlySyntaxToken * OlySyntaxExpression * OlySyntaxCatchOrFinallyExpression ) option =
+        match node.Internal with
+        | SyntaxCatchOrFinallyExpression.Catch _ ->
+            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _, node.Children.[3] :?> _, node.Children.[4] :?> _, node.Children.[5] :?> _, node.Children.[6] :?> _)
+        | _ ->
+            Option.None
+
+    let (|Finally|_|) (node: OlySyntaxCatchOrFinallyExpression) : ( OlySyntaxToken * OlySyntaxExpression ) option =
+        match node.Internal with
+        | SyntaxCatchOrFinallyExpression.Finally _ ->
+            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
+        | _ ->
+            Option.None
+
+    let (|None|_|) (node: OlySyntaxCatchOrFinallyExpression) : ( OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxCatchOrFinallyExpression.None _ ->
+            Option.Some (node.Children.[0] :?> _)
+        | _ ->
+            Option.None
+
+[<Sealed;NoComparison>]
 type OlySyntaxValueDeclarationPremodifier internal (tree, start: int, parent, internalNode: SyntaxValueDeclarationPremodifier) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
@@ -3621,6 +3690,13 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
+    let (|Try|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxExpression * OlySyntaxCatchOrFinallyExpression ) option =
+        match node.Internal with
+        | SyntaxExpression.Try _ ->
+            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _)
+        | _ ->
+            Option.None
+
     let (|Match|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxExpression OlySyntaxSeparatorList * OlySyntaxToken * OlySyntaxMatchClause OlySyntaxList ) option =
         match node.Internal with
         | SyntaxExpression.Match _ ->
@@ -3765,6 +3841,7 @@ module private Convert =
         | :? SyntaxNamedArgument as internalNode -> OlySyntaxNamedArgument(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxArguments as internalNode -> OlySyntaxArguments(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxElseIfOrElseExpression as internalNode -> OlySyntaxElseIfOrElseExpression(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxCatchOrFinallyExpression as internalNode -> OlySyntaxCatchOrFinallyExpression(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxValueDeclarationPremodifier as internalNode -> OlySyntaxValueDeclarationPremodifier(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxValueDeclarationPostmodifier as internalNode -> OlySyntaxValueDeclarationPostmodifier(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxValueDeclarationKind as internalNode -> OlySyntaxValueDeclarationKind(tree, start, parent, internalNode) :> OlySyntaxNode

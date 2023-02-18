@@ -425,6 +425,22 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         analyzeExpression cenv (notReturnableAddress env) conditionExpr
         analyzeExpression cenv (notReturnableAddress env) bodyExpr
 
+    | BoundExpression.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
+        analyzeExpression cenv env bodyExpr
+
+        catchCases
+        |> ImArray.iter (function
+            | BoundCatchCase.CatchCase(value, catchBodyExpr) ->
+                // TODO: 'syntaxNode' is not the accurate place for this.
+                analyzeType cenv env syntaxNode value.Type
+                analyzeExpression cenv env catchBodyExpr
+        )
+
+        finallyBodyExprOpt
+        |> Option.iter (fun finallyBodyExpr ->
+            analyzeExpression cenv (notReturnableAddress env) finallyBodyExpr
+        )
+
     | BoundExpression.Witness(expr, witnessArg, ty) ->
         analyzeExpression cenv env expr
         analyzeType cenv env syntaxNode witnessArg

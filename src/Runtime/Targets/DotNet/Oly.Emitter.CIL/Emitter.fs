@@ -1136,9 +1136,11 @@ module rec ClrCodeGen =
 
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
-        | E.None(textRange, _) ->
-            emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
-            emitDebugNopIfPossible cenv
+        | E.None(textRange, resultTy) ->
+            // We only want to emit actual nop and sequence points if the result type is void.
+            if resultTy.Handle = cenv.assembly.TypeReferenceVoid then
+                emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
+                emitDebugNopIfPossible cenv
 
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
@@ -1326,6 +1328,69 @@ module rec ClrCodeGen =
             I.Br loopStartLabelId |> emitInstruction cenv
 
             I.Label loopEndLabelId  |> emitInstruction cenv
+
+        | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, _) ->
+            let theVeryEndLabelId = cenv.NewLabel()
+
+            let env = setNotReturnable env
+
+            let tryStartLabelId = cenv.NewLabel()
+            let tryEndLabelId = cenv.NewLabel()
+
+            emitHiddenSequencePointIfPossible cenv env
+            I.Label tryStartLabelId |> emitInstruction cenv
+
+            GenExpression cenv env bodyExpr
+
+            I.Leave theVeryEndLabelId |> emitInstruction cenv
+            I.Label tryEndLabelId |> emitInstruction cenv
+
+            catchCases
+            |> ImArray.iter (function
+                | OlyIRCatchCase.CatchCase(localName, localIndex, bodyExpr, catchTy) ->
+                    let handlerStartLabelId = cenv.NewLabel()
+                    let handlerEndLabelId = cenv.NewLabel()
+
+                    emitHiddenSequencePointIfPossible cenv env
+                    I.Label handlerStartLabelId |> emitInstruction cenv
+
+                    // This is sort of hacky, but it does make it easier to handle introducing locals
+                    // for debugging purposes on try/catch/finally.
+                    // At this point, the exception is on the stack and so using a Let expression will emit a store.
+                    E.Let(localName, localIndex, E.None(NoRange, catchTy), bodyExpr)
+                    |> GenExpression cenv env
+
+                    I.Leave theVeryEndLabelId |> emitInstruction cenv
+                    I.Label handlerEndLabelId |> emitInstruction cenv
+
+                    I.CatchRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId, catchTy.Handle) |> emitInstruction cenv
+            )
+
+            finallyBodyExprOpt
+            |> Option.iter (fun finallyBodyExpr ->
+                let finallyEndLabelId =
+                    if not catchCases.IsEmpty then
+                        let catchCasesEndLabelId = cenv.NewLabel()
+                        I.Label catchCasesEndLabelId |> emitInstruction cenv
+                        catchCasesEndLabelId
+                    else
+                        tryEndLabelId
+
+                let handlerStartLabelId = cenv.NewLabel()
+                let handlerEndLabelId = cenv.NewLabel()
+
+                emitHiddenSequencePointIfPossible cenv env
+                I.Label handlerStartLabelId |> emitInstruction cenv
+
+                GenExpression cenv env finallyBodyExpr
+
+                I.Endfinally |> emitInstruction cenv
+                I.Label handlerEndLabelId |> emitInstruction cenv
+
+                I.FinallyRegion(tryStartLabelId, finallyEndLabelId, handlerStartLabelId, handlerEndLabelId) |> emitInstruction cenv
+            )
+
+            I.Label theVeryEndLabelId |> emitInstruction cenv
 
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr

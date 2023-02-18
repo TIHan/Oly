@@ -183,6 +183,9 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             text
 
+and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
+    | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
+
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundExpression =
     | None of syntaxInfo: BoundSyntaxInfo
     | Error of syntaxInfo: BoundSyntaxInfo
@@ -213,6 +216,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | IfElse of syntaxInfo: BoundSyntaxInfo * conditionExpr: BoundExpression * trueTargetExpr: BoundExpression * falseTargetExpr: BoundExpression * cachedExprTy: TypeSymbol
     | Match of syntax: OlySyntaxExpression * benv: BoundEnvironment * BoundExpression imarray * BoundMatchClause imarray * cachedExprTy: TypeSymbol
     | While of syntaxInfo: BoundSyntaxInfo * conditionExpr: BoundExpression * bodyExpr: BoundExpression
+
+    | Try of syntaxInfo: BoundSyntaxInfo * bodyExpr: BoundExpression * catchCases: BoundCatchCase imarray * finallyBodyExprOpt: BoundExpression option
 
     member this.GetValidUserSyntax(): OlySyntaxNode =
         match this with
@@ -290,7 +295,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetProperty(syntaxInfo=syntaxInfo)
         | Lambda(syntaxInfo=syntaxInfo)
         | NewTuple(syntaxInfo=syntaxInfo)
-        | Typed(syntaxInfo=syntaxInfo) -> syntaxInfo.TryEnvironment
+        | Typed(syntaxInfo=syntaxInfo)
+        | Try(syntaxInfo=syntaxInfo) -> syntaxInfo.TryEnvironment
         | ErrorWithNamespace(benv=benv)
         | ErrorWithType(benv=benv) -> Some benv
         | Unit(benv=benv) -> Some benv
@@ -317,7 +323,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | EntityDefinition(syntaxInfo=syntaxInfo)
         | Lambda(syntaxInfo=syntaxInfo)
         | NewTuple(syntaxInfo=syntaxInfo)
-        | Typed(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
+        | Typed(syntaxInfo=syntaxInfo) 
+        | Try(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
         | Match(syntax=syntax) -> syntax :> OlySyntaxNode
         | NewArray(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
@@ -329,6 +336,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         match this with
         | While _ -> this
         | IfElse _ -> this
+        | Try _ -> this
         | Match _ -> this
         | Witness _ -> this
         | NewTuple _ 
@@ -360,6 +368,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | While _ -> TypeSymbol.Unit
         | IfElse(cachedExprTy=exprTy) -> exprTy
         | Match(cachedExprTy=exprTy) -> exprTy
+        | Try(bodyExpr=bodyExpr) -> bodyExpr.Type
         | Witness(_, _, ty) -> ty
         | NewTuple(ty=ty) -> ty
         | NewArray(ty=ty) -> ty

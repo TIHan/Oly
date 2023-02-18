@@ -940,6 +940,11 @@ type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startL
 
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
+type OlyILCatchCase =
+    | CatchCase of localIndex: int32 * bodyExpr: OlyILExpression
+
+[<NoEquality;NoComparison>]
+[<RequireQualifiedAccess>]
 type OlyILExpression =
     | None of textRange: OlyILDebugSourceTextRange
     | Let of localIndex: int32 * rhsExpr: OlyILExpression * bodyExpr: OlyILExpression
@@ -951,6 +956,8 @@ type OlyILExpression =
     /// Cannot be used in a non-imperative context.
     /// TODO: The check for "non-imperative" context is not implemented.
     | While of conditionExpr: OlyILExpression * bodyExpr: OlyILExpression
+
+    | Try of bodyExpr: OlyILExpression * catchCases: OlyILCatchCase imarray * finallyBodyExprOpt: OlyILExpression option
 
 // Not concurrency safe.
 type private Table<'Value>(kind: OlyILTableKind) =
