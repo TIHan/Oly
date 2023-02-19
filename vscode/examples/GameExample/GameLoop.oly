@@ -176,9 +176,21 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
         state.WillQuit <- willQuit
 
     state.UpdateAccumulator <- updateAcc
+
+    let mutable task = null: System.Threading.Tasks.Task
+
     processEarlyUpdate()
-    processFixedUpdate()
-    processUpdate()
+    if (state.UpdateAccumulator >= fixedUpdateInterval)
+        //processFixedUpdate()
+        //processUpdate()
+
+        //if (task !== null)
+        //    task.Wait()
+      //  task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
+        processFixedUpdate()
+        processUpdate()
+    else
+        processUpdate()
 
 #[inline] 
 Start(fixedUpdateInterval: float64, #[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, delta: float32) -> bool): () =

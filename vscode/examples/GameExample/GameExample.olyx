@@ -1,4 +1,4 @@
-#target "dotnet: net7"
+#target "dotnet: net6"
 
 #load "*.oly"
 
@@ -63,7 +63,7 @@ main(): () =
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
     let mutable i = 1
-    while (i <= 10000)
+    while (i <= 100)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 1000)
@@ -73,7 +73,7 @@ main(): () =
         i <- i + 1
 
     let mutable i = 1
-    while (i <= 10000)
+    while (i <= 100)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 1000)
@@ -96,6 +96,7 @@ main(): () =
     let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
     let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
     let mutable prevView = view
+    let mutable newView = view
     let mutable viewProjection = view * projection
     Graphics.SetModelViewProjection(viewProjection)
 
@@ -149,33 +150,46 @@ main(): () =
         else
             motion <- Vector3(0, motion.Y, motion.Z)
 
+    let update() =
+        let inputState = window.GetInputState()
+
+        let keyEvents = inputState.GetKeyEvents()
+        if (keyEvents.Length > 0)
+            keyEventQueue.Enqueue(keyEvents)
+
+    let fixedUpdate(mutable intervalTime: System.TimeSpan) =
+        let interval = float32(intervalTime.TotalMilliseconds)
+        processKeyEventQueue()
+        checkMotion(interval)
+        prevView <- view
+        view.Translation <- view.Translation + motion
+        newView <- Matrix4x4.Lerp(prevView, view, 1)
+        let viewProjection = newView * projection
+        Graphics.SetModelViewProjection(viewProjection)
+      //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
+
+    let render(deltatime, delta) =
+        // newView <- Matrix4x4.Lerp(prevView, view, delta)
+        // let viewProjection = newView * projection
+        // Graphics.SetModelViewProjection(viewProjection)
+
+        let windowExists = window.Exists
+        if (windowExists)
+            Graphics.Draw(drawCmds)
+
     GameLoop.Start(
         30,
         deltaTime ->
-            let inputState = window.GetInputState()
-
-            let keyEvents = inputState.GetKeyEvents()
-            if (keyEvents.Length > 0)
-                keyEventQueue.Enqueue(keyEvents)
-        
+            update()
             !window.Exists,
-        (mutable intervalTime) ->
-            let interval = float32(intervalTime.TotalMilliseconds)
-            processKeyEventQueue()
-            checkMotion(interval)
-            prevView <- view
-            view.Translation <- view.Translation + motion
+        (intervalTime) ->
+            fixedUpdate(intervalTime)
+            let x = System.Random(System.Environment.TickCount)
+            System.Threading.Thread.Sleep(x.Next(0, 20))
             !window.Exists,
         (deltaTime, delta) ->
-            let mutable prevViewProjection = prevView * projection
-            let mutable viewProjection = view * projection
-            let viewProjection = Matrix4x4.Lerp(prevViewProjection, viewProjection, delta)
-            Graphics.SetModelViewProjection(viewProjection)
-
-            let windowExists = window.Exists
-            if (windowExists)
-                Graphics.Draw(drawCmds)
-            !windowExists
+            render(deltaTime, delta)
+            !window.Exists
     )
 
     Graphics.DestroyWindow()
