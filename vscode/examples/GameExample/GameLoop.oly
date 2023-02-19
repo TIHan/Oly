@@ -55,6 +55,7 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
         accumulator <- accumulator + frameTime
 
         update()
+
         while (accumulator >= dt)
             quit <- fixedUpdate(t, dt)
             t <- t + dt
@@ -72,6 +73,6 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
                 i <- i + 1               
             accumulator
 
-        let alpha = accumulator / dt
+        let alpha = smoothedAccumulator / dt
 
         render(alpha)
