@@ -163,15 +163,13 @@ main(): () =
         checkMotion(interval)
         prevView <- view
         view.Translation <- view.Translation + motion
-        newView <- Matrix4x4.Lerp(prevView, view, 1)
-        let viewProjection = newView * projection
-        Graphics.SetModelViewProjection(viewProjection)
+        
       //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(deltatime, delta) =
-        // newView <- Matrix4x4.Lerp(prevView, view, delta)
-        // let viewProjection = newView * projection
-        // Graphics.SetModelViewProjection(viewProjection)
+        newView <- Matrix4x4.Lerp(prevView, view, delta)
+        let viewProjection = newView * projection
+        Graphics.SetModelViewProjection(viewProjection)
 
         let windowExists = window.Exists
         if (windowExists)

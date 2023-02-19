@@ -185,10 +185,11 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
         //processUpdate()
 
         //if (task !== null)
-        //    task.Wait()
-      //  task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
+         //   task.Wait()
+       // task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
         processFixedUpdate()
         processUpdate()
+       // task.Wait()
     else
         processUpdate()
 
