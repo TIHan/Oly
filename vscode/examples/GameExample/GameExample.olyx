@@ -54,8 +54,8 @@ sealed class SyncData =
         }
 
 main(): () =
-    System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
-    let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
+    //System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
+    let window = Graphics.CreateWindow(100, 100, 1920, 1080, "Evergreen Engine")
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
@@ -199,17 +199,18 @@ main(): () =
             Graphics.Draw(drawCmds)
 
     GameLoop.Start(
-        30,
+        60,
         () ->
             update(),
         (intervalTime, dt) ->
             fixedUpdate(dt)
-            let amount = System.Random().Next(800000, 1000000)
+            let amount = 900000 //System.Random().Next(800000, 1000000)
             let mutable x = Matrix4x4.Identity
             let mutable i = 0
             while (i < amount)
                 x <- x * x
                 i <- i + 1
+            //render(1)
             !window.Exists,
         (alpha) ->
             render(float32(alpha))

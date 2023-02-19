@@ -6,37 +6,11 @@ open System.Diagnostics
 
 #[inline] 
 Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
-    // while ( !quit )
-    // {
-    //     double newTime = time();
-    //     double frameTime = newTime - currentTime;
-    //     if ( frameTime > 0.25 )
-    //         frameTime = 0.25;
-    //     currentTime = newTime;
-
-    //     accumulator += frameTime;
-
-    //     while ( accumulator >= dt )
-    //     {
-    //         previousState = currentState;
-    //         integrate( currentState, t, dt );
-    //         t += dt;
-    //         accumulator -= dt;
-    //     }
-
-    //     const double alpha = accumulator / dt;
-
-    //     State state = currentState * alpha + 
-    //         previousState * ( 1.0 - alpha );
-
-    //     render( state );
-    // }
-
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
 
     let mutable t = 0.0
-    let dt = 0.016666666666666666666666666666666666666666666666666666666 //0.01
+    let dt = (1000 / fixedUpdateInterval) * 0.001
 
     let mutable currentTime = stopwatch.Elapsed.TotalSeconds
     let mutable accumulator = 0.0
@@ -51,28 +25,32 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
         if (frameTime > 0.25)
             frameTime <- 0.25
         currentTime <- newTime
-
         accumulator <- accumulator + frameTime
 
         update()
 
+        let mutable fixedUpdateCount = 0
         while (accumulator >= dt)
             quit <- fixedUpdate(t, dt)
             t <- t + dt
             accumulator <- accumulator - dt
+            fixedUpdateCount <- fixedUpdateCount + 1
+        if (fixedUpdateCount > 1)
+            print("Catch-Up - Fixed Update Count: ")
+            print(fixedUpdateCount)
+            print("\n")
 
         frameCount <- frameCount + 1
         frames[frameCount % frameMaxCount] <- accumulator
 
         let smoothedAccumulator =
             let count = Math.Min(frameCount, frameMaxCount)
-            let mutable accumulator = 0.0
+            let mutable smoothedAccumulator = 0.0
             let mutable i = 0
             while (i < count)
-                accumulator <- accumulator + frames[i % frameMaxCount]
-                i <- i + 1               
-            accumulator
+                smoothedAccumulator <- smoothedAccumulator + frames[i % frameMaxCount]
+                i <- i + 1  
+            frames[frameCount % frameCount] <- smoothedAccumulator             
+            smoothedAccumulator
 
-        let alpha = smoothedAccumulator / dt
-
-        render(alpha)
+        render(smoothedAccumulator / dt)
