@@ -231,8 +231,6 @@ sealed class InputState =
 
     GetKeyEvents(): KeyEvent[||] =
         System.Linq.Enumerable.ToArray<Veldrid.KeyEvent>(this.snapshot.KeyEvents)
- //   IsKeyPressed(key: char): bool =
-   //     System.Linq.Enumerable.Contains<char>(this.snapshot.KeyCharPresses, key)
 
 sealed class Window =
     internal window: Sdl2Window

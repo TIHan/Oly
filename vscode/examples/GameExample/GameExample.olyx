@@ -63,25 +63,35 @@ main(): () =
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
     let mutable i = 1
-    while (i <= 3)
+    while (i <= 10000)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
+        let mutable j = 1
+        while (j <= 1000)
+            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
+            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
+            j <- j + 1
         i <- i + 1
-    let hexagons1 = hexagons.ToArray()
 
-    hexagons.Clear()
     let mutable i = 1
-    while (i <= 3)
+    while (i <= 10000)
         hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
+        let mutable j = 1
+        while (j <= 1000)
+            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
+            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
+            j <- j + 1
         i <- i + 1
-    let hexagons2 = hexagons.ToArray()
 
-    let instances1 = Graphics.CreateInstances(hexagons1)
-    let drawCmd1   = DrawCommand.CreateDrawMesh(mesh, shader, instances1)
+    let hexagons = hexagons.ToArray()
 
-    let instances2 = Graphics.CreateInstances(hexagons2)
-    let drawCmd2   = DrawCommand.CreateDrawMesh(mesh, shader2, instances2)
+    print("Hexagon Count: ")
+    print(hexagons.Length)
+    print("\n")
 
-    let drawCmds = [drawCmd1;drawCmd2]
+    let instances = Graphics.CreateInstances(hexagons)
+    let drawCmd   = DrawCommand.CreateDrawMesh(mesh, shader, instances)
+
+    let drawCmds = [drawCmd]
 
     let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
     let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
