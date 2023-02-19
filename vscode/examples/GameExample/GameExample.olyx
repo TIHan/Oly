@@ -44,6 +44,7 @@ void main()
 (==)(Key, Key): bool
 
 main(): () =
+    System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
     let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
