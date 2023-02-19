@@ -170,6 +170,8 @@ main(): () =
 
     let mutable syncData = SyncData(prevView, view)
 
+    let mutable prevCameraPosition = view.Translation
+
     let update() =
         let inputState = window.GetInputState()
         keyEventQueue.Enqueue(inputState)
@@ -178,7 +180,7 @@ main(): () =
         let interval = float32(interval)
         processKeyEventQueue()
         checkMotion(interval)
-        prevView <- view
+        prevCameraPosition <- view.Translation
         view.Translation <- view.Translation + motion
         syncData <- SyncData(prevView, view)
         
@@ -186,7 +188,9 @@ main(): () =
 
     let render(alpha) =
         let syncData = syncData
-        newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, alpha)
+        newView <- syncData.View
+        newView.Translation <- Vector3.Lerp(prevCameraPosition, newView.Translation, alpha)
+        //newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, alpha)
         let viewProjection = newView * projection
         Graphics.SetModelViewProjection(viewProjection)
 
@@ -200,15 +204,14 @@ main(): () =
             update(),
         (intervalTime, dt) ->
             fixedUpdate(dt)
+           // System.Threading.Thread.Sleep(14)
             let mutable x = Matrix4x4.Identity
             let mutable i = 0
-            while (i < 1100000)
+            while (i < 900000)
                 x <- x * x
                 i <- i + 1
-            //render(1)
             !window.Exists,
         (alpha) ->
-            ()
             render(float32(alpha))
     )
 

@@ -282,6 +282,8 @@ module Graphics =
         factory <- graphicsDevice.ResourceFactory
         commandList <- factory.CreateCommandList()
 
+       // graphicsDevice.SyncToVerticalBlank <- true
+
         // Default resource set
         //
         modelViewProjectionUniformBuffer <- createDynamicUniformBuffer(Matrix4x4.Identity, 0)
