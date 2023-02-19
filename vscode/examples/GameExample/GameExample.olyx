@@ -177,7 +177,7 @@ main(): () =
         prevView <- view
         view.Translation <- view.Translation + motion
         syncData <- SyncData(prevView, view)
-        print("fixed\n")
+        motion <- Vector3.Zero
         
       //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
@@ -192,17 +192,22 @@ main(): () =
             Graphics.Draw(drawCmds)
 
     GameLoop.Start(
-        30,
+        60,
         deltaTime ->
             update()
             !window.Exists,
         (intervalTime) ->
+           // System.Threading.Thread.Sleep(1)
             fixedUpdate(intervalTime)
-            let x = System.Random(System.Environment.TickCount)
-            System.Threading.Thread.Sleep(x.Next(10, 30))
+            let mutable x = Matrix4x4.Identity
+            let mutable i = 0
+            while (i < 600000)
+                x <- x * x
+                i <- i + 1
+            render(intervalTime, 1)
             !window.Exists,
         (deltaTime, delta) ->
-            render(deltaTime, delta)
+           // render(deltaTime, delta)
             !window.Exists
     )
 
