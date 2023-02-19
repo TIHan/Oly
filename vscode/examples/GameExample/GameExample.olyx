@@ -200,16 +200,16 @@ main(): () =
             update(),
         (intervalTime, dt) ->
             fixedUpdate(dt)
-            // let mutable x = Matrix4x4.Identity
-            // let mutable i = 0
-            // while (i < 1000000)
-            //     x <- x * x
-            //     i <- i + 1
-            render(1)
+            let mutable x = Matrix4x4.Identity
+            let mutable i = 0
+            while (i < 1100000)
+                x <- x * x
+                i <- i + 1
+            //render(1)
             !window.Exists,
         (alpha) ->
             ()
-            //render(float32(alpha))
+            render(float32(alpha))
     )
 
     Graphics.DestroyWindow()
