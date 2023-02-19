@@ -1,188 +1,61 @@
 // http://gafferongames.com/game-physics/fix-your-timestep/
-// module GameLoop
-
-//     open System
-//     open System.Diagnostics
-
-//     type GameLoop<'T> = 
-//         private { 
-//             LastTime: int64
-//             UpdateTime: int64
-//             UpdateAccumulator: int64
-//             willQuit: bool 
-
-//             Stopwatch : Stopwatch
-//             Skip : int64
-//             FixedUpdateInterval : int64
-//         }
-
-//         member this.WillQuit = this.willQuit
-
-//     let create fixedUpdateInterval =
-//         let fixedUpdateInterval = (1000. / fixedUpdateInterval) * 10000. |> int64
-//         let skip = (1000. / 5.) * 10000. |> int64
-
-//         let stopwatch = Stopwatch()
-
-//         {
-//             LastTime = 0L
-//             UpdateTime = 0L
-//             UpdateAccumulator = fixedUpdateInterval
-//             willQuit = false
-
-//             Stopwatch = stopwatch
-//             Skip = skip
-//             FixedUpdateInterval = fixedUpdateInterval
-//         }
-
-//     let tick (earlyUpdate: TimeSpan -> bool) (fixedUpdate: TimeSpan -> bool) (update: TimeSpan -> float32 -> bool) gl =
-//         let stopwatch = gl.Stopwatch
-//         let skip = gl.Skip
-//         let fixedUpdateInterval = gl.FixedUpdateInterval
-
-//         if not stopwatch.IsRunning then
-//             stopwatch.Start()
-
-//         let currentTime = stopwatch.Elapsed.Ticks
-//         let deltaTime =
-//             match currentTime - gl.LastTime with
-//             | x when x > skip -> skip
-//             | x -> x
-
-//         let updateAcc = gl.UpdateAccumulator + deltaTime
-
-//         let deltaTimeSpan = TimeSpan.FromTicks deltaTime
-
-//         let processEarlyUpdate gl =
-//             let willQuit = earlyUpdate deltaTimeSpan
-
-//             { gl with 
-//                 LastTime = currentTime
-//                 willQuit = willQuit
-//             }
-
-//         let rec processFixedUpdate gl =
-//             if gl.UpdateAccumulator >= fixedUpdateInterval
-//             then
-//                 let willQuit = fixedUpdate (TimeSpan.FromTicks fixedUpdateInterval)
-
-//                 processFixedUpdate
-//                     { gl with 
-//                         UpdateTime = gl.UpdateTime + fixedUpdateInterval
-//                         UpdateAccumulator = gl.UpdateAccumulator - fixedUpdateInterval
-//                         willQuit = willQuit
-//                     }
-//             else
-//                 gl
-
-//         let processUpdate gl =
-//             let willQuit = update deltaTimeSpan (single gl.UpdateAccumulator / single fixedUpdateInterval)
-
-//             { gl with 
-//                 LastTime = currentTime
-//                 willQuit = willQuit
-//             }
-
-//         { gl with UpdateAccumulator = updateAcc }
-//         |> processEarlyUpdate
-//         |> processFixedUpdate
-//         |> processUpdate
-
-//     let start fixedUpdateInterval (earlyUpdate: TimeSpan -> bool) (fixedUpdate: TimeSpan -> bool) (update: TimeSpan -> float32 -> bool) : unit =
-//         let gl = create fixedUpdateInterval
-
-//         let rec loop gl =
-//             if not gl.willQuit then
-//                 gl
-//                 |> tick earlyUpdate fixedUpdate update
-//                 |> loop
-
-//         loop gl
-
-// http://gafferongames.com/game-physics/fix-your-timestep/
 module GameLoop
 
 open System
 open System.Diagnostics
 
-private sealed class State =
-    mutable LastTime: int64
-    mutable UpdateAccumulator: int64
-    mutable WillQuit: bool 
-
-    Stopwatch : Stopwatch
-    Skip : int64
-    FixedUpdateInterval : int64
-
-    new(fixedUpdateInterval: float64) =
-        let fixedUpdateInterval = int64((1000 / fixedUpdateInterval) * 10_000)
-        let skip = int64(((1000.0: float64) / 5) * 10_000)
-
-        //let x = System.Threading.Thread.
-
-        {
-            LastTime = 0
-            UpdateAccumulator = fixedUpdateInterval
-            WillQuit = false
-            Stopwatch = Stopwatch()
-            Skip = skip
-            FixedUpdateInterval = fixedUpdateInterval
-        }
-
-#[inline]
-private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, float32) -> (), state: State): () =
-    let stopwatch = state.Stopwatch
-    let skip = state.Skip
-    let fixedUpdateInterval = state.FixedUpdateInterval
-
-    if (!stopwatch.IsRunning)
-        stopwatch.Start()
-
-    let currentTime = stopwatch.Elapsed.Ticks
-    let deltaTime =
-        let x = currentTime - state.LastTime
-        if (x > skip)
-            skip
-        else
-            x
-        // TODO: Fixed pattern match assertion bug.
-        // match (currentTime - state.LastTime)
-        // | x when (x > skip) => skip
-        // | x => x
-
-    let updateAcc = state.UpdateAccumulator + deltaTime
-
-    let deltaTimeSpan = TimeSpan.FromTicks(deltaTime)
-
-    #[inline]
-    let processEarlyUpdate() =
-        let willQuit = earlyUpdate(deltaTimeSpan)
-        state.LastTime <- currentTime
-        state.WillQuit <- willQuit
-
-    #[inline]
-    let processFixedUpdate() =
-        while (state.UpdateAccumulator >= fixedUpdateInterval)
-            let willQuit = fixedUpdate(TimeSpan.FromTicks(fixedUpdateInterval))
-            state.UpdateAccumulator <- state.UpdateAccumulator - fixedUpdateInterval
-            state.WillQuit <- willQuit
-
-    #[inline]
-    let processUpdate() =
-        let delta = float32(state.UpdateAccumulator) / float32(fixedUpdateInterval)
-        update(deltaTimeSpan, delta)
-
-    state.UpdateAccumulator <- updateAcc
-
-    processEarlyUpdate()
-    if (state.UpdateAccumulator >= fixedUpdateInterval)
-        processFixedUpdate()
-        processUpdate()
-    else
-        processUpdate()
-
 #[inline] 
-Start(fixedUpdateInterval: float64, #[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, delta: float32) -> ()): () =
-    let state = State(fixedUpdateInterval)
-    while (!state.WillQuit)
-        Tick(earlyUpdate, fixedUpdate, update, state)
+Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+    // while ( !quit )
+    // {
+    //     double newTime = time();
+    //     double frameTime = newTime - currentTime;
+    //     if ( frameTime > 0.25 )
+    //         frameTime = 0.25;
+    //     currentTime = newTime;
+
+    //     accumulator += frameTime;
+
+    //     while ( accumulator >= dt )
+    //     {
+    //         previousState = currentState;
+    //         integrate( currentState, t, dt );
+    //         t += dt;
+    //         accumulator -= dt;
+    //     }
+
+    //     const double alpha = accumulator / dt;
+
+    //     State state = currentState * alpha + 
+    //         previousState * ( 1.0 - alpha );
+
+    //     render( state );
+    // }
+
+    let mutable quit = false
+    let stopwatch = Stopwatch.StartNew()
+
+    let mutable t = 0.0
+    let dt = 0.016666666666666666666666666666666666666666666666666666666 //0.01
+
+    let mutable currentTime = stopwatch.Elapsed.TotalSeconds
+    let mutable accumulator = 0.0
+
+    while (!quit)
+        let newTime = stopwatch.Elapsed.TotalSeconds
+        let mutable frameTime = newTime - currentTime
+        if (frameTime > 0.25)
+            frameTime <- 0.25
+        currentTime <- newTime
+
+        accumulator <- accumulator + frameTime
+
+        update()
+        while (accumulator >= dt)
+            quit <- fixedUpdate(t, dt)
+            t <- t + dt
+            accumulator <- accumulator - dt
+
+        let alpha = accumulator / dt
+
+        render(alpha)

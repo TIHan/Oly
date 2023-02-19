@@ -115,75 +115,78 @@ main(): () =
     let mutable is_s_pressed = false
     let mutable is_d_pressed = false
 
-    let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<KeyEvent[||]>()
+    let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()
     let processKeyEventQueue() =
-        let mutable keyEvents = unchecked default
-        while (keyEventQueue.TryDequeue(&keyEvents))
+        let mutable inputState = unchecked default
+        while (keyEventQueue.TryDequeue(&inputState))
+            let keyEvents = inputState.KeyEvents
             let mutable i = 0
             while (i < keyEvents.Length)
-                let mutable keyEvent = keyEvents[0]
-                if (keyEvent.Key == Key.W)
+                let mutable keyEvent = keyEvents[i]
+                if (fromEnum(keyEvent.Key) == fromEnum(Key.W))
                     if (keyEvent.Down)
                         is_w_pressed <- true
                     else
                         is_w_pressed <- false
-                if (keyEvent.Key == Key.A)
+
+                if (fromEnum(keyEvent.Key) == fromEnum(Key.A))
                     if (keyEvent.Down)
                         is_a_pressed <- true
                     else
                         is_a_pressed <- false
-                if (keyEvent.Key == Key.S)
+
+                if (fromEnum(keyEvent.Key) == fromEnum(Key.S))
                     if (keyEvent.Down)
                         is_s_pressed <- true
                     else
                         is_s_pressed <- false
-                if (keyEvent.Key == Key.D)
+
+                if (fromEnum(keyEvent.Key) == fromEnum(Key.D))
                     if (keyEvent.Down)
                         is_d_pressed <- true
                     else
                         is_d_pressed <- false
+
                 i <- i + 1
 
     let mutable motion = Vector3.Zero
     let checkMotion(interval: float32) =
+        let mutable z = 0: float32
         if (is_w_pressed)
-            motion <- Vector3(motion.X, motion.Y, interval * 0.01)
-        else if (is_s_pressed)
-            motion <- Vector3(motion.X, motion.Y, -interval * 0.01)
-        else
-            motion <- Vector3(motion.X, motion.Y, 0)
+            z <- z + (interval * 5)
 
+        if (is_s_pressed)
+            z <- z + (-interval * 5)
+
+        let mutable x = 0: float32
         if (is_a_pressed)
-            motion <- Vector3(interval * 0.01, motion.Y, motion.Z)
-        else if (is_d_pressed)
-            motion <- Vector3(-interval * 0.01, motion.Y, motion.Z)
-        else
-            motion <- Vector3(0, motion.Y, motion.Z)
+            x <- x + (interval * 5)
+
+        if (is_d_pressed)
+            x <- x + (-interval * 5)
+
+        motion <- Vector3(x, motion.Y, z)
 
 
     let mutable syncData = SyncData(prevView, view)
 
     let update() =
         let inputState = window.GetInputState()
+        keyEventQueue.Enqueue(inputState)
 
-        let keyEvents = inputState.GetKeyEvents()
-        if (keyEvents.Length > 0)
-            keyEventQueue.Enqueue(keyEvents)
-
-    let fixedUpdate(mutable intervalTime: System.TimeSpan) =
-        let interval = float32(intervalTime.TotalMilliseconds)
+    let fixedUpdate(mutable interval: float64) =
+        let interval = float32(interval)
         processKeyEventQueue()
         checkMotion(interval)
         prevView <- view
         view.Translation <- view.Translation + motion
         syncData <- SyncData(prevView, view)
-        motion <- Vector3.Zero
         
       //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
-    let render(deltatime, delta) =
+    let render(alpha) =
         let syncData = syncData
-        newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, delta)
+        newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, alpha)
         let viewProjection = newView * projection
         Graphics.SetModelViewProjection(viewProjection)
 
@@ -192,22 +195,21 @@ main(): () =
             Graphics.Draw(drawCmds)
 
     GameLoop.Start(
-        60,
-        deltaTime ->
-            update()
+        30,
+        () ->
+            update(),
+        (intervalTime, dt) ->
+            fixedUpdate(dt)
+            // let mutable x = Matrix4x4.Identity
+            // let mutable i = 0
+            // while (i < 1100000)
+            //     x <- x * x
+            //     i <- i + 1
+            render(1)
             !window.Exists,
-        (intervalTime) ->
-            System.Threading.Thread.Sleep(6)
-            fixedUpdate(intervalTime)
-            let mutable x = Matrix4x4.Identity
-            let mutable i = 0
-            while (i < 600000)
-                x <- x * x
-                i <- i + 1
-            render(intervalTime, 1)
-            !window.Exists,
-        (deltaTime, delta) ->
+        (alpha) ->
             ()
+          //render(float32(alpha))
     )
 
     Graphics.DestroyWindow()

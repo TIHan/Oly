@@ -222,15 +222,12 @@ alias KeyEvent = Veldrid.KeyEvent
 alias Key = Veldrid.Key
 
 sealed class InputState =
-    private snapshot: InputSnapshot
+    KeyEvents: KeyEvent[||]
 
-    internal new(snapshot: InputSnapshot) =
+    internal new(keyEvents: KeyEvent[||]) =
         {
-            snapshot = snapshot
+            KeyEvents = keyEvents
         }
-
-    GetKeyEvents(): KeyEvent[||] =
-        System.Linq.Enumerable.ToArray<Veldrid.KeyEvent>(this.snapshot.KeyEvents)
 
 sealed class Window =
     internal window: Sdl2Window
@@ -243,7 +240,9 @@ sealed class Window =
         }
 
     GetInputState(): InputState =
-        InputState(this.window.PumpEvents())
+        let snapshot = this.window.PumpEvents()
+        let keyEvents = System.Linq.Enumerable.ToArray<Veldrid.KeyEvent>(snapshot.KeyEvents)
+        InputState(keyEvents)
 
     Close(): () =
         this.window.Close()
