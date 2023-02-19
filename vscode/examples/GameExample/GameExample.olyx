@@ -197,7 +197,7 @@ main(): () =
             update()
             !window.Exists,
         (intervalTime) ->
-           // System.Threading.Thread.Sleep(1)
+            System.Threading.Thread.Sleep(6)
             fixedUpdate(intervalTime)
             let mutable x = Matrix4x4.Identity
             let mutable i = 0
@@ -207,8 +207,7 @@ main(): () =
             render(intervalTime, 1)
             !window.Exists,
         (deltaTime, delta) ->
-           // render(deltaTime, delta)
-            !window.Exists
+            ()
     )
 
     Graphics.DestroyWindow()

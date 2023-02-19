@@ -130,7 +130,7 @@ private sealed class State =
         }
 
 #[inline]
-private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, float32) -> bool, state: State): () =
+private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, float32) -> (), state: State): () =
     let stopwatch = state.Stopwatch
     let skip = state.Skip
     let fixedUpdateInterval = state.FixedUpdateInterval
@@ -170,31 +170,19 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
     #[inline]
     let processUpdate() =
         let delta = float32(state.UpdateAccumulator) / float32(fixedUpdateInterval)
-        let willQuit = update(deltaTimeSpan, delta)
-
-        state.LastTime <- currentTime
-        state.WillQuit <- willQuit
+        update(deltaTimeSpan, delta)
 
     state.UpdateAccumulator <- updateAcc
-
-    let mutable task = null: System.Threading.Tasks.Task
 
     processEarlyUpdate()
     if (state.UpdateAccumulator >= fixedUpdateInterval)
         processFixedUpdate()
-
-        //if (task !== null)
-          //  task.Wait()
-        //task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
-      //  processUpdate()
-      //  task.Wait()
         processUpdate()
-      //  task.Wait()
     else
         processUpdate()
 
 #[inline] 
-Start(fixedUpdateInterval: float64, #[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, delta: float32) -> bool): () =
+Start(fixedUpdateInterval: float64, #[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: TimeSpan -> bool, #[inline] update: (TimeSpan, delta: float32) -> ()): () =
     let state = State(fixedUpdateInterval)
     while (!state.WillQuit)
         Tick(earlyUpdate, fixedUpdate, update, state)
