@@ -42,6 +42,10 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
     let mutable accumulator = 0.0
 
     while (!quit)
+        let mutable frameCount = 0
+        let mutable frameMaxCount = 120
+        let mutable frames = OlyArray.ZeroCreate<float64>(frameMaxCount)
+
         let newTime = stopwatch.Elapsed.TotalSeconds
         let mutable frameTime = newTime - currentTime
         if (frameTime > 0.25)
@@ -55,6 +59,18 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
             quit <- fixedUpdate(t, dt)
             t <- t + dt
             accumulator <- accumulator - dt
+
+        frameCount <- frameCount + 1
+        frames[frameCount % frameMaxCount] <- accumulator
+
+        let smoothedAccumulator =
+            let count = Math.Min(frameCount, frameMaxCount)
+            let mutable accumulator = 0.0
+            let mutable i = 0
+            while (i < count)
+                accumulator <- accumulator + frames[i % frameMaxCount]
+                i <- i + 1               
+            accumulator
 
         let alpha = accumulator / dt
 
