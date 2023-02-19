@@ -182,7 +182,7 @@ main(): () =
         view.Translation <- view.Translation + motion
         syncData <- SyncData(prevView, view)
         
-      //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
+        //System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(alpha) =
         let syncData = syncData
@@ -202,14 +202,14 @@ main(): () =
             fixedUpdate(dt)
             // let mutable x = Matrix4x4.Identity
             // let mutable i = 0
-            // while (i < 1100000)
+            // while (i < 1000000)
             //     x <- x * x
             //     i <- i + 1
             render(1)
             !window.Exists,
         (alpha) ->
             ()
-          //render(float32(alpha))
+            //render(float32(alpha))
     )
 
     Graphics.DestroyWindow()
