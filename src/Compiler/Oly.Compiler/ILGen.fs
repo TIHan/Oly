@@ -1753,6 +1753,15 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     failwith "assert"
             | AutoDereferenced(expr) ->
                 GenExpression cenv env expr
+            | GetRefCellContents(expr) ->
+                let ilElementTy = emitILType cenv env expr.Type.TryGetReferenceCellElement.Value
+                let ilExpr = GenExpression cenv env expr
+                let ilByRefKind =
+                    if argExpr.Type.IsReadOnlyByRef then
+                        OlyILByRefKind.Read
+                    else
+                        OlyILByRefKind.ReadWrite
+                OlyILExpression.Operation(ilTextRange, OlyILOperation.LoadRefCellContentsAddress(ilElementTy, ilExpr, ilByRefKind))
             | _ ->
                 failwith "Invalid use of intrinsic 'address_of'"
 

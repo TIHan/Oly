@@ -443,7 +443,7 @@ module rec ClrCodeGen =
                 | ValueSome resultTy ->
                     emitInstruction cenv (I.Ldelema resultTy.Handle)
                 | _ ->
-                    failwith "assert"
+                    OlyAssert.Fail("Expected ByRef type.")
 
         | O.StoreArrayElement(irReceiver, irIndexArgs, irRhsArg, _) ->
             let tyHandle =
@@ -691,6 +691,16 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irArg
             I.LdcI4 0 |> emitInstruction cenv
             I.Ldelem(resultTy.Handle) |> emitInstruction cenv
+
+        | O.LoadRefCellContentsAddress(irArg, _, resultTy) ->
+            GenArgumentExpression cenv env irArg
+            I.LdcI4 0 |> emitInstruction cenv
+
+            match resultTy.TryByRefElementType with
+            | ValueSome resultTy ->
+                emitInstruction cenv (I.Ldelema resultTy.Handle)
+            | _ ->
+                OlyAssert.Fail("Expected ByRef type.")
 
         | O.LoadTupleElement(irArg, index, _) ->
             GenArgumentExpression cenv env irArg

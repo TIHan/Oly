@@ -153,11 +153,13 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
 
     let deltaTimeSpan = TimeSpan.FromTicks(deltaTime)
 
+    #[inline]
     let processEarlyUpdate() =
         let willQuit = earlyUpdate(deltaTimeSpan)
         state.LastTime <- currentTime
         state.WillQuit <- willQuit
 
+    #[inline]
     let processFixedUpdate() =
         while (state.UpdateAccumulator >= fixedUpdateInterval)
             let willQuit = fixedUpdate(TimeSpan.FromTicks(fixedUpdateInterval))
@@ -165,6 +167,7 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
             state.UpdateAccumulator <- state.UpdateAccumulator - fixedUpdateInterval
             state.WillQuit <- willQuit
 
+    #[inline]
     let processUpdate() =
         let delta = float32(state.UpdateAccumulator) / float32(fixedUpdateInterval)
         let willQuit = update(deltaTimeSpan, delta)

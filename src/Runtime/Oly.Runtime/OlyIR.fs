@@ -261,6 +261,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | LessThanOrEqual of            arg1: OlyIRExpression<'Type, 'Function, 'Field> * arg2: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
 
     | LoadRefCellContents of        receiver: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
+    | LoadRefCellContentsAddress of receiver: OlyIRExpression<'Type, 'Function, 'Field> * kind: OlyIRByRefKind * resultTy: 'Type
     | StoreRefCellContents of       receiver: OlyIRExpression<'Type, 'Function, 'Field> * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
 
     | Print of                      arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
@@ -336,6 +337,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Upcast(arg, _)
         | Cast(arg, _)
         | LoadRefCellContents(arg, _)
+        | LoadRefCellContentsAddress(arg, _, _)
         | LoadFromAddress(arg, _)
         | Store(_, arg, _) 
         | StoreArgument(_, arg, _)
@@ -418,6 +420,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Upcast(_, _)
         | Cast(_, _)
         | LoadRefCellContents(_, _)
+        | LoadRefCellContentsAddress _
         | LoadFromAddress(_, _)
         | Store(_, _, _) 
         | StoreArgument(_, _, _)
@@ -523,6 +526,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             Cast(newArgs[0], this.ResultType)
         | LoadRefCellContents _ ->
             LoadRefCellContents(newArgs[0], this.ResultType)
+        | LoadRefCellContentsAddress(_, byRefKind, _) ->
+            LoadRefCellContentsAddress(newArgs[0], byRefKind, this.ResultType)
         | LoadFromAddress _ ->
             LoadFromAddress(newArgs[0], this.ResultType)
         | Store(n, _, _) ->
@@ -605,6 +610,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | GreaterThan(resultTy=resultTy)
         | GreaterThanOrEqual(resultTy=resultTy)
         | LoadRefCellContents(resultTy=resultTy)
+        | LoadRefCellContentsAddress(resultTy=resultTy)
         | StoreRefCellContents(resultTy=resultTy)
         | Print(resultTy=resultTy)
         | Throw(resultTy=resultTy)

@@ -885,6 +885,7 @@ type OlyILOperation =
     | LessThanOrEqual of arg1: OlyILExpression * arg2: OlyILExpression
 
     | LoadRefCellContents of elementTy: OlyILType * arg: OlyILExpression
+    | LoadRefCellContentsAddress of elementTy: OlyILType * arg: OlyILExpression * kind: OlyILByRefKind
     | StoreRefCellContents of arg1: OlyILExpression * arg2: OlyILExpression
 
     | Print of arg: OlyILExpression

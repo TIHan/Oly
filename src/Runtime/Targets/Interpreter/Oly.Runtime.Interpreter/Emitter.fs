@@ -1269,14 +1269,21 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 | :? InterpreterInstanceOfType as receiver ->
                     stack.Push(receiver.GetFieldState("contents"))
                 | _ ->
-                    failwith "Invalid 'GetReferenceCell' operation."
+                    failwith "Invalid 'LoadRefCellContents' operation."
+
+            | InterpreterOperation.LoadRefCellContentsAddress(receiverExpr, _, _) ->
+                match evalArg stack receiverExpr with
+                | :? InterpreterInstanceOfType as receiver ->
+                    stack.Push(receiver.GetFieldStateAddress("contents"))
+                | _ ->
+                    failwith "Invalid 'LoadRefCellContentsAddress' operation."
 
             | InterpreterOperation.StoreRefCellContents(receiverExpr, argExpr, _) ->
                 match evalArg stack receiverExpr with
                 | :? InterpreterInstanceOfType as receiver ->
                     receiver.SetFieldState("contents", evalArg stack argExpr)
                 | _ ->
-                    failwith "Invalid 'SetReferenceCell' operation."
+                    failwith "Invalid 'StoreRefCellContents' operation."
 
             | InterpreterOperation.NewTuple(elementTys, argExprs, resultTy) ->
                 let args = evalArgs stack argExprs

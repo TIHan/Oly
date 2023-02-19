@@ -39,6 +39,10 @@ void main()
     fsout_Color = fsin_Color;
 }"
 
+// TODO: This is a hack, we should fix enum equality work in the language.
+#[intrinsic("equal")]
+(==)(Key, Key): bool
+
 main(): () =
     let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
 
@@ -80,16 +84,83 @@ main(): () =
 
     let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
     let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
-    Graphics.SetModelViewProjection(view * projection)
+    let mutable prevView = view
+    let mutable viewProjection = view * projection
+    Graphics.SetModelViewProjection(viewProjection)
+
+    let mutable is_w_pressed = false
+    let mutable is_a_pressed = false
+    let mutable is_s_pressed = false
+    let mutable is_d_pressed = false
+
+    let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<KeyEvent[||]>()
+    let processKeyEventQueue() =
+        let mutable keyEvents = unchecked default
+        while (keyEventQueue.TryDequeue(&keyEvents))
+            let mutable i = 0
+            while (i < keyEvents.Length)
+                let mutable keyEvent = keyEvents[0]
+                if (keyEvent.Key == Key.W)
+                    if (keyEvent.Down)
+                        is_w_pressed <- true
+                    else
+                        is_w_pressed <- false
+                if (keyEvent.Key == Key.A)
+                    if (keyEvent.Down)
+                        is_a_pressed <- true
+                    else
+                        is_a_pressed <- false
+                if (keyEvent.Key == Key.S)
+                    if (keyEvent.Down)
+                        is_s_pressed <- true
+                    else
+                        is_s_pressed <- false
+                if (keyEvent.Key == Key.D)
+                    if (keyEvent.Down)
+                        is_d_pressed <- true
+                    else
+                        is_d_pressed <- false
+                i <- i + 1
+
+    let mutable motion = Vector3.Zero
+    let checkMotion(interval: float32) =
+        if (is_w_pressed)
+            motion <- Vector3(motion.X, motion.Y, interval * 0.01)
+        else if (is_s_pressed)
+            motion <- Vector3(motion.X, motion.Y, -interval * 0.01)
+        else
+            motion <- Vector3(motion.X, motion.Y, 0)
+
+        if (is_a_pressed)
+            motion <- Vector3(interval * 0.01, motion.Y, motion.Z)
+        else if (is_d_pressed)
+            motion <- Vector3(-interval * 0.01, motion.Y, motion.Z)
+        else
+            motion <- Vector3(0, motion.Y, motion.Z)
 
     GameLoop.Start(
         30,
         deltaTime ->
             let inputState = window.GetInputState()
+
+            let keyEvents = inputState.GetKeyEvents()
+            if (keyEvents.Length > 0)
+                keyEventQueue.Enqueue(keyEvents)
+        
             !window.Exists,
-        deltaTime ->
+        (mutable intervalTime) ->
+            let interval = float32(intervalTime.TotalMilliseconds)
+            processKeyEventQueue()
+            checkMotion(interval)
+            prevView <- view
+            view.Translation <- view.Translation + motion
             !window.Exists,
         (deltaTime, delta) ->
+            let mutable prevViewProjection = prevView * projection
+            let mutable viewProjection = view * projection
+            let viewProjection = Matrix4x4.Lerp(prevViewProjection, viewProjection, delta)
+            Graphics.SetModelViewProjection(viewProjection)
+
             let windowExists = window.Exists
             if (windowExists)
                 Graphics.Draw(drawCmds)

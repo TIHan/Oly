@@ -80,6 +80,7 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
         | OlyILOperation.Store(_, ilArgExpr) 
         | OlyILOperation.StoreArgument(_, ilArgExpr) 
         | OlyILOperation.LoadRefCellContents(_, ilArgExpr)
+        | OlyILOperation.LoadRefCellContentsAddress(_, ilArgExpr, _)
         | OlyILOperation.Negate(ilArgExpr) 
         | OlyILOperation.NewRefCell(_, ilArgExpr) 
         | OlyILOperation.Not(ilArgExpr)
@@ -933,6 +934,19 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
             let irArg, _ = importExpression cenv env None ilArg
             O.LoadRefCellContents(irArg, cenv.EmitType(elementTy)) |> asExpr, elementTy
+
+        | OlyILOperation.LoadRefCellContentsAddress(ilElementTy, ilArg, ilByRefKind) ->
+            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let irArg, _ = importExpression cenv env None ilArg
+
+            let irByRefKind =
+                match ilByRefKind with
+                | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
+                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+
+            let resultTy = createByReferenceRuntimeType irByRefKind elementTy
+
+            O.LoadRefCellContentsAddress(irArg, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.StoreRefCellContents(ilArg1, ilArg2) ->
             let irArg1, irArgTy1 = importExpression cenv env None ilArg1

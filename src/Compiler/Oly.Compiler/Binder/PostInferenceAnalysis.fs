@@ -386,7 +386,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         | _ ->
             ()
         match env.freeLocals.TryGetValue value.Id with
-        | true, (syntaxNameOpt, _) ->
+        | true, (syntaxNameOpt, _) when value.Type.IsByRef_t ->
             let syntaxNode =
                 match syntaxNameOpt with
                 | Some syntaxName -> syntaxName :> OlySyntaxNode

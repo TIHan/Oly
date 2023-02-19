@@ -14193,3 +14193,31 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "y"
     |> ignore
+
+[<Fact>]
+let ``Mutable struct captured in lambda should pass``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct TestStruct =
+    mutable X: int32 = 0
+
+    mutable MutateX(): () =
+        this.X <- 123
+
+main(): () =
+    let mutable t = TestStruct()
+    let f() =
+        t.MutateX()
+    f()
+    print(t.X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore

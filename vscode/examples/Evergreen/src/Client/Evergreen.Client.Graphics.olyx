@@ -214,6 +214,13 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
+enum KeyEventKind =
+    | Pressed
+    | Released
+
+alias KeyEvent = Veldrid.KeyEvent
+alias Key = Veldrid.Key
+
 sealed class InputState =
     private snapshot: InputSnapshot
 
@@ -222,8 +229,10 @@ sealed class InputState =
             snapshot = snapshot
         }
 
-    IsKeyPressed(key: char): bool =
-        System.Linq.Enumerable.Contains<char>(this.snapshot.KeyCharPresses, key)
+    GetKeyEvents(): KeyEvent[||] =
+        System.Linq.Enumerable.ToArray<Veldrid.KeyEvent>(this.snapshot.KeyEvents)
+ //   IsKeyPressed(key: char): bool =
+   //     System.Linq.Enumerable.Contains<char>(this.snapshot.KeyCharPresses, key)
 
 sealed class Window =
     internal window: Sdl2Window
