@@ -43,6 +43,16 @@ void main()
 #[intrinsic("equal")]
 (==)(Key, Key): bool
 
+sealed class SyncData =
+    PreviousView: Matrix4x4
+    View: Matrix4x4
+
+    new(prevView: Matrix4x4, view: Matrix4x4) =
+        {
+            PreviousView = prevView;
+            View = view
+        }
+
 main(): () =
     System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
     let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
@@ -150,6 +160,9 @@ main(): () =
         else
             motion <- Vector3(0, motion.Y, motion.Z)
 
+
+    let mutable syncData = SyncData(prevView, view)
+
     let update() =
         let inputState = window.GetInputState()
 
@@ -163,11 +176,14 @@ main(): () =
         checkMotion(interval)
         prevView <- view
         view.Translation <- view.Translation + motion
+        syncData <- SyncData(prevView, view)
+        print("fixed\n")
         
       //  System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(deltatime, delta) =
-        newView <- Matrix4x4.Lerp(prevView, view, delta)
+        let syncData = syncData
+        newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, delta)
         let viewProjection = newView * projection
         Graphics.SetModelViewProjection(viewProjection)
 
@@ -183,7 +199,7 @@ main(): () =
         (intervalTime) ->
             fixedUpdate(intervalTime)
             let x = System.Random(System.Environment.TickCount)
-            System.Threading.Thread.Sleep(x.Next(0, 20))
+            System.Threading.Thread.Sleep(x.Next(10, 30))
             !window.Exists,
         (deltaTime, delta) ->
             render(deltaTime, delta)

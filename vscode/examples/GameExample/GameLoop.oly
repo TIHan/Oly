@@ -107,7 +107,6 @@ open System.Diagnostics
 
 private sealed class State =
     mutable LastTime: int64
-    mutable UpdateTime: int64
     mutable UpdateAccumulator: int64
     mutable WillQuit: bool 
 
@@ -118,9 +117,11 @@ private sealed class State =
     new(fixedUpdateInterval: float64) =
         let fixedUpdateInterval = int64((1000 / fixedUpdateInterval) * 10_000)
         let skip = int64(((1000.0: float64) / 5) * 10_000)
+
+        //let x = System.Threading.Thread.
+
         {
             LastTime = 0
-            UpdateTime = 0
             UpdateAccumulator = fixedUpdateInterval
             WillQuit = false
             Stopwatch = Stopwatch()
@@ -163,7 +164,6 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
     let processFixedUpdate() =
         while (state.UpdateAccumulator >= fixedUpdateInterval)
             let willQuit = fixedUpdate(TimeSpan.FromTicks(fixedUpdateInterval))
-            state.UpdateTime <- state.UpdateTime + fixedUpdateInterval
             state.UpdateAccumulator <- state.UpdateAccumulator - fixedUpdateInterval
             state.WillQuit <- willQuit
 
@@ -181,15 +181,15 @@ private Tick (#[inline] earlyUpdate: TimeSpan -> bool, #[inline] fixedUpdate: Ti
 
     processEarlyUpdate()
     if (state.UpdateAccumulator >= fixedUpdateInterval)
-        //processFixedUpdate()
-        //processUpdate()
+        processFixedUpdate()
 
         //if (task !== null)
-         //   task.Wait()
-       // task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
-        processFixedUpdate()
+          //  task.Wait()
+        //task <- System.Threading.Tasks.Task.Run(() -> processFixedUpdate())
+      //  processUpdate()
+      //  task.Wait()
         processUpdate()
-       // task.Wait()
+      //  task.Wait()
     else
         processUpdate()
 
