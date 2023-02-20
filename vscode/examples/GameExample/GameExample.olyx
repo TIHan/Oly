@@ -210,10 +210,9 @@ main(): () =
             while (i < amount)
                 x <- x * x
                 i <- i + 1
-            //render(1)
             !window.Exists,
         (alpha) ->
-            render(float32(alpha))
+            render(float32(1))
     )
 
     Graphics.DestroyWindow()

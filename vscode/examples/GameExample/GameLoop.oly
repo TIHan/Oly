@@ -5,12 +5,14 @@ open System
 open System.Diagnostics
 
 #[inline] 
-Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+Start(fixedUpdateIntervalInFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
 
     let mutable t = 0.0
-    let dt = (1000 / fixedUpdateInterval) * 0.001
+    let dt = (1000 / fixedUpdateIntervalInFramesPerSecond) * 0.001
+
+   // let dtRender = (1000 / maxRenderFramesPerSecond) * 0.001
 
     let mutable currentTime = stopwatch.Elapsed.TotalSeconds
     let mutable accumulator = 0.0
@@ -35,11 +37,8 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
             t <- t + dt
             accumulator <- accumulator - dt
             fixedUpdateCount <- fixedUpdateCount + 1
-        if (fixedUpdateCount > 1)
-            print("Catch-Up - Fixed Update Count: ")
-            print(fixedUpdateCount)
-            print("\n")
 
+        // ---------------------------
         frameCount <- frameCount + 1
         frames[frameCount % frameMaxCount] <- accumulator
 
@@ -52,5 +51,8 @@ Start(fixedUpdateInterval: float64, #[inline] update: () -> (), #[inline] fixedU
                 i <- i + 1  
             frames[frameCount % frameCount] <- smoothedAccumulator             
             smoothedAccumulator
+        // ---------------------------
 
-        render(smoothedAccumulator / dt)
+        if (fixedUpdateCount > 0)
+            let alpha = smoothedAccumulator / dt          
+            render(alpha)
