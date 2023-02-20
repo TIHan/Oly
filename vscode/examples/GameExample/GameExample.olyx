@@ -200,7 +200,6 @@ main(): () =
 
     GameLoop.Start(
         60,
-        120,
         () ->
             update(),
         (intervalTime, dt) ->

@@ -5,23 +5,19 @@ open System
 open System.Diagnostics
 
 #[inline] 
-Start(fixedUpdateIntervalInFramesPerSecond: float64, maxRenderFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+Start(fixedUpdateIntervalInFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
 
     let mutable t = 0.0
     let dt = (1000 / fixedUpdateIntervalInFramesPerSecond) * 0.001
-    let dtRender = ((1000.0: float64) / maxRenderFramesPerSecond) * 0.001
 
     let mutable currentTime = stopwatch.Elapsed.TotalSeconds
     let mutable accumulator = 0.0
-    let mutable renderAccumulator = 0.0
 
     while (!quit)
-        let oldTime = currentTime
         let newTime = stopwatch.Elapsed.TotalSeconds
-        let mutable frameTime = newTime - oldTime
-        renderAccumulator <- renderAccumulator + frameTime
+        let mutable frameTime = newTime - currentTime
         if (frameTime > 0.25)
             frameTime <- 0.25
         currentTime <- newTime
@@ -29,15 +25,11 @@ Start(fixedUpdateIntervalInFramesPerSecond: float64, maxRenderFramesPerSecond: f
 
         update()
 
-        let mutable fixedUpdateCount = 0
         while (accumulator >= dt)
             quit <- fixedUpdate(t, dt)
             t <- t + dt
             accumulator <- accumulator - dt
-            fixedUpdateCount <- fixedUpdateCount + 1
 
-        if (fixedUpdateCount > 0)
-            let alpha = accumulator / dt          
-            render(1)
-            renderAccumulator <- renderAccumulator - dtRender
+        let alpha = accumulator / dt          
+        render(alpha)
         
