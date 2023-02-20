@@ -233,7 +233,7 @@ sealed class Window =
     internal window: Sdl2Window
 
     internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
-        let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.FullScreen, title)
+        let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.Normal, title)
         let window = VeldridStartup.CreateWindow(windowCreateInfo)
         {
             window = window
@@ -277,7 +277,7 @@ module Graphics =
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
         options.PreferDepthRangeZeroToOne <- true  
-//        options.SyncToVerticalBlank <- true      
+        //options.SyncToVerticalBlank <- true      
 
         graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
         factory <- graphicsDevice.ResourceFactory

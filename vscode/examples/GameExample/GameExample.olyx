@@ -55,7 +55,7 @@ sealed class SyncData =
 
 main(): () =
     //System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
-    let window = Graphics.CreateWindow(100, 100, 1920, 1080, "Evergreen Engine")
+    let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
 
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
@@ -200,6 +200,7 @@ main(): () =
 
     GameLoop.Start(
         60,
+        120,
         () ->
             update(),
         (intervalTime, dt) ->
@@ -212,7 +213,7 @@ main(): () =
                 i <- i + 1
             !window.Exists,
         (alpha) ->
-            render(float32(1))
+            render(float32(alpha))
     )
 
     Graphics.DestroyWindow()

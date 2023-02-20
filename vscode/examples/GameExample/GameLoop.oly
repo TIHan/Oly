@@ -5,25 +5,23 @@ open System
 open System.Diagnostics
 
 #[inline] 
-Start(fixedUpdateIntervalInFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+Start(fixedUpdateIntervalInFramesPerSecond: float64, maxRenderFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
 
     let mutable t = 0.0
     let dt = (1000 / fixedUpdateIntervalInFramesPerSecond) * 0.001
-
-   // let dtRender = (1000 / maxRenderFramesPerSecond) * 0.001
+    let dtRender = ((1000.0: float64) / maxRenderFramesPerSecond) * 0.001
 
     let mutable currentTime = stopwatch.Elapsed.TotalSeconds
     let mutable accumulator = 0.0
+    let mutable renderAccumulator = 0.0
 
     while (!quit)
-        let mutable frameCount = 0
-        let mutable frameMaxCount = 120
-        let mutable frames = OlyArray.ZeroCreate<float64>(frameMaxCount)
-
+        let oldTime = currentTime
         let newTime = stopwatch.Elapsed.TotalSeconds
-        let mutable frameTime = newTime - currentTime
+        let mutable frameTime = newTime - oldTime
+        renderAccumulator <- renderAccumulator + frameTime
         if (frameTime > 0.25)
             frameTime <- 0.25
         currentTime <- newTime
@@ -38,21 +36,8 @@ Start(fixedUpdateIntervalInFramesPerSecond: float64, #[inline] update: () -> (),
             accumulator <- accumulator - dt
             fixedUpdateCount <- fixedUpdateCount + 1
 
-        // ---------------------------
-        frameCount <- frameCount + 1
-        frames[frameCount % frameMaxCount] <- accumulator
-
-        let smoothedAccumulator =
-            let count = Math.Min(frameCount, frameMaxCount)
-            let mutable smoothedAccumulator = 0.0
-            let mutable i = 0
-            while (i < count)
-                smoothedAccumulator <- smoothedAccumulator + frames[i % frameMaxCount]
-                i <- i + 1  
-            frames[frameCount % frameCount] <- smoothedAccumulator             
-            smoothedAccumulator
-        // ---------------------------
-
         if (fixedUpdateCount > 0)
-            let alpha = smoothedAccumulator / dt          
-            render(alpha)
+            let alpha = accumulator / dt          
+            render(1)
+            renderAccumulator <- renderAccumulator - dtRender
+        
