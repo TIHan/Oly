@@ -1541,6 +1541,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | ClrTypeHandle.FunctionPointer _ 
             | ClrTypeHandle.NativePointer _  ->
                 il.Token(asmBuilder.TypeReferenceUIntPtr.EntityHandle)
+            | ClrTypeHandle.Array _ ->
+                il.Token(asmBuilder.TypeReferenceArray.EntityHandle)
             | _ ->
                 il.Token(handle.EntityHandle)
 

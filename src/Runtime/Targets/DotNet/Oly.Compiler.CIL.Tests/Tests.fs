@@ -14221,3 +14221,23 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
+
+[<Fact>]
+let ``Mutable value array should work with shadowing``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let mutable values = [1]
+    let mutable shadowedValues = values
+    print("should work")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "should work"
+    |> ignore

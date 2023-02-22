@@ -284,3 +284,51 @@ module TestMain =
         """
     OlyTwo src2 src1
     |> runWithExpectedOutput "hellocall"
+
+[<Fact>]
+let ``Basic array types referencing one another in the different compilations``() =
+    let refSrc =
+        """
+namespace Test
+
+module TestModule =
+
+    struct Item =
+        mutable X: int32 = 0
+
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(T[], index: int32): T
+    #[intrinsic("get_element")]
+    (`[,]`)<T>(T[,], index1: int32, index2: int32): T
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(T[||], index: int32): T
+    #[intrinsic("set_element")]
+    (`[]`)<T>(T[||], index: int32, T): ()
+    #[intrinsic("get_element")]
+    (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+    #[intrinsic("set_element")]
+    (`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    test(): (Item[])[] =
+        [[Item()]]
+
+        """
+    let src =
+        """
+open static Test.TestModule
+
+main(): () =
+    let values = test()
+    let mutable values = values
+    let value = (values[0])[0]
+    print(value.X)
+        """
+    OlyWithReference refSrc src
+    |> runWithExpectedOutput "0"
