@@ -25,7 +25,7 @@ layout(set = 0, binding = 0) uniform _ModelViewProjection
 
 void main()
 {
-    gl_Position = ModelViewProjection * Transform * vec4(Position, 1);
+    gl_Position = ModelViewProjection * vec4(Position + Transform[3].xyz, 1);
     fsin_Color = vec4(Position.x, Position.y, 1, 1);
 }"
 
@@ -56,6 +56,51 @@ clamp(min: float32, max: float32, value: float32): float32 =
         max
     else
         value
+
+struct ViewProjection =
+    mutable View: Matrix4x4
+    mutable Projection: Matrix4x4
+
+    new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
+        {
+            View = Matrix4x4.Identity
+            Projection = Matrix4x4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
+        }
+
+    new(fov: float32, width: int32, height: int32) =
+        ViewProjection(fov, width, height, 0.1, 1000000)
+
+    Position: Vector3 get() = this.View.Translation
+    Rotation: Quaternion get() = Quaternion.CreateFromRotationMatrix(this.View)
+
+    InvertedView: ViewProjection 
+        get() =
+            let mutable invertedView = Matrix4x4.Identity
+            let result = Matrix4x4.Invert(this.View, &invertedView)
+            let mutable viewProj = this
+            viewProj.View <- invertedView
+            viewProj
+
+    SetPosition(position: Vector3): ViewProjection =
+        let mutable view = this.View
+        view.Translation <- position
+        let mutable viewProj = this
+        viewProj.View <- view
+        viewProj
+
+    SetRotation(rotation: Quaternion): ViewProjection =
+        let mutable view = Matrix4x4.CreateFromQuaternion(rotation)
+        view.Translation <- this.Position
+        let mutable viewProj = this
+        viewProj.View <- view
+        viewProj
+
+    SetPositionRotation(position: Vector3, rotation: Quaternion): ViewProjection =
+        let mutable view = Matrix4x4.CreateFromQuaternion(rotation)
+        view.Translation <- position
+        let mutable viewProj = this
+        viewProj.View <- view
+        viewProj
 
 main(): () =
     //System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
@@ -107,12 +152,11 @@ main(): () =
 
     let drawCmds = [drawCmd]
 
-    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 90 * float32(System.Math.PI / 180))
+    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
-    let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
-    let mutable view = Matrix4x4.Identity
-    let mutable viewProjection = view * projection
-    Graphics.SetModelViewProjection(viewProjection)
+    let mutable viewProj = ViewProjection(70, 1280, 720, 0.01, 1000000)
+    let mutable viewProjLerp = viewProj
+    Graphics.SetModelViewProjection(viewProj.View * viewProj.Projection)
 
     let mutable is_w_pressed = false
     let mutable is_a_pressed = false
@@ -153,37 +197,32 @@ main(): () =
 
                 i <- i + 1
 
-    let mutable prevCameraPosition = Vector3.Zero
-    let mutable cameraPosition = Vector3(0, -4, 0)
-    let mutable cameraRotation = Quaternion.Identity
-
-    let mutable motion = Vector3.Zero
     let checkMotion(interval: float32) =
         let mutable acc = Vector3.Zero
                                 
         if (is_w_pressed)
-            let v = Vector3.Transform(Vector3.UnitZ, cameraRotation)
+            let v = Vector3.UnitZ
             acc <- Vector3(v.X, v.Y, v.Z)
 
         if (is_s_pressed)
-            let v = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
+            let v = -Vector3.UnitZ
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         if (is_a_pressed)
-            let v = Vector3.Transform(Vector3.UnitX, cameraRotation)
+            let v = Vector3.UnitX
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         if (is_d_pressed)
-            let v = Vector3.Transform(-Vector3.UnitX, cameraRotation)
+            let v = -Vector3.UnitX
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        // acc <-
-        //     if (acc != Vector3.Zero)
-        //         Vector3.Multiply(Vector3.Normalize(acc), 1)
-        //     else
-        //         acc
+        acc <-
+            if (acc != Vector3.Zero)
+                Vector3.Multiply(Vector3.Normalize(acc), 1)
+            else
+                acc
 
-        motion <- acc
+        acc
 
     let mutable yaw = 0.0: float32
     let mutable pitch = 0.0: float32
@@ -202,23 +241,21 @@ main(): () =
         yaw <- yaw + yawAcc
         pitch <- pitch + pitchAcc
 
-        cameraRotation <- defaultCameraRotation
-        cameraRotation <- cameraRotation * Quaternion.CreateFromYawPitchRoll(0, pitch, -yaw)
+        viewProj <- viewProj.SetRotation(defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(0, pitch, -yaw))
 
     let fixedUpdate(mutable interval: float64) =
         let interval = float32(interval)
         processKeyEventQueue()
-        checkMotion(interval)
-        prevCameraPosition <- cameraPosition
-        cameraPosition <- cameraPosition + motion  
+        let motion = checkMotion(interval)
+        viewProjLerp <- viewProj
+        viewProj <- viewProj.SetPosition(viewProj.Position + motion)
         //System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(alpha) =
-        let newCameraPosition = Vector3.Lerp(prevCameraPosition, cameraPosition, alpha)
-        let mutable newView = Matrix4x4.CreateFromQuaternion(cameraRotation)
-        newView.Translation <- newCameraPosition
-        let viewProjection = newView * projection
-        Graphics.SetModelViewProjection(viewProjection)
+        let projection = viewProj.Projection
+        let mutable view = Matrix4x4.CreateFromQuaternion(viewProj.Rotation)
+        view.Translation <- Vector3.Lerp(viewProjLerp.View.Translation, viewProj.View.Translation, alpha)
+        Graphics.SetModelViewProjection(view * projection)
 
         let windowExists = window.Exists
         if (windowExists)
