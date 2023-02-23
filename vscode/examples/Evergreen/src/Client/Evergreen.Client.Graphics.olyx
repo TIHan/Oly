@@ -221,13 +221,21 @@ enum KeyEventKind =
 alias KeyEvent = Veldrid.KeyEvent
 alias Key = Veldrid.Key
 
+alias MouseEvent = Veldrid.MouseEvent
+
 sealed class InputState =
     KeyEvents: KeyEvent[||]
+    MouseEvents: MouseEvent[||]
+    mutable MousePosition: Vector2
 
-    internal new(keyEvents: KeyEvent[||]) =
+    internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||]) =
         {
             KeyEvents = keyEvents
+            MouseEvents = mouseEvents
+            MousePosition = Vector2.Zero
         }
+
+    
 
 sealed class Window =
     internal window: Sdl2Window
@@ -241,8 +249,21 @@ sealed class Window =
 
     GetInputState(): InputState =
         let snapshot = this.window.PumpEvents()
-        let keyEvents = System.Linq.Enumerable.ToArray<Veldrid.KeyEvent>(snapshot.KeyEvents)
-        InputState(keyEvents)
+        let keyEvents = System.Linq.Enumerable.ToArray<KeyEvent>(snapshot.KeyEvents)
+        let mouseEvents = System.Linq.Enumerable.ToArray<MouseEvent>(snapshot.MouseEvents)
+        let state = InputState(keyEvents, mouseEvents)
+        state.MousePosition <- snapshot.MousePosition
+        state
+
+    SetFullscreen(value: bool): () =
+        if (value)
+            this.window.WindowState <- WindowState.FullScreen
+        else
+            this.window.WindowState <- WindowState.Normal
+
+    IsFullscreen: bool 
+        get() = 
+            fromEnum<WindowState>(this.window.WindowState) == fromEnum<WindowState>(WindowState.FullScreen)
 
     Close(): () =
         this.window.Close()
@@ -460,3 +481,6 @@ module Graphics =
         window <- unchecked default
         commandList.Dispose()
         graphicsDevice.Dispose()
+
+    SetVSync(enabled: bool): () =
+        graphicsDevice.SyncToVerticalBlank <- enabled

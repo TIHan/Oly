@@ -116,10 +116,12 @@ main(): () =
     let mutable is_d_pressed = false
 
     let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()
+    let mutable mousePosition = Vector2.Zero
     let processKeyEventQueue() =
         let mutable inputState = unchecked default
         while (keyEventQueue.TryDequeue(&inputState))
             let keyEvents = inputState.KeyEvents
+            mousePosition <- Vector2(inputState.MousePosition.X, inputState.MousePosition.Y)
             let mutable i = 0
             while (i < keyEvents.Length)
                 let mutable keyEvent = keyEvents[i]
@@ -150,6 +152,7 @@ main(): () =
                 i <- i + 1
 
     let mutable motion = Vector3.Zero
+    let mutable rotation = Quaternion.Identity
     let checkMotion(interval: float32) =
         let mutable z = 0: float32
         if (is_w_pressed)
@@ -167,7 +170,6 @@ main(): () =
 
         motion <- Vector3(x, motion.Y, z)
 
-
     let mutable syncData = SyncData(prevView, view)
 
     let mutable prevCameraPosition = view.Translation
@@ -175,6 +177,8 @@ main(): () =
     let update() =
         let inputState = window.GetInputState()
         keyEventQueue.Enqueue(inputState)
+
+        rotation <- Quaternion.CreateFromYawPitchRoll(mousePosition.X, 0, 0)
 
     let fixedUpdate(mutable interval: float64) =
         let interval = float32(interval)
@@ -189,6 +193,7 @@ main(): () =
     let render(alpha) =
         let syncData = syncData
         newView <- syncData.View
+        newView <- Matrix4x4.CreateFromQuaternion(rotation) * newView
         newView.Translation <- Vector3.Lerp(prevCameraPosition, newView.Translation, alpha)
         //newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, alpha)
         let viewProjection = newView * projection
@@ -198,18 +203,16 @@ main(): () =
         if (windowExists)
             Graphics.Draw(drawCmds)
 
+   // Graphics.SetVSync(true)
+    //window.SetFullscreen(true)
+
     GameLoop.Start(
+        20,
         60,
         () ->
             update(),
         (intervalTime, dt) ->
             fixedUpdate(dt)
-            let amount = 900000 //System.Random().Next(800000, 1000000)
-            let mutable x = Matrix4x4.Identity
-            let mutable i = 0
-            while (i < amount)
-                x <- x * x
-                i <- i + 1
             !window.Exists,
         (alpha) ->
             render(float32(alpha))

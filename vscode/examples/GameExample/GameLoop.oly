@@ -4,32 +4,62 @@ module GameLoop
 open System
 open System.Diagnostics
 
+private ConvertSecondsToTicks(seconds: float64): int64 = TimeSpan.FromSeconds(seconds).Ticks
+private ConvertTicksToSeconds(ticks: int64): float64 = TimeSpan.FromTicks(ticks).TotalSeconds
+private ConvertFramesPerSecondToSeconds(fps: float64): float64 = (1000 / fps) * 0.001
+private ConvertFramesPerSecondToTicks(fps: float64): int64 = ConvertSecondsToTicks(ConvertFramesPerSecondToSeconds(fps))
+
 #[inline] 
-Start(fixedUpdateIntervalInFramesPerSecond: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+Start(fixedFps: float64, maxFps: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
+    let getTicks() = stopwatch.Elapsed.Ticks
 
-    let mutable t = 0.0
-    let dt = (1000 / fixedUpdateIntervalInFramesPerSecond) * 0.001
+    let vsyncError = int64(float64(Stopwatch.Frequency) * 0.0002)
 
-    let mutable currentTime = stopwatch.Elapsed.TotalSeconds
-    let mutable accumulator = 0.0
+    let skip = ConvertFramesPerSecondToTicks(1)
+
+    let mutable t = 0: int64
+    let fixedDeltaTime = ConvertFramesPerSecondToTicks(fixedFps)
+    let dtRenderMax = ConvertFramesPerSecondToTicks(maxFps)
+    let mutable dtRender = dtRenderMax
+    let mutable dt = fixedDeltaTime
+
+    let mutable currentTime = getTicks()
+    let mutable accumulator = 0: int64
+    let mutable renderAccumulator = 0: int64
+
+    let mutable updateDtRender = false
 
     while (!quit)
-        let newTime = stopwatch.Elapsed.TotalSeconds
+        let newTime = getTicks()
         let mutable frameTime = newTime - currentTime
-        if (frameTime > 0.25)
-            frameTime <- 0.25
         currentTime <- newTime
+
+        if (updateDtRender)
+            updateDtRender <- false
+            dtRender <- System.Math.Max(frameTime, dtRenderMax)
+        renderAccumulator <- renderAccumulator + frameTime
+
+        if (frameTime > skip)
+            frameTime <- skip
         accumulator <- accumulator + frameTime
 
         update()
 
         while (accumulator >= dt)
-            quit <- fixedUpdate(t, dt)
+            quit <- fixedUpdate(ConvertTicksToSeconds(t), ConvertTicksToSeconds(dt))
             t <- t + dt
             accumulator <- accumulator - dt
+            updateDtRender <- true
 
-        let alpha = accumulator / dt          
-        render(alpha)
-        
+        if (renderAccumulator > (dtRender * 2))
+            renderAccumulator <- dtRender
+
+        if (renderAccumulator >= dtRender)
+            let alpha = float64(accumulator) / float64(dt)          
+            render(alpha)
+            if (dtRender == dtRenderMax)
+                renderAccumulator <- vsyncError
+            else
+                renderAccumulator <- renderAccumulator - dtRender
