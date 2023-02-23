@@ -107,8 +107,10 @@ main(): () =
 
     let drawCmds = [drawCmd]
 
+    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 90 * float32(System.Math.PI / 180))
+
     let mutable projection = Matrix4x4.CreatePerspectiveFieldOfView((90: float32) * 0.017453, (1280.0: float32) / 720, 0.1, 100)
-    let mutable view = Matrix4x4.CreateLookAt(Vector3(0, 0, 5), Vector3.Zero, Vector3(0, 1, 0))
+    let mutable view = Matrix4x4.Identity
     let mutable viewProjection = view * projection
     Graphics.SetModelViewProjection(viewProjection)
 
@@ -152,65 +154,69 @@ main(): () =
                 i <- i + 1
 
     let mutable prevCameraPosition = Vector3.Zero
-    let mutable cameraPosition = Vector3.Zero
-    let mutable cameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 90 * float32(System.Math.PI / 180))
+    let mutable cameraPosition = Vector3(0, -4, 0)
+    let mutable cameraRotation = Quaternion.Identity
 
     let mutable motion = Vector3.Zero
     let checkMotion(interval: float32) =
         let mutable acc = Vector3.Zero
                                 
         if (is_w_pressed)
-            let v = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
-            acc <- Vector3(v.X, v.Y, v.Z)
-
-        if (is_s_pressed)
             let v = Vector3.Transform(Vector3.UnitZ, cameraRotation)
             acc <- Vector3(v.X, v.Y, v.Z)
 
+        if (is_s_pressed)
+            let v = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
+
         if (is_a_pressed)
-            let v = Vector3.Transform(-Vector3.UnitX, cameraRotation)
-            acc <- Vector3(v.X, v.Y, v.Z)
+            let v = Vector3.Transform(Vector3.UnitX, cameraRotation)
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         if (is_d_pressed)
-            let v = Vector3.Transform(Vector3.UnitX, cameraRotation)
-            acc <- Vector3(v.X, v.Y, v.Z)
+            let v = Vector3.Transform(-Vector3.UnitX, cameraRotation)
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        acc <-
-            if (acc != Vector3.Zero)
-                Vector3.Multiply(Vector3.Normalize(acc), 1)
-            else
-                acc
+        // acc <-
+        //     if (acc != Vector3.Zero)
+        //         Vector3.Multiply(Vector3.Normalize(acc), 1)
+        //     else
+        //         acc
 
         motion <- acc
 
+    let mutable yaw = 0.0: float32
+    let mutable pitch = 0.0: float32
     let update() =
         let inputState = window.GetInputState()
         keyEventQueue.Enqueue(inputState)
 
         let mousePosition = inputState.MouseDelta
 
-        let yaw =
+        let yawAcc =
             mousePosition.X * 0.0025
 
-        let pitch =
+        let pitchAcc =
             mousePosition.Y * 0.0025
 
-//        cameraRotation <- Quaternion.CreateFromAxisAngle(Vector3.UnitX, 90 * float32(System.Math.PI / 180))
-        cameraRotation <- cameraRotation * Quaternion.CreateFromYawPitchRoll(yaw, pitch, 0)
+        yaw <- yaw + yawAcc
+        pitch <- pitch + pitchAcc
+
+        cameraRotation <- defaultCameraRotation
+        cameraRotation <- cameraRotation * Quaternion.CreateFromYawPitchRoll(0, pitch, -yaw)
 
     let fixedUpdate(mutable interval: float64) =
         let interval = float32(interval)
         processKeyEventQueue()
         checkMotion(interval)
         prevCameraPosition <- cameraPosition
-        cameraPosition <- cameraPosition + motion
-        
+        cameraPosition <- cameraPosition + motion  
         //System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(alpha) =
         let newCameraPosition = Vector3.Lerp(prevCameraPosition, cameraPosition, alpha)
-        let newView = Matrix4x4.CreateTranslation(newCameraPosition) * Matrix4x4.CreateFromQuaternion(cameraRotation) * view
-        //newView <- Matrix4x4.Lerp(syncData.PreviousView, syncData.View, alpha)
+        let mutable newView = Matrix4x4.CreateFromQuaternion(cameraRotation)
+        newView.Translation <- newCameraPosition
         let viewProjection = newView * projection
         Graphics.SetModelViewProjection(viewProjection)
 
@@ -234,44 +240,3 @@ main(): () =
     )
 
     Graphics.DestroyWindow()
-
-    // let updatePlayer (mov: Movement) (player: byref<Transform>) =
-    //     let isMovingForward = mov.IsMovingForward
-    //     let isMovingLeft = mov.IsMovingLeft
-    //     let isMovingBackward = mov.IsMovingBackward
-    //     let isMovingRight = mov.IsMovingRight
-    
-    //     let mutable acc = Vector3.Zero
-                                
-    //     if isMovingForward then
-    //         let v = Vector3.Transform (-Vector3.UnitZ, player.rotation)
-    //         acc <- (Vector3 (v.X, v.Y, v.Z))
-    
-    //     if isMovingLeft then
-    //         let v = Vector3.Transform (-Vector3.UnitX, player.rotation)
-    //         acc <- acc + (Vector3 (v.X, v.Y, v.Z))
-    
-    //     if isMovingBackward then
-    //         let v = Vector3.Transform (Vector3.UnitZ, player.rotation)
-    //         acc <- acc + (Vector3 (v.X, v.Y, v.Z))
-    
-    //     if isMovingRight then
-    //         let v = Vector3.Transform (Vector3.UnitX, player.rotation)
-    //         acc <- acc + (Vector3 (v.X, v.Y, v.Z))
-       
-    //     acc <- 
-    //         if acc <> Vector3.Zero then
-    //             (acc |> Vector3.Normalize) * 10.f
-    //         else
-    //             acc
-    
-    //     player.rotation <- Quaternion.CreateFromAxisAngle (Vector3.UnitX, 90.f * (float32 Math.PI / 180.f))
-    
-    //     player.rotation <- player.rotation *
-    //         Quaternion.CreateFromYawPitchRoll (
-    //             mov.Yaw * 0.25f,
-    //             mov.Pitch * 0.25f,
-    //             0.f
-    //         )
-    
-    //     player.position <- player.position + acc
