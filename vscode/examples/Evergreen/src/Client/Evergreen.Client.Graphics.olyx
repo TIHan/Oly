@@ -227,12 +227,14 @@ sealed class InputState =
     KeyEvents: KeyEvent[||]
     MouseEvents: MouseEvent[||]
     mutable MousePosition: Vector2
+    mutable MouseDelta: Vector2
 
     internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||]) =
         {
             KeyEvents = keyEvents
             MouseEvents = mouseEvents
             MousePosition = Vector2.Zero
+            MouseDelta = Vector2.Zero
         }
 
     
@@ -253,6 +255,7 @@ sealed class Window =
         let mouseEvents = System.Linq.Enumerable.ToArray<MouseEvent>(snapshot.MouseEvents)
         let state = InputState(keyEvents, mouseEvents)
         state.MousePosition <- snapshot.MousePosition
+        state.MouseDelta <- this.window.MouseDelta
         state
 
     SetFullscreen(value: bool): () =
@@ -264,6 +267,14 @@ sealed class Window =
     IsFullscreen: bool 
         get() = 
             fromEnum<WindowState>(this.window.WindowState) == fromEnum<WindowState>(WindowState.FullScreen)
+
+    HideCursor(): () =
+        let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(true)
+        this.window.CursorVisible <- false
+
+    ShowCursor(): () =
+        let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(false)
+        this.window.CursorVisible <- true
 
     Close(): () =
         this.window.Close()

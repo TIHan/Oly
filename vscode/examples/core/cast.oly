@@ -74,6 +74,9 @@ float64(int32): float64
 float64(int64): float64
 
 #[intrinsic("cast")]
+float64(float32): float64
+
+#[intrinsic("cast")]
 nint<T>(T*): nint
 
 #[intrinsic("cast")]
