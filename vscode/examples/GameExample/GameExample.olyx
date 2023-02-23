@@ -155,6 +155,7 @@ main(): () =
     let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
     let mutable viewProj = ViewProjection(70, 1280, 720, 0.01, 1000000)
+    viewProj <- viewProj.SetPosition(Vector3(0, 4, 0))
     let mutable viewProjLerp = viewProj
     Graphics.SetModelViewProjection(viewProj.View * viewProj.Projection)
 
@@ -255,7 +256,10 @@ main(): () =
         let projection = viewProj.Projection
         let mutable view = Matrix4x4.CreateFromQuaternion(viewProj.Rotation)
         view.Translation <- Vector3.Lerp(viewProjLerp.View.Translation, viewProj.View.Translation, alpha)
-        Graphics.SetModelViewProjection(view * projection)
+
+        let mutable newView = view
+        newView.Translation <- Vector3(newView.Translation.X, -newView.Translation.Y, newView.Translation.Z)
+        Graphics.SetModelViewProjection(newView * projection)
 
         let windowExists = window.Exists
         if (windowExists)
