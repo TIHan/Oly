@@ -353,8 +353,7 @@ module Graphics =
     private mutable factory: ResourceFactory = null
     private mutable commandList: CommandList = null
 
-
-    private mutable modelViewProjectionUniformBuffer: DeviceBuffer = null
+    private mutable globalUniformBuffer: DeviceBuffer = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
@@ -379,7 +378,7 @@ module Graphics =
 
         // Default resource set
         //
-        modelViewProjectionUniformBuffer <- createDynamicUniformBuffer(Matrix4x4.Identity, 0)
+        globalUniformBuffer <- createGlobalUniformBuffer(Matrix4x4.Identity, 0, 0)
         //
         //
 
@@ -399,6 +398,53 @@ module Graphics =
         graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
+
+    private struct ResourceSetGroup =
+        ResourceLayouts: ResourceLayout[||]
+        ResourceSets: ResourceSet[||]
+
+        new(resourceLayouts: ResourceLayout[||], resourceSets: ResourceSet[||]) =
+            {
+                ResourceLayouts = resourceLayouts;
+                ResourceSets = resourceSets
+            }
+
+    private CreateResourceSets(instances: Instances, shaderStages: ShaderStages, transformResourceKind: ResourceKind): ResourceSetGroup =
+        // ------------------------------------------------------------
+        let resourceLayoutDesc =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, shaderStages)
+                |]
+            )
+        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    (globalUniformBuffer: BindableResource)
+                |]
+            )
+        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
+
+        let resourceLayoutDesc2 =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Transforms", transformResourceKind, shaderStages)
+                |]
+            )
+        let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
+        let resourceSetDesc2 = 
+            ResourceSetDescription(
+                resourceLayout2,
+                [|
+                    (instances.TransformBuffer: BindableResource)
+                |]
+            )
+        let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
+
+        ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
+        // ----------------------------------------------------------------
     
     private CreateShaderState(shaderDesc: ShaderDescription, instances: Instances): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
@@ -434,80 +480,33 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        // ------------------------------------------------------------
-        let resourceLayoutDesc =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("ModelViewProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex)
-                |]
-            )
-        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
-        let resourceSetDesc = 
-            ResourceSetDescription(
-                resourceLayout,
-                [|
-                    (modelViewProjectionUniformBuffer: BindableResource)
-                |]
-            )
-        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
-
-        let resourceLayoutDesc2 =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("Transforms", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)
-                |]
-            )
-        let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
-        let resourceSetDesc2 = 
-            ResourceSetDescription(
-                resourceLayout2,
-                [|
-                    (instances.TransformBuffer: BindableResource)
-                |]
-            )
-        let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
-
-        pipelineDesc.ResourceLayouts <- [|resourceLayout;resourceLayout2|]
-        // ----------------------------------------------------------------
+        let resourceSetGroup = CreateResourceSets(instances, ShaderStages.Vertex, ResourceKind.StructuredBufferReadOnly)
     
+        pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
-        ShaderState(shaders[0], shaders[1], [|resourceSet;resourceSet2|], pipeline)
+        ShaderState(shaders[0], shaders[1], resourceSetGroup.ResourceSets, pipeline)
 
     private CreateComputeShaderState(shaderDesc: ComputeShaderDescription, instances: Instances): ComputeShaderState =
         let computeShaderDesc = shaderDesc.ComputeShader
     
         let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
 
-        let resourceLayoutDesc =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("Transforms", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)
-                |]
-            )
-        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
-        let resourceSetDesc = 
-            ResourceSetDescription(
-                resourceLayout,
-                [|
-                    (instances.TransformBuffer: BindableResource)
-                |]
-            )
+        let resourceSetGroup = CreateResourceSets(instances, ShaderStages.Compute, ResourceKind.StructuredBufferReadWrite)
     
         let pipelineDesc = 
             ComputePipelineDescription(
                 shader, 
-                [|resourceLayout|], 
+                resourceSetGroup.ResourceLayouts, 
                 1, 
                 1, 
                 1
             )
 
         let pipeline = factory.CreateComputePipeline(pipelineDesc)
-        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
     
-        ComputeShaderState(shader, [|resourceSet|], pipeline)
+        ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
     CreateShader(shaderDesc: ShaderDescription, instances: Instances): Shader =
         Shader(CreateShaderState(shaderDesc, instances))
@@ -522,13 +521,17 @@ module Graphics =
     //     oldState.FragmentShader.Dispose()
     //     oldState.VertexShader.Dispose()
 
-    private createDynamicUniformBuffer(value: Matrix4x4, slot: uint32): DeviceBuffer =
-        let buffer = factory.CreateBuffer(BufferDescription(64, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
-        graphicsDevice.UpdateBuffer(buffer, 0, value)
+    private createGlobalUniformBuffer(viewProj: Matrix4x4, deltaTime: float32, slot: uint32): DeviceBuffer =
+        let buffer = factory.CreateBuffer(BufferDescription((64: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        graphicsDevice.UpdateBuffer(buffer, 0, viewProj)
+        graphicsDevice.UpdateBuffer(buffer, 64, deltaTime)
         buffer
 
+    SetDeltaTime(value: float32): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 64, value)
+
     SetModelViewProjection(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(modelViewProjectionUniformBuffer, 0, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
 
     CreateInstances(transforms: Matrix4x4[||]): Instances =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite

@@ -21,12 +21,13 @@ layout(location = 0) out vec4 fsin_Color;
 layout(set = 0, binding = 0) uniform _ModelViewProjection
 {
     mat4 ModelViewProjection;
+    float DeltaTime;
 };
 
 layout(set = 1, binding = 0) readonly buffer _Transforms
-    {
-        mat4[] Transforms;
-    };
+{
+    mat4[] Transforms;
+};
 
 void main()
 {
@@ -47,10 +48,16 @@ void main()
 
 DefaultComputeCode: string = "#version 450
 
-layout(set = 0, binding = 0) buffer _Transforms
-    {
-        mat4[] Transforms;
-    };
+layout(set = 0, binding = 0) uniform _Global
+{
+    mat4 ModelViewProjection;
+    float DeltaTime;
+};
+    
+layout(set = 1, binding = 0) buffer _Transforms
+{
+    mat4[] Transforms;
+};
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
@@ -64,7 +71,7 @@ void main()
 
     mat4 transform = Transforms[index];
 
-    transform = mat4(0);
+    transform[3].xyz = transform[3].xyz + (vec3(5) * DeltaTime);
 
     Transforms[index] = transform;
 }"
@@ -290,13 +297,14 @@ main(): () =
         cameraPosition <- cameraPosition + checkMotion(interval, cameraRotation)
         System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
-    let render(alpha) =
+    let render(deltaTime, alpha) =
         let cameraPostionFinal = Vector3.Lerp(cameraPositionLerp, cameraPosition, alpha)
         let mutable view = Matrix4x4.CreateFromQuaternion(cameraRotation)
         view.Translation <- cameraPostionFinal
         let projection = viewProj.Projection
         let result = Matrix4x4.Invert(view, &view)
         Graphics.SetModelViewProjection(view * projection)
+        Graphics.SetDeltaTime(deltaTime)
 
         let windowExists = window.Exists
         if (windowExists)
@@ -314,7 +322,7 @@ main(): () =
             fixedUpdate(dt)
             !window.Exists,
         (dt, alpha) ->
-            render(float32(alpha))
+            render(float32(dt), float32(alpha))
     )
 
     Graphics.DestroyWindow()
