@@ -68,6 +68,12 @@ float32(int64): float32
 float32(float64): float32
 
 #[intrinsic("cast")]
+float64(uint8): float64
+
+#[intrinsic("cast")]
+float64(uint16): float64
+
+#[intrinsic("cast")]
 float64(int32): float64
 
 #[intrinsic("cast")]

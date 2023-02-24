@@ -10,18 +10,18 @@ private ConvertFramesPerSecondToSeconds(fps: float64): float64 = (1000 / fps) * 
 private ConvertFramesPerSecondToTicks(fps: float64): int64 = ConvertSecondsToTicks(ConvertFramesPerSecondToSeconds(fps))
 
 #[inline] 
-Start(fixedFps: float64, maxFps: float64, #[inline] update: () -> (), #[inline] fixedUpdate: (t: float64, dt: float64) -> bool, #[inline] render: float64 -> ()): () =
+Start(tickRate: uint8, maxFps: uint16, #[inline] update: () -> (), #[inline] fixedUpdate: float64 -> bool, #[inline] render: (float64, float64) -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
     let getTicks() = stopwatch.Elapsed.Ticks
 
-    let vsyncError = int64(float64(Stopwatch.Frequency) * 0.0002)
+    let tickError: int64 = int64(float64(Stopwatch.Frequency) * 0.0002)
 
     let skip = ConvertFramesPerSecondToTicks(1)
 
     let mutable t = 0: int64
-    let fixedDeltaTime = ConvertFramesPerSecondToTicks(fixedFps)
-    let dtRenderMax = ConvertFramesPerSecondToTicks(maxFps)
+    let fixedDeltaTime = ConvertFramesPerSecondToTicks(float64(tickRate))
+    let dtRenderMax = ConvertFramesPerSecondToTicks(float64(maxFps))
     let mutable dtRender = dtRenderMax
     let mutable dt = fixedDeltaTime
 
@@ -48,18 +48,19 @@ Start(fixedFps: float64, maxFps: float64, #[inline] update: () -> (), #[inline] 
         update()
 
         while (accumulator >= dt)
-            quit <- fixedUpdate(ConvertTicksToSeconds(t), ConvertTicksToSeconds(dt))
+            quit <- fixedUpdate(ConvertTicksToSeconds(dt))
             t <- t + dt
             accumulator <- accumulator - dt
             updateDtRender <- true
 
+        // If we over-accumulated, then snap back.
         if (renderAccumulator > (dtRender * 2))
             renderAccumulator <- dtRender
 
         if (renderAccumulator >= dtRender)
             let alpha = float64(accumulator) / float64(dt)          
-            render(alpha)
+            render(ConvertTicksToSeconds(frameTime), alpha)
             if (dtRender == dtRenderMax)
-                renderAccumulator <- vsyncError
+                renderAccumulator <- tickError
             else
                 renderAccumulator <- renderAccumulator - dtRender

@@ -23,8 +23,14 @@ layout(set = 0, binding = 0) uniform _ModelViewProjection
     mat4 ModelViewProjection;
 };
 
+layout(set = 1, binding = 0) readonly buffer _Transforms
+    {
+        mat4[] Transforms;
+    };
+
 void main()
 {
+    mat4 Transform = Transforms[gl_InstanceIndex];
     gl_Position = ModelViewProjection * vec4(Position + Transform[3].xyz, 1);
     fsin_Color = vec4(Position.x, Position.y, 1, 1);
 }"
@@ -37,6 +43,30 @@ layout(location = 0) out vec4 fsout_Color;
 void main()
 {
     fsout_Color = fsin_Color;
+}"
+
+DefaultComputeCode: string = "#version 450
+
+layout(set = 0, binding = 0) buffer _Transforms
+    {
+        mat4[] Transforms;
+    };
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index > 10240)
+    {
+        return;
+    }
+
+    mat4 transform = Transforms[index];
+
+    transform = mat4(0);
+
+    Transforms[index] = transform;
 }"
 
 // TODO: This is a hack, we should fix enum equality work in the language.
@@ -108,17 +138,6 @@ main(): () =
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let meshDesc   = MeshDescription.CreateHexagon()
-    let shaderDesc = 
-        ShaderDescription.CreateMeshShader(
-            Encoding.UTF8.GetBytes(DefaultVertexCode), 
-            Encoding.UTF8.GetBytes(DefaultFragmentCode)
-        )
-
-    let mesh   = Graphics.CreateMesh(meshDesc)
-    let shader = Graphics.CreateShader(shaderDesc)
-    let shader2 = Graphics.CreateShader(shaderDesc)
-
     let hexagons = System.Collections.Generic.List<Matrix4x4>()
 
     let mutable i = 1
@@ -148,14 +167,31 @@ main(): () =
     print("\n")
 
     let instances = Graphics.CreateInstances(hexagons)
+
+    let meshDesc   = MeshDescription.CreateHexagon()
+    let shaderDesc = 
+        ShaderDescription.CreateMeshShader(
+            Encoding.UTF8.GetBytes(DefaultVertexCode), 
+            Encoding.UTF8.GetBytes(DefaultFragmentCode)
+        )
+
+    let mesh   = Graphics.CreateMesh(meshDesc)
+    let shader = Graphics.CreateShader(shaderDesc, instances)
+
     let drawCmd   = DrawCommand.CreateDrawMesh(mesh, shader, instances)
 
-    let drawCmds = [drawCmd]
+    // ----
+    let computeShaderDesc =
+        ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
+    let computeShader = 
+        Graphics.CreateComputeShader(computeShaderDesc, instances)
+    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(hexagons.Length))
+
+    let drawCmds = [spinHexagonsCmd;drawCmd]
 
     let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
     let mutable viewProj = ViewProjection(70, 1280, 720, 0.01, 1000000)
-    viewProj <- viewProj.SetPosition(Vector3(0, 4, 0))
     let mutable viewProjLerp = viewProj
     Graphics.SetModelViewProjection(viewProj.View * viewProj.Projection)
 
@@ -198,35 +234,38 @@ main(): () =
 
                 i <- i + 1
 
-    let checkMotion(interval: float32) =
+    let checkMotion(deltaTime: float32, rotation: Quaternion) =
         let mutable acc = Vector3.Zero
                                 
         if (is_w_pressed)
-            let v = Vector3.UnitZ
+            let v = Vector3.Transform(-Vector3.UnitZ, rotation)
             acc <- Vector3(v.X, v.Y, v.Z)
 
         if (is_s_pressed)
-            let v = -Vector3.UnitZ
+            let v = Vector3.Transform(Vector3.UnitZ, rotation)
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         if (is_a_pressed)
-            let v = Vector3.UnitX
+            let v = Vector3.Transform(-Vector3.UnitX, rotation)
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         if (is_d_pressed)
-            let v = -Vector3.UnitX
+            let v = Vector3.Transform(Vector3.UnitX, rotation)
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
         acc <-
             if (acc != Vector3.Zero)
-                Vector3.Multiply(Vector3.Normalize(acc), 1)
+                Vector3.Normalize(acc) * (deltaTime * 20)
             else
                 acc
 
         acc
 
-    let mutable yaw = 0.0: float32
-    let mutable pitch = 0.0: float32
+    let mutable cameraPosition = Vector3.Zero
+    let mutable cameraPositionLerp = cameraPosition
+    let mutable cameraRotation = Quaternion.Identity
+    let mutable cameraYaw = 0.0: float32
+    let mutable cameraPitch = 0.0: float32
     let update() =
         let inputState = window.GetInputState()
         keyEventQueue.Enqueue(inputState)
@@ -239,27 +278,25 @@ main(): () =
         let pitchAcc =
             mousePosition.Y * 0.0025
 
-        yaw <- yaw + yawAcc
-        pitch <- pitch + pitchAcc
+        cameraYaw <- cameraYaw + yawAcc
+        cameraPitch <- cameraPitch + pitchAcc
 
-        viewProj <- viewProj.SetRotation(defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(0, pitch, -yaw))
+        cameraRotation <- defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(-cameraYaw, -cameraPitch, 0)
 
     let fixedUpdate(mutable interval: float64) =
         let interval = float32(interval)
         processKeyEventQueue()
-        let motion = checkMotion(interval)
-        viewProjLerp <- viewProj
-        viewProj <- viewProj.SetPosition(viewProj.Position + motion)
-        //System.GC.Collect(2, System.GCCollectionMode.Forced, true)
+        cameraPositionLerp <- cameraPosition
+        cameraPosition <- cameraPosition + checkMotion(interval, cameraRotation)
+        System.GC.Collect(2, System.GCCollectionMode.Forced, true)
 
     let render(alpha) =
+        let cameraPostionFinal = Vector3.Lerp(cameraPositionLerp, cameraPosition, alpha)
+        let mutable view = Matrix4x4.CreateFromQuaternion(cameraRotation)
+        view.Translation <- cameraPostionFinal
         let projection = viewProj.Projection
-        let mutable view = Matrix4x4.CreateFromQuaternion(viewProj.Rotation)
-        view.Translation <- Vector3.Lerp(viewProjLerp.View.Translation, viewProj.View.Translation, alpha)
-
-        let mutable newView = view
-        newView.Translation <- Vector3(newView.Translation.X, -newView.Translation.Y, newView.Translation.Z)
-        Graphics.SetModelViewProjection(newView * projection)
+        let result = Matrix4x4.Invert(view, &view)
+        Graphics.SetModelViewProjection(view * projection)
 
         let windowExists = window.Exists
         if (windowExists)
@@ -269,14 +306,14 @@ main(): () =
     //window.SetFullscreen(true)
 
     GameLoop.Start(
-        20,
+        30,
         60,
         () ->
             update(),
-        (intervalTime, dt) ->
+        (dt) ->
             fixedUpdate(dt)
             !window.Exists,
-        (alpha) ->
+        (dt, alpha) ->
             render(float32(alpha))
     )
 

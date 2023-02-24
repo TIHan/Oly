@@ -122,6 +122,24 @@ sealed class ShaderDescription =
 
         ShaderDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
 
+sealed class ComputeShaderDescription =
+    internal mutable ComputeShader: VeldridShaderDescription
+
+    private new(computeShader: VeldridShaderDescription) =
+        {
+            ComputeShader = computeShader
+        }
+
+    static CreateMeshLayout(computeShaderBytes: byte[||]): ComputeShaderDescription =
+        let computeShader =
+            ShaderDescription(
+                ShaderStages.Compute,
+                computeShaderBytes,
+                "main"
+            )
+
+        ComputeShaderDescription(computeShader)
+
 sealed class Mesh =
     implements IDisposable
 
@@ -158,12 +176,26 @@ sealed class Instances =
 private sealed class ShaderState =
     internal VertexShader:   VeldridShader
     internal FragmentShader: VeldridShader
+    internal ResourceSets:    ResourceSet[||]
     internal Pipeline:       Pipeline
 
-    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, pipeline: Pipeline) =
+    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, resourceSets: ResourceSet[||], pipeline: Pipeline) =
         {
             VertexShader = vertexShader;
             FragmentShader = fragmentShader;
+            ResourceSets = resourceSets;
+            Pipeline = pipeline
+        }
+
+private sealed class ComputeShaderState =
+    internal ComputeShader: VeldridShader
+    internal ResourceSets:   ResourceSet[||]
+    internal Pipeline:      Pipeline
+
+    internal new(computeShader: VeldridShader, resourceSets: ResourceSet[||], pipeline: Pipeline) =
+        {
+            ComputeShader = computeShader;
+            ResourceSets = resourceSets;
             Pipeline = pipeline
         }
 
@@ -181,8 +213,22 @@ sealed class Shader =
         this.State.VertexShader.Dispose()
         this.State.FragmentShader.Dispose()
 
+sealed class ComputeShader =
+    implements IDisposable
+
+    internal mutable State: ComputeShaderState
+
+    internal new(state: ComputeShaderState) =
+        {
+            State = state
+        }
+
+    Dispose(): () =
+        this.State.ComputeShader.Dispose()
+
 enum DrawCommandKind =
     | DrawMesh
+    | RunComputeShader
 
 class DrawCommand =
     Kind: DrawCommandKind
@@ -214,6 +260,26 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
+    private sealed class RunComputeShader =
+        inherits DrawCommand
+
+        ComputeShader: ComputeShader
+        Count: uint32
+
+        new(computeShader: ComputeShader, count: uint32) =
+            base(DrawCommandKind.RunComputeShader) with
+                {
+                    ComputeShader = computeShader
+                    Count = count
+                }
+
+    static CreateRunComputeShader(computeShader: ComputeShader, count: uint32): DrawCommand =
+        DrawCommand.RunComputeShader(computeShader, count)
+
+    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, count: uint32) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
+        let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
+        (impl.ComputeShader, impl.Count)
+
 enum KeyEventKind =
     | Pressed
     | Released
@@ -236,8 +302,6 @@ sealed class InputState =
             MousePosition = Vector2.Zero
             MouseDelta = Vector2.Zero
         }
-
-    
 
 sealed class Window =
     internal window: Sdl2Window
@@ -291,8 +355,6 @@ module Graphics =
 
 
     private mutable modelViewProjectionUniformBuffer: DeviceBuffer = null
-    internal mutable DefaultResourceLayoutDescription: ResourceLayoutDescription = default
-    private mutable defaultResourceSet: ResourceSet = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
@@ -318,21 +380,6 @@ module Graphics =
         // Default resource set
         //
         modelViewProjectionUniformBuffer <- createDynamicUniformBuffer(Matrix4x4.Identity, 0)
-        DefaultResourceLayoutDescription <-
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("ModelViewProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex)
-                |]
-            )
-        let resourceLayout = factory.CreateResourceLayout(DefaultResourceLayoutDescription)
-        let resourceSetDesc = 
-            ResourceSetDescription(
-                resourceLayout,
-                [|
-                    (modelViewProjectionUniformBuffer: BindableResource)
-                |]
-            )
-        defaultResourceSet <- factory.CreateResourceSet(resourceSetDesc)
         //
         //
 
@@ -353,11 +400,10 @@ module Graphics =
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
     
-    private CreateShaderState(shaderDesc: ShaderDescription): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, instances: Instances): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
-        let resourceLayouts    = [|DefaultResourceLayoutDescription|]
     
         let shaders = ResourceFactoryExtensions.CreateFromSpirv(factory, vertexShaderDesc, fragmentShaderDesc)
     
@@ -381,29 +427,100 @@ module Graphics =
             desc
     
         pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleStrip
-        pipelineDesc.ResourceLayouts <-
-            map(resourceLayouts, desc -> factory.CreateResourceLayout(desc))
 
         pipelineDesc.ShaderSet <-
             let mutable desc = default: ShaderSetDescription
             desc.VertexLayouts <- vertexLayouts
             desc.Shaders <- shaders
             desc
+
+        // ------------------------------------------------------------
+        let resourceLayoutDesc =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("ModelViewProjection", ResourceKind.UniformBuffer, ShaderStages.Vertex)
+                |]
+            )
+        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    (modelViewProjectionUniformBuffer: BindableResource)
+                |]
+            )
+        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
+
+        let resourceLayoutDesc2 =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Transforms", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)
+                |]
+            )
+        let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
+        let resourceSetDesc2 = 
+            ResourceSetDescription(
+                resourceLayout2,
+                [|
+                    (instances.TransformBuffer: BindableResource)
+                |]
+            )
+        let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
+
+        pipelineDesc.ResourceLayouts <- [|resourceLayout;resourceLayout2|]
+        // ----------------------------------------------------------------
     
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
-        ShaderState(shaders[0], shaders[1], pipeline)
+        ShaderState(shaders[0], shaders[1], [|resourceSet;resourceSet2|], pipeline)
 
-    CreateShader(shaderDesc: ShaderDescription): Shader =
-        Shader(CreateShaderState(shaderDesc))
+    private CreateComputeShaderState(shaderDesc: ComputeShaderDescription, instances: Instances): ComputeShaderState =
+        let computeShaderDesc = shaderDesc.ComputeShader
+    
+        let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
 
-    UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
-        let newState = CreateShaderState(shaderDesc)
-        let oldState = Interlocked.Exchange(&shader.State, newState)
-        oldState.Pipeline.Dispose()
-        oldState.FragmentShader.Dispose()
-        oldState.VertexShader.Dispose()
+        let resourceLayoutDesc =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Transforms", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)
+                |]
+            )
+        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    (instances.TransformBuffer: BindableResource)
+                |]
+            )
+    
+        let pipelineDesc = 
+            ComputePipelineDescription(
+                shader, 
+                [|resourceLayout|], 
+                1, 
+                1, 
+                1
+            )
+
+        let pipeline = factory.CreateComputePipeline(pipelineDesc)
+        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
+    
+        ComputeShaderState(shader, [|resourceSet|], pipeline)
+
+    CreateShader(shaderDesc: ShaderDescription, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, instances))
+
+    CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
+        ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
+
+    // UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
+    //     let newState = CreateShaderState(shaderDesc)
+    //     let oldState = Interlocked.Exchange(&shader.State, newState)
+    //     oldState.Pipeline.Dispose()
+    //     oldState.FragmentShader.Dispose()
+    //     oldState.VertexShader.Dispose()
 
     private createDynamicUniformBuffer(value: Matrix4x4, slot: uint32): DeviceBuffer =
         let buffer = factory.CreateBuffer(BufferDescription(64, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
@@ -414,7 +531,8 @@ module Graphics =
         graphicsDevice.UpdateBuffer(modelViewProjectionUniformBuffer, 0, value)
 
     CreateInstances(transforms: Matrix4x4[||]): Instances =
-        let transformBuffer = factory.CreateBuffer(BufferDescription(uint32(transforms.Length) * 64, BufferUsage.VertexBuffer))  
+        let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
+        let transformBuffer = factory.CreateBuffer(BufferDescription(uint32(transforms.Length) * 64, usage, uint32(transforms.Length) * 64))  
         graphicsDevice.UpdateBuffer(transformBuffer, 0, transforms)
 
         let instances = Instances(transformBuffer)
@@ -436,7 +554,6 @@ module Graphics =
         commandList.ClearColorTarget(0, RgbaFloat.Black)
 
         let mutable currentPipeline = unchecked default
-        let mutable curerentResourceSet = unchecked default
 
         // Set all relevant state to draw our quad
         let mutable i = 0
@@ -449,10 +566,12 @@ module Graphics =
                 if (instanceCount > 0)   
                     let pipeline = shader.State.Pipeline
                     if (pipeline !== currentPipeline)
+                        let resourceSets = shader.State.ResourceSets
                         commandList.SetPipeline(pipeline)
-                        if (defaultResourceSet !== curerentResourceSet)
-                            commandList.SetGraphicsResourceSet(0, defaultResourceSet)
-                            curerentResourceSet <- defaultResourceSet
+                        let mutable i = 0
+                        while (i < resourceSets.Length)
+                            commandList.SetGraphicsResourceSet(uint32(i), resourceSets[i])
+                            i <- i + 1
                         currentPipeline <- pipeline
 
                     let transformBuffer = instances.TransformBuffer
@@ -461,7 +580,6 @@ module Graphics =
                     let indexCount      = mesh.IndexCount
 
                     commandList.SetVertexBuffer(0, vertexBuffer)
-                    commandList.SetVertexBuffer(1, transformBuffer)
                     commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
             
                     commandList.DrawIndexed(
@@ -471,6 +589,20 @@ module Graphics =
                         0,              /* vertexOffset */
                         0               /* instanceStart */
                     )
+
+            | DrawCommand.RunComputeShader(computeShader, count) =>
+                let pipeline = computeShader.State.Pipeline
+                if (pipeline !== currentPipeline)
+                    let resourceSets = computeShader.State.ResourceSets
+                    commandList.SetPipeline(pipeline)
+                    let mutable i = 0
+                    while (i < resourceSets.Length)
+                        commandList.SetComputeResourceSet(uint32(i), resourceSets[i])
+                        i <- i + 1
+                    currentPipeline <- pipeline
+
+                commandList.Dispatch(count, 1, 1)
+
             | _ =>
                 ()
     
