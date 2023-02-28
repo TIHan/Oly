@@ -14,6 +14,7 @@ open System.Text
 open System.Numerics
 open Evergreen.Client.Graphics
 open Evergreen.Client.Graphics.UI
+open System.Runtime.InteropServices
 
 DefaultVertexCode: string = System.IO.File.ReadAllText("GameExample/default.vert")
 
@@ -46,7 +47,7 @@ struct ViewProjection =
         }
 
     new(fov: float32, width: int32, height: int32) =
-        ViewProjection(fov, width, height, 0.1, 1000000)
+        ViewProjection(fov, width, height, 0.01, 1000000)
 
     Position: Vector3 get() = this.View.Translation
     Rotation: Quaternion get() = Quaternion.CreateFromRotationMatrix(this.View)
@@ -88,33 +89,42 @@ main(): () =
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-  //  let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, -5, 0))
+    let staticBoxHandle = physics.AddStaticBox(10000, 10000, 1, Vector3(0, 0, 5))
 
-//    let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 5, 0))
+    #[StructLayout(LayoutKind.Sequential)]
+    struct CubeInstance =
+        mutable Transform: Matrix4x4
+        mutable Scale: Vector3
+        mutable Padding: float32
 
-    //let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 0, -5))
+        new(transform: Matrix4x4) =
+            {
+                Transform = transform
+                Scale = Vector3.One
+                Padding = 0
+            }
 
-    let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 0, 5))
-
-    let cubes = System.Collections.Generic.List<Matrix4x4>()
+    let cubes = System.Collections.Generic.List<CubeInstance>()
+    let addCube(info) =
+        cubes.Add(CubeInstance(info))
 
     let mutable i = 1
     while (i <= 100)
-        cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
+        addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 10)
-            cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
-            cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
+            addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
+            addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
             j <- j + 1
         i <- i + 1
 
     let mutable i = 1
     while (i <= 100)
-        cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
+        addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 10)
-            cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
-            cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
+            addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
+            addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
             j <- j + 1
         i <- i + 1
 
@@ -127,10 +137,8 @@ main(): () =
     let cubePhysics = OlyArray.ZeroCreate<Physics.DynamicObjectId>(cubes.Length)
     let mutable i = 0
     while (i < cubes.Length)
-        cubePhysics[i] <- physics.AddDynamicBox(1, 1, 1, cubes[i].Translation)
+        cubePhysics[i] <- physics.AddDynamicBox(1, 1, 1, cubes[i].Transform.Translation)
         i <- i + 1
-
-    let instances = Graphics.CreateInstances(cubes)
 
     let meshDesc   = MeshDescription.CreateCube()
     let shaderDesc = 
@@ -139,11 +147,20 @@ main(): () =
             Encoding.UTF8.GetBytes(DefaultFragmentCode)
         )
 
-    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
     let mesh   = Graphics.CreateMesh(meshDesc)
-    let shader = Graphics.CreateShader(shaderDesc, tex, instances)
 
+    let instances = Graphics.CreateInstances(cubes)
+    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
+    let shader = Graphics.CreateShader(shaderDesc, tex, instances)
     let drawCmd = DrawCommand.CreateDrawMesh(mesh, shader, instances)
+
+    let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, 5)))
+    staticCubeInstance.Scale <- Vector3(10000, 10000, 1)
+    let staticCubes = [|staticCubeInstance|]
+    let staticInstances = Graphics.CreateInstances(staticCubes)
+    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
+    let staticShader = Graphics.CreateShader(shaderDesc, tex, staticInstances)
+    let staticDrawCmd = DrawCommand.CreateDrawMesh(mesh, staticShader, staticInstances)
 
     // ----
     let computeShaderDesc =
@@ -152,11 +169,11 @@ main(): () =
         Graphics.CreateComputeShader(computeShaderDesc, instances)
     let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(cubes.Length))
 
-    let drawCmds = [spinHexagonsCmd;drawCmd]
+    let drawCmds = [spinHexagonsCmd;drawCmd;staticDrawCmd]
 
     let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -radians(90))
 
-    let mutable viewProj = ViewProjection(70, 1280, 720, 0.01, 1000000)
+    let mutable viewProj = ViewProjection(70, 1280, 720, 0.5, 1000000)
     let mutable viewProjLerp = viewProj
     Graphics.SetModelViewProjection(viewProj.View * viewProj.Projection)
 
@@ -286,7 +303,7 @@ main(): () =
             physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
             let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
             m.Translation <- position
-            cubes[i] <- m
+            cubes[i] <- CubeInstance(m)
             i <- i + 1
 
         Graphics.UpdateInstances(instances, cubes)

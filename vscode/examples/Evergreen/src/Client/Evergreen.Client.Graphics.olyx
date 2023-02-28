@@ -114,16 +114,6 @@ sealed class MeshDescription =
                 Vector2(0.0, 1.0)
             |]
 
-        let normals =
-            [|
-                Vector3(0, 0, 1);
-                Vector3(1, 0, 0);
-                Vector3(0, 0, -1);
-                Vector3(-1, 0, 0);
-                Vector3(0, 1, 0);
-                Vector3(0, -1, 0)
-            |]
-
         let indices =
             [|
                 // front
@@ -145,6 +135,44 @@ sealed class MeshDescription =
                 20; 21; 22;
                 22; 23; 20: uint32
             |]
+
+        //     Begin Function CalculateSurfaceNormal (Input Triangle) Returns Vector
+
+        //     Set Vector U to (Triangle.p2 minus Triangle.p1)
+        //     Set Vector V to (Triangle.p3 minus Triangle.p1)
+        
+        //     Set Normal.x to (multiply U.y by V.z) minus (multiply U.z by V.y)
+        //     Set Normal.y to (multiply U.z by V.x) minus (multiply U.x by V.z)
+        //     Set Normal.z to (multiply U.x by V.y) minus (multiply U.y by V.x)
+        
+        //     Returning Normal
+        
+        // End Function
+
+        let calculateNormal(v1: Vector3, v2: Vector3, v3: Vector3): Vector3 =
+            let mutable u: Vector3 = v2 - v1
+            let mutable v: Vector3 = v3 - v1
+
+            Vector3(
+                (u.Y * v.Z) - (u.Z * v.Y),
+                (u.Z * v.X) - (u.X * v.Z),
+                (u.X * v.Y) - (u.Y * v.X)
+            )
+
+        let normals = OlyArray.ZeroCreate<Vector3>(indices.Length)
+        let mutable i = 0
+        while (i < normals.Length)
+            let v1Index = indices[i]
+            let v2Index = indices[i + 1]
+            let v3Index = indices[i + 2]
+            let v1 = vertices[int32(v1Index)]
+            let v2 = vertices[int32(v2Index)]
+            let v3 = vertices[int32(v3Index)]
+            let normal = calculateNormal(v1, v2, v3)
+            normals[i] <- normal
+            normals[i + 1] <- normal
+            normals[i + 2] <- normal
+            i <- i + 3
         
         MeshDescription(
             vertices, 
@@ -170,8 +198,8 @@ sealed class ShaderDescription =
             VertexLayoutDescription(
                 [|
                     VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
-                   // VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
-                    VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2)
+                    VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
+                    VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
                 |]
             )
     
@@ -244,16 +272,16 @@ sealed class Instances =
     implements IDisposable
 
     internal mutable Count: int32
-    internal mutable TransformBuffer: DeviceBuffer
+    internal mutable InstanceBuffer: DeviceBuffer
 
-    internal new(transformBuffer: DeviceBuffer) =
+    internal new(instanceBuffer: DeviceBuffer) =
         {
             Count = 0
-            TransformBuffer = transformBuffer
+            InstanceBuffer = instanceBuffer
         }
 
     Dispose(): () =
-        this.TransformBuffer.Dispose()
+        this.InstanceBuffer.Dispose()
 
 private sealed class ShaderState =
     internal VertexShader:   VeldridShader
@@ -491,19 +519,17 @@ module Graphics =
     #[StructLayout(LayoutKind.Sequential)]
     private struct VertexDatum =
         mutable Vertex: Vector3 = default
-       // mutable Normal: Vector3 = default
         mutable TexCoord: Vector2 = default
+        mutable Normal: Vector3 = default
 
     CreateMesh(meshDesc: MeshDescription): Mesh =
-        let vertices = meshDesc.Vertices
-        let indices  = meshDesc.Indices
-        let normals  = meshDesc.Normals
+        let vertices  = meshDesc.Vertices
+        let indices   = meshDesc.Indices
+        let normals   = meshDesc.Normals
         let texCoords = meshDesc.TexCoords
     
         let vertexCount = uint32(vertices.Length)
         let indexCount  = uint32(indices.Length)
-        let normalCount = uint32(normals.Length)
-        let texCoordCount = uint32(texCoords.Length)
 
         let vertexData =
             let vertexData = OlyArray.ZeroCreate<VertexDatum>(int32(vertexCount))
@@ -513,6 +539,7 @@ module Graphics =
                     let mutable d = default: VertexDatum
                     d.Vertex <- vertices[i]
                     d.TexCoord <- texCoords[i]
+                    d.Normal <- normals[i]
                     d
                 i <- i + 1
             vertexData
@@ -535,7 +562,7 @@ module Graphics =
                 ResourceSets = resourceSets
             }
             
-    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages, transformResourceKind: ResourceKind): ResourceSetGroup =
+    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages, instanceResourceKind: ResourceKind): ResourceSetGroup =
         // ------------------------------------------------------------
         let resourceLayoutDesc =
             ResourceLayoutDescription(
@@ -556,7 +583,7 @@ module Graphics =
         let resourceLayoutDesc2 =
             ResourceLayoutDescription(
                 [|
-                    ResourceLayoutElementDescription("Transforms", transformResourceKind, shaderStages)
+                    ResourceLayoutElementDescription("InstanceData", instanceResourceKind, shaderStages)
                 |]
             )
         let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
@@ -564,10 +591,25 @@ module Graphics =
             ResourceSetDescription(
                 resourceLayout2,
                 [|
-                    (instances.TransformBuffer: BindableResource)
+                    (instances.InstanceBuffer: BindableResource)
                 |]
             )
         let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
+
+        let mutable samplerDesc = 
+            SamplerDescription(
+                SamplerAddressMode.Wrap,
+                SamplerAddressMode.Wrap,
+                SamplerAddressMode.Wrap,
+                SamplerFilter.MinPoint_MagPoint_MipPoint,
+                Nullable(ComparisonKind.LessEqual),
+                1,
+                0,
+                10,
+                0,
+                SamplerBorderColor.TransparentBlack
+            )
+        let sampler = factory.CreateSampler(samplerDesc)
 
         match (shaderStages)
         | ShaderStages.Vertex =>
@@ -584,7 +626,7 @@ module Graphics =
                     resourceLayout3,
                     [|
                         (tex.Texture: BindableResource);
-                        graphicsDevice.Aniso4xSampler
+                        sampler
                     |]
                 )
             let resourceSet3 = factory.CreateResourceSet(resourceSetDesc3)
@@ -677,13 +719,14 @@ module Graphics =
         // let height = uint32(image.Height)
 
         // let mutable pixels = unchecked default: Memory<Rgba32>
-        // let mutable result = AdvancedImageExtensions. //DangerousGetPixelRowMemory(image, 0)
+        // let mutable result = AdvancedImageExtensions.GetPixelRowMemory(image, 0)
         // let sizeInBytes = width * height * 4
 
         // let mutable desc = default: TextureDescription
         // desc.Width <- width
         // desc.Height <- height
         // desc.Depth <- 1
+        // desc.SampleCount <- TextureSampleCount.Count1
         // desc.Format <- PixelFormat.R8_G8_B8_A8_UNorm
         // desc.Type <- TextureType.Texture2D
         // desc.Usage <- TextureUsage.Sampled
@@ -694,6 +737,7 @@ module Graphics =
 
         // let mutable sourceHandle = result.Pin()
         // let source = nint(sourceHandle.Pointer)
+
         // graphicsDevice.UpdateTexture(texture, source, sizeInBytes, 0, 0, 0, width, height, 1, 0, 0)
         // sourceHandle.Dispose()
 
@@ -711,17 +755,17 @@ module Graphics =
     SetModelViewProjection(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
 
-    CreateInstances(transforms: Matrix4x4[||]): Instances =
+    CreateInstances<T>(instanceData: T[||]): Instances where T: struct =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
-        let transformBuffer = factory.CreateBuffer(BufferDescription(uint32(transforms.Length) * 64, usage, uint32(transforms.Length) * 64))  
-        graphicsDevice.UpdateBuffer(transformBuffer, 0, transforms)
+        let instanceBuffer = factory.CreateBuffer(BufferDescription(uint32(instanceData.Length * sizeof<T>), usage, uint32(instanceData.Length * sizeof<T>)))  
+        graphicsDevice.UpdateBuffer(instanceBuffer, 0, instanceData)
 
-        let instances = Instances(transformBuffer)
-        instances.Count <- transforms.Length
+        let instances = Instances(instanceBuffer)
+        instances.Count <- instanceData.Length
         instances
 
-    UpdateInstances(instances: Instances, transforms: Matrix4x4[||]): () =
-        graphicsDevice.UpdateBuffer(instances.TransformBuffer, 0, transforms)
+    UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: struct =
+        graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
     Draw(drawCmds: DrawCommand[]): () =
         // Begin() must be called before commands can be issued
@@ -752,10 +796,9 @@ module Graphics =
                             i <- i + 1
                         currentPipeline <- pipeline
 
-                    let transformBuffer = instances.TransformBuffer
-                    let vertexBuffer    = mesh.VertexBuffer
-                    let indexBuffer     = mesh.IndexBuffer
-                    let indexCount      = mesh.IndexCount
+                    let vertexBuffer   = mesh.VertexBuffer
+                    let indexBuffer    = mesh.IndexBuffer
+                    let indexCount     = mesh.IndexCount
 
                     commandList.SetVertexBuffer(0, vertexBuffer)
                     commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt32)
