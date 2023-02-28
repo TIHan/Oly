@@ -826,3 +826,59 @@ main(): () =
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
+
+
+[<Fact>]
+let ``Project reference another project 7``() =
+    let src1 =
+        """
+#target "i: default"
+
+#load "ui.oly"
+
+namespace Evergreen.Client.Graphics
+
+class Graphics
+        """
+
+    let src2 =
+        """
+namespace Evergreen.Client.Graphics.UI
+
+class UI
+        """
+
+    let src3 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+open Evergreen.Client.Graphics
+open Evergreen.Client.Graphics.UI
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let g = Graphics()
+    let ui = UI()
+    print("passed")
+        """
+
+    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path2 = OlyPath.Create("fakePath/ui.oly")
+    let path3 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let text3 = OlySourceText.Create(src3)
+
+    // We are trying to test to make sure that namespace aggregation works properly.
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 elif OlyPath.Equals(x, path2) then text2 else failwith "Invalid path")
+    workspace.UpdateDocument(path1, text1, CancellationToken.None)
+    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)

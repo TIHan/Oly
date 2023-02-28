@@ -378,6 +378,10 @@ GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
 #[import("intrinsic-CLR", "", "typeof")]
 typeof<require T>(): System.Type
 
+// TODO: make this an actual intrinsic like 'typeof'.
+sizeof<require T>: int32 =
+    System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
+
 printLine<T>(value: T): () where T: { ToString(): string } =
     print(value.ToString() + "\n")
 

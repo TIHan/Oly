@@ -332,3 +332,28 @@ main(): () =
         """
     OlyWithReference refSrc src
     |> runWithExpectedOutput "0"
+
+[<Fact>]
+let ``() -> () function should be properly exported and imported``() =
+    let refSrc =
+        """
+namespace Test
+
+module TestModule =
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    test(f: () -> ()): () =
+        f()
+
+        """
+    let src =
+        """
+open static Test.TestModule
+
+main(): () =
+    test(() -> print("123"))
+        """
+    OlyWithReference refSrc src
+    |> runWithExpectedOutput "123"

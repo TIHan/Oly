@@ -1,0 +1,90 @@
+
+namespace Evergreen.Client.Graphics.UI
+
+open System.Numerics
+open Evergreen.Client.Graphics
+open ImGuiNET
+
+class UINode =
+
+    private Tag: int32
+    private new(tag: int32) = { Tag = tag }
+
+    internal sealed class Window =
+        inherits UINode
+
+        Title: string
+        Children: UINode[]
+        Size: Vector2
+        RelativePosition: Vector2
+
+        new(title: string, children: UINode[], size: Vector2, relativePos: Vector2) =
+            base(0) with {
+                Title = title
+                Children = children
+                Size = size
+                RelativePosition = relativePos
+            }
+
+    pattern Window(node: UINode): (title: string, children: UINode[], size: Vector2, relativePos: Vector2) when (node.Tag == 0) =>
+        let node = UnsafeCast<UINode.Window>(node)
+        (node.Title, node.Children, node.Size, node.RelativePosition)
+
+    internal sealed class Button =
+        inherits UINode
+
+        Label: string
+        OnClick: () -> ()
+        Size: Vector2
+        RelativePosition: Vector2
+
+        new(label: string, onClick: () -> (), size: Vector2, relativePos: Vector2) =
+            base(1) with {
+                Label = label
+                OnClick = onClick
+                Size = size
+                RelativePosition = relativePos
+            }
+
+    pattern Button(node: UINode): (label: string, onClick: () -> (), relativePos: Vector2, size: Vector2) when (node.Tag == 1) =>
+        let node = UnsafeCast<UINode.Button>(node)
+        (node.Label, node.OnClick, node.Size, node.RelativePosition)
+
+module UI =
+
+    private MakeNode(node: UINode): () =
+        match (node)
+        | UINode.Window(title, children, relativeSize, relativePos) =>
+            ImGui.SetNextWindowSize(relativeSize)
+            ImGui.SetNextWindowPos(relativePos)
+            MakeWindow(title, children)
+        
+        | UINode.Button(label, onClick, relativeSize, relativePos) =>
+            ImGui.SetNextWindowSize(relativeSize)
+            ImGui.SetNextWindowPos(relativePos)
+            MakeButton(label, onClick)
+
+        | _ =>
+            ()
+
+    private MakeWindow(title: string, children: UINode[]): () =
+        if (ImGui.Begin(title))
+            let mutable i = 0
+            while (i < getLength(children))
+                MakeNode(children[i])
+                i <- i + 1
+            ImGui.End()
+
+    private MakeButton(label: string, onClick: () -> ()): () =
+        if (ImGui.Button(label))
+            onClick()
+
+    Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
+        UINode.Window(title, children, size, relativePosition)
+
+    Button(label: string, onClick: () -> (), size: Vector2, relativePosition: Vector2): UINode =
+        UINode.Button(label, onClick, size, relativePosition)
+
+    Update(deltaTime: float64, inputState: InputState, node: UINode): () =
+        Graphics.imGuiRenderer.Update(float32(deltaTime), inputState.snapshot)
+        MakeNode(node)

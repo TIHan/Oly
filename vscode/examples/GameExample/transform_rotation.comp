@@ -1,0 +1,49 @@
+#version 450
+
+layout(set = 0, binding = 0) uniform _Global
+{
+    mat4 ModelViewProjection;
+    float DeltaTime;
+};
+    
+layout(set = 1, binding = 0) buffer _Transforms
+{
+    mat4[] Transforms;
+};
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+mat4 rotationX( in float angle ) {
+	return mat4(	1.0,		0,			0,		    0,
+			 		0, 	cos(angle),	-sin(angle),		0,
+					0, 	sin(angle),	 cos(angle),		0,
+					0,           0,         0, 		    1);
+}
+
+mat4 rotationY( in float angle ) {
+	return mat4(	cos(angle),		0,		sin(angle),	0,
+			 				0,		1.0,			 0,	0,
+					-sin(angle),	0,		cos(angle),	0,
+							0, 		0,				0,	1);
+}
+
+mat4 rotationZ( in float angle ) {
+	return mat4(	cos(angle),		-sin(angle),	0,	0,
+			 		sin(angle),		cos(angle),		0,	0,
+							0,				0,		1,	0,
+							0,				0,		0,	1);
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    mat4 transform = Transforms[index];
+
+    vec3 translation = transform[3].xyz;
+    mat4 result = rotationY(1 * DeltaTime) * rotationZ(1 * DeltaTime);
+    transform[3].xyz = vec3(0);
+    transform = result * transform;
+    transform[3].xyz = translation;
+
+  //  Transforms[index] = transform;
+}

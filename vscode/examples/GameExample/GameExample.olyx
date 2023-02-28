@@ -1,4 +1,4 @@
-#target "dotnet: net6"
+#target "dotnet: net7"
 
 #load "*.oly"
 
@@ -6,79 +6,20 @@
 #package "Veldrid,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.SPIRV,1.0.15" // TODO: Remove this when we fix transitive packages.
+#package "Veldrid.ImGui,5.89.2-ga121087cad" // TODO: Remove this when we fix transitive packages.
+#package "Veldrid.ImageSharp,4.9.0" // TODO: Remove this when we fix transitive packages.
+#package "BepuPhysics,2.4.0"
 
 open System.Text
 open System.Numerics
 open Evergreen.Client.Graphics
+open Evergreen.Client.Graphics.UI
 
-DefaultVertexCode: string = "#version 450
+DefaultVertexCode: string = System.IO.File.ReadAllText("GameExample/default.vert")
 
-layout(location = 0) in vec3 Position;
-layout(location = 1) in mat4 Transform;
+DefaultFragmentCode: string = System.IO.File.ReadAllText("GameExample/default.frag")
 
-layout(location = 0) out vec4 fsin_Color;
-
-layout(set = 0, binding = 0) uniform _ModelViewProjection
-{
-    mat4 ModelViewProjection;
-    float DeltaTime;
-};
-
-layout(set = 1, binding = 0) readonly buffer _Transforms
-{
-    mat4[] Transforms;
-};
-
-void main()
-{
-    mat4 Transform = Transforms[gl_InstanceIndex];
-    gl_Position = ModelViewProjection * vec4(Position + Transform[3].xyz, 1);
-    fsin_Color = vec4(Position.x, Position.y, 1, 1);
-}"
-
-DefaultFragmentCode: string = "#version 450
-
-layout(location = 0) in vec4 fsin_Color;
-layout(location = 0) out vec4 fsout_Color;
-
-void main()
-{
-    fsout_Color = fsin_Color;
-}"
-
-DefaultComputeCode: string = "#version 450
-
-layout(set = 0, binding = 0) uniform _Global
-{
-    mat4 ModelViewProjection;
-    float DeltaTime;
-};
-    
-layout(set = 1, binding = 0) buffer _Transforms
-{
-    mat4[] Transforms;
-};
-
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
-void main()
-{
-    uint index = gl_GlobalInvocationID.x;
-    if (index > 10240)
-    {
-        return;
-    }
-
-    mat4 transform = Transforms[index];
-
-    transform[3].xyz = transform[3].xyz + (vec3(5) * DeltaTime);
-
-    Transforms[index] = transform;
-}"
-
-// TODO: This is a hack, we should fix enum equality work in the language.
-#[intrinsic("equal")]
-(==)(Key, Key): bool
+DefaultComputeCode: string = System.IO.File.ReadAllText("GameExample/transform_rotation.comp")
 
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
 radians(degrees: float32): float32 = float32(radians(float64(degrees)))
@@ -140,63 +81,80 @@ struct ViewProjection =
         viewProj
 
 main(): () =
+    let physics = Physics.Init()
+
     //System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
     let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let hexagons = System.Collections.Generic.List<Matrix4x4>()
+  //  let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, -5, 0))
+
+//    let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 5, 0))
+
+    //let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 0, -5))
+
+    let staticBoxHandle = physics.AddStaticBox(1000, 1000, 2, Vector3(0, 0, 5))
+
+    let cubes = System.Collections.Generic.List<Matrix4x4>()
 
     let mutable i = 1
     while (i <= 100)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
+        cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
         let mutable j = 1
-        while (j <= 1000)
-            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
-            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
+        while (j <= 10)
+            cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
+            cubes.Add(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
             j <- j + 1
         i <- i + 1
 
     let mutable i = 1
     while (i <= 100)
-        hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
+        cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
         let mutable j = 1
-        while (j <= 1000)
-            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
-            hexagons.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
+        while (j <= 10)
+            cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
+            cubes.Add(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
             j <- j + 1
         i <- i + 1
 
-    let hexagons = hexagons.ToArray()
+    let cubes = cubes.ToArray()
 
-    print("Hexagon Count: ")
-    print(hexagons.Length)
+    print("Cube Count: ")
+    print(cubes.Length)
     print("\n")
 
-    let instances = Graphics.CreateInstances(hexagons)
+    let cubePhysics = OlyArray.ZeroCreate<Physics.DynamicObjectId>(cubes.Length)
+    let mutable i = 0
+    while (i < cubes.Length)
+        cubePhysics[i] <- physics.AddDynamicBox(1, 1, 1, cubes[i].Translation)
+        i <- i + 1
 
-    let meshDesc   = MeshDescription.CreateHexagon()
+    let instances = Graphics.CreateInstances(cubes)
+
+    let meshDesc   = MeshDescription.CreateCube()
     let shaderDesc = 
         ShaderDescription.CreateMeshShader(
             Encoding.UTF8.GetBytes(DefaultVertexCode), 
             Encoding.UTF8.GetBytes(DefaultFragmentCode)
         )
 
+    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
     let mesh   = Graphics.CreateMesh(meshDesc)
-    let shader = Graphics.CreateShader(shaderDesc, instances)
+    let shader = Graphics.CreateShader(shaderDesc, tex, instances)
 
-    let drawCmd   = DrawCommand.CreateDrawMesh(mesh, shader, instances)
+    let drawCmd = DrawCommand.CreateDrawMesh(mesh, shader, instances)
 
     // ----
     let computeShaderDesc =
         ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
     let computeShader = 
         Graphics.CreateComputeShader(computeShaderDesc, instances)
-    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(hexagons.Length))
+    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(cubes.Length))
 
     let drawCmds = [spinHexagonsCmd;drawCmd]
 
-    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
+    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -radians(90))
 
     let mutable viewProj = ViewProjection(70, 1280, 720, 0.01, 1000000)
     let mutable viewProjLerp = viewProj
@@ -209,56 +167,59 @@ main(): () =
 
     let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()
     let processKeyEventQueue() =
+        let mutable esc_toggle = false
+
         let mutable inputState = unchecked default
         while (keyEventQueue.TryDequeue(&inputState))
             let keyEvents = inputState.KeyEvents
             let mutable i = 0
             while (i < keyEvents.Length)
                 let mutable keyEvent = keyEvents[i]
-                if (fromEnum(keyEvent.Key) == fromEnum(Key.W))
-                    if (keyEvent.Down)
-                        is_w_pressed <- true
-                    else
-                        is_w_pressed <- false
 
-                if (fromEnum(keyEvent.Key) == fromEnum(Key.A))
-                    if (keyEvent.Down)
-                        is_a_pressed <- true
-                    else
-                        is_a_pressed <- false
-
-                if (fromEnum(keyEvent.Key) == fromEnum(Key.S))
-                    if (keyEvent.Down)
-                        is_s_pressed <- true
-                    else
-                        is_s_pressed <- false
-
-                if (fromEnum(keyEvent.Key) == fromEnum(Key.D))
-                    if (keyEvent.Down)
-                        is_d_pressed <- true
-                    else
-                        is_d_pressed <- false
+                match (keyEvent.Key)
+                | Key.W =>
+                    is_w_pressed <- keyEvent.Down
+                | Key.A =>
+                    is_a_pressed <- keyEvent.Down
+                | Key.S =>
+                    is_s_pressed <- keyEvent.Down
+                | Key.D =>
+                    is_d_pressed <- keyEvent.Down
+                | Key.Escape when (keyEvent.Down) =>
+                    esc_toggle <- true
+                | _ =>
+                    ()
 
                 i <- i + 1
 
+            if (esc_toggle)
+                esc_toggle <- false
+                if (window.IsCursorVisible)
+                    window.HideCursor()
+                else
+                    window.ShowCursor()
+
     let checkMotion(deltaTime: float32, rotation: Quaternion) =
         let mutable acc = Vector3.Zero
-                                
-        if (is_w_pressed)
-            let v = Vector3.Transform(-Vector3.UnitZ, rotation)
-            acc <- Vector3(v.X, v.Y, v.Z)
+                       
+        if (!window.IsCursorVisible)
+            if (is_w_pressed)
+                let v = Vector3.Transform(-Vector3.UnitZ, rotation)
+                acc <- Vector3(v.X, v.Y, v.Z)
 
-        if (is_s_pressed)
-            let v = Vector3.Transform(Vector3.UnitZ, rotation)
-            acc <- acc + Vector3(v.X, v.Y, v.Z)
+            if (is_s_pressed)
+                let v = Vector3.Transform(Vector3.UnitZ, rotation)
+                acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        if (is_a_pressed)
-            let v = Vector3.Transform(-Vector3.UnitX, rotation)
-            acc <- acc + Vector3(v.X, v.Y, v.Z)
+            if (is_a_pressed)
+                let v = Vector3.Transform(-Vector3.UnitX, rotation)
+                acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        if (is_d_pressed)
-            let v = Vector3.Transform(Vector3.UnitX, rotation)
-            acc <- acc + Vector3(v.X, v.Y, v.Z)
+            if (is_d_pressed)
+                let v = Vector3.Transform(Vector3.UnitX, rotation)
+                acc <- acc + Vector3(v.X, v.Y, v.Z)
+        else
+            ()
 
         acc <-
             if (acc != Vector3.Zero)
@@ -268,34 +229,70 @@ main(): () =
 
         acc
 
-    let mutable cameraPosition = Vector3.Zero
+    let uiNode =
+        UI.Window("Main Menu",
+            [
+                UI.Button("Quit", () -> window.Close(), Vector2(128, 64), Vector2(0, 0))
+            ],
+            Vector2(512, 512),
+            Vector2(100, 100)
+        )
+
+    let mutable cameraPosition = Vector3(0, 0, -1)
     let mutable cameraPositionLerp = cameraPosition
-    let mutable cameraRotation = Quaternion.Identity
+    let mutable cameraRotation = defaultCameraRotation
     let mutable cameraYaw = 0.0: float32
     let mutable cameraPitch = 0.0: float32
-    let update() =
+    let updateInput(dt: float64) =
         let inputState = window.GetInputState()
+
         keyEventQueue.Enqueue(inputState)
 
-        let mousePosition = inputState.MouseDelta
+        if (!window.IsCursorVisible)
+            let mousePosition = inputState.MouseDelta
 
-        let yawAcc =
-            mousePosition.X * 0.0025
+            let yawAcc =
+                mousePosition.X * 0.0025
 
-        let pitchAcc =
-            mousePosition.Y * 0.0025
+            let pitchAcc =
+                mousePosition.Y * 0.0025
 
-        cameraYaw <- cameraYaw + yawAcc
-        cameraPitch <- cameraPitch + pitchAcc
+            cameraYaw <- cameraYaw + yawAcc
+            cameraPitch <- cameraPitch + pitchAcc
 
-        cameraRotation <- defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(-cameraYaw, -cameraPitch, 0)
+            cameraRotation <- defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(-cameraYaw, -cameraPitch, 0)
+
+            let mutable objId = Physics.DynamicObjectId(-1)
+            let mutable dir = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
+            if (physics.TryRayCast(cameraPosition, dir, 500, &objId))
+                physics.ApplyImpulse(objId, Vector3.Multiply(dir, 0.0002))
+
+        else
+            UI.Update(dt, inputState, uiNode)
 
     let fixedUpdate(mutable interval: float64) =
         let interval = float32(interval)
         processKeyEventQueue()
         cameraPositionLerp <- cameraPosition
         cameraPosition <- cameraPosition + checkMotion(interval, cameraRotation)
-        System.GC.Collect(2, System.GCCollectionMode.Forced, true)
+
+        physics.Update(interval)
+
+        let mutable i = 0
+        while (i < cubes.Length)
+            let mutable m = cubes[i]
+            let mutable position = Vector3.Zero
+            let mutable orientation = Quaternion.Identity
+            physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
+            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
+            m.Translation <- position
+            cubes[i] <- m
+            i <- i + 1
+
+        Graphics.UpdateInstances(instances, cubes)
+
+    let update(dt: float64) =
+        ()
 
     let render(deltaTime, alpha) =
         let cameraPostionFinal = Vector3.Lerp(cameraPositionLerp, cameraPosition, alpha)
@@ -312,14 +309,22 @@ main(): () =
 
    // Graphics.SetVSync(true)
     //window.SetFullscreen(true)
+    window.ShowCursor()
 
     GameLoop.Start(
-        30,
-        60,
-        () ->
-            update(),
-        (dt) ->
+        dt ->
+            updateInput(dt),
+        dt ->
             fixedUpdate(dt)
+            // Uncomment to test perf.
+            // let mutable m = Matrix4x4.Identity
+            // let mutable i = 0
+            // while (i < 400000)
+            //     m <- m * m
+            //     i <- i + 1
+            !window.Exists,
+        dt ->
+            update(dt)
             !window.Exists,
         (dt, alpha) ->
             render(float32(dt), float32(alpha))

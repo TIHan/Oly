@@ -4647,7 +4647,7 @@ test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Type instantiation 'DefaultMemoryAllocator' is missing the constraint 'IMemoryAllocator<TMemory>'.",
+            ("Type instantiation 'DefaultMemoryAllocator' is missing the constraint 'IMemoryAllocator<DefaultMemory>'.",
                 """
 test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
                                   ^^^^^^^^^^^^^^^^^^^^^^

@@ -284,6 +284,7 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
 
     match value with
     | :? IFunctionSymbol as func ->
+        func.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
         match syntaxNode with
         | :? OlySyntaxBinding as syntaxBinding ->
             match syntaxBinding with
@@ -299,6 +300,7 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
                     | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
                         (syntaxParList.ChildrenOfType.AsMemory(), func.LogicalParameters)
                         ||> ROMem.iter2 (fun syntaxPar par ->
+                            par.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
                             match syntaxPar with
                             | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy)
                             | OlySyntaxParameter.Type(_, syntaxTy) ->
@@ -317,6 +319,18 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
                 checkValueTy()
         | _ ->
             checkValueTy()
+
+    | :? IFieldSymbol as field ->
+        field.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        checkValueTy()
+
+    | :? IPropertySymbol as prop ->
+        prop.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        checkValueTy()
+
+    | :? IPatternSymbol as pat ->
+        pat.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        checkValueTy()
 
     | _ ->
         checkValueTy()
@@ -370,6 +384,39 @@ and analyzeLiteral cenv env (syntaxNode: OlySyntaxNode) (literal: BoundLiteral) 
             cenv.diagnostics.Error($"'default' is not allowed for '{printType env.benv ty}' as it could be null.", 10, syntaxNode)
     | _ -> ()
     analyzeType cenv env syntaxNode literal.Type
+
+and analyzeConstant cenv env (syntaxNode: OlySyntaxNode) (constant: ConstantSymbol) =
+    match constant with
+    | ConstantSymbol.Array(elementTy, elements) ->
+        analyzeType cenv env syntaxNode elementTy
+        elements |> ImArray.iter (analyzeConstant cenv env syntaxNode)
+
+    | ConstantSymbol.External(func) ->
+        checkValue cenv env syntaxNode func
+
+    | ConstantSymbol.TypeVariable(tyPar) ->
+        analyzeType cenv env syntaxNode tyPar.AsType
+
+    | _ ->
+        ()
+
+and analyzeAttribute cenv env (syntaxNode: OlySyntaxNode) (attr: AttributeSymbol) =
+    match attr with
+    | AttributeSymbol.Constructor(ctor, args, namedArgs, _) ->
+        checkValue cenv  env syntaxNode ctor
+        args |> ImArray.iter (analyzeConstant cenv env syntaxNode)
+        namedArgs
+        |> ImArray.iter (function
+            | AttributeNamedArgumentSymbol.Field(field, constant) ->
+                checkValue cenv env syntaxNode field
+                analyzeConstant cenv env syntaxNode constant
+            | AttributeNamedArgumentSymbol.Property(prop, constant) ->
+                checkValue cenv env syntaxNode prop
+                analyzeConstant cenv env syntaxNode constant
+        )
+
+    | _ ->
+        ()
 
 and analyzeExpression cenv env (expr: BoundExpression) =
     cenv.ct.ThrowIfCancellationRequested()
@@ -551,7 +598,9 @@ and analyzeExpression cenv env (expr: BoundExpression) =
     | BoundExpression.Literal(_, literal) ->
         analyzeLiteral cenv env syntaxNode literal
 
-    | BoundExpression.EntityDefinition(body=bodyExpr) ->
+    | BoundExpression.EntityDefinition(body=bodyExpr;ent=ent) ->
+        ent.Attributes
+        |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
         analyzeExpression cenv env bodyExpr
 
     | BoundExpression.Unit _ -> ()

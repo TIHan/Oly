@@ -102,9 +102,9 @@ module private MetadataHelpers =
         | ClrTypeHandle.ByRef(ty) ->
             encodeType(encoder, ty, asmBuilder)
         | ClrTypeHandle.ModReq(modifier, ty) ->
-            encodeType(encoder, ty, asmBuilder)
             encoder.CustomModifiers().AddModifier(modifier.EntityHandle, false)
             |> ignore
+            encodeType(encoder, ty, asmBuilder)
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->
             let mutable parEncoder = Unchecked.defaultof<_>
             let mutable returnTyEncoder = Unchecked.defaultof<_>
@@ -178,7 +178,14 @@ module private MetadataHelpers =
         |> ImArray.iter (fun parTy ->
             match parTy.TryElementType with
             | ValueSome elementTy when parTy.IsByRef_t ->
-                encodeType(encoder.AddParameter().Type(true), elementTy, asmBuilder)
+                match parTy with
+                | ClrTypeHandle.ModReq(modifierTy, _) when modifierTy = asmBuilder.tr_InAttribute ->
+                    let mutable parEncoder = encoder.AddParameter()
+                    parEncoder.CustomModifiers().AddModifier(modifierTy.EntityHandle, false) |> ignore
+                    let mutable parTyEncoder = parEncoder.Type(true)
+                    encodeType(parTyEncoder, elementTy, asmBuilder)
+                | _ ->
+                    encodeType(encoder.AddParameter().Type(true), elementTy, asmBuilder)
             | _ ->
                 encodeType(encoder.AddParameter().Type(false), parTy, asmBuilder)
         )
@@ -878,13 +885,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceValueTuple`4`` = sysTy "ValueTuple`4" true
     member val ``TypeReferenceValueTuple`5`` = sysTy "ValueTuple`5" true
 
-    member val tr_InAttribute =
+    member val tr_InAttribute: ClrTypeHandle =
         createTyRef 
             ("System.Runtime.InteropServices.InAttribute") 
             false 
             (addBuiltInTyRef "System.Runtime.InteropServices" "InAttribute")
 
-    member val tr_IsReadOnlyAttribute =
+    member val tr_IsReadOnlyAttribute: ClrTypeHandle =
         createTyRef 
             ("System.Runtime.CompilerServices.IsReadOnlyAttribute") 
             false 

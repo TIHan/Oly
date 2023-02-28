@@ -2103,7 +2103,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[StructLayout(0)]
+#[StructLayout(LayoutKind.Sequential)]
 struct Test =
     X: int32 = 123
     Y: int32 = 456
@@ -2112,10 +2112,13 @@ main(): () =
     let t = Test()
     print(t.X)
     print(t.Y)
+
+    let size = System.Runtime.InteropServices.Marshal.SizeOf(default: Test)
+    print(size)
     """
     let proj = getProject src
     proj.Compilation
-    |> runWithExpectedOutput "123456"
+    |> runWithExpectedOutput "1234568"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply``() =

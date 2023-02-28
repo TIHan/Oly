@@ -272,7 +272,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                             if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
                                 (tyPar1.Constraints, tyPar2.Constraints)
                                 ||> ImArray.iter2 (fun constr1 constr2 ->
-                                    if not(areConstraintsEqual constr1 constr2) then
+                                    if not(areConstraintsEqualWith Indexable constr1 constr2) then
                                         cenv.diagnostics.Error($"'{printConstraint env.benv constr1}' constraint does not exist on the overriden function's type parameter '{printType env.benv tyPar2.AsType}'.", 10, syntax.Identifier)
                                 )
                             else

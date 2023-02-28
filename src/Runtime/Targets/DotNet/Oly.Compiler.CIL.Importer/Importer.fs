@@ -91,7 +91,25 @@ module internal rec Helpers =
                 OlyILTypeVariable(index, OlyILTypeVariableKind.Type)
 
             member this.GetModifiedType(modifier, unmodifiedType, isRequired) =
-                unmodifiedType // TODO:
+                match modifier with
+                | OlyILTypeEntity(olyEntInst) ->
+                    match olyEntInst with
+                    | OlyILEntityInstance(olyEntDefOrRefHandle, _) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
+                        let entRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                        let entName = cenv.olyAsm.GetStringOrEmpty(entRef.NameHandle)
+                        // TODO: This is a very very bad hack!!, we should be looking at the full namespace.
+                        if entName.Contains("InAttribute") then
+                            match unmodifiedType with
+                            | OlyILTypeByRef(olyElementTy, _) ->
+                                OlyILTypeByRef(olyElementTy, OlyILByRefKind.Read)
+                            | _ ->
+                                unmodifiedType
+                        else
+                            unmodifiedType
+                    | _ ->
+                        unmodifiedType
+                | _ ->
+                    unmodifiedType // TODO:
 
             member this.GetPinnedType(olyElementTy) = 
                 olyElementTy

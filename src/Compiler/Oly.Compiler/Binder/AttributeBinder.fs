@@ -35,6 +35,13 @@ let private tryAttributeConstant cenv syntaxNode =
         toConstant literal
     | BoundExpression.Call(value = (:? IFunctionSymbol as func)) when func.WellKnownFunction = WellKnownFunction.Constant ->
         ConstantSymbol.External(func) |> Some
+    | BoundExpression.Value(value=value) ->
+        match value with
+        | :? IFieldSymbol as field when field.Constant.IsSome ->
+            Some field.Constant.Value
+        | _ ->
+            cenv.diagnostics.Error("Invalid expression for an attribute.", 10, syntaxNode)
+            None
     | _ ->
         cenv.diagnostics.Error("Invalid expression for an attribute.", 10, syntaxNode)
         None
@@ -93,6 +100,12 @@ let private isValidAttributeArguments (cenv: cenv) (env: BinderEnvironment) argE
                     false
             | _ ->
                 false
+        | BoundExpression.Value(value=value) ->
+            match value with
+            | :? IFieldSymbol as field when field.Constant.IsSome ->
+                true
+            | _ ->
+                false
         | _ -> 
             false
     )
@@ -120,6 +133,7 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
         | ResolutionItem.Expression(expr) ->
             let expr = checkExpression cenv env (Some expectedTy) expr
+            
             if isArg then expr
             else
 
@@ -131,11 +145,11 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
                 | _ ->
                     if not exprTy.IsError_t then
                         errorAttribute cenv env syntaxExpr
-                    BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
+                    expr
             else
                 if not exprTy.IsError_t then
                     cenv.diagnostics.Error($"'{printType env.benv exprTy}' is not an attribute.", 10, syntaxExpr)
-                BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
+                expr
         | _ ->
             errorAttribute cenv env syntaxExpr
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
@@ -160,6 +174,17 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
             )
 
         BoundExpression.Literal(BoundSyntaxInfo.User(syntaxExpr, env.benv), BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)))
+
+    | OlySyntaxExpression.Name(syntaxName) ->
+        let item = bindNameAsItem cenv env (Some syntaxExpr) None ResolutionInfo.Default syntaxName
+        match item with
+        | ResolutionItem.Error _ ->
+            BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
+        | ResolutionItem.Expression(expr) ->
+            expr
+        | _ ->
+            errorAttribute cenv env syntaxExpr
+            BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
 
     | _ ->
         errorAttribute cenv env syntaxExpr

@@ -1224,7 +1224,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             failwith "Invalid witness."
 
 let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
-    let (irExpr, actualTy) as result = importExpressionAux cenv env expectedTyOpt ilExpr
+    let (irExpr, actualTy) as result = 
+#if DEBUG
+        System.Threading.Tasks.Task.Run(fun () ->
+            importExpressionAux cenv env expectedTyOpt ilExpr
+        ).Result
+#else
+        importExpressionAux cenv env expectedTyOpt ilExpr
+#endif
 
     match expectedTyOpt with
     | None -> result

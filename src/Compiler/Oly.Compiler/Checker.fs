@@ -221,7 +221,9 @@ let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (en
         else
             env.diagnostics.Error(sprintf "'%s' is causing a cycle on a struct." (printEntity env.benv ent), 10, syntaxNode)
 
-    (ent.TypeParameters, ent.TypeArguments)
+    let tyArgs = ent.TypeArguments
+
+    (ent.TypeParameters, tyArgs)
     ||> Seq.iteri2 (fun i tyPar tyArg ->
         if tyPar.Arity > 0 then
             match stripTypeEquations tyArg with
@@ -236,14 +238,14 @@ let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (en
         |> Seq.iter (fun constr ->
             match constr with
             | ConstraintSymbol.SubtypeOf(constrTy) ->
-                let constrTy = constrTy.Value
+                let constrTy = substituteType tyArgs constrTy.Value
                 let exists =
                     if constrTy.IsShape then
                         subsumesShape env.benv constrTy tyArg
                     elif constrTy.IsTypeConstructor then
                         subsumesTypeConstructor constrTy tyArg
                     else
-                        subsumesType constrTy tyArg
+                        subsumesTypeWith Indexable constrTy tyArg
                 if not exists && not tyArg.IsError_t then
                     let syntaxTy = syntaxTys.[i]
                     env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printType env.benv constrTy), 10, syntaxTy)

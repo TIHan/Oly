@@ -1,10 +1,14 @@
 #target "dotnet: net7"
 #library
 
+#load "*.oly"
+
 #reference "../../../core/prelude.olyx"
 #package "Veldrid,4.9.0"
 #package "Veldrid.StartupUtilities,4.9.0"
 #package "Veldrid.SPIRV,1.0.15"
+#package "Veldrid.ImGui,5.89.2-ga121087cad"
+#package "Veldrid.ImageSharp,4.9.0"
 
 namespace Evergreen.Client.Graphics
 
@@ -13,67 +17,141 @@ open System.Text
 open System.Numerics
 open System.Threading
 open System.Collections.Concurrent
+open System.Runtime.InteropServices
 open Veldrid
 open Veldrid.Sdl2
 open Veldrid.StartupUtilities
 open Veldrid.SPIRV
+open ImGuiNET
+open SixLabors.ImageSharp
+open SixLabors.ImageSharp.Advanced
+open SixLabors.ImageSharp.PixelFormats
+open SixLabors.ImageSharp.Processing
 
 private alias VeldridShaderDescription = Veldrid.ShaderDescription
 private alias VeldridShader = Veldrid.Shader
 
 sealed class MeshDescription =
-    mutable Vertices: Vector3[||]
-    mutable Indices:  uint16[||]
+    mutable Vertices:   Vector3[||]
+    mutable Indices:    uint32[||]
+    mutable Normals:    Vector3[||]
+    mutable TexCoords:  Vector2[||]
 
-    private new(vertices: Vector3[||], indices: uint16[||]) =
+    new(vertices: Vector3[||], indices: uint32[||], normals: Vector3[||], texCoords: Vector2[||]) =
         {
             Vertices = vertices;
-            Indices = indices
+            Indices = indices;
+            Normals = normals;
+            TexCoords = texCoords
         }
 
-    static Create(vertices: Vector3[||], indices: uint16[||]): MeshDescription =
-        MeshDescription(vertices, indices)
-
-    static CreateQuad(): MeshDescription =
-        let scale = 1: float32
-
+    static CreateCube(): MeshDescription =
         let vertices =
             [|
-                Vector3(-scale,  scale, 0);
-                Vector3( scale,  scale, 0);
-                Vector3(-scale, -scale, 0);
-                Vector3( scale, -scale, 0)
+                // front
+                Vector3(-0.5, -0.5,  0.5);
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(0.5,  0.5,  0.5);
+                Vector3(-0.5,  0.5,  0.5);
+                // top
+                Vector3(-0.5,  0.5,  0.5);
+                Vector3(0.5,  0.5,  0.5);
+                Vector3(0.5,  0.5, -0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                // back
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                Vector3(0.5,  0.5, -0.5);
+                // bottom
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(-0.5, -0.5,  0.5);
+                // left
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(-0.5, -0.5,  0.5);
+                Vector3(-0.5,  0.5,  0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                // right
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(0.5,  0.5, -0.5);
+                Vector3(0.5,  0.5,  0.5)
             |]
-    
-        let indices = [| 0; 1; 2; 3: uint16 |]
 
-        MeshDescription(vertices, indices)
-
-    static CreateHexagon(): MeshDescription =
-        let scale = 1: float32
-        let vertices =
+        let texCoords =
             [|
-                Vector3(     0,              0, 0); // center
-                Vector3(  -0.5 * scale,  scale, 0); // left top
-                Vector3(   0.5 * scale,  scale, 0); // right top
-                Vector3(         scale,      0, 0); // right
-                Vector3(   0.5 * scale, -scale, 0); // right bottom
-                Vector3(  -0.5 * scale, -scale, 0); // left bottom
-                Vector3(        -scale,      0, 0)  // left
+                // front
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // top
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // back
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // bottom
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // left
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // right
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0)
+            |]
+
+        let normals =
+            [|
+                Vector3(0, 0, 1);
+                Vector3(1, 0, 0);
+                Vector3(0, 0, -1);
+                Vector3(-1, 0, 0);
+                Vector3(0, 1, 0);
+                Vector3(0, -1, 0)
             |]
 
         let indices =
             [|
-                0; 1; 2;
-                0; 2; 3;               
-                0; 3; 4;
-                0; 4; 5;
-                0; 5; 6;
-                0; 6; 1;
-                0: uint16
+                // front
+                0;  1;  2;
+                2;  3;  0;
+                // top
+                4;  5;  6;
+                6;  7;  4;
+                // back
+                8;  9; 10;
+                10; 11;  8;
+                // bottom
+                12; 13; 14;
+                14; 15; 12;
+                // left
+                16; 17; 18;
+                18; 19; 16;
+                // right
+                20; 21; 22;
+                22; 23; 20: uint32
             |]
-
-        MeshDescription(vertices, indices)
+        
+        MeshDescription(
+            vertices, 
+            indices,
+            normals,
+            texCoords
+        )
 
 sealed class ShaderDescription =
     internal mutable VertexLayouts:  VertexLayoutDescription[||]
@@ -91,20 +169,11 @@ sealed class ShaderDescription =
         let vertexLayout =
             VertexLayoutDescription(
                 [|
-                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
+                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
+                   // VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
+                    VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2)
                 |]
             )
-
-        let mutable instanceLayout =
-            VertexLayoutDescription(
-                [|
-                    VertexElementDescription("Transform_Column0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
-                    VertexElementDescription("Transform_Column1", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
-                    VertexElementDescription("Transform_Column2", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4);
-                    VertexElementDescription("Transform_Column3", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4)
-                |]
-            )
-        instanceLayout.InstanceStepRate <- 1
     
         let vertexShader =
             ShaderDescription(
@@ -120,7 +189,7 @@ sealed class ShaderDescription =
                 "main"
             )
 
-        ShaderDescription([|vertexLayout;instanceLayout|], vertexShader, fragmentShader)
+        ShaderDescription([|vertexLayout|], vertexShader, fragmentShader)
 
 sealed class ComputeShaderDescription =
     internal mutable ComputeShader: VeldridShaderDescription
@@ -143,9 +212,9 @@ sealed class ComputeShaderDescription =
 sealed class Mesh =
     implements IDisposable
 
-    internal VertexBuffer: DeviceBuffer
-    internal IndexBuffer:  DeviceBuffer
-    internal IndexCount:   uint32
+    internal VertexBuffer:   DeviceBuffer
+    internal IndexBuffer:    DeviceBuffer
+    internal IndexCount:     uint32
 
     internal new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer, indexCount: uint32) =
         {
@@ -157,6 +226,19 @@ sealed class Mesh =
     Dispose(): () =
         this.VertexBuffer.Dispose()
         this.IndexBuffer.Dispose()
+
+sealed class Tex =
+    implements IDisposable
+
+    internal Texture: Texture
+
+    internal new(texture: Texture) =
+        {
+            Texture = texture
+        }
+
+    Dispose(): () =
+        this.Texture.Dispose()
 
 sealed class Instances =
     implements IDisposable
@@ -229,6 +311,7 @@ sealed class ComputeShader =
 enum DrawCommandKind =
     | DrawMesh
     | RunComputeShader
+    | SetTexture0
 
 class DrawCommand =
     Kind: DrawCommandKind
@@ -294,13 +377,15 @@ sealed class InputState =
     MouseEvents: MouseEvent[||]
     mutable MousePosition: Vector2
     mutable MouseDelta: Vector2
+    internal snapshot: InputSnapshot
 
-    internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||]) =
+    internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||], snapshot: InputSnapshot) =
         {
             KeyEvents = keyEvents
             MouseEvents = mouseEvents
             MousePosition = Vector2.Zero
             MouseDelta = Vector2.Zero
+            snapshot = snapshot
         }
 
 sealed class Window =
@@ -317,7 +402,7 @@ sealed class Window =
         let snapshot = this.window.PumpEvents()
         let keyEvents = System.Linq.Enumerable.ToArray<KeyEvent>(snapshot.KeyEvents)
         let mouseEvents = System.Linq.Enumerable.ToArray<MouseEvent>(snapshot.MouseEvents)
-        let state = InputState(keyEvents, mouseEvents)
+        let state = InputState(keyEvents, mouseEvents, snapshot)
         state.MousePosition <- snapshot.MousePosition
         state.MouseDelta <- this.window.MouseDelta
         state
@@ -340,6 +425,8 @@ sealed class Window =
         let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(false)
         this.window.CursorVisible <- true
 
+    IsCursorVisible: bool get() = this.window.CursorVisible
+
     Close(): () =
         this.window.Close()
 
@@ -350,12 +437,23 @@ module Graphics =
 
     private mutable window: Window = unchecked default
     private mutable graphicsDevice: GraphicsDevice = null
+    internal mutable imGuiRenderer: ImGuiRenderer = null
     private mutable factory: ResourceFactory = null
     private mutable commandList: CommandList = null
 
     private mutable globalUniformBuffer: DeviceBuffer = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
+
+    private CreateFramebufferTexture(width: uint32, height: uint32): Framebuffer =
+        let desc =
+            let targetTexture = 
+                factory.CreateTexture(
+                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, TextureUsage.RenderTarget)
+                )
+            let desc = FramebufferDescription(null, [|targetTexture|])
+            desc
+        factory.CreateFramebuffer(desc)
 
     CreateWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
         // TODO: Use a lock, but we need to implement try-catch in Oly.
@@ -370,31 +468,59 @@ module Graphics =
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
         options.PreferDepthRangeZeroToOne <- true  
+        options.SwapchainDepthFormat <- Nullable(PixelFormat.R16_UNorm)
+#if DEBUG
+        options.Debug <- true
+#end
        // options.SyncToVerticalBlank <- true      
 
         graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
         factory <- graphicsDevice.ResourceFactory
         commandList <- factory.CreateCommandList()
 
-        // Default resource set
-        //
+        // -- ImGui Settings --
+        let imGuiOutputDesc = graphicsDevice.SwapchainFramebuffer.OutputDescription
+        imGuiRenderer <- ImGuiRenderer(graphicsDevice, imGuiOutputDesc, width, height, ColorSpaceHandling.Linear)
+        //ImGuiNET.ImGui.StyleColorsClassic()
+        // --
+
         globalUniformBuffer <- createGlobalUniformBuffer(Matrix4x4.Identity, 0, 0)
-        //
-        //
 
         window
+
+    #[StructLayout(LayoutKind.Sequential)]
+    private struct VertexDatum =
+        mutable Vertex: Vector3 = default
+       // mutable Normal: Vector3 = default
+        mutable TexCoord: Vector2 = default
 
     CreateMesh(meshDesc: MeshDescription): Mesh =
         let vertices = meshDesc.Vertices
         let indices  = meshDesc.Indices
+        let normals  = meshDesc.Normals
+        let texCoords = meshDesc.TexCoords
     
         let vertexCount = uint32(vertices.Length)
         let indexCount  = uint32(indices.Length)
+        let normalCount = uint32(normals.Length)
+        let texCoordCount = uint32(texCoords.Length)
+
+        let vertexData =
+            let vertexData = OlyArray.ZeroCreate<VertexDatum>(int32(vertexCount))
+            let mutable i = 0
+            while (i < int32(vertexCount))
+                vertexData[i] <- 
+                    let mutable d = default: VertexDatum
+                    d.Vertex <- vertices[i]
+                    d.TexCoord <- texCoords[i]
+                    d
+                i <- i + 1
+            vertexData
     
-        let vertexBuffer = factory.CreateBuffer(BufferDescription(vertexCount * ((4: uint32) * 3), BufferUsage.VertexBuffer))
-        let indexBuffer = factory.CreateBuffer(BufferDescription(indexCount * 2 /* sizeof<uint16> */, BufferUsage.IndexBuffer))
+        let vertexBuffer = factory.CreateBuffer(BufferDescription(vertexCount * uint32(sizeof<VertexDatum>), BufferUsage.VertexBuffer))
+        let indexBuffer = factory.CreateBuffer(BufferDescription(indexCount * uint32(sizeof<uint32>), BufferUsage.IndexBuffer))
     
-        graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertices)
+        graphicsDevice.UpdateBuffer(vertexBuffer, 0, vertexData)
         graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
@@ -408,8 +534,8 @@ module Graphics =
                 ResourceLayouts = resourceLayouts;
                 ResourceSets = resourceSets
             }
-
-    private CreateResourceSets(instances: Instances, shaderStages: ShaderStages, transformResourceKind: ResourceKind): ResourceSetGroup =
+            
+    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages, transformResourceKind: ResourceKind): ResourceSetGroup =
         // ------------------------------------------------------------
         let resourceLayoutDesc =
             ResourceLayoutDescription(
@@ -443,10 +569,31 @@ module Graphics =
             )
         let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
 
-        ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
+        match (shaderStages)
+        | ShaderStages.Vertex =>
+            let resourceLayoutDesc3 =
+                ResourceLayoutDescription(
+                    [|
+                        ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
+                        ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment)
+                    |]
+                )
+            let resourceLayout3 = factory.CreateResourceLayout(resourceLayoutDesc3)
+            let resourceSetDesc3 = 
+                ResourceSetDescription(
+                    resourceLayout3,
+                    [|
+                        (tex.Texture: BindableResource);
+                        graphicsDevice.Aniso4xSampler
+                    |]
+                )
+            let resourceSet3 = factory.CreateResourceSet(resourceSetDesc3)
+            ResourceSetGroup([|resourceLayout;resourceLayout2;resourceLayout3|], [|resourceSet;resourceSet2;resourceSet3|])
+        | _ =>
+            ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
         // ----------------------------------------------------------------
     
-    private CreateShaderState(shaderDesc: ShaderDescription, instances: Instances): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, tex: Tex, instances: Instances): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -467,12 +614,12 @@ module Graphics =
             let mutable desc = default: RasterizerStateDescription
             desc.CullMode <- FaceCullMode.Back
             desc.FillMode <- PolygonFillMode.Solid
-            desc.FrontFace <- FrontFace.Clockwise
+            desc.FrontFace <- FrontFace.CounterClockwise
             desc.DepthClipEnabled <- true
             desc.ScissorTestEnabled <- false
             desc
     
-        pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleStrip
+        pipelineDesc.PrimitiveTopology <- PrimitiveTopology.TriangleList
 
         pipelineDesc.ShaderSet <-
             let mutable desc = default: ShaderSetDescription
@@ -480,7 +627,7 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        let resourceSetGroup = CreateResourceSets(instances, ShaderStages.Vertex, ResourceKind.StructuredBufferReadOnly)
+        let resourceSetGroup = CreateResourceSets(tex, instances, ShaderStages.Vertex, ResourceKind.StructuredBufferReadOnly)
     
         pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
@@ -493,7 +640,7 @@ module Graphics =
     
         let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
 
-        let resourceSetGroup = CreateResourceSets(instances, ShaderStages.Compute, ResourceKind.StructuredBufferReadWrite)
+        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute, ResourceKind.StructuredBufferReadWrite)
     
         let pipelineDesc = 
             ComputePipelineDescription(
@@ -508,18 +655,49 @@ module Graphics =
     
         ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
-    CreateShader(shaderDesc: ShaderDescription, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, instances))
+    CreateShader(shaderDesc: ShaderDescription, tex: Tex, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, tex, instances))
 
     CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
         ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
 
-    // UpdateShader(shader: Shader, shaderDesc: ShaderDescription): () =
-    //     let newState = CreateShaderState(shaderDesc)
-    //     let oldState = Interlocked.Exchange(&shader.State, newState)
-    //     oldState.Pipeline.Dispose()
-    //     oldState.FragmentShader.Dispose()
-    //     oldState.VertexShader.Dispose()
+    UpdateShader(shader: Shader, tex: Tex, shaderDesc: ShaderDescription, instances: Instances): () =
+        let newState = CreateShaderState(shaderDesc, tex, instances)
+        let oldState = Interlocked.Exchange(&shader.State, newState)
+        oldState.Pipeline.Dispose()
+        oldState.FragmentShader.Dispose()
+        oldState.VertexShader.Dispose()
+
+    CreateTex2D(filePath: string): Tex =
+        let image = Veldrid.ImageSharp.ImageSharpTexture(filePath)
+        let texture = image.CreateDeviceTexture(graphicsDevice, factory)
+        Tex(texture)
+        // let image = Image.Load<Rgba32>(System.IO.File.ReadAllBytes(filePath))
+        // let width = uint32(image.Width)
+        // let height = uint32(image.Height)
+
+        // let mutable pixels = unchecked default: Memory<Rgba32>
+        // let mutable result = AdvancedImageExtensions. //DangerousGetPixelRowMemory(image, 0)
+        // let sizeInBytes = width * height * 4
+
+        // let mutable desc = default: TextureDescription
+        // desc.Width <- width
+        // desc.Height <- height
+        // desc.Depth <- 1
+        // desc.Format <- PixelFormat.R8_G8_B8_A8_UNorm
+        // desc.Type <- TextureType.Texture2D
+        // desc.Usage <- TextureUsage.Sampled
+        // desc.MipLevels <- 1
+        // desc.ArrayLayers <- 1
+
+        // let texture = factory.CreateTexture(desc)
+
+        // let mutable sourceHandle = result.Pin()
+        // let source = nint(sourceHandle.Pointer)
+        // graphicsDevice.UpdateTexture(texture, source, sizeInBytes, 0, 0, 0, width, height, 1, 0, 0)
+        // sourceHandle.Dispose()
+
+        // Tex(texture)
 
     private createGlobalUniformBuffer(viewProj: Matrix4x4, deltaTime: float32, slot: uint32): DeviceBuffer =
         let buffer = factory.CreateBuffer(BufferDescription((64: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
@@ -542,23 +720,20 @@ module Graphics =
         instances.Count <- transforms.Length
         instances
 
-    private delayed: ConcurrentQueue<() -> ()> = ConcurrentQueue()
+    UpdateInstances(instances: Instances, transforms: Matrix4x4[||]): () =
+        graphicsDevice.UpdateBuffer(instances.TransformBuffer, 0, transforms)
 
     Draw(drawCmds: DrawCommand[]): () =
         // Begin() must be called before commands can be issued
         commandList.Begin()
-
-        let mutable f = unchecked default
-        while (delayed.TryDequeue(&f))
-            f()
     
         // We want to render directly to the output window.
         commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
         commandList.ClearColorTarget(0, RgbaFloat.Black)
+        commandList.ClearDepthStencil(1)
 
         let mutable currentPipeline = unchecked default
 
-        // Set all relevant state to draw our quad
         let mutable i = 0
         let length = getLength(drawCmds)
         while (i < length)
@@ -583,7 +758,7 @@ module Graphics =
                     let indexCount      = mesh.IndexCount
 
                     commandList.SetVertexBuffer(0, vertexBuffer)
-                    commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt16)
+                    commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt32)
             
                     commandList.DrawIndexed(
                         indexCount,     /* indexCount */
@@ -611,10 +786,12 @@ module Graphics =
     
             i <- i + 1
     
+        imGuiRenderer.Render(graphicsDevice, commandList)
+
         // End() must be called before commands can be submitted for execution.
         commandList.End()
         graphicsDevice.SubmitCommands(commandList)
-    
+
         // Once commands have been submitted, the rendered image can be presented to the application window.
         graphicsDevice.SwapBuffers()
 

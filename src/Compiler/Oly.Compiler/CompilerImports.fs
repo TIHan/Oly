@@ -109,6 +109,158 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         member this.WellKnownFunction = func.WellKnownFunction
 
 [<Sealed>]
+type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, field: IFieldSymbol) =
+
+    let id = newId()
+
+    let lazyTy =
+        lazy
+            let enclosingTyPars = enclosing.TypeParameters
+            retargetType currentAsmIdent importer enclosingTyPars field.Type
+
+    let lazyConstant =
+        match field.Constant with
+        | ValueSome(constant) ->         
+            lazy
+                retargetConstant currentAsmIdent importer constant
+                |> ValueSome
+        | _ ->
+            Lazy<_>.CreateFromValue(ValueNone)
+
+    member this.Original = field
+    
+    interface IFieldSymbol with
+        member this.Attributes = field.Attributes
+        member this.Enclosing = enclosing
+        member this.Formal = this
+        member this.FunctionFlags = FunctionFlags.None
+        member this.FunctionOverrides = None
+        member this.Id = id
+        member this.IsBase = false
+        member this.IsField = true
+        member this.IsFunction = false
+        member this.IsPattern = false
+        member this.IsProperty = false
+        member this.IsThis = false
+        member this.MemberFlags = field.MemberFlags
+        member this.Name = field.Name
+        member this.Type = lazyTy.Value
+        member this.TypeArguments = ImArray.empty
+        member this.TypeParameters = ImArray.empty
+        member this.ValueFlags = field.ValueFlags
+        member this.Constant = lazyConstant.Value
+        member this.AssociatedFormalPropertyId = None // TODO
+
+[<Sealed>]
+type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, prop: IPropertySymbol) =
+
+    let id = newId()
+
+    let lazyTy =
+        lazy
+            let enclosingTyPars = enclosing.TypeParameters
+            retargetType currentAsmIdent importer enclosingTyPars prop.Type
+
+    let lazyBackingField =
+        match prop.BackingField with
+        | Some field ->
+            lazy
+                retargetField currentAsmIdent importer enclosing field
+                |> Some
+        | _ ->
+            Lazy<_>.CreateFromValue(None)
+
+    let lazyGetter =
+        match prop.Getter with
+        | Some getter ->
+            lazy
+                retargetFunction currentAsmIdent importer enclosing getter
+                |> Some
+        | _ ->
+            Lazy<_>.CreateFromValue(None)
+
+    let lazySetter =
+        match prop.Setter with
+        | Some setter ->
+            lazy
+                retargetFunction currentAsmIdent importer enclosing setter
+                |> Some
+        | _ ->
+            Lazy<_>.CreateFromValue(None)
+
+    member this.Original = prop
+    
+    interface IPropertySymbol with
+        member this.Attributes = prop.Attributes
+        member this.Enclosing = enclosing
+        member this.Formal = this
+        member this.FunctionFlags = FunctionFlags.None
+        member this.FunctionOverrides = None
+        member this.Id = id
+        member this.IsBase = false
+        member this.IsField = false
+        member this.IsFunction = false
+        member this.IsPattern = false
+        member this.IsProperty = true
+        member this.IsThis = false
+        member this.MemberFlags = prop.MemberFlags
+        member this.Name = prop.Name
+        member this.Type = lazyTy.Value
+        member this.TypeArguments = ImArray.empty
+        member this.TypeParameters = ImArray.empty
+        member this.ValueFlags = prop.ValueFlags
+        member this.BackingField = lazyBackingField.Value
+        member this.Getter = lazyGetter.Value
+        member this.Setter = lazySetter.Value
+
+[<Sealed>]
+type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, pat: IPatternSymbol) =
+
+    let id = newId()
+
+    let lazyTy =
+        lazy
+            let enclosingTyPars = enclosing.TypeParameters
+            retargetType currentAsmIdent importer enclosingTyPars pat.Type
+
+    let lazyPatFunc =
+        lazy
+            retargetFunction currentAsmIdent importer enclosing pat.PatternFunction
+
+    let lazyPatGuardFuncOpt =
+        match pat.PatternGuardFunction with
+        | Some patGuardFunc ->
+            lazy
+                retargetFunction currentAsmIdent importer enclosing patGuardFunc
+                |> Some
+        | _ ->
+            Lazy<_>.CreateFromValue(None)
+
+    member this.Original = pat
+    
+    interface IPatternSymbol with
+        member this.Attributes = pat.Attributes
+        member this.Enclosing = enclosing
+        member this.Formal = this
+        member this.FunctionFlags = FunctionFlags.None
+        member this.FunctionOverrides = None
+        member this.Id = id
+        member this.IsBase = false
+        member this.IsField = false
+        member this.IsFunction = false
+        member this.IsPattern = true
+        member this.IsProperty = false
+        member this.IsThis = false
+        member this.MemberFlags = pat.MemberFlags
+        member this.Name = pat.Name
+        member this.Type = lazyTy.Value
+        member this.TypeArguments = ImArray.empty
+        member this.TypeParameters = ImArray.empty
+        member this.ValueFlags = pat.ValueFlags
+        member this.PatternFunction = lazyPatFunc.Value
+        member this.PatternGuardFunction = lazyPatGuardFuncOpt.Value
+
+[<Sealed;DebuggerDisplay("Retargeted({DebugName}) for {AssemblyNameThatImportedThis}")>]
 type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
     
     let id = newId()
@@ -144,6 +296,21 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             ent.Functions
             |> ImArray.map (retargetFunction currentAsmIdent importer asEnclosing)
 
+    let lazyFields =
+        lazy
+            ent.Fields
+            |> ImArray.map (retargetField currentAsmIdent importer asEnclosing)
+
+    let lazyProps =
+        lazy
+            ent.Properties
+            |> ImArray.map (retargetProperty currentAsmIdent importer asEnclosing)
+
+    let lazyPats =
+        lazy
+            ent.Patterns
+            |> ImArray.map (retargetPattern currentAsmIdent importer asEnclosing)
+
     let lazyExtends =
         lazy
             let tyPars = lazyTyPars.Value
@@ -166,13 +333,16 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
 
     member this.Original = ent
 
+    member this.AssemblyNameThatImportedThis = currentAsmIdent.Name
+    member this.DebugName = ent.Name
+
     interface IEntitySymbol with
         member this.Attributes = ent.Attributes
         member this.ContainingAssembly = ent.ContainingAssembly
         member this.Enclosing = enclosing
         member this.Entities = lazyEntities.Value
         member this.Extends = lazyExtends.Value
-        member this.Fields = ent.Fields
+        member this.Fields = lazyFields.Value
         member this.Flags = ent.Flags
         member this.Formal = this
         member this.Functions = lazyFunctions.Value
@@ -181,8 +351,8 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
         member this.InstanceConstructors = lazyInstanceCtors.Value
         member this.Kind = ent.Kind
         member this.Name = ent.Name
-        member this.Patterns = ent.Patterns
-        member this.Properties = ent.Properties
+        member this.Patterns = lazyPats.Value
+        member this.Properties = lazyProps.Value
         member this.TypeArguments = lazyTyArgs.Value
         member this.TypeParameters = lazyTyPars.Value
 
@@ -223,10 +393,34 @@ let private retargetParameter currentAsmIdent importer (tyPars: TypeParameterSym
 let private retargetFunction currentAsmIdent importer enclosing func =
     RetargetedFunctionSymbol(currentAsmIdent, importer, enclosing, func) :> IFunctionSymbol
 
+let private retargetField currentAsmIdent importer enclosing field =
+    RetargetedFieldSymbol(currentAsmIdent, importer, enclosing, field) :> IFieldSymbol
+
+let private retargetProperty currentAsmIdent importer enclosing prop =
+    RetargetedPropertySymbol(currentAsmIdent, importer, enclosing, prop) :> IPropertySymbol
+
+let private retargetPattern currentAsmIdent importer enclosing pat =
+    RetargetedPatternSymbol(currentAsmIdent, importer, enclosing, pat) :> IPatternSymbol
+
+let private retargetConstant currentAsmIdent importer constant =
+    match constant with
+    | ConstantSymbol.External(func) ->
+        let enclosing = retargetEnclosing currentAsmIdent importer func.Enclosing
+        ConstantSymbol.External(retargetFunction currentAsmIdent importer enclosing func)
+    | ConstantSymbol.TypeVariable(tyPar) ->
+        ConstantSymbol.TypeVariable(retargetTypeParameter currentAsmIdent importer tyPar)
+    | ConstantSymbol.Array(elementTy, elements) ->
+        let renclosing = retargetEnclosing currentAsmIdent importer elementTy.Enclosing
+        let relementTy = retargetType currentAsmIdent importer renclosing.TypeParameters elementTy
+        let relements = elements |> ImArray.map (retargetConstant currentAsmIdent importer)
+        ConstantSymbol.Array(relementTy, relements)
+    | _ ->
+        constant
+
 let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: IEntitySymbol) =
     if ent.IsAnonymous then
         RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> IEntitySymbol
-    else     
+    else
         let qualName = ent.QualifiedName
         match importer.TryGetEntity(qualName) with
         | true, ent -> 
@@ -237,7 +431,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             importer.AddEntity(qualName, ent)
             ent
 
-let private retargetEnclosing currentAsmIdent importer enclosing =
+let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     match enclosing with
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace -> enclosing
@@ -799,6 +993,8 @@ let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILE
         if obj.ReferenceEquals(invalidEntity, ent) |> not then
             localCache.entFromEntRef.[ilEntRefHandle] <- ent
             cenv.imports.sharedCache.AddEntity(ent)
+        else
+            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName))
         ent
 
 let private importEntitySymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilEntRef: OlyILEntityInstance) =
@@ -1220,7 +1416,14 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILAsse
             match ilFieldDef with
             | OlyILFieldConstant(_, ilNamedConst, _) ->
                 match ilNamedConst with
+                | OlyILConstant.UInt8(value) -> ConstantSymbol.UInt8(value) |> ValueSome
+                | OlyILConstant.Int8(value) -> ConstantSymbol.Int8(value) |> ValueSome
+                | OlyILConstant.UInt16(value) -> ConstantSymbol.UInt16(value) |> ValueSome
+                | OlyILConstant.Int16(value) -> ConstantSymbol.Int16(value) |> ValueSome
+                | OlyILConstant.UInt32(value) -> ConstantSymbol.UInt32(value) |> ValueSome
                 | OlyILConstant.Int32(value) -> ConstantSymbol.Int32(value) |> ValueSome
+                | OlyILConstant.UInt64(value) -> ConstantSymbol.UInt64(value) |> ValueSome
+                | OlyILConstant.Int64(value) -> ConstantSymbol.Int64(value) |> ValueSome
                 | OlyILConstant.Float32(value) -> ConstantSymbol.Float32(value) |> ValueSome
                 | OlyILConstant.Float64(value) -> ConstantSymbol.Float64(value) |> ValueSome
                 | _ -> ValueNone
@@ -1491,7 +1694,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     let currentAssemblies = ConcurrentDictionary()
     let ents = ResizeArray()
 
-    let handleNamespace (ent: INamespaceSymbol) =
+    member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
         ent.Entities
         |> Seq.iter (fun ent ->
@@ -1499,14 +1702,14 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                 namespaceBuilder.AddEntity(ent, ent.LogicalTypeParameterCount)
         )
 
-    let handleEntity (ent: IEntitySymbol) =
+    member private this.HandleEntity(ent: IEntitySymbol) =
         if ent.IsNamespace then
-            handleNamespace ent
+            this.HandleNamespace(ent)
         else
             let rec loop (enclosing: EnclosingSymbol) =
                 match enclosing with
                 | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-                    handleNamespace ent
+                    this.HandleNamespace(ent)
                 | EnclosingSymbol.RootNamespace ->
                     ()
                 | _ ->
@@ -1520,15 +1723,18 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
 
     member this.ImportEntity(ent: IEntitySymbol) =
         if ent.IsNamespace || ent.IsAnonymous then
-            handleEntity ent
+            this.HandleEntity(ent)
         else
             let qualName = ent.QualifiedName
             match entities.TryGetValue(qualName) with
             | false, _ ->
                 entities[qualName] <- ent
-                handleEntity ent
+                this.HandleEntity(ent)
             | _ ->
                 ()
+
+    member this.HasImportedAssembly(asmIdent: OlyILAssemblyIdentity) =
+        currentAssemblies.ContainsKey(asmIdent)
 
     member this.TryGetEntity(qualName, rent: outref<IEntitySymbol>): bool =
         entities.TryGetValue(qualName, &rent)
@@ -1538,9 +1744,23 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         entities[qualName] <- rent
 
     member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: IEntitySymbol) =
-        let renclosing = retargetEnclosing currentAsmIdent this ent.Enclosing
-        let ent = retargetEntity currentAsmIdent this renclosing ent
-        handleEntity ent
+        if ent.IsNamespace then
+            ent.Entities
+            |> ImArray.iter (fun ent ->
+                this.ImportAndRetargetEntity(currentAsmIdent, ent)
+            )
+        else
+            match ent.Enclosing with
+            | EnclosingSymbol.RootNamespace ->
+                let rent = retargetEntity currentAsmIdent this EnclosingSymbol.RootNamespace ent
+                this.HandleEntity(rent)
+            | EnclosingSymbol.Entity(enclosingEnt) when enclosingEnt.IsNamespace ->
+                let namespaceBuilder = importNamespace namespaceEnv enclosingEnt.FullNamespacePath
+                let rent = retargetEntity currentAsmIdent this (EnclosingSymbol.Entity(namespaceBuilder.Entity)) ent
+                namespaceBuilder.AddEntity(rent, rent.LogicalTypeParameterCount)
+                this.HandleEntity(rent)
+            | _ ->
+                OlyAssert.Fail("Importing an entity must not have an enclosing that is not a namespace.")
 
     member this.ForEachEntity(diagnostics, ct: CancellationToken, f, forEachPrimTy) =
         ct.ThrowIfCancellationRequested()

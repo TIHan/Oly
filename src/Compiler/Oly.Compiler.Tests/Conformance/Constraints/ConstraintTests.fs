@@ -1203,3 +1203,14 @@ class Test<T<_>> where T<_>: ITest =
         ]
     |> ignore
 
+[<Fact>]
+let ``Recursive constraint interface should compile``() =
+    let src =
+        """
+interface ITest<Z> where Z: ITest<Z>
+
+test<T>(): () where T: ITest<T> = ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

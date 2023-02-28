@@ -1119,7 +1119,10 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
             let thisExpr = 
                 match env.implicitThisOpt with
                 | Some(receiver) -> BoundExpression.CreateValue(cenv.syntaxTree, receiver)
-                | _ -> failwith "Expected a receiver."
+                | _ ->
+                    // TODO: We need a test for this error.
+                    cenv.diagnostics.Error("Expected a 'this' value.", 10, syntaxNode)
+                    E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
             let currentFieldSet = HashSet()
 

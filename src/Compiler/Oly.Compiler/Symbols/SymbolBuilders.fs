@@ -163,7 +163,7 @@ type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
 
     member _.EntityBuilder = entBuilder
 
-    member _.AddEntity(ent: IEntitySymbol, tyParCount) =
+    member _.AddEntity(ent: IEntitySymbol, tyParCount: int32) =
         // Prevent duplicates
         if set.ContainsKey(ent.Name, tyParCount) then ()
         else

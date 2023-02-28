@@ -16,6 +16,7 @@ open ClrPatterns
 [<RequireQualifiedAccess>]
 type ClrMethodSpecialKind =
     | None
+    | External
     | TypeOf
     | FunctionPointer
 
@@ -927,7 +928,8 @@ module rec ClrCodeGen =
 
         irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         match func.specialKind with
-        | ClrMethodSpecialKind.None ->
+        | ClrMethodSpecialKind.None
+        | ClrMethodSpecialKind.External ->
             if func.IsStatic || not isVirtual then
                 if isReturnable && canTailCall cenv func then
                     I.Tail |> emitInstruction cenv
@@ -1622,12 +1624,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             (flags: OlyIRFunctionFlags) 
             (name: string) 
             (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) 
+            (originalOverridesOpt: ClrMethodInfo option)
             (pars: OlyIRParameter<ClrTypeInfo> imarray) 
             (returnTy: ClrTypeInfo) =
 
         // Exported functions will always use the name represented in the source.
         // TODO: How will we solve generic interface implementations?
-        if flags.IsExported then
+        if flags.IsExported || flags.IsExternal then
             OlyAssert.False(flags.AreGenericsErased)
         
             if flags.SignatureUsesNewType then
@@ -1647,21 +1650,25 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             else if flags.AreGenericsErased then
                 name + "__oly_erased_" + tyPars.Length.ToString()
             else
-                // We do not need to check the type arguments for byref/inref because
-                // they are not legal in the CLR, therefore the generics should be erased.
-                let mutable readOnlyByRefCount = 0
-                pars
-                |> ImArray.iter (fun x ->
-                    if x.Type.IsByRef && x.Type.IsReadOnly then
-                        readOnlyByRefCount <- readOnlyByRefCount + 1
-                )
-                if returnTy.IsByRef && returnTy.IsReadOnly then
-                    readOnlyByRefCount <- readOnlyByRefCount + 1
-            
-                if readOnlyByRefCount > 0 then
-                    name + "__oly_read_only_" + readOnlyByRefCount.ToString()
-                else
+                match originalOverridesOpt with
+                | Some originalOverrides when originalOverrides.specialKind = ClrMethodSpecialKind.External ->
                     name
+                | _ ->
+                    // We do not need to check the type arguments for byref/inref because
+                    // they are not legal in the CLR, therefore the generics should be erased.
+                    let mutable readOnlyByRefCount = 0
+                    pars
+                    |> ImArray.iter (fun x ->
+                        if x.Type.IsByRef && x.Type.IsReadOnly then
+                            readOnlyByRefCount <- readOnlyByRefCount + 1
+                    )
+                    if returnTy.IsByRef && returnTy.IsReadOnly then
+                        readOnlyByRefCount <- readOnlyByRefCount + 1
+            
+                    if readOnlyByRefCount > 0 then
+                        name + "__oly_read_only_" + readOnlyByRefCount.ToString()
+                    else
+                        name
 
     let voidTy = ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceVoid, false, false)
 
@@ -1755,10 +1762,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | OlyIRByRefKind.ReadWrite ->
                 ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(ty.Handle), false, true)     
             | OlyIRByRefKind.Read ->
-                // TODO: Add this modreq -> ClrTypeHandle.ModReq(asmBuilder.tr_IsReadOnlyAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
-                //       Not necessary or required, but it would be nice as it gives more info about the byref in metadata.
-                //       We do not do it now because we are not stripping the modreqs in all the places.
-                ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(ty.Handle), true, true)     
+                let ty = ClrTypeHandle.ModReq(asmBuilder.tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
+                ClrTypeInfo.TypeReference(asmBuilder, ty, true, true)     
 
         member this.EmitTypeRefCell(ty) =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(ty.Handle, 1), false, false)
@@ -1956,13 +1961,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) 
                             when irArgs.Length = 1 && 
-                               //  ctor.name = ".ctor" &&
+                                 ctor.name = ".ctor" &&
                                  ctor.enclosingTyHandle.IsNamed &&
                                  ctor.enclosingTyHandle.FullyQualifiedName.StartsWith("System.Runtime.InteropServices.StructLayoutAttribute") ->
                         let irArg = irArgs[0]
-                        // TODO: Handle others.
                         match irArg with
-                        | C.Int16(0s) -> true
+                        | C.Int16(0s)
+                        | C.Int32(0) -> true
                         | _ -> false
                     | _ ->
                         false
@@ -2232,6 +2237,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     flags
                     name
                     tyPars
+                    originalOverridesOpt
                     pars
                     returnTy
             let isCtor = flags.IsConstructor
@@ -2452,6 +2458,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         ClrMethodSpecialKind.FunctionPointer
                     | _ ->
                         failwith "Invalid CLR intrinsic"
+                | Some _ ->
+                    ClrMethodSpecialKind.External
                 | _ ->
                     ClrMethodSpecialKind.None
 
