@@ -512,7 +512,7 @@ module Graphics =
         //ImGuiNET.ImGui.StyleColorsClassic()
         // --
 
-        globalUniformBuffer <- createGlobalUniformBuffer(Matrix4x4.Identity, 0, 0)
+        globalUniformBuffer <- createGlobalUniformBuffer(0)
 
         window
 
@@ -743,17 +743,23 @@ module Graphics =
 
         // Tex(texture)
 
-    private createGlobalUniformBuffer(viewProj: Matrix4x4, deltaTime: float32, slot: uint32): DeviceBuffer =
-        let buffer = factory.CreateBuffer(BufferDescription((64: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
-        graphicsDevice.UpdateBuffer(buffer, 0, viewProj)
-        graphicsDevice.UpdateBuffer(buffer, 64, deltaTime)
-        buffer
+    private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
+        factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
-    SetDeltaTime(value: float32): () =
+    SetModel(value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
+
+    SetView(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 64, value)
 
-    SetModelViewProjection(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
+    SetProjection(value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 128, value)
+
+    SetNormalMatrix(value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
+
+    SetDeltaTime(value: float32): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
 
     CreateInstances<T>(instanceData: T[||]): Instances where T: struct =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite

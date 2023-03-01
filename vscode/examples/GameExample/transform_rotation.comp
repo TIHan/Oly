@@ -1,14 +1,24 @@
 #version 450
 
+struct Instance
+{
+  mat4 Transform;
+  vec3 Scale;
+  float Padding;
+};
+
 layout(set = 0, binding = 0) uniform _Global
 {
-    mat4 ModelViewProjection;
+    mat4 Model;
+    mat4 View;
+    mat4 Projection;
+    mat4 NormalMatrix;
     float DeltaTime;
 };
     
 layout(set = 1, binding = 0) buffer _Transforms
 {
-    mat4[] Transforms;
+    Instance[] Instances;
 };
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -37,7 +47,7 @@ mat4 rotationZ( in float angle ) {
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
-    mat4 transform = Transforms[index];
+    mat4 transform = Instances[index].Transform;
 
     vec3 translation = transform[3].xyz;
     mat4 result = rotationY(1 * DeltaTime) * rotationZ(1 * DeltaTime);
@@ -45,5 +55,5 @@ void main()
     transform = result * transform;
     transform[3].xyz = translation;
 
-  //  Transforms[index] = transform;
+    Instances[index].Transform = transform;
 }

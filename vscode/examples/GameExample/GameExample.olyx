@@ -175,7 +175,11 @@ main(): () =
 
     let mutable viewProj = ViewProjection(70, 1280, 720, 0.5, 1000000)
     let mutable viewProjLerp = viewProj
-    Graphics.SetModelViewProjection(viewProj.View * viewProj.Projection)
+    Graphics.SetModel(Matrix4x4.Identity)
+    Graphics.SetView(viewProj.View)
+    Graphics.SetProjection(viewProj.Projection)
+    Graphics.SetNormalMatrix(Matrix4x4.Identity)
+    Graphics.SetDeltaTime(0)
 
     let mutable is_w_pressed = false
     let mutable is_a_pressed = false
@@ -295,18 +299,18 @@ main(): () =
 
         physics.Update(interval)
 
-        let mutable i = 0
-        while (i < cubes.Length)
-            let mutable m = cubes[i]
-            let mutable position = Vector3.Zero
-            let mutable orientation = Quaternion.Identity
-            physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
-            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
-            m.Translation <- position
-            cubes[i] <- CubeInstance(m)
-            i <- i + 1
+        // let mutable i = 0
+        // while (i < cubes.Length)
+        //     let mutable m = cubes[i]
+        //     let mutable position = Vector3.Zero
+        //     let mutable orientation = Quaternion.Identity
+        //     physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
+        //     let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
+        //     m.Translation <- position
+        //     cubes[i] <- CubeInstance(m)
+        //     i <- i + 1
 
-        Graphics.UpdateInstances(instances, cubes)
+        // Graphics.UpdateInstances(instances, cubes)
 
     let update(dt: float64) =
         ()
@@ -317,7 +321,7 @@ main(): () =
         view.Translation <- cameraPostionFinal
         let projection = viewProj.Projection
         let result = Matrix4x4.Invert(view, &view)
-        Graphics.SetModelViewProjection(view * projection)
+        Graphics.SetView(view)
         Graphics.SetDeltaTime(deltaTime)
 
         let windowExists = window.Exists

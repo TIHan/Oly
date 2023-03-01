@@ -12,12 +12,16 @@ layout(location = 1) in vec2 TexCoord;
 layout(location = 2) in vec3 Normal;
 
 layout(location = 0) out vec4 fsin_Color;
-layout(location = 1) out vec2 fsin_texCoord;
-layout(location = 2) out vec3 fsin_Diffuse;
+layout(location = 1) out vec2 fsin_TexCoord;
+layout(location = 2) out vec3 fsin_Normal;
+layout(location = 3) out vec4 fsin_Position;
 
-layout(set = 0, binding = 0) uniform _ModelViewProjection
+layout(set = 0, binding = 0) uniform _Global
 {
-    mat4 ModelViewProjection;
+    mat4 Model;
+    mat4 View;
+    mat4 Projection;
+    mat4 NormalMatrix;
     float DeltaTime;
 };
 
@@ -28,20 +32,19 @@ layout(set = 1, binding = 0) readonly buffer _InstanceData
 
 void main()
 {
-    mat4 Transform = Instances[gl_InstanceIndex].Transform;
+    mat4 transform = Instances[gl_InstanceIndex].Transform;
     vec3 scale = Instances[gl_InstanceIndex].Scale;
 
-    vec3 position = Position * scale;
+    vec4 ambientColor = vec4(1, 1, 1, 1);
+    mat4 model = Model * transform;
 
-    vec4 color = vec4(1, 1, 1, 1);
+    vec4 position = model * vec4(Position * scale, 1);
+    vec3 normal = normalize(mat3(transpose(inverse(model))) * Normal);
 
-    gl_Position = ModelViewProjection * Transform * vec4(position, 1);
-    fsin_Color = color;
-    fsin_texCoord = TexCoord * scale.xy;
+    fsin_Color = ambientColor;
+    fsin_TexCoord = TexCoord * scale.xy;
+    fsin_Normal = normal;
+    fsin_Position = position;
 
-    vec3 norm = normalize(vec3((Transform * vec4(Normal * scale, 1)).xyz));
-    vec3 lightPos = normalize(vec3(0, 500, 200));
-    vec3 lightDir = normalize(lightPos - position);
-    float diff = max(dot(norm, lightDir), 0.0);
-    fsin_Diffuse = diff * color.xyz;
+    gl_Position = Projection * View * position;
 }
