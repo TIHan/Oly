@@ -15,6 +15,7 @@ layout(location = 0) out vec4 fsin_Color;
 layout(location = 1) out vec2 fsin_TexCoord;
 layout(location = 2) out vec3 fsin_Normal;
 layout(location = 3) out vec4 fsin_Position;
+layout(location = 4) out vec3 fsin_LightPosition;
 
 layout(set = 0, binding = 0) uniform _Global
 {
@@ -39,12 +40,13 @@ void main()
     mat4 model = Model * transform;
 
     vec4 position = model * vec4(Position * scale, 1);
-    vec3 normal = normalize(mat3(transpose(inverse(model))) * Normal);
+    vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
     fsin_Color = ambientColor;
     fsin_TexCoord = TexCoord * scale.xy;
     fsin_Normal = normal;
     fsin_Position = position;
+    fsin_LightPosition = vec3(0, 5, 0);
 
     gl_Position = Projection * View * position;
 }
