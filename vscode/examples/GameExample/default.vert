@@ -46,7 +46,7 @@ void main()
     fsin_TexCoord = TexCoord * scale.xy;
     fsin_Normal = normal;
     fsin_Position = position;
-    fsin_LightPosition = vec3(0, 5, 0);
+    fsin_LightPosition = vec3(0, 0, -50);
 
     gl_Position = Projection * View * position;
 }

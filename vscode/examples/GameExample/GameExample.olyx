@@ -299,18 +299,18 @@ main(): () =
 
         physics.Update(interval)
 
-        // let mutable i = 0
-        // while (i < cubes.Length)
-        //     let mutable m = cubes[i]
-        //     let mutable position = Vector3.Zero
-        //     let mutable orientation = Quaternion.Identity
-        //     physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
-        //     let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
-        //     m.Translation <- position
-        //     cubes[i] <- CubeInstance(m)
-        //     i <- i + 1
+        let mutable i = 0
+        while (i < cubes.Length)
+            let mutable m = cubes[i]
+            let mutable position = Vector3.Zero
+            let mutable orientation = Quaternion.Identity
+            physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
+            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
+            m.Translation <- position
+            cubes[i] <- CubeInstance(m)
+            i <- i + 1
 
-        // Graphics.UpdateInstances(instances, cubes)
+        Graphics.UpdateInstances(instances, cubes)
 
     let update(dt: float64) =
         ()
