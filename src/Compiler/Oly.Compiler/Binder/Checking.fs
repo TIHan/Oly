@@ -551,7 +551,14 @@ let private lateCheckCalleeExpression cenv env expr =
         | LambdaWrappedFunctionCall(syntaxInfo, func) ->
             match func.Type.TryFunction with
             | ValueSome(inputTy, outputTy) ->
-                let expectedFuncTy = TypeSymbol.Function(inputTy, outputTy)
+                // TODO: This is weird, all because this is to satisfy __oly_load_function_ptr type arguments.
+                //       Perhaps we should just change __oly_load_function_ptr to simply have 1 type argument be the return type.
+                let inputTyWithoutInstance =
+                    if func.IsInstance then
+                        inputTy.RemoveAt(0)
+                    else
+                        inputTy
+                let expectedFuncTy = TypeSymbol.Function(inputTyWithoutInstance, outputTy)
                 checkTypes
                     (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
                     syntaxInfo.Syntax 
@@ -573,9 +580,6 @@ let private lateCheckCalleeExpression cenv env expr =
 
                 if func.AllTypeParameterCount > 0 then
                     cenv.diagnostics.Error("Getting the address of a function requires the function not be generic or enclosed by a generic type.", 10, syntaxInfo.Syntax)
-
-                if func.IsInstance then
-                    cenv.diagnostics.Error("Getting the address of a function requires the function to be static.", 10, syntaxInfo.Syntax)
             | _ ->
                 cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax)
         | _ ->

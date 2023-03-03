@@ -81,6 +81,17 @@ struct ViewProjection =
         viewProj.View <- view
         viewProj
 
+sealed class ShaderFileEventChanged =
+
+    private invoke: (object, System.IO.FileSystemEventArgs) -> ()
+    new(invoke: (object, System.IO.FileSystemEventArgs) -> ()) = 
+        {
+            invoke = invoke
+        }
+
+    Invoke(sender: object, e: System.IO.FileSystemEventArgs): () =
+        this.invoke(sender, e)
+
 main(): () =
     let physics = Physics.Init()
 
@@ -109,7 +120,7 @@ main(): () =
         cubes.Add(CubeInstance(info))
 
     let mutable i = 1
-    while (i <= 100)
+    while (i <= 10)
         addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 10)
@@ -119,7 +130,7 @@ main(): () =
         i <- i + 1
 
     let mutable i = 1
-    while (i <= 100)
+    while (i <= 10)
         addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
         let mutable j = 1
         while (j <= 10)
@@ -153,6 +164,82 @@ main(): () =
     let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
     let shader = Graphics.CreateShader(shaderDesc, tex, instances)
     let drawCmd = DrawCommand.CreateDrawMesh(mesh, shader, instances)
+
+    let delayed = System.Collections.Concurrent.ConcurrentQueue<() -> ()>()
+
+    let fileLookup = System.Collections.Generic.Dictionary<string, System.DateTime>()
+
+    let mutable currentVertexShaderBytes = Encoding.UTF8.GetBytes(DefaultVertexCode)
+    let mutable currentFragmentShaderBytes = Encoding.UTF8.GetBytes(DefaultFragmentCode)
+    let handleVertexShaderFile(e: System.IO.FileSystemEventArgs, filePath: string): () =
+        if (e.FullPath.EndsWith(filePath))
+            let lastWriteTime = System.IO.File.GetLastWriteTimeUtc(filePath)
+            let mutable prevLastWriteTime = System.DateTime.MinValue
+            if (fileLookup.TryGetValue(filePath, &prevLastWriteTime) && (lastWriteTime != prevLastWriteTime))
+                fileLookup[filePath] <- lastWriteTime
+                match (e.ChangeType)
+                | System.IO.WatcherChangeTypes.Changed =>
+                    currentVertexShaderBytes <- Encoding.UTF8.GetBytes(System.IO.File.ReadAllText(filePath))
+                    let shaderDesc = 
+                        ShaderDescription.CreateMeshShader(
+                            currentVertexShaderBytes, 
+                            currentFragmentShaderBytes
+                        )
+                    delayed.Enqueue(
+                        () ->
+                            try
+                                Graphics.UpdateShader(shader, tex, shaderDesc, instances)
+                                print("Updated ")
+                                print(filePath)
+                                print("\n")
+                            catch (ex: System.Exception) =>
+                                ()
+                    )
+                | _ =>
+                    ()
+
+    let handleFragmentShaderFile(e: System.IO.FileSystemEventArgs, filePath: string): () =
+        if (e.FullPath.EndsWith(filePath))
+            let lastWriteTime = System.IO.File.GetLastWriteTimeUtc(filePath)
+            let mutable prevLastWriteTime = System.DateTime.MinValue
+            if (fileLookup.TryGetValue(filePath, &prevLastWriteTime) && (lastWriteTime != prevLastWriteTime))
+                fileLookup[filePath] <- lastWriteTime
+                match (e.ChangeType)
+                | System.IO.WatcherChangeTypes.Changed =>
+                    currentFragmentShaderBytes <- Encoding.UTF8.GetBytes(System.IO.File.ReadAllText(filePath))
+                    let shaderDesc = 
+                        ShaderDescription.CreateMeshShader(
+                            currentVertexShaderBytes, 
+                            currentFragmentShaderBytes
+                        )
+                    delayed.Enqueue(
+                        () ->
+                            try
+                                Graphics.UpdateShader(shader, tex, shaderDesc, instances)
+                                print("Updated ")
+                                print(filePath)
+                                print("\n")
+                            catch (ex: System.Exception) =>
+                                ()
+                    )
+                | _ =>
+                    ()
+
+    fileLookup["GameExample/default.frag"] <- System.IO.File.GetLastWriteTimeUtc("GameExample/default.frag")
+    fileLookup["GameExample/default.vert"] <- System.IO.File.GetLastWriteTimeUtc("GameExample/default.vert")
+    
+    let handler = 
+        ShaderFileEventChanged(         
+            (sender, e) ->
+                handleFragmentShaderFile(e, "GameExample/default.frag")
+                handleVertexShaderFile(e, "GameExample/default.vert")
+        )
+    let fileSystemWatcher = System.IO.FileSystemWatcher()
+    let handler = System.IO.FileSystemEventHandler(handler, UnsafeCast(__oly_load_function_ptr(handler.Invoke)))
+    fileSystemWatcher.Path <- "C:/work/Oly/vscode/examples/GameExample/"
+   // fileSystemWatcher.NotifyFilter <- System.IO.NotifyFilters.LastWrite
+    fileSystemWatcher.add_Changed(handler)
+    fileSystemWatcher.EnableRaisingEvents <- true
 
     let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, 5)))
     staticCubeInstance.Scale <- Vector3(10000, 10000, 1)
@@ -283,15 +370,24 @@ main(): () =
 
             cameraRotation <- defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(-cameraYaw, -cameraPitch, 0)
 
-            let mutable objId = Physics.DynamicObjectId(-1)
+            let mutable obj = default
             let mutable dir = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
-            if (physics.TryRayCast(cameraPosition, dir, 500, &objId))
-                physics.ApplyImpulse(objId, Vector3.Multiply(dir, 0.0002))
+            if (physics.TryRayCast(cameraPosition, dir, 500, &obj))
+                match (obj)
+                | Physics.DynamicObject(objId) =>
+                    physics.ApplyImpulse(objId, Vector3.Multiply(dir, 0.0002))
+                | _ =>
+                    ()
 
         else
             UI.Update(dt, inputState, uiNode)
 
     let fixedUpdate(mutable interval: float64) =
+
+        let mutable work = () -> ()
+        while (delayed.TryDequeue(&work))
+            work()
+
         let interval = float32(interval)
         processKeyEventQueue()
         cameraPositionLerp <- cameraPosition

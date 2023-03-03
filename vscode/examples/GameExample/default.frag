@@ -13,15 +13,22 @@ layout(set = 2, binding = 1) uniform sampler Sampler;
 
 void main()
 {
+    float maxIntensity = 1;
+    float radius = 5;
+
     // ambient
     float ambientStrength = 0.1;
     vec3 ambient = ambientStrength * fsin_Color.xyz;
 
     // diffuse
+    vec3 dirMag = fsin_LightPosition - fsin_Position.xyz;
     vec3 norm = normalize(fsin_Normal);
-    vec3 lightDir = normalize(fsin_LightPosition - fsin_Position.xyz);
+    vec3 lightDir = normalize(dirMag);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * fsin_Color.xyz;
+
+    float intensity = min(maxIntensity, radius / length(dirMag));
+
+    vec3 diffuse = diff * intensity * fsin_Color.xyz;
 
     vec4 color = texture(sampler2D(Texture, Sampler), fsin_TexCoord);
     color.xyz = (ambient + diffuse) * color.xyz;

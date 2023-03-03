@@ -14241,3 +14241,43 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "should work"
     |> ignore
+
+[<Fact>]
+let ``Static lambda and local lambda expression should work``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+main(): () =
+    static let testStaticLocal() =
+        print("hello")
+
+    print(" ")
+
+    let mutable value = 4
+
+    let testLocal() =
+        match (value)
+        | 3 => print("3")
+        | 4 when (value == 4) =>
+            print(" world")
+        | _ =>
+            ()
+
+    testStaticLocal()
+    testLocal()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput " hello world"
+    |> ignore

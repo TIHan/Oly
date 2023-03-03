@@ -106,15 +106,29 @@ private struct NarrowPhaseCallbacks =
     mutable Dispose(): () =       
         ()
 
+//Note that the engine does not require any particular form of gravity- it, like all the contact callbacks, is managed by a callback.
 private struct PoseIntegratorCallbacks =
     implements IPoseIntegratorCallbacks
 
-    mutable Initialize(sim: Simulation): () = ()
+    // Performs any required initialization logic after the Simulation instance has been constructed.
+    mutable Initialize(sim: Simulation): () =
+        //If you had a simulation with per body gravity stored in a CollidableProperty<T> or something similar, having the simulation provided in a callback can be helpful.
+        ()
 
+    //Gets how the pose integrator should handle angular velocity integration.
     AngularIntegrationMode: AngularIntegrationMode get() = AngularIntegrationMode.Nonconserving
 
+    /// <summary>
+    /// Gets whether the integrator should use substepping for unconstrained bodies when using a substepping solver.
+    /// If true, unconstrained bodies will be integrated with the same number of substeps as the constrained bodies in the solver.
+    /// If false, unconstrained bodies use a single step of length equal to the dt provided to Simulation.Timestep. 
+    /// </summary>
     AllowSubstepsForUnconstrainedBodies: bool get() = false
 
+    /// Gets whether the velocity integration callback should be called for kinematic bodies.
+    /// If true, IntegrateVelocity will be called for bundles including kinematic bodies.
+    /// If false, kinematic bodies will just continue using whatever velocity they have set.
+    /// Most use cases should set this to false.
     IntegrateVelocityForKinematics: bool get() = false
 
     mutable Gravity: Vector3
@@ -125,101 +139,61 @@ private struct PoseIntegratorCallbacks =
             gravityWideDt = default
         }
 
+    //Note that velocity integration uses "wide" types. These are array-of-struct-of-arrays types that use SIMD accelerated types underneath.
+    //Rather than handling a single body at a time, the callback handles up to Vector<float>.Count bodies simultaneously.
     private mutable gravityWideDt: Vector3Wide
 
+    /// <summary>
+    /// Callback invoked ahead of dispatches that may call into <see cref="IntegrateVelocity"/>.
+    /// It may be called more than once with different values over a frame. For example, when performing bounding box prediction, velocity is integrated with a full frame time step duration.
+    /// During substepped solves, integration is split into substepCount steps, each with fullFrameDuration / substepCount duration.
+    /// The final integration pass for unconstrained bodies may be either fullFrameDuration or fullFrameDuration / substepCount, depending on the value of AllowSubstepsForUnconstrainedBodies. 
+    /// </summary>
+    /// <param name="dt">Current integration time step duration.</param>
+    /// <remarks>This is typically used for precomputing anything expensive that will be used across velocity integration.</remarks>
     mutable PrepareForIntegration(dt: float32): () =
         //No reason to recalculate gravity * dt for every body; just cache it ahead of time.
         this.gravityWideDt <- Vector3Wide.Broadcast(this.Gravity * dt)
 
+    /// <summary>
+    /// Callback for a bundle of bodies being integrated.
+    /// </summary>
+    /// <param name="bodyIndices">Indices of the bodies being integrated in this bundle.</param>
+    /// <param name="position">Current body positions.</param>
+    /// <param name="orientation">Current body orientations.</param>
+    /// <param name="localInertia">Body's current local inertia.</param>
+    /// <param name="integrationMask">Mask indicating which lanes are active in the bundle. Active lanes will contain 0xFFFFFFFF, inactive lanes will contain 0.</param>
+    /// <param name="workerIndex">Index of the worker thread processing this bundle.</param>
+    /// <param name="dt">Durations to integrate the velocity over. Can vary over lanes.</param>
+    /// <param name="velocity">Velocity of bodies in the bundle. Any changes to lanes which are not active by the integrationMask will be discarded.</param>
     mutable IntegrateVelocity(bodyIndices: Vector<int32>, position: Vector3Wide, orientation: QuaternionWide, localInertia: BodyInertiaWide, integrationMask: Vector<int32>, workerIndex: int32, dt: Vector<float32>, velocity: byref<BodyVelocityWide>): () =
+        //No reason to recalculate gravity * dt for every body; just cache it ahead of time.
         velocity.Linear <- velocity.Linear + this.gravityWideDt
-
-        // //Note that the engine does not require any particular form of gravity- it, like all the contact callbacks, is managed by a callback.
-        // public struct PoseIntegratorCallbacks : IPoseIntegratorCallbacks
-        // {
-        //     /// <summary>
-        //     /// Performs any required initialization logic after the Simulation instance has been constructed.
-        //     /// </summary>
-        //     /// <param name="simulation">Simulation that owns these callbacks.</param>
-        //     public void Initialize(Simulation simulation)
-        //     {
-        //         //In this demo, we don't need to initialize anything.
-        //         //If you had a simulation with per body gravity stored in a CollidableProperty<T> or something similar, having the simulation provided in a callback can be helpful.
-        //     }
-
-        //     /// <summary>
-        //     /// Gets how the pose integrator should handle angular velocity integration.
-        //     /// </summary>
-        //     public readonly AngularIntegrationMode AngularIntegrationMode => AngularIntegrationMode.Nonconserving;
-
-        //     /// <summary>
-        //     /// Gets whether the integrator should use substepping for unconstrained bodies when using a substepping solver.
-        //     /// If true, unconstrained bodies will be integrated with the same number of substeps as the constrained bodies in the solver.
-        //     /// If false, unconstrained bodies use a single step of length equal to the dt provided to Simulation.Timestep. 
-        //     /// </summary>
-        //     public readonly bool AllowSubstepsForUnconstrainedBodies => false;
-
-        //     /// <summary>
-        //     /// Gets whether the velocity integration callback should be called for kinematic bodies.
-        //     /// If true, IntegrateVelocity will be called for bundles including kinematic bodies.
-        //     /// If false, kinematic bodies will just continue using whatever velocity they have set.
-        //     /// Most use cases should set this to false.
-        //     /// </summary>
-        //     public readonly bool IntegrateVelocityForKinematics => false;
-
-        //     public Vector3 Gravity;
-
-        //     public PoseIntegratorCallbacks(Vector3 gravity) : this()
-        //     {
-        //         Gravity = gravity;
-        //     }
-
-        //     //Note that velocity integration uses "wide" types. These are array-of-struct-of-arrays types that use SIMD accelerated types underneath.
-        //     //Rather than handling a single body at a time, the callback handles up to Vector<float>.Count bodies simultaneously.
-        //     Vector3Wide gravityWideDt;
-
-        //     /// <summary>
-        //     /// Callback invoked ahead of dispatches that may call into <see cref="IntegrateVelocity"/>.
-        //     /// It may be called more than once with different values over a frame. For example, when performing bounding box prediction, velocity is integrated with a full frame time step duration.
-        //     /// During substepped solves, integration is split into substepCount steps, each with fullFrameDuration / substepCount duration.
-        //     /// The final integration pass for unconstrained bodies may be either fullFrameDuration or fullFrameDuration / substepCount, depending on the value of AllowSubstepsForUnconstrainedBodies. 
-        //     /// </summary>
-        //     /// <param name="dt">Current integration time step duration.</param>
-        //     /// <remarks>This is typically used for precomputing anything expensive that will be used across velocity integration.</remarks>
-        //     public void PrepareForIntegration(float dt)
-        //     {
-        //         //No reason to recalculate gravity * dt for every body; just cache it ahead of time.
-        //         gravityWideDt = Vector3Wide.Broadcast(Gravity * dt);
-        //     }
-
-        //     /// <summary>
-        //     /// Callback for a bundle of bodies being integrated.
-        //     /// </summary>
-        //     /// <param name="bodyIndices">Indices of the bodies being integrated in this bundle.</param>
-        //     /// <param name="position">Current body positions.</param>
-        //     /// <param name="orientation">Current body orientations.</param>
-        //     /// <param name="localInertia">Body's current local inertia.</param>
-        //     /// <param name="integrationMask">Mask indicating which lanes are active in the bundle. Active lanes will contain 0xFFFFFFFF, inactive lanes will contain 0.</param>
-        //     /// <param name="workerIndex">Index of the worker thread processing this bundle.</param>
-        //     /// <param name="dt">Durations to integrate the velocity over. Can vary over lanes.</param>
-        //     /// <param name="velocity">Velocity of bodies in the bundle. Any changes to lanes which are not active by the integrationMask will be discarded.</param>
-        //     public void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity)
-        //     {
-        //         //This also is a handy spot to implement things like position dependent gravity or per-body damping.
-        //         //We don't have to check for kinematics; IntegrateVelocityForKinematics returns false in this type, so we'll never see them in this callback.
-        //         //Note that these are SIMD operations and "Wide" types. There are Vector<float>.Count lanes of execution being evaluated simultaneously.
-        //         //The types are laid out in array-of-structures-of-arrays (AOSOA) format. That's because this function is frequently called from vectorized contexts within the solver.
-        //         //Transforming to "array of structures" (AOS) format for the callback and then back to AOSOA would involve a lot of overhead, so instead the callback works on the AOSOA representation directly.
-        //         velocity.Linear += gravityWideDt;
-        //     }
-
-        // }
 
 newtype StaticObjectId =
     Value: int32
 
 newtype DynamicObjectId =
     Value: int32
+    
+#[open]
+struct PhysicsObject =
+    internal mutable tag: int32
+    internal mutable objId: int32
+
+    internal HasInvalidTag: bool get() = this.tag == -1
+
+    internal new (tag: int32, objId: int32) =
+        {
+            tag = tag
+            objId = objId
+        }
+
+pattern DynamicObject(obj: PhysicsObject): DynamicObjectId when (obj.tag == 0) =>
+    DynamicObjectId(obj.objId)
+
+pattern StaticObject(obj: PhysicsObject): StaticObjectId when (obj.tag == 1) =>
+    StaticObjectId(obj.objId)
 
 sealed class Physics =
 
@@ -280,28 +254,36 @@ sealed class Physics =
         position <- pose.Position
         orientation <- pose.Orientation
 
-    private struct DynamicObjectRayHitHandler =
+    static CreatePhysicsObjectFromCollidableReference(mutable collidable: CollidableReference): PhysicsObject =
+        if (collidable.StaticHandle.Value >= 0 && (fromEnum(collidable.Mobility)) == (fromEnum(CollidableMobility.Static)))
+            PhysicsObject(1, collidable.StaticHandle.Value)
+        else if (collidable.BodyHandle.Value >= 0 && (fromEnum(collidable.Mobility)) == (fromEnum(CollidableMobility.Dynamic)))
+            PhysicsObject(0, collidable.BodyHandle.Value)
+        else
+            PhysicsObject(-1, -1)
+
+    private struct RayHitHandler =
         implements IRayHitHandler
 
-        mutable objId: DynamicObjectId = DynamicObjectId(-1)
+        mutable obj: PhysicsObject = PhysicsObject(-1, -1)
         mutable closestDistance: float32 = float32.MaxValue
 
-        AllowTest(mutable collidable: CollidableReference): bool = collidable.BodyHandle.Value > 0
+        AllowTest(mutable collidable: CollidableReference): bool = collidable.BodyHandle.Value >= 0 || collidable.StaticHandle.Value > 0
 
-        AllowTest(mutable collidable: CollidableReference, childIndex: int32): bool = collidable.BodyHandle.Value > 0
+        AllowTest(mutable collidable: CollidableReference, childIndex: int32): bool = collidable.BodyHandle.Value >= 0 || collidable.StaticHandle.Value > 0
 
         mutable OnRayHit(ray: inref<RayData>, maximumT: byref<float32>, t: float32, normal: inref<Vector3>, mutable collidable: CollidableReference, childIndex: int32): () =
             if (t < this.closestDistance)
                 this.closestDistance <- t
-                this.objId <- DynamicObjectId(collidable.BodyHandle.Value)
+                this.obj <- Physics.CreatePhysicsObjectFromCollidableReference(collidable)
 
-    TryRayCast(mutable origin: Vector3, mutable direction: Vector3, distance: float32, hitObjId: byref<DynamicObjectId>): bool =
-        let mutable hitHandler = Physics.DynamicObjectRayHitHandler()
+    TryRayCast(mutable origin: Vector3, mutable direction: Vector3, distance: float32, hitObj: byref<PhysicsObject>): bool =
+        let mutable hitHandler = Physics.RayHitHandler()
         this.Simulation.RayCast(&origin, &direction, distance, &hitHandler, 0)
-        if (hitHandler.objId.Value == -1)
+        if (hitHandler.obj.HasInvalidTag)
             false
         else
-            hitObjId <- hitHandler.objId
+            hitObj <- hitHandler.obj
             true
 
     ApplyImpulse(objId: DynamicObjectId, mutable impulse: Vector3): () =

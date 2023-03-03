@@ -169,42 +169,6 @@ sealed class MeshDescription =
                 20; 21; 22;
                 22; 23; 20: uint32
             |]
-
-        //     Begin Function CalculateSurfaceNormal (Input Triangle) Returns Vector
-
-        //     Set Vector U to (Triangle.p2 minus Triangle.p1)
-        //     Set Vector V to (Triangle.p3 minus Triangle.p1)
-        
-        //     Set Normal.x to (multiply U.y by V.z) minus (multiply U.z by V.y)
-        //     Set Normal.y to (multiply U.z by V.x) minus (multiply U.x by V.z)
-        //     Set Normal.z to (multiply U.x by V.y) minus (multiply U.y by V.x)
-        
-        //     Returning Normal
-        
-        // End Function
-
-        let calculateNormal(v1: Vector3, v2: Vector3, v3: Vector3): Vector3 =
-            let mutable u: Vector3 = v2 - v1
-            let mutable v: Vector3 = v3 - v1
-
-            Vector3(
-                (u.Y * v.Z) - (u.Z * v.Y),
-                (u.Z * v.X) - (u.X * v.Z),
-                (u.X * v.Y) - (u.Y * v.X)
-            )
-
-        // let normals = OlyArray.ZeroCreate<Vector3>(vertices.Length)
-        // let mutable i = 0
-        // while (i < indices.Length)
-        //     let v1Index = indices[i]
-        //     let v2Index = indices[i + 1]
-        //     let v3Index = indices[i + 2]
-        //     let v1 = vertices[int32(v1Index)]
-        //     let v2 = vertices[int32(v2Index)]
-        //     let v3 = vertices[int32(v3Index)]
-        //     let normal = calculateNormal(v1, v2, v3)
-        //     normals[i / 3] <- normal
-        //     i <- i + 3
         
         MeshDescription(
             vertices, 
@@ -593,6 +557,16 @@ module Graphics =
                 ResourceLayouts = resourceLayouts;
                 ResourceSets = resourceSets
             }
+
+    private CreateResourceSet(resourceLayout: ResourceLayout, bindableResource: BindableResource): ResourceSet =
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    bindableResource
+                |]
+            )
+        factory.CreateResourceSet(resourceSetDesc)
             
     private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages, instanceResourceKind: ResourceKind): ResourceSetGroup =
         // ------------------------------------------------------------
@@ -603,14 +577,7 @@ module Graphics =
                 |]
             )
         let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
-        let resourceSetDesc = 
-            ResourceSetDescription(
-                resourceLayout,
-                [|
-                    (globalUniformBuffer: BindableResource)
-                |]
-            )
-        let resourceSet = factory.CreateResourceSet(resourceSetDesc)
+        let resourceSet = CreateResourceSet(resourceLayout, globalUniformBuffer)
 
         let resourceLayoutDesc2 =
             ResourceLayoutDescription(
@@ -619,14 +586,7 @@ module Graphics =
                 |]
             )
         let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
-        let resourceSetDesc2 = 
-            ResourceSetDescription(
-                resourceLayout2,
-                [|
-                    (instances.InstanceBuffer: BindableResource)
-                |]
-            )
-        let resourceSet2 = factory.CreateResourceSet(resourceSetDesc2)
+        let resourceSet2 = CreateResourceSet(resourceLayout2, instances.InstanceBuffer)
 
         let mutable samplerDesc = 
             SamplerDescription(

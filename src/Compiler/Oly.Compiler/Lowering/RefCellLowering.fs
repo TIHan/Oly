@@ -16,7 +16,6 @@ let canRewrite (expr: E) =
     match expr with
     | E.EntityDefinition _
     | E.MemberDefinition _ -> false
-    | E.Let(bindingInfo=bindingInfo) when bindingInfo.Value.IsStaticLocalFunction -> false
     | _ -> true
 
 type cenv =

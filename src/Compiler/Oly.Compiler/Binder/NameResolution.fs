@@ -794,7 +794,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
             bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxToCapture syntaxNode receiverExprOpt argExprs (syntaxTyArgsRoot, syntaxTyArgs) syntaxNameOpt value
             |> ResolutionItem.Expression
         else
-            if receiverExprOpt.IsSome || resInfo.InPatternOnlyContext then
+            if resInfo.InPatternOnlyContext then
                 cenv.diagnostics.Error("Invalid expression.", 10, syntaxNode)
                 ResolutionItem.Error(syntaxNode)
             else
