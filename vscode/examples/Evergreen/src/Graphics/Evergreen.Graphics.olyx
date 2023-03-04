@@ -466,6 +466,17 @@ module Graphics =
     private mutable commandList: CommandList = null
 
     private mutable globalUniformBuffer: DeviceBuffer = null
+    private mutable globalResourceLayoutVertex: ResourceLayout = null
+    private mutable globalResourceLayoutCompute: ResourceLayout = null
+    private mutable globalResourceSetVertex: ResourceSet = null
+    private mutable globalResourceSetCompute: ResourceSet = null
+    
+    private mutable instanceResourceLayoutVertex: ResourceLayout = null
+    private mutable instanceResourceLayoutCompute: ResourceLayout = null
+
+    private mutable defaultResourceLayoutFragment: ResourceLayout = null
+
+    private mutable pixelSampler: Sampler = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
@@ -509,6 +520,60 @@ module Graphics =
         // --
 
         globalUniformBuffer <- createGlobalUniformBuffer(0)
+        let globalResourceLayoutDescVertex =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex)
+                |]
+            )
+        globalResourceLayoutVertex <- factory.CreateResourceLayout(globalResourceLayoutDescVertex)
+        globalResourceSetVertex <- CreateResourceSet(globalResourceLayoutVertex, globalUniformBuffer)
+        let globalResourceLayoutDescCompute =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Compute)
+                |]
+            )
+        globalResourceLayoutCompute <- factory.CreateResourceLayout(globalResourceLayoutDescCompute)
+        globalResourceSetCompute <- CreateResourceSet(globalResourceLayoutCompute, globalUniformBuffer)
+        let instanceResourceLayoutDescVertex =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)
+                |]
+            )
+        instanceResourceLayoutVertex <- factory.CreateResourceLayout(instanceResourceLayoutDescVertex)
+        let instanceResourceLayoutDescCompute =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)
+                |]
+            )
+        instanceResourceLayoutCompute <- factory.CreateResourceLayout(instanceResourceLayoutDescCompute)
+
+        let defaultResourceLayoutDescFragment =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
+                    ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment)
+                |]
+            )
+        defaultResourceLayoutFragment <- factory.CreateResourceLayout(defaultResourceLayoutDescFragment)
+
+        let mutable pixelSamplerDesc = 
+            SamplerDescription(
+                SamplerAddressMode.Wrap,
+                SamplerAddressMode.Wrap,
+                SamplerAddressMode.Wrap,
+                SamplerFilter.MinPoint_MagPoint_MipPoint,
+                Nullable(ComparisonKind.LessEqual),
+                1,
+                0,
+                10,
+                0,
+                SamplerBorderColor.TransparentBlack
+            )
+        pixelSampler <- factory.CreateSampler(pixelSamplerDesc)
 
         window
 
@@ -568,57 +633,40 @@ module Graphics =
             )
         factory.CreateResourceSet(resourceSetDesc)
             
-    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages, instanceResourceKind: ResourceKind): ResourceSetGroup =
+    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages): ResourceSetGroup =
         // ------------------------------------------------------------
-        let resourceLayoutDesc =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, shaderStages)
-                |]
-            )
-        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
-        let resourceSet = CreateResourceSet(resourceLayout, globalUniformBuffer)
+        let resourceLayout =
+            match (shaderStages)
+            | ShaderStages.Vertex =>
+                globalResourceLayoutVertex
+            | _ =>
+                globalResourceLayoutCompute
 
-        let resourceLayoutDesc2 =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("InstanceData", instanceResourceKind, shaderStages)
-                |]
-            )
-        let resourceLayout2 = factory.CreateResourceLayout(resourceLayoutDesc2)
+        let resourceSet =
+            match (shaderStages)
+            | ShaderStages.Vertex =>
+                globalResourceSetVertex
+            | _ =>
+                globalResourceSetCompute
+
+        let resourceLayout2 =
+            match (shaderStages)
+            | ShaderStages.Vertex =>
+                instanceResourceLayoutVertex
+            | _ =>
+                instanceResourceLayoutCompute
+
         let resourceSet2 = CreateResourceSet(resourceLayout2, instances.InstanceBuffer)
-
-        let mutable samplerDesc = 
-            SamplerDescription(
-                SamplerAddressMode.Wrap,
-                SamplerAddressMode.Wrap,
-                SamplerAddressMode.Wrap,
-                SamplerFilter.MinPoint_MagPoint_MipPoint,
-                Nullable(ComparisonKind.LessEqual),
-                1,
-                0,
-                10,
-                0,
-                SamplerBorderColor.TransparentBlack
-            )
-        let sampler = factory.CreateSampler(samplerDesc)
 
         match (shaderStages)
         | ShaderStages.Vertex =>
-            let resourceLayoutDesc3 =
-                ResourceLayoutDescription(
-                    [|
-                        ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
-                        ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment)
-                    |]
-                )
-            let resourceLayout3 = factory.CreateResourceLayout(resourceLayoutDesc3)
+            let resourceLayout3 = defaultResourceLayoutFragment
             let resourceSetDesc3 = 
                 ResourceSetDescription(
                     resourceLayout3,
                     [|
                         (tex.Texture: BindableResource);
-                        sampler
+                        pixelSampler
                     |]
                 )
             let resourceSet3 = factory.CreateResourceSet(resourceSetDesc3)
@@ -661,7 +709,7 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        let resourceSetGroup = CreateResourceSets(tex, instances, ShaderStages.Vertex, ResourceKind.StructuredBufferReadOnly)
+        let resourceSetGroup = CreateResourceSets(tex, instances, ShaderStages.Vertex)
     
         pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
@@ -674,7 +722,7 @@ module Graphics =
     
         let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
 
-        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute, ResourceKind.StructuredBufferReadWrite)
+        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute)
     
         let pipelineDesc = 
             ComputePipelineDescription(
@@ -755,7 +803,7 @@ module Graphics =
 
     CreateInstances<T>(instanceData: T[||]): Instances where T: struct =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
-        let instanceBuffer = factory.CreateBuffer(BufferDescription(uint32(instanceData.Length * sizeof<T>), usage, uint32(instanceData.Length * sizeof<T>)))  
+        let instanceBuffer = factory.CreateBuffer(BufferDescription(uint32(instanceData.Length * sizeof<T>), usage, uint32(instanceData.Length * sizeof<T>)))
         graphicsDevice.UpdateBuffer(instanceBuffer, 0, instanceData)
 
         let instances = Instances(instanceBuffer)

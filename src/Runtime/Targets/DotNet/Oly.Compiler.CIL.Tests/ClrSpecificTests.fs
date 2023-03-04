@@ -3166,3 +3166,40 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "an exception"
+
+[<Fact>]
+let ``Marshal sizeof should work``() =
+    let src =
+        """
+open System.Runtime.InteropServices
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[StructLayout(LayoutKind.Sequential)]
+struct TestData =
+    X: int32 = 1
+    Y: int32 = 2
+
+sizeof<require T>: int32 =
+    Marshal.SizeOf(unchecked default: T)
+
+#[not inline]
+test<T>(x: T): int32 =
+    sizeof<T>
+
+main(): () =
+    let x = test(1)
+    let y = test(TestData())
+    print(x)
+    print(y)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "48"

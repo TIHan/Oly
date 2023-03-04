@@ -1290,6 +1290,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         let name = func.Name
         {
             Name = name
+            TypeArguments = func.TypeArguments |> ImArray.map (fun x -> x :> IOlyIRTypeKey)
             ParameterTypes = func.Parameters |> ImArray.map (fun x -> x.Type)
             ReturnType = func.ReturnType
             IsStatic = func.Flags.IsStatic

@@ -1,4 +1,4 @@
-module Physics
+namespace Evergreen.Physics
 
 open System
 open System.Numerics
@@ -178,8 +178,8 @@ newtype DynamicObjectId =
     
 #[open]
 struct PhysicsObject =
-    internal mutable tag: int32
-    internal mutable objId: int32
+    private mutable tag: int32
+    private mutable objId: int32
 
     internal HasInvalidTag: bool get() = this.tag == -1
 
@@ -189,11 +189,11 @@ struct PhysicsObject =
             objId = objId
         }
 
-pattern DynamicObject(obj: PhysicsObject): DynamicObjectId when (obj.tag == 0) =>
-    DynamicObjectId(obj.objId)
+    pattern DynamicObject(obj: PhysicsObject): DynamicObjectId when (obj.tag == 0) =>
+        DynamicObjectId(obj.objId)
 
-pattern StaticObject(obj: PhysicsObject): StaticObjectId when (obj.tag == 1) =>
-    StaticObjectId(obj.objId)
+    pattern StaticObject(obj: PhysicsObject): StaticObjectId when (obj.tag == 1) =>
+        StaticObjectId(obj.objId)
 
 sealed class Physics =
 
@@ -294,13 +294,13 @@ sealed class Physics =
     Update(deltaTime: float32): () =
         this.Simulation.Timestep(deltaTime, this.ThreadDispatcher)
 
-Init(): Physics =
-    //The buffer pool is a source of raw memory blobs for the engine to use.
-    let bufferPool = BufferPool(131072, 16)
+    static Init(): Physics =
+        //The buffer pool is a source of raw memory blobs for the engine to use.
+        let bufferPool = BufferPool(131072, 16)
 
-    //The following sets up a simulation with the callbacks defined above, and tells it to use 8 velocity iterations per substep and only one substep per solve.
-    //It uses the default SubsteppingTimestepper. You could use a custom ITimestepper implementation to customize when stages run relative to each other, or to insert more callbacks.     
-    let solveDesc = SolveDescription(8, 1, SolveDescription.DefaultFallbackBatchThreshold)
-    let sim = Simulation.Create(bufferPool, NarrowPhaseCallbacks(), PoseIntegratorCallbacks(Vector3(0, 0, 10)), solveDesc, null, default)
+        //The following sets up a simulation with the callbacks defined above, and tells it to use 8 velocity iterations per substep and only one substep per solve.
+        //It uses the default SubsteppingTimestepper. You could use a custom ITimestepper implementation to customize when stages run relative to each other, or to insert more callbacks.     
+        let solveDesc = SolveDescription(8, 1, SolveDescription.DefaultFallbackBatchThreshold)
+        let sim = Simulation.Create(bufferPool, NarrowPhaseCallbacks(), PoseIntegratorCallbacks(Vector3(0, 0, 10)), solveDesc, null, default)
 
-    Physics(sim)
+        Physics(sim)

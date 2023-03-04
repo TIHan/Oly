@@ -1886,3 +1886,44 @@ main(): () =
     ^^^
 """         )
         ]
+
+[<Fact>]
+let ``Function that is offsides should fail``() =
+    let src =
+        """
+test(): () =
+    ()
+
+        #[inline]
+        test2(): () =
+            ()
+        """
+    Oly src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("Offsides by 4 space(s).",
+                """
+        #[inline]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Function that is offsides should fail 2``() =
+    let src =
+        """
+test(): () =
+    ()
+
+        test2(): () =
+            ()
+        """
+    Oly src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("Offsides by 4 space(s).",
+                """
+        test2(): () =
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""         )
+        ]

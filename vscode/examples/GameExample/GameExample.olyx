@@ -2,7 +2,7 @@
 
 #load "*.oly"
 
-#reference "../Evergreen/src/Client/Evergreen.Client.Graphics.olyx"
+#reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 #package "Veldrid,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.SPIRV,1.0.15" // TODO: Remove this when we fix transitive packages.
@@ -14,6 +14,7 @@ open System.Text
 open System.Numerics
 open Evergreen.Client.Graphics
 open Evergreen.Client.Graphics.UI
+open Evergreen.Physics
 open System.Runtime.InteropServices
 
 DefaultVertexCode: string = System.IO.File.ReadAllText("GameExample/default.vert")
@@ -100,7 +101,7 @@ main(): () =
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let staticBoxHandle = physics.AddStaticBox(10000, 10000, 1, Vector3(0, 0, 5))
+    let staticBoxHandle = physics.AddStaticBox(100, 100, 1, Vector3(0, 0, 5))
 
     #[StructLayout(LayoutKind.Sequential)]
     struct CubeInstance =
@@ -145,7 +146,7 @@ main(): () =
     print(cubes.Length)
     print("\n")
 
-    let cubePhysics = OlyArray.ZeroCreate<Physics.DynamicObjectId>(cubes.Length)
+    let cubePhysics = OlyArray.ZeroCreate(cubes.Length)
     let mutable i = 0
     while (i < cubes.Length)
         cubePhysics[i] <- physics.AddDynamicBox(1, 1, 1, cubes[i].Transform.Translation)
@@ -242,7 +243,7 @@ main(): () =
     fileSystemWatcher.EnableRaisingEvents <- true
 
     let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, 5)))
-    staticCubeInstance.Scale <- Vector3(10000, 10000, 1)
+    staticCubeInstance.Scale <- Vector3(100, 100, 1)
     let staticCubes = [|staticCubeInstance|]
     let staticInstances = Graphics.CreateInstances(staticCubes)
     let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
@@ -260,7 +261,7 @@ main(): () =
 
     let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -radians(90))
 
-    let mutable viewProj = ViewProjection(70, 1280, 720, 0.5, 1000000)
+    let mutable viewProj = ViewProjection(70, 1280, 720, 1, 1000000)
     let mutable viewProjLerp = viewProj
     Graphics.SetModel(Matrix4x4.Identity)
     Graphics.SetView(viewProj.View)
@@ -374,7 +375,7 @@ main(): () =
             let mutable dir = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
             if (physics.TryRayCast(cameraPosition, dir, 500, &obj))
                 match (obj)
-                | Physics.DynamicObject(objId) =>
+                | DynamicObject(objId) =>
                     physics.ApplyImpulse(objId, Vector3.Multiply(dir, 0.0002))
                 | _ =>
                     ()

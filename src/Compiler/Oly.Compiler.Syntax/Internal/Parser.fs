@@ -2363,7 +2363,7 @@ let tryParseGuardBinding state =
 
 // ----------------------------------------------------------------------------------------------------
 // TODO: This is a mess with fullWidth
-let valueDeclOrDef s attrs accessor context premodifierList kind postmodifierList state =
+let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context premodifierList kind postmodifierList state =
     match context, kind with
     | SyntaxTreeContext.TopLevel, _
     | SyntaxTreeContext.Local, SyntaxValueDeclarationKind.Error _ 
@@ -2433,11 +2433,11 @@ let valueDeclOrDef s attrs accessor context premodifierList kind postmodifierLis
     | _ ->
         None
 
-let valueDeclOrDefExpr s attrs accessor context state =
+let tryParseValueDeclarationExpression s attrs accessor context state =
     let premodifierList = parseValueDeclarationPremodifierList state
     let kind = parseValueDeclarationKind state
     let postmodifierList = parseValueDeclarationPostmodifierList state
-    valueDeclOrDef s attrs accessor context premodifierList kind postmodifierList state
+    tryParseValueDeclarationExpressionWithModifiers s attrs accessor context premodifierList kind postmodifierList state
 
 let possibleLambdaExpression state =
     let _kind = parseLambdaKind state
@@ -2598,10 +2598,10 @@ let tryCreateTerminalExpression context state =
     | _ ->
         None
 
-let attrsModifierKind context state =
+let tryParseValueOrTypeDeclarationExpression context state =
     let s = sp state
 
-    let expr s attrs context state =
+    let tryParseAux s attrs context state =
         let accessor = parseAccessor state
 
         // Order matters: we need to try to do this first.
@@ -2609,17 +2609,20 @@ let attrsModifierKind context state =
         | Some result -> Some result
         | _ ->
 
-        match bt (valueDeclOrDefExpr s attrs accessor context) state with
+        match bt (tryParseValueDeclarationExpression s attrs accessor context) state with
         | Some result -> Some result
         | _ ->
 
         None
 
-    match bt (alignRecover tryParseAttributes) state with
-    | Some attrs ->
-        expr s attrs context state
-    | _ ->
-        expr s (SyntaxAttributes.Empty()) context state
+    let tryParse s context state =
+        match bt tryParseAttributes state with
+        | Some attrs ->
+            tryParseAux s attrs context state
+        | _ ->
+            tryParseAux s (SyntaxAttributes.Empty()) context state
+
+    bt (alignRecover (tryParse s context)) state
 
 let rec tryParseCallExpression s expr state =
     match bt tryParseArguments state with
@@ -2848,7 +2851,7 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (attrsModifierKind context)) state with
+        match bt (alignOrFlexAlignRecover (tryParseValueOrTypeDeclarationExpression context)) state with
         | Some result -> result
         | _ ->
 
