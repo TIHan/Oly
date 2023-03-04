@@ -10,7 +10,7 @@
 #package "Veldrid.ImGui,5.89.2-ga121087cad"
 #package "Veldrid.ImageSharp,4.9.0"
 
-namespace Evergreen.Client.Graphics
+namespace Evergreen.Graphics
 
 open System
 open System.Text

@@ -39,7 +39,7 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
             else
                 accumulator + frameTime
 
-        preUpdate(ConvertTicksToSeconds(dtFixed))
+        preUpdate(ConvertTicksToSeconds(frameTime))
 
         let mutable fixedUpdateCount = 0
         while (accumulator >= dtFixed)

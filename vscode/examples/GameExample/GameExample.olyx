@@ -12,8 +12,8 @@
 
 open System.Text
 open System.Numerics
-open Evergreen.Client.Graphics
-open Evergreen.Client.Graphics.UI
+open Evergreen.Graphics
+open Evergreen.Graphics.UI
 open Evergreen.Physics
 open System.Runtime.InteropServices
 
@@ -341,7 +341,9 @@ main(): () =
     let uiNode =
         UI.Window("Main Menu",
             [
-                UI.Button("Quit", () -> window.Close(), Vector2(128, 64), Vector2(0, 0))
+                UI.Button("New Game", () -> ());
+                UI.Button("Quit", () -> window.Close());
+                UI.TextBox("IP Address")
             ],
             Vector2(512, 512),
             Vector2(100, 100)

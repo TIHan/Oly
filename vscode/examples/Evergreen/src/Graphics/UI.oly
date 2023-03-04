@@ -1,8 +1,8 @@
 
-namespace Evergreen.Client.Graphics.UI
+namespace Evergreen.Graphics.UI
 
 open System.Numerics
-open Evergreen.Client.Graphics
+open Evergreen.Graphics
 open ImGuiNET
 
 class UINode =
@@ -35,20 +35,30 @@ class UINode =
 
         Label: string
         OnClick: () -> ()
-        Size: Vector2
-        RelativePosition: Vector2
 
-        new(label: string, onClick: () -> (), size: Vector2, relativePos: Vector2) =
+        new(label: string, onClick: () -> ()) =
             base(1) with {
                 Label = label
                 OnClick = onClick
-                Size = size
-                RelativePosition = relativePos
             }
 
-    pattern Button(node: UINode): (label: string, onClick: () -> (), relativePos: Vector2, size: Vector2) when (node.Tag == 1) =>
+    pattern Button(node: UINode): (label: string, onClick: () -> ()) when (node.Tag == 1) =>
         let node = UnsafeCast<UINode.Button>(node)
-        (node.Label, node.OnClick, node.Size, node.RelativePosition)
+        (node.Label, node.OnClick)
+
+    internal sealed class TextBox =
+        inherits UINode
+
+        Label: string
+
+        new(label: string) =
+            base(2) with {
+                Label = label
+            }
+
+    pattern TextBox(node: UINode): string when (node.Tag == 2) =>
+        let node = UnsafeCast<UINode.Button>(node)
+        node.Label
 
 module UI =
 
@@ -59,10 +69,11 @@ module UI =
             ImGui.SetNextWindowPos(relativePos)
             MakeWindow(title, children)
         
-        | UINode.Button(label, onClick, relativeSize, relativePos) =>
-            ImGui.SetNextWindowSize(relativeSize)
-            ImGui.SetNextWindowPos(relativePos)
+        | UINode.Button(label, onClick) =>
             MakeButton(label, onClick)
+
+        | UINode.TextBox(label) =>
+            MakeTextBox(label)
 
         | _ =>
             ()
@@ -79,11 +90,19 @@ module UI =
         if (ImGui.Button(label))
             onClick()
 
+    private textBuffer: byte[||] = OlyArray.ZeroCreate<byte>(1024)
+    private MakeTextBox(label: string): () =
+        if (ImGui.InputText(label, textBuffer, 1024))
+            ()
+
     Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
         UINode.Window(title, children, size, relativePosition)
 
-    Button(label: string, onClick: () -> (), size: Vector2, relativePosition: Vector2): UINode =
-        UINode.Button(label, onClick, size, relativePosition)
+    Button(label: string, onClick: () -> ()): UINode =
+        UINode.Button(label, onClick)
+
+    TextBox(label: string): UINode =
+        UINode.TextBox(label)
 
     Update(deltaTime: float64, inputState: InputState, node: UINode): () =
         Graphics.imGuiRenderer.Update(float32(deltaTime), inputState.snapshot)
