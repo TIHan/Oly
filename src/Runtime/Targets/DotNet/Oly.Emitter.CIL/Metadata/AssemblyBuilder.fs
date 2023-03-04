@@ -2123,7 +2123,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | _ ->
                 ()
 
-        let mutable maxStack = 8 // TODO: We could optimize this.
+        let mutable maxStack = 0
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
@@ -2212,7 +2212,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         let seqPoints = ImArray.builder()
 
-        let mutable maxStack = 8 // TODO: We could optimize this.
+        let mutable maxStack = 0
 
         let mutable hasMultipleDocuments = false
 
@@ -2315,12 +2315,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         //---------------------------------------------------------
 
         let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)
-
         let bodyOffset =
+            // TODO: 'maxStack + 8' is a little arbitrary, we should correctly count the max number of stacks.
+            //       The '8' is just a little extra room to ensure we have enough.
             if this.Locals.IsEmpty then
-                methBodyStream.AddMethodBody(il, maxStack = maxStack)
+                methBodyStream.AddMethodBody(il, maxStack = maxStack + 8) 
             else
-                methBodyStream.AddMethodBody(il, maxStack = maxStack, localVariablesSignature = localSig)
+                methBodyStream.AddMethodBody(il, maxStack = maxStack + 8, localVariablesSignature = localSig)
 
         match firstDocument with
         | Some(_, document) ->
