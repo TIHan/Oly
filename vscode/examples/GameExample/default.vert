@@ -3,8 +3,6 @@
 struct Instance
 {
   mat4 Transform;
-  vec3 Scale;
-  float Padding;
 };
 
 layout(location = 0) in vec3 Position;
@@ -31,19 +29,23 @@ layout(set = 1, binding = 0) readonly buffer _InstanceData
     Instance[] Instances;
 };
 
+float GetScalingFactor(mat4 m)
+{
+    return sqrt(m[0][0] * m[0][0] + m[0][1] * m[0][1] + m[0][2] * m[0][2]);
+}
+
 void main()
 {
     mat4 transform = Instances[gl_InstanceIndex].Transform;
-    vec3 scale = Instances[gl_InstanceIndex].Scale;
 
     vec4 ambientColor = vec4(1, 1, 1, 1);
     mat4 model = Model * transform;
 
-    vec4 position = model * vec4(Position * scale, 1);
+    vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
     fsin_Color = ambientColor;
-    fsin_TexCoord = TexCoord * scale.xy;
+    fsin_TexCoord = TexCoord * GetScalingFactor(model);
     fsin_Normal = normal;
     fsin_Position = position;
     fsin_LightPosition = vec3(0, 0, 0);

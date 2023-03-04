@@ -47,9 +47,6 @@ struct ViewProjection =
             Projection = Matrix4x4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
         }
 
-    new(fov: float32, width: int32, height: int32) =
-        ViewProjection(fov, width, height, 0.01, 1000000)
-
     Position: Vector3 get() = this.View.Translation
     Rotation: Quaternion get() = Quaternion.CreateFromRotationMatrix(this.View)
 
@@ -106,37 +103,35 @@ main(): () =
     #[StructLayout(LayoutKind.Sequential)]
     struct CubeInstance =
         mutable Transform: Matrix4x4
-        mutable Scale: Vector3
-        mutable Padding: float32
 
-        new(transform: Matrix4x4) =
+        new(location: Vector3, scale: Vector3) =
+            let mutable matrix = Matrix4x4.CreateScale(scale)
+            matrix.Translation <- location
             {
-                Transform = transform
-                Scale = Vector3.One
-                Padding = 0
+                Transform = matrix
             }
 
     let cubes = System.Collections.Generic.List<CubeInstance>()
-    let addCube(info) =
-        cubes.Add(CubeInstance(info))
+    let addCube(location) =
+        cubes.Add(CubeInstance(location, Vector3.One))
 
     let mutable i = 1
     while (i <= 10)
-        addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), 0, 0)))
+        addCube(Vector3(-float32(i * 2), 0, 0))
         let mutable j = 1
         while (j <= 10)
-            addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), -float32(j * 2), 0)))
-            addCube(Matrix4x4.CreateTranslation(Vector3(-float32(i * 2), float32(j * 2), 0)))
+            addCube(Vector3(-float32(i * 2), -float32(j * 2), 0))
+            addCube(Vector3(-float32(i * 2), float32(j * 2), 0))
             j <- j + 1
         i <- i + 1
 
     let mutable i = 1
     while (i <= 10)
-        addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), 0, 0)))
+        addCube(Vector3(float32(i * 2), 0, 0))
         let mutable j = 1
         while (j <= 10)
-            addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), -float32(j * 2), 0)))
-            addCube(Matrix4x4.CreateTranslation(Vector3(float32(i * 2), float32(j * 2), 0)))
+            addCube(Vector3(float32(i * 2), -float32(j * 2), 0))
+            addCube(Vector3(float32(i * 2), float32(j * 2), 0))
             j <- j + 1
         i <- i + 1
 
@@ -242,8 +237,7 @@ main(): () =
     fileSystemWatcher.add_Changed(handler)
     fileSystemWatcher.EnableRaisingEvents <- true
 
-    let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, -5)))
-    staticCubeInstance.Scale <- Vector3(100, 100, 1)
+    let mutable staticCubeInstance = CubeInstance(Vector3(0, 0, -5), Vector3(100, 100, 1))
     let staticCubes = [|staticCubeInstance|]
     let staticInstances = Graphics.CreateInstances(staticCubes)
     let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
@@ -406,7 +400,10 @@ main(): () =
             physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
             let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
             m.Translation <- position
-            cubes[i] <- CubeInstance(m)
+            cubes[i] <- 
+                let mutable x = default: CubeInstance
+                x.Transform <- m
+                x
             i <- i + 1
 
         Graphics.UpdateInstances(instances, cubes)

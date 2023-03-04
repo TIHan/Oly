@@ -3,8 +3,6 @@
 struct Instance
 {
   mat4 Transform;
-  vec3 Scale;
-  float Padding;
 };
 
 layout(set = 0, binding = 0) uniform _Global
