@@ -93,7 +93,7 @@ module UI =
     private textBuffer: byte[||] = OlyArray.ZeroCreate<byte>(1024)
     private MakeTextBox(label: string): () =
         if (ImGui.InputText(label, textBuffer, 1024))
-            ()
+            print(System.Text.Encoding.UTF8.GetString(textBuffer))
 
     Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
         UINode.Window(title, children, size, relativePosition)

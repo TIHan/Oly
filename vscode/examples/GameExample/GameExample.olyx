@@ -101,7 +101,7 @@ main(): () =
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let staticBoxHandle = physics.AddStaticBox(100, 100, 1, Vector3(0, 0, 5))
+    let staticBoxHandle = physics.AddStaticBox(100, 100, 1, Vector3(0, 0, -5))
 
     #[StructLayout(LayoutKind.Sequential)]
     struct CubeInstance =
@@ -242,7 +242,7 @@ main(): () =
     fileSystemWatcher.add_Changed(handler)
     fileSystemWatcher.EnableRaisingEvents <- true
 
-    let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, 5)))
+    let mutable staticCubeInstance = CubeInstance(Matrix4x4.CreateTranslation(Vector3(0, 0, -5)))
     staticCubeInstance.Scale <- Vector3(100, 100, 1)
     let staticCubes = [|staticCubeInstance|]
     let staticInstances = Graphics.CreateInstances(staticCubes)
@@ -259,7 +259,7 @@ main(): () =
 
     let drawCmds = [spinHexagonsCmd;drawCmd;staticDrawCmd]
 
-    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, -radians(90))
+    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
     let mutable viewProj = ViewProjection(70, 1280, 720, 1, 1000000)
     let mutable viewProjLerp = viewProj
@@ -349,7 +349,7 @@ main(): () =
             Vector2(100, 100)
         )
 
-    let mutable cameraPosition = Vector3(0, 0, -1)
+    let mutable cameraPosition = Vector3.Zero
     let mutable cameraPositionLerp = cameraPosition
     let mutable cameraRotation = defaultCameraRotation
     let mutable cameraYaw = 0.0: float32

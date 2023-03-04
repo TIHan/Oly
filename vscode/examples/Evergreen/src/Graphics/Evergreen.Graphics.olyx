@@ -506,8 +506,7 @@ module Graphics =
         options.SwapchainDepthFormat <- Nullable(PixelFormat.R16_UNorm)
 #if DEBUG
         options.Debug <- true
-#end
-       // options.SyncToVerticalBlank <- true      
+#end   
 
         graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
         factory <- graphicsDevice.ResourceFactory

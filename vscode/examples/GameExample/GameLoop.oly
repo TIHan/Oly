@@ -52,7 +52,7 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
             print(fixedUpdateCount)
             print("\n")
 
-        quit <- update(ConvertTicksToSeconds(dtFixed))
+        quit <- update(ConvertTicksToSeconds(frameTime))
 
         if (fixedUpdateCount > 0)
             let alpha = float64(1)
