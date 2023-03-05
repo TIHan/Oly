@@ -90,30 +90,124 @@ sealed class ShaderFileEventChanged =
     Invoke(sender: object, e: System.IO.FileSystemEventArgs): () =
         this.invoke(sender, e)
 
-main(): () =
-    let physics = Physics.Init()
+#[StructLayout(LayoutKind.Sequential)]
+struct Transform =
+    mutable Matrix: Matrix4x4
 
-    //System.Environment.SetEnvironmentVariable("VK_INSTANCE_LAYERS", "VK_LAYER_LUNARG_monitor")
+    new(matrix: Matrix4x4) = { Matrix = matrix }
+
+    Position: Vector3
+        get() = this.Matrix.Translation
+        set(value) = this.Matrix.Translation <- value
+
+    static get Forward: Vector3 = -Vector3.UnitZ
+    static get Back: Vector3 = Vector3.UnitZ
+    static get Left: Vector3 = -Vector3.UnitX
+    static get Right: Vector3 = Vector3.UnitX
+
+    static Create(position: Vector3, scale: Vector3): Transform =
+        let mutable m = Matrix4x4.CreateScale(scale)
+        m.Translation <- position
+        Transform(m)
+
+    static Create(position: Vector3, rotation: Quaternion, scale: Vector3): Transform =
+        let mutable m = Matrix4x4.CreateScale(scale)
+        m.Translation <- position
+        Transform(m)
+
+newtype PhysicsBoxId =
+    Value: int32
+
+struct PhysicsBox =
+    mutable Count: int32 = 0
+
+    Transforms:       Transform[||]       = OlyArray.ZeroCreate(1024)
+    DynamicObjectIds: DynamicObjectId[||] = OlyArray.ZeroCreate(1024)
+
+    mutable Add(transform: Transform, dynamicObjId: DynamicObjectId): PhysicsBoxId =
+        let index = this.Count
+        this.Transforms[index] <- transform
+        this.DynamicObjectIds[index] <- dynamicObjId
+        this.Count <- this.Count + 1
+        PhysicsBoxId(index)
+
+
+newtype StaticBoxId =
+    Value: int32
+
+struct StaticBox =
+    mutable Count: int32 = 0
+
+    Transforms:      Transform[||]      = OlyArray.ZeroCreate(4096)
+    StaticObjectIds: StaticObjectId[||] = OlyArray.ZeroCreate(4096)
+
+    mutable Add(transform: Transform, staticObjId: StaticObjectId): StaticBoxId =
+        let index = this.Count
+        this.Transforms[index] <- transform
+        this.StaticObjectIds[index] <- staticObjId
+        this.Count <- this.Count + 1
+        StaticBoxId(index)
+
+sealed class World =
+
+    mutable PhysicsBoxes: PhysicsBox = PhysicsBox()
+    mutable StaticBoxes: StaticBox  = StaticBox()
+
+main(): () =
+    let world = World()
+    let physics = Physics.Init()
     let window = Graphics.CreateWindow(100, 100, 1280, 720, "Evergreen Engine")
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    let staticBoxHandle = physics.AddStaticBox(100, 100, 1, Vector3(0, 0, -5))
+    //
 
-    #[StructLayout(LayoutKind.Sequential)]
-    struct CubeInstance =
-        mutable Transform: Matrix4x4
+    let defaultShaderDesc = 
+        ShaderDescription.CreateMeshShader(
+            Encoding.UTF8.GetBytes(DefaultVertexCode), 
+            Encoding.UTF8.GetBytes(DefaultFragmentCode)
+        )
 
-        new(location: Vector3, scale: Vector3) =
-            let mutable matrix = Matrix4x4.CreateScale(scale)
-            matrix.Translation <- location
-            {
-                Transform = matrix
-            }
+    let boxMesh   = Graphics.CreateMesh(MeshDescription.CreateCube())
 
-    let cubes = System.Collections.Generic.List<CubeInstance>()
-    let addCube(location) =
-        cubes.Add(CubeInstance(location, Vector3.One))
+    let addStaticBoxRenderCommand() =
+        let staticBoxes = world.StaticBoxes
+        let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
+        let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
+        let staticShader = Graphics.CreateShader(defaultShaderDesc, tex, staticInstances)
+        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
+        staticInstances.Count <- staticBoxes.Count
+        drawCmd
+
+    let mutable instances = unchecked default
+    let addPhysicsBoxRenderCommand() =
+        let boxes = world.PhysicsBoxes
+        instances <- Graphics.CreateInstances(boxes.Transforms)
+        let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
+        let shader = Graphics.CreateShader(defaultShaderDesc, tex, instances)
+        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, instances)
+        instances.Count <- boxes.Count
+        drawCmd
+
+    let addStaticBox(position, scale) =
+        // server
+        let objId = physics.AddStaticBox(position, scale)
+        let transform = Transform.Create(position, scale)
+        world.StaticBoxes.Add(transform, objId)
+
+        // client
+        // TODO: ...
+
+    let addPhysicsBox(position, scale) =
+        let objId = physics.AddBox(position, scale)
+        let transform = Transform.Create(position, scale)
+        world.PhysicsBoxes.Add(transform, objId)
+
+    let staticBox = addStaticBox(Vector3(0, 0, -5), Vector3(100, 100, 1))
+    let staticDrawCmd = addStaticBoxRenderCommand()
+
+    let addCube(position) =
+        let result = addPhysicsBox(position, Vector3.One)
 
     let mutable i = 1
     while (i <= 10)
@@ -135,123 +229,31 @@ main(): () =
             j <- j + 1
         i <- i + 1
 
-    let cubes = cubes.ToArray()
+    let physicsBoxes = world.PhysicsBoxes
+    let physicsBoxCount = physicsBoxes.Count
+    let physicsBoxTransforms = physicsBoxes.Transforms
+    let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
 
-    print("Cube Count: ")
-    print(cubes.Length)
+    let drawCmd = addPhysicsBoxRenderCommand()
+
+    print("Physics Box Count: ")
+    print(physicsBoxCount)
     print("\n")
 
-    let cubePhysics = OlyArray.ZeroCreate(cubes.Length)
-    let mutable i = 0
-    while (i < cubes.Length)
-        cubePhysics[i] <- physics.AddDynamicBox(1, 1, 1, cubes[i].Transform.Translation)
-        i <- i + 1
-
-    let meshDesc   = MeshDescription.CreateCube()
-    let shaderDesc = 
-        ShaderDescription.CreateMeshShader(
-            Encoding.UTF8.GetBytes(DefaultVertexCode), 
-            Encoding.UTF8.GetBytes(DefaultFragmentCode)
-        )
-
-    let mesh   = Graphics.CreateMesh(meshDesc)
-
-    let instances = Graphics.CreateInstances(cubes)
-    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
-    let shader = Graphics.CreateShader(shaderDesc, tex, instances)
-    let drawCmd = DrawCommand.CreateDrawMesh(mesh, shader, instances)
-
-    let delayed = System.Collections.Concurrent.ConcurrentQueue<() -> ()>()
-
-    let fileLookup = System.Collections.Generic.Dictionary<string, System.DateTime>()
-
-    let mutable currentVertexShaderBytes = Encoding.UTF8.GetBytes(DefaultVertexCode)
-    let mutable currentFragmentShaderBytes = Encoding.UTF8.GetBytes(DefaultFragmentCode)
-    let handleVertexShaderFile(e: System.IO.FileSystemEventArgs, filePath: string): () =
-        if (e.FullPath.EndsWith(filePath))
-            let lastWriteTime = System.IO.File.GetLastWriteTimeUtc(filePath)
-            let mutable prevLastWriteTime = System.DateTime.MinValue
-            if (fileLookup.TryGetValue(filePath, &prevLastWriteTime) && (lastWriteTime != prevLastWriteTime))
-                fileLookup[filePath] <- lastWriteTime
-                match (e.ChangeType)
-                | System.IO.WatcherChangeTypes.Changed =>
-                    currentVertexShaderBytes <- Encoding.UTF8.GetBytes(System.IO.File.ReadAllText(filePath))
-                    let shaderDesc = 
-                        ShaderDescription.CreateMeshShader(
-                            currentVertexShaderBytes, 
-                            currentFragmentShaderBytes
-                        )
-                    delayed.Enqueue(
-                        () ->
-                            try
-                                Graphics.UpdateShader(shader, tex, shaderDesc, instances)
-                                print("Updated ")
-                                print(filePath)
-                                print("\n")
-                            catch (ex: System.Exception) =>
-                                ()
-                    )
-                | _ =>
-                    ()
-
-    let handleFragmentShaderFile(e: System.IO.FileSystemEventArgs, filePath: string): () =
-        if (e.FullPath.EndsWith(filePath))
-            let lastWriteTime = System.IO.File.GetLastWriteTimeUtc(filePath)
-            let mutable prevLastWriteTime = System.DateTime.MinValue
-            if (fileLookup.TryGetValue(filePath, &prevLastWriteTime) && (lastWriteTime != prevLastWriteTime))
-                fileLookup[filePath] <- lastWriteTime
-                match (e.ChangeType)
-                | System.IO.WatcherChangeTypes.Changed =>
-                    currentFragmentShaderBytes <- Encoding.UTF8.GetBytes(System.IO.File.ReadAllText(filePath))
-                    let shaderDesc = 
-                        ShaderDescription.CreateMeshShader(
-                            currentVertexShaderBytes, 
-                            currentFragmentShaderBytes
-                        )
-                    delayed.Enqueue(
-                        () ->
-                            try
-                                Graphics.UpdateShader(shader, tex, shaderDesc, instances)
-                                print("Updated ")
-                                print(filePath)
-                                print("\n")
-                            catch (ex: System.Exception) =>
-                                ()
-                    )
-                | _ =>
-                    ()
-
-    fileLookup["GameExample/default.frag"] <- System.IO.File.GetLastWriteTimeUtc("GameExample/default.frag")
-    fileLookup["GameExample/default.vert"] <- System.IO.File.GetLastWriteTimeUtc("GameExample/default.vert")
-    
-    let handler = 
-        ShaderFileEventChanged(         
-            (sender, e) ->
-                handleFragmentShaderFile(e, "GameExample/default.frag")
-                handleVertexShaderFile(e, "GameExample/default.vert")
-        )
-    let fileSystemWatcher = System.IO.FileSystemWatcher()
-    let handler = System.IO.FileSystemEventHandler(handler, UnsafeCast(__oly_load_function_ptr(handler.Invoke)))
-    fileSystemWatcher.Path <- "C:/work/Oly/vscode/examples/GameExample/"
-   // fileSystemWatcher.NotifyFilter <- System.IO.NotifyFilters.LastWrite
-    fileSystemWatcher.add_Changed(handler)
-    fileSystemWatcher.EnableRaisingEvents <- true
-
-    let mutable staticCubeInstance = CubeInstance(Vector3(0, 0, -5), Vector3(100, 100, 1))
-    let staticCubes = [|staticCubeInstance|]
-    let staticInstances = Graphics.CreateInstances(staticCubes)
-    let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
-    let staticShader = Graphics.CreateShader(shaderDesc, tex, staticInstances)
-    let staticDrawCmd = DrawCommand.CreateDrawMesh(mesh, staticShader, staticInstances)
-
     // ----
+
+    // let drawCmds =
+    //     match (drawCmd)
+    //     | DrawCommand.DrawMesh(mesh, shader, instances) =>
     let computeShaderDesc =
         ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
     let computeShader = 
         Graphics.CreateComputeShader(computeShaderDesc, instances)
-    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(cubes.Length))
+    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(physicsBoxCount))
 
     let drawCmds = [spinHexagonsCmd;drawCmd;staticDrawCmd]
+        // | _ =>
+        //     fail("Unexpected")
 
     let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
@@ -307,19 +309,19 @@ main(): () =
                        
         if (!window.IsCursorVisible)
             if (is_w_pressed)
-                let v = Vector3.Transform(-Vector3.UnitZ, rotation)
+                let v = Vector3.Transform(Transform.Forward, rotation)
                 acc <- Vector3(v.X, v.Y, v.Z)
 
             if (is_s_pressed)
-                let v = Vector3.Transform(Vector3.UnitZ, rotation)
+                let v = Vector3.Transform(Transform.Back, rotation)
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
 
             if (is_a_pressed)
-                let v = Vector3.Transform(-Vector3.UnitX, rotation)
+                let v = Vector3.Transform(Transform.Left, rotation)
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
 
             if (is_d_pressed)
-                let v = Vector3.Transform(Vector3.UnitX, rotation)
+                let v = Vector3.Transform(Transform.Right, rotation)
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
         else
             ()
@@ -337,7 +339,7 @@ main(): () =
             [
                 UI.Button("New Game", () -> ());
                 UI.Button("Quit", () -> window.Close());
-                UI.TextBox("IP Address")
+                UI.TextBox("Example text")
             ],
             Vector2(512, 512),
             Vector2(100, 100)
@@ -380,11 +382,6 @@ main(): () =
             UI.Update(dt, inputState, uiNode)
 
     let fixedUpdate(mutable interval: float64) =
-
-        let mutable work = () -> ()
-        while (delayed.TryDequeue(&work))
-            work()
-
         let interval = float32(interval)
         processKeyEventQueue()
         cameraPositionLerp <- cameraPosition
@@ -393,20 +390,17 @@ main(): () =
         physics.Update(interval)
 
         let mutable i = 0
-        while (i < cubes.Length)
-            let mutable m = cubes[i]
+        while (i < physicsBoxCount)
+            let mutable m = physicsBoxTransforms[i]
             let mutable position = Vector3.Zero
             let mutable orientation = Quaternion.Identity
-            physics.GetPositionAndOrientation(cubePhysics[i], &position, &orientation)
+            physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
             let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
             m.Translation <- position
-            cubes[i] <- 
-                let mutable x = default: CubeInstance
-                x.Transform <- m
-                x
+            physicsBoxTransforms[i] <- Transform(m)
             i <- i + 1
 
-        Graphics.UpdateInstances(instances, cubes)
+        Graphics.UpdateInstances(instances, physicsBoxTransforms)
 
     let update(dt: float64) =
         ()

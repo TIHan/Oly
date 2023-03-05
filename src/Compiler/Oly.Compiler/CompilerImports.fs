@@ -228,13 +228,13 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
             retargetFunction currentAsmIdent importer enclosing pat.PatternFunction
 
     let lazyPatGuardFuncOpt =
-        match pat.PatternGuardFunction with
-        | Some patGuardFunc ->
-            lazy
+        lazy
+            match pat.PatternGuardFunction with
+            | Some patGuardFunc ->
                 retargetFunction currentAsmIdent importer enclosing patGuardFunc
                 |> Some
-        | _ ->
-            Lazy<_>.CreateFromValue(None)
+            | _ ->
+                None
 
     member this.Original = pat
     

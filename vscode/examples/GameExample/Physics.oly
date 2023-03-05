@@ -211,8 +211,8 @@ sealed class Physics =
     private GetBodyReference(objId: DynamicObjectId): BodyReference =
         this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
 
-    AddDynamicBox(width: float32, height: float32, length: float32, position: Vector3): DynamicObjectId =
-        let mutable box = Box(width, height, length)
+    AddBox(position: Vector3, scale: Vector3): DynamicObjectId =
+        let mutable box = Box(scale.X, scale.Y, scale.Z)
 
         let typedIndex = this.Simulation.Shapes.Add(&box)
 
@@ -225,8 +225,22 @@ sealed class Physics =
         let handle = this.Simulation.Bodies.Add(&desc)
         DynamicObjectId(handle.Value)
 
-    AddStaticBox(width: float32, height: float32, length: float32, position: Vector3): StaticObjectId =
-        let mutable box = Box(width, height, length)
+    AddKinematicBox(position: Vector3, scale: Vector3): DynamicObjectId =
+        let mutable box = Box(scale.X, scale.Y, scale.Z)
+
+        let typedIndex = this.Simulation.Shapes.Add(&box)
+
+        let pose = RigidPose(position)
+        let velocity = BodyVelocity(Vector3.Zero)
+        let collidableDesc = CollidableDescription.op_Implicit(typedIndex)
+        let bodyActivityDesc = BodyActivityDescription.op_Implicit(0.01)
+        let mutable desc = BodyDescription.CreateKinematic(pose, velocity, collidableDesc, bodyActivityDesc)
+
+        let handle = this.Simulation.Bodies.Add(&desc)
+        DynamicObjectId(handle.Value)
+
+    AddStaticBox(position: Vector3, scale: Vector3): StaticObjectId =
+        let mutable box = Box(scale.X, scale.Y, scale.Z)
 
         let typedIndex = this.Simulation.Shapes.Add(&box)
 
@@ -253,6 +267,34 @@ sealed class Physics =
 
         position <- pose.Position
         orientation <- pose.Orientation
+
+    GetPositionAndOrientation(objId: StaticObjectId, position: byref<Vector3>, orientation: byref<Quaternion>): () =
+        let mutable bodyRef = this.Simulation.Statics.get_Item(StaticHandle(objId.Value))
+        let poseRef = bodyRef.Pose
+        let pose = poseRef
+
+        position <- pose.Position
+        orientation <- pose.Orientation
+
+    SetVelocity(objId: DynamicObjectId, linearVelocity: Vector3, angularVelocity: Vector3): () =
+        let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+        let velocityRef = &bodyRef.get_Velocity()
+        velocityRef <- BodyVelocity(linearVelocity, angularVelocity)
+
+    SetLinearVelocity(objId: DynamicObjectId, linearVelocity: Vector3): () =
+        let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+        let velocityRef = &bodyRef.get_Velocity()
+        velocityRef <- BodyVelocity(linearVelocity)
+
+    GetLinearVelocity(objId: DynamicObjectId): Vector3 =
+        let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+        let bodyVelocity = bodyRef.get_Velocity()
+        bodyVelocity.Linear
+
+    GetAngularVelocity(objId: DynamicObjectId): Vector3 =
+        let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+        let bodyVelocity = bodyRef.get_Velocity()
+        bodyVelocity.Angular
 
     static CreatePhysicsObjectFromCollidableReference(mutable collidable: CollidableReference): PhysicsObject =
         if (collidable.StaticHandle.Value >= 0 && (fromEnum(collidable.Mobility)) == (fromEnum(CollidableMobility.Static)))

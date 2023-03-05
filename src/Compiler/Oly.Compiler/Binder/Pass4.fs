@@ -472,7 +472,7 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
                                 env1, None
                             | EnclosingSymbol.Entity(ent) ->
                                 if bindingInfo.Value.IsInstance && bindingInfo.Value.IsFunction then
-                                    let mightBeReadOnly = not isExplicitMutable
+                                    let mightBeReadOnly = not isExplicitMutable && (bindingInfo.Value.AsFunction.Semantic <> FunctionSemantic.SetterFunction)
                                     let thisPar = createThisValue "this" bindingInfo.Value.IsConstructor mightBeReadOnly (ent.ToInstantiation())
                                     env1.SetUnqualifiedValue(thisPar), Some thisPar
                                 else

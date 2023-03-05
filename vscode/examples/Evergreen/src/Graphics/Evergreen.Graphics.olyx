@@ -267,7 +267,7 @@ sealed class Tex =
 sealed class Instances =
     implements IDisposable
 
-    internal mutable Count: int32
+    mutable Count: int32
     internal mutable InstanceBuffer: DeviceBuffer
 
     internal new(instanceBuffer: DeviceBuffer) =
