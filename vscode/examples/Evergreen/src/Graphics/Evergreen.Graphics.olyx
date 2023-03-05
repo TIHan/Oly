@@ -45,6 +45,44 @@ sealed class MeshDescription =
             TexCoords = texCoords
         }
 
+    static CreateQuad(): MeshDescription =
+        let vertices =
+            [|
+                Vector3(-0.5, -0.5,  0.5);
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(0.5,  0.5,  0.5);
+                Vector3(-0.5,  0.5,  0.5)
+            |]
+
+        let normals =
+            [|
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1)
+            |]
+
+        let texCoords =
+            [|
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0)
+            |]
+
+        let indices =
+            [|
+                0;  1;  2;
+                2;  3;  0: uint32
+            |]
+        
+        MeshDescription(
+            vertices, 
+            indices,
+            normals,
+            texCoords
+        )
+
     static CreateCube(): MeshDescription =
         let vertices =
             [|
@@ -251,7 +289,7 @@ sealed class Mesh =
         this.VertexBuffer.Dispose()
         this.IndexBuffer.Dispose()
 
-sealed class Tex =
+sealed class Texture2D =
     implements IDisposable
 
     internal Texture: Texture
@@ -632,7 +670,7 @@ module Graphics =
             )
         factory.CreateResourceSet(resourceSetDesc)
             
-    private CreateResourceSets(tex: Tex, instances: Instances, shaderStages: ShaderStages): ResourceSetGroup =
+    private CreateResourceSets(texture2d: Texture2D, instances: Instances, shaderStages: ShaderStages): ResourceSetGroup =
         // ------------------------------------------------------------
         let resourceLayout =
             match (shaderStages)
@@ -664,7 +702,7 @@ module Graphics =
                 ResourceSetDescription(
                     resourceLayout3,
                     [|
-                        (tex.Texture: BindableResource);
+                        (texture2d.Texture: BindableResource);
                         pixelSampler
                     |]
                 )
@@ -674,7 +712,7 @@ module Graphics =
             ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
         // ----------------------------------------------------------------
     
-    private CreateShaderState(shaderDesc: ShaderDescription, tex: Tex, instances: Instances): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -708,7 +746,7 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        let resourceSetGroup = CreateResourceSets(tex, instances, ShaderStages.Vertex)
+        let resourceSetGroup = CreateResourceSets(texture2d, instances, ShaderStages.Vertex)
     
         pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
         pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
@@ -736,23 +774,23 @@ module Graphics =
     
         ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
-    CreateShader(shaderDesc: ShaderDescription, tex: Tex, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, tex, instances))
+    CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, texture2d, instances))
 
     CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
         ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
 
-    UpdateShader(shader: Shader, tex: Tex, shaderDesc: ShaderDescription, instances: Instances): () =
-        let newState = CreateShaderState(shaderDesc, tex, instances)
+    UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
+        let newState = CreateShaderState(shaderDesc, texture2d, instances)
         let oldState = Interlocked.Exchange(&shader.State, newState)
         oldState.Pipeline.Dispose()
         oldState.FragmentShader.Dispose()
         oldState.VertexShader.Dispose()
 
-    CreateTex2D(filePath: string): Tex =
+    CreateTexture2D(filePath: string): Texture2D =
         let image = Veldrid.ImageSharp.ImageSharpTexture(filePath)
         let texture = image.CreateDeviceTexture(graphicsDevice, factory)
-        Tex(texture)
+        Texture2D(texture)
         // let image = Image.Load<Rgba32>(System.IO.File.ReadAllBytes(filePath))
         // let width = uint32(image.Width)
         // let height = uint32(image.Height)
@@ -780,7 +818,7 @@ module Graphics =
         // graphicsDevice.UpdateTexture(texture, source, sizeInBytes, 0, 0, 0, width, height, 1, 0, 0)
         // sourceHandle.Dispose()
 
-        // Tex(texture)
+        // Texture2D(texture)
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))

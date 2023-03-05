@@ -153,8 +153,6 @@ sealed class World =
     mutable PhysicsBoxes: PhysicsBox = PhysicsBox()
     mutable StaticBoxes: StaticBox  = StaticBox()
 
-
-
 main(): () =
     let world = World()
     let physics = Physics.Init()
@@ -194,20 +192,20 @@ main(): () =
     let addStaticBoxRenderCommand() =
         let staticBoxes = world.StaticBoxes
         let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
-        let tex = Graphics.CreateTex2D("GameExample/Textures/flats/floor7_2.png")
-        let staticShader = Graphics.CreateShader(defaultShaderDesc, tex, staticInstances)
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
+        let staticShader = Graphics.CreateShader(defaultShaderDesc, texture, staticInstances)
         let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
         staticInstances.Count <- staticBoxes.Count
         drawCmd
 
-    let mutable instances = unchecked default
+    let mutable physicsBoxInstances = unchecked default
     let addPhysicsBoxRenderCommand() =
         let boxes = world.PhysicsBoxes
-        instances <- Graphics.CreateInstances(boxes.Transforms)
-        let tex = Graphics.CreateTex2D("GameExample/Textures/flats/aqf068.png")
-        let shader = Graphics.CreateShader(defaultShaderDesc, tex, instances)
-        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, instances)
-        instances.Count <- boxes.Count
+        physicsBoxInstances <- Graphics.CreateInstances(boxes.Transforms)
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
+        let shader = Graphics.CreateShader(defaultShaderDesc, texture, physicsBoxInstances)
+        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
+        physicsBoxInstances.Count <- boxes.Count
         drawCmd
 
     let drawCmd = addPhysicsBoxRenderCommand()
@@ -216,16 +214,21 @@ main(): () =
         // server
         let objId = physics.AddStaticBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        world.StaticBoxes.Add(transform, objId)
+        let staticBox = world.StaticBoxes.Add(transform, objId)
+
+        // client
+        // TODO: ...
 
     let spawnPhysicsBox(position, rotation, scale) =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
         let physicsBox = world.PhysicsBoxes.Add(transform, objId)
-        instances.Count <- instances.Count + 1
 
-    let staticBox = spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
+        // client
+        physicsBoxInstances.Count <- physicsBoxInstances.Count + 1
+
+    spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
     let staticDrawCmd = addStaticBoxRenderCommand()
 
     let addCube(position) =
@@ -360,10 +363,6 @@ main(): () =
             Vector2(100, 100)
         )
 
-    let mutable cameraPosition = Vector3.Zero
-    let mutable cameraPositionLerp = cameraPosition
-    let mutable cameraYaw = 0.0: float32
-    let mutable cameraPitch = 0.0: float32
     let updateInput(dt: float64) =
         let inputState = window.GetInputState()
 
@@ -398,7 +397,7 @@ main(): () =
         updateWorldCamera(dt)
         updateWorldPhysics(dt)
 
-        Graphics.UpdateInstances(instances, world.PhysicsBoxes.Transforms)
+        Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
 
     let update(dt: float64) =
         ()
