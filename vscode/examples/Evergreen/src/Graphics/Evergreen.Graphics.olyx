@@ -45,13 +45,13 @@ sealed class MeshDescription =
             TexCoords = texCoords
         }
 
-    static CreateQuad(): MeshDescription =
+    static CreateQuad(scale: float32): MeshDescription =
         let vertices =
             [|
-                Vector3(-0.5, -0.5,  0.5);
-                Vector3(0.5, -0.5,  0.5);
-                Vector3(0.5,  0.5,  0.5);
-                Vector3(-0.5,  0.5,  0.5)
+                Vector3(-scale, -scale,  scale);
+                Vector3(scale, -scale,  scale);
+                Vector3(scale,  scale,  scale);
+                Vector3(-scale,  scale,  scale)
             |]
 
         let normals =
@@ -66,8 +66,8 @@ sealed class MeshDescription =
             [|
                 Vector2(0.0, 0.0);
                 Vector2(1.0, 0.0);
-                Vector2(1.0, 1.0);
-                Vector2(0.0, 1.0)
+                Vector2(1.0, -1.0);
+                Vector2(0.0, -1.0)
             |]
 
         let indices =
@@ -82,6 +82,9 @@ sealed class MeshDescription =
             normals,
             texCoords
         )
+
+    static CreateQuad(): MeshDescription =
+        MeshDescription.CreateQuad(0.5)
 
     static CreateCube(): MeshDescription =
         let vertices =
@@ -963,7 +966,7 @@ module Graphics =
                 currentFramebuffer <- renderTarget.Framebuffer
 
                 commandList.SetFramebuffer(currentFramebuffer)
-                commandList.ClearColorTarget(0, RgbaFloat.Blue)
+                commandList.ClearColorTarget(0, RgbaFloat.Black)
                 commandList.ClearDepthStencil(1)
 
             | DrawCommand.DrawUI when (hasFramebuffer()) =>

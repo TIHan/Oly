@@ -40,5 +40,5 @@ void main()
     fsin_Normal = normal;
     fsin_Position = position;
 
-    gl_Position = Projection * View * position;
+    gl_Position = position;
 }

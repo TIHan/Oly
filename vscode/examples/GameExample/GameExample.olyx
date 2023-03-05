@@ -261,11 +261,11 @@ main(): () =
     // ----
 
     let quadMesh = 
-        let desc = MeshDescription.CreateQuad()
+        let desc = MeshDescription.CreateQuad(1)
         Graphics.CreateMesh(desc)
 
     let quadInstances = 
-        let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3(5, 5, 1))
+        let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3.One)
         Graphics.CreateInstances([|transform|])
 
     let renderTarget = Graphics.CreateRenderTarget(1280, 720)
