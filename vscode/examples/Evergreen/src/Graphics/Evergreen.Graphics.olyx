@@ -371,21 +371,21 @@ class DrawCommand =
         inherits DrawCommand
 
         ComputeShader: ComputeShader
-        Count: uint32
+        Instances: Instances
 
-        new(computeShader: ComputeShader, count: uint32) =
+        new(computeShader: ComputeShader, instances: Instances) =
             base(DrawCommandKind.RunComputeShader) with
                 {
                     ComputeShader = computeShader
-                    Count = count
+                    Instances = instances
                 }
 
-    static CreateRunComputeShader(computeShader: ComputeShader, count: uint32): DrawCommand =
-        DrawCommand.RunComputeShader(computeShader, count)
+    static CreateRunComputeShader(computeShader: ComputeShader, instances: Instances): DrawCommand =
+        DrawCommand.RunComputeShader(computeShader, instances)
 
-    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, count: uint32) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
+    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
         let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
-        (impl.ComputeShader, impl.Count)
+        (impl.ComputeShader, impl.Instances)
 
 enum KeyEventKind =
     | Pressed
@@ -856,7 +856,7 @@ module Graphics =
                         0               /* instanceStart */
                     )
 
-            | DrawCommand.RunComputeShader(computeShader, count) =>
+            | DrawCommand.RunComputeShader(computeShader, instances) =>
                 let pipeline = computeShader.State.Pipeline
                 if (pipeline !== currentPipeline)
                     let resourceSets = computeShader.State.ResourceSets
@@ -867,7 +867,7 @@ module Graphics =
                         i <- i + 1
                     currentPipeline <- pipeline
 
-                commandList.Dispatch(count, 1, 1)
+                commandList.Dispatch(uint32(instances.Count), 1, 1)
 
             | _ =>
                 ()

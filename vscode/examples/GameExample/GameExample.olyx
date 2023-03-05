@@ -37,58 +37,46 @@ clamp(min: float32, max: float32, value: float32): float32 =
     else
         value
 
-struct ViewProjection =
-    mutable View: Matrix4x4
+struct Camera =
+    mutable Transform: Transform
     mutable Projection: Matrix4x4
+
+    private mutable yaw: float32
+    private mutable pitch: float32
+
+    private static get DefaultRotation: Quaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
     new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
         {
-            View = Matrix4x4.Identity
+            Transform = Transform(Matrix4x4.CreateFromQuaternion(Camera.DefaultRotation))
             Projection = Matrix4x4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
+            yaw = 0
+            pitch = 0
         }
 
-    Position: Vector3 get() = this.View.Translation
-    Rotation: Quaternion get() = Quaternion.CreateFromRotationMatrix(this.View)
+    Yaw: float32
+        get() = this.yaw
+        
+    Pitch: float32
+        get() = this.pitch
 
-    InvertedView: ViewProjection 
-        get() =
-            let mutable invertedView = Matrix4x4.Identity
-            let result = Matrix4x4.Invert(this.View, &invertedView)
-            let mutable viewProj = this
-            viewProj.View <- invertedView
-            viewProj
+    mutable SetYawPitch(yaw: float32, pitch: float32): () =
+        this.yaw <- yaw
+        this.pitch <- pitch
+        let position = this.Transform.Position
+        let rotation = Camera.DefaultRotation * Quaternion.CreateFromYawPitchRoll(-yaw, -pitch, 0)
+        this.Transform <- Transform.Create(position, rotation, Vector3.One)
 
-    SetPosition(position: Vector3): ViewProjection =
-        let mutable view = this.View
-        view.Translation <- position
-        let mutable viewProj = this
-        viewProj.View <- view
-        viewProj
+#[open]
+extension Vector3Extensions =
+    inherits Vector3
 
-    SetRotation(rotation: Quaternion): ViewProjection =
-        let mutable view = Matrix4x4.CreateFromQuaternion(rotation)
-        view.Translation <- this.Position
-        let mutable viewProj = this
-        viewProj.View <- view
-        viewProj
+    static Forward: Vector3 get() = -Vector3.UnitZ
+    static Back: Vector3 get() = Vector3.UnitZ
+    static Left: Vector3 get() = -Vector3.UnitX
+    static Right: Vector3 get() = Vector3.UnitX
 
-    SetPositionRotation(position: Vector3, rotation: Quaternion): ViewProjection =
-        let mutable view = Matrix4x4.CreateFromQuaternion(rotation)
-        view.Translation <- position
-        let mutable viewProj = this
-        viewProj.View <- view
-        viewProj
-
-sealed class ShaderFileEventChanged =
-
-    private invoke: (object, System.IO.FileSystemEventArgs) -> ()
-    new(invoke: (object, System.IO.FileSystemEventArgs) -> ()) = 
-        {
-            invoke = invoke
-        }
-
-    Invoke(sender: object, e: System.IO.FileSystemEventArgs): () =
-        this.invoke(sender, e)
+(*)(v: Vector3, s: float32): Vector3 = Vector3.Multiply(v, s)
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Transform =
@@ -100,10 +88,26 @@ struct Transform =
         get() = this.Matrix.Translation
         set(value) = this.Matrix.Translation <- value
 
-    static get Forward: Vector3 = -Vector3.UnitZ
-    static get Back: Vector3 = Vector3.UnitZ
-    static get Left: Vector3 = -Vector3.UnitX
-    static get Right: Vector3 = Vector3.UnitX
+    Rotation: Quaternion
+        get() = Quaternion.CreateFromRotationMatrix(this.Matrix)
+
+    Forward: Vector3
+        get() = Vector3.Transform(Vector3.Forward, this.Rotation)
+
+    Back: Vector3
+        get() = Vector3.Transform(Vector3.Back, this.Rotation)
+
+    Left: Vector3
+        get() = Vector3.Transform(Vector3.Left, this.Rotation)
+
+    Right: Vector3
+        get() = Vector3.Transform(Vector3.Right, this.Rotation)
+
+    WorldToLocalMatrix: Matrix4x4
+        get() =
+            let mutable inverted = Matrix4x4.Identity
+            let didSucceed = Matrix4x4.Invert(this.Matrix, &inverted)
+            inverted
 
     static Create(position: Vector3, scale: Vector3): Transform =
         let mutable m = Matrix4x4.CreateScale(scale)
@@ -111,9 +115,10 @@ struct Transform =
         Transform(m)
 
     static Create(position: Vector3, rotation: Quaternion, scale: Vector3): Transform =
-        let mutable m = Matrix4x4.CreateScale(scale)
-        m.Translation <- position
-        Transform(m)
+        let rotationMatrix = Matrix4x4.CreateFromQuaternion(rotation)
+        let mutable scaleMatrix = Matrix4x4.CreateScale(scale)
+        scaleMatrix.Translation <- position
+        Transform(rotationMatrix * scaleMatrix)
 
 newtype PhysicsBoxId =
     Value: int32
@@ -130,7 +135,6 @@ struct PhysicsBox =
         this.DynamicObjectIds[index] <- dynamicObjId
         this.Count <- this.Count + 1
         PhysicsBoxId(index)
-
 
 newtype StaticBoxId =
     Value: int32
@@ -153,6 +157,8 @@ sealed class World =
     mutable PhysicsBoxes: PhysicsBox = PhysicsBox()
     mutable StaticBoxes: StaticBox  = StaticBox()
 
+
+
 main(): () =
     let world = World()
     let physics = Physics.Init()
@@ -161,6 +167,25 @@ main(): () =
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
     //
+
+    let updateWorldPhysics(dt) =
+        physics.Update(dt)
+
+        let physicsBoxes = world.PhysicsBoxes
+        let physicsBoxCount = physicsBoxes.Count
+        let physicsBoxTransforms = physicsBoxes.Transforms
+        let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
+
+        let mutable i = 0
+        while (i < physicsBoxCount)
+            let mutable m = physicsBoxTransforms[i]
+            let mutable position = Vector3.Zero
+            let mutable orientation = Quaternion.Identity
+            physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
+            m.Translation <- position
+            physicsBoxTransforms[i] <- Transform(m)
+            i <- i + 1
 
     let defaultShaderDesc = 
         ShaderDescription.CreateMeshShader(
@@ -189,6 +214,8 @@ main(): () =
         instances.Count <- boxes.Count
         drawCmd
 
+    let drawCmd = addPhysicsBoxRenderCommand()
+
     let addStaticBox(position, scale) =
         // server
         let objId = physics.AddStaticBox(position, scale)
@@ -199,11 +226,15 @@ main(): () =
         // TODO: ...
 
     let addPhysicsBox(position, scale) =
+        // server
         let objId = physics.AddBox(position, scale)
         let transform = Transform.Create(position, scale)
-        world.PhysicsBoxes.Add(transform, objId)
+        let physicsBox = world.PhysicsBoxes.Add(transform, objId)
+        instances.Count <- instances.Count + 1
+        // client
 
-    let staticBox = addStaticBox(Vector3(0, 0, -5), Vector3(100, 100, 1))
+
+    let staticBox = addStaticBox(Vector3(0, 0, -5), Vector3(50, 100, 1))
     let staticDrawCmd = addStaticBoxRenderCommand()
 
     let addCube(position) =
@@ -229,15 +260,8 @@ main(): () =
             j <- j + 1
         i <- i + 1
 
-    let physicsBoxes = world.PhysicsBoxes
-    let physicsBoxCount = physicsBoxes.Count
-    let physicsBoxTransforms = physicsBoxes.Transforms
-    let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
-
-    let drawCmd = addPhysicsBoxRenderCommand()
-
-    print("Physics Box Count: ")
-    print(physicsBoxCount)
+    print("Initial Physics Box Count: ")
+    print(world.PhysicsBoxes.Count)
     print("\n")
 
     // ----
@@ -249,19 +273,16 @@ main(): () =
         ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
     let computeShader = 
         Graphics.CreateComputeShader(computeShaderDesc, instances)
-    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, uint32(physicsBoxCount))
+    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
     let drawCmds = [spinHexagonsCmd;drawCmd;staticDrawCmd]
         // | _ =>
         //     fail("Unexpected")
 
-    let defaultCameraRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
-
-    let mutable viewProj = ViewProjection(70, 1280, 720, 1, 1000000)
-    let mutable viewProjLerp = viewProj
+    let mutable camera = Camera(70, 1280, 720, 1, 1000000)
     Graphics.SetModel(Matrix4x4.Identity)
-    Graphics.SetView(viewProj.View)
-    Graphics.SetProjection(viewProj.Projection)
+    Graphics.SetView(camera.Transform.Matrix)
+    Graphics.SetProjection(camera.Projection)
     Graphics.SetNormalMatrix(Matrix4x4.Identity)
     Graphics.SetDeltaTime(0)
 
@@ -304,40 +325,40 @@ main(): () =
                 else
                     window.ShowCursor()
 
-    let checkMotion(deltaTime: float32, rotation: Quaternion) =
+    let updateWorldCamera(dt: float32) =
         let mutable acc = Vector3.Zero
                        
         if (!window.IsCursorVisible)
             if (is_w_pressed)
-                let v = Vector3.Transform(Transform.Forward, rotation)
+                let v = camera.Transform.Forward
                 acc <- Vector3(v.X, v.Y, v.Z)
 
             if (is_s_pressed)
-                let v = Vector3.Transform(Transform.Back, rotation)
+                let v = camera.Transform.Back
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
 
             if (is_a_pressed)
-                let v = Vector3.Transform(Transform.Left, rotation)
+                let v = camera.Transform.Left
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
 
             if (is_d_pressed)
-                let v = Vector3.Transform(Transform.Right, rotation)
+                let v = camera.Transform.Right
                 acc <- acc + Vector3(v.X, v.Y, v.Z)
         else
             ()
 
         acc <-
             if (acc != Vector3.Zero)
-                Vector3.Normalize(acc) * (deltaTime * 20)
+                Vector3.Normalize(acc) * (dt * 20)
             else
                 acc
 
-        acc
+        camera.Transform.Position <- camera.Transform.Position + acc
 
     let uiNode =
         UI.Window("Main Menu",
             [
-                UI.Button("New Game", () -> ());
+                UI.Button("Spawn Box", () -> addPhysicsBox(Vector3.Zero, Vector3.One));
                 UI.Button("Quit", () -> window.Close());
                 UI.TextBox("Example text")
             ],
@@ -347,7 +368,6 @@ main(): () =
 
     let mutable cameraPosition = Vector3.Zero
     let mutable cameraPositionLerp = cameraPosition
-    let mutable cameraRotation = defaultCameraRotation
     let mutable cameraYaw = 0.0: float32
     let mutable cameraPitch = 0.0: float32
     let updateInput(dt: float64) =
@@ -364,54 +384,33 @@ main(): () =
             let pitchAcc =
                 mousePosition.Y * 0.0025
 
-            cameraYaw <- cameraYaw + yawAcc
-            cameraPitch <- cameraPitch + pitchAcc
-
-            cameraRotation <- defaultCameraRotation * Quaternion.CreateFromYawPitchRoll(-cameraYaw, -cameraPitch, 0)
+            camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
 
             let mutable obj = default
-            let mutable dir = Vector3.Transform(-Vector3.UnitZ, cameraRotation)
-            if (physics.TryRayCast(cameraPosition, dir, 500, &obj))
+            let mutable dir = camera.Transform.Forward
+            if (physics.TryRayCast(camera.Transform.Position, dir, 500, &obj))
                 match (obj)
                 | DynamicObject(objId) =>
-                    physics.ApplyImpulse(objId, Vector3.Multiply(dir, 0.0002))
+                    physics.ApplyImpulse(objId, dir * 0.0002)
                 | _ =>
                     ()
 
         else
             UI.Update(dt, inputState, uiNode)
 
-    let fixedUpdate(mutable interval: float64) =
-        let interval = float32(interval)
+    let fixedUpdate(dt: float64) =
+        let dt = float32(dt)
         processKeyEventQueue()
-        cameraPositionLerp <- cameraPosition
-        cameraPosition <- cameraPosition + checkMotion(interval, cameraRotation)
+        updateWorldCamera(dt)
+        updateWorldPhysics(dt)
 
-        physics.Update(interval)
-
-        let mutable i = 0
-        while (i < physicsBoxCount)
-            let mutable m = physicsBoxTransforms[i]
-            let mutable position = Vector3.Zero
-            let mutable orientation = Quaternion.Identity
-            physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
-            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
-            m.Translation <- position
-            physicsBoxTransforms[i] <- Transform(m)
-            i <- i + 1
-
-        Graphics.UpdateInstances(instances, physicsBoxTransforms)
+        Graphics.UpdateInstances(instances, world.PhysicsBoxes.Transforms)
 
     let update(dt: float64) =
         ()
 
     let render(deltaTime, alpha) =
-        let cameraPostionFinal = Vector3.Lerp(cameraPositionLerp, cameraPosition, alpha)
-        let mutable view = Matrix4x4.CreateFromQuaternion(cameraRotation)
-        view.Translation <- cameraPostionFinal
-        let projection = viewProj.Projection
-        let result = Matrix4x4.Invert(view, &view)
-        Graphics.SetView(view)
+        Graphics.SetView(camera.Transform.WorldToLocalMatrix)
         Graphics.SetDeltaTime(deltaTime)
 
         let windowExists = window.Exists
