@@ -34,6 +34,14 @@ float GetScalingFactor(mat4 m)
     return sqrt(m[0][0] * m[0][0] + m[0][1] * m[0][1] + m[0][2] * m[0][2]);
 }
 
+vec3 extractScale(mat4 matrix) {
+  vec3 scale;
+  scale.x = length(matrix[0].xyz);
+  scale.y = length(matrix[1].xyz);
+  scale.z = length(matrix[2].xyz);
+  return scale;
+}
+
 void main()
 {
     mat4 transform = Instances[gl_InstanceIndex].Transform;
@@ -44,8 +52,30 @@ void main()
     vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
+    vec3 scale = extractScale(model);
+
     fsin_Color = ambientColor;
-    fsin_TexCoord = TexCoord * GetScalingFactor(model);
+    // TODO: This isn't 100% correct. What is the proper way to adjust this?
+    if (Normal.z == 0 && Normal.y < 0)
+    {
+        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.z);
+    }
+    else if (Normal.z == 0 && Normal.y > 0)
+    {
+        fsin_TexCoord = TexCoord * vec2(-scale.x, scale.z);
+    }
+    else if (Normal.z == 0 && Normal.x > 0)
+    {
+        fsin_TexCoord = TexCoord * vec2(-scale.z, scale.y);
+    }
+    else if (Normal.z == 0 && Normal.x < 0)
+    {
+        fsin_TexCoord = TexCoord * vec2(scale.z, -scale.y);
+    }
+    else
+    {
+        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.y);
+    }
     fsin_Normal = normal;
     fsin_Position = position;
     fsin_LightPosition = vec3(0, 0, 0);
