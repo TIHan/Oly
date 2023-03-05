@@ -110,11 +110,6 @@ struct Transform =
             let didSucceed = Matrix4x4.Invert(this.Matrix, &inverted)
             inverted
 
-    static Create(position: Vector3, scale: Vector3): Transform =
-        let mutable m = Matrix4x4.CreateScale(scale)
-        m.Translation <- position
-        Transform(m)
-
     static Create(position: Vector3, rotation: Quaternion, scale: Vector3): Transform =
         let rotationMatrix = Matrix4x4.CreateFromQuaternion(rotation)
         let mutable scaleMatrix = Matrix4x4.CreateScale(scale)
@@ -217,29 +212,24 @@ main(): () =
 
     let drawCmd = addPhysicsBoxRenderCommand()
 
-    let addStaticBox(position, scale) =
+    let spawnStaticBox(position, rotation, scale) =
         // server
-        let objId = physics.AddStaticBox(position, scale)
-        let transform = Transform.Create(position, scale)
+        let objId = physics.AddStaticBox(position, rotation, scale)
+        let transform = Transform.Create(position, rotation, scale)
         world.StaticBoxes.Add(transform, objId)
 
-        // client
-        // TODO: ...
-
-    let addPhysicsBox(position, scale) =
+    let spawnPhysicsBox(position, rotation, scale) =
         // server
-        let objId = physics.AddBox(position, scale)
-        let transform = Transform.Create(position, scale)
+        let objId = physics.AddBox(position, rotation, scale)
+        let transform = Transform.Create(position, rotation, scale)
         let physicsBox = world.PhysicsBoxes.Add(transform, objId)
         instances.Count <- instances.Count + 1
-        // client
 
-
-    let staticBox = addStaticBox(Vector3(0, 0, -5), Vector3(50, 100, 1))
+    let staticBox = spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
     let staticDrawCmd = addStaticBoxRenderCommand()
 
     let addCube(position) =
-        let result = addPhysicsBox(position, Vector3.One)
+        let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One)
 
     let mutable i = 1
     while (i <= 10)
@@ -359,7 +349,10 @@ main(): () =
     let uiNode =
         UI.Window("Main Menu",
             [
-                UI.Button("Spawn Box", () -> addPhysicsBox(Vector3.Zero, Vector3.One));
+                UI.Button("Spawn Box", () -> 
+                                           let position = camera.Transform.Position + (camera.Transform.Forward * 2)
+                                           spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
+                );
                 UI.Button("Quit", () -> window.Close());
                 UI.TextBox("Example text")
             ],
@@ -427,12 +420,6 @@ main(): () =
             updateInput(dt),
         dt ->
             fixedUpdate(dt)
-            // Uncomment to test perf.
-            // let mutable m = Matrix4x4.Identity
-            // let mutable i = 0
-            // while (i < 400000)
-            //     m <- m * m
-            //     i <- i + 1
             !window.Exists,
         dt ->
             update(dt)

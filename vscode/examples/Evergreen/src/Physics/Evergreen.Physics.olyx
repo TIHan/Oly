@@ -219,12 +219,12 @@ sealed class Physics =
     private GetBodyReference(objId: DynamicObjectId): BodyReference =
         this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
 
-    AddBox(position: Vector3, scale: Vector3): DynamicObjectId =
+    AddBox(position: Vector3, rotation: Quaternion, scale: Vector3): DynamicObjectId =
         let mutable box = Box(scale.X, scale.Y, scale.Z)
 
         let typedIndex = this.Simulation.Shapes.Add(&box)
 
-        let pose = RigidPose(position)
+        let pose = RigidPose(position, rotation)
         let inertia = box.ComputeInertia(1)
         let collidableDesc = CollidableDescription.op_Implicit(typedIndex)
         let bodyActivityDesc = BodyActivityDescription.op_Implicit(0.01)
@@ -233,12 +233,12 @@ sealed class Physics =
         let handle = this.Simulation.Bodies.Add(&desc)
         DynamicObjectId(handle.Value)
 
-    AddKinematicBox(position: Vector3, scale: Vector3): DynamicObjectId =
+    AddKinematicBox(position: Vector3, rotation: Quaternion, scale: Vector3): DynamicObjectId =
         let mutable box = Box(scale.X, scale.Y, scale.Z)
 
         let typedIndex = this.Simulation.Shapes.Add(&box)
 
-        let pose = RigidPose(position)
+        let pose = RigidPose(position, rotation)
         let velocity = BodyVelocity(Vector3.Zero)
         let collidableDesc = CollidableDescription.op_Implicit(typedIndex)
         let bodyActivityDesc = BodyActivityDescription.op_Implicit(0.01)
@@ -247,12 +247,12 @@ sealed class Physics =
         let handle = this.Simulation.Bodies.Add(&desc)
         DynamicObjectId(handle.Value)
 
-    AddStaticBox(position: Vector3, scale: Vector3): StaticObjectId =
+    AddStaticBox(position: Vector3, rotation: Quaternion, scale: Vector3): StaticObjectId =
         let mutable box = Box(scale.X, scale.Y, scale.Z)
 
         let typedIndex = this.Simulation.Shapes.Add(&box)
 
-        let pose = RigidPose(position)
+        let pose = RigidPose(position, rotation)
         let mutable desc = StaticDescription(pose, typedIndex)
 
         let handle = this.Simulation.Statics.Add(&desc)
