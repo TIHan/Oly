@@ -160,7 +160,7 @@ main(): () =
     window.HideCursor()
     print("Graphics Device: " + Graphics.DeviceName + "\n")
 
-    //
+    // -------------------------------------
 
     let updateWorldPhysics(dt) =
         physics.Update(dt)
@@ -260,6 +260,34 @@ main(): () =
 
     // ----
 
+    let quadMesh = 
+        let desc = MeshDescription.CreateQuad()
+        Graphics.CreateMesh(desc)
+
+    let quadInstances = 
+        let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3(5, 5, 1))
+        Graphics.CreateInstances([|transform|])
+
+    let renderTarget = Graphics.CreateRenderTarget(1280, 720)
+
+    let renderTargetDraw =
+        let staticBoxes = world.StaticBoxes
+        let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
+        let staticShader = Graphics.CreateShader(defaultShaderDesc, texture, staticInstances, renderTarget)
+        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
+        staticInstances.Count <- staticBoxes.Count
+        drawCmd
+
+    let renderQuadCmd =
+        let desc = 
+            ShaderDescription.CreateMeshShader(
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
+            )
+        let shader = Graphics.CreateShader(desc, renderTarget.Texture, quadInstances)
+        DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
+
     let drawCmds =
         match (drawCmd)
         | DrawCommand.DrawMesh(mesh, shader, instances) =>
@@ -270,10 +298,12 @@ main(): () =
             let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
             [
+                DrawCommand.CreateSetRenderTarget(renderTarget);
+                renderTargetDraw;
                 DrawCommand.CreateSetWindowTarget();
                 spinHexagonsCmd;
                 drawCmd;
-                staticDrawCmd;
+                renderQuadCmd;
                 DrawCommand.CreateDrawUI()
             ]
         | _ =>

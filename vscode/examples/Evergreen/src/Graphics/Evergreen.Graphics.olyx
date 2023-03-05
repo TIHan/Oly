@@ -306,7 +306,7 @@ sealed class RenderTarget =
     implements IDisposable
 
     internal Framebuffer: Framebuffer
-    internal Texture: Texture2D
+    Texture: Texture2D
 
     internal new(framebuffer: Framebuffer, texture: Texture2D) =
         {
@@ -769,7 +769,7 @@ module Graphics =
             ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
         // ----------------------------------------------------------------
     
-    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -806,7 +806,7 @@ module Graphics =
         let resourceSetGroup = CreateResourceSets(texture2d, instances, ShaderStages.Vertex)
     
         pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
-        pipelineDesc.Outputs <- graphicsDevice.SwapchainFramebuffer.OutputDescription
+        pipelineDesc.Outputs <- outputs
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
         ShaderState(shaders[0], shaders[1], resourceSetGroup.ResourceSets, pipeline)
@@ -832,13 +832,16 @@ module Graphics =
         ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
     CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances))
+        Shader(CreateShaderState(shaderDesc, texture2d, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription))
+
+    CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, renderTarget: RenderTarget): Shader =
+        Shader(CreateShaderState(shaderDesc, texture2d, instances, renderTarget.Framebuffer.OutputDescription))
 
     CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
         ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
 
     UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
-        let newState = CreateShaderState(shaderDesc, texture2d, instances)
+        let newState = CreateShaderState(shaderDesc, texture2d, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
         let oldState = Interlocked.Exchange(&shader.State, newState)
         oldState.Pipeline.Dispose()
         oldState.FragmentShader.Dispose()
@@ -878,13 +881,19 @@ module Graphics =
         // Texture2D(texture)
 
     CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
-        let targetTexture = 
+        let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil))
+        let depthTexture =
             factory.CreateTexture(
-                TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, TextureUsage.RenderTarget)
+                TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
             )
-        let desc = FramebufferDescription(null, [|targetTexture|])
+        let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.RenderTarget) | fromEnum(TextureUsage.Sampled))
+        let colorTexture = 
+            factory.CreateTexture(
+                TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, usages)
+            )
+        let desc = FramebufferDescription(depthTexture, [|colorTexture|])
         let framebuffer = factory.CreateFramebuffer(desc)
-        RenderTarget(framebuffer, Texture2D(targetTexture))
+        RenderTarget(framebuffer, Texture2D(colorTexture))
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
@@ -951,10 +960,10 @@ module Graphics =
                 commandList.ClearDepthStencil(1)
 
             | DrawCommand.SetRenderTarget(renderTarget) =>
-                currentFramebuffer <- graphicsDevice.SwapchainFramebuffer
+                currentFramebuffer <- renderTarget.Framebuffer
 
                 commandList.SetFramebuffer(currentFramebuffer)
-                commandList.ClearColorTarget(0, RgbaFloat.Black)
+                commandList.ClearColorTarget(0, RgbaFloat.Blue)
                 commandList.ClearDepthStencil(1)
 
             | DrawCommand.DrawUI when (hasFramebuffer()) =>
