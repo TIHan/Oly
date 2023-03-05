@@ -800,7 +800,7 @@ module Graphics =
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
 
-    CreateInstances<T>(instanceData: T[||]): Instances where T: struct =
+    CreateInstances<T>(instanceData: T[||]): Instances where T: unmanaged =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
         let instanceBuffer = factory.CreateBuffer(BufferDescription(uint32(instanceData.Length * sizeof<T>), usage, uint32(instanceData.Length * sizeof<T>)))
         graphicsDevice.UpdateBuffer(instanceBuffer, 0, instanceData)
@@ -809,7 +809,7 @@ module Graphics =
         instances.Count <- instanceData.Length
         instances
 
-    UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: struct =
+    UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
     Draw(drawCmds: DrawCommand[]): () =

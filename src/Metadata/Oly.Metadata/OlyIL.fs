@@ -635,6 +635,9 @@ type OlyILArrayKind =
 
 [<NoEquality;NoComparison>]
 type OlyILType =
+    | OlyILTypeModified of modifierTy: OlyILType * ty: OlyILType
+    | OlyILTypeInvalid of msg: OlyILStringHandle
+
     | OlyILTypeBaseObject
     | OlyILTypeBaseStruct
     | OlyILTypeBaseStructEnum
@@ -683,6 +686,8 @@ type OlyILType =
 
     member this.TypeArguments =
         match this with
+        | OlyILTypeInvalid _
+        | OlyILTypeModified _
         | OlyILTypeVoid
         | OlyILTypeUnit
         | OlyILTypeInt8
@@ -764,10 +769,14 @@ type OlyILType =
         | OlyILTypeBaseAttribute _ -> 33
         | OlyILTypeDependentIndexer _ -> 34
         | OlyILTypeForAll _ -> 35
+        | OlyILTypeInvalid _ -> 36
+        | OlyILTypeModified _ -> 37
         | OlyILTypeEntity(ilEntInst) -> 64 + ilEntInst.DefinitionOrReferenceHandle.Index
 
     member this.IsBuiltIn =
         match this with
+        | OlyILTypeInvalid _
+        | OlyILTypeModified _
         | OlyILTypeVoid
         | OlyILTypeUnit
         | OlyILTypeInt8

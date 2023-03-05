@@ -3115,6 +3115,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match ilTy with
             | OlyILTypeDependentIndexer _ ->
                 raise(System.NotImplementedException())
+
+            | OlyILTypeInvalid _ ->
+                OlyAssert.Fail("Invalid type.")
+
+            | OlyILTypeModified _ ->
+                OlyAssert.Fail("Invalid modified type.")
+
             | OlyILTypeConstantInt32(value) ->
                 RuntimeType.ConstantInt32(value)
 

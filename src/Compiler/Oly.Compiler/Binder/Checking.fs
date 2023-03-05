@@ -97,13 +97,13 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
         | ValueSome(argTys, returnTy) ->
             argTys
             |> ImArray.iter (fun x ->
-                UnifyTypes TypeVariableRigidity.Flexible x (TypeSymbol.Error(tyParOpt))
+                UnifyTypes TypeVariableRigidity.Flexible x (TypeSymbol.Error(tyParOpt, None))
                 |> ignore
             )
-            UnifyTypes TypeVariableRigidity.Flexible returnTy (TypeSymbol.Error(tyParOpt))
+            UnifyTypes TypeVariableRigidity.Flexible returnTy (TypeSymbol.Error(tyParOpt, None))
             |> ignore
         | _ ->
-            UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(tyParOpt))
+            UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(tyParOpt, None))
             |> ignore
 
     not hasErrors

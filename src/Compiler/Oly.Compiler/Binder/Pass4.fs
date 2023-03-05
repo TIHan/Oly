@@ -146,7 +146,7 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
             env, BoundCasePattern.Tuple(syntaxPattern, casePats)
 
     | OlySyntaxPattern.Error _ ->
-        checkTypes solverEnv syntaxPattern (TypeSymbol.Error None) matchTy
+        checkTypes solverEnv syntaxPattern TypeSymbolError matchTy
         env, BoundCasePattern.Discard(syntaxPattern)
 
     | _ ->
@@ -940,7 +940,7 @@ let private bindMatchPattern (cenv: cenv) (env: BinderEnvironment) solverEnv isF
                 let exprTy =
                     if i >= matchTys.Length then
                         cenv.diagnostics.Error("Excess pattern.", 10, syntaxPattern)
-                        TypeSymbol.Error(None)
+                        TypeSymbolError
                     else
                         matchTys.[i]
                 bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals exprTy syntaxPattern

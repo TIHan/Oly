@@ -1049,7 +1049,7 @@ let tryBindIdentifierAsType (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 |> ImArray.map (fun x -> $"'{printEnclosing env.benv x.Enclosing}'")
                 |> String.concat ", "
             cenv.diagnostics.Error($"'{printType env.benv ty}' is ambiguous due to references: {refs}.", 10, syntaxNode)
-            Some(TypeSymbol.Error(None))
+            Some(TypeSymbolError)
 
 let bindIdentifierAsType (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) resTyArity (ident: string) =
     match tryBindIdentifierAsType cenv env syntaxNode resTyArity ident with
@@ -1288,7 +1288,7 @@ let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
             // Non-local declarations with no type annotations will error.
             // REVIEW: This may change in the future when we start to allow 'let' declarations
             //         on top-level constructs.
-            TypeSymbol.Error(None)
+            TypeSymbolError
 
 let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
     let rec bind cenv env resTyArity isFuncInput syntaxTy =
@@ -1308,7 +1308,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                         cenv.diagnostics.Error("A single element tuple cannot have a name.", 10, syntaxIdent)
                         bind cenv env resTyArity false syntaxTy
                     | OlySyntaxTupleElement.Error _ ->
-                        TypeSymbol.Error None
+                        TypeSymbolError
                     | _ ->
                         raise(InternalCompilerUnreachedException())
 
@@ -1332,7 +1332,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                             bind cenv env resTyArity false syntaxTy
                         | OlySyntaxTupleElement.Error _ ->
                             names.Add("")
-                            TypeSymbol.Error None
+                            TypeSymbolError
                         | _ ->
                             raise(InternalCompilerUnreachedException())
                     )
@@ -1358,7 +1358,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
             if not isVariadicTyPar then
                 cenv.diagnostics.Error("Expected variadic type variable.", 10, syntaxIdent)
-                TypeSymbol.Error(None)
+                TypeSymbolError
             else
                 match syntaxTy with
                 | OlySyntaxType.VariadicIndexer(_, _, _, syntaxConstExpr, _) ->
@@ -1378,7 +1378,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                         TypeSymbol.DependentIndexer(tyPar.AsType, ty)
                     | _ ->
                         cenv.diagnostics.Error("Expected a 32-bit constant integer.", 10, syntaxConstExpr)
-                        TypeSymbol.Error(None)
+                        TypeSymbolError
                 | _ ->
                     ty
 
@@ -1433,7 +1433,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
         | OlySyntaxType.WildCard _ ->
             if env.resolutionMustSolveTypes then
                 cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
-                TypeSymbol.Error None
+                TypeSymbolError
             else
                 mkInferenceVariableType None
 
@@ -1448,7 +1448,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             if ty.Arity = 1 then
                 applyType ty (ImArray.createOne elementTy)
             else
-                TypeSymbol.Error None
+                TypeSymbolError
 
         | OlySyntaxType.Literal(syntaxLiteral) ->
             match bindLiteral cenv env None syntaxLiteral with
@@ -1463,15 +1463,15 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                         TypeSymbol.ConstantInt32(value)
                     | _ ->
                         cenv.diagnostics.Error("Invalid type literal.", 10, syntaxLiteral)
-                        TypeSymbol.Error None
+                        TypeSymbolError
                 | _ ->
-                    TypeSymbol.Error None
+                    TypeSymbolError
             | _ ->
                 cenv.diagnostics.Error("Invalid type literal.", 10, syntaxLiteral)
-                TypeSymbol.Error None
+                TypeSymbolError
 
         | OlySyntaxType.Error _ ->
-            TypeSymbol.Error None
+            TypeSymbolError
 
         | _ ->
             raise(InternalCompilerUnreachedException())
@@ -1885,7 +1885,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
                     | _ -> false
                 bindType cenv env None ResolutionTypeArity.Any syntaxTy, isTyCtor
             | _ ->
-                TypeSymbol.Error None, false
+                TypeSymbolError, false
 
         let tyPar =
             match ty with

@@ -81,7 +81,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                     if ent.Extends.Length = 1 then
                         ent.Extends.[0]
                     else
-                        TypeSymbol.Error(None)
+                        TypeSymbolError
                 else
                     ent.AsType
             let attrs = ImArray.empty
@@ -603,7 +603,7 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
                         syntaxIdent.ValueText, ty
                     | _ ->
                         cenv.diagnostics.Error("Parameter must have an explicit type annotation as it is part of a top-level function.", 10, syntaxIdent)
-                        syntaxIdent.ValueText, TypeSymbol.Error None
+                        syntaxIdent.ValueText, TypeSymbolError
         
         let attrs = bindAttributes cenv env false syntaxAttrs
         let par = createLocalParameterValue(attrs, parName, ty, syntaxPar.IsMutable)

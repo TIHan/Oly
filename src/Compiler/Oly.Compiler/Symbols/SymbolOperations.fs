@@ -1794,7 +1794,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
                 if ent.Extends.Length = 1 then
                     ent.Extends.[0]
                 else
-                    TypeSymbol.Error(None)
+                    TypeSymbolError
             else
                 ent.AsType
         if ty.IsAnyStruct then
@@ -1817,7 +1817,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
                 if ent.Extends.Length = 1 then
                     ent.Extends.[0]
                 else
-                    TypeSymbol.Error(None)
+                    TypeSymbolError
             else
                 ent.AsType
         if ty.IsAnyStruct then
@@ -1934,7 +1934,7 @@ let invalidFunction () =
 
 let invalidCustomFunction enclosing name tyPars parCount =
     let pars = 
-        ImArray.init parCount (fun _ -> createLocalParameterValue(ImArray.empty, "", TypeSymbol.Error None, false))
+        ImArray.init parCount (fun _ -> createLocalParameterValue(ImArray.empty, "", TypeSymbolError, false))
 
     createFunctionValue 
         enclosing
@@ -1942,7 +1942,7 @@ let invalidCustomFunction enclosing name tyPars parCount =
         name
         tyPars
         pars
-        (TypeSymbol.Error(None))
+        TypeSymbolError
         MemberFlags.None
         FunctionFlags.None
 
@@ -1958,7 +1958,7 @@ let invalidValue (enclosingTyOpt: TypeSymbol option) =
                 EnclosingSymbol.RootNamespace
         | _ ->
             EnclosingSymbol.RootNamespace
-    let fieldTy = TypeSymbol.Error None
+    let fieldTy = TypeSymbolError
     { new IValueSymbol with
 
         member _.Id = id
@@ -1989,7 +1989,7 @@ let invalidValue (enclosingTyOpt: TypeSymbol option) =
 
 let invalidLocal () =
     let id = newId()
-    let ty = TypeSymbol.Error None
+    let ty = TypeSymbolError
     { new ILocalSymbol with
 
         member _.Id = id
@@ -2029,11 +2029,11 @@ let invalidField name (enclosingTyOpt: TypeSymbol option) =
                 EnclosingSymbol.RootNamespace
         | _ ->
             EnclosingSymbol.RootNamespace
-    let fieldTy = TypeSymbol.Error None
+    let fieldTy = TypeSymbolError
     FieldSymbol(ImArray.empty, enclosing, MemberFlags.None, name, fieldTy, ValueFlags.Invalid, ref None)
 
 let invalidType () =
-    TypeSymbol.Error None
+    TypeSymbolError
 
 let invalidTypeParameter tyParKind =
     TypeParameterSymbol("", 0, 0, tyParKind, ref ImArray.empty)

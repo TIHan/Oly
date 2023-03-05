@@ -12,7 +12,7 @@ open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.BoundTreePatterns
 
-type cenv = { scopes: System.Collections.Generic.Dictionary<int64, int>; diagnostics: OlyDiagnosticLogger; ct: CancellationToken }
+type cenv = { scopes: System.Collections.Generic.Dictionary<int64, int>; diagnostics: OlyDiagnosticLogger; ct: CancellationToken; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
 type env = { scope: int; benv: BoundEnvironment; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals }
 
 let notReturnableAddress env = 
@@ -39,7 +39,7 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
         cenv.diagnostics.Error(sprintf "Type parameter '%s' was unable to be inferred." (printType benv ty), 5, syntaxNode)
         // We solve the inference variable with an error as to prevent a cascade of the same errors.
         // We only care about it at the earliest possible point.
-        UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(Some tyPar))
+        UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(Some tyPar, None))
         |> ignore
 
     | TypeSymbol.InferenceVariable(_, _)
@@ -47,7 +47,7 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
         cenv.diagnostics.Error("Unable to infer type at this location.", 5, syntaxNode)
         // We solve the inference variable with an error as to prevent a cascade of the same errors.
         // We only care about it at the earliest possible point.
-        UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(None))
+        UnifyTypes TypeVariableRigidity.Flexible ty TypeSymbolError
         |> ignore
 
     | TypeSymbol.NativeFunctionPtr(_, argTys, returnTy)
@@ -64,11 +64,12 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     | TypeSymbol.Tuple(tyArgs, _) ->
         analyzeTypeTuple cenv env syntaxNode tyArgs
 
-    | TypeSymbol.Variable(_) ->
-        ()
+    | TypeSymbol.Variable(tyPar) ->
+        analyzeTypeParameter cenv env syntaxNode tyPar
 
-    | TypeSymbol.HigherVariable(_, tyArgs) ->
-        analyzeTypeArguments cenv env syntaxNode ty.TypeArguments
+    | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+        analyzeTypeParameter cenv env syntaxNode tyPar
+        analyzeTypeArguments cenv env syntaxNode tyArgs
 
     | TypeSymbol.NativePtr(elementTy) ->
         if not elementTy.IsVoid_t then
@@ -76,9 +77,24 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
 
     | TypeSymbol.Void ->
         cenv.diagnostics.Error($"'{printType env.benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
+
+    | TypeSymbol.Error(_, Some msg) ->
+        cenv.diagnostics.Error(msg, 10, syntaxNode)
     
     | _ ->
         analyzeTypeArguments cenv env syntaxNode ty.TypeArguments
+
+and analyzeTypeParameter cenv env (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    if not tyPar.Constraints.IsEmpty && cenv.checkedTypeParameters.Add(tyPar.Id) then
+        tyPar.Constraints
+        |> ImArray.iter (function
+            | ConstraintSymbol.SubtypeOf(lazyTy) ->
+                analyzeType cenv env syntaxNode lazyTy.Value
+            | ConstraintSymbol.ConstantType(lazyTy) ->
+                analyzeType cenv env syntaxNode lazyTy.Value
+            | _ ->
+                ()
+        )
 
 and analyzeTypeForParameter cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match stripTypeEquations ty with
@@ -614,7 +630,7 @@ let analyzeRoot cenv env (root: BoundRoot) =
         analyzeExpression cenv env bodyExpr
 
 let analyzeBoundTree diagLogger (tree: BoundTree) ct =
-    let cenv = { scopes = System.Collections.Generic.Dictionary(); diagnostics = diagLogger; ct = ct }
+    let cenv = { scopes = System.Collections.Generic.Dictionary(); diagnostics = diagLogger; ct = ct; checkedTypeParameters = System.Collections.Generic.HashSet() }
     let env = { scope = 0; benv = tree.RootEnvironment; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) }
     analyzeRoot cenv env tree.Root
 

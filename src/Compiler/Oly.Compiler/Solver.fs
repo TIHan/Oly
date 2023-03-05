@@ -456,6 +456,7 @@ and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
         |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false)
 
     | tyArg ->
+        // TODO: This doesn't actually check for unmanaged, but good enough for now. We will need to fix it.
         tyArg.IsUnmanaged
 
 and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSymbol) (tyArg: TypeArgumentSymbol) =

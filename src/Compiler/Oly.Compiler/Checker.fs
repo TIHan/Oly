@@ -258,7 +258,7 @@ let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (en
                     let syntaxTy = syntaxTys.[i]
                     env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
             | ConstraintSymbol.Unmanaged ->
-                if tyArg.IsUnmanaged && not tyArg.IsError_t then
+                if not tyArg.IsUnmanaged && not tyArg.IsError_t then
                     let syntaxTy = syntaxTys.[i]
                     env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
             | ConstraintSymbol.NotStruct ->
@@ -267,8 +267,12 @@ let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (en
                     env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
             | ConstraintSymbol.Struct ->
                 if not tyArg.IsAnyStruct && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
+                    match tyArg.TryTypeParameter with
+                    | ValueSome(tyPar) when tyPar.Constraints |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false) ->
+                        ()
+                    | _ ->
+                        let syntaxTy = syntaxTys.[i]
+                        env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
             | ConstraintSymbol.Null ->
                 if not tyArg.IsNullable && not tyArg.IsError_t then
                     let syntaxTy = syntaxTys.[i]

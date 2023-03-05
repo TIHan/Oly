@@ -86,7 +86,7 @@ private struct NarrowPhaseCallbacks =
     /// <param name="manifold">Set of contacts detected between the collidables.</param>
     /// <param name="pairMaterial">Material properties of the manifold.</param>
     /// <returns>True if a constraint should be created for the manifold, false otherwise.</returns>
-    mutable ConfigureContactManifold<TManifold>(workerIndex: int32, pair: CollidablePair, manifold: byref<TManifold>, pairMaterial: byref<PairMaterialProperties>): bool where TManifold: IContactManifold<TManifold> =
+    mutable ConfigureContactManifold<TManifold>(workerIndex: int32, pair: CollidablePair, manifold: byref<TManifold>, pairMaterial: byref<PairMaterialProperties>): bool where TManifold: unmanaged, IContactManifold<TManifold> =
         //The IContactManifold parameter includes functions for accessing contact data regardless of what the underlying type of the manifold is.
         //If you want to have direct access to the underlying type, you can use the manifold.Convex property and a cast like Unsafe.As<TManifold, ConvexContactManifold or NonconvexContactManifold>(ref manifold).
 

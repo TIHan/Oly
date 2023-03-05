@@ -1187,7 +1187,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                         solution.Solution <- Some(ent.Formal.AsType)
                         stripTypeEquationsAux skipAlias skipModifiers ty
                     | _ ->
-                        TypeSymbol.Error(Some tyPar)
+                        TypeSymbol.Error(Some tyPar, None)
             | _ ->
                 stripTypeEquationsAux skipAlias skipModifiers ty2
         | _ -> ty
@@ -1872,7 +1872,7 @@ type InvalidFunctionSymbol(enclosing, name) =
             enclosing, 
             ImArray.empty, 
             name, 
-            TypeSymbol.Error None, 
+            TypeSymbolError, 
             ImArray.empty, 
             ImArray.empty, 
             ImArray.empty, 
@@ -1916,7 +1916,7 @@ type InvalidFunctionSymbol(enclosing, name) =
 type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunctionSymbol imarray, fakeParCount) =
 
     let id = newId()
-    let errorTy = TypeSymbol.Error(None)     
+    let errorTy = TypeSymbolError     
 
     let principalFunc =
         if funcs.IsEmpty then
@@ -2276,14 +2276,14 @@ type ConstantSymbol =
         | Utf16 _ -> TypeSymbol.Utf16
         | Array(elementTy, _) -> TypeSymbol.CreateArray(elementTy)
         | External(func) -> func.ReturnType
-        | Error -> TypeSymbol.Error(None)
+        | Error -> TypeSymbolError
         | TypeVariable(tyPar) ->
             let tyOpt =
                 tyPar.Constraints
                 |> ImArray.tryPick (function ConstraintSymbol.ConstantType(constTy) -> Some constTy.Value | _ -> None)
             match tyOpt with
             | Some ty -> ty
-            | _ -> TypeSymbol.Error(Some tyPar)
+            | _ -> TypeSymbol.Error(Some tyPar, None)
 
     interface ISymbol
 
@@ -2776,8 +2776,8 @@ let private EnumTypeParameters =
     TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) 
     |> ImArray.createOne
 
-let TypeSymbolErrorNone =
-    TypeSymbol.Error(None)
+let TypeSymbolError =
+    TypeSymbol.Error(None, None)
 
 [<RequireQualifiedAccess>]
 type ArrayKind =
@@ -2831,7 +2831,7 @@ type TypeSymbol =
 
     | DependentIndexer of inputValueTy: TypeSymbol * innerTy: TypeSymbol
 
-    | Error of tyParOpt: TypeParameterSymbol option
+    | Error of tyParOpt: TypeParameterSymbol option * msgOpt: string option // 'msgOpt' will display an error message in post inference checks
 
     static member GetFormalByRef(kind) =
         match kind with
@@ -3224,7 +3224,7 @@ type TypeSymbol =
         | Variable(tyPar) -> tyPar.Arity > 0
         | Entity(ent) -> ent.IsTypeConstructor
         | InferenceVariable(Some tyPar, _) -> tyPar.Arity > 0
-        | Error(Some tyPar) -> tyPar.Arity > 0
+        | Error(Some tyPar, _) -> tyPar.Arity > 0
         | ByRef _ 
         | Function _ -> this.IsFormal
         | _ -> false
@@ -3268,7 +3268,7 @@ type TypeSymbol =
         | HigherVariable(tyPar, _)
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _)
-        | Error(Some tyPar) -> ValueSome tyPar
+        | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
     /// Try to get a type parameter without stripping the type.
@@ -3278,7 +3278,7 @@ type TypeSymbol =
         | HigherVariable(tyPar, _)
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _)
-        | Error(Some tyPar) -> ValueSome tyPar
+        | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
     /// Try to get a type parameter from an inference variable without stripping the type.
@@ -3449,8 +3449,8 @@ type TypeSymbol =
         | _ -> false
 
     member this.IsUnmanaged =
-        // TODO: Add unmanaged check.
-        false
+        // TODO: This doesn't actually check for unmanaged, but good enough for now. We will need to fix it.
+        this.IsAnyStruct
 
     member this.IsAnyStruct =
         match stripTypeEquations this with

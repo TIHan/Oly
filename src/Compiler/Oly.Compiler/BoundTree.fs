@@ -91,7 +91,7 @@ type BoundLiteral =
         | DefaultInference(ty, _) -> ty
         | NumberInference(ty=ty) -> ty
         | ConstantEnum(enumTy=ty) -> ty
-        | Error -> TypeSymbol.Error(None)
+        | Error -> TypeSymbolError
 
 and [<Sealed>] LazyExpression (syntaxExprOpt: OlySyntaxExpression option, f: OlySyntaxExpression option -> BoundExpression) =
 
@@ -399,7 +399,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | None _ -> TypeSymbol.Unit
         | Error _
         | ErrorWithNamespace _
-        | ErrorWithType _ -> TypeSymbol.Error(option.None)
+        | ErrorWithType _ -> TypeSymbolError
 
     member private this.FlattenSequentialExpressionsImpl() =
         match this with
@@ -807,7 +807,7 @@ let invalidBinding name =
 
 let invalidLocalBinding name =
     let id = newId()
-    let ty = TypeSymbol.Error None
+    let ty = TypeSymbolError
     let value =
         { new ILocalSymbol with
               member this.Enclosing = EnclosingSymbol.RootNamespace

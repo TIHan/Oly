@@ -487,7 +487,7 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
 [<NoEquality;NoComparison>]
 type SharedImportCache =
     private {
-        importedAsms: ConcurrentDictionary<string, OlyILAssembly>
+        importedAsms: ConcurrentDictionary<string, OlyILReadOnlyAssembly>
         entFromName: ConcurrentDictionary<string, ConcurrentDictionary<QualifiedName, IEntitySymbol>>
         gate: obj
     }
@@ -525,7 +525,7 @@ type SharedImportCache =
     member this.ContainsAssembly(ilAsmIdentity: OlyILAssemblyIdentity) =
         this.importedAsms.ContainsKey(ilAsmIdentity.Name)
 
-    member this.AddAssembly(ilAsm: OlyILAssembly) =
+    member this.AddAssembly(ilAsm: OlyILReadOnlyAssembly) =
         this.importedAsms.[ilAsm.Identity.Name] <- ilAsm
 
     static member Create() =
@@ -605,6 +605,7 @@ type internal LocalCache =
 [<NoEquality;NoComparison>]
 type Imports =
     internal {
+        // TODO: We should get rid of the diagnostics. Instead we should just return invalid types, functions, fields, etc and let analysis pick it up.
         diagnostics: ResizeArray<OlyDiagnostic>
         namespaceEnv: NamespaceEnvironment
         localCaches: ConcurrentDictionary<string, LocalCache>
@@ -612,7 +613,7 @@ type Imports =
         sharedCache: SharedImportCache
     }
 
-    member internal this.GetLocalCache(ilAsm: OlyILAssembly) =
+    member internal this.GetLocalCache(ilAsm: OlyILReadOnlyAssembly) =
         match this.localCacheOpt with
         | Some localCache when localCache.identity.Name = ilAsm.Identity.Name ->
             localCache
@@ -626,7 +627,7 @@ type Imports =
                     localCache
             localCache
 
-    member this.GetOrCreateLocalEntity(ilAsm: OlyILAssembly, ilEntDefHandle: OlyILEntityDefinitionHandle) =
+    member this.GetOrCreateLocalEntity(ilAsm: OlyILReadOnlyAssembly, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         let localCache = this.GetLocalCache(ilAsm)
         match localCache.entFromEntDef.TryGetValue ilEntDefHandle with
         | true, ent -> 
@@ -676,12 +677,12 @@ type Imports =
 [<NoEquality;NoComparison>]
 type private cenv =
     {
-        ilAsm: OlyILAssembly
+        ilAsm: OlyILReadOnlyAssembly
         imports: Imports
         namespaceEnv: NamespaceEnvironment
     }
 
-    member this.WithAssembly(ilNewAsm: OlyILAssembly) =
+    member this.WithAssembly(ilNewAsm: OlyILReadOnlyAssembly) =
         let localCache = this.imports.GetLocalCache(ilNewAsm)
         { this with ilAsm = ilNewAsm; imports = { this.imports with localCacheOpt = Some localCache } }
 
@@ -699,7 +700,7 @@ let private importEntityKind (ilEntKind: OlyILEntityKind) =
     | OlyILEntityKind.Attribute -> EntityKind.Attribute
     | OlyILEntityKind.Newtype -> EntityKind.Newtype
         
-let private importTypeParameterSymbol (asm: OlyILAssembly) tyParIndex tyParKind (ilTyPar: OlyILTypeParameter) =
+let private importTypeParameterSymbol (asm: OlyILReadOnlyAssembly) tyParIndex tyParKind (ilTyPar: OlyILTypeParameter) =
     TypeParameterSymbol(asm.GetStringOrEmpty(ilTyPar.NameHandle), tyParIndex, ilTyPar.Arity, tyParKind, ref ImArray.empty)
 
 let private importTypeParameterSymbols cenv (enclosingTyPars: TypeParameterSymbol imarray) isFunc (ilTyPars: OlyILTypeParameter imarray) =
@@ -784,6 +785,14 @@ let private importFunctionTypeInfo (cenv: cenv) (enclosingTyPars: TypeParameterS
 
 let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilTy: OlyILType) : TypeSymbol =
     match ilTy with
+    | OlyILType.OlyILTypeInvalid(ilMsg) ->
+        let msg = cenv.ilAsm.GetStringOrEmpty(ilMsg)
+        TypeSymbol.Error(None, Some msg)
+
+    | OlyILType.OlyILTypeModified _ ->
+        let msg = "Invalid modified type."
+        TypeSymbol.Error(None, Some msg)
+
     | OlyILType.OlyILTypeForAll(ilTyPars, ilInnerTy) ->
         TypeSymbol.ForAll(
             importTypeParameterSymbols cenv enclosingTyPars false ilTyPars,
@@ -868,7 +877,7 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
 let private importEntitySymbolFromDefinition (cenv: cenv) (ilEntDefHandle: OlyILEntityDefinitionHandle) =
     cenv.imports.GetOrCreateLocalEntity(cenv.ilAsm, ilEntDefHandle)
 
-let private getEnclosingOfILEntityInstance (ilAsm: OlyILAssembly) (ilEntInst: OlyILEntityInstance) =
+let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
     match ilEntInst with
     | OlyILEntityInstance(defOrRefHandle=defOrRefHandle)
     | OlyILEntityConstructor(defOrRefHandle=defOrRefHandle) -> 
@@ -877,14 +886,14 @@ let private getEnclosingOfILEntityInstance (ilAsm: OlyILAssembly) (ilEntInst: Ol
         else
             ilAsm.GetEntityReference(defOrRefHandle).Enclosing
 
-let private getNameOfILEntityDefinition (ilAsm: OlyILAssembly) (ilEntDef: OlyILEntityDefinition) =
+let private getNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) =
     let name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
     if ilEntDef.TypeParameters.IsEmpty then
         name
     else
         name + "````" + ilEntDef.TypeParameters.Length.ToString()
 
-let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILAssembly) (ilEntDef: OlyILEntityDefinition) =
+let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) =
     let name = getNameOfILEntityDefinition ilAsm ilEntDef
     match ilEntDef with
     | OlyILEntityDefinition(enclosing=enclosing) ->
@@ -909,20 +918,20 @@ let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILAssembly) (ilEntDe
         (loop enclosing).Add(name)
         |> String.concat "."
 
-let private tryFindEntityDefinition (qualName: QualifiedName) (ilAsm: OlyILAssembly) =
+let private tryFindEntityDefinition (qualName: QualifiedName) (ilAsm: OlyILReadOnlyAssembly) =
     ilAsm.EntityDefinitions
     |> Seq.tryFind (fun (_, ilEntDef) ->
         qualName = (getQualifiedNameOfILEntityDefinition ilAsm ilEntDef)
     )
 
-let private getNameOfILEntityReference (ilAsm: OlyILAssembly) (ilEntRef: OlyILEntityReference) =
+let private getNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (ilEntRef: OlyILEntityReference) =
     let name = ilAsm.GetStringOrEmpty(ilEntRef.NameHandle)
     if ilEntRef.TypeParameterCount = 0 then
         name
     else
         name + "````" + ilEntRef.TypeParameterCount.ToString()
 
-let private getQualifiedNameOfILEntityReference (ilAsm: OlyILAssembly) (ilEntRef: OlyILEntityReference) =
+let private getQualifiedNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (ilEntRef: OlyILEntityReference) =
     let name = getNameOfILEntityReference ilAsm ilEntRef
     let rec loop enclosing =
         match enclosing with
@@ -944,7 +953,7 @@ let private getQualifiedNameOfILEntityReference (ilAsm: OlyILAssembly) (ilEntRef
     (loop ilEntRef.Enclosing).Add(name)
     |> String.concat "."
 
-let private tryFindEntityReference (qualName: QualifiedName) (ilAsm: OlyILAssembly) =
+let private tryFindEntityReference (qualName: QualifiedName) (ilAsm: OlyILReadOnlyAssembly) =
     ilAsm.EntityReferences
     |> Seq.tryFind (fun (_, ilEntRef) ->
         qualName = getQualifiedNameOfILEntityReference ilAsm ilEntRef
@@ -1209,7 +1218,7 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFunctionDefinitionSymbol(ilAsm: OlyILAssembly, imports: Imports, enclosingEnt: IEntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle) as this =
+type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: IEntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle) as this =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1386,7 +1395,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILAssembly, imports: Imports, en
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) =
+type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1476,7 +1485,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILAsse
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedEntityDefinitionSymbol private (ilAsm: OlyILAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) as this =
+type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) as this =
 
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1682,7 +1691,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILAssembly, imports: Impo
 
         member _.Attributes = lazyAttrs.Value
 
-    static member Create(asm: OlyILAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
+    static member Create(asm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> IEntitySymbol
 
 /// Not thread safe.
@@ -1717,7 +1726,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
             ents.Add(ent)
             loop ent.Enclosing
 
-    member this.ImportAssembly(ilAsm: OlyILAssembly) =
+    member this.ImportAssembly(ilAsm: OlyILReadOnlyAssembly) =
         sharedCache.AddAssembly(ilAsm)
         currentAssemblies.[ilAsm.Identity] <- ()
 

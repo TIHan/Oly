@@ -706,7 +706,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                 OlyTypeSymbol(boundModel, benv, syntax, tys[0])
                 |> Some
             else
-                OlyTypeSymbol(boundModel, benv, syntax, TypeSymbol.Error(None))
+                OlyTypeSymbol(boundModel, benv, syntax, TypeSymbolError)
                 |> Some
         )
 
@@ -725,7 +725,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                     OlyTypeSymbol(boundModel, benv, syntax, tys[0])
                     |> Some
                 else
-                    OlyTypeSymbol(boundModel, benv, syntax, TypeSymbol.Error(None))
+                    OlyTypeSymbol(boundModel, benv, syntax, TypeSymbolError)
                     |> Some
             )
 

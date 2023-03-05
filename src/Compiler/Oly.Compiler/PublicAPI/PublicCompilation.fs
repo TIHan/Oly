@@ -265,7 +265,7 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
         | OlyCompilationReference.AssemblyReference(_, _, ilAsmLazy) ->
             match ilAsmLazy.Value with
             | Result.Ok ilAsm ->
-                importer.ImportAssembly(ilAsm)
+                importer.ImportAssembly(ilAsm.ToReadOnly())
             | Result.Error diag ->
                 importDiags.Add(diag)
         | OlyCompilationReference.CompilationReference(_, getComp) ->

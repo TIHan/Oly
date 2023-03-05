@@ -39,6 +39,34 @@ module internal rec Helpers =
         else
             ilCallConv
 
+    type internal OlyTypeName =
+
+        static member Check(olyTy, olyAsm: OlyILAssembly, namespacePathWithDots: string, name: string) =
+            let namespacePathWithDots2, name2 =
+                match olyTy with
+                | OlyILTypeEntity(OlyILEntityInstance(olyEntDefOrRefHandle, _)) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
+                    let olyEntRef = olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                    if olyEntRef.TypeParameterCount = 0 then
+                        let olyEnclosing = olyEntRef.Enclosing
+                        let olyName = olyEntRef.NameHandle
+                        match olyEnclosing with
+                        | OlyILEnclosing.Namespace(path, _) -> 
+                            (   
+                                path |> ImArray.map (fun x -> olyAsm.GetStringOrEmpty(x)) |> String.concat ".",
+                                olyAsm.GetStringOrEmpty(olyName)
+                            )
+                        | _ ->
+                            "", ""
+                    else
+                        "", ""
+                | _ ->
+                    "", ""
+
+            namespacePathWithDots = namespacePathWithDots2 && name = name2
+
+    let invalidType (olyAsm: OlyILAssembly) msg =
+        OlyILTypeInvalid(olyAsm.AddString(msg))
+
     [<Sealed>]
     type internal OlySignatureTypeProvider (cenv: cenv) =
         
@@ -90,26 +118,58 @@ module internal rec Helpers =
             member this.GetGenericTypeParameter(offset, index) =
                 OlyILTypeVariable(index, OlyILTypeVariableKind.Type)
 
-            member this.GetModifiedType(modifier, unmodifiedType, isRequired) =
-                match modifier with
-                | OlyILTypeEntity(olyEntInst) ->
-                    match olyEntInst with
-                    | OlyILEntityInstance(olyEntDefOrRefHandle, _) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
-                        let entRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
-                        let entName = cenv.olyAsm.GetStringOrEmpty(entRef.NameHandle)
-                        // TODO: This is a very very bad hack!!, we should be looking at the full namespace.
-                        if entName.Contains("InAttribute") then
-                            match unmodifiedType with
-                            | OlyILTypeByRef(olyElementTy, _) ->
-                                OlyILTypeByRef(olyElementTy, OlyILByRefKind.Read)
+            member this.GetModifiedType(olyModifier, olyUnmodifiedType, isRequired) =
+                if isRequired then
+                    match olyModifier with
+                    | OlyILTypeEntity(olyEntInst) ->
+                        match olyEntInst with
+                        | OlyILEntityInstance(olyEntDefOrRefHandle, _) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
+                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                            match olyEntRef.Enclosing with
+                            | OlyILEnclosing.Namespace(olyPath, _) when olyPath.Length = 3 ->
+                                let path1 = cenv.olyAsm.GetStringOrEmpty(olyPath[0])
+                                let path2 = cenv.olyAsm.GetStringOrEmpty(olyPath[1])
+                                let path3 = cenv.olyAsm.GetStringOrEmpty(olyPath[2])
+                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                if (path1 = "System") && (path2 = "Runtime") && (path3 = "InteropServices") then
+                                    match name with
+                                    | "InAttribute" ->
+                                        match olyUnmodifiedType with
+                                        | OlyILTypeByRef(olyElementTy, _) ->
+                                            OlyILTypeByRef(olyElementTy, OlyILByRefKind.Read)
+                                        | _ ->
+                                            invalidType cenv.olyAsm "Unsupported .NET type."
+
+                                    | "UnmanagedType" ->
+                                        match olyUnmodifiedType with
+                                        | OlyILTypeEntity(olyEntInst) ->
+                                            match olyEntInst with
+                                            | OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs) when olyTyArgs.IsEmpty && (olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference) ->
+                                                let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                                // TODO: Check namespace...
+                                                if name = "ValueType" then                                         
+                                                    OlyILTypeModified(olyModifier, olyUnmodifiedType)
+                                                else
+                                                    invalidType cenv.olyAsm "Unsupported .NET type."
+                                            | _ ->
+                                                invalidType cenv.olyAsm "Unsupported .NET type."
+                                                
+                                        | _ ->
+                                            invalidType cenv.olyAsm "Unsupported .NET type."
+
+                                    | _ ->
+                                        invalidType cenv.olyAsm "Unsupported .NET type."
+                                else
+                                    invalidType cenv.olyAsm "Unsupported .NET type."
                             | _ ->
-                                unmodifiedType
-                        else
-                            unmodifiedType
+                                invalidType cenv.olyAsm "Unsupported .NET type."
+                        | _ ->
+                            invalidType cenv.olyAsm "Unsupported .NET type."
                     | _ ->
-                        unmodifiedType
-                | _ ->
-                    unmodifiedType // TODO:
+                        invalidType cenv.olyAsm "Unsupported .NET type."
+                else
+                    olyUnmodifiedType
 
             member this.GetPinnedType(olyElementTy) = 
                 olyElementTy
@@ -271,32 +331,23 @@ module internal rec Helpers =
 
         let constr = reader.GetGenericParameterConstraint(constrHandle)
         let olyTy = importAsOlyILType cenv constr.Type
-        
-        let olyNamespace, olyName =
-            match olyTy with
-            | OlyILTypeEntity(OlyILEntityInstance(olyEntDefOrRefHandle, _)) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
-                let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
-                if olyEntRef.TypeParameterCount = 0 then
-                    let olyEnclosing = olyEntRef.Enclosing
-                    let olyName = olyEntRef.NameHandle
-                    match olyEnclosing with
-                    | OlyILEnclosing.Namespace(path, _) -> 
-                        (   
-                            path |> ImArray.map (fun x -> cenv.olyAsm.GetStringOrEmpty(x)) |> String.concat ".",
-                            cenv.olyAsm.GetStringOrEmpty(olyName)
-                        )
-                    | _ ->
-                        "", ""
-                else
-                    "", ""
-            | _ ->
-                "", ""
 
-        match olyNamespace, olyName with
-        | "System", "ValueType" -> None // TODO: Handle this.
+        match olyTy with
+        | OlyILTypeModified(olyModifierTy, olyTy) ->
+            if OlyTypeName.Check(olyModifierTy, cenv.olyAsm, "System.Runtime.InteropServices", "UnmanagedType") &&
+                OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
+                OlyILConstraint.Unmanaged
+                |> Some
+            else
+                OlyILConstraint.SubtypeOf(olyTy)
+                |> Some
         | _ ->
-            OlyILConstraint.SubtypeOf(olyTy)
-            |> Some
+            if OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
+                OlyILConstraint.Struct
+                |> Some
+            else
+                OlyILConstraint.SubtypeOf(olyTy)
+                |> Some
 
     let importGenericParametersAsOlyILTypeParameters (cenv: cenv) (genericParHandles: GenericParameterHandleCollection) =
         let olyAsm = cenv.olyAsm

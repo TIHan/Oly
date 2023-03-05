@@ -249,6 +249,9 @@ type OlyDiagnosticLogger private () =
     let mutable hasErrors = false
     let queue = System.Collections.Concurrent.ConcurrentQueue()
 
+    member _.Error(text: string) =
+        queue.Enqueue(OlyDiagnostic.CreateError(text))
+
     member _.Error(text: string, code: int, node: OlySyntaxNode) =
         hasErrors <- true
         queue.Enqueue(OlyDiagnostic.CreateError(text, code, node))

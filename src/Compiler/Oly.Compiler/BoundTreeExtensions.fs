@@ -633,7 +633,7 @@ type TypeSymbol with
     member this.ReplaceInferenceVariablesWithError() =
         match stripTypeEquations this with
         | TypeSymbol.InferenceVariable(tyParOpt, _)
-        | TypeSymbol.HigherInferenceVariable(tyParOpt=tyParOpt) -> TypeSymbol.Error(tyParOpt)
+        | TypeSymbol.HigherInferenceVariable(tyParOpt=tyParOpt) -> TypeSymbol.Error(tyParOpt, None)
         | _ ->
             let tyArgs =
                 this.TypeArguments

@@ -1908,6 +1908,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
 [<EntryPoint>]
 let main argv =
+#if DEBUG
+    System.Diagnostics.Debugger.Launch() |> ignore
+#endif
     let configureServices = 
         fun (services: IServiceCollection) -> ()
     let configureServices = Action<IServiceCollection>(configureServices)

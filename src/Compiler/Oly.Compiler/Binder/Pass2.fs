@@ -83,7 +83,7 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
                     | :? IFunctionSymbol as func when func.Parameters.Length >= 1 ->
                         func.Parameters
                     | _ ->
-                        ImArray.createOne(createLocalParameterValue(ImArray.empty, "", TypeSymbol.Error(None), false))
+                        ImArray.createOne(createLocalParameterValue(ImArray.empty, "", TypeSymbolError, false))
 
                 let returnTy = TypeSymbol.Bool
                 let guardFuncName = 
@@ -307,7 +307,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                 if ent.IsNewtype then
                     let parTy =
                         if ent.Extends.Length <> 1 then
-                            TypeSymbol.Error(None)
+                            TypeSymbolError
                         else
                             ent.Extends[0]
                     parsWithInstance.Add(createLocalParameterValue(ImArray.empty, "", parTy, false))
