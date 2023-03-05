@@ -72,6 +72,14 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetFunction currentAsmIdent importer x.Enclosing x
             )
 
+    let lazyAssociatedFormalPatOpt =
+        if func.AssociatedFormalPattern.IsSome then
+            lazy
+                retargetPattern currentAsmIdent importer enclosing func.AssociatedFormalPattern.Value
+                |> Some
+        else
+            Lazy<_>.CreateFromValue(None)
+
     do
         OlyAssert.True(func.IsFormal)
         OlyAssert.False(func.IsBase)
@@ -84,7 +92,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
     member this.Original = func
     
     interface IFunctionSymbol with
-        member this.AssociatedFormalPattern = func.AssociatedFormalPattern
+        member this.AssociatedFormalPattern = lazyAssociatedFormalPatOpt.Value
         member this.Attributes = func.Attributes
         member this.Enclosing = enclosing
         member this.Formal = this
@@ -390,7 +398,7 @@ let private retargetParameter currentAsmIdent importer (tyPars: TypeParameterSym
     | _ ->
         OlyAssert.Fail("Invalid parameter symbol")
 
-let private retargetFunction currentAsmIdent importer enclosing func =
+let private retargetFunction currentAsmIdent importer enclosing (func: IFunctionSymbol) =
     RetargetedFunctionSymbol(currentAsmIdent, importer, enclosing, func) :> IFunctionSymbol
 
 let private retargetField currentAsmIdent importer enclosing field =
@@ -399,8 +407,22 @@ let private retargetField currentAsmIdent importer enclosing field =
 let private retargetProperty currentAsmIdent importer enclosing prop =
     RetargetedPropertySymbol(currentAsmIdent, importer, enclosing, prop) :> IPropertySymbol
 
-let private retargetPattern currentAsmIdent importer enclosing pat =
-    RetargetedPatternSymbol(currentAsmIdent, importer, enclosing, pat) :> IPatternSymbol
+let private retargetPatternLockObj = obj()
+let private retargetPattern currentAsmIdent importer enclosing (pat: IPatternSymbol) : IPatternSymbol =
+    match importer.PatternCache.TryGetValue(pat.Id) with
+    | true, pat -> 
+        OlyAssert.True(areEnclosingsEqual pat.Enclosing enclosing)
+        pat
+    | _ ->
+        lock retargetPatternLockObj <| fun _ ->
+            match importer.PatternCache.TryGetValue(pat.Id) with
+            | true, pat -> 
+                OlyAssert.True(areEnclosingsEqual pat.Enclosing enclosing)
+                pat
+            | _ ->
+                let rettPat = RetargetedPatternSymbol(currentAsmIdent, importer, enclosing, pat) :> IPatternSymbol
+                importer.PatternCache[pat.Id] <- rettPat
+                rettPat
 
 let private retargetConstant currentAsmIdent importer constant =
     match constant with
@@ -472,6 +494,13 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
                 let tyArgs =
                     ent.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
                 TypeSymbol.Entity(formalREnt.Apply(tyArgs))
+
+    | TypeSymbol.Tuple(_, names) ->
+        if ty.IsFormal then
+            ty
+        else
+            let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+            TypeSymbol.Tuple(tyArgs, names)
 
     | _ ->
         if ty.Arity > 0 then
@@ -1702,6 +1731,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
 
     let currentAssemblies = ConcurrentDictionary()
     let ents = ResizeArray()
+
+    member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath

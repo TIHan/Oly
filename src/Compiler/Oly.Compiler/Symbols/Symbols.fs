@@ -356,8 +356,8 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             )
             instTy innerTy
 
-        | TypeSymbol.Tuple(variadicTyArgs, names) ->
-            TypeSymbol.Tuple(variadicTyArgs |> ImArray.map instTy, names)
+        | TypeSymbol.Tuple(elementTys, names) ->
+            TypeSymbol.Tuple(elementTys |> ImArray.map instTy, names)
 
         | TypeSymbol.Entity(ent) ->
             let tyArgs = 

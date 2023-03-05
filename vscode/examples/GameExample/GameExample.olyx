@@ -266,18 +266,18 @@ main(): () =
 
     // ----
 
-    // let drawCmds =
-    //     match (drawCmd)
-    //     | DrawCommand.DrawMesh(mesh, shader, instances) =>
-    let computeShaderDesc =
-        ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
-    let computeShader = 
-        Graphics.CreateComputeShader(computeShaderDesc, instances)
-    let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
+    let drawCmds =
+        match (drawCmd)
+        | DrawCommand.DrawMesh(mesh, shader, instances) =>
+            let computeShaderDesc =
+                ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
+            let computeShader = 
+                Graphics.CreateComputeShader(computeShaderDesc, instances)
+            let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
-    let drawCmds = [spinHexagonsCmd;drawCmd;staticDrawCmd]
-        // | _ =>
-        //     fail("Unexpected")
+            [spinHexagonsCmd;drawCmd;staticDrawCmd]
+        | _ =>
+            fail("Unexpected")
 
     let mutable camera = Camera(70, 1280, 720, 1, 1000000)
     Graphics.SetModel(Matrix4x4.Identity)
