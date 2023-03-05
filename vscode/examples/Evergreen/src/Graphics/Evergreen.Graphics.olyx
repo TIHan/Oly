@@ -605,7 +605,6 @@ module Graphics =
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
         options.PreferDepthRangeZeroToOne <- true  
-     //   options.SwapchainDepthFormat <- Nullable(PixelFormat.R16_UNorm)
 #if DEBUG
         options.Debug <- true
 #end   
@@ -974,7 +973,6 @@ module Graphics =
                 if (i == length)
                     commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
                     commandList.ClearColorTarget(0, RgbaFloat.Black)
-                  //  commandList.ClearDepthStencil(1)
                     mainWindowRenderTargetCmd
                 else
                     drawCmds[i]
