@@ -586,6 +586,10 @@ module Graphics =
 
     private mutable pixelSampler: Sampler = null
 
+    private mutable mainWindowRenderTarget: RenderTarget = unchecked default
+    private mutable mainWindowRenderTargetCmd: DrawCommand = unchecked default
+    private mutable mainWindowOutputs: OutputDescription = default
+
     DeviceName: string get() = graphicsDevice.DeviceName
 
     CreateWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
@@ -601,7 +605,7 @@ module Graphics =
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
         options.PreferDepthRangeZeroToOne <- true  
-        options.SwapchainDepthFormat <- Nullable(PixelFormat.R16_UNorm)
+     //   options.SwapchainDepthFormat <- Nullable(PixelFormat.R16_UNorm)
 #if DEBUG
         options.Debug <- true
 #end   
@@ -609,12 +613,6 @@ module Graphics =
         graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
         factory <- graphicsDevice.ResourceFactory
         commandList <- factory.CreateCommandList()
-
-        // -- ImGui Settings --
-        let imGuiOutputDesc = graphicsDevice.SwapchainFramebuffer.OutputDescription
-        imGuiRenderer <- ImGuiRenderer(graphicsDevice, imGuiOutputDesc, width, height, ColorSpaceHandling.Linear)
-        //ImGuiNET.ImGui.StyleColorsClassic()
-        // --
 
         globalUniformBuffer <- createGlobalUniformBuffer(0)
         let globalResourceLayoutDescVertex =
@@ -671,6 +669,29 @@ module Graphics =
                 SamplerBorderColor.TransparentBlack
             )
         pixelSampler <- factory.CreateSampler(pixelSamplerDesc)
+
+        // ---------
+
+        mainWindowRenderTarget <- CreateRenderTarget(uint32(width), uint32(height))
+        mainWindowOutputs <- mainWindowRenderTarget.Framebuffer.OutputDescription
+        mainWindowRenderTargetCmd <-
+            let mesh = CreateMesh(MeshDescription.CreateQuad(1))
+            let instances = CreateInstances([|Matrix4x4.Identity|])
+            let desc = 
+                ShaderDescription.CreateMeshShader(
+                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
+                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
+                )
+            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
+            DrawCommand.CreateDrawMesh(mesh, shader, instances)
+
+        // ---------
+
+        // -- ImGui Settings --
+        let imGuiOutputDesc = mainWindowOutputs
+        imGuiRenderer <- ImGuiRenderer(graphicsDevice, imGuiOutputDesc, width, height, ColorSpaceHandling.Linear)
+        //ImGuiNET.ImGui.StyleColorsClassic()
+        // --
 
         window
 
@@ -835,16 +856,19 @@ module Graphics =
         ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
     CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription))
+        Shader(CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs))
 
     CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, renderTarget: RenderTarget): Shader =
         Shader(CreateShaderState(shaderDesc, texture2d, instances, renderTarget.Framebuffer.OutputDescription))
+
+    internal CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): Shader =
+        Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs))
 
     CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
         ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
 
     UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
-        let newState = CreateShaderState(shaderDesc, texture2d, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
+        let newState = CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs)
         let oldState = Interlocked.Exchange(&shader.State, newState)
         oldState.Pipeline.Dispose()
         oldState.FragmentShader.Dispose()
@@ -883,12 +907,15 @@ module Graphics =
 
         // Texture2D(texture)
 
-    CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
+    internal CreateRenderTarget(width: uint32, height: uint32, useDepth: bool): RenderTarget =
         let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil))
         let depthTexture =
-            factory.CreateTexture(
-                TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
-            )
+            if (useDepth)
+                factory.CreateTexture(
+                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
+                )
+            else
+                null
         let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.RenderTarget) | fromEnum(TextureUsage.Sampled))
         let colorTexture = 
             factory.CreateTexture(
@@ -897,6 +924,9 @@ module Graphics =
         let desc = FramebufferDescription(depthTexture, [|colorTexture|])
         let framebuffer = factory.CreateFramebuffer(desc)
         RenderTarget(framebuffer, Texture2D(colorTexture))
+
+    CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
+        CreateRenderTarget(width, height, true)
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
@@ -939,8 +969,16 @@ module Graphics =
 
         let mutable i = 0
         let length = getLength(drawCmds)
-        while (i < length)
-            match (drawCmds[i])
+        while (i <= length)
+            let drawCmd =
+                if (i == length)
+                    commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
+                    commandList.ClearColorTarget(0, RgbaFloat.Black)
+                  //  commandList.ClearDepthStencil(1)
+                    mainWindowRenderTargetCmd
+                else
+                    drawCmds[i]
+            match (drawCmd)
             | DrawCommand.RunComputeShader(computeShader, instances) =>
                 let pipeline = computeShader.State.Pipeline
                 if (pipeline !== currentPipeline)
@@ -955,7 +993,7 @@ module Graphics =
                 commandList.Dispatch(uint32(instances.Count), 1, 1)
 
             | DrawCommand.SetWindowTarget =>
-                currentFramebuffer <- graphicsDevice.SwapchainFramebuffer
+                currentFramebuffer <- mainWindowRenderTarget.Framebuffer
 
                 // We want to render directly to the output window.
                 commandList.SetFramebuffer(currentFramebuffer)
@@ -1005,6 +1043,8 @@ module Graphics =
                 ()
     
             i <- i + 1
+
+        
 
         // End() must be called before commands can be submitted for execution.
         commandList.End()
