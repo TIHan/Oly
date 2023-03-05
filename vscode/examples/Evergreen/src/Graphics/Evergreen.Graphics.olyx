@@ -857,9 +857,6 @@ module Graphics =
     CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): Shader =
         Shader(CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs))
 
-    CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, renderTarget: RenderTarget): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances, renderTarget.Framebuffer.OutputDescription))
-
     internal CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): Shader =
         Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs))
 

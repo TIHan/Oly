@@ -270,15 +270,6 @@ main(): () =
 
     let renderTarget = Graphics.CreateRenderTarget(1280, 720)
 
-    let renderTargetDraw =
-        let staticBoxes = world.StaticBoxes
-        let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
-        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
-        let staticShader = Graphics.CreateShader(defaultShaderDesc, texture, staticInstances, renderTarget)
-        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
-        staticInstances.Count <- staticBoxes.Count
-        drawCmd
-
     let renderQuadCmd =
         let desc = 
             ShaderDescription.CreateMeshShader(
@@ -299,7 +290,7 @@ main(): () =
 
             [
                 DrawCommand.CreateSetRenderTarget(renderTarget);
-                renderTargetDraw;
+                staticDrawCmd;
                 DrawCommand.CreateSetWindowTarget();
                 spinHexagonsCmd;
                 drawCmd;
