@@ -1,3 +1,11 @@
+#target "dotnet: net7"
+#library
+
+#load "*.oly"
+
+#reference "../../../core/Prelude.olyx"
+#package "BepuPhysics,2.4.0"
+
 namespace Evergreen.Physics
 
 open System

@@ -679,7 +679,7 @@ type OlyCompilation private (state: CompilationState) =
         let references = defaultArg (references |> Option.map ImArray.ofSeq) ImArray.empty
         let options = defaultArg options OlyCompilationOptions.Default
 
-        let asm = AssemblySymbol.IL(OlyILAssemblyIdentity(assemblyName, Guid.NewGuid().ToString())) // TODO: Not deterministic, but we will fix it later.
+        let asm = AssemblySymbol.IL(OlyILAssemblyIdentity(assemblyName, "")) // TODO: Not deterministic, but we will fix it later.
 
         let lazyInitialState = setup options.Executable asm.Identity references
                 

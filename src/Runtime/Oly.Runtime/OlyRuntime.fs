@@ -1385,7 +1385,7 @@ let importFunctionBody
 [<Sealed>]
 type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Function, 'Field>) as this =
 
-    let assemblies = ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>>()
+    let assemblies = ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>>(OlyILAssemblyIdentity.Comparer)
 
     let mutable isEmittingTypeDefinition = false
     let delayed = ConcurrentQueue()

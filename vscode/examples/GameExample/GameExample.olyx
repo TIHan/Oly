@@ -3,12 +3,13 @@
 #load "*.oly"
 
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
+#reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
 #package "Veldrid,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.SPIRV,1.0.15" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.ImGui,5.89.2-ga121087cad" // TODO: Remove this when we fix transitive packages.
 #package "Veldrid.ImageSharp,4.9.0" // TODO: Remove this when we fix transitive packages.
-#package "BepuPhysics,2.4.0"
+#package "BepuPhysics,2.4.0" // TODO: Remove this when we fix transitive packages.
 
 open System.Text
 open System.Numerics

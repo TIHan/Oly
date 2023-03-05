@@ -107,6 +107,11 @@ type OlyProjectReference =
     | Compilation of OlyCompilationReference
     | Project of projectPath: OlyPath
 
+    member this.Path =
+        match this with
+        | Compilation(r) -> r.Path
+        | Project(path) -> path
+
     static member Create(compilationReference) = Compilation(compilationReference)
 
 [<Sealed>]
@@ -264,7 +269,7 @@ module WorkspaceHelpers =
 
     let getTransitiveCompilationReferences (solution: OlySolution) references (ct: CancellationToken) =
         let transitiveReferences =
-            let h = HashSet()
+            let h = HashSet<string>(StringComparer.OrdinalIgnoreCase)
             let builder = imarray.CreateBuilder()
             let rec loop (references: OlyProjectReference imarray) =
                 references
@@ -272,7 +277,7 @@ module WorkspaceHelpers =
                     ct.ThrowIfCancellationRequested()
                     match r with
                     | OlyProjectReference.Project(projectId) ->
-                        if h.Add(projectId) then
+                        if h.Add(projectId.ToString()) then
                             match solution.TryGetProject projectId with
                             | Some refProj -> 
                                 let compRef = refProj.AsCompilationReference
@@ -281,7 +286,7 @@ module WorkspaceHelpers =
                             | _ -> 
                                 OlyAssert.Fail("Unable to find project.")
                     | OlyProjectReference.Compilation(r) ->
-                        if h.Add(r.Path) then
+                        if h.Add(r.Path.ToString()) then
                             builder.Add(r)
                 )
             loop references

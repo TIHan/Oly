@@ -1032,11 +1032,21 @@ type private Table<'Value>(kind: OlyILTableKind) =
 
     member this.Count = nextIndex
 
+module internal OlyILAssemblyIdentityHelpers =
+    
+    let Comparer =
+        { new System.Collections.Generic.IEqualityComparer<OlyILAssemblyIdentity> with
+            member _.GetHashCode(x: OlyILAssemblyIdentity) = x.Name.GetHashCode(StringComparison.OrdinalIgnoreCase)
+            member _.Equals(x: OlyILAssemblyIdentity, y: OlyILAssemblyIdentity) =
+                x.Name.Equals(y.Name, StringComparison.OrdinalIgnoreCase) &&
+                x.Key.Equals(y.Key)
+        }
+
 [<Struct;CustomEquality;NoComparison>]
 type OlyILAssemblyIdentity =
     | OlyILAssemblyIdentity of name: string * key: string
 
-    member this.Name =
+    member this.Name: string =
         match this with
         | OlyILAssemblyIdentity(name, _) -> name
 
@@ -1044,10 +1054,12 @@ type OlyILAssemblyIdentity =
         match this with
         | OlyILAssemblyIdentity(_, key) -> key
 
+    static member Comparer = OlyILAssemblyIdentityHelpers.Comparer
+
     interface IEquatable<OlyILAssemblyIdentity> with
 
         member this.Equals(o) =
-            this.Name = o.Name &&
+            this.Name.Equals(o.Name, StringComparison.OrdinalIgnoreCase) &&
             this.Key.Equals(o.Key)
 
 [<Sealed>]

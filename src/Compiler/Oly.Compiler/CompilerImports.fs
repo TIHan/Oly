@@ -1733,6 +1733,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     let ents = ResizeArray()
 
     member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
+    member val EntityCache: ConcurrentDictionary<int64, IEntitySymbol> = ConcurrentDictionary<int64, IEntitySymbol>()
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
