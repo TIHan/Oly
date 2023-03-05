@@ -302,6 +302,22 @@ sealed class Texture2D =
     Dispose(): () =
         this.Texture.Dispose()
 
+sealed class RenderTarget =
+    implements IDisposable
+
+    internal Framebuffer: Framebuffer
+    internal Texture: Texture2D
+
+    internal new(framebuffer: Framebuffer, texture: Texture2D) =
+        {
+            Framebuffer = framebuffer
+            Texture = texture
+        }
+
+    Dispose(): () =
+        this.Framebuffer.Dispose()
+        this.Texture.Dispose()
+
 sealed class Instances =
     implements IDisposable
 
@@ -371,7 +387,10 @@ sealed class ComputeShader =
         this.State.ComputeShader.Dispose()
 
 enum DrawCommandKind =
+    | SetWindowTarget
+    | SetRenderTarget
     | DrawMesh
+    | DrawUI
     | RunComputeShader
     | SetTexture0
 
@@ -382,6 +401,39 @@ class DrawCommand =
         {
             Kind = kind
         }
+
+    private sealed class SetWindowTarget =
+        inherits DrawCommand
+
+        new() =
+            base(DrawCommandKind.SetWindowTarget) with
+                {
+                }
+
+    static CreateSetWindowTarget(): DrawCommand =
+        DrawCommand.SetWindowTarget()
+
+    pattern SetWindowTarget(cmd: DrawCommand): () when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetWindowTarget)) =>
+        let impl = UnsafeCast<DrawCommand.SetWindowTarget>(cmd)
+        ()
+
+    private sealed class SetRenderTarget =
+        inherits DrawCommand
+
+        RenderTarget: RenderTarget
+
+        new(renderTarget: RenderTarget) =
+            base(DrawCommandKind.SetRenderTarget) with
+                {
+                    RenderTarget = renderTarget
+                }
+
+    static CreateSetRenderTarget(renderTarget: RenderTarget): DrawCommand =
+        DrawCommand.SetRenderTarget(renderTarget)
+
+    pattern SetRenderTarget(cmd: DrawCommand): RenderTarget when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetRenderTarget)) =>
+        let impl = UnsafeCast<DrawCommand.SetRenderTarget>(cmd)
+        impl.RenderTarget
 
     private sealed class DrawMesh =
         inherits DrawCommand
@@ -404,6 +456,21 @@ class DrawCommand =
     pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
+
+    private sealed class DrawUI =
+        inherits DrawCommand
+
+        new() =
+            base(DrawCommandKind.DrawUI) with
+                {
+                }
+
+    static CreateDrawUI(): DrawCommand =
+        DrawCommand.DrawUI()
+
+    pattern DrawUI(cmd: DrawCommand): () when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawUI)) =>
+        let impl = UnsafeCast<DrawCommand.DrawUI>(cmd)
+        ()
 
     private sealed class RunComputeShader =
         inherits DrawCommand
@@ -517,16 +584,6 @@ module Graphics =
     private mutable pixelSampler: Sampler = null
 
     DeviceName: string get() = graphicsDevice.DeviceName
-
-    private CreateFramebufferTexture(width: uint32, height: uint32): Framebuffer =
-        let desc =
-            let targetTexture = 
-                factory.CreateTexture(
-                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, TextureUsage.RenderTarget)
-                )
-            let desc = FramebufferDescription(null, [|targetTexture|])
-            desc
-        factory.CreateFramebuffer(desc)
 
     CreateWindow(x: int32, y: int32, width: int32, height: int32, title: string): Window =
         // TODO: Use a lock, but we need to implement try-catch in Oly.
@@ -820,6 +877,15 @@ module Graphics =
 
         // Texture2D(texture)
 
+    CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
+        let targetTexture = 
+            factory.CreateTexture(
+                TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, TextureUsage.RenderTarget)
+            )
+        let desc = FramebufferDescription(null, [|targetTexture|])
+        let framebuffer = factory.CreateFramebuffer(desc)
+        RenderTarget(framebuffer, Texture2D(targetTexture))
+
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
@@ -854,18 +920,47 @@ module Graphics =
         // Begin() must be called before commands can be issued
         commandList.Begin()
     
-        // We want to render directly to the output window.
-        commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
-        commandList.ClearColorTarget(0, RgbaFloat.Black)
-        commandList.ClearDepthStencil(1)
-
         let mutable currentPipeline = unchecked default
+        let mutable currentFramebuffer = unchecked default: Framebuffer
+
+        let hasFramebuffer() = currentFramebuffer !== unchecked default
 
         let mutable i = 0
         let length = getLength(drawCmds)
         while (i < length)
             match (drawCmds[i])
-            | DrawCommand.DrawMesh(mesh, shader, instances) =>
+            | DrawCommand.RunComputeShader(computeShader, instances) =>
+                let pipeline = computeShader.State.Pipeline
+                if (pipeline !== currentPipeline)
+                    let resourceSets = computeShader.State.ResourceSets
+                    commandList.SetPipeline(pipeline)
+                    let mutable i = 0
+                    while (i < resourceSets.Length)
+                        commandList.SetComputeResourceSet(uint32(i), resourceSets[i])
+                        i <- i + 1
+                    currentPipeline <- pipeline
+
+                commandList.Dispatch(uint32(instances.Count), 1, 1)
+
+            | DrawCommand.SetWindowTarget =>
+                currentFramebuffer <- graphicsDevice.SwapchainFramebuffer
+
+                // We want to render directly to the output window.
+                commandList.SetFramebuffer(currentFramebuffer)
+                commandList.ClearColorTarget(0, RgbaFloat.Black)
+                commandList.ClearDepthStencil(1)
+
+            | DrawCommand.SetRenderTarget(renderTarget) =>
+                currentFramebuffer <- graphicsDevice.SwapchainFramebuffer
+
+                commandList.SetFramebuffer(currentFramebuffer)
+                commandList.ClearColorTarget(0, RgbaFloat.Black)
+                commandList.ClearDepthStencil(1)
+
+            | DrawCommand.DrawUI when (hasFramebuffer()) =>
+                imGuiRenderer.Render(graphicsDevice, commandList)
+
+            | DrawCommand.DrawMesh(mesh, shader, instances) when (hasFramebuffer()) =>
                 let instanceCount = uint32(instances.Count)
 
                 if (instanceCount > 0)   
@@ -894,25 +989,10 @@ module Graphics =
                         0               /* instanceStart */
                     )
 
-            | DrawCommand.RunComputeShader(computeShader, instances) =>
-                let pipeline = computeShader.State.Pipeline
-                if (pipeline !== currentPipeline)
-                    let resourceSets = computeShader.State.ResourceSets
-                    commandList.SetPipeline(pipeline)
-                    let mutable i = 0
-                    while (i < resourceSets.Length)
-                        commandList.SetComputeResourceSet(uint32(i), resourceSets[i])
-                        i <- i + 1
-                    currentPipeline <- pipeline
-
-                commandList.Dispatch(uint32(instances.Count), 1, 1)
-
             | _ =>
                 ()
     
             i <- i + 1
-    
-        imGuiRenderer.Render(graphicsDevice, commandList)
 
         // End() must be called before commands can be submitted for execution.
         commandList.End()

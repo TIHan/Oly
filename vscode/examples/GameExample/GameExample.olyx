@@ -269,7 +269,13 @@ main(): () =
                 Graphics.CreateComputeShader(computeShaderDesc, instances)
             let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
-            [spinHexagonsCmd;drawCmd;staticDrawCmd]
+            [
+                DrawCommand.CreateSetWindowTarget();
+                spinHexagonsCmd;
+                drawCmd;
+                staticDrawCmd;
+                DrawCommand.CreateDrawUI()
+            ]
         | _ =>
             fail("Unexpected")
 
