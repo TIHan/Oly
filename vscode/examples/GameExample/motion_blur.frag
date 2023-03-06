@@ -17,13 +17,14 @@ void main()
     // Shader Code That Extracts the Per-Pixel World-Space Positions of the Objects That Were Rendered to the Depth Buffer
     // ----
     // Get the depth buffer value at this pixel.    
-    float zOverW = texture(sampler2D(DepthTexture, Sampler), fsin_TexCoord).z;
+    vec4 value = texture(sampler2D(DepthTexture, Sampler), fsin_TexCoord);
+    float zOverW = value.z / value.w;
 
     // H is the viewport position at this pixel in the range -1 to 1.   
-    vec4 H = vec4(fsin_TexCoord.x * 2 - 1, (1 - fsin_TexCoord.y) * 2 - 1, 1, 1); 
+    vec4 H = vec4(fsin_TexCoord.x * 2 - 1, (1 - fsin_TexCoord.y) * 2 - 1, zOverW, 1); 
 
      // Transform by the view-projection inverse.    
-    vec4 D = H * fsin_ViewProjectionInverse;
+    vec4 D = fsin_ViewProjectionInverse * H;
 
      // Divide by w to get the world position.    
     vec4 worldPos = D / D.w; 
@@ -34,7 +35,7 @@ void main()
     vec4 currentPos = H; 
 
     // Use the world position, and transform by the previous view-projection matrix.    
-    vec4 previousPos = worldPos * fsin_ViewProjectionInverse; 
+    vec4 previousPos = fsin_ViewProjectionInverse * worldPos; 
 
     // Convert to nonhomogeneous points [-1,1] by dividing by w. 
     previousPos /= previousPos.w; 
