@@ -42,7 +42,7 @@ void main()
     fsin_TexCoord = TexCoord;
     fsin_Normal = normal;
     fsin_Position = position;
-    fsin_ViewProjectionInverse = inverse(Projection * View);
+    fsin_ViewProjectionInverse = inverse(Projection * View * Model);
     fsin_PreviousViewProjectionInverse = inverse(Projection * PreviousView);
 
     gl_Position = position;

@@ -588,6 +588,7 @@ module Graphics =
     private mutable instanceResourceLayoutCompute: ResourceLayout = null
 
     private mutable defaultResourceLayoutFragment: ResourceLayout = null
+    private mutable depthResourceLayoutFragment: ResourceLayout = null
 
     private mutable pixelSampler: Sampler = null
 
@@ -658,6 +659,16 @@ module Graphics =
                 |]
             )
         defaultResourceLayoutFragment <- factory.CreateResourceLayout(defaultResourceLayoutDescFragment)
+
+        let depthResourceLayoutDescFragment =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
+                    ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment);
+                    ResourceLayoutElementDescription("DepthTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment)
+                |]
+            )
+        depthResourceLayoutFragment <- factory.CreateResourceLayout(depthResourceLayoutDescFragment)
 
         let mutable pixelSamplerDesc = 
             SamplerDescription(
@@ -755,7 +766,7 @@ module Graphics =
             )
         factory.CreateResourceSet(resourceSetDesc)
             
-    private CreateResourceSets(texture2d: Texture2D, instances: Instances, shaderStages: ShaderStages): ResourceSetGroup =
+    private CreateResourceSets(texture2d: Texture2D, instances: Instances, shaderStages: ShaderStages, depthTextureOption: Texture2D): ResourceSetGroup =
         // ------------------------------------------------------------
         let resourceLayout =
             match (shaderStages)
@@ -782,14 +793,25 @@ module Graphics =
 
         match (shaderStages)
         | ShaderStages.Vertex =>
-            let resourceLayout3 = defaultResourceLayoutFragment
+            let resourceLayout3 = 
+                if (depthTextureOption === null)
+                    defaultResourceLayoutFragment
+                else
+                    depthResourceLayoutFragment
             let resourceSetDesc3 = 
                 ResourceSetDescription(
                     resourceLayout3,
-                    [|
-                        (texture2d.Texture: BindableResource);
-                        pixelSampler
-                    |]
+                    if (depthTextureOption === null)
+                        [|
+                            (texture2d.Texture: BindableResource);
+                            pixelSampler
+                        |]
+                    else
+                        [|
+                            (texture2d.Texture: BindableResource);
+                            pixelSampler;
+                            depthTextureOption.Texture
+                        |]
                 )
             let resourceSet3 = factory.CreateResourceSet(resourceSetDesc3)
             ResourceSetGroup([|resourceLayout;resourceLayout2;resourceLayout3|], [|resourceSet;resourceSet2;resourceSet3|])
@@ -797,7 +819,7 @@ module Graphics =
             ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
         // ----------------------------------------------------------------
     
-    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription, depthTextureOption: Texture2D): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -831,7 +853,7 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        let resourceSetGroup = CreateResourceSets(texture2d, instances, ShaderStages.Vertex)
+        let resourceSetGroup = CreateResourceSets(texture2d, instances, ShaderStages.Vertex, depthTextureOption)
     
         pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
         pipelineDesc.Outputs <- outputs
@@ -844,7 +866,7 @@ module Graphics =
     
         let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
 
-        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute)
+        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute, null)
     
         let pipelineDesc = 
             ComputePipelineDescription(
@@ -859,21 +881,24 @@ module Graphics =
     
         ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
 
-    CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs))
+    CreateShader(shaderDesc: ShaderDescription, texture: Texture2D, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, texture, instances, mainWindowOutputs, null))
+
+    CreateShader(shaderDesc: ShaderDescription, texture: Texture2D, depthTexture: Texture2D, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, texture, instances, mainWindowOutputs, depthTexture))
 
     internal CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs))
+        Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs, null))
 
     CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
         ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
 
-    UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
-        let newState = CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs)
-        let oldState = Interlocked.Exchange(&shader.State, newState)
-        oldState.Pipeline.Dispose()
-        oldState.FragmentShader.Dispose()
-        oldState.VertexShader.Dispose()
+    // UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
+    //     let newState = CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs)
+    //     let oldState = Interlocked.Exchange(&shader.State, newState)
+    //     oldState.Pipeline.Dispose()
+    //     oldState.FragmentShader.Dispose()
+    //     oldState.VertexShader.Dispose()
 
     CreateTexture2D(filePath: string): Texture2D =
         let image = Veldrid.ImageSharp.ImageSharpTexture(filePath)
@@ -911,8 +936,9 @@ module Graphics =
     internal CreateRenderTarget(width: uint32, height: uint32, useDepth: bool): RenderTarget =
         let depthTexture =
             if (useDepth)
+                let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil) | fromEnum(TextureUsage.Sampled))
                 factory.CreateTexture(
-                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, TextureUsage.DepthStencil)
+                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
                 )
             else
                 null
@@ -949,7 +975,7 @@ module Graphics =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
 
     SetPreviousView(value: Matrix4x4): () =
-       graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
 
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 320, value)

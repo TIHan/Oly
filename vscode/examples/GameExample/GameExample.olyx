@@ -276,7 +276,7 @@ main(): () =
                 Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.vert")), 
                 Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.frag"))
             )
-        let shader = Graphics.CreateShader(desc, renderTarget.Texture, quadInstances)
+        let shader = Graphics.CreateShader(desc, renderTarget.Texture, renderTarget.DepthTexture, quadInstances)
         DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
 
     let drawCmds =
@@ -289,11 +289,13 @@ main(): () =
             let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
             [
+                spinHexagonsCmd;
+
                 DrawCommand.CreateSetRenderTarget(renderTarget);
                 staticDrawCmd;
-                DrawCommand.CreateSetWindowTarget();
-                spinHexagonsCmd;
                 drawCmd;
+                
+                DrawCommand.CreateSetWindowTarget();
                 renderQuadCmd;
                 DrawCommand.CreateDrawUI()
             ]
