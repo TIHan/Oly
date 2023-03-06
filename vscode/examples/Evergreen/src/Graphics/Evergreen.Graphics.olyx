@@ -292,6 +292,7 @@ sealed class Mesh =
         this.VertexBuffer.Dispose()
         this.IndexBuffer.Dispose()
 
+#[null]
 sealed class Texture2D =
     implements IDisposable
 
@@ -311,10 +312,14 @@ sealed class RenderTarget =
     internal Framebuffer: Framebuffer
     Texture: Texture2D
 
-    internal new(framebuffer: Framebuffer, texture: Texture2D) =
+    /// This can be null.
+    DepthTexture: Texture2D
+
+    internal new(framebuffer: Framebuffer, texture: Texture2D, depthTexture: Texture2D) =
         {
             Framebuffer = framebuffer
             Texture = texture
+            DepthTexture = depthTexture
         }
 
     Dispose(): () =
@@ -904,11 +909,10 @@ module Graphics =
         // Texture2D(texture)
 
     internal CreateRenderTarget(width: uint32, height: uint32, useDepth: bool): RenderTarget =
-        let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil))
         let depthTexture =
             if (useDepth)
                 factory.CreateTexture(
-                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
+                    TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, TextureUsage.DepthStencil)
                 )
             else
                 null
@@ -919,13 +923,18 @@ module Graphics =
             )
         let desc = FramebufferDescription(depthTexture, [|colorTexture|])
         let framebuffer = factory.CreateFramebuffer(desc)
-        RenderTarget(framebuffer, Texture2D(colorTexture))
+        let depthTexture =
+            if (depthTexture === null)
+                null: Texture2D
+            else
+                Texture2D(depthTexture)
+        RenderTarget(framebuffer, Texture2D(colorTexture), depthTexture)
 
     CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
         CreateRenderTarget(width, height, true)
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
-        factory.CreateBuffer(BufferDescription((256: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        factory.CreateBuffer(BufferDescription((256 + 64: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
     SetModel(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
@@ -939,8 +948,11 @@ module Graphics =
     SetNormalMatrix(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
 
+    SetPreviousView(value: Matrix4x4): () =
+       graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
+
     SetDeltaTime(value: float32): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 320, value)
 
     CreateInstances<T>(instanceData: T[||]): Instances where T: unmanaged =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite

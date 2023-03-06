@@ -273,8 +273,8 @@ main(): () =
     let renderQuadCmd =
         let desc = 
             ShaderDescription.CreateMeshShader(
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.vert")), 
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.frag"))
             )
         let shader = Graphics.CreateShader(desc, renderTarget.Texture, quadInstances)
         DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
@@ -304,6 +304,7 @@ main(): () =
     Graphics.SetModel(Matrix4x4.Identity)
     Graphics.SetView(camera.Transform.Matrix)
     Graphics.SetProjection(camera.Projection)
+    Graphics.SetPreviousView(camera.Transform.Matrix)
     Graphics.SetNormalMatrix(Matrix4x4.Identity)
     Graphics.SetDeltaTime(0)
 
@@ -429,9 +430,13 @@ main(): () =
     let update(dt: float64) =
         ()
 
+    let mutable previousView = Matrix4x4.Identity
     let render(deltaTime, alpha) =
         Graphics.SetView(camera.Transform.WorldToLocalMatrix)
+        Graphics.SetPreviousView(previousView)
         Graphics.SetDeltaTime(deltaTime)
+
+        previousView <- camera.Transform.WorldToLocalMatrix
 
         let windowExists = window.Exists
         if (windowExists)
