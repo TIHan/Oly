@@ -37,7 +37,7 @@ void main()
     vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
-    fsin_TexCoord = TexCoord;
+    fsin_TexCoord = vec2(TexCoord.x, -TexCoord.y);
     fsin_Normal = normal;
     fsin_Position = position;
 

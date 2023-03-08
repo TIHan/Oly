@@ -14,6 +14,7 @@ layout(location = 1) out vec3 fsin_Normal;
 layout(location = 2) out vec4 fsin_Position;
 layout(location = 3) out mat4 fsin_ViewProjectionInverse;
 layout(location = 7) out mat4 fsin_PreviousViewProjectionInverse;
+layout(location = 11) out mat4 fsin_Projection;
 
 layout(set = 0, binding = 0) uniform _Global
 {
@@ -39,11 +40,24 @@ void main()
     vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
-    fsin_TexCoord = TexCoord;
+    mat4 v = View;
+    mat4 pv = PreviousView;
+
+    v[3] = vec4(0, 0, 0, 1);
+    pv[3] = vec4(0, 0, 0, 1);
+
+    mat4 vp = Projection * v;
+   // vp[3] = vec4(0, 0, 0, 1);
+
+    mat4 pvp = Projection * pv;
+   // pvp[3] = vec4(0, 0, 0, 1);
+
+    fsin_TexCoord = vec2(TexCoord.x, -TexCoord.y);
     fsin_Normal = normal;
     fsin_Position = position;
-    fsin_ViewProjectionInverse = inverse(Projection * View);
-    fsin_PreviousViewProjectionInverse = inverse(Projection * PreviousView);
+    fsin_ViewProjectionInverse = inverse(vp);
+    fsin_PreviousViewProjectionInverse = inverse(pvp);
+    fsin_Projection = Projection;
 
     gl_Position = position;
 }

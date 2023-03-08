@@ -266,7 +266,7 @@ main(): () =
 
     let quadInstances = 
         let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3.One)
-        Graphics.CreateInstances([|transform|])
+        Graphics.CreateInstances([|Matrix4x4.Identity|])
 
     let renderTarget = Graphics.CreateRenderTarget(1280, 720)
 
@@ -292,9 +292,9 @@ main(): () =
                 spinHexagonsCmd;
 
                 DrawCommand.CreateSetRenderTarget(renderTarget);
-                staticDrawCmd;
                 drawCmd;
-                
+                staticDrawCmd;
+
                 DrawCommand.CreateSetWindowTarget();
                 renderQuadCmd;
                 DrawCommand.CreateDrawUI()
