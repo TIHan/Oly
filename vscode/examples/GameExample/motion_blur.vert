@@ -40,23 +40,11 @@ void main()
     vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;
 
-    mat4 v = View;
-    mat4 pv = PreviousView;
-
-    v[3] = vec4(0, 0, 0, 1);
-    pv[3] = vec4(0, 0, 0, 1);
-
-    mat4 vp = Projection * v;
-   // vp[3] = vec4(0, 0, 0, 1);
-
-    mat4 pvp = Projection * pv;
-   // pvp[3] = vec4(0, 0, 0, 1);
-
     fsin_TexCoord = vec2(TexCoord.x, -TexCoord.y);
     fsin_Normal = normal;
     fsin_Position = position;
-    fsin_ViewProjectionInverse = inverse(vp);
-    fsin_PreviousViewProjectionInverse = inverse(pvp);
+    fsin_ViewProjectionInverse = inverse(Projection * View * model);
+    fsin_PreviousViewProjectionInverse = inverse(Projection * PreviousView * model);
     fsin_Projection = Projection;
 
     gl_Position = position;

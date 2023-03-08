@@ -17,7 +17,7 @@ vec2 ConvertToScreenPosition(vec4 position)
 {
     vec4 clipSpacePos = position;//projectionMatrix * viewMatrix * vec4(worldSpacePos, 1.0);
     vec3 ndcSpacePos = clipSpacePos.xyz / clipSpacePos.w;
-    return vec2(ndcSpacePos.x, -ndcSpacePos.y) * 0.5 + 0.5 * vec2(1280, 720);
+    return vec2(ndcSpacePos.x, -ndcSpacePos.y) * 0.5 + 0.5; //* vec2(1280, 720);
 }
 
 void main()
@@ -28,16 +28,36 @@ void main()
     vec2 currentPos = ConvertToScreenPosition(fsin_ViewProjectionInverse[3]);
     vec2 previousPos = ConvertToScreenPosition(fsin_PreviousViewProjectionInverse[3]);
 
-    vec2 velocity = (currentPos - previousPos) / 2 * 0.1 * zOverW;
+    vec2 velocity = vec2(0);
+    if (zOverW > 0.9)
+    {
+        velocity = (currentPos - previousPos) / 2 * zOverW * 0.03;
+    }
   
     vec4 color = texture(sampler2D(Texture, Sampler), fsin_TexCoord);
 
     vec2 texCoord = fsin_TexCoord;
     texCoord += velocity;
 
-    int numSamples = 4;
+    int numSamples = 8;
     for(int i = 1; i < numSamples; ++i, texCoord += velocity) 
     {   
+        if (texCoord.x > 1)
+        {
+            texCoord.x = 1;
+        }
+        else if (texCoord.x < 0)
+        {
+            texCoord.x = 0;
+        }
+        if (texCoord.y < -1)
+        {
+            texCoord.y = -1;
+        }
+        else if (texCoord.y > 0)
+        {
+            texCoord.y = 0;
+        }
         vec4 currentColor = texture(sampler2D(Texture, Sampler), texCoord);  
         color += currentColor; 
     } 

@@ -373,7 +373,7 @@ main(): () =
 
         acc <-
             if (acc != Vector3.Zero)
-                Vector3.Normalize(acc) * (dt * 20)
+                Vector3.Normalize(acc) * (dt * 6)
             else
                 acc
 
