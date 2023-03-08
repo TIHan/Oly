@@ -29,17 +29,17 @@ void main()
     vec2 previousPos = ConvertToScreenPosition(fsin_PreviousViewProjectionInverse[3]);
 
     vec2 velocity = vec2(0);
-    if (zOverW > 0.9)
-    {
-        velocity = (currentPos - previousPos) / 2 * zOverW * 0.03;
-    }
+    // if (zOverW > 0.9)
+    // {
+    //     velocity = (currentPos - previousPos) / 2 * zOverW * 0.08;
+    // }
   
     vec4 color = texture(sampler2D(Texture, Sampler), fsin_TexCoord);
 
     vec2 texCoord = fsin_TexCoord;
     texCoord += velocity;
 
-    int numSamples = 8;
+    int numSamples = int(3.0f * zOverW);
     for(int i = 1; i < numSamples; ++i, texCoord += velocity) 
     {   
         if (texCoord.x > 1)

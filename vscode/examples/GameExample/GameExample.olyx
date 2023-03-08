@@ -273,8 +273,8 @@ main(): () =
     let renderQuadCmd =
         let desc = 
             ShaderDescription.CreateMeshShader(
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.vert")), 
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.frag"))
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
             )
         let shader = Graphics.CreateShader(desc, renderTarget.Texture, renderTarget.DepthTexture, quadInstances)
         DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
