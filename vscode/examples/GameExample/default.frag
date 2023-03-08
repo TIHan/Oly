@@ -17,7 +17,7 @@ void main()
     float radius = 5;
 
     // ambient
-    float ambientStrength = 0.1;
+    float ambientStrength = 0.25;
     vec3 ambient = ambientStrength * fsin_Color.xyz;
 
     // diffuse

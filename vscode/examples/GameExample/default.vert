@@ -56,22 +56,22 @@ void main()
     vec3 scale = extractScale(model);
 
     fsin_Color = ambientColor;
-    // TODO: This isn't 100% correct. What is the proper way to adjust this?
+    
     if (Normal.z == 0 && Normal.y < 0)
     {
         fsin_TexCoord = TexCoord * vec2(scale.x, -scale.z);
     }
     else if (Normal.z == 0 && Normal.y > 0)
     {
-        fsin_TexCoord = TexCoord * vec2(-scale.x, scale.z);
+        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.z);
     }
     else if (Normal.z == 0 && Normal.x > 0)
     {
-        fsin_TexCoord = TexCoord * vec2(-scale.z, scale.y);
+        fsin_TexCoord = TexCoord * vec2(scale.y, -scale.z);
     }
     else if (Normal.z == 0 && Normal.x < 0)
     {
-        fsin_TexCoord = TexCoord * vec2(scale.z, -scale.y);
+        fsin_TexCoord = TexCoord * vec2(scale.y, -scale.z);
     }
     else
     {

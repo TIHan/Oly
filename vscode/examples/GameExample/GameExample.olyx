@@ -92,6 +92,16 @@ struct Transform =
     Rotation: Quaternion
         get() = Quaternion.CreateFromRotationMatrix(this.Matrix)
 
+    Scale: Vector3
+        get() = 
+            let mutable scale = Vector3.Zero
+            let mutable rotation = Quaternion.Identity
+            let mutable position = Vector3.Zero
+            if (Matrix4x4.Decompose(this.Matrix, &scale, &rotation, &position))
+                scale
+            else
+                Vector3.Zero
+
     Forward: Vector3
         get() = Vector3.Transform(Vector3.Forward, this.Rotation)
 
@@ -176,9 +186,10 @@ main(): () =
             let mutable position = Vector3.Zero
             let mutable orientation = Quaternion.Identity
             physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+            let mutable scale = Matrix4x4.CreateScale(m.Scale)
             let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
-            m.Translation <- position
-            physicsBoxTransforms[i] <- Transform(m)
+            scale.Translation <- position
+            physicsBoxTransforms[i] <- Transform(m * scale)
             i <- i + 1
 
     let defaultShaderDesc = 
@@ -202,7 +213,7 @@ main(): () =
     let addPhysicsBoxRenderCommand() =
         let boxes = world.PhysicsBoxes
         physicsBoxInstances <- Graphics.CreateInstances(boxes.Transforms)
-        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/dem1_4.png")
         let shader = Graphics.CreateShader(defaultShaderDesc, texture, physicsBoxInstances)
         let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         physicsBoxInstances.Count <- boxes.Count
@@ -232,7 +243,7 @@ main(): () =
     let staticDrawCmd = addStaticBoxRenderCommand()
 
     let addCube(position) =
-        let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One)
+        let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One * 1.5)
 
     let mutable i = 1
     while (i <= 10)
