@@ -4,13 +4,8 @@
 
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 #reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
-#package "Veldrid,4.9.0" // TODO: Remove this when we fix transitive packages.
-#package "Veldrid.StartupUtilities,4.9.0" // TODO: Remove this when we fix transitive packages.
-#package "Veldrid.SPIRV,1.0.15" // TODO: Remove this when we fix transitive packages.
-#package "Veldrid.ImGui,5.89.2-ga121087cad" // TODO: Remove this when we fix transitive packages.
-#package "Veldrid.ImageSharp,4.9.0" // TODO: Remove this when we fix transitive packages.
-#package "BepuPhysics,2.4.0" // TODO: Remove this when we fix transitive packages.
 
+open System
 open System.Text
 open System.Numerics
 open Evergreen.Graphics
@@ -132,8 +127,8 @@ newtype PhysicsBoxId =
 struct PhysicsBox =
     mutable Count: int32 = 0
 
-    Transforms:       Transform[||]       = OlyArray.ZeroCreate(1024)
-    DynamicObjectIds: DynamicObjectId[||] = OlyArray.ZeroCreate(1024)
+    Transforms:       Transform[||]       = Array.ZeroCreate(1024)
+    DynamicObjectIds: DynamicObjectId[||] = Array.ZeroCreate(1024)
 
     mutable Add(transform: Transform, dynamicObjId: DynamicObjectId): PhysicsBoxId =
         let index = this.Count
@@ -148,8 +143,8 @@ newtype StaticBoxId =
 struct StaticBox =
     mutable Count: int32 = 0
 
-    Transforms:      Transform[||]      = OlyArray.ZeroCreate(4096)
-    StaticObjectIds: StaticObjectId[||] = OlyArray.ZeroCreate(4096)
+    Transforms:      Transform[||]      = Array.ZeroCreate(4096)
+    StaticObjectIds: StaticObjectId[||] = Array.ZeroCreate(4096)
 
     mutable Add(transform: Transform, staticObjId: StaticObjectId): StaticBoxId =
         let index = this.Count

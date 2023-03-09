@@ -759,7 +759,7 @@ module Graphics =
         let indexCount  = uint32(indices.Length)
 
         let vertexData =
-            let vertexData = OlyArray.ZeroCreate<VertexDatum>(int32(vertexCount))
+            let vertexData = Array.ZeroCreate(int32(vertexCount))
             let mutable i = 0
             while (i < int32(vertexCount))
                 vertexData[i] <- 
@@ -1035,7 +1035,7 @@ module Graphics =
         let hasFramebuffer() = currentFramebuffer !== unchecked default
 
         let mutable i = 0
-        let length = getLength(drawCmds)
+        let length = drawCmds.Length
         while (i <= length)
             let drawCmd =
                 if (i == length)

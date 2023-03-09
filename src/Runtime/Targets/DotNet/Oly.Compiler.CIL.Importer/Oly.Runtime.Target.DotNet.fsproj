@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <Compile Include="Importer.fs" />
+    <Compile Include="MSBuild.fs" />
     <Compile Include="DotNetTarget.fs" />
   </ItemGroup>
 

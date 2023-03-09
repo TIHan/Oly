@@ -14,6 +14,7 @@ layout(location = 1) out vec2 fsin_TexCoord;
 layout(location = 2) out vec3 fsin_Normal;
 layout(location = 3) out vec4 fsin_Position;
 layout(location = 4) out vec3 fsin_LightPosition;
+layout(location = 5) out vec3 fsin_ViewPosition_world;
 
 layout(set = 0, binding = 0) uniform _Global
 {
@@ -77,9 +78,10 @@ void main()
     {
         fsin_TexCoord = TexCoord * vec2(scale.x, -scale.y);
     }
-    fsin_Normal = normal;
+    fsin_Normal = normalize(normal);
     fsin_Position = position;
     fsin_LightPosition = vec3(0, 0, 0);
+    fsin_ViewPosition_world = View[3].xyz;
 
     gl_Position = Projection * View * position;
 }

@@ -163,7 +163,8 @@ type OlyProject (
     projConfig: OlyProjectConfiguration,
     compilation: OlyCompilation, 
     documents: ImmutableDictionary<OlyPath, OlyDocument>, 
-    references: OlyProjectReference imarray, 
+    references: OlyProjectReference imarray,
+    packages: OlyPackageInfo imarray,
     platformName: string, 
     targetInfo: OlyTargetInfo) =
 
@@ -185,6 +186,7 @@ type OlyProject (
     member _.Name = projName
     member _.Path = projPath
     member _.Configuration = projConfig
+    member _.Packages = packages
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation))
 
@@ -215,7 +217,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -235,7 +237,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -252,7 +254,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, projectReferences, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, projectReferences, packages, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -293,6 +295,33 @@ module WorkspaceHelpers =
             builder.ToImmutable()
         transitiveReferences
 
+    let getTransitivePackages (solution: OlySolution) references (ct: CancellationToken) =
+        let transitiveReferences =
+            let h = HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            let builder = imarray.CreateBuilder()
+            let rec loop (references: OlyProjectReference imarray) =
+                references
+                |> ImArray.iter (fun r ->
+                    ct.ThrowIfCancellationRequested()
+                    match r with
+                    | OlyProjectReference.Project(projectId) ->
+                        if h.Add(projectId.ToString()) then
+                            match solution.TryGetProject projectId with
+                            | Some refProj -> 
+                                let compRef = refProj.AsCompilationReference
+                                builder.AddRange(refProj.Packages)
+                                loop refProj.References
+                            | _ -> 
+                                OlyAssert.Fail("Unable to find project.")
+                    | OlyProjectReference.Compilation _ ->
+                        ()
+                )
+            loop references
+            builder.ToImmutable()
+        transitiveReferences
+        |> Seq.distinctBy (fun x -> x.Text)
+        |> ImArray.ofSeq
+
     let getSyntaxTrees (documents: OlyDocument imarray) =
         documents
         |> ImArray.map (fun x -> x.SyntaxTree)
@@ -314,6 +343,7 @@ module WorkspaceHelpers =
             (projectConfig: OlyProjectConfiguration) 
             (documents: OlyDocument imarray) 
             (projectReferences: OlyProjectReference imarray) 
+            (packages: OlyPackageInfo imarray)
             platformName 
             (targetInfo: OlyTargetInfo) 
             ct =
@@ -326,7 +356,7 @@ module WorkspaceHelpers =
             documents
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
             |> ImmutableDictionary.CreateRange
-        OlyProject(newSolution, projectId, projectName, projectConfig, compilation, documents, projectReferences, platformName, targetInfo)   
+        OlyProject(newSolution, projectId, projectName, projectConfig, compilation, documents, projectReferences, packages, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
         let mutable project = project
@@ -337,7 +367,7 @@ module WorkspaceHelpers =
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
             )
             |> ImmutableDictionary.CreateRange
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, project.Compilation, newDocuments, project.References, project.PlatformName, project.TargetInfo)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, project.Compilation, newDocuments, project.References, project.Packages, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -414,16 +444,19 @@ type OlySolution (state: SolutionState) =
         )
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ct: CancellationToken) =
+    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        let newProject = createProject newSolutionLazy this projectPath projectName projectConfig ImArray.empty ImArray.empty platformName targetInfo ct
+        let newProject = createProject newSolutionLazy this projectPath projectName projectConfig ImArray.empty ImArray.empty packages platformName targetInfo ct
         newSolution <- this.InternalSetProject(newProject)
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
+
+    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ct: CancellationToken) =
+        this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ImArray.empty, ct)
 
     member this.UpdateDocument(projectPath: OlyPath, documentPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
         let project = this.GetProject(projectPath)
@@ -757,6 +790,32 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 referenceInfos
                 |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
 
+            let projectReferencesInWorkspace = ImArray.builder()
+            let mutable solution = solution
+            for info in olyxReferenceInfos do
+                try
+                    let! result = OlyWorkspace.UpdateDocumentAsyncCore(state, solution, info.Path, state.rs.LoadSourceText(info.Path), ct)
+                    solution <- result
+                    match solution.TryGetProject(info.Path) with
+                    | Some proj ->
+                        projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
+                    | _ ->
+                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                with
+                | ex ->
+                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}'. Internal Error: {ex.Message}", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+            let projectReferencesInWorkspace = projectReferencesInWorkspace.ToImmutable()
+
+            let transitivePackageInfos =
+                getTransitivePackages solution projectReferencesInWorkspace ct
+
+            let combinedPackageInfos =
+                // TODO: What happens if we have multiple of the same packages with different versions? Just kick it down to the target platform resolution?
+                // TODO: Wrong text-span for the transitive package infos, we will need to fix that. Perhaps OlyPackageInfo should use a source location instead of a text-span.
+                ImArray.append transitivePackageInfos packageInfos
+                |> Seq.distinctBy (fun x -> x.Text)
+                |> ImArray.ofSeq
+
             let referenceInfos =
                 referenceInfos
                 |> ImArray.filter (fun x -> 
@@ -764,7 +823,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     not(x.Path.HasExtension(".oly"))
                 )
             
-            let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos, ct)
+            // TODO: We should include the transitive references to make it consistent with the packages.
+            let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
 
             resInfo.Diagnostics
             |> ImArray.iter diags.Add
@@ -789,24 +849,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 |> Seq.choose id
                 |> ImArray.ofSeq
 
-            let projectReferencesInWorkspace = ImArray.builder()
-
-            let mutable solution = solution
-
-            for info in olyxReferenceInfos do
-                try
-                    let! result = OlyWorkspace.UpdateDocumentAsyncCore(state, solution, info.Path, state.rs.LoadSourceText(info.Path), ct)
-                    solution <- result
-                    match solution.TryGetProject(info.Path) with
-                    | Some proj ->
-                        projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
-                    | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
-                with
-                | ex ->
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}'. Internal Error: {ex.Message}", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
-
-            let projectReferences = ImArray.append projectReferences (projectReferencesInWorkspace.ToImmutable())
+            let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 
             try
                 targetPlatform.OnAfterReferencesImported()
@@ -814,7 +857,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             | ex ->
                 diags.Add(OlyDiagnostic.CreateError(ex.Message))
 
-            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, ct)
+            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, packageInfos, ct)
 
             let loads = getSortedLoadsFromConfig state.rs absoluteDir config
 

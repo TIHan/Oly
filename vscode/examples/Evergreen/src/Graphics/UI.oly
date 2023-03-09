@@ -1,6 +1,7 @@
 
 namespace Evergreen.Graphics.UI
 
+open System
 open System.Numerics
 open Evergreen.Graphics
 open ImGuiNET
@@ -81,7 +82,7 @@ module UI =
     private MakeWindow(title: string, children: UINode[]): () =
         if (ImGui.Begin(title))
             let mutable i = 0
-            while (i < getLength(children))
+            while (i < children.Length)
                 MakeNode(children[i])
                 i <- i + 1
             ImGui.End()
@@ -90,7 +91,7 @@ module UI =
         if (ImGui.Button(label))
             onClick()
 
-    private textBuffer: byte[||] = OlyArray.ZeroCreate<byte>(1024)
+    private textBuffer: byte[||] = Array.ZeroCreate(1024)
     private MakeTextBox(label: string): () =
         if (ImGui.InputText(label, textBuffer, 1024))
             print(System.Text.Encoding.UTF8.GetString(textBuffer))

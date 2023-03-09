@@ -594,23 +594,23 @@ sealed class Nif =
                 ReadBSTriShape(this.reader, header, node)
                 result <- true
                 outInfo.DataSize <- node.DataSize
-                outInfo.Vertices <- map(node.VertexData, x -> x.Vertex)
-                outInfo.UV <- map(node.VertexData, x ->
-                                                       let mutable texCoord = TexCoord()
-                                                       texCoord.U <- HalfToFloat(x.UV.U)
-                                                       texCoord.V <- HalfToFloat(x.UV.V)
-                                                       texCoord)
-                outInfo.Normals <- map(node.VertexData, x -> x.Normal)
-                outInfo.Tangents <- map(node.VertexData, x ->
-                                                             let mutable v = Vector3()
-                                                             // idx = ((value + 1.0) / 2.0) * 255.0)
-                                                             // idx / 255 = (value + 1.0) / 2.0
-                                                             // idx * 2.0 / 255 = value + 1.0
-                                                             // (idx * 2.0 / 255) - 1.0 = value
-                                                             v.X <- (float32(x.Tangent.X) * 2 / 255) - 1
-                                                             v.Y <- (float32(x.Tangent.Y) * 2 / 255) - 1
-                                                             v.Z <- (float32(x.Tangent.Z) * 2 / 255) - 1
-                                                             v)
+                outInfo.Vertices <- Array.Map(node.VertexData, x -> x.Vertex)
+                outInfo.UV <- Array.Map(node.VertexData, x ->
+                                                            let mutable texCoord = TexCoord()
+                                                            texCoord.U <- HalfToFloat(x.UV.U)
+                                                            texCoord.V <- HalfToFloat(x.UV.V)
+                                                            texCoord)
+                outInfo.Normals <- Array.Map(node.VertexData, x -> x.Normal)
+                outInfo.Tangents <- Array.Map(node.VertexData, x ->
+                                                                let mutable v = Vector3()
+                                                                // idx = ((value + 1.0) / 2.0) * 255.0)
+                                                                // idx / 255 = (value + 1.0) / 2.0
+                                                                // idx * 2.0 / 255 = value + 1.0
+                                                                // (idx * 2.0 / 255) - 1.0 = value
+                                                                v.X <- (float32(x.Tangent.X) * 2 / 255) - 1
+                                                                v.Y <- (float32(x.Tangent.Y) * 2 / 255) - 1
+                                                                v.Z <- (float32(x.Tangent.Z) * 2 / 255) - 1
+                                                                v)
                 outInfo.Triangles <- node.Triangles
             else
                 this.stream.Position <- this.stream.Position + size
@@ -722,7 +722,7 @@ private ReadBSStreamHeader(reader: BinaryReader): BSStreamHeader =
     header
 
 private ReadArray<T>(reader: BinaryReader, count: int32, read: BinaryReader -> T): T[||] =
-    let arr = ZeroCreate<T>(count)
+    let arr = Array.ZeroCreate<T>(count)
 
     let mutable i = 0
     while (i < count)
