@@ -3,7 +3,7 @@
 layout(location = 0) in vec4 in_Color;
 layout(location = 1) in vec2 in_TexCoord;
 layout(location = 2) in vec3 in_Normal;
-layout(location = 3) in vec3 in_VertexPosition_world;
+layout(location = 3) in vec3 in_Position_world;
 layout(location = 4) in vec3 in_LightPosition_world;
 layout(location = 5) in vec3 in_ViewPosition_world;
 
@@ -56,7 +56,7 @@ void main()
     float radius = 5;
 
     vec3 ambient = Ambient(ambientStrength, in_Color.xyz);
-    vec3 diffuseSpecular = DiffuseSpecular(in_LightPosition_world, in_ViewPosition_world, in_VertexPosition_world, in_Normal, radius, maxIntensity, specularStrength, in_Color.xyz);
+    vec3 diffuseSpecular = DiffuseSpecular(in_LightPosition_world, in_ViewPosition_world, in_Position_world, in_Normal, radius, maxIntensity, specularStrength, in_Color.xyz);
 
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
     color.xyz = (ambient + diffuseSpecular) * color.xyz;

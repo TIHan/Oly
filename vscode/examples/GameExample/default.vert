@@ -2,27 +2,27 @@
 
 struct Instance
 {
-  mat4 Transform;
+  mat4 Model;
 };
 
-layout(location = 0) in vec3 Position;
-layout(location = 1) in vec2 TexCoord;
-layout(location = 2) in vec3 Normal;
+layout(location = 0) in vec3 in_Position_local;
+layout(location = 1) in vec2 in_TexCoord;
+layout(location = 2) in vec3 in_Normal;
 
-layout(location = 0) out vec4 fsin_Color;
-layout(location = 1) out vec2 fsin_TexCoord;
-layout(location = 2) out vec3 fsin_Normal;
-layout(location = 3) out vec4 fsin_Position;
-layout(location = 4) out vec3 fsin_LightPosition;
-layout(location = 5) out vec3 fsin_ViewPosition_world;
+layout(location = 0) out vec4 out_Color;
+layout(location = 1) out vec2 out_TexCoord;
+layout(location = 2) out vec3 out_Normal;
+layout(location = 3) out vec4 out_Position_world;
+layout(location = 4) out vec3 out_LightPosition_world;
+layout(location = 5) out vec3 out_ViewPosition_world;
 
 layout(set = 0, binding = 0) uniform _Global
 {
-    mat4 Model;
     mat4 View;
     mat4 Projection;
     mat4 NormalMatrix;
     mat4 PreviousView;
+    vec4 ViewPort;
     float DeltaTime;
 };
 
@@ -44,44 +44,55 @@ vec3 extractScale(mat4 matrix) {
   return scale;
 }
 
+vec4 ConvertLocalToWorldSpace(vec3 v_local, mat4 model)
+{
+    return model * vec4(v_local, 1);
+}
+
+vec4 ConvertWorldToViewSpace(vec4 v_world, mat4 view)
+{
+    return view * v_world;
+}
+
+vec4 ConvertViewToClipSpace(vec4 v_view, mat4 projection)
+{
+    return projection * v_view;
+}
+
 void main()
 {
-    mat4 transform = Instances[gl_InstanceIndex].Transform;
+    mat4 model = Instances[gl_InstanceIndex].Model;
 
-    vec4 ambientColor = vec4(1, 1, 1, 1);
-    mat4 model = Model * transform;
-
-    vec4 position = model * vec4(Position, 1);
-    vec3 normal = mat3(transpose(inverse(model))) * Normal;
-
+    vec4 position_world = ConvertLocalToWorldSpace(in_Position_local, model);
+    vec3 normal = normalize(mat3(transpose(inverse(model))) * in_Normal);
     vec3 scale = extractScale(model);
 
-    fsin_Color = ambientColor;
+    out_Color = vec4(1, 1, 1, 1);
     
-    if (Normal.z == 0 && Normal.y < 0)
+    if (in_Normal.z == 0 && in_Normal.y < 0)
     {
-        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.z);
+        out_TexCoord = in_TexCoord * vec2(scale.x, -scale.z);
     }
-    else if (Normal.z == 0 && Normal.y > 0)
+    else if (in_Normal.z == 0 && in_Normal.y > 0)
     {
-        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.z);
+        out_TexCoord = in_TexCoord * vec2(scale.x, -scale.z);
     }
-    else if (Normal.z == 0 && Normal.x > 0)
+    else if (in_Normal.z == 0 && in_Normal.x > 0)
     {
-        fsin_TexCoord = TexCoord * vec2(scale.y, -scale.z);
+        out_TexCoord = in_TexCoord * vec2(scale.y, -scale.z);
     }
-    else if (Normal.z == 0 && Normal.x < 0)
+    else if (in_Normal.z == 0 && in_Normal.x < 0)
     {
-        fsin_TexCoord = TexCoord * vec2(scale.y, -scale.z);
+        out_TexCoord = in_TexCoord * vec2(scale.y, -scale.z);
     }
     else
     {
-        fsin_TexCoord = TexCoord * vec2(scale.x, -scale.y);
+        out_TexCoord = in_TexCoord * vec2(scale.x, -scale.y);
     }
-    fsin_Normal = normalize(normal);
-    fsin_Position = position;
-    fsin_LightPosition = vec3(0, 0, 0);
-    fsin_ViewPosition_world = View[3].xyz;
+    out_Normal = normal;
+    out_Position_world = position_world;
+    out_LightPosition_world = vec3(0, 0, 0);
+    out_ViewPosition_world = View[3].xyz;
 
-    gl_Position = Projection * View * position;
+    gl_Position = ConvertViewToClipSpace(ConvertWorldToViewSpace(position_world, View), Projection);
 }

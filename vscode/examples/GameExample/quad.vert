@@ -15,11 +15,11 @@ layout(location = 2) out vec4 fsin_Position;
 
 layout(set = 0, binding = 0) uniform _Global
 {
-    mat4 Model;
     mat4 View;
     mat4 Projection;
     mat4 NormalMatrix;
     mat4 PreviousView;
+    vec4 ViewPort;
     float DeltaTime;
 };
 
@@ -32,7 +32,7 @@ void main()
 {
     mat4 transform = Instances[gl_InstanceIndex].Transform;
 
-    mat4 model = Model * transform;
+    mat4 model = transform;
 
     vec4 position = model * vec4(Position, 1);
     vec3 normal = mat3(transpose(inverse(model))) * Normal;

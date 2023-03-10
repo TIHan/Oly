@@ -993,25 +993,25 @@ module Graphics =
         CreateRenderTarget(width, height, true)
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
-        factory.CreateBuffer(BufferDescription((256 + 64: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
-
-    SetModel(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
+        factory.CreateBuffer(BufferDescription((256 + 16: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
     SetView(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 64, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
 
     SetProjection(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 128, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 64, value)
 
     SetNormalMatrix(value: Matrix4x4): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 128, value)
 
     SetPreviousView(value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
+
+    SetViewPort(value: Vector4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
 
     SetDeltaTime(value: float32): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 320, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 272, value)
 
     CreateInstances<T>(instanceData: T[||]): Instances where T: unmanaged =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite

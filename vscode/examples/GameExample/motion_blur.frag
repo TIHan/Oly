@@ -6,6 +6,7 @@ layout(location = 2) in vec3 fsin_Position;
 layout(location = 3) in mat4 fsin_ViewProjectionInverse;
 layout(location = 7) in mat4 fsin_PreviousViewProjectionInverse;
 layout(location = 11) in mat4 fsin_Projection;
+layout(location = 15) in vec4 in_ViewPort;
 
 layout(location = 0) out vec4 fsout_Color;
 
@@ -15,49 +16,39 @@ layout(set = 2, binding = 2) uniform texture2D DepthTexture;
 
 vec2 ConvertToScreenPosition(vec4 position)
 {
+    float x = in_ViewPort.x;
+    float y = in_ViewPort.y;
+    float width = in_ViewPort.z;
+    float height = in_ViewPort.w;
     vec4 clipSpacePos = position;//projectionMatrix * viewMatrix * vec4(worldSpacePos, 1.0);
-    vec3 ndcSpacePos = clipSpacePos.xyz / clipSpacePos.w;
-    return vec2(ndcSpacePos.x, -ndcSpacePos.y) * 0.5 + 0.5; //* vec2(1280, 720);
+    vec3 ndc_position = clipSpacePos.xyz / clipSpacePos.w;
+
+    float xw = (ndc_position.x + 1) * (width / 2) + x;
+    float yw = (ndc_position.y + 1) * (height / 2 ) + y;
+
+    return vec2(xw, yw);
 }
 
 void main()
 {   
     vec4 value = texture(sampler2D(DepthTexture, Sampler), fsin_TexCoord);
-    float zOverW = value.x / value.w;
+    float depth = value.x / value.w;
  
     vec2 currentPos = ConvertToScreenPosition(fsin_ViewProjectionInverse[3]);
     vec2 previousPos = ConvertToScreenPosition(fsin_PreviousViewProjectionInverse[3]);
 
-    vec2 velocity = vec2(0);
-    // if (zOverW > 0.9)
-    // {
-    //     velocity = (currentPos - previousPos) / 2 * zOverW * 0.08;
-    // }
+    vec2 velocity = (currentPos - previousPos) * 0.000015 * abs(1 - depth);
   
     vec4 color = texture(sampler2D(Texture, Sampler), fsin_TexCoord);
 
     vec2 texCoord = fsin_TexCoord;
     texCoord += velocity;
 
-    int numSamples = int(3.0f * zOverW);
+    int numSamples = 20;
     for(int i = 1; i < numSamples; ++i, texCoord += velocity) 
     {   
-        if (texCoord.x > 1)
-        {
-            texCoord.x = 1;
-        }
-        else if (texCoord.x < 0)
-        {
-            texCoord.x = 0;
-        }
-        if (texCoord.y < -1)
-        {
-            texCoord.y = -1;
-        }
-        else if (texCoord.y > 0)
-        {
-            texCoord.y = 0;
-        }
+        texCoord.x = clamp(texCoord.x, 0, 1);
+        texCoord.y = clamp(texCoord.y, -1, 0);
         vec4 currentColor = texture(sampler2D(Texture, Sampler), texCoord);  
         color += currentColor; 
     } 

@@ -279,8 +279,8 @@ main(): () =
     let renderQuadCmd =
         let desc = 
             ShaderDescription.CreateMeshShader(
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
-                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.vert")), 
+                Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.frag"))
             )
         let shader = Graphics.CreateShader(desc, renderTarget.Texture, renderTarget.DepthTexture, quadInstances)
         DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
@@ -309,12 +309,13 @@ main(): () =
             fail("Unexpected")
 
     let mutable camera = Camera(70, 1280, 720, 1, 1000000)
-    Graphics.SetModel(Matrix4x4.Identity)
+   // Graphics.SetModel(Matrix4x4.Identity)
     Graphics.SetView(camera.Transform.Matrix)
     Graphics.SetProjection(camera.Projection)
     Graphics.SetPreviousView(camera.Transform.Matrix)
     Graphics.SetNormalMatrix(Matrix4x4.Identity)
     Graphics.SetDeltaTime(0)
+    Graphics.SetViewPort(Vector4(0, 0, 1280, 720))
 
     let mutable is_w_pressed = false
     let mutable is_a_pressed = false
