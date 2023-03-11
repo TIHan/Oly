@@ -208,7 +208,7 @@ main(): () =
     let addPhysicsBoxRenderCommand() =
         let boxes = world.PhysicsBoxes
         physicsBoxInstances <- Graphics.CreateInstances(boxes.Transforms)
-        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/dem1_4.png")
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
         let shader = Graphics.CreateShader(defaultShaderDesc, texture, physicsBoxInstances)
         let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         physicsBoxInstances.Count <- boxes.Count
@@ -238,7 +238,7 @@ main(): () =
     let staticDrawCmd = addStaticBoxRenderCommand()
 
     let addCube(position) =
-        let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One * 1.5)
+        let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One)
 
     let mutable i = 1
     while (i <= 10)

@@ -20,7 +20,7 @@ vec2 ConvertToScreenPosition(vec4 position)
     float y = in_ViewPort.y;
     float width = in_ViewPort.z;
     float height = in_ViewPort.w;
-    vec4 clipSpacePos = position;//projectionMatrix * viewMatrix * vec4(worldSpacePos, 1.0);
+    vec4 clipSpacePos = position;
     vec3 ndc_position = clipSpacePos.xyz / clipSpacePos.w;
 
     float xw = (ndc_position.x + 1) * (width / 2) + x;
@@ -34,10 +34,10 @@ void main()
     vec4 value = texture(sampler2D(DepthTexture, Sampler), fsin_TexCoord);
     float depth = value.x / value.w;
  
-    vec2 currentPos = ConvertToScreenPosition(fsin_ViewProjectionInverse[3]);
-    vec2 previousPos = ConvertToScreenPosition(fsin_PreviousViewProjectionInverse[3]);
+    vec2 currentPos = ConvertToScreenPosition(fsin_ViewProjectionInverse[3] * vec4(fsin_Position, 1));
+    vec2 previousPos = ConvertToScreenPosition(fsin_PreviousViewProjectionInverse[3] * vec4(fsin_Position, 1));
 
-    vec2 velocity = (currentPos - previousPos) * 0.000015 * abs(1 - depth);
+    vec2 velocity = ((currentPos - previousPos) / 2) * 0.0001 * abs(1 - depth);
   
     vec4 color = texture(sampler2D(Texture, Sampler), fsin_TexCoord);
 

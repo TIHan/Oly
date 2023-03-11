@@ -39,7 +39,7 @@ vec3 DiffuseSpecular(
     vec3 lightVec = lightPosition_world - vertexPosition_world;
     vec3 lightDir = normalize(lightVec);
 
-    float diffuse = clamp(dot(normal, lightDir), 0, 1);
+    float diffuse = max(dot(normal, lightDir), 0.0);
     float intensity = min(maxIntensity, radius / length(lightVec));
 
     vec3 specular = Specular(lightDir, viewPosition_world, vertexPosition_world, normal, specularStrength, color);
