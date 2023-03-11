@@ -309,20 +309,59 @@ main(): () =
             fail("Unexpected")
 
     let mutable camera = Camera(70, 1280, 720, 1, 1000000)
-   // Graphics.SetModel(Matrix4x4.Identity)
     Graphics.SetView(camera.Transform.Matrix)
     Graphics.SetProjection(camera.Projection)
     Graphics.SetPreviousView(camera.Transform.Matrix)
     Graphics.SetNormalMatrix(Matrix4x4.Identity)
     Graphics.SetDeltaTime(0)
     Graphics.SetViewPort(Vector4(0, 0, 1280, 720))
+    
+    let uiNode =
+        UI.Window("Main Menu",
+            [
+                UI.Button("Spawn Box", () -> 
+                                           let position = camera.Transform.Position + (camera.Transform.Forward * 2)
+                                           spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
+                );
+                UI.Checkbox("Fullscreen", 
+                    isChecked -> 
+                        window.SetFullscreen(isChecked)
+                );
+                UI.Checkbox("Vertical Sync", 
+                    isChecked -> 
+                        Graphics.SetVSync(isChecked)
+                );
+                UI.Button("Quit", () -> window.Close());
+                UI.TextInput("Example text")
+            ],
+            Vector2(512, 512),
+            Vector2(100, 100)
+        )
+
+    let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()
+    let updateInput(dt: float64) =
+        let inputState = window.GetInputState()
+
+        keyEventQueue.Enqueue(inputState)
+
+        if (!window.IsCursorVisible)
+            let mousePosition = inputState.MouseDelta
+
+            let yawAcc =
+                mousePosition.X * 0.0025
+
+            let pitchAcc =
+                mousePosition.Y * 0.0025
+
+            camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
+        else
+            UI.Update(dt, inputState, uiNode)
 
     let mutable is_w_pressed = false
     let mutable is_a_pressed = false
     let mutable is_s_pressed = false
     let mutable is_d_pressed = false
 
-    let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()
     let processKeyEventQueue() =
         let mutable esc_toggle = false
 
@@ -386,47 +425,14 @@ main(): () =
 
         camera.Transform.Position <- camera.Transform.Position + acc
 
-    let uiNode =
-        UI.Window("Main Menu",
-            [
-                UI.Button("Spawn Box", () -> 
-                                           let position = camera.Transform.Position + (camera.Transform.Forward * 2)
-                                           spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
-                );
-                UI.Button("Quit", () -> window.Close());
-                UI.TextBox("Example text")
-            ],
-            Vector2(512, 512),
-            Vector2(100, 100)
-        )
-
-    let updateInput(dt: float64) =
-        let inputState = window.GetInputState()
-
-        keyEventQueue.Enqueue(inputState)
-
-        if (!window.IsCursorVisible)
-            let mousePosition = inputState.MouseDelta
-
-            let yawAcc =
-                mousePosition.X * 0.0025
-
-            let pitchAcc =
-                mousePosition.Y * 0.0025
-
-            camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
-
-            let mutable obj = default
-            let mutable dir = camera.Transform.Forward
-            if (physics.TryRayCast(camera.Transform.Position, dir, 500, &obj))
-                match (obj)
-                | DynamicObject(objId) =>
-                    physics.ApplyImpulse(objId, dir * 0.0002)
-                | _ =>
-                    ()
-
-        else
-            UI.Update(dt, inputState, uiNode)
+        let mutable obj = default
+        let mutable dir = camera.Transform.Forward
+        if (physics.TryRayCast(camera.Transform.Position, dir, 500, &obj))
+            match (obj)
+            | DynamicObject(objId) =>
+                physics.ApplyImpulse(objId, dir * dt * 10)
+            | _ =>
+                ()
 
     let fixedUpdate(dt: float64) =
         let dt = float32(dt)
@@ -451,8 +457,6 @@ main(): () =
         if (windowExists)
             Graphics.Draw(drawCmds)
 
-   // Graphics.SetVSync(true)
-    //window.SetFullscreen(true)
     window.ShowCursor()
 
     GameLoop.Start(

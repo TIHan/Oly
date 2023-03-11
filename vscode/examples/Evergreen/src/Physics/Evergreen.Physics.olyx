@@ -350,7 +350,7 @@ sealed class Physics =
 
         //The following sets up a simulation with the callbacks defined above, and tells it to use 8 velocity iterations per substep and only one substep per solve.
         //It uses the default SubsteppingTimestepper. You could use a custom ITimestepper implementation to customize when stages run relative to each other, or to insert more callbacks.     
-        let solveDesc = SolveDescription(8, 1, SolveDescription.DefaultFallbackBatchThreshold)
+        let solveDesc = SolveDescription(1, 8, SolveDescription.DefaultFallbackBatchThreshold)
         let sim = Simulation.Create(bufferPool, NarrowPhaseCallbacks(), PoseIntegratorCallbacks(Vector3(0, 0, -10)), solveDesc, null, default)
 
         Physics(sim)

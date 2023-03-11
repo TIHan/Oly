@@ -47,7 +47,7 @@ class UINode =
         let node = UnsafeCast<UINode.Button>(node)
         (node.Label, node.OnClick)
 
-    internal sealed class TextBox =
+    internal sealed class TextInput =
         inherits UINode
 
         Label: string
@@ -57,9 +57,34 @@ class UINode =
                 Label = label
             }
 
-    pattern TextBox(node: UINode): string when (node.Tag == 2) =>
-        let node = UnsafeCast<UINode.Button>(node)
+    pattern TextInput(node: UINode): string when (node.Tag == 2) =>
+        let node = UnsafeCast<UINode.TextInput>(node)
         node.Label
+
+    internal sealed class CheckboxState =
+        mutable IsChecked: bool = false
+
+    internal sealed class Checkbox =
+        inherits UINode
+
+        Label: string
+        OnChange: bool -> ()
+        State: UINode.CheckboxState
+
+        new(label: string, onChange: bool -> ()) =
+            base (3) with {
+                Label = label
+                OnChange = onChange
+                State = UINode.CheckboxState()
+            }
+
+    pattern Checkbox(node: UINode): (label: string, onChange: bool -> ()) when (node.Tag == 3) =>
+        let node = UnsafeCast<UINode.Checkbox>(node)
+        (node.Label, node.OnChange)
+
+    internal pattern CheckboxWithState(node: UINode): (label: string, onChange: bool -> (), state: UINode.CheckboxState) when (node.Tag == 3) =>
+        let node = UnsafeCast<UINode.Checkbox>(node)
+        (node.Label, node.OnChange, node.State)
 
 module UI =
 
@@ -73,8 +98,11 @@ module UI =
         | UINode.Button(label, onClick) =>
             MakeButton(label, onClick)
 
-        | UINode.TextBox(label) =>
-            MakeTextBox(label)
+        | UINode.TextInput(label) =>
+            MakeTextInput(label)
+
+        | UINode.CheckboxWithState(label, onChange, state) =>
+            MakeCheckbox(label, onChange, &state.IsChecked)
 
         | _ =>
             ()
@@ -92,9 +120,13 @@ module UI =
             onClick()
 
     private textBuffer: byte[||] = Array.ZeroCreate(1024)
-    private MakeTextBox(label: string): () =
+    private MakeTextInput(label: string): () =
         if (ImGui.InputText(label, textBuffer, 1024))
             print(System.Text.Encoding.UTF8.GetString(textBuffer))
+
+    private MakeCheckbox(label: string, onChange: bool -> (), state_isChecked: byref<bool>): () =
+        if (ImGui.Checkbox(label, &state_isChecked))
+            onChange(state_isChecked)
 
     Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
         UINode.Window(title, children, size, relativePosition)
@@ -102,8 +134,11 @@ module UI =
     Button(label: string, onClick: () -> ()): UINode =
         UINode.Button(label, onClick)
 
-    TextBox(label: string): UINode =
-        UINode.TextBox(label)
+    TextInput(label: string): UINode =
+        UINode.TextInput(label)
+
+    Checkbox(label: string, onChange: bool -> ()): UINode =
+        UINode.Checkbox(label, onChange)
 
     Update(deltaTime: float64, inputState: InputState, node: UINode): () =
         Graphics.imGuiRenderer.Update(float32(deltaTime), inputState.snapshot)

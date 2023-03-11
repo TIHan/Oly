@@ -34,7 +34,6 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
 
         accumulator <- 
             if (frameTime > skip)
-                print("Skipped\n")
                 accumulator + skip
             else
                 accumulator + frameTime
@@ -46,11 +45,6 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
             quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
             accumulator <- accumulator - dtFixed
             fixedUpdateCount <- fixedUpdateCount + 1
-
-        if (fixedUpdateCount > 1)
-            print("FixedUpdateCount: ")
-            print(fixedUpdateCount)
-            print("\n")
 
         quit <- update(ConvertTicksToSeconds(frameTime))
 
