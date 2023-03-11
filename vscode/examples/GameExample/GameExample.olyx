@@ -308,7 +308,7 @@ main(): () =
         | _ =>
             fail("Unexpected")
 
-    let mutable camera = Camera(70, 1280, 720, 1, 1000000)
+    let mutable camera = Camera(70, 1280, 720, 0.1, 1000000)
     Graphics.SetView(camera.Transform.Matrix)
     Graphics.SetProjection(camera.Projection)
     Graphics.SetPreviousView(camera.Transform.Matrix)
