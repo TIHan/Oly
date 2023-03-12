@@ -193,7 +193,7 @@ main(): () =
             Encoding.UTF8.GetBytes(DefaultFragmentCode)
         )
 
-    let boxMesh   = Graphics.CreateMesh(MeshDescription.CreateCube())
+    let boxMesh = Graphics.CreateMesh(MeshDescription.CreateCube())
 
     let addStaticBoxRenderCommand() =
         let staticBoxes = world.StaticBoxes
