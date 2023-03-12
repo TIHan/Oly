@@ -357,16 +357,16 @@ main(): () =
                 vm -> ()
             )
 
-        UI.Window("Main Menu",
+        let mainMenuWindowVM = UI.WindowModel("Main Menu", Vector2(512, 512), Vector2(100, 100))
+        UI.Window(
+            mainMenuWindowVM,
             [
                 spawnBoxButton;
                 toggleFullscreenCheckbox;
                 toggleVerticalSyncCheckbox;
                 quitButton;
                 exampleTextInput
-            ],
-            Vector2(512, 512),
-            Vector2(100, 100)
+            ]
         )
 
     let keyEventQueue = System.Collections.Concurrent.ConcurrentQueue<InputState>()

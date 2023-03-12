@@ -42,22 +42,18 @@ class UINode =
     internal sealed class Window =
         inherits UINode
 
-        Title: string
+        State: WindowViewModel
         Children: UINode[]
-        Size: Vector2
-        RelativePosition: Vector2
 
-        new(title: string, children: UINode[], size: Vector2, relativePos: Vector2) =
+        new(state: WindowViewModel, children: UINode[]) =
             base(0) with {
-                Title = title
+                State = state
                 Children = children
-                Size = size
-                RelativePosition = relativePos
             }
 
-    pattern Window(node: UINode): (title: string, children: UINode[], size: Vector2, relativePos: Vector2) when (node.Tag == 0) =>
+    pattern Window(node: UINode): (state: WindowViewModel, children: UINode[]) when (node.Tag == 0) =>
         let node = UnsafeCast<UINode.Window>(node)
-        (node.Title, node.Children, node.Size, node.RelativePosition)
+        (node.State, node.Children)
 
     internal sealed class Button =
         inherits UINode
@@ -111,10 +107,12 @@ module UI =
 
     private MakeNode(node: UINode): () =
         match (node)
-        | UINode.Window(title, children, relativeSize, relativePos) =>
-            ImGui.SetNextWindowSize(relativeSize)
-            ImGui.SetNextWindowPos(relativePos)
-            MakeWindow(title, children)
+        | UINode.Window(state, children) =>
+            ImGui.SetNextWindowSize(state.Size)
+            ImGui.SetNextWindowPos(state.RelativePosition)
+            ImGui.BeginDisabled(!state.IsEnabled)
+            MakeWindow(state.Title, children)
+            ImGui.EndDisabled()
         
         | UINode.Button(state, onClick) =>
             MakeButton(state, onClick)
@@ -155,8 +153,15 @@ module UI =
             onChanged(state)
         ImGui.EndDisabled()
 
-    Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
-        UINode.Window(title, children, size, relativePosition)
+    Window(state: WindowViewModel, children: UINode[]): UINode =
+        UINode.Window(state, children)
+
+    WindowModel(title: string, size: Vector2, relativePosition: Vector2): WindowViewModel =
+        let vm = WindowViewModel()
+        vm.Title <- title
+        vm.Size <- size
+        vm.RelativePosition <- relativePosition
+        vm
 
     Button(state: ButtonViewModel, onClick: ButtonViewModel -> ()): UINode =
         UINode.Button(state, onClick)
@@ -179,10 +184,10 @@ module UI =
         UINode.Checkbox(state, onChanged)
 
     CheckboxModel(label: string, isChecked: bool): CheckboxViewModel =
-        let model = CheckboxViewModel()
-        model.Label <- label
-        model.IsChecked <- isChecked
-        model
+        let vm = CheckboxViewModel()
+        vm.Label <- label
+        vm.IsChecked <- isChecked
+        vm
 
     Update(deltaTime: float64, inputState: InputState, node: UINode): () =
         Graphics.imGuiRenderer.Update(float32(deltaTime), inputState.snapshot)
