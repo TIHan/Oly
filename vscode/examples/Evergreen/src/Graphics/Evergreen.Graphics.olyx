@@ -605,6 +605,9 @@ sealed class Window =
 
 module Graphics =
 
+    #[intrinsic("bitwise_or")]
+    private (|)(ShaderStages, ShaderStages): ShaderStages
+
     private mutable window: Window = unchecked default
     private mutable graphicsDevice: GraphicsDevice = null
     internal mutable imGuiRenderer: ImGuiRenderer = null
@@ -656,7 +659,7 @@ module Graphics =
         let globalResourceLayoutDescVertex =
             ResourceLayoutDescription(
                 [|
-                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex)
+                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment)
                 |]
             )
         globalResourceLayoutVertex <- factory.CreateResourceLayout(globalResourceLayoutDescVertex)
@@ -993,7 +996,7 @@ module Graphics =
         CreateRenderTarget(width, height, true)
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
-        factory.CreateBuffer(BufferDescription((256 + 16: uint32) + 16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        factory.CreateBuffer(BufferDescription(1024, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
     SetView(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
@@ -1007,11 +1010,17 @@ module Graphics =
     SetPreviousView(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 192, value)
 
-    SetViewPort(value: Vector4): () =
+    SetPreviousViewProjection(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 256, value)
 
+    SetInverseViewProjection(value: Matrix4x4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 320, value)
+
+    SetViewPort(value: Vector4): () =
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 384, value)
+
     SetDeltaTime(value: float32): () =
-        graphicsDevice.UpdateBuffer(globalUniformBuffer, 272, value)
+        graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
 
     CreateInstances<T>(instanceData: T[||]): Instances where T: unmanaged =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite

@@ -449,6 +449,12 @@ main(): () =
     let render(deltaTime, alpha) =
         Graphics.SetView(camera.Transform.WorldToLocalMatrix)
         Graphics.SetPreviousView(previousView)
+        Graphics.SetPreviousViewProjection(previousView * camera.Projection)
+
+        let mutable inverseViewProjection = default
+        let result = Matrix4x4.Invert(camera.Transform.WorldToLocalMatrix * camera.Projection, &inverseViewProjection)
+
+        Graphics.SetInverseViewProjection(inverseViewProjection)
         Graphics.SetDeltaTime(deltaTime)
 
         previousView <- camera.Transform.WorldToLocalMatrix
@@ -459,6 +465,7 @@ main(): () =
 
     window.ShowCursor()
 
+   // Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
     GameLoop.Start(
         dt ->
             updateInput(dt),

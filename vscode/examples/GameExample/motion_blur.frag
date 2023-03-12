@@ -1,13 +1,20 @@
 #version 450
 
-layout(location = 0) in vec4 in_ViewPort;
-layout(location = 1) in vec4 in_Position_world;
-layout(location = 2) in vec2 in_TexCoord;
-layout(location = 3) in vec3 in_Normal;
-layout(location = 4) in mat4 in_ViewProjectionInverse;
-layout(location = 8) in mat4 in_PreviousViewProjection;
+layout(location = 0) in vec2 in_TexCoord;
 
 layout(location = 0) out vec4 fsout_Color;
+
+layout(set = 0, binding = 0) uniform _Global
+{
+    mat4 View;
+    mat4 Projection;
+    mat4 NormalMatrix;
+    mat4 PreviousView;
+    mat4 PreviousViewProjection;
+    mat4 InverseViewProjection;
+    vec4 ViewPort;
+    float DeltaTime;
+};
 
 layout(set = 2, binding = 0) uniform texture2D Texture;
 layout(set = 2, binding = 1) uniform sampler Sampler;
@@ -16,10 +23,10 @@ layout(set = 2, binding = 2) uniform texture2D DepthTexture;
 // x and y will be range -1 to 1.
 vec4 CalculatePixelPosition(vec2 texCoord, float depth)
 {
-    float x = in_ViewPort.x;
-    float y = in_ViewPort.y;
-    float width = in_ViewPort.z;
-    float height = in_ViewPort.w;
+    float x = ViewPort.x;
+    float y = ViewPort.y;
+    float width = ViewPort.z;
+    float height = ViewPort.w;
 
     float xw = texCoord.x * (width / 2) + x;
     float yw = (texCoord.y + 1) * (height / 2 ) + y;
@@ -35,20 +42,20 @@ vec4 CalculatePixelPosition(vec2 texCoord, float depth)
 
 void main()
 {   
-    float intensity = 1;
+    float intensity = 0.1;
 
     vec4 value = texture(sampler2D(DepthTexture, Sampler), in_TexCoord);
     float depth = value.x / value.w;
 
     vec4 pixelPosition = CalculatePixelPosition(in_TexCoord, depth);
 
-    vec4 worldPosition = in_ViewProjectionInverse * pixelPosition;
+    vec4 worldPosition = InverseViewProjection * pixelPosition;
     worldPosition /= worldPosition.w;
 
-    vec4 previousPosition = in_PreviousViewProjection * worldPosition;
+    vec4 previousPosition = PreviousViewProjection * worldPosition;
     previousPosition /= previousPosition.w;
 
-    vec2 velocity = ((pixelPosition - previousPosition) / 2).xy * (intensity * abs(1 - depth));
+    vec2 velocity = ((pixelPosition - previousPosition) / 2).xy * intensity; // * abs(1 - depth);
   
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
 
