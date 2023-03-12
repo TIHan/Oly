@@ -477,7 +477,12 @@ enum DrawCommandKind =
     | DrawMesh
     | DrawUI
     | RunComputeShader
-    | SetTexture0
+    | BindTextureSet
+    | BindInstancesSet
+
+enum BindResourceSetKind =
+    | Graphics
+    | Compute
 
 class DrawCommand =
     Kind: DrawCommandKind
@@ -576,6 +581,46 @@ class DrawCommand =
     pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
         let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
         (impl.ComputeShader, impl.Instances)
+
+    private sealed class BindTextureSet =
+        inherits DrawCommand
+
+        TextureSet: ShaderTextureSet
+        SetKind: BindResourceSetKind
+
+        new(textureSet: ShaderTextureSet, kind: BindResourceSetKind) =
+            base(DrawCommandKind.BindTextureSet) with
+                {
+                    TextureSet = textureSet
+                    SetKind = kind
+                }
+
+    static CreateBindTextureSet(textureSet: ShaderTextureSet, kind: BindResourceSetKind): DrawCommand =
+        DrawCommand.BindTextureSet(textureSet, kind)
+
+    pattern BindTextureSet(cmd: DrawCommand): (ShaderTextureSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindTextureSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindTextureSet>(cmd)
+        (impl.TextureSet, impl.SetKind)
+
+    private sealed class BindInstancesSet =
+        inherits DrawCommand
+
+        InstancesSet: ShaderInstancesSet
+        SetKind: BindResourceSetKind
+
+        new(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind) =
+            base(DrawCommandKind.BindInstancesSet) with
+                {
+                    InstancesSet = instancesSet
+                    SetKind = kind
+                }
+
+    static CreateBindInstancesSet(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind): DrawCommand =
+        DrawCommand.BindInstancesSet(instancesSet, kind)
+
+    pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindInstancesSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
+        (impl.InstancesSet, impl.SetKind)
 
 enum KeyEventKind =
     | Pressed
@@ -825,6 +870,10 @@ module Graphics =
                 ResourceSets = resourceSets
             }
 
+    CreateShaderInstancesSet(instances: Instances): ShaderInstancesSet =
+        let resourceSet = CreateResourceSetForInstances(instances)
+        ShaderInstancesSet(resourceSet)
+
     CreateShaderTextureSet(texture: Texture2D): ShaderTextureSet =
         let resourceSet = CreateResourceSetForTexture(texture, null)
         ShaderTextureSet(resourceSet)
@@ -843,7 +892,7 @@ module Graphics =
             )
         factory.CreateResourceSet(resourceSetDesc)
 
-    private CreateResourceSetForInstances(shaderStages: ShaderStages, instances: Instances): ResourceSet =
+    private CreateResourceSetForInstances(instances: Instances): ResourceSet =
         let resourceLayout =
             instanceResourceLayout
 
@@ -1156,6 +1205,24 @@ module Graphics =
                 else
                     drawCmds[i]
             match (drawCmd)
+            | DrawCommand.BindTextureSet(textureSet, kind) =>
+                match (kind)
+                | BindResourceSetKind.Graphics =>
+                    commandList.SetGraphicsResourceSet(2, textureSet.ResourceSet)
+                | BindResourceSetKind.Compute =>
+                    commandList.SetComputeResourceSet(2, textureSet.ResourceSet)
+                | _ =>
+                    fail("Invalid 'BindResourceSetKind'.")
+
+            | DrawCommand.BindInstancesSet(instancesSet, kind) =>
+                match (kind)
+                | BindResourceSetKind.Graphics =>
+                    commandList.SetGraphicsResourceSet(1, instancesSet.ResourceSet)
+                | BindResourceSetKind.Compute =>
+                    commandList.SetComputeResourceSet(1, instancesSet.ResourceSet)
+                | _ =>
+                    fail("Invalid 'BindResourceSetKind'.")
+
             | DrawCommand.RunComputeShader(computeShader, instances) =>
                 let pipeline = computeShader.State.Pipeline
                 if (pipeline !== currentPipeline)
