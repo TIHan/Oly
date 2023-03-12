@@ -356,8 +356,8 @@ private sealed class RenderTargetState =
         }
 
     Dispose(): () =
-        this.Framebuffer.Dispose()
-        this.Texture.Dispose()
+        Graphics.DisposeQueue.Enqueue(this.Texture)
+        Graphics.DisposeQueue.Enqueue(this.Framebuffer)
 
 sealed class RenderTarget =
     implements IDisposable
@@ -1021,6 +1021,12 @@ module Graphics =
 
     CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
         RenderTarget(CreateRenderTargetState(width, height, true))
+
+    UpdateRenderTarget(width: uint32, height: uint32, renderTarget: RenderTarget): () =
+        let oldRenderTargetState = renderTarget.State
+        let newRenderTargetState = CreateRenderTargetState(width, height, renderTarget.State.DepthTexture !== null)
+        renderTarget.State <- newRenderTargetState
+        oldRenderTargetState.Dispose()
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription(1024, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
