@@ -37,12 +37,17 @@ vec4 CalculatePixelPosition(vec2 texCoord, float depth)
     float py = yw - (height / 4);
     py = py / (height / 4);
 
+    if (depth > 0.9999)
+    {
+        depth = 0.9999;
+    }
+
     return vec4(px, py, depth, 1);
 }
 
 void main()
 {   
-    float intensity = 1;
+    float intensity = 0.1;
 
     vec4 value = texture(sampler2D(DepthTexture, Sampler), in_TexCoord);
     float depth = value.x / value.w;
@@ -55,14 +60,14 @@ void main()
     vec4 previousPosition = PreviousViewProjection * worldPosition;
     previousPosition /= previousPosition.w;
 
-    vec2 velocity = ((pixelPosition - previousPosition) / 2).xy * intensity * abs(1 - depth);
+    vec2 velocity = ((pixelPosition - previousPosition) / 2).xy * intensity;
   
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
 
     vec2 texCoord = in_TexCoord;
     texCoord += velocity;
 
-    int numSamples = 30;
+    int numSamples = 16;
     for(int i = 1; i < numSamples; ++i, texCoord += velocity) 
     {   
         vec4 currentColor = texture(sampler2D(Texture, Sampler), texCoord);
