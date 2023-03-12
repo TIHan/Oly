@@ -65,19 +65,8 @@ void main()
     int numSamples = 30;
     for(int i = 1; i < numSamples; ++i, texCoord += velocity) 
     {   
-        if ((texCoord.x > 1 && texCoord.x < 0) || (texCoord.y > -1 && texCoord.y > 0))
-        {
-            break;
-            //color = vec4(0);
-
-        }
-        else
-        {
-            texCoord.x = clamp(texCoord.x, 0, 1);
-            texCoord.y = clamp(texCoord.y, -1, 0);
-            vec4 currentColor = texture(sampler2D(Texture, Sampler), texCoord);
-            color += currentColor;
-        }
+        vec4 currentColor = texture(sampler2D(Texture, Sampler), texCoord);
+        color += currentColor;
     } 
   
     color = color / numSamples;
