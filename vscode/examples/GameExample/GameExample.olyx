@@ -274,7 +274,7 @@ main(): () =
         let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3.One)
         Graphics.CreateInstances([|Matrix4x4.Identity|])
 
-    let renderTarget = Graphics.CreateRenderTarget(1280, 720)
+    let renderTarget = Graphics.CreateRenderTarget(1280, 720) // TODO: How do we hook this up?
 
     let renderQuadCmd =
         let desc = 
@@ -318,12 +318,13 @@ main(): () =
         camera.Transform.Position <- oldCamera.Transform.Position
         camera.SetYawPitch(oldCamera.Yaw, oldCamera.Pitch)
 
-        window.SetSize(Vector2(float32(width), float32(height)))
         Graphics.SetView(camera.Transform.WorldToLocalMatrix)
         Graphics.SetProjection(camera.Projection)
         Graphics.SetPreviousView(camera.Transform.WorldToLocalMatrix)
         Graphics.SetViewPort(Vector4(0, 0, float32(width), float32(height)))
         Graphics.SetProjection(camera.Projection)
+
+        window.SetSize(Vector2(float32(width), float32(height)))
 
     setResolution(1280, 720)
     

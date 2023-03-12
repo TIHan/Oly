@@ -618,6 +618,8 @@ sealed class Window =
     SetSize(size: Vector2): () =
         this.window.Width <- int32(size.X)
         this.window.Height <- int32(size.Y)
+        Graphics.graphicsDevice.ResizeMainWindow(uint32(size.X), uint32(size.Y)) // re-creates swap-chain
+        Graphics.imGuiRenderer.WindowResized(this.window.Width, this.window.Height)
 
     Close(): () =
         this.window.Close()
@@ -1088,6 +1090,7 @@ module Graphics =
         let mutable disposable = default
         while (DisposeQueue.TryDequeue(&disposable))
             disposable.Dispose()
+            
         // Begin() must be called before commands can be issued
         commandList.Begin()
     
