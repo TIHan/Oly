@@ -432,6 +432,32 @@ sealed class Shader =
             Graphics.DisposeQueue.Enqueue(this.State.ResourceSets[i])
             i <- i + 1
 
+sealed class ShaderTextureSet =
+    implements IDisposable
+
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceSet: ResourceSet) =
+        {
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
+sealed class ShaderInstancesSet =
+    implements IDisposable
+
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceSet: ResourceSet) =
+        {
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
 sealed class ComputeShader =
     implements IDisposable
 
@@ -639,13 +665,10 @@ module Graphics =
     private mutable commandList: CommandList = null
 
     private mutable globalUniformBuffer: DeviceBuffer = null
-    private mutable globalResourceLayoutVertex: ResourceLayout = null
-    private mutable globalResourceLayoutCompute: ResourceLayout = null
-    private mutable globalResourceSetVertex: ResourceSet = null
-    private mutable globalResourceSetCompute: ResourceSet = null
+    private mutable globalResourceLayout: ResourceLayout = null
+    private mutable globalResourceSet: ResourceSet = null
     
-    private mutable instanceResourceLayoutVertex: ResourceLayout = null
-    private mutable instanceResourceLayoutCompute: ResourceLayout = null
+    private mutable instanceResourceLayout: ResourceLayout = null
 
     private mutable defaultResourceLayoutFragment: ResourceLayout = null
     private mutable depthResourceLayoutFragment: ResourceLayout = null
@@ -680,36 +703,22 @@ module Graphics =
         commandList <- factory.CreateCommandList()
 
         globalUniformBuffer <- createGlobalUniformBuffer(0)
-        let globalResourceLayoutDescVertex =
+        let globalResourceLayoutDesc =
             ResourceLayoutDescription(
                 [|
-                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment)
+                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
                 |]
             )
-        globalResourceLayoutVertex <- factory.CreateResourceLayout(globalResourceLayoutDescVertex)
-        globalResourceSetVertex <- CreateResourceSet(globalResourceLayoutVertex, globalUniformBuffer)
-        let globalResourceLayoutDescCompute =
+        globalResourceLayout <- factory.CreateResourceLayout(globalResourceLayoutDesc)
+        globalResourceSet <- CreateResourceSet(globalResourceLayout, globalUniformBuffer)
+
+        let instanceResourceLayoutDesc =
             ResourceLayoutDescription(
                 [|
-                    ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Compute)
+                    ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Compute)
                 |]
             )
-        globalResourceLayoutCompute <- factory.CreateResourceLayout(globalResourceLayoutDescCompute)
-        globalResourceSetCompute <- CreateResourceSet(globalResourceLayoutCompute, globalUniformBuffer)
-        let instanceResourceLayoutDescVertex =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)
-                |]
-            )
-        instanceResourceLayoutVertex <- factory.CreateResourceLayout(instanceResourceLayoutDescVertex)
-        let instanceResourceLayoutDescCompute =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute)
-                |]
-            )
-        instanceResourceLayoutCompute <- factory.CreateResourceLayout(instanceResourceLayoutDescCompute)
+        instanceResourceLayout <- factory.CreateResourceLayout(instanceResourceLayoutDesc)
 
         let defaultResourceLayoutDescFragment =
             ResourceLayoutDescription(
@@ -816,6 +825,14 @@ module Graphics =
                 ResourceSets = resourceSets
             }
 
+    CreateShaderTextureSet(texture: Texture2D): ShaderTextureSet =
+        let resourceSet = CreateResourceSetForTexture(texture, null)
+        ShaderTextureSet(resourceSet)
+
+    CreateShaderTextureSet(texture: Texture2D, depthTexture: Texture2D): ShaderTextureSet =
+        let resourceSet = CreateResourceSetForTexture(texture, depthTexture)
+        ShaderTextureSet(resourceSet)
+
     private CreateResourceSet(resourceLayout: ResourceLayout, bindableResource: BindableResource): ResourceSet =
         let resourceSetDesc = 
             ResourceSetDescription(
@@ -825,29 +842,53 @@ module Graphics =
                 |]
             )
         factory.CreateResourceSet(resourceSetDesc)
+
+    private CreateResourceSetForInstances(shaderStages: ShaderStages, instances: Instances): ResourceSet =
+        let resourceLayout =
+            instanceResourceLayout
+
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    (instances.InstanceBuffer: BindableResource)
+                |]
+            )
+        factory.CreateResourceSet(resourceSetDesc)
+
+    private CreateResourceSetForTexture(texture: Texture2D, depthTextureOption: Texture2D): ResourceSet =
+        let resourceLayout = 
+            if (depthTextureOption === null)
+                defaultResourceLayoutFragment
+            else
+                depthResourceLayoutFragment
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                if (depthTextureOption === null)
+                    [|
+                        (texture.Texture: BindableResource);
+                        pixelSampler
+                    |]
+                else
+                    [|
+                        (texture.Texture: BindableResource);
+                        pixelSampler;
+                        depthTextureOption.Texture
+                    |]
+            )
+        factory.CreateResourceSet(resourceSetDesc)
             
     private CreateResourceSets(texture2d: Texture2D, instances: Instances, shaderStages: ShaderStages, depthTextureOption: Texture2D): ResourceSetGroup =
         // ------------------------------------------------------------
         let resourceLayout =
-            match (shaderStages)
-            | ShaderStages.Vertex =>
-                globalResourceLayoutVertex
-            | _ =>
-                globalResourceLayoutCompute
+            globalResourceLayout
 
         let resourceSet =
-            match (shaderStages)
-            | ShaderStages.Vertex =>
-                globalResourceSetVertex
-            | _ =>
-                globalResourceSetCompute
+            globalResourceSet
 
         let resourceLayout2 =
-            match (shaderStages)
-            | ShaderStages.Vertex =>
-                instanceResourceLayoutVertex
-            | _ =>
-                instanceResourceLayoutCompute
+            instanceResourceLayout
 
         let resourceSet2 = CreateResourceSet(resourceLayout2, instances.InstanceBuffer)
 
@@ -1074,7 +1115,6 @@ module Graphics =
                 )
             let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.State.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
             DrawCommand.CreateDrawMesh(mesh, shader, instances)
-
 
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
