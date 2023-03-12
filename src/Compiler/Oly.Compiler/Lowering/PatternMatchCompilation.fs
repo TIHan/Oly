@@ -1255,7 +1255,7 @@ let lowerMatchExpression (matchExpr: E) =
             matchValueExprs
             |> ImArray.mapi (fun i expr ->
                 match expr with
-                | E.Value(syntaxInfo, value) ->
+                | E.Value(syntaxInfo, value) when value.IsLocal ->
                     {| syntaxInfo = syntaxInfo; value = value :?> ILocalSymbol; isTmp = false; index = i |}
                 | _ ->
                     let tmpValue = createLocalGeneratedValue "tmp" expr.Type

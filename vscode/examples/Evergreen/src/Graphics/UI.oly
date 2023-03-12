@@ -16,11 +16,6 @@ sealed class ButtonViewModel =
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
 
-sealed class CheckboxViewModel =
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable IsChecked: bool = false
-
 sealed class TextInputViewModel =
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
@@ -33,6 +28,16 @@ sealed class TextInputViewModel =
             let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.TextBuffer, 0)
 
     internal TextBuffer: byte[||] = Array.ZeroCreate(256)
+
+sealed class Int32InputViewModel =
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+    mutable Value: int32 = 0
+
+sealed class CheckboxViewModel =
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+    mutable IsChecked: bool = false
 
 class UINode =
 
@@ -87,6 +92,22 @@ class UINode =
         let node = UnsafeCast<UINode.TextInput>(node)
         (node.State, node.OnChanged)
 
+    internal sealed class Int32Input =
+        inherits UINode
+
+        State: Int32InputViewModel
+        OnChanged: Int32InputViewModel -> ()
+
+        new(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) =
+            base(3) with {
+                State = state
+                OnChanged = onChanged
+            }
+
+    pattern Int32Input(node: UINode): (state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) when (node.Tag == 3) =>
+        let node = UnsafeCast<UINode.Int32Input>(node)
+        (node.State, node.OnChanged)
+
     internal sealed class Checkbox =
         inherits UINode
 
@@ -94,12 +115,12 @@ class UINode =
         OnChanged: CheckboxViewModel -> ()
 
         new(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) =
-            base (3) with {
+            base (10) with {
                 State = state
                 OnChanged = onChanged
             }
 
-    pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) when (node.Tag == 3) =>
+    pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) when (node.Tag == 10) =>
         let node = UnsafeCast<UINode.Checkbox>(node)
         (node.State, node.OnChanged)
 
@@ -119,6 +140,9 @@ module UI =
 
         | UINode.TextInput(state, onChanged) =>
             MakeTextInput(state, onChanged)
+
+        | UINode.Int32Input(state, onChanged) =>
+            MakeInt32Input(state, onChanged)
 
         | UINode.Checkbox(state, onChanged) =>
             MakeCheckbox(state, onChanged)
@@ -144,6 +168,12 @@ module UI =
         ImGui.BeginDisabled(!state.IsEnabled)
         if (ImGui.InputText(state.Label, state.TextBuffer, uint32(state.TextBuffer.Length)))
             state.Text <- System.Text.Encoding.UTF8.GetString(state.TextBuffer).Trim('\0')
+            onChanged(state)
+        ImGui.EndDisabled()
+
+    private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
+        ImGui.BeginDisabled(!state.IsEnabled)
+        if (ImGui.InputInt(state.Label, &state.Value))
             onChanged(state)
         ImGui.EndDisabled()
 
@@ -178,6 +208,15 @@ module UI =
         let vm = TextInputViewModel()
         vm.Label <- label
         vm.Text <- text
+        vm
+
+    Int32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): UINode =
+        UINode.Int32Input(state, onChanged)
+
+    Int32InputModel(label: string, value: int32): Int32InputViewModel =
+        let vm = Int32InputViewModel()
+        vm.Label <- label
+        vm.Value <- value
         vm
 
     Checkbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): UINode =

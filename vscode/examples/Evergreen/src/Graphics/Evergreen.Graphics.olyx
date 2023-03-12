@@ -339,10 +339,10 @@ sealed class Texture2D =
     Dispose(): () =
         this.Texture.Dispose()
 
-sealed class RenderTarget =
+private sealed class RenderTargetState =
     implements IDisposable
 
-    internal Framebuffer: Framebuffer
+    Framebuffer: Framebuffer
     Texture: Texture2D
 
     /// This can be null.
@@ -358,6 +358,19 @@ sealed class RenderTarget =
     Dispose(): () =
         this.Framebuffer.Dispose()
         this.Texture.Dispose()
+
+sealed class RenderTarget =
+    implements IDisposable
+
+    internal mutable State: RenderTargetState
+
+    internal new(state: RenderTargetState) =
+        {
+            State = state
+        }
+
+    Dispose(): () =
+        this.State.Dispose()
 
 sealed class Instances =
     implements IDisposable
@@ -413,6 +426,11 @@ sealed class Shader =
     Dispose(): () =
         this.State.VertexShader.Dispose()
         this.State.FragmentShader.Dispose()
+        let mutable i = 1
+        while (i < this.State.ResourceSets.Length)
+            this.State.ResourceSets[i].Dispose()
+            i <- i + 1
+        this.State.Pipeline.Dispose()
 
 sealed class ComputeShader =
     implements IDisposable
@@ -597,6 +615,10 @@ sealed class Window =
 
     IsCursorVisible: bool get() = this.window.CursorVisible
 
+    SetSize(size: Vector2): () =
+        this.window.Width <- int32(size.X)
+        this.window.Height <- int32(size.Y)
+
     Close(): () =
         this.window.Close()
 
@@ -724,7 +746,7 @@ module Graphics =
         // ---------
 
         mainWindowRenderTarget <- CreateRenderTarget(uint32(width), uint32(height))
-        mainWindowOutputs <- mainWindowRenderTarget.Framebuffer.OutputDescription
+        mainWindowOutputs <- mainWindowRenderTarget.State.Framebuffer.OutputDescription
         mainWindowRenderTargetCmd <-
             let mesh = CreateMesh(MeshDescription.CreateQuad(1))
             let instances = CreateInstances([|Matrix4x4.Identity|])
@@ -733,7 +755,7 @@ module Graphics =
                     Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
                     Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
                 )
-            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
+            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.State.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
             DrawCommand.CreateDrawMesh(mesh, shader, instances)
 
         // ---------
@@ -923,6 +945,9 @@ module Graphics =
     CreateShader(shaderDesc: ShaderDescription, texture: Texture2D, depthTexture: Texture2D, instances: Instances): Shader =
         Shader(CreateShaderState(shaderDesc, texture, instances, mainWindowOutputs, depthTexture))
 
+    CreateShader(shaderDesc: ShaderDescription, renderTarget: RenderTarget, instances: Instances): Shader =
+        Shader(CreateShaderState(shaderDesc, renderTarget.State.Texture, instances, mainWindowOutputs, renderTarget.State.DepthTexture))
+
     internal CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): Shader =
         Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs, null))
 
@@ -969,7 +994,7 @@ module Graphics =
 
         // Texture2D(texture)
 
-    internal CreateRenderTarget(width: uint32, height: uint32, useDepth: bool): RenderTarget =
+    private CreateRenderTargetState(width: uint32, height: uint32, useDepth: bool): RenderTargetState =
         let depthTexture =
             if (useDepth)
                 let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil) | fromEnum(TextureUsage.Sampled))
@@ -990,10 +1015,10 @@ module Graphics =
                 null: Texture2D
             else
                 Texture2D(depthTexture)
-        RenderTarget(framebuffer, Texture2D(colorTexture), depthTexture)
+        RenderTargetState(framebuffer, Texture2D(colorTexture), depthTexture)
 
     CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
-        CreateRenderTarget(width, height, true)
+        RenderTarget(CreateRenderTargetState(width, height, true))
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription(1024, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
@@ -1018,6 +1043,30 @@ module Graphics =
 
     SetViewPort(value: Vector4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 384, value)
+
+        if (mainWindowRenderTarget !== unchecked default)
+            match (mainWindowRenderTargetCmd)
+            | DrawCommand.DrawMesh(mesh, shader, instances) =>
+                instances.Dispose()
+                mesh.Dispose()
+                shader.Dispose()
+            | _ =>
+                ()
+            mainWindowRenderTarget.Dispose()
+
+        mainWindowRenderTarget <- CreateRenderTarget(uint32(value.Z), uint32(value.W))
+        mainWindowOutputs <- mainWindowRenderTarget.State.Framebuffer.OutputDescription
+        mainWindowRenderTargetCmd <-
+            let mesh = CreateMesh(MeshDescription.CreateQuad(1))
+            let instances = CreateInstances([|Matrix4x4.Identity|])
+            let desc = 
+                ShaderDescription.CreateMeshShader(
+                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
+                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
+                )
+            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.State.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
+            DrawCommand.CreateDrawMesh(mesh, shader, instances)
+
 
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
@@ -1068,7 +1117,7 @@ module Graphics =
                 commandList.Dispatch(uint32(instances.Count), 1, 1)
 
             | DrawCommand.SetWindowTarget =>
-                currentFramebuffer <- mainWindowRenderTarget.Framebuffer
+                currentFramebuffer <- mainWindowRenderTarget.State.Framebuffer
 
                 // We want to render directly to the output window.
                 commandList.SetFramebuffer(currentFramebuffer)
@@ -1076,7 +1125,7 @@ module Graphics =
                 commandList.ClearDepthStencil(1)
 
             | DrawCommand.SetRenderTarget(renderTarget) =>
-                currentFramebuffer <- renderTarget.Framebuffer
+                currentFramebuffer <- renderTarget.State.Framebuffer
 
                 commandList.SetFramebuffer(currentFramebuffer)
                 commandList.ClearColorTarget(0, RgbaFloat.Black)
