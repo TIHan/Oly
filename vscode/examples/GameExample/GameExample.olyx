@@ -447,17 +447,18 @@ main(): () =
 
     let mutable previousView = Matrix4x4.Identity
     let render(deltaTime, alpha) =
-        Graphics.SetView(camera.Transform.WorldToLocalMatrix)
+        let view = camera.Transform.WorldToLocalMatrix
+        Graphics.SetView(view)
         Graphics.SetPreviousView(previousView)
         Graphics.SetPreviousViewProjection(previousView * camera.Projection)
 
         let mutable inverseViewProjection = default
-        let result = Matrix4x4.Invert(camera.Transform.WorldToLocalMatrix * camera.Projection, &inverseViewProjection)
+        let result = Matrix4x4.Invert(view * camera.Projection, &inverseViewProjection)
 
         Graphics.SetInverseViewProjection(inverseViewProjection)
         Graphics.SetDeltaTime(deltaTime)
 
-        previousView <- camera.Transform.WorldToLocalMatrix
+        previousView <- view
 
         let windowExists = window.Exists
         if (windowExists)
