@@ -390,26 +390,22 @@ sealed class Instances =
 private sealed class ShaderState =
     internal VertexShader:   VeldridShader
     internal FragmentShader: VeldridShader
-    internal ResourceSets:    ResourceSet[||]
     internal Pipeline:       Pipeline
 
-    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, resourceSets: ResourceSet[||], pipeline: Pipeline) =
+    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, pipeline: Pipeline) =
         {
             VertexShader = vertexShader;
             FragmentShader = fragmentShader;
-            ResourceSets = resourceSets;
             Pipeline = pipeline
         }
 
 private sealed class ComputeShaderState =
     internal ComputeShader: VeldridShader
-    internal ResourceSets:   ResourceSet[||]
     internal Pipeline:      Pipeline
 
-    internal new(computeShader: VeldridShader, resourceSets: ResourceSet[||], pipeline: Pipeline) =
+    internal new(computeShader: VeldridShader, pipeline: Pipeline) =
         {
             ComputeShader = computeShader;
-            ResourceSets = resourceSets;
             Pipeline = pipeline
         }
 
@@ -424,13 +420,9 @@ sealed class Shader =
         }
 
     Dispose(): () =
-        Graphics.DisposeQueue.Enqueue(this.State.VertexShader)
-        Graphics.DisposeQueue.Enqueue(this.State.FragmentShader)
         Graphics.DisposeQueue.Enqueue(this.State.Pipeline)
-        let mutable i = 1
-        while (i < this.State.ResourceSets.Length)
-            Graphics.DisposeQueue.Enqueue(this.State.ResourceSets[i])
-            i <- i + 1
+        Graphics.DisposeQueue.Enqueue(this.State.FragmentShader)
+        Graphics.DisposeQueue.Enqueue(this.State.VertexShader)
 
 sealed class ShaderTextureSet =
     implements IDisposable
@@ -475,7 +467,6 @@ enum DrawCommandKind =
     | SetWindowTarget
     | SetRenderTarget
     | DrawMesh
-    | DrawUI
     | RunComputeShader
     | BindTextureSet
     | BindInstancesSet
@@ -546,21 +537,6 @@ class DrawCommand =
     pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
-
-    private sealed class DrawUI =
-        inherits DrawCommand
-
-        new() =
-            base(DrawCommandKind.DrawUI) with
-                {
-                }
-
-    static CreateDrawUI(): DrawCommand =
-        DrawCommand.DrawUI()
-
-    pattern DrawUI(cmd: DrawCommand): () when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawUI)) =>
-        let impl = UnsafeCast<DrawCommand.DrawUI>(cmd)
-        ()
 
     private sealed class RunComputeShader =
         inherits DrawCommand
@@ -721,7 +697,7 @@ module Graphics =
     private mutable pixelSampler: Sampler = null
 
     private mutable mainWindowRenderTarget: RenderTarget = unchecked default
-    private mutable mainWindowRenderTargetCmd: DrawCommand = unchecked default
+    private mutable mainWindowRenderTargetCmds: DrawCommand[] = unchecked default
     private mutable mainWindowOutputs: OutputDescription = default
 
     DeviceName: string get() = graphicsDevice.DeviceName
@@ -803,16 +779,25 @@ module Graphics =
 
         mainWindowRenderTarget <- CreateRenderTarget(uint32(width), uint32(height))
         mainWindowOutputs <- mainWindowRenderTarget.State.Framebuffer.OutputDescription
-        mainWindowRenderTargetCmd <-
+        mainWindowRenderTargetCmds <-
             let mesh = CreateMesh(MeshDescription.CreateQuad(1))
             let instances = CreateInstances([|Matrix4x4.Identity|])
+            
             let desc = 
                 ShaderDescription.CreateMeshShader(
                     Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
                     Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
                 )
-            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.State.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
-            DrawCommand.CreateDrawMesh(mesh, shader, instances)
+            let shader = Graphics.CreateShader(desc, graphicsDevice.SwapchainFramebuffer.OutputDescription)
+
+            let instancesSet = CreateShaderInstancesSet(instances)
+            let textureSet = CreateShaderTextureSet(mainWindowRenderTarget)
+
+            [
+                DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
+                DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+                DrawCommand.CreateDrawMesh(mesh, shader, instances)
+            ]
 
         // ---------
 
@@ -880,6 +865,10 @@ module Graphics =
 
     CreateShaderTextureSet(texture: Texture2D, depthTexture: Texture2D): ShaderTextureSet =
         let resourceSet = CreateResourceSetForTexture(texture, depthTexture)
+        ShaderTextureSet(resourceSet)
+
+    CreateShaderTextureSet(renderTarget: RenderTarget): ShaderTextureSet =
+        let resourceSet = CreateResourceSetForTexture(renderTarget.State.Texture, renderTarget.State.DepthTexture)
         ShaderTextureSet(resourceSet)
 
     private CreateResourceSet(resourceLayout: ResourceLayout, bindableResource: BindableResource): ResourceSet =
@@ -969,7 +958,7 @@ module Graphics =
             ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
         // ----------------------------------------------------------------
     
-    private CreateShaderState(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription, depthTextureOption: Texture2D): ShaderState =
+    private CreateShaderState(shaderDesc: ShaderDescription, outputs: OutputDescription, useDepth: bool): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
         let vertexShaderDesc   = shaderDesc.VertexShader
         let fragmentShaderDesc = shaderDesc.FragmentShader
@@ -1003,25 +992,32 @@ module Graphics =
             desc.Shaders <- shaders
             desc
 
-        let resourceSetGroup = CreateResourceSets(texture2d, instances, ShaderStages.Vertex, depthTextureOption)
+        let fragmentResourceLayout =
+            if (useDepth)
+                depthResourceLayoutFragment
+            else
+                defaultResourceLayoutFragment
     
-        pipelineDesc.ResourceLayouts <- resourceSetGroup.ResourceLayouts
+        pipelineDesc.ResourceLayouts <-
+            [|
+                globalResourceLayout;
+                instanceResourceLayout;
+                fragmentResourceLayout
+            |]
         pipelineDesc.Outputs <- outputs
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
-        ShaderState(shaders[0], shaders[1], resourceSetGroup.ResourceSets, pipeline)
+        ShaderState(shaders[0], shaders[1], pipeline)
 
-    private CreateComputeShaderState(shaderDesc: ComputeShaderDescription, instances: Instances): ComputeShaderState =
+    private CreateComputeShaderState(shaderDesc: ComputeShaderDescription): ComputeShaderState =
         let computeShaderDesc = shaderDesc.ComputeShader
     
         let shader = ResourceFactoryExtensions.CreateFromSpirv(factory, computeShaderDesc)
-
-        let resourceSetGroup = CreateResourceSets(unchecked default, instances, ShaderStages.Compute, null)
     
         let pipelineDesc = 
             ComputePipelineDescription(
                 shader, 
-                resourceSetGroup.ResourceLayouts, 
+                [|globalResourceLayout;instanceResourceLayout|], 
                 1, 
                 1, 
                 1
@@ -1029,22 +1025,16 @@ module Graphics =
 
         let pipeline = factory.CreateComputePipeline(pipelineDesc)
     
-        ComputeShaderState(shader, resourceSetGroup.ResourceSets, pipeline)
+        ComputeShaderState(shader, pipeline)
 
-    CreateShader(shaderDesc: ShaderDescription, texture: Texture2D, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, texture, instances, mainWindowOutputs, null))
+    CreateShader(shaderDesc: ShaderDescription, useDepth: bool): Shader =
+        Shader(CreateShaderState(shaderDesc, mainWindowOutputs, useDepth))
 
-    CreateShader(shaderDesc: ShaderDescription, texture: Texture2D, depthTexture: Texture2D, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, texture, instances, mainWindowOutputs, depthTexture))
+    internal CreateShader(shaderDesc: ShaderDescription, outputs: OutputDescription): Shader =
+        Shader(CreateShaderState(shaderDesc, outputs, true))
 
-    CreateShader(shaderDesc: ShaderDescription, renderTarget: RenderTarget, instances: Instances): Shader =
-        Shader(CreateShaderState(shaderDesc, renderTarget.State.Texture, instances, mainWindowOutputs, renderTarget.State.DepthTexture))
-
-    internal CreateShader(shaderDesc: ShaderDescription, texture2d: Texture2D, instances: Instances, outputs: OutputDescription): Shader =
-        Shader(CreateShaderState(shaderDesc, texture2d, instances, outputs, null))
-
-    CreateComputeShader(computeShaderDesc: ComputeShaderDescription, instances: Instances): ComputeShader =
-        ComputeShader(CreateComputeShaderState(computeShaderDesc, instances))
+    CreateComputeShader(computeShaderDesc: ComputeShaderDescription): ComputeShader =
+        ComputeShader(CreateComputeShaderState(computeShaderDesc))
 
     // UpdateShader(shader: Shader, texture2d: Texture2D, shaderDesc: ShaderDescription, instances: Instances): () =
     //     let newState = CreateShaderState(shaderDesc, texture2d, instances, mainWindowOutputs)
@@ -1142,29 +1132,6 @@ module Graphics =
     SetViewPort(value: Vector4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 384, value)
 
-        if (mainWindowRenderTarget !== unchecked default)
-            match (mainWindowRenderTargetCmd)
-            | DrawCommand.DrawMesh(mesh, shader, instances) =>
-                instances.Dispose()
-                mesh.Dispose()
-                shader.Dispose()
-            | _ =>
-                ()
-            mainWindowRenderTarget.Dispose()
-
-        mainWindowRenderTarget <- CreateRenderTarget(uint32(value.Z), uint32(value.W))
-        mainWindowOutputs <- mainWindowRenderTarget.State.Framebuffer.OutputDescription
-        mainWindowRenderTargetCmd <-
-            let mesh = CreateMesh(MeshDescription.CreateQuad(1))
-            let instances = CreateInstances([|Matrix4x4.Identity|])
-            let desc = 
-                ShaderDescription.CreateMeshShader(
-                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.vert")), 
-                    Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/quad.frag"))
-                )
-            let shader = Graphics.CreateShader(desc, mainWindowRenderTarget.State.Texture, instances, graphicsDevice.SwapchainFramebuffer.OutputDescription)
-            DrawCommand.CreateDrawMesh(mesh, shader, instances)
-
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
 
@@ -1194,44 +1161,49 @@ module Graphics =
 
         let hasFramebuffer() = currentFramebuffer !== unchecked default
 
-        let mutable i = 0
-        let length = drawCmds.Length
-        while (i <= length)
-            let drawCmd =
-                if (i == length)
-                    commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
-                    commandList.ClearColorTarget(0, RgbaFloat.Black)
-                    mainWindowRenderTargetCmd
-                else
-                    drawCmds[i]
+        let mutable currentTextureSet = unchecked default
+        let mutable currentTextureSetKind = unchecked default
+        let mutable currentInstancesSet = unchecked default
+        let mutable currentInstancesSetKind = unchecked default
+
+        let bindTextureSet() =
+            if (currentTextureSet === unchecked default)
+                fail("Texture set not bound.")
+            match (currentTextureSetKind)
+            | BindResourceSetKind.Graphics =>
+                commandList.SetGraphicsResourceSet(2, currentTextureSet)
+            | BindResourceSetKind.Compute =>
+                commandList.SetComputeResourceSet(2, currentTextureSet)
+            | _ =>
+                fail("Invalid 'BindResourceSetKind'.")
+
+        let bindInstancesSet() =
+            if (currentInstancesSet === unchecked default)
+                fail("Texture set not bound.")
+            match (currentInstancesSetKind)
+            | BindResourceSetKind.Graphics =>
+                commandList.SetGraphicsResourceSet(1, currentInstancesSet)
+            | BindResourceSetKind.Compute =>
+                commandList.SetComputeResourceSet(1, currentInstancesSet)
+            | _ =>
+                fail("Invalid 'BindResourceSetKind'.")
+
+        let handle(drawCmd) =
             match (drawCmd)
             | DrawCommand.BindTextureSet(textureSet, kind) =>
-                match (kind)
-                | BindResourceSetKind.Graphics =>
-                    commandList.SetGraphicsResourceSet(2, textureSet.ResourceSet)
-                | BindResourceSetKind.Compute =>
-                    commandList.SetComputeResourceSet(2, textureSet.ResourceSet)
-                | _ =>
-                    fail("Invalid 'BindResourceSetKind'.")
+                currentTextureSet <- textureSet.ResourceSet
+                currentTextureSetKind <- kind
 
             | DrawCommand.BindInstancesSet(instancesSet, kind) =>
-                match (kind)
-                | BindResourceSetKind.Graphics =>
-                    commandList.SetGraphicsResourceSet(1, instancesSet.ResourceSet)
-                | BindResourceSetKind.Compute =>
-                    commandList.SetComputeResourceSet(1, instancesSet.ResourceSet)
-                | _ =>
-                    fail("Invalid 'BindResourceSetKind'.")
+                currentInstancesSet <- instancesSet.ResourceSet
+                currentInstancesSetKind <- kind
 
             | DrawCommand.RunComputeShader(computeShader, instances) =>
                 let pipeline = computeShader.State.Pipeline
                 if (pipeline !== currentPipeline)
-                    let resourceSets = computeShader.State.ResourceSets
                     commandList.SetPipeline(pipeline)
-                    let mutable i = 0
-                    while (i < resourceSets.Length)
-                        commandList.SetComputeResourceSet(uint32(i), resourceSets[i])
-                        i <- i + 1
+                    commandList.SetComputeResourceSet(0, globalResourceSet)
+                    bindInstancesSet()
                     currentPipeline <- pipeline
 
                 commandList.Dispatch(uint32(instances.Count), 1, 1)
@@ -1251,21 +1223,16 @@ module Graphics =
                 commandList.ClearColorTarget(0, RgbaFloat.Black)
                 commandList.ClearDepthStencil(1)
 
-            | DrawCommand.DrawUI when (hasFramebuffer()) =>
-                imGuiRenderer.Render(graphicsDevice, commandList)
-
             | DrawCommand.DrawMesh(mesh, shader, instances) when (hasFramebuffer()) =>
                 let instanceCount = uint32(instances.Count)
 
                 if (instanceCount > 0)   
                     let pipeline = shader.State.Pipeline
                     if (pipeline !== currentPipeline)
-                        let resourceSets = shader.State.ResourceSets
                         commandList.SetPipeline(pipeline)
-                        let mutable i = 0
-                        while (i < resourceSets.Length)
-                            commandList.SetGraphicsResourceSet(uint32(i), resourceSets[i])
-                            i <- i + 1
+                        commandList.SetGraphicsResourceSet(0, globalResourceSet)
+                        bindInstancesSet()
+                        bindTextureSet()
                         currentPipeline <- pipeline
 
                     let vertexBuffer   = mesh.VertexBuffer
@@ -1285,10 +1252,23 @@ module Graphics =
 
             | _ =>
                 ()
-    
+
+        let mutable i = 0
+        let length = drawCmds.Length
+        while (i < length)
+            handle(drawCmds[i])
             i <- i + 1
 
-        
+        // Draw UI
+        imGuiRenderer.Render(graphicsDevice, commandList)
+
+        // Swap-chain frame
+        commandList.SetFramebuffer(graphicsDevice.SwapchainFramebuffer)
+        commandList.ClearColorTarget(0, RgbaFloat.Black)
+        let mutable i = 0
+        while (i < mainWindowRenderTargetCmds.Length)
+            handle(mainWindowRenderTargetCmds[i])
+            i <- i + 1      
 
         // End() must be called before commands can be submitted for execution.
         commandList.End()

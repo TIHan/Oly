@@ -195,26 +195,42 @@ main(): () =
 
     let boxMesh = Graphics.CreateMesh(MeshDescription.CreateCube())
 
-    let addStaticBoxRenderCommand() =
+    let addStaticBoxRenderCommands() =
         let staticBoxes = world.StaticBoxes
         let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
-        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
-        let staticShader = Graphics.CreateShader(defaultShaderDesc, texture, staticInstances)
-        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
         staticInstances.Count <- staticBoxes.Count
-        drawCmd
+
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
+        let staticShader = Graphics.CreateShader(defaultShaderDesc, false)
+
+        let instancesSet = Graphics.CreateShaderInstancesSet(staticInstances)
+        let textureSet = Graphics.CreateShaderTextureSet(texture)
+
+        [
+            DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
+        ]
 
     let mutable physicsBoxInstances = unchecked default
-    let addPhysicsBoxRenderCommand() =
+    let addPhysicsBoxRenderCommands() =
         let boxes = world.PhysicsBoxes
         physicsBoxInstances <- Graphics.CreateInstances(boxes.Transforms)
-        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
-        let shader = Graphics.CreateShader(defaultShaderDesc, texture, physicsBoxInstances)
-        let drawCmd = DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         physicsBoxInstances.Count <- boxes.Count
-        drawCmd
 
-    let drawCmd = addPhysicsBoxRenderCommand()
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
+        let shader = Graphics.CreateShader(defaultShaderDesc, false)
+
+        let instancesSet = Graphics.CreateShaderInstancesSet(physicsBoxInstances)
+        let textureSet = Graphics.CreateShaderTextureSet(texture)
+
+        [
+            DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
+        ]
+
+    let drawCmds = addPhysicsBoxRenderCommands()
 
     let spawnStaticBox(position, rotation, scale) =
         // server
@@ -235,7 +251,7 @@ main(): () =
         physicsBoxInstances.Count <- physicsBoxInstances.Count + 1
 
     spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
-    let staticDrawCmd = addStaticBoxRenderCommand()
+    let staticDrawCmds = addStaticBoxRenderCommands()
 
     let addCube(position) =
         let result = spawnPhysicsBox(position, Quaternion.Identity, Vector3.One)
@@ -276,35 +292,59 @@ main(): () =
 
     let renderTarget = Graphics.CreateRenderTarget(1280, 720) // TODO: How do we hook this up?
 
-    let renderQuadCmd =
+    let renderQuadCmds =
         let desc = 
             ShaderDescription.CreateMeshShader(
                 Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.vert")), 
                 Encoding.UTF8.GetBytes(System.IO.File.ReadAllText("GameExample/motion_blur.frag"))
             )
-        let shader = Graphics.CreateShader(desc, renderTarget, quadInstances)
-        DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
+        let shader = Graphics.CreateShader(desc, true)
+
+        let instancesSet = Graphics.CreateShaderInstancesSet(quadInstances)
+        let textureSet = Graphics.CreateShaderTextureSet(renderTarget)
+
+        [
+            DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
+        ]
 
     let drawCmds =
-        match (drawCmd)
+        match (drawCmds[2])
         | DrawCommand.DrawMesh(mesh, shader, instances) =>
             let computeShaderDesc =
                 ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
             let computeShader = 
-                Graphics.CreateComputeShader(computeShaderDesc, instances)
+                Graphics.CreateComputeShader(computeShaderDesc)
+
+            let instancesSet = Graphics.CreateShaderInstancesSet(instances)
+
             let spinHexagonsCmd = DrawCommand.CreateRunComputeShader(computeShader, instances)
 
-            [
-                spinHexagonsCmd;
+            let allCmds = System.Collections.Generic.List<DrawCommand>()
 
-                DrawCommand.CreateSetRenderTarget(renderTarget);
-                drawCmd;
-                staticDrawCmd;
+            allCmds.Add(DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Compute))
+            allCmds.Add(DrawCommand.CreateRunComputeShader(computeShader, instances))
+            allCmds.Add(DrawCommand.CreateSetRenderTarget(renderTarget))
 
-                DrawCommand.CreateSetWindowTarget();
-                renderQuadCmd;
-                DrawCommand.CreateDrawUI()
-            ]
+            let mutable i = 0
+            while (i < drawCmds.Length)
+                allCmds.Add(drawCmds[i])
+                i <- i + 1
+
+            let mutable i = 0
+            while (i < staticDrawCmds.Length)
+                allCmds.Add(staticDrawCmds[i])
+                i <- i + 1
+
+            allCmds.Add(DrawCommand.CreateSetWindowTarget())
+            
+            let mutable i = 0
+            while (i < renderQuadCmds.Length)
+                allCmds.Add(renderQuadCmds[i])
+                i <- i + 1
+            
+            UnsafeCast<_[]>(allCmds.ToArray())
         | _ =>
             fail("Unexpected")
 
@@ -324,7 +364,7 @@ main(): () =
         Graphics.SetViewPort(Vector4(0, 0, float32(width), float32(height)))
         Graphics.SetProjection(camera.Projection)
 
-        //Graphics.UpdateRenderTarget(uint32(width), uint32(height), renderTarget)
+       // Graphics.UpdateRenderTarget(uint32(width), uint32(height), renderTarget)
 
         window.SetSize(Vector2(float32(width), float32(height)))
 
