@@ -317,22 +317,53 @@ main(): () =
     Graphics.SetViewPort(Vector4(0, 0, 1280, 720))
     
     let uiNode =
+
+        let quitButtonVM = UI.ButtonModel("Quit")
+        let quitButton =
+            UI.Button(
+                quitButtonVM,
+                vm -> window.Close()
+            )
+
+        let spawnBoxButtonVM = UI.ButtonModel("Spawn Box")
+        let spawnBoxButton =
+            UI.Button(
+                spawnBoxButtonVM,
+                vm ->
+                    let position = camera.Transform.Position + (camera.Transform.Forward * 2)
+                    spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
+            )
+
+        let toggleFullscreenCheckboxVM = UI.CheckboxModel("Fullscreen", false)
+        let toggleFullscreenCheckbox =
+            UI.Checkbox(
+                toggleFullscreenCheckboxVM,
+                vm ->
+                    window.SetFullscreen(vm.IsChecked)
+            )
+
+        let toggleVerticalSyncCheckboxVM = UI.CheckboxModel("Vertical Sync", false)
+        let toggleVerticalSyncCheckbox =
+            UI.Checkbox(
+                toggleVerticalSyncCheckboxVM,
+                vm ->
+                    Graphics.SetVSync(vm.IsChecked)
+            )
+
+        let exampleTextInputVM = UI.TextInputModel("Example Text", "lorem ipsum")
+        let exampleTextInput =
+            UI.TextInput(
+                exampleTextInputVM,
+                vm -> ()
+            )
+
         UI.Window("Main Menu",
             [
-                UI.Button("Spawn Box", () -> 
-                                           let position = camera.Transform.Position + (camera.Transform.Forward * 2)
-                                           spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
-                );
-                UI.Checkbox("Fullscreen", 
-                    isChecked -> 
-                        window.SetFullscreen(isChecked)
-                );
-                UI.Checkbox("Vertical Sync", 
-                    isChecked -> 
-                        Graphics.SetVSync(isChecked)
-                );
-                UI.Button("Quit", () -> window.Close());
-                UI.TextInput("Example text")
+                spawnBoxButton;
+                toggleFullscreenCheckbox;
+                toggleVerticalSyncCheckbox;
+                quitButton;
+                exampleTextInput
             ],
             Vector2(512, 512),
             Vector2(100, 100)

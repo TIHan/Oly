@@ -60,7 +60,7 @@ void main()
     vec4 previousPosition = PreviousViewProjection * worldPosition;
     previousPosition /= previousPosition.w;
 
-    vec2 velocity = ((pixelPosition - previousPosition) / 2).xy * intensity;
+    vec2 velocity = vec2(0);//((pixelPosition - previousPosition) / 2).xy * intensity;
   
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
 

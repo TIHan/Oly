@@ -6,6 +6,34 @@ open System.Numerics
 open Evergreen.Graphics
 open ImGuiNET
 
+sealed class WindowViewModel =
+    mutable IsEnabled: bool = true
+    mutable Title: string = string.Empty
+    mutable Size: Vector2 = Vector2.Zero
+    mutable RelativePosition: Vector2 = Vector2.Zero
+
+sealed class ButtonViewModel =
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+
+sealed class CheckboxViewModel =
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+    mutable IsChecked: bool = false
+
+sealed class TextInputViewModel =
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+
+    private mutable text: string = string.Empty
+    Text: string
+        get() = this.text
+        set(value) = 
+            this.text <- value
+            let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.TextBuffer, 0)
+
+    internal TextBuffer: byte[||] = Array.ZeroCreate(256)
+
 class UINode =
 
     private Tag: int32
@@ -34,57 +62,50 @@ class UINode =
     internal sealed class Button =
         inherits UINode
 
-        Label: string
-        OnClick: () -> ()
+        State: ButtonViewModel
+        OnClick: ButtonViewModel -> ()
 
-        new(label: string, onClick: () -> ()) =
+        new(state: ButtonViewModel, onClick: ButtonViewModel -> ()) =
             base(1) with {
-                Label = label
+                State = state
                 OnClick = onClick
             }
 
-    pattern Button(node: UINode): (label: string, onClick: () -> ()) when (node.Tag == 1) =>
+    pattern Button(node: UINode): (state: ButtonViewModel, onClick: ButtonViewModel -> ()) when (node.Tag == 1) =>
         let node = UnsafeCast<UINode.Button>(node)
-        (node.Label, node.OnClick)
+        (node.State, node.OnClick)
 
     internal sealed class TextInput =
         inherits UINode
 
-        Label: string
+        State: TextInputViewModel
+        OnChanged: TextInputViewModel -> ()
 
-        new(label: string) =
+        new(state: TextInputViewModel, onChanged: TextInputViewModel -> ()) =
             base(2) with {
-                Label = label
+                State = state
+                OnChanged = onChanged
             }
 
-    pattern TextInput(node: UINode): string when (node.Tag == 2) =>
+    pattern TextInput(node: UINode): (state: TextInputViewModel, onChanged: TextInputViewModel -> ()) when (node.Tag == 2) =>
         let node = UnsafeCast<UINode.TextInput>(node)
-        node.Label
-
-    internal sealed class CheckboxState =
-        mutable IsChecked: bool = false
+        (node.State, node.OnChanged)
 
     internal sealed class Checkbox =
         inherits UINode
 
-        Label: string
-        OnChange: bool -> ()
-        State: UINode.CheckboxState
+        State: CheckboxViewModel
+        OnChanged: CheckboxViewModel -> ()
 
-        new(label: string, onChange: bool -> ()) =
+        new(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) =
             base (3) with {
-                Label = label
-                OnChange = onChange
-                State = UINode.CheckboxState()
+                State = state
+                OnChanged = onChanged
             }
 
-    pattern Checkbox(node: UINode): (label: string, onChange: bool -> ()) when (node.Tag == 3) =>
+    pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) when (node.Tag == 3) =>
         let node = UnsafeCast<UINode.Checkbox>(node)
-        (node.Label, node.OnChange)
-
-    internal pattern CheckboxWithState(node: UINode): (label: string, onChange: bool -> (), state: UINode.CheckboxState) when (node.Tag == 3) =>
-        let node = UnsafeCast<UINode.Checkbox>(node)
-        (node.Label, node.OnChange, node.State)
+        (node.State, node.OnChanged)
 
 module UI =
 
@@ -95,14 +116,14 @@ module UI =
             ImGui.SetNextWindowPos(relativePos)
             MakeWindow(title, children)
         
-        | UINode.Button(label, onClick) =>
-            MakeButton(label, onClick)
+        | UINode.Button(state, onClick) =>
+            MakeButton(state, onClick)
 
-        | UINode.TextInput(label) =>
-            MakeTextInput(label)
+        | UINode.TextInput(state, onChanged) =>
+            MakeTextInput(state, onChanged)
 
-        | UINode.CheckboxWithState(label, onChange, state) =>
-            MakeCheckbox(label, onChange, &state.IsChecked)
+        | UINode.Checkbox(state, onChanged) =>
+            MakeCheckbox(state, onChanged)
 
         | _ =>
             ()
@@ -115,30 +136,53 @@ module UI =
                 i <- i + 1
             ImGui.End()
 
-    private MakeButton(label: string, onClick: () -> ()): () =
-        if (ImGui.Button(label))
-            onClick()
+    private MakeButton(state: ButtonViewModel, onClick: ButtonViewModel -> ()): () =
+        ImGui.BeginDisabled(!state.IsEnabled)
+        if (ImGui.Button(state.Label))
+            onClick(state)
+        ImGui.EndDisabled()
 
-    private textBuffer: byte[||] = Array.ZeroCreate(1024)
-    private MakeTextInput(label: string): () =
-        if (ImGui.InputText(label, textBuffer, 1024))
-            print(System.Text.Encoding.UTF8.GetString(textBuffer))
+    private MakeTextInput(state: TextInputViewModel, onChanged: TextInputViewModel -> ()): () =
+        ImGui.BeginDisabled(!state.IsEnabled)
+        if (ImGui.InputText(state.Label, state.TextBuffer, uint32(state.TextBuffer.Length)))
+            state.Text <- System.Text.Encoding.UTF8.GetString(state.TextBuffer).Trim('\0')
+            onChanged(state)
+        ImGui.EndDisabled()
 
-    private MakeCheckbox(label: string, onChange: bool -> (), state_isChecked: byref<bool>): () =
-        if (ImGui.Checkbox(label, &state_isChecked))
-            onChange(state_isChecked)
+    private MakeCheckbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): () =
+        ImGui.BeginDisabled(!state.IsEnabled)
+        if (ImGui.Checkbox(state.Label, &state.IsChecked))
+            onChanged(state)
+        ImGui.EndDisabled()
 
     Window(title: string, children: UINode[], size: Vector2, relativePosition: Vector2): UINode =
         UINode.Window(title, children, size, relativePosition)
 
-    Button(label: string, onClick: () -> ()): UINode =
-        UINode.Button(label, onClick)
+    Button(state: ButtonViewModel, onClick: ButtonViewModel -> ()): UINode =
+        UINode.Button(state, onClick)
 
-    TextInput(label: string): UINode =
-        UINode.TextInput(label)
+    ButtonModel(label: string): ButtonViewModel =
+        let vm = ButtonViewModel()
+        vm.Label <- label
+        vm
 
-    Checkbox(label: string, onChange: bool -> ()): UINode =
-        UINode.Checkbox(label, onChange)
+    TextInput(state: TextInputViewModel, onChanged: TextInputViewModel -> ()): UINode =
+        UINode.TextInput(state, onChanged)
+
+    TextInputModel(label: string, text: string): TextInputViewModel =
+        let vm = TextInputViewModel()
+        vm.Label <- label
+        vm.Text <- text
+        vm
+
+    Checkbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): UINode =
+        UINode.Checkbox(state, onChanged)
+
+    CheckboxModel(label: string, isChecked: bool): CheckboxViewModel =
+        let model = CheckboxViewModel()
+        model.Label <- label
+        model.IsChecked <- isChecked
+        model
 
     Update(deltaTime: float64, inputState: InputState, node: UINode): () =
         Graphics.imGuiRenderer.Update(float32(deltaTime), inputState.snapshot)
