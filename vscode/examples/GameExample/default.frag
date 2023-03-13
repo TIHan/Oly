@@ -37,14 +37,31 @@ vec3 DiffuseSpecular(
         vec3 color)
 {
     vec3 lightVec = lightPosition_world - vertexPosition_world;
+    float lightLength = abs(length(lightVec));
+
+    if (lightLength > radius)
+    {
+        return vec3(0);
+    }
+
     vec3 lightDir = normalize(lightVec);
 
     float diffuse = max(dot(normal, lightDir), 0.0);
-    float intensity = min(maxIntensity, radius / length(lightVec));
+    float intensity = maxIntensity;
+
+    if (lightLength > (radius * 0.95))
+    {
+        float begin = radius * 0.95;
+        float end = radius;
+
+        float n = abs(1 - smoothstep(begin, end, lightLength));
+
+        intensity = intensity * n;
+    }
 
     vec3 specular = Specular(lightDir, viewPosition_world, vertexPosition_world, normal, specularStrength, color);
 
-    return (diffuse * intensity * color) + specular;
+    return (diffuse * intensity * color) + (specular * intensity);
 }
 
 void main()

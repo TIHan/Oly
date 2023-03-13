@@ -3,6 +3,4 @@
 #reference "../core/prelude.olyx"
 
 main(): () =
-    let x = 1
-    let y = add(x, x): int32
     print("Hello World!")

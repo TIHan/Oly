@@ -402,9 +402,9 @@ main(): () =
         let dt = float32(dt)
         processKeyEventQueue()
         updateWorldCamera(dt)
-        //updateWorldPhysics(dt)
+        updateWorldPhysics(dt)
 
-       // Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
+        Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
 
     let update(dt: float64) =
         ()
@@ -430,7 +430,7 @@ main(): () =
 
     window.ShowCursor()
 
-    Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
+   // Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
     GameLoop.Start(
         dt ->
             updateInput(dt),
