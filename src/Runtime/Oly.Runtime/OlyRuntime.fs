@@ -493,6 +493,34 @@ let importCatchCase (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Fun
         let catchTy = env.LocalTypes[localIndex]
         OlyIRCatchCase.CatchCase(localName, localIndex, irBodyExpr, cenv.EmitType(catchTy))
 
+/// Uses CPS-style passing to help prevent stack overflows.
+let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) cont =
+    // TODO: Expand this to Let, and potentially others.
+    match ilExpr with
+    | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
+        match ilExpr1 with
+        | OlyILExpression.Sequential _ ->
+            importSequentialExpression cenv env (Some RuntimeType.Void) ilExpr1 (fun (irExpr1, _) ->
+                match ilExpr2 with
+                | OlyILExpression.Sequential _ ->
+                    importSequentialExpression cenv env expectedTyOpt ilExpr2 cont
+                | _ ->
+                    let irExpr2, resultTy = importExpression cenv env expectedTyOpt ilExpr2
+                    cont(E.Sequential(irExpr1, irExpr2), resultTy)
+            )
+        | _ ->
+            let irExpr1, _ = importExpression cenv env (Some RuntimeType.Void) ilExpr1
+            match ilExpr2 with
+            | OlyILExpression.Sequential _ ->
+                importSequentialExpression cenv env expectedTyOpt ilExpr2 (fun (irExpr2, resultTy) ->
+                    cont(E.Sequential(irExpr1, irExpr2), resultTy)
+                )
+            | _ ->
+                let irExpr2, resultTy = importExpression cenv env expectedTyOpt ilExpr2
+                cont(E.Sequential(irExpr1, irExpr2), resultTy)
+    | _ ->
+        OlyAssert.Fail("Invalid sequential expression.")
+
 let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let resolveFunction (ilFuncInst: OlyILFunctionInstance) =
         cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
@@ -513,10 +541,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         let irBodyExpr = importArgumentExpression cenv env RuntimeType.Void ilBodyExpr
         E.While(irConditionExpr, irBodyExpr, cenv.EmittedTypeVoid), RuntimeType.Void
 
-    | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
-        let irExpr1 = importArgumentExpression cenv env RuntimeType.Void ilExpr1
-        let irExpr2, resultTy = importExpression cenv env expectedTyOpt ilExpr2
-        E.Sequential(irExpr1, irExpr2), resultTy 
+    | OlyILExpression.Sequential _ ->
+        importSequentialExpression cenv env expectedTyOpt ilExpr id
 
     | OlyILExpression.Value(ilTextRange, ilValue) ->
         let irTextRange = readTextRange env.ILAssembly ilTextRange

@@ -1,0 +1,155 @@
+module Game.Core
+
+open System
+open System.Text
+open System.Numerics
+open Evergreen.Graphics
+open Evergreen.Graphics.UI
+open Evergreen.Physics
+open System.Runtime.InteropServices
+
+DefaultVertexCode: string = System.IO.File.ReadAllText("GameExample/default.vert")
+
+DefaultFragmentCode: string = System.IO.File.ReadAllText("GameExample/default.frag")
+
+DefaultComputeCode: string = System.IO.File.ReadAllText("GameExample/transform_rotation.comp")
+
+radians(degrees: float64): float64 = degrees * System.Math.PI / 180
+radians(degrees: float32): float32 = float32(radians(float64(degrees)))
+
+clamp(min: float32, max: float32, value: float32): float32 =
+    if (max <= min)
+        throw (System.ArgumentException("Invalid Min Max"))
+
+    if (value < min)
+        min
+    else if (value > max)
+        max
+    else
+        value
+
+struct Camera =
+    mutable Transform: Transform
+    mutable Projection: Matrix4x4
+
+    private mutable yaw: float32
+    private mutable pitch: float32
+
+    private static get DefaultRotation: Quaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
+
+    new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
+        {
+            Transform = Transform(Matrix4x4.CreateFromQuaternion(Camera.DefaultRotation))
+            Projection = Matrix4x4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
+            yaw = 0
+            pitch = 0
+        }
+
+    Yaw: float32
+        get() = this.yaw
+        
+    Pitch: float32
+        get() = this.pitch
+
+    mutable SetYawPitch(yaw: float32, pitch: float32): () =
+        this.yaw <- yaw
+        this.pitch <- pitch
+        let position = this.Transform.Position
+        let rotation = Camera.DefaultRotation * Quaternion.CreateFromYawPitchRoll(-yaw, -pitch, 0)
+        this.Transform <- Transform.Create(position, rotation, Vector3.One)
+
+#[open]
+extension Vector3Extensions =
+    inherits Vector3
+
+    static Forward: Vector3 get() = -Vector3.UnitZ
+    static Back: Vector3 get() = Vector3.UnitZ
+    static Left: Vector3 get() = -Vector3.UnitX
+    static Right: Vector3 get() = Vector3.UnitX
+
+(*)(v: Vector3, s: float32): Vector3 = Vector3.Multiply(v, s)
+
+#[StructLayout(LayoutKind.Sequential)]
+struct Transform =
+    mutable Matrix: Matrix4x4
+
+    new(matrix: Matrix4x4) = { Matrix = matrix }
+
+    Position: Vector3
+        get() = this.Matrix.Translation
+        set(value) = this.Matrix.Translation <- value
+
+    Rotation: Quaternion
+        get() = Quaternion.CreateFromRotationMatrix(this.Matrix)
+
+    Scale: Vector3
+        get() = 
+            let mutable scale = Vector3.Zero
+            let mutable rotation = Quaternion.Identity
+            let mutable position = Vector3.Zero
+            if (Matrix4x4.Decompose(this.Matrix, &scale, &rotation, &position))
+                scale
+            else
+                Vector3.Zero
+
+    Forward: Vector3
+        get() = Vector3.Transform(Vector3.Forward, this.Rotation)
+
+    Back: Vector3
+        get() = Vector3.Transform(Vector3.Back, this.Rotation)
+
+    Left: Vector3
+        get() = Vector3.Transform(Vector3.Left, this.Rotation)
+
+    Right: Vector3
+        get() = Vector3.Transform(Vector3.Right, this.Rotation)
+
+    WorldToLocalMatrix: Matrix4x4
+        get() =
+            let mutable inverted = Matrix4x4.Identity
+            let didSucceed = Matrix4x4.Invert(this.Matrix, &inverted)
+            inverted
+
+    static Create(position: Vector3, rotation: Quaternion, scale: Vector3): Transform =
+        let rotationMatrix = Matrix4x4.CreateFromQuaternion(rotation)
+        let mutable scaleMatrix = Matrix4x4.CreateScale(scale)
+        scaleMatrix.Translation <- position
+        Transform(rotationMatrix * scaleMatrix)
+
+newtype PhysicsBoxId =
+    Value: int32
+
+struct PhysicsBox =
+    mutable Count: int32 = 0
+
+    Transforms:       Transform[||]       = Array.ZeroCreate(1024)
+    DynamicObjectIds: DynamicObjectId[||] = Array.ZeroCreate(1024)
+
+    mutable Add(transform: Transform, dynamicObjId: DynamicObjectId): PhysicsBoxId =
+        let index = this.Count
+        this.Transforms[index] <- transform
+        this.DynamicObjectIds[index] <- dynamicObjId
+        this.Count <- this.Count + 1
+        PhysicsBoxId(index)
+
+newtype StaticBoxId =
+    Value: int32
+
+struct StaticBox =
+    mutable Count: int32 = 0
+
+    Transforms:      Transform[||]      = Array.ZeroCreate(4096)
+    StaticObjectIds: StaticObjectId[||] = Array.ZeroCreate(4096)
+
+    mutable Add(transform: Transform, staticObjId: StaticObjectId): StaticBoxId =
+        let index = this.Count
+        this.Transforms[index] <- transform
+        this.StaticObjectIds[index] <- staticObjId
+        this.Count <- this.Count + 1
+        StaticBoxId(index)
+
+sealed class World =
+
+    mutable PhysicsBoxes: PhysicsBox = PhysicsBox()
+    mutable StaticBoxes: StaticBox  = StaticBox()
+
