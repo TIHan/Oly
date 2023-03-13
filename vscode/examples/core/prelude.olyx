@@ -138,6 +138,9 @@ float32(byte): float32
 float32(uint16): float32
 
 #[intrinsic("cast")]
+float32(uint32): float32
+
+#[intrinsic("cast")]
 float32(int32): float32
 
 #[intrinsic("cast")]
@@ -592,6 +595,22 @@ extension MutableArrayExtensions =
     static ZeroCreate<T>(size: int32): T[||]
 
     static Map<T, U>(arr: T[||], f: T -> U): U[||] =
+        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+        let mutable i = 0
+        while (i < arr.Length)
+            newArr[i] <- f(arr[i])
+            i <- i + 1
+        newArr
+
+    static Map<T, U>(arr: T[], f: T -> U): U[] =
+        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+        let mutable i = 0
+        while (i < arr.Length)
+            newArr[i] <- f(arr[i])
+            i <- i + 1
+        UnsafeCast(newArr)
+
+    static MapAsMutable<T, U>(arr: T[], f: T -> U): U[||] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)

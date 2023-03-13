@@ -232,7 +232,30 @@ module internal rec Helpers =
                 let olyEntRefHandle = importTypeReferenceAsOlyILEntityReference cenv handle
                 let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntRefHandle)
                 let olyTyArgs = ImArray.init olyEntRef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
-                OlyILTypeEntity(OlyILEntityInstance(olyEntRefHandle, olyTyArgs))
+                let olyTy = OlyILTypeEntity(OlyILEntityInstance(olyEntRefHandle, olyTyArgs))
+
+                let tyRef = reader.GetTypeReference(handle)
+                let name = reader.GetString(tyRef.Name)
+                let namespac = reader.GetString(tyRef.Namespace)
+
+                let tyParCount = olyEntRef.FullTypeParameterCount
+
+                // TODO: This is duplicated, we should move this logic to a common place.
+                match namespac, name with
+                | "System", "Action" when tyParCount = 0 ->
+                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid)
+                | "System", "Action`1" when tyParCount = 1 ->
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                | "System", "Action`2" when tyParCount = 2 ->
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                | "System", "Func`1" when tyParCount = 1 ->
+                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0])
+                | "System", "Func`2" when tyParCount = 2 ->
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1])
+                | "System", "Func`3" when tyParCount = 3 ->
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2])
+                | _ ->
+                    olyTy
 
             member this.GetTypeFromSpecification(reader, genericContext, handle, rawTypeKind) =
                 let olyTy = importTypeSpecificationAsOlyILType cenv handle

@@ -3,20 +3,29 @@ namespace Evergreen.Graphics.UI
 
 open System
 open System.Numerics
+open System.Collections.Generic
 open Evergreen.Graphics
 open ImGuiNET
 
+interface IViewModel
+
 sealed class WindowViewModel =
+    implements IViewModel
+
     mutable IsEnabled: bool = true
     mutable Title: string = string.Empty
     mutable Size: Vector2 = Vector2.Zero
     mutable RelativePosition: Vector2 = Vector2.Zero
 
 sealed class ButtonViewModel =
+    implements IViewModel
+
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
 
 sealed class TextInputViewModel =
+    implements IViewModel
+
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
 
@@ -30,14 +39,27 @@ sealed class TextInputViewModel =
     internal TextBuffer: byte[||] = Array.ZeroCreate(256)
 
 sealed class Int32InputViewModel =
+    implements IViewModel
+
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
     mutable Value: int32 = 0
 
 sealed class CheckboxViewModel =
+    implements IViewModel
+
     mutable IsEnabled: bool = true
     mutable Label: string = string.Empty
     mutable IsChecked: bool = false
+
+sealed class ComboBoxViewModel =
+    implements IViewModel
+
+    mutable IsEnabled: bool = true
+    mutable Label: string = string.Empty
+    mutable SelectedItemIndex: int32 = 0
+    mutable Items: string[||] = [||]
+    mutable ItemCount: int32 = 0
 
 class UINode =
 
@@ -124,6 +146,23 @@ class UINode =
         let node = UnsafeCast<UINode.Checkbox>(node)
         (node.State, node.OnChanged)
 
+    internal sealed class ComboBox =
+        inherits UINode
+
+        State: ComboBoxViewModel
+        OnChanged: ComboBoxViewModel -> ()
+
+        new(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) =
+            base (11) with {
+                State = state
+                OnChanged = onChanged
+            }
+
+    pattern ComboBox(node: UINode): (state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) when (node.Tag == 11) =>
+        let node = UnsafeCast<UINode.ComboBox>(node)
+        (node.State, node.OnChanged)
+
+
 module UI =
 
     private MakeNode(node: UINode): () =
@@ -146,6 +185,9 @@ module UI =
 
         | UINode.Checkbox(state, onChanged) =>
             MakeCheckbox(state, onChanged)
+
+        | UINode.ComboBox(state, onChanged) =>
+            MakeComboBox(state, onChanged)
 
         | _ =>
             ()
@@ -180,6 +222,12 @@ module UI =
     private MakeCheckbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): () =
         ImGui.BeginDisabled(!state.IsEnabled)
         if (ImGui.Checkbox(state.Label, &state.IsChecked))
+            onChanged(state)
+        ImGui.EndDisabled()
+
+    private MakeComboBox(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()): () =
+        ImGui.BeginDisabled(!state.IsEnabled)
+        if (ImGui.Combo(state.Label, &state.SelectedItemIndex, state.Items, state.ItemCount))
             onChanged(state)
         ImGui.EndDisabled()
 
@@ -226,6 +274,17 @@ module UI =
         let vm = CheckboxViewModel()
         vm.Label <- label
         vm.IsChecked <- isChecked
+        vm
+
+    ComboBox(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()): UINode =
+        UINode.ComboBox(state, onChanged)
+
+    ComboBoxModel(label: string, selectedItemIndex: int32, items: string[||], itemCount: int32): ComboBoxViewModel =
+        let vm = ComboBoxViewModel()
+        vm.Label <- label
+        vm.SelectedItemIndex <- selectedItemIndex
+        vm.Items <- items
+        vm.ItemCount <- itemCount
         vm
 
     Update(deltaTime: float64, inputState: InputState, node: UINode): () =

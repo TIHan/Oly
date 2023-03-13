@@ -629,6 +629,11 @@ sealed class Window =
     internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
         let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.Normal, title)
         let window = VeldridStartup.CreateWindow(windowCreateInfo)
+        window.add_Moved(
+            // We do this to re-create the swap-chain when the window moves.
+            p ->
+                Graphics.graphicsDevice.ResizeMainWindow(uint32(window.Width), uint32(window.Height))
+        )
         {
             window = window
         }
@@ -674,6 +679,18 @@ sealed class Window =
     Exists: bool
         get() = this.window.Exists
 
+sealed class DisplayMode =
+    Width: uint32
+    Height: uint32
+    RefreshRate: uint32
+
+    new(width: uint32, height: uint32, refreshRate: uint32) =
+        {
+            Width = width
+            Height = height
+            RefreshRate = refreshRate
+        }
+
 module Graphics =
 
     #[intrinsic("bitwise_or")]
@@ -699,6 +716,7 @@ module Graphics =
     private mutable mainWindowRenderTarget: RenderTarget = unchecked default
     private mutable mainWindowRenderTargetCmds: DrawCommand[] = unchecked default
     private mutable mainWindowOutputs: OutputDescription = default
+    private mutable mainWindowTextureSet: ShaderTextureSet = unchecked default
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
@@ -791,18 +809,18 @@ module Graphics =
             let shader = Graphics.CreateShader(desc, graphicsDevice.SwapchainFramebuffer.OutputDescription)
 
             let instancesSet = CreateShaderInstancesSet(instances)
-            let textureSet = CreateShaderTextureSet(mainWindowRenderTarget)
+            mainWindowTextureSet <- CreateShaderTextureSet(mainWindowRenderTarget)
 
             [
                 DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
-                DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+                DrawCommand.CreateBindTextureSet(mainWindowTextureSet, BindResourceSetKind.Graphics);
                 DrawCommand.CreateDrawMesh(mesh, shader, instances)
             ]
 
         // ---------
 
         // -- ImGui Settings --
-        let imGuiOutputDesc = mainWindowOutputs
+        let imGuiOutputDesc = mainWindowOutputs //graphicsDevice.SwapchainFramebuffer.OutputDescription
         imGuiRenderer <- ImGuiRenderer(graphicsDevice, imGuiOutputDesc, width, height, ColorSpaceHandling.Linear)
         //ImGuiNET.ImGui.StyleColorsClassic()
         // --
@@ -844,16 +862,6 @@ module Graphics =
         graphicsDevice.UpdateBuffer(indexBuffer, 0, indices)
     
         Mesh(vertexBuffer, indexBuffer, indexCount)
-
-    private struct ResourceSetGroup =
-        ResourceLayouts: ResourceLayout[||]
-        ResourceSets: ResourceSet[||]
-
-        new(resourceLayouts: ResourceLayout[||], resourceSets: ResourceSet[||]) =
-            {
-                ResourceLayouts = resourceLayouts;
-                ResourceSets = resourceSets
-            }
 
     CreateShaderInstancesSet(instances: Instances): ShaderInstancesSet =
         let resourceSet = CreateResourceSetForInstances(instances)
@@ -916,47 +924,6 @@ module Graphics =
                     |]
             )
         factory.CreateResourceSet(resourceSetDesc)
-            
-    private CreateResourceSets(texture2d: Texture2D, instances: Instances, shaderStages: ShaderStages, depthTextureOption: Texture2D): ResourceSetGroup =
-        // ------------------------------------------------------------
-        let resourceLayout =
-            globalResourceLayout
-
-        let resourceSet =
-            globalResourceSet
-
-        let resourceLayout2 =
-            instanceResourceLayout
-
-        let resourceSet2 = CreateResourceSet(resourceLayout2, instances.InstanceBuffer)
-
-        match (shaderStages)
-        | ShaderStages.Vertex =>
-            let resourceLayout3 = 
-                if (depthTextureOption === null)
-                    defaultResourceLayoutFragment
-                else
-                    depthResourceLayoutFragment
-            let resourceSetDesc3 = 
-                ResourceSetDescription(
-                    resourceLayout3,
-                    if (depthTextureOption === null)
-                        [|
-                            (texture2d.Texture: BindableResource);
-                            pixelSampler
-                        |]
-                    else
-                        [|
-                            (texture2d.Texture: BindableResource);
-                            pixelSampler;
-                            depthTextureOption.Texture
-                        |]
-                )
-            let resourceSet3 = factory.CreateResourceSet(resourceSetDesc3)
-            ResourceSetGroup([|resourceLayout;resourceLayout2;resourceLayout3|], [|resourceSet;resourceSet2;resourceSet3|])
-        | _ =>
-            ResourceSetGroup([|resourceLayout;resourceLayout2|], [|resourceSet;resourceSet2|])
-        // ----------------------------------------------------------------
     
     private CreateShaderState(shaderDesc: ShaderDescription, outputs: OutputDescription, useDepth: bool): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
@@ -1102,14 +1069,18 @@ module Graphics =
     CreateRenderTarget(width: uint32, height: uint32): RenderTarget =
         RenderTarget(CreateRenderTargetState(width, height, true))
 
-    UpdateRenderTarget(width: uint32, height: uint32, renderTarget: RenderTarget): () =
-        let oldRenderTargetState = renderTarget.State
-        let newRenderTargetState = CreateRenderTargetState(width, height, renderTarget.State.DepthTexture !== null)
-        renderTarget.State <- newRenderTargetState
-        oldRenderTargetState.Dispose()
-
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
         factory.CreateBuffer(BufferDescription(1024, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+
+    UpdateRenderTarget(width: uint32, height: uint32, renderTarget: RenderTarget): () =
+        let oldRenderTargetState = renderTarget.State
+        renderTarget.State <- CreateRenderTargetState(width, height, true)
+        DisposeQueue.Enqueue(oldRenderTargetState)
+
+    UpdateTextureSet(renderTarget: RenderTarget, textureSet: ShaderTextureSet): () =
+        let oldResourceSet = textureSet.ResourceSet
+        textureSet.ResourceSet <- CreateResourceSetForTexture(renderTarget.State.Texture, renderTarget.State.DepthTexture)
+        DisposeQueue.Enqueue(oldResourceSet)
 
     SetView(value: Matrix4x4): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 0, value)
@@ -1130,7 +1101,13 @@ module Graphics =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 320, value)
 
     SetViewPort(value: Vector4): () =
+        // clamp
+        let value = Vector4(float32(int32(value.X)), float32(int32(value.Y)), float32(uint32(value.Z)), float32(uint32(value.W)))
+
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 384, value)
+
+        UpdateRenderTarget(uint32(value.Z), uint32(value.W), mainWindowRenderTarget)
+        UpdateTextureSet(mainWindowRenderTarget, mainWindowTextureSet)
 
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
@@ -1147,12 +1124,12 @@ module Graphics =
     UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
-    internal DisposeQueue: System.Collections.Concurrent.ConcurrentQueue<IDisposable> = System.Collections.Concurrent.ConcurrentQueue<IDisposable>()
+    internal DisposeQueue: ConcurrentQueue<IDisposable> = ConcurrentQueue()
     Draw(drawCmds: DrawCommand[]): () =
         let mutable disposable = default
         while (DisposeQueue.TryDequeue(&disposable))
             disposable.Dispose()
-            
+
         // Begin() must be called before commands can be issued
         commandList.Begin()
     
@@ -1235,9 +1212,9 @@ module Graphics =
                         bindTextureSet()
                         currentPipeline <- pipeline
 
-                    let vertexBuffer   = mesh.VertexBuffer
-                    let indexBuffer    = mesh.IndexBuffer
-                    let indexCount     = mesh.IndexCount
+                    let vertexBuffer = mesh.VertexBuffer
+                    let indexBuffer  = mesh.IndexBuffer
+                    let indexCount   = mesh.IndexCount
 
                     commandList.SetVertexBuffer(0, vertexBuffer)
                     commandList.SetIndexBuffer(indexBuffer, IndexFormat.UInt32)
@@ -1268,7 +1245,7 @@ module Graphics =
         let mutable i = 0
         while (i < mainWindowRenderTargetCmds.Length)
             handle(mainWindowRenderTargetCmds[i])
-            i <- i + 1      
+            i <- i + 1
 
         // End() must be called before commands can be submitted for execution.
         commandList.End()
@@ -1287,5 +1264,98 @@ module Graphics =
         commandList.Dispose()
         graphicsDevice.Dispose()
 
+    Wait(): () =
+        graphicsDevice.WaitForIdle()
+
     SetVSync(enabled: bool): () =
         graphicsDevice.SyncToVerticalBlank <- enabled
+
+    #[import("C", "Sdl2.dll", "SDL_GetNumDisplayModes")]
+    private SDL_GetNumDisplayModes(displayIndex: int32): int32
+
+    #[import("C", "Sdl2.dll", "SDL_GetDisplayMode")]
+    private SDL_GetDisplayMode(displayIndex: int32, modeIndex: int32, mode: byref<SDL_DisplayMode>): int32
+
+    #[import("C", "Sdl2.dll", "SDL_GetWindowDisplayMode")]
+    private SDL_GetWindowDisplayMode(window: nint, mode: byref<SDL_DisplayMode>): int32
+
+    #[import("C", "Sdl2.dll", "SDL_SetWindowDisplayMode")]
+    private SDL_SetWindowDisplayMode(window: nint, mode: inref<SDL_DisplayMode>): int32
+
+    // int SDL_SetWindowDisplayMode(SDL_Window * window,
+    //                          const SDL_DisplayMode * mode);
+
+    GetDisplayModes(): DisplayMode[] =
+        let displayModes = System.Collections.Generic.List<DisplayMode>()
+
+        let displayCount = Sdl2Native.SDL_GetNumVideoDisplays()
+
+        let mutable i = 0
+        while (i < displayCount)
+            let displayModeCount = SDL_GetNumDisplayModes(i)
+
+            let mutable j = 0
+            while (j < displayModeCount)
+                let mutable mode = default
+                let result = SDL_GetDisplayMode(i, j, &mode)
+
+                match (UnsafeCast<PixelFormat>(mode.format))
+                | PixelFormat.R32_G32_B32_A32_Float =>
+                    displayModes.Add(DisplayMode(uint32(mode.w), uint32(mode.h), uint32(mode.refresh_rate)))
+                | _ =>
+                    ()
+                j <- j + 1
+            i <- i + 1
+
+        UnsafeCast<_[]>(displayModes.ToArray())
+
+    GetCurrentDisplayModeIndex(): int32 =
+        let displayIndex = Sdl2Native.SDL_GetWindowDisplayIndex(SDL_Window(window.window.SdlWindowHandle))
+
+        let mutable sdlDisplayMode = default
+        let result = SDL_GetWindowDisplayMode(window.window.SdlWindowHandle, &sdlDisplayMode)
+
+        let displayCount = Sdl2Native.SDL_GetNumVideoDisplays()
+
+        let mutable displayModeIndex = -1
+
+        let mutable count = 0
+
+        let mutable i = 0
+        while (i < displayCount)
+            let displayModeCount = SDL_GetNumDisplayModes(i)
+
+            let mutable j = 0
+            while (j < displayModeCount)
+                let mutable mode = default
+                let result = SDL_GetDisplayMode(i, j, &mode)
+
+                match (UnsafeCast<PixelFormat>(mode.format))
+                | PixelFormat.R32_G32_B32_A32_Float =>
+                    if (i == displayIndex && 
+                            (sdlDisplayMode.w == mode.w) && 
+                                (sdlDisplayMode.h == mode.h) && 
+                                    (sdlDisplayMode.refresh_rate == mode.refresh_rate) && 
+                                        (sdlDisplayMode.format == mode.format))
+                        displayModeIndex <- count
+                    count <- count + 1
+                | _ =>
+                    ()
+                j <- j + 1
+            i <- i + 1
+
+        if (displayModeIndex == -1)
+            fail("Unable to get current display mode.")
+
+        displayModeIndex
+
+    SetDisplayMode(displayMode: DisplayMode): () =
+        let mutable sdl2DisplayMode = default: SDL_DisplayMode
+
+        sdl2DisplayMode.format <- UnsafeCast(PixelFormat.R32_G32_B32_A32_Float)
+        sdl2DisplayMode.w <- int32(displayMode.Width)
+        sdl2DisplayMode.h <- int32(displayMode.Height)
+        sdl2DisplayMode.refresh_rate <- int32(displayMode.RefreshRate)
+
+        let result = SDL_SetWindowDisplayMode(window.window.SdlWindowHandle, &sdl2DisplayMode)
+        printLine(result)

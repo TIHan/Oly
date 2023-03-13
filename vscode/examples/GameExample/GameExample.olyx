@@ -290,7 +290,8 @@ main(): () =
         let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3.One)
         Graphics.CreateInstances([|Matrix4x4.Identity|])
 
-    let renderTarget = Graphics.CreateRenderTarget(1280, 720) // TODO: How do we hook this up?
+    let renderTarget = Graphics.CreateRenderTarget(1280, 720)
+    let renderTargetTextureSet = Graphics.CreateShaderTextureSet(renderTarget)
 
     let renderQuadCmds =
         let desc = 
@@ -301,11 +302,10 @@ main(): () =
         let shader = Graphics.CreateShader(desc, true)
 
         let instancesSet = Graphics.CreateShaderInstancesSet(quadInstances)
-        let textureSet = Graphics.CreateShaderTextureSet(renderTarget)
 
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
-            DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindTextureSet(renderTargetTextureSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateDrawMesh(quadMesh, shader, quadInstances)
         ]
 
@@ -364,9 +364,11 @@ main(): () =
         Graphics.SetViewPort(Vector4(0, 0, float32(width), float32(height)))
         Graphics.SetProjection(camera.Projection)
 
-       // Graphics.UpdateRenderTarget(uint32(width), uint32(height), renderTarget)
+        Graphics.UpdateRenderTarget(uint32(width), uint32(height), renderTarget)
+        Graphics.UpdateTextureSet(renderTarget, renderTargetTextureSet)
 
         window.SetSize(Vector2(float32(width), float32(height)))
+        Graphics.Wait()
 
     setResolution(1280, 720)
     
@@ -384,7 +386,6 @@ main(): () =
             UI.Button(
                 spawnBoxButtonVM,
                 vm ->
-                    setResolution(1920, 1080)
                     let position = camera.Transform.Position + (camera.Transform.Forward * 2)
                     spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
             )
@@ -412,18 +413,28 @@ main(): () =
                 vm -> ()
             )
 
-        let resolutionWidthInputVM = UI.Int32InputModel("Width", 1280)
-        let resolutionWidthInput =
-            UI.Int32Input(
-                resolutionWidthInputVM,
-                vm -> ()
+        let resolutions = Graphics.GetDisplayModes()
+        let resolutionItems =
+            Array.MapAsMutable(resolutions, 
+                x ->
+                    let strb = StringBuilder()
+                    let strb = strb.Append(x.Width)
+                    let strb = strb.Append(" × ")
+                    let strb = strb.Append(x.Height)
+                    let strb = strb.Append(" - ")
+                    let strb = strb.Append(x.RefreshRate)
+                    let strb = strb.Append("hz")
+                    strb.ToString()
             )
-
-        let resolutionHeightInputVM = UI.Int32InputModel("Height", 720)
-        let resolutionHeightInput =
-            UI.Int32Input(
-                resolutionHeightInputVM,
-                vm -> ()
+        let resolutionItemIndex = Graphics.GetCurrentDisplayModeIndex()
+        let resolutionsComboBoxVM = UI.ComboBoxModel("Resolutions", resolutionItemIndex, resolutionItems, resolutionItems.Length)
+        let resolutionsComboBox =
+            UI.ComboBox(
+                resolutionsComboBoxVM,
+                vm ->
+                    let item = resolutions[vm.SelectedItemIndex]
+                    Graphics.SetDisplayMode(item)
+                    setResolution(int32(item.Width), int32(item.Height))
             )
 
         let mainMenuWindowVM = UI.WindowModel("Main Menu", Vector2(512, 512), Vector2(100, 100))
@@ -431,8 +442,7 @@ main(): () =
             mainMenuWindowVM,
             [
                 spawnBoxButton;
-                resolutionWidthInput;
-                resolutionHeightInput;
+                resolutionsComboBox;
                 toggleFullscreenCheckbox;
                 toggleVerticalSyncCheckbox;
                 quitButton;
