@@ -1180,6 +1180,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
         else
             value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
     | _ ->
+        // TODO: This is weird, we should make sure there is an error when a value is invalid.
         if value.IsInvalid then
             match ty with
             | TypeSymbol.Entity(ent) ->

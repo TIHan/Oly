@@ -755,8 +755,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             irArgs
             
-        let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =
-            
+        let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =           
+            OlyAssert.False(func.EnclosingType.IsShape)
+
             if func.Flags.IsInlineable then
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)

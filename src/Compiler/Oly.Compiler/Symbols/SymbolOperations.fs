@@ -1148,7 +1148,8 @@ type TypeSymbol with
 
         member this.ImplicitBaseTypes =
             let ty = stripTypeEquationsAndBuiltIn this
-            if ty.IsAlias || ty.IsTypeExtension || ty.IsShape || ty.IsBaseObject_t then
+            OlyAssert.False(ty.IsAlias)
+            if ty.IsError_t || ty.TryTypeParameter.IsSome || ty.IsTypeExtension || ty.IsShape || ty.IsBaseObject_t then
                 Seq.empty
             else
                 seq {

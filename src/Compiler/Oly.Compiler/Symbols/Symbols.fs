@@ -1215,7 +1215,11 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
             if ent.Extends.Length = 1 then
                 stripTypeEquationsAux skipAlias skipModifiers ent.Extends[0]
             else
-                ty
+                // Alias is expected to have an extends.
+                // REVIEW: This does not guarantee that there will be an error in diagnostics.
+                // TODO: An entity-kind can only be an alias if there is an extends, so this is technically not valid.
+                //       We should assert there is a single extends.
+                TypeSymbolError
         else
             ty
 
@@ -1256,8 +1260,12 @@ let stripTypeEquations (ty: TypeSymbol) =
 let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
     match ty.TryIntrinsicType with
-    | Some intrinTy -> intrinTy
-    | _ -> ty
+    | Some(intrinTy: TypeSymbol) -> 
+        OlyAssert.False(intrinTy.IsAlias)
+        intrinTy
+    | _ -> 
+        OlyAssert.False(ty.IsAlias)
+        ty
 
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
     stripTypeEquationsAux true false ty
@@ -3272,6 +3280,7 @@ type TypeSymbol =
         | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
+    // TODO: Rename to 'TryImmediateTypeParameter'.
     /// Try to get a type parameter without stripping the type.
     member this.TryImmedateTypeParameter =
         match this with
@@ -3372,7 +3381,7 @@ type TypeSymbol =
         | Function _ -> true
         | _ -> false
 
-    member this.IsAlias =
+    member this.IsAlias: bool =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> ent.IsAlias
         | _ -> false
