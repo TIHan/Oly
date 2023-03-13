@@ -79,6 +79,18 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
                 if not implements.IsEmpty then
                     cenv.diagnostics.Error($"'{ent.Name}' is a newtype which cannot implement interfaces directly.", 10, syntaxImplements)
                 ImArray.empty, ImArray.empty
+            elif ent.IsTypeExtension then
+                // Type extensions that extend alias types are not supported, with the exception of intrinsic alias types.
+                // The reason being is that phantom alias types' type parameters are not sound:
+                //     alias ExampleAlias<T1> = __oly_int32
+                // Lack of 'T1' uses makes 'ExampleAlias' a phantom type.
+                // If this were supported for extensions, because this is an alias, '__oly_int32' does not know what 'T1' will ever be.
+                // However, intrinsic alias types can never be phantom types.
+                if not extends.IsEmpty && extends[0].IsAliasAndNotCompilerIntrinsic then
+                    cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is an alias and cannot be used with a type extension.", 10, syntaxExtends.Children[1])
+                    ImArray.createOne(TypeSymbolError), implements
+                else
+                    extends, implements
             else
                 extends, implements
 

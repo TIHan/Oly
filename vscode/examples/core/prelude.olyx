@@ -588,7 +588,7 @@ extension ArrayExtensions<T> =
         get() = getLength(this)
 
 #[open]
-extension MutableArrayExtensions =
+extension ArrayExtensions =
     inherits System.Array
 
     #[intrinsic("new_array")]

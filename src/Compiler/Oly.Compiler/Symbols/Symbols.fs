@@ -3252,14 +3252,15 @@ type TypeSymbol =
             )
         | _ -> ImArray.empty
 
+    // TODO: Rename this to TryEntityNoAlias.
     member this.TryEntity: IEntitySymbol voption =
         match stripTypeEquations this with
         | Entity(ent) -> ValueSome(ent)
         | _ -> ValueNone
 
     member this.AsEntity: IEntitySymbol =
-        match this.TryEntity with
-        | ValueSome(ent) -> ent
+        match stripTypeEquationsExceptAlias this with
+        | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
 
     member this.TryTypeParameter =
@@ -3372,9 +3373,12 @@ type TypeSymbol =
         | _ -> false
 
     member this.IsAlias =
-        match stripTypeEquations this with
+        match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> ent.IsAlias
-        | _ -> true
+        | _ -> false
+
+    member this.IsAliasAndNotCompilerIntrinsic =
+        this.IsAlias && (not this.AsEntity.IsCompilerIntrinsic)
 
     member this.IsClosure =
         match stripTypeEquations this with

@@ -7036,3 +7036,28 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Extension with an generic alias/phantom type should not work``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+alias AliasObject<T1, T2, T3> = int32
+
+#[open]
+extension AdditionExtends<T1, T2, T3> =
+    inherits AliasObject<T1, T2, T3>
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'AliasObject<T1, T2, T3>' is an alias and cannot be used with a type extension.",
+            """
+    inherits AliasObject<T1, T2, T3>
+             ^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
