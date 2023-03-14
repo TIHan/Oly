@@ -44,6 +44,7 @@ module Graphics =
     private mutable globalResourceLayout: ResourceLayout = null
     private mutable globalResourceSet: ResourceSet = null
     
+    private mutable bufferResourceLayout: ResourceLayout = null
     private mutable instanceResourceLayout: ResourceLayout = null
 
     private mutable defaultResourceLayoutFragment: ResourceLayout = null
@@ -88,6 +89,14 @@ module Graphics =
             )
         globalResourceLayout <- factory.CreateResourceLayout(globalResourceLayoutDesc)
         globalResourceSet <- CreateResourceSet(globalResourceLayout, globalUniformBuffer)
+
+        let bufferResourceLayoutDesc =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Buffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
+                |]
+            )
+        bufferResourceLayout <- factory.CreateResourceLayout(bufferResourceLayoutDesc)
 
         let instanceResourceLayoutDesc =
             ResourceLayoutDescription(
@@ -307,9 +316,17 @@ module Graphics =
     
         pipelineDesc.ResourceLayouts <-
             [|
+                // slot 0 - vert/frag
                 globalResourceLayout;
+
+                // slot 1 - vert
                 instanceResourceLayout;
-                fragmentResourceLayout
+
+                // slot 2 - frag
+                fragmentResourceLayout;
+
+                // slot 3 - vert
+                bufferResourceLayout
             |]
         pipelineDesc.Outputs <- outputs
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
@@ -383,24 +400,22 @@ module Graphics =
 
         // Texture2D(texture)
 
-    CreateBuffer<T>(buffer: T[||], index: uint32, count: uint32): Buffer<T> where T: unmanaged =
+    CreateBuffer<T>(buffer: T[||], count: uint32): Buffer<T> where T: unmanaged =
         let size = uint32(sizeof<T>) * count
-        let deviceBuffer = factory.CreateBuffer(BufferDescription(size, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
+        let deviceBuffer = factory.CreateBuffer(BufferDescription(size, usage, size))
 
-        graphicsDevice.UpdateBuffer(deviceBuffer, 0, buffer)
+        graphicsDevice.UpdateBuffer(deviceBuffer, 0, &buffer[0], size)
 
         Buffer<T>(deviceBuffer)
 
+    UpdateBuffer<T>(buffer: Buffer<T>, bufferData: T[||], count: uint32): () where T: unmanaged =
+        let size = uint32(sizeof<T>) * count
+        graphicsDevice.UpdateBuffer(buffer.DeviceBuffer, 0, &bufferData[0], size)
+
     CreateBufferSet<T>(buffer: Buffer<T>): BufferSet where T: unmanaged =
-        let resourceLayoutDesc =
-            ResourceLayoutDescription(
-                [|
-                    ResourceLayoutElementDescription("Buffer", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
-                |]
-            )
-        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
-        let resourceSet = CreateResourceSet(resourceLayout, buffer.DeviceBuffer)
-        BufferSet(resourceLayout, resourceSet)
+        let resourceSet = CreateResourceSet(bufferResourceLayout, buffer.DeviceBuffer)
+        BufferSet(bufferResourceLayout, resourceSet)
 
     private CreateRenderTargetState(width: uint32, height: uint32, useDepth: bool): RenderTargetState =
         let depthTexture =
@@ -489,8 +504,6 @@ module Graphics =
         while (bindBufferSetCmds.TryDequeue(&cmd))
             match (cmd)
             | DrawCommand.BindBufferSet(bufferSet, setKind, slot) =>
-                if (slot < 8)
-                    fail("Binding a buffer set requires a slot greater than or equal to '8'.")
                 if (slot >= 16)
                     fail("Binding a buffer set to a slot greater than '16' is not supported.")
                 match (setKind)
@@ -511,7 +524,7 @@ module Graphics =
 
     Draw(drawCmds: DrawCommand[]): () =
         processDisposables()
-        
+
         // Begin() must be called before commands can be issued
         commandList.Begin()
     

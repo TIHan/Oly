@@ -465,7 +465,6 @@ sealed class BufferSet =
         }
 
     Dispose(): () =
-        Graphics.DisposeQueue.Enqueue(this.ResourceLayout)
         Graphics.DisposeQueue.Enqueue(this.ResourceSet)
 
 sealed class ComputeShader =

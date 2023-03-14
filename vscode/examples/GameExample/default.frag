@@ -1,5 +1,11 @@
 #version 450
 
+struct PointLight
+{
+    vec3 Position;
+    float Padding;
+};
+
 layout(set = 0, binding = 0) uniform _Global
 {
     mat4 View;
@@ -12,21 +18,25 @@ layout(set = 0, binding = 0) uniform _Global
     float DeltaTime;
 };
 
-vec3 GetGlobalViewPosition()
-{
-    return View[3].xyz;
-}
-
 layout(set = 2, binding = 0) uniform texture2D Texture;
 layout(set = 2, binding = 1) uniform sampler Sampler;
+
+layout(set = 3, binding = 0) readonly buffer _PointLights
+{
+    PointLight[] PointLights;
+};
 
 layout(location = 0) in vec4 in_Color;
 layout(location = 1) in vec2 in_TexCoord;
 layout(location = 2) in vec3 in_Normal;
 layout(location = 3) in vec3 in_Position_world;
-layout(location = 4) in vec3 in_LightPosition_world;
 
 layout(location = 0) out vec4 out_Color;
+
+vec3 GetGlobalViewPosition()
+{
+    return View[3].xyz;
+}
 
 vec3 Ambient(
     /* property */ float ambientIntensity, 
@@ -35,9 +45,14 @@ vec3 Ambient(
     return ambientIntensity * color;
 }
 
-vec3 Diffuse(vec3 lightDir, vec3 normal, vec3 color)
+vec3 Diffuse(
+    /* property */ float diffuseIntensity,
+    vec3 lightDir, 
+    vec3 normal, 
+    vec3 color)
 {
-    return max(dot(normal, lightDir), 0.0) * color;
+    float diffuseAmount = max(dot(normal, lightDir), 0.0);
+    return diffuseIntensity * diffuseAmount * color;
 }
 
 vec3 Specular(
@@ -54,18 +69,18 @@ vec3 Specular(
 
 vec3 Phong(
     /* property */ float ambientIntensity,
+    /* property */ float diffuseIntensity,
     /* property */ float specularIntensity,
-    /* property */ float intensity, 
     vec3 lightDir,
     vec3 viewDir,
     vec3 normal, 
     vec3 color)
 {
     vec3 ambientColor = Ambient(ambientIntensity, color);
-    vec3 diffuseColor = Diffuse(lightDir, normal, color);
+    vec3 diffuseColor = Diffuse(diffuseIntensity, lightDir, normal, color);
     vec3 specularColor = Specular(specularIntensity, lightDir, viewDir, normal, color);
 
-    return ambientColor + (intensity * (diffuseColor + specularColor));
+    return ambientColor + diffuseColor + specularColor;
 }
 
 float PointLightIntensity(
@@ -98,18 +113,26 @@ float PointLightIntensity(
 void main()
 {
     /* internal property */ float ambientIntensity = 0.25;
+    /* internal property */ float diffuseIntensity = 1;
     /* internal property */ float specularIntensity = 0.5;
     /* internal property */ float intensity = 1;
     /* internal property */ float radius = 5;
 
-    vec3 lightVec = in_LightPosition_world - in_Position_world;
-    vec3 lightDir = normalize(lightVec);
-    vec3 viewDir  = normalize(GetGlobalViewPosition() - in_Position_world);
+    vec3 phongColor = vec3(0);
 
-    intensity = PointLightIntensity(intensity, radius, lightVec);
-    vec3  phongColor = Phong(ambientIntensity, specularIntensity, intensity, lightDir, viewDir, in_Normal, in_Color.xyz);
+    float currentIntensity = 0;
+    for(int i = 0; i < PointLights.length(); i++)
+    {
+        vec3 lightVec = PointLights[i].Position - in_Position_world;
+        vec3 lightDir = normalize(lightVec);
+        vec3 viewDir  = normalize(GetGlobalViewPosition() - in_Position_world);
+
+        phongColor = phongColor + Phong(ambientIntensity, diffuseIntensity, specularIntensity, lightDir, viewDir, in_Normal, in_Color.xyz);
+
+        currentIntensity = currentIntensity + PointLightIntensity(intensity, radius, lightVec);
+    }
 
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
-    color.xyz = phongColor * color.xyz;
+    color.xyz = currentIntensity * phongColor * color.xyz;
     out_Color = color;
 }

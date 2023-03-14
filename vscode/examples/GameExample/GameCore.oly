@@ -28,6 +28,11 @@ clamp(min: float32, max: float32, value: float32): float32 =
     else
         value
 
+#[StructLayout(LayoutKind.Sequential)]
+struct PointLight =
+    mutable Position: Vector3 = Vector3.Zero
+    Padding: float32 = 0
+
 struct Camera =
     mutable Transform: Transform
     mutable Projection: Matrix4x4

@@ -23,6 +23,21 @@ main(): () =
 
     // -------------------------------------
 
+    // ----
+
+    // Lights
+
+    let mutable pointLight = PointLight()
+    let mutable pointLight2 = PointLight()
+    pointLight2.Position <- Vector3(0, 5, 0)
+    let pointLights = Array.ZeroCreate<PointLight>(128)
+    pointLights[0] <- pointLight
+    pointLights[1] <- pointLight2
+    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(pointLights, 2)
+    let pointLightBufferSet = Graphics.CreateBufferSet(pointLightBuffer)
+
+    // ----
+
     let updateWorldPhysics(dt) =
         physics.Update(dt)
 
@@ -65,6 +80,7 @@ main(): () =
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
             DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
         ]
 
@@ -83,6 +99,7 @@ main(): () =
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
             DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         ]
 
@@ -138,6 +155,9 @@ main(): () =
 
     // ----
 
+
+    // ----
+
     let quadMesh = 
         let desc = MeshDescription.CreateQuad(1)
         Graphics.CreateMesh(desc)
@@ -166,7 +186,7 @@ main(): () =
         ]
 
     let drawCmds =
-        match (drawCmds[2])
+        match (drawCmds[3])
         | DrawCommand.DrawMesh(mesh, shader, instances) =>
             let computeShaderDesc =
                 ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
