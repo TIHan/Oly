@@ -1,0 +1,733 @@
+namespace Evergreen.Graphics
+
+open System
+open System.Text
+open System.Numerics
+open System.Threading
+open System.Collections.Generic
+open System.Collections.Concurrent
+open System.Runtime.InteropServices
+open Veldrid
+open Veldrid.Sdl2
+open Veldrid.StartupUtilities
+open Veldrid.SPIRV
+open ImGuiNET
+open SixLabors.ImageSharp
+open SixLabors.ImageSharp.Advanced
+open SixLabors.ImageSharp.PixelFormats
+open SixLabors.ImageSharp.Processing
+
+private alias VeldridShaderDescription = Veldrid.ShaderDescription
+private alias VeldridShader = Veldrid.Shader
+
+sealed class MeshDescription =
+    mutable Vertices:   Vector3[||]
+    mutable Indices:    uint32[||]
+    mutable Normals:    Vector3[||]
+    mutable TexCoords:  Vector2[||]
+
+    new(vertices: Vector3[||], indices: uint32[||], normals: Vector3[||], texCoords: Vector2[||]) =
+        {
+            Vertices = vertices;
+            Indices = indices;
+            Normals = normals;
+            TexCoords = texCoords
+        }
+
+    static CreateQuad(scale: float32): MeshDescription =
+        let vertices =
+            [|
+                Vector3(-scale, -scale,  scale);
+                Vector3(scale, -scale,  scale);
+                Vector3(scale,  scale,  scale);
+                Vector3(-scale,  scale,  scale)
+            |]
+
+        let normals =
+            [|
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1)
+            |]
+
+        let texCoords =
+            [|
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0)
+            |]
+
+        let indices =
+            [|
+                0;  1;  2;
+                2;  3;  0: uint32
+            |]
+        
+        MeshDescription(
+            vertices, 
+            indices,
+            normals,
+            texCoords
+        )
+
+    static CreateQuad(): MeshDescription =
+        MeshDescription.CreateQuad(0.5)
+
+    static CreateCube(): MeshDescription =
+        let vertices =
+            [|
+                // front
+                Vector3(-0.5, -0.5,  0.5);
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(0.5,  0.5,  0.5);
+                Vector3(-0.5,  0.5,  0.5);
+                // top
+                Vector3(-0.5,  0.5,  0.5);
+                Vector3(0.5,  0.5,  0.5);
+                Vector3(0.5,  0.5, -0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                // back
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                Vector3(0.5,  0.5, -0.5);
+                // bottom
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(-0.5, -0.5,  0.5);
+                // left
+                Vector3(-0.5, -0.5, -0.5);
+                Vector3(-0.5, -0.5,  0.5);
+                Vector3(-0.5,  0.5,  0.5);
+                Vector3(-0.5,  0.5, -0.5);
+                // right
+                Vector3(0.5, -0.5,  0.5);
+                Vector3(0.5, -0.5, -0.5);
+                Vector3(0.5,  0.5, -0.5);
+                Vector3(0.5,  0.5,  0.5)
+            |]
+
+        let normals =
+            [|
+                // front
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                Vector3(0, 0, 1);
+                // top
+                Vector3(0, 1, 0);
+                Vector3(0, 1, 0);
+                Vector3(0, 1, 0);
+                Vector3(0, 1, 0);
+                // back
+                Vector3(0, 0, -1);
+                Vector3(0, 0, -1);
+                Vector3(0, 0, -1);
+                Vector3(0, 0, -1);
+                // bottom
+                Vector3(0, -1, 0);
+                Vector3(0, -1, 0);
+                Vector3(0, -1, 0);
+                Vector3(0, -1, 0);
+                // left
+                Vector3(-1, 0, 0);
+                Vector3(-1, 0, 0);
+                Vector3(-1, 0, 0);
+                Vector3(-1, 0, 0);
+                // right
+                Vector3(1, 0, 0);
+                Vector3(1, 0, 0);
+                Vector3(1, 0, 0);
+                Vector3(1, 0, 0)
+            |]
+
+        // let texCoords =
+        //     [|
+        //         // front
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0);
+        //         // top
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0);
+        //         // back
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0);
+        //         // bottom
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0);
+        //         // left
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0);
+        //         // right
+        //         Vector2(0.0, 0.0);
+        //         Vector2(1.0, 0.0);
+        //         Vector2(1.0, 1.0);
+        //         Vector2(0.0, 1.0)
+        //     |]
+        let texCoords =
+            [|
+                // front
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // top
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                // back
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                // bottom
+                Vector2(0.0, 0.0);
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                // left
+                Vector2(1.0, 0.0);
+                Vector2(1.0, 1.0);
+                Vector2(0.0, 1.0);
+                Vector2(0.0, 0.0);
+                // right
+                Vector2(0.0, 1.0);
+                Vector2(0.0, 0.0);
+                Vector2(-1.0, 0.0);
+                Vector2(-1.0, 1.0)
+            |]
+
+        let indices =
+            [|
+                // front
+                0;  1;  2;
+                2;  3;  0: uint32;
+                // top
+                4;  5;  6;
+                6;  7;  4: uint32;
+                // back
+                8;  9; 10;
+                10; 11;  8;
+                // bottom
+                12; 13; 14;
+                14; 15; 12;
+                // left
+                16; 17; 18;
+                18; 19; 16: uint32;
+                // right
+                20; 21; 22;
+                22; 23; 20: uint32
+            |]
+        
+        MeshDescription(
+            vertices, 
+            indices,
+            normals,
+            texCoords
+        )
+
+sealed class ShaderDescription =
+    internal mutable VertexLayouts:  VertexLayoutDescription[||]
+    internal mutable VertexShader:   VeldridShaderDescription
+    internal mutable FragmentShader: VeldridShaderDescription
+
+    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
+        {
+            VertexLayouts = vertexLayouts;
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader
+        }
+
+    static CreateMeshShader(vertexShaderBytes: byte[||], fragmentShaderBytes: byte[||]): ShaderDescription =
+        let vertexLayout =
+            VertexLayoutDescription(
+                [|
+                    VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
+                    VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
+                    VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
+                |]
+            )
+    
+        let vertexShader =
+            ShaderDescription(
+                ShaderStages.Vertex,
+                vertexShaderBytes,
+                "main"
+            )
+    
+        let fragmentShader =
+            ShaderDescription(
+                ShaderStages.Fragment,
+                fragmentShaderBytes,
+                "main"
+            )
+
+        ShaderDescription([|vertexLayout|], vertexShader, fragmentShader)
+
+sealed class ComputeShaderDescription =
+    internal mutable ComputeShader: VeldridShaderDescription
+
+    private new(computeShader: VeldridShaderDescription) =
+        {
+            ComputeShader = computeShader
+        }
+
+    static CreateMeshLayout(computeShaderBytes: byte[||]): ComputeShaderDescription =
+        let computeShader =
+            ShaderDescription(
+                ShaderStages.Compute,
+                computeShaderBytes,
+                "main"
+            )
+
+        ComputeShaderDescription(computeShader)
+
+sealed class Mesh =
+    implements IDisposable
+
+    internal VertexBuffer:   DeviceBuffer
+    internal IndexBuffer:    DeviceBuffer
+    internal IndexCount:     uint32
+
+    internal new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer, indexCount: uint32) =
+        {
+            VertexBuffer = vertexBuffer;
+            IndexBuffer = indexBuffer;
+            IndexCount = indexCount
+        }
+
+    Dispose(): () =
+        this.VertexBuffer.Dispose()
+        this.IndexBuffer.Dispose()
+
+sealed class Buffer<T> =
+    implements IDisposable
+
+    internal DeviceBuffer: DeviceBuffer
+
+    internal new(deviceBuffer: DeviceBuffer) =
+        {
+            DeviceBuffer = deviceBuffer
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.DeviceBuffer)
+
+#[null]
+sealed class Texture2D =
+    implements IDisposable
+
+    internal Texture: Texture
+
+    internal new(texture: Texture) =
+        {
+            Texture = texture
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.Texture)
+
+private sealed class RenderTargetState =
+    implements IDisposable
+
+    Framebuffer: Framebuffer
+    Texture: Texture2D
+
+    /// This can be null.
+    DepthTexture: Texture2D
+
+    internal new(framebuffer: Framebuffer, texture: Texture2D, depthTexture: Texture2D) =
+        {
+            Framebuffer = framebuffer
+            Texture = texture
+            DepthTexture = depthTexture
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.Texture)
+        Graphics.DisposeQueue.Enqueue(this.Framebuffer)
+
+sealed class RenderTarget =
+    implements IDisposable
+
+    internal mutable State: RenderTargetState
+
+    internal new(state: RenderTargetState) =
+        {
+            State = state
+        }
+
+    Dispose(): () =
+        this.State.Dispose()
+
+sealed class Instances =
+    implements IDisposable
+
+    mutable Count: int32
+    internal mutable InstanceBuffer: DeviceBuffer
+
+    internal new(instanceBuffer: DeviceBuffer) =
+        {
+            Count = 0
+            InstanceBuffer = instanceBuffer
+        }
+
+    Dispose(): () =
+        this.InstanceBuffer.Dispose()
+
+private sealed class ShaderState =
+    internal VertexShader:   VeldridShader
+    internal FragmentShader: VeldridShader
+    internal Pipeline:       Pipeline
+
+    internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, pipeline: Pipeline) =
+        {
+            VertexShader = vertexShader;
+            FragmentShader = fragmentShader;
+            Pipeline = pipeline
+        }
+
+private sealed class ComputeShaderState =
+    internal ComputeShader: VeldridShader
+    internal Pipeline:      Pipeline
+
+    internal new(computeShader: VeldridShader, pipeline: Pipeline) =
+        {
+            ComputeShader = computeShader;
+            Pipeline = pipeline
+        }
+
+sealed class Shader =
+    implements IDisposable
+
+    internal mutable State: ShaderState
+
+    internal new(state: ShaderState) =
+        {
+            State = state
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.State.Pipeline)
+        Graphics.DisposeQueue.Enqueue(this.State.FragmentShader)
+        Graphics.DisposeQueue.Enqueue(this.State.VertexShader)
+
+sealed class ShaderTextureSet =
+    implements IDisposable
+
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceSet: ResourceSet) =
+        {
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
+sealed class ShaderInstancesSet =
+    implements IDisposable
+
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceSet: ResourceSet) =
+        {
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
+sealed class BufferSet =
+    implements IDisposable
+
+    internal mutable ResourceLayout: ResourceLayout
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceLayout: ResourceLayout, resourceSet: ResourceSet) =
+        {
+            ResourceLayout = resourceLayout
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceLayout)
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
+sealed class ComputeShader =
+    implements IDisposable
+
+    internal mutable State: ComputeShaderState
+
+    internal new(state: ComputeShaderState) =
+        {
+            State = state
+        }
+
+    Dispose(): () =
+        this.State.ComputeShader.Dispose()
+
+enum DrawCommandKind =
+    | SetWindowTarget
+    | SetRenderTarget
+    | DrawMesh
+    | RunComputeShader
+    | BindTextureSet
+    | BindInstancesSet
+    | BindBufferSet
+
+enum BindResourceSetKind =
+    | Graphics
+    | Compute
+
+class DrawCommand =
+    Kind: DrawCommandKind
+
+    new(kind: DrawCommandKind) =
+        {
+            Kind = kind
+        }
+
+    private sealed class SetWindowTarget =
+        inherits DrawCommand
+
+        new() =
+            base(DrawCommandKind.SetWindowTarget) with
+                {
+                }
+
+    static CreateSetWindowTarget(): DrawCommand =
+        DrawCommand.SetWindowTarget()
+
+    pattern SetWindowTarget(cmd: DrawCommand): () when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetWindowTarget)) =>
+        let impl = UnsafeCast<DrawCommand.SetWindowTarget>(cmd)
+        ()
+
+    private sealed class SetRenderTarget =
+        inherits DrawCommand
+
+        RenderTarget: RenderTarget
+
+        new(renderTarget: RenderTarget) =
+            base(DrawCommandKind.SetRenderTarget) with
+                {
+                    RenderTarget = renderTarget
+                }
+
+    static CreateSetRenderTarget(renderTarget: RenderTarget): DrawCommand =
+        DrawCommand.SetRenderTarget(renderTarget)
+
+    pattern SetRenderTarget(cmd: DrawCommand): RenderTarget when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetRenderTarget)) =>
+        let impl = UnsafeCast<DrawCommand.SetRenderTarget>(cmd)
+        impl.RenderTarget
+
+    private sealed class DrawMesh =
+        inherits DrawCommand
+
+        Mesh:      Mesh
+        Shader:    Shader
+        Instances: Instances
+
+        new(mesh: Mesh, shader: Shader, instances: Instances) =
+            base(DrawCommandKind.DrawMesh) with
+                {
+                    Mesh = mesh;
+                    Shader = shader;
+                    Instances = instances
+                }
+
+    static CreateDrawMesh(mesh: Mesh, shader: Shader, instances: Instances): DrawCommand =
+        DrawCommand.DrawMesh(mesh, shader, instances)
+
+    pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
+        let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
+        (impl.Mesh, impl.Shader, impl.Instances)
+
+    private sealed class RunComputeShader =
+        inherits DrawCommand
+
+        ComputeShader: ComputeShader
+        Instances: Instances
+
+        new(computeShader: ComputeShader, instances: Instances) =
+            base(DrawCommandKind.RunComputeShader) with
+                {
+                    ComputeShader = computeShader
+                    Instances = instances
+                }
+
+    static CreateRunComputeShader(computeShader: ComputeShader, instances: Instances): DrawCommand =
+        DrawCommand.RunComputeShader(computeShader, instances)
+
+    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
+        let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
+        (impl.ComputeShader, impl.Instances)
+
+    private sealed class BindTextureSet =
+        inherits DrawCommand
+
+        TextureSet: ShaderTextureSet
+        SetKind: BindResourceSetKind
+
+        new(textureSet: ShaderTextureSet, kind: BindResourceSetKind) =
+            base(DrawCommandKind.BindTextureSet) with
+                {
+                    TextureSet = textureSet
+                    SetKind = kind
+                }
+
+    static CreateBindTextureSet(textureSet: ShaderTextureSet, kind: BindResourceSetKind): DrawCommand =
+        DrawCommand.BindTextureSet(textureSet, kind)
+
+    pattern BindTextureSet(cmd: DrawCommand): (ShaderTextureSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindTextureSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindTextureSet>(cmd)
+        (impl.TextureSet, impl.SetKind)
+
+    private sealed class BindInstancesSet =
+        inherits DrawCommand
+
+        InstancesSet: ShaderInstancesSet
+        SetKind: BindResourceSetKind
+
+        new(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind) =
+            base(DrawCommandKind.BindInstancesSet) with
+                {
+                    InstancesSet = instancesSet
+                    SetKind = kind
+                }
+
+    static CreateBindInstancesSet(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind): DrawCommand =
+        DrawCommand.BindInstancesSet(instancesSet, kind)
+
+    pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindInstancesSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
+        (impl.InstancesSet, impl.SetKind)
+
+    private sealed class BindBufferSet =
+        inherits DrawCommand
+
+        BufferSet: BufferSet
+        SetKind: BindResourceSetKind
+        Slot: uint32
+
+        new(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32) =
+            base(DrawCommandKind.BindBufferSet) with
+                {
+                    BufferSet = BufferSet
+                    SetKind = kind
+                    Slot = slot
+                }
+
+    static CreateBindBufferSet(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32): DrawCommand =
+        DrawCommand.BindBufferSet(BufferSet, kind, slot)
+
+    pattern BindBufferSet(cmd: DrawCommand): (bufferSet: BufferSet, setKind: BindResourceSetKind, slot: uint32) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindBufferSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindBufferSet>(cmd)
+        (impl.BufferSet, impl.SetKind, impl.Slot)
+
+enum KeyEventKind =
+    | Pressed
+    | Released
+
+alias KeyEvent = Veldrid.KeyEvent
+alias Key = Veldrid.Key
+
+alias MouseEvent = Veldrid.MouseEvent
+
+sealed class InputState =
+    KeyEvents: KeyEvent[||]
+    MouseEvents: MouseEvent[||]
+    mutable MousePosition: Vector2
+    mutable MouseDelta: Vector2
+    internal snapshot: InputSnapshot
+
+    internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||], snapshot: InputSnapshot) =
+        {
+            KeyEvents = keyEvents
+            MouseEvents = mouseEvents
+            MousePosition = Vector2.Zero
+            MouseDelta = Vector2.Zero
+            snapshot = snapshot
+        }
+
+sealed class Window =
+    internal window: Sdl2Window
+
+    internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
+        let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.Normal, title)
+        let window = VeldridStartup.CreateWindow(windowCreateInfo)
+        window.add_Moved(
+            // We do this to re-create the swap-chain when the window moves.
+            p ->
+                Graphics.graphicsDevice.ResizeMainWindow(uint32(window.Width), uint32(window.Height))
+        )
+        {
+            window = window
+        }
+
+    GetInputState(): InputState =
+        let snapshot = this.window.PumpEvents()
+        let keyEvents = System.Linq.Enumerable.ToArray<KeyEvent>(snapshot.KeyEvents)
+        let mouseEvents = System.Linq.Enumerable.ToArray<MouseEvent>(snapshot.MouseEvents)
+        let state = InputState(keyEvents, mouseEvents, snapshot)
+        state.MousePosition <- snapshot.MousePosition
+        state.MouseDelta <- this.window.MouseDelta
+        state
+
+    SetFullscreen(value: bool): () =
+        if (value)
+            this.window.WindowState <- WindowState.FullScreen
+        else
+            this.window.WindowState <- WindowState.Normal
+
+    IsFullscreen: bool 
+        get() = 
+            fromEnum<WindowState>(this.window.WindowState) == fromEnum<WindowState>(WindowState.FullScreen)
+
+    HideCursor(): () =
+        let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(true)
+        this.window.CursorVisible <- false
+
+    ShowCursor(): () =
+        let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(false)
+        this.window.CursorVisible <- true
+
+    IsCursorVisible: bool get() = this.window.CursorVisible
+
+    internal SetSize(size: Vector2): () =
+        this.window.Width <- int32(size.X)
+        this.window.Height <- int32(size.Y)
+        Graphics.graphicsDevice.ResizeMainWindow(uint32(size.X), uint32(size.Y)) // re-creates swap-chain
+        Graphics.imGuiRenderer.WindowResized(this.window.Width, this.window.Height)
+
+    Close(): () =
+        this.window.Close()
+
+    Exists: bool
+        get() = this.window.Exists
+
+sealed class DisplayMode =
+    Width: uint32
+    Height: uint32
+    RefreshRate: uint32
+
+    new(width: uint32, height: uint32, refreshRate: uint32) =
+        {
+            Width = width
+            Height = height
+            RefreshRate = refreshRate
+        }
