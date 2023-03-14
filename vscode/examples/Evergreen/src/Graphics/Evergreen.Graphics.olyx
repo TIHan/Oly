@@ -93,7 +93,8 @@ module Graphics =
         let bufferResourceLayoutDesc =
             ResourceLayoutDescription(
                 [|
-                    ResourceLayoutElementDescription("Buffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
+                    ResourceLayoutElementDescription("Buffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute);
+                    ResourceLayoutElementDescription("BufferCount", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
                 |]
             )
         bufferResourceLayout <- factory.CreateResourceLayout(bufferResourceLayoutDesc)
@@ -273,6 +274,18 @@ module Graphics =
                     |]
             )
         factory.CreateResourceSet(resourceSetDesc)
+
+    private CreateResourceSetForBuffer<T>(buffer: Buffer<T>): ResourceSet where T: unmanaged =
+        let resourceLayout = bufferResourceLayout
+        let resourceSetDesc = 
+            ResourceSetDescription(
+                resourceLayout,
+                [|
+                    (buffer.DeviceBuffer: BindableResource);
+                    buffer.DeviceBufferCount
+                |]
+            )
+        factory.CreateResourceSet(resourceSetDesc)
     
     private CreateShaderState(shaderDesc: ShaderDescription, outputs: OutputDescription, useDepth: bool): ShaderState =
         let vertexLayouts      = shaderDesc.VertexLayouts
@@ -400,22 +413,23 @@ module Graphics =
 
         // Texture2D(texture)
 
-    CreateBuffer<T>(buffer: T[||], count: uint32): Buffer<T> where T: unmanaged =
-        let size = uint32(sizeof<T>) * count
+    CreateBuffer<T>(buffer: T[||]): Buffer<T> where T: unmanaged =
+        let size = uint32(sizeof<T>) * uint32(buffer.Length)
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
         let deviceBuffer = factory.CreateBuffer(BufferDescription(size, usage, size))
+        graphicsDevice.UpdateBuffer(deviceBuffer, 0, buffer)
 
-        graphicsDevice.UpdateBuffer(deviceBuffer, 0, &buffer[0], size)
+        let deviceBufferCount = factory.CreateBuffer(BufferDescription(16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
 
-        Buffer<T>(deviceBuffer)
+        Buffer<T>(deviceBuffer, deviceBufferCount)
 
-    UpdateBuffer<T>(buffer: Buffer<T>, bufferData: T[||], count: uint32): () where T: unmanaged =
-        let size = uint32(sizeof<T>) * count
-        graphicsDevice.UpdateBuffer(buffer.DeviceBuffer, 0, &bufferData[0], size)
+    UpdateBuffer<T>(buffer: Buffer<T>, bufferData: T[||], mutable count: uint32): () where T: unmanaged =
+        graphicsDevice.UpdateBuffer(buffer.DeviceBuffer, 0, bufferData)
+        graphicsDevice.UpdateBuffer(buffer.DeviceBufferCount, 0, &count)
 
     CreateBufferSet<T>(buffer: Buffer<T>): BufferSet where T: unmanaged =
-        let resourceSet = CreateResourceSet(bufferResourceLayout, buffer.DeviceBuffer)
-        BufferSet(bufferResourceLayout, resourceSet)
+        let resourceSet = CreateResourceSetForBuffer(buffer)
+        BufferSet(resourceSet)
 
     private CreateRenderTargetState(width: uint32, height: uint32, useDepth: bool): RenderTargetState =
         let depthTexture =

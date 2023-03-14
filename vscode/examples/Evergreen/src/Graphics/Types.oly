@@ -318,14 +318,17 @@ sealed class Buffer<T> =
     implements IDisposable
 
     internal DeviceBuffer: DeviceBuffer
+    internal DeviceBufferCount: DeviceBuffer
 
-    internal new(deviceBuffer: DeviceBuffer) =
+    internal new(deviceBuffer: DeviceBuffer, deviceBufferCount: DeviceBuffer) =
         {
             DeviceBuffer = deviceBuffer
+            DeviceBufferCount = deviceBufferCount
         }
 
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.DeviceBuffer)
+        Graphics.DisposeQueue.Enqueue(this.DeviceBufferCount)
 
 #[null]
 sealed class Texture2D =
@@ -455,12 +458,10 @@ sealed class ShaderInstancesSet =
 sealed class BufferSet =
     implements IDisposable
 
-    internal mutable ResourceLayout: ResourceLayout
     internal mutable ResourceSet: ResourceSet
 
-    internal new(resourceLayout: ResourceLayout, resourceSet: ResourceSet) =
+    internal new(resourceSet: ResourceSet) =
         {
-            ResourceLayout = resourceLayout
             ResourceSet = resourceSet
         }
 

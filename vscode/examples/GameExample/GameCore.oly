@@ -124,7 +124,7 @@ struct Transform =
 newtype PhysicsBoxId =
     Value: int32
 
-struct PhysicsBox =
+struct PhysicsBoxChunk =
     mutable Count: int32 = 0
 
     Transforms:       Transform[||]       = Array.ZeroCreate(1024)
@@ -140,11 +140,11 @@ struct PhysicsBox =
 newtype StaticBoxId =
     Value: int32
 
-struct StaticBox =
+struct StaticBoxChunk =
     mutable Count: int32 = 0
 
-    Transforms:      Transform[||]      = Array.ZeroCreate(4096)
-    StaticObjectIds: StaticObjectId[||] = Array.ZeroCreate(4096)
+    Transforms:      Transform[||]      = Array.ZeroCreate(1024)
+    StaticObjectIds: StaticObjectId[||] = Array.ZeroCreate(1024)
 
     mutable Add(transform: Transform, staticObjId: StaticObjectId): StaticBoxId =
         let index = this.Count
@@ -153,8 +153,43 @@ struct StaticBox =
         this.Count <- this.Count + 1
         StaticBoxId(index)
 
+newtype PointLightId =
+    Value: int32
+
+struct PointLightChunk =
+    mutable Count: int32 = 0
+
+    PointLights: PointLight[||] = Array.ZeroCreate(1024)
+
+    mutable Add(pointLight: PointLight): PointLightId =
+        let index = this.Count
+        this.PointLights[index] <- pointLight
+        this.Count <- this.Count + 1
+        PointLightId(index)
+
+newtype PhysicsBoxPointLightId =
+    Value: int32
+
+struct PhysicsBoxPointLightChunk =
+    mutable Count: int32 = 0
+
+    mutable PointLights: PointLightChunk = PointLightChunk()
+    mutable PhysicsBoxes: PhysicsBoxChunk = PhysicsBoxChunk()
+
+    mutable Add(transform: Transform, dynamicObjId: DynamicObjectId): PhysicsBoxPointLightId =
+        let mutable pointLight = PointLight()
+        pointLight.Position <- transform.Position
+
+        let index = this.Count
+        let r = this.PointLights.Add(pointLight)
+        let r = this.PhysicsBoxes.Add(transform, dynamicObjId)
+        this.Count <- this.Count + 1
+        PhysicsBoxPointLightId(index)
+
 sealed class World =
 
-    mutable PhysicsBoxes: PhysicsBox = PhysicsBox()
-    mutable StaticBoxes: StaticBox  = StaticBox()
+    mutable PhysicsBoxes: PhysicsBoxChunk = PhysicsBoxChunk()
+    mutable StaticBoxes: StaticBoxChunk  = StaticBoxChunk()
+    mutable PointLights: PointLightChunk = PointLightChunk()
+    mutable PhysicsBoxPointLights: PhysicsBoxPointLightChunk = PhysicsBoxPointLightChunk()
 

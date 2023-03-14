@@ -27,13 +27,7 @@ main(): () =
 
     // Lights
 
-    let mutable pointLight = PointLight()
-    let mutable pointLight2 = PointLight()
-    pointLight2.Position <- Vector3(0, 5, 0)
-    let pointLights = Array.ZeroCreate<PointLight>(128)
-    pointLights[0] <- pointLight
-    pointLights[1] <- pointLight2
-    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(pointLights, 2)
+    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(world.PhysicsBoxPointLights.PointLights.PointLights)
     let pointLightBufferSet = Graphics.CreateBufferSet(pointLightBuffer)
 
     // ----
@@ -41,22 +35,25 @@ main(): () =
     let updateWorldPhysics(dt) =
         physics.Update(dt)
 
-        let physicsBoxes = world.PhysicsBoxes
-        let physicsBoxCount = physicsBoxes.Count
-        let physicsBoxTransforms = physicsBoxes.Transforms
-        let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
+        let updatePhysicsBoxes(physicsBoxes: PhysicsBoxChunk) =
+            let physicsBoxCount = physicsBoxes.Count
+            let physicsBoxTransforms = physicsBoxes.Transforms
+            let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
 
-        let mutable i = 0
-        while (i < physicsBoxCount)
-            let mutable m = physicsBoxTransforms[i]
-            let mutable position = Vector3.Zero
-            let mutable orientation = Quaternion.Identity
-            physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
-            let mutable scale = Matrix4x4.CreateScale(m.Scale)
-            let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
-            scale.Translation <- position
-            physicsBoxTransforms[i] <- Transform(m * scale)
-            i <- i + 1
+            let mutable i = 0
+            while (i < physicsBoxCount)
+                let mutable m = physicsBoxTransforms[i]
+                let mutable position = Vector3.Zero
+                let mutable orientation = Quaternion.Identity
+                physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+                let mutable scale = Matrix4x4.CreateScale(m.Scale)
+                let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
+                scale.Translation <- position
+                physicsBoxTransforms[i] <- Transform(m * scale)
+                i <- i + 1
+
+        updatePhysicsBoxes(world.PhysicsBoxes)
+        updatePhysicsBoxes(world.PhysicsBoxPointLights.PhysicsBoxes)
 
     let defaultShaderDesc = 
         ShaderDescription.CreateMeshShader(
@@ -102,8 +99,27 @@ main(): () =
             DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
             DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         ]
+    let physicsBoxRenderCmds = addPhysicsBoxRenderCommands()
 
-    let drawCmds = addPhysicsBoxRenderCommands()
+    let mutable physicsBoxLightInstances = unchecked default
+    let addPhysicsBoxLightRenderCommands() =
+        let boxes = world.PhysicsBoxPointLights.PhysicsBoxes
+        physicsBoxLightInstances <- Graphics.CreateInstances(boxes.Transforms)
+        physicsBoxLightInstances.Count <- boxes.Count
+
+        let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
+        let shader = Graphics.CreateShader(defaultShaderDesc, false)
+
+        let instancesSet = Graphics.CreateShaderInstancesSet(physicsBoxLightInstances)
+        let textureSet = Graphics.CreateShaderTextureSet(texture)
+
+        [
+            DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
+            DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
+            DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxLightInstances)
+        ]
+    let physicsBoxLightRenderCmds = addPhysicsBoxLightRenderCommands()
 
     let spawnStaticBox(position, rotation, scale) =
         // server
@@ -123,7 +139,17 @@ main(): () =
         // client
         physicsBoxInstances.Count <- physicsBoxInstances.Count + 1
 
+    let spawnPhysicsBoxLight(position, rotation, scale) =
+        // server
+        let objId = physics.AddBox(position, rotation, scale)
+        let transform = Transform.Create(position, rotation, scale)
+        let physicsBox = world.PhysicsBoxPointLights.Add(transform, objId)
+
+        // client
+        physicsBoxLightInstances.Count <- physicsBoxLightInstances.Count + 1
+
     spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
+    spawnPhysicsBoxLight(Vector3.Zero, Quaternion.Identity, Vector3.One)
     let staticDrawCmds = addStaticBoxRenderCommands()
 
     let addCube(position) =
@@ -186,7 +212,7 @@ main(): () =
         ]
 
     let drawCmds =
-        match (drawCmds[3])
+        match (physicsBoxRenderCmds[3])
         | DrawCommand.DrawMesh(mesh, shader, instances) =>
             let computeShaderDesc =
                 ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
@@ -204,8 +230,13 @@ main(): () =
             allCmds.Add(DrawCommand.CreateSetRenderTarget(renderTarget))
 
             let mutable i = 0
-            while (i < drawCmds.Length)
-                allCmds.Add(drawCmds[i])
+            while (i < physicsBoxLightRenderCmds.Length)
+                allCmds.Add(physicsBoxLightRenderCmds[i])
+                i <- i + 1
+
+            let mutable i = 0
+            while (i < physicsBoxRenderCmds.Length)
+                allCmds.Add(physicsBoxRenderCmds[i])
                 i <- i + 1
 
             let mutable i = 0
@@ -262,6 +293,15 @@ main(): () =
                     spawnPhysicsBox(position, camera.Transform.Rotation, Vector3.One)
             )
 
+        let spawnBoxLightButtonVM = UI.ButtonModel("Spawn Box Light")
+        let spawnBoxLightButton =
+            UI.Button(
+                spawnBoxLightButtonVM,
+                vm ->
+                    let position = camera.Transform.Position + (camera.Transform.Forward * 2)
+                    spawnPhysicsBoxLight(position, camera.Transform.Rotation, Vector3.One)
+            )
+
         let toggleFullscreenCheckboxVM = UI.CheckboxModel("Fullscreen", false)
         let toggleFullscreenCheckbox =
             UI.Checkbox(
@@ -314,6 +354,7 @@ main(): () =
             mainMenuWindowVM,
             [
                 spawnBoxButton;
+                spawnBoxLightButton;
                 resolutionsComboBox;
                 toggleFullscreenCheckbox;
                 toggleVerticalSyncCheckbox;
@@ -424,7 +465,17 @@ main(): () =
         updateWorldCamera(dt)
         updateWorldPhysics(dt)
 
+        // Client
         Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
+        Graphics.UpdateInstances(physicsBoxLightInstances, world.PhysicsBoxPointLights.PhysicsBoxes.Transforms)
+        Graphics.UpdateBuffer(pointLightBuffer, world.PhysicsBoxPointLights.PointLights.PointLights, uint32(world.PhysicsBoxPointLights.Count))
+
+        let mutable i = 0
+        while (i < world.PhysicsBoxPointLights.Count)
+            let pointLight = &world.PhysicsBoxPointLights.PointLights.PointLights[i]
+            pointLight.Position <- world.PhysicsBoxPointLights.PhysicsBoxes.Transforms[i].Position
+            i <- i + 1
+        Graphics.UpdateBuffer(pointLightBuffer, world.PhysicsBoxPointLights.PointLights.PointLights, uint32(world.PhysicsBoxPointLights.Count))
 
     let update(dt: float64) =
         ()

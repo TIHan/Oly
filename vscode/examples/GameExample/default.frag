@@ -25,6 +25,10 @@ layout(set = 3, binding = 0) readonly buffer _PointLights
 {
     PointLight[] PointLights;
 };
+layout(set = 3, binding = 1) uniform _PointLightsCount
+{
+    int PointLightsCount;
+};
 
 layout(location = 0) in vec4 in_Color;
 layout(location = 1) in vec2 in_TexCoord;
@@ -120,17 +124,31 @@ void main()
 
     vec3 phongColor = vec3(0);
 
+    int litCount = 0;
     float currentIntensity = 0;
-    for(int i = 0; i < PointLights.length(); i++)
+    for(int i = 0; i < PointLightsCount; i++)
     {
-        vec3 lightVec = PointLights[i].Position - in_Position_world;
-        vec3 lightDir = normalize(lightVec);
-        vec3 viewDir  = normalize(GetGlobalViewPosition() - in_Position_world);
+        vec3  lightVec       = PointLights[i].Position - in_Position_world;
+        float lightIntensity = PointLightIntensity(intensity, radius, lightVec);
 
-        phongColor = phongColor + Phong(ambientIntensity, diffuseIntensity, specularIntensity, lightDir, viewDir, in_Normal, in_Color.xyz);
+        if (lightIntensity > 0)
+        {
+            vec3 lightDir = normalize(lightVec);
+            vec3 viewDir  = normalize(GetGlobalViewPosition() - in_Position_world);
 
-        currentIntensity = currentIntensity + PointLightIntensity(intensity, radius, lightVec);
+            vec3 newPhongColor = Phong(ambientIntensity, diffuseIntensity, specularIntensity, lightDir, viewDir, in_Normal, in_Color.xyz);
+            
+            phongColor = phongColor + newPhongColor;
+            currentIntensity = currentIntensity + lightIntensity;
+            // phongColor.x = max(phongColor.x, newPhongColor.x);
+            // phongColor.y = max(phongColor.y, newPhongColor.y);
+            // phongColor.z = max(phongColor.z, newPhongColor.z);
+            // currentIntensity = max(currentIntensity, lightIntensity);
+            litCount++;
+        }
     }
+
+   // currentIntensity = clamp(0, 1, currentIntensity);
 
     vec4 color = texture(sampler2D(Texture, Sampler), in_TexCoord);
     color.xyz = currentIntensity * phongColor * color.xyz;
