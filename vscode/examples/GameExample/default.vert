@@ -14,7 +14,6 @@ layout(location = 1) out vec2 out_TexCoord;
 layout(location = 2) out vec3 out_Normal;
 layout(location = 3) out vec4 out_Position_world;
 layout(location = 4) out vec3 out_LightPosition_world;
-layout(location = 5) out vec3 out_ViewPosition_world;
 
 layout(set = 0, binding = 0) uniform _Global
 {
@@ -94,7 +93,6 @@ void main()
     out_Normal = normal;
     out_Position_world = position_world;
     out_LightPosition_world = vec3(0, 0, 0);
-    out_ViewPosition_world = View[3].xyz;
 
     gl_Position = ConvertViewToClipSpace(ConvertWorldToViewSpace(position_world, View), Projection);
 }

@@ -325,6 +325,19 @@ sealed class Mesh =
         this.VertexBuffer.Dispose()
         this.IndexBuffer.Dispose()
 
+sealed class Buffer<T> =
+    implements IDisposable
+
+    internal DeviceBuffer: DeviceBuffer
+
+    internal new(deviceBuffer: DeviceBuffer) =
+        {
+            DeviceBuffer = deviceBuffer
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.DeviceBuffer)
+
 #[null]
 sealed class Texture2D =
     implements IDisposable
@@ -450,6 +463,22 @@ sealed class ShaderInstancesSet =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.ResourceSet)
 
+sealed class BufferSet =
+    implements IDisposable
+
+    internal mutable ResourceLayout: ResourceLayout
+    internal mutable ResourceSet: ResourceSet
+
+    internal new(resourceLayout: ResourceLayout, resourceSet: ResourceSet) =
+        {
+            ResourceLayout = resourceLayout
+            ResourceSet = resourceSet
+        }
+
+    Dispose(): () =
+        Graphics.DisposeQueue.Enqueue(this.ResourceLayout)
+        Graphics.DisposeQueue.Enqueue(this.ResourceSet)
+
 sealed class ComputeShader =
     implements IDisposable
 
@@ -470,6 +499,7 @@ enum DrawCommandKind =
     | RunComputeShader
     | BindTextureSet
     | BindInstancesSet
+    | BindBufferSet
 
 enum BindResourceSetKind =
     | Graphics
@@ -597,6 +627,28 @@ class DrawCommand =
     pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindInstancesSet)) =>
         let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
         (impl.InstancesSet, impl.SetKind)
+
+    private sealed class BindBufferSet =
+        inherits DrawCommand
+
+        BufferSet: BufferSet
+        SetKind: BindResourceSetKind
+        Slot: uint32
+
+        new(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32) =
+            base(DrawCommandKind.BindBufferSet) with
+                {
+                    BufferSet = BufferSet
+                    SetKind = kind
+                    Slot = slot
+                }
+
+    static CreateBindBufferSet(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32): DrawCommand =
+        DrawCommand.BindBufferSet(BufferSet, kind, slot)
+
+    pattern BindBufferSet(cmd: DrawCommand): (BufferSet, BindResourceSetKind, slot: uint32) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindBufferSet)) =>
+        let impl = UnsafeCast<DrawCommand.BindBufferSet>(cmd)
+        (impl.BufferSet, impl.SetKind, impl.Slot)
 
 enum KeyEventKind =
     | Pressed
@@ -1045,6 +1097,25 @@ module Graphics =
 
         // Texture2D(texture)
 
+    CreateBuffer<T>(buffer: T[||], index: uint32, count: uint32): Buffer<T> where T: unmanaged =
+        let size = uint32(sizeof<T>) * count
+        let deviceBuffer = factory.CreateBuffer(BufferDescription(size, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+
+        graphicsDevice.UpdateBuffer(deviceBuffer, 0, buffer)
+
+        Buffer<T>(deviceBuffer)
+
+    CreateBufferSet<T>(buffer: Buffer<T>): BufferSet where T: unmanaged =
+        let resourceLayoutDesc =
+            ResourceLayoutDescription(
+                [|
+                    ResourceLayoutElementDescription("Buffer", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
+                |]
+            )
+        let resourceLayout = factory.CreateResourceLayout(resourceLayoutDesc)
+        let resourceSet = CreateResourceSet(resourceLayout, buffer.DeviceBuffer)
+        BufferSet(resourceLayout, resourceSet)
+
     private CreateRenderTargetState(width: uint32, height: uint32, useDepth: bool): RenderTargetState =
         let depthTexture =
             if (useDepth)
@@ -1126,6 +1197,26 @@ module Graphics =
     UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
+    private bindBufferSetCmds: System.Collections.Generic.Queue<DrawCommand> = System.Collections.Generic.Queue()
+    private processBufferSetCmds(commandList: CommandList): () =
+        let mutable cmd = unchecked default
+        while (bindBufferSetCmds.TryDequeue(&cmd))
+            match (cmd)
+            | DrawCommand.BindBufferSet(bufferSet, setKind, slot) =>
+                if (slot < 8)
+                    fail("Binding a buffer set requires a slot greater than or equal to '8'.")
+                if (slot >= 16)
+                    fail("Binding a buffer set to a slot greater than '16' is not supported.")
+                match (setKind)
+                | BindResourceSetKind.Graphics =>
+                    commandList.SetGraphicsResourceSet(slot, bufferSet.ResourceSet)
+                | BindResourceSetKind.Compute =>
+                    commandList.SetComputeResourceSet(slot, bufferSet.ResourceSet)
+                | _ =>
+                    fail("Invalid 'BindResourceSetKind'.")
+            | _ =>
+                ()
+
     internal DisposeQueue: ConcurrentQueue<IDisposable> = ConcurrentQueue()
     Draw(drawCmds: DrawCommand[]): () =
         let mutable disposable = default
@@ -1169,6 +1260,9 @@ module Graphics =
 
         let handle(drawCmd) =
             match (drawCmd)
+            | DrawCommand.BindBufferSet(_, _, _) =>
+                bindBufferSetCmds.Enqueue(drawCmd)
+
             | DrawCommand.BindTextureSet(textureSet, kind) =>
                 currentTextureSet <- textureSet.ResourceSet
                 currentTextureSetKind <- kind
@@ -1182,8 +1276,10 @@ module Graphics =
                 if (pipeline !== currentPipeline)
                     commandList.SetPipeline(pipeline)
                     commandList.SetComputeResourceSet(0, globalResourceSet)
-                    bindInstancesSet()
                     currentPipeline <- pipeline
+
+                bindInstancesSet()
+                processBufferSetCmds(commandList)
 
                 commandList.Dispatch(uint32(instances.Count), 1, 1)
 
@@ -1210,9 +1306,11 @@ module Graphics =
                     if (pipeline !== currentPipeline)
                         commandList.SetPipeline(pipeline)
                         commandList.SetGraphicsResourceSet(0, globalResourceSet)
-                        bindInstancesSet()
-                        bindTextureSet()
                         currentPipeline <- pipeline
+
+                    bindInstancesSet()
+                    bindTextureSet()
+                    processBufferSetCmds(commandList)
 
                     let vertexBuffer = mesh.VertexBuffer
                     let indexBuffer  = mesh.IndexBuffer
