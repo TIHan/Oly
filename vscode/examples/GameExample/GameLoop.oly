@@ -14,7 +14,7 @@ private ConvertTicksToTickRate(ticks: int64): int64 =
 #[inline] 
 Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool, #[inline] update: float64 -> bool, #[inline] render: (float64, float64) -> ()): () =
     let tickRate: uint8 = 30
-    let maxRenderTickRate: uint8 = 240
+    let maxRenderTickRate: uint8 = 120
 
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
@@ -55,16 +55,9 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
         currentTime <- newTime
 
         check(frameTime)
+        dtRender <- System.Math.Max(dtMaxRender, getAvgFrameTime())
 
         renderAccumulator <- renderAccumulator + frameTime
-
-        // render
-        let renderFrameTime = currentTime - lastRenderTime
-        dtRender <- getAvgFrameTime()
-        if (renderFrameTime >= dtRender)
-            lastRenderTime <- currentTime
-            let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
-            render(ConvertTicksToSeconds(renderFrameTime), alpha)
 
         // pre-update
         preUpdate(ConvertTicksToSeconds(frameTime))
@@ -77,10 +70,21 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
                 accumulator + frameTime
         fixedUpdateCount <- 0
         while (accumulator >= dtFixed)
-            renderAccumulator <- 0
+          //  renderAccumulator <- int64(float64(dtRender) / 2)
             quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
             accumulator <- accumulator - dtFixed
             fixedUpdateCount <- fixedUpdateCount + 1
 
         // update
         quit <- update(ConvertTicksToSeconds(frameTime))
+
+        if (renderAccumulator > (dtRender * 2))
+            renderAccumulator <- dtRender
+
+        // render
+        let renderFrameTime = currentTime - lastRenderTime
+        if (renderAccumulator >= dtRender)
+            renderAccumulator <- renderAccumulator - dtRender
+            lastRenderTime <- currentTime
+            let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
+            render(ConvertTicksToSeconds(renderFrameTime), alpha)
