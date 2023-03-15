@@ -47,6 +47,8 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
             frameTimes[frameCount % avgCount] <- frameTime
             frameCount <- frameCount + 1
 
+    let mutable renderAccumulator = 0: int64
+
     while (!quit)
         let newTime = getTicks()
         let frameTime = newTime - currentTime
@@ -54,11 +56,12 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
 
         check(frameTime)
 
+        renderAccumulator <- renderAccumulator + frameTime
+
         // render
         let renderFrameTime = currentTime - lastRenderTime
-        let willRender = renderFrameTime >= dtRender
         dtRender <- getAvgFrameTime()
-        if (willRender)
+        if (renderFrameTime >= dtRender)
             lastRenderTime <- currentTime
             let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
             render(ConvertTicksToSeconds(renderFrameTime), alpha)
@@ -68,12 +71,13 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
 
         // fixed-update
         accumulator <- 
-            if (frameTime > skip)
-                accumulator + skip
+            if (frameTime > dtFixed)
+                dtFixed
             else
                 accumulator + frameTime
         fixedUpdateCount <- 0
         while (accumulator >= dtFixed)
+            renderAccumulator <- 0
             quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
             accumulator <- accumulator - dtFixed
             fixedUpdateCount <- fixedUpdateCount + 1

@@ -516,6 +516,7 @@ main(): () =
         dt ->
             updateInput(dt),
         dt ->
+            System.Threading.Thread.Sleep(13)
             fixedUpdate(dt)
             !window.Exists,
         dt ->

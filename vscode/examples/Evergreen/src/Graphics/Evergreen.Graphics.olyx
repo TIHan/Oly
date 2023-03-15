@@ -669,6 +669,7 @@ module Graphics =
 
         // Once commands have been submitted, the rendered image can be presented to the application window.
         graphicsDevice.SwapBuffers()
+        
 
     DestroyWindow(): () =
         // TODO: Use a lock, but we need to implement try-catch in Oly.
