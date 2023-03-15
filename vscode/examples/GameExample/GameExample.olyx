@@ -226,7 +226,7 @@ main(): () =
             let allCmds = System.Collections.Generic.List<DrawCommand>()
 
             allCmds.Add(DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Compute))
-            allCmds.Add(DrawCommand.CreateRunComputeShader(computeShader, instances))
+          //  allCmds.Add(DrawCommand.CreateRunComputeShader(computeShader, instances))
             allCmds.Add(DrawCommand.CreateSetRenderTarget(renderTarget))
 
             let mutable i = 0
@@ -459,7 +459,10 @@ main(): () =
             | _ =>
                 ()
 
+    let mutable viewLerp = Matrix4x4.Identity
     let fixedUpdate(dt: float64) =
+        viewLerp <- camera.Transform.WorldToLocalMatrix
+
         let dt = float32(dt)
         processKeyEventQueue()
         updateWorldCamera(dt)
@@ -477,18 +480,25 @@ main(): () =
             i <- i + 1
         Graphics.UpdateBuffer(pointLightBuffer, world.PhysicsBoxPointLights.PointLights.PointLights, uint32(world.PhysicsBoxPointLights.Count))
 
+        //GC.Collect(2, GCCollectionMode.Forced, true)
+
     let update(dt: float64) =
         ()
 
-    let mutable previousView = Matrix4x4.Identity
-    let render(deltaTime, alpha) =
+    let mutable previousView = Matrix4x4.Identity   
+    let render(deltaTime, alpha: float32) =
+        if (alpha < 0 || alpha > 1)
+            fail("Invalid alpha value.")
+
         let view = camera.Transform.WorldToLocalMatrix
+        let view = Matrix4x4.Lerp(viewLerp, view, alpha)
+
         Graphics.SetView(view)
         Graphics.SetPreviousView(previousView)
         Graphics.SetPreviousViewProjection(previousView * camera.Projection)
 
         let mutable inverseViewProjection = default
-        let result = Matrix4x4.Invert(view * camera.Projection, &inverseViewProjection)
+        let result = Matrix4x4.Invert(viewLerp * camera.Projection, &inverseViewProjection)
 
         Graphics.SetInverseViewProjection(inverseViewProjection)
         Graphics.SetDeltaTime(deltaTime)

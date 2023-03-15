@@ -1,4 +1,4 @@
-#target "dotnet: netstandard2.1"
+#target "dotnet: net7"
 #library
 
 #load "*.oly"
