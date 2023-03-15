@@ -466,7 +466,11 @@ main(): () =
         let dt = float32(dt)
         processKeyEventQueue()
         updateWorldCamera(dt)
-        updateWorldPhysics(dt)
+
+        let mutable i = 0
+        while (i < 50)
+            updateWorldPhysics(dt)
+            i <- i + 1
 
         // Client
         Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
@@ -516,7 +520,6 @@ main(): () =
         dt ->
             updateInput(dt),
         dt ->
-            System.Threading.Thread.Sleep(12)
             fixedUpdate(dt)
             !window.Exists,
         dt ->
