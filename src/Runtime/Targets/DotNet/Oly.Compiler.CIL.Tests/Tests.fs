@@ -14281,3 +14281,111 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput " hello world"
     |> ignore
+
+[<Fact>]
+let ``Qualifying dots with indexer should work with correct mutation``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[||], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(T[||], index: int32, T): ()
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S1 =
+    mutable X: int32 = 0
+
+main(): () =
+    let mutable xs = [|S1()|]
+    xs[0].X <- 123
+    print(xs[0].X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Qualifying dots with indexer should work with correct mutation 2``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[||], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(T[||], index: int32, T): ()
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S1 =
+    mutable X: int32 = 0
+
+class C1 =
+    XS: S1[||] = [|S1()|]
+
+main(): () =
+    let c1 = C1()
+    c1.XS[0].X <- 456
+    print(c1.XS[0].X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
+
+[<Fact>]
+let ``Qualifying dots with indexer should work with correct mutation 3``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[||], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(T[||], index: int32, T): ()
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S1 =
+    mutable X: int32 = 0
+
+class C1 =
+    XS: S1[||] = [|S1()|]
+
+class C2 =
+    C: C1 = C1()
+
+main(): () =
+    let c2 = C2()
+    c2.C.XS[0].X <- 789
+    print(c2.C.XS[0].X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "789"
+    |> ignore

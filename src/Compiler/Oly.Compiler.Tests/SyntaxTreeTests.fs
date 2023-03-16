@@ -1927,3 +1927,14 @@ test(): () =
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """         )
         ]
+
+[<Fact>]
+let ``Qualifying dots with indexer should parse``() =
+    let src =
+        """
+main(): () =
+    world.Archetype_Light.Buffer2[i].Position <- 123
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore

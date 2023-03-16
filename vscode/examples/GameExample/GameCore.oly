@@ -225,7 +225,7 @@ sealed class Archetype<T0, T1, T2, T3> where T0: unmanaged
 sealed class World =
 
     private mutable nextIndex: int32 = 0
-    private mutable indexQueue: System.Collections.Generic.Queue<int32> = System.Collections.Generic.Queue()
+    private mutable indexQueue: Queue<int32> = Queue()
     private mutable entityCount: int32 = 0
     private entityVersions: uint32[||] = Array.ZeroCreate<uint32>(1024)
 

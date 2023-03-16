@@ -2704,7 +2704,8 @@ let parseDefaultOrMutateExpression s lhs state =
 
         match tryParseIndexer s lhs state with
         | Some(res) -> 
-            parseDefaultOrMemberAccessExpression s res state
+            let res2 = parseDefaultOrMemberAccessExpression s res state
+            parseDefaultOrMutateExpression s res2 state
         | _ ->
             lhs
     else

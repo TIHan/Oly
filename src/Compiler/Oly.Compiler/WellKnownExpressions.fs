@@ -283,6 +283,17 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                         | ByRefKind.Read -> AddressOf expr
                     | _ ->
                         AddressOf expr
+            | GetArrayElement(expr1, _) ->
+                let expr1Ty = expr1.Type
+                match stripTypeEquations expr1Ty with
+                | TypeSymbol.Array(_, _, kind) ->
+                    match kind with
+                    | ArrayKind.Immutable ->
+                        AddressOf expr
+                    | ArrayKind.Mutable ->
+                        AddressOfMutable expr
+                | _ ->
+                    failwith "should not happen"
             | AutoDereferenced(expr2) ->
                 expr2
             | _ ->

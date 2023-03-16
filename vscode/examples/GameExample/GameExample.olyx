@@ -468,8 +468,7 @@ main(): () =
 
         let mutable i = 0
         while (i < world.Archetype_Light.Count)
-            let pointLight = &world.Archetype_Light.Buffer2[i]
-            pointLight.Position <- world.Archetype_Light.Buffer0[i].Position
+            world.Archetype_Light.Buffer2[i].Position <- world.Archetype_Light.Buffer0[i].Position
             i <- i + 1
         Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_Light.Buffer2, uint32(world.Archetype_Light.Count))
 
