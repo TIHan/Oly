@@ -27,7 +27,7 @@ main(): () =
 
     // Lights
 
-    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(world.PhysicsBoxPointLights.PointLights.PointLights)
+    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(world.Archetype_Light.Buffer2)
     let pointLightBufferSet = Graphics.CreateBufferSet(pointLightBuffer)
 
     // ----
@@ -35,11 +35,7 @@ main(): () =
     let updateWorldPhysics(dt) =
         physics.Update(dt)
 
-        let updatePhysicsBoxes(physicsBoxes: PhysicsBoxChunk) =
-            let physicsBoxCount = physicsBoxes.Count
-            let physicsBoxTransforms = physicsBoxes.Transforms
-            let physicsBoxDynamicObjectIds = physicsBoxes.DynamicObjectIds
-
+        let updatePhysicsBoxes(physicsBoxCount: int32, physicsBoxTransforms: Transform[||], physicsBoxDynamicObjectIds: DynamicObjectId[||]) =
             let mutable i = 0
             while (i < physicsBoxCount)
                 let mutable m = physicsBoxTransforms[i]
@@ -52,8 +48,8 @@ main(): () =
                 physicsBoxTransforms[i] <- Transform(m * scale)
                 i <- i + 1
 
-        updatePhysicsBoxes(world.PhysicsBoxes)
-        updatePhysicsBoxes(world.PhysicsBoxPointLights.PhysicsBoxes)
+        updatePhysicsBoxes(world.Archetype_Box.Count, world.Archetype_Box.Buffer0, world.Archetype_Box.Buffer1)
+        updatePhysicsBoxes(world.Archetype_Light.Count, world.Archetype_Light.Buffer0, world.Archetype_Light.Buffer1)
 
     let defaultShaderDesc = 
         ShaderDescription.CreateMeshShader(
@@ -64,9 +60,8 @@ main(): () =
     let boxMesh = Graphics.CreateMesh(MeshDescription.CreateCube())
 
     let addStaticBoxRenderCommands() =
-        let staticBoxes = world.StaticBoxes
-        let staticInstances = Graphics.CreateInstances(staticBoxes.Transforms)
-        staticInstances.Count <- staticBoxes.Count
+        let staticInstances = Graphics.CreateInstances(world.Archetype_StaticBox.Buffer0)
+        staticInstances.Count <- world.Archetype_StaticBox.Count
 
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
         let staticShader = Graphics.CreateShader(defaultShaderDesc, false)
@@ -83,9 +78,8 @@ main(): () =
 
     let mutable physicsBoxInstances = unchecked default
     let addPhysicsBoxRenderCommands() =
-        let boxes = world.PhysicsBoxes
-        physicsBoxInstances <- Graphics.CreateInstances(boxes.Transforms)
-        physicsBoxInstances.Count <- boxes.Count
+        physicsBoxInstances <- Graphics.CreateInstances(world.Archetype_Box.Buffer0)
+        physicsBoxInstances.Count <- world.Archetype_Box.Count
 
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
         let shader = Graphics.CreateShader(defaultShaderDesc, false)
@@ -103,9 +97,8 @@ main(): () =
 
     let mutable physicsBoxLightInstances = unchecked default
     let addPhysicsBoxLightRenderCommands() =
-        let boxes = world.PhysicsBoxPointLights.PhysicsBoxes
-        physicsBoxLightInstances <- Graphics.CreateInstances(boxes.Transforms)
-        physicsBoxLightInstances.Count <- boxes.Count
+        physicsBoxLightInstances <- Graphics.CreateInstances(world.Archetype_Light.Buffer0)
+        physicsBoxLightInstances.Count <- world.Archetype_Light.Count
 
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
         let shader = Graphics.CreateShader(defaultShaderDesc, false)
@@ -125,7 +118,7 @@ main(): () =
         // server
         let objId = physics.AddStaticBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let staticBox = world.StaticBoxes.Add(transform, objId)
+        let staticBoxEntId = world.CreateStaticBox(transform, objId)
 
         // client
         // TODO: ...
@@ -134,7 +127,7 @@ main(): () =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let physicsBox = world.PhysicsBoxes.Add(transform, objId)
+        let physicsBox = world.CreateBox(transform, objId)
 
         // client
         physicsBoxInstances.Count <- physicsBoxInstances.Count + 1
@@ -143,7 +136,7 @@ main(): () =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let physicsBox = world.PhysicsBoxPointLights.Add(transform, objId)
+        let physicsBox = world.CreateLight(transform, objId, default)
 
         // client
         physicsBoxLightInstances.Count <- physicsBoxLightInstances.Count + 1
@@ -174,10 +167,6 @@ main(): () =
             addCube(Vector3(float32(i * 2), float32(j * 2), 0))
             j <- j + 1
         i <- i + 1
-
-    print("Initial Physics Box Count: ")
-    print(world.PhysicsBoxes.Count)
-    print("\n")
 
     // ----
 
@@ -468,21 +457,21 @@ main(): () =
         updateWorldCamera(dt)
 
         let mutable i = 0
-        while (i < 50)
+        while (i < 1)
             updateWorldPhysics(dt)
             i <- i + 1
 
         // Client
-        Graphics.UpdateInstances(physicsBoxInstances, world.PhysicsBoxes.Transforms)
-        Graphics.UpdateInstances(physicsBoxLightInstances, world.PhysicsBoxPointLights.PhysicsBoxes.Transforms)
-        Graphics.UpdateBuffer(pointLightBuffer, world.PhysicsBoxPointLights.PointLights.PointLights, uint32(world.PhysicsBoxPointLights.Count))
+        Graphics.UpdateInstances(physicsBoxInstances, world.Archetype_Box.Buffer0)
+        Graphics.UpdateInstances(physicsBoxLightInstances, world.Archetype_Light.Buffer0)
+        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_Light.Buffer2, uint32(world.Archetype_Light.Count))
 
         let mutable i = 0
-        while (i < world.PhysicsBoxPointLights.Count)
-            let pointLight = &world.PhysicsBoxPointLights.PointLights.PointLights[i]
-            pointLight.Position <- world.PhysicsBoxPointLights.PhysicsBoxes.Transforms[i].Position
+        while (i < world.Archetype_Light.Count)
+            let pointLight = &world.Archetype_Light.Buffer2[i]
+            pointLight.Position <- world.Archetype_Light.Buffer0[i].Position
             i <- i + 1
-        Graphics.UpdateBuffer(pointLightBuffer, world.PhysicsBoxPointLights.PointLights.PointLights, uint32(world.PhysicsBoxPointLights.Count))
+        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_Light.Buffer2, uint32(world.Archetype_Light.Count))
 
         //GC.Collect(2, GCCollectionMode.Forced, true)
 

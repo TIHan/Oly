@@ -13,7 +13,7 @@ private ConvertTicksToTickRate(ticks: int64): int64 =
 
 #[inline] 
 Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool, #[inline] update: float64 -> bool, #[inline] render: (float64, float64) -> ()): () =
-    let tickRate: uint8 = 30
+    let tickRate: uint8 = 60
     let maxRenderTickRate: uint8 = 120
 
     let mutable quit = false
@@ -56,6 +56,7 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
         preUpdate(ConvertTicksToSeconds(frameTime))
 
         // fixed-update
+        fixedUpdateCount <- 0
         accumulator <- 
             if (frameTime > (dtFixed * 2))
                 dtFixed
@@ -64,10 +65,12 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
         while (accumulator >= dtFixed)
             quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
             accumulator <- accumulator - dtFixed
+            fixedUpdateCount <- fixedUpdateCount + 1
 
         // update
         quit <- update(ConvertTicksToSeconds(frameTime))
 
         // render
-        let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
-        render(ConvertTicksToSeconds(frameTime), alpha)
+        if (fixedUpdateCount > 0)
+            let alpha = 1: float64//System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
+            render(ConvertTicksToSeconds(dtFixed), alpha)
