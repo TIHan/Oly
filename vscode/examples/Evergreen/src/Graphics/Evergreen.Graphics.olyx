@@ -339,6 +339,12 @@ module Graphics =
                 fragmentResourceLayout;
 
                 // slot 3 - vert
+                bufferResourceLayout;
+
+                // slot 4 - vert
+                bufferResourceLayout;
+
+                // slot 5
                 bufferResourceLayout
             |]
         pipelineDesc.Outputs <- outputs
@@ -413,15 +419,19 @@ module Graphics =
 
         // Texture2D(texture)
 
-    CreateBuffer<T>(buffer: T[||]): Buffer<T> where T: unmanaged =
+    CreateBuffer<T>(buffer: T[||], mutable count: uint32): Buffer<T> where T: unmanaged =
         let size = uint32(sizeof<T>) * uint32(buffer.Length)
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
         let deviceBuffer = factory.CreateBuffer(BufferDescription(size, usage, size))
         graphicsDevice.UpdateBuffer(deviceBuffer, 0, buffer)
 
         let deviceBufferCount = factory.CreateBuffer(BufferDescription(16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        graphicsDevice.UpdateBuffer(deviceBufferCount, 0, &count)
 
         Buffer<T>(deviceBuffer, deviceBufferCount)
+
+    CreateBuffer<T>(buffer: T[||]): Buffer<T> where T: unmanaged =
+        CreateBuffer(buffer, 0)
 
     UpdateBuffer<T>(buffer: Buffer<T>, bufferData: T[||], mutable count: uint32): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(buffer.DeviceBuffer, 0, bufferData)

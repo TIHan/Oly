@@ -31,6 +31,15 @@ layout(set = 1, binding = 0) readonly buffer _InstanceData
     Instance[] Instances;
 };
 
+layout(set = 4, binding = 0) readonly buffer _Colors
+{
+    vec4[] Colors;
+};
+layout(set = 4, binding = 1) uniform _ColorsCount
+{
+    int ColorsCount;
+};
+
 float GetScalingFactor(mat4 m)
 {
     return sqrt(m[0][0] * m[0][0] + m[0][1] * m[0][1] + m[0][2] * m[0][2]);
@@ -67,7 +76,7 @@ void main()
     vec3 normal = normalize(mat3(transpose(inverse(model))) * in_Normal);
     vec3 scale = extractScale(model);
 
-    out_Color = vec4(1, 1, 1, 1);
+    out_Color = Colors[gl_InstanceIndex];
     
     if (in_Normal.z == 0 && in_Normal.y < 0)
     {

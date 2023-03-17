@@ -27,8 +27,11 @@ main(): () =
 
     // Lights
 
-    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(world.Archetype_Light.Buffer2)
+    let pointLightBuffer = Graphics.CreateBuffer<PointLight>(world.Archetype_PointLight.Buffer3, 0)
     let pointLightBufferSet = Graphics.CreateBufferSet(pointLightBuffer)
+
+    let directionalLightBuffer = Graphics.CreateBuffer<DirectionalLight>(world.Archetype_DirectionalLight.Buffer0, 0)
+    let directionalLightBufferSet = Graphics.CreateBufferSet(directionalLightBuffer)
 
     // ----
 
@@ -48,8 +51,8 @@ main(): () =
                 physicsBoxTransforms[i] <- Transform(m * scale)
                 i <- i + 1
 
-        updatePhysicsBoxes(world.Archetype_Box.Count, world.Archetype_Box.Buffer0, world.Archetype_Box.Buffer1)
-        updatePhysicsBoxes(world.Archetype_Light.Count, world.Archetype_Light.Buffer0, world.Archetype_Light.Buffer1)
+        updatePhysicsBoxes(world.Archetype_Box.Count, world.Archetype_Box.Buffer0, world.Archetype_Box.Buffer2)
+        updatePhysicsBoxes(world.Archetype_PointLight.Count, world.Archetype_PointLight.Buffer0, world.Archetype_PointLight.Buffer2)
 
     let defaultShaderDesc = 
         ShaderDescription.CreateMeshShader(
@@ -57,59 +60,93 @@ main(): () =
             Encoding.UTF8.GetBytes(DefaultFragmentCode)
         )
 
+    let defaultColorShaderDesc = 
+        ShaderDescription.CreateMeshShader(
+            Encoding.UTF8.GetBytes(DefaultVertexCode), 
+            Encoding.UTF8.GetBytes(DefaultColorFragmentCode)
+        )
+
     let boxMesh = Graphics.CreateMesh(MeshDescription.CreateCube())
+
+    let mutable directionalLightBuffer = Graphics.CreateBuffer(world.Archetype_DirectionalLight.Buffer0)
+    let directionalLightBufferSet = Graphics.CreateBufferSet(directionalLightBuffer)
+    let spawnDirectionalLight(direction) =
+        // server
+        let mutable directionalLight = DirectionalLight()
+        directionalLight.Direction <- direction
+        directionalLight.Color <- Vector4.Multiply(Vector4.One, 0.7)
+        let light = world.CreateDirectionalLight(directionalLight)
+        
+        // client
 
     let addStaticBoxRenderCommands() =
         let staticInstances = Graphics.CreateInstances(world.Archetype_StaticBox.Buffer0)
         staticInstances.Count <- world.Archetype_StaticBox.Count
 
+        let colors = Graphics.CreateBuffer(world.Archetype_StaticBox.Buffer1, uint32(world.Archetype_StaticBox.Count))
+
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/floor7_2.png")
         let staticShader = Graphics.CreateShader(defaultShaderDesc, false)
 
         let instancesSet = Graphics.CreateShaderInstancesSet(staticInstances)
+        let colorsSet = Graphics.CreateBufferSet(colors)
         let textureSet = Graphics.CreateShaderTextureSet(texture)
 
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
+            DrawCommand.CreateBindBufferSet(colorsSet, BindResourceSetKind.Graphics, 4);
+            DrawCommand.CreateBindBufferSet(directionalLightBufferSet, BindResourceSetKind.Graphics, 5);
             DrawCommand.CreateDrawMesh(boxMesh, staticShader, staticInstances)
         ]
 
     let mutable physicsBoxInstances = unchecked default
+    let mutable physicsBoxColors = unchecked default
     let addPhysicsBoxRenderCommands() =
         physicsBoxInstances <- Graphics.CreateInstances(world.Archetype_Box.Buffer0)
         physicsBoxInstances.Count <- world.Archetype_Box.Count
+
+        physicsBoxColors <- Graphics.CreateBuffer(world.Archetype_Box.Buffer1, uint32(world.Archetype_Box.Count))
 
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
         let shader = Graphics.CreateShader(defaultShaderDesc, false)
 
         let instancesSet = Graphics.CreateShaderInstancesSet(physicsBoxInstances)
+        let colorsSet = Graphics.CreateBufferSet(physicsBoxColors)
         let textureSet = Graphics.CreateShaderTextureSet(texture)
 
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
+            DrawCommand.CreateBindBufferSet(colorsSet, BindResourceSetKind.Graphics, 4);
+            DrawCommand.CreateBindBufferSet(directionalLightBufferSet, BindResourceSetKind.Graphics, 5);
             DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxInstances)
         ]
     let physicsBoxRenderCmds = addPhysicsBoxRenderCommands()
 
     let mutable physicsBoxLightInstances = unchecked default
+    let mutable physicsBoxLightColors = unchecked default
     let addPhysicsBoxLightRenderCommands() =
-        physicsBoxLightInstances <- Graphics.CreateInstances(world.Archetype_Light.Buffer0)
-        physicsBoxLightInstances.Count <- world.Archetype_Light.Count
+        physicsBoxLightInstances <- Graphics.CreateInstances(world.Archetype_PointLight.Buffer0)
+        physicsBoxLightInstances.Count <- world.Archetype_PointLight.Count
+
+        physicsBoxLightColors <- Graphics.CreateBuffer(world.Archetype_PointLight.Buffer1, uint32(world.Archetype_PointLight.Count))
 
         let texture = Graphics.CreateTexture2D("GameExample/Textures/flats/aqf068.png")
-        let shader = Graphics.CreateShader(defaultShaderDesc, false)
+        let shader = Graphics.CreateShader(defaultColorShaderDesc, false)
 
         let instancesSet = Graphics.CreateShaderInstancesSet(physicsBoxLightInstances)
+        let colorsSet = Graphics.CreateBufferSet(physicsBoxLightColors)
         let textureSet = Graphics.CreateShaderTextureSet(texture)
 
         [
             DrawCommand.CreateBindInstancesSet(instancesSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindTextureSet(textureSet, BindResourceSetKind.Graphics);
             DrawCommand.CreateBindBufferSet(pointLightBufferSet, BindResourceSetKind.Graphics, 3);
+            DrawCommand.CreateBindBufferSet(colorsSet, BindResourceSetKind.Graphics, 4);
+            DrawCommand.CreateBindBufferSet(directionalLightBufferSet, BindResourceSetKind.Graphics, 5);
             DrawCommand.CreateDrawMesh(boxMesh, shader, physicsBoxLightInstances)
         ]
     let physicsBoxLightRenderCmds = addPhysicsBoxLightRenderCommands()
@@ -118,7 +155,7 @@ main(): () =
         // server
         let objId = physics.AddStaticBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let staticBoxEntId = world.CreateStaticBox(transform, objId)
+        let staticBoxEntId = world.CreateStaticBox(transform, Color.One, objId)
 
         // client
         // TODO: ...
@@ -127,7 +164,7 @@ main(): () =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let physicsBox = world.CreateBox(transform, objId)
+        let physicsBox = world.CreateBox(transform, Color.One, objId)
 
         // client
         physicsBoxInstances.Count <- physicsBoxInstances.Count + 1
@@ -136,13 +173,13 @@ main(): () =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let physicsBox = world.CreateLight(transform, objId, default)
+        let physicsBox = world.CreatePointLight(transform, Color.Multiply(Color.One, 100), objId, default)
 
         // client
         physicsBoxLightInstances.Count <- physicsBoxLightInstances.Count + 1
 
     spawnStaticBox(Vector3(0, 0, -5), Quaternion.Identity, Vector3(50, 100, 1))
-    spawnPhysicsBoxLight(Vector3.Zero, Quaternion.Identity, Vector3.One)
+    spawnPhysicsBoxLight(Vector3.Zero, Quaternion.Identity, Vector3.One * 0.25)
     let staticDrawCmds = addStaticBoxRenderCommands()
 
     let addCube(position) =
@@ -201,7 +238,7 @@ main(): () =
         ]
 
     let drawCmds =
-        match (physicsBoxRenderCmds[3])
+        match (physicsBoxRenderCmds[5])
         | DrawCommand.DrawMesh(mesh, shader, instances) =>
             let computeShaderDesc =
                 ComputeShaderDescription.CreateMeshLayout(Encoding.UTF8.GetBytes(DefaultComputeCode))
@@ -248,6 +285,8 @@ main(): () =
     Graphics.SetNormalMatrix(Matrix4x4.Identity)
     Graphics.SetDeltaTime(0)
 
+    spawnDirectionalLight(Vector3(-0.2, -1.0, -3))
+
     let setResolution(width: int32, height: int32) =
         let oldCamera = camera
         camera <- Camera(70, width, height, 0.1, 1000000)
@@ -288,7 +327,7 @@ main(): () =
                 spawnBoxLightButtonVM,
                 vm ->
                     let position = camera.Transform.Position + (camera.Transform.Forward * 2)
-                    spawnPhysicsBoxLight(position, camera.Transform.Rotation, Vector3.One)
+                    spawnPhysicsBoxLight(position, camera.Transform.Rotation, Vector3.One * 0.25)
             )
 
         let toggleFullscreenCheckboxVM = UI.CheckboxModel("Fullscreen", false)
@@ -449,6 +488,7 @@ main(): () =
                 ()
 
     let mutable viewLerp = Matrix4x4.Identity
+    let mutable currentTime = 0: float32
     let fixedUpdate(dt: float64) =
         viewLerp <- camera.Transform.WorldToLocalMatrix
 
@@ -463,15 +503,20 @@ main(): () =
 
         // Client
         Graphics.UpdateInstances(physicsBoxInstances, world.Archetype_Box.Buffer0)
-        Graphics.UpdateInstances(physicsBoxLightInstances, world.Archetype_Light.Buffer0)
-        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_Light.Buffer2, uint32(world.Archetype_Light.Count))
+        Graphics.UpdateBuffer(physicsBoxColors, world.Archetype_Box.Buffer1, uint32(world.Archetype_Box.Count))
+        Graphics.UpdateInstances(physicsBoxLightInstances, world.Archetype_PointLight.Buffer0)
+        Graphics.UpdateBuffer(physicsBoxLightColors, world.Archetype_PointLight.Buffer1, uint32(world.Archetype_PointLight.Count))
+        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_PointLight.Buffer3, uint32(world.Archetype_PointLight.Count))
+        Graphics.UpdateBuffer(directionalLightBuffer, world.Archetype_DirectionalLight.Buffer0, uint32(world.Archetype_DirectionalLight.Count))
 
         let mutable i = 0
-        while (i < world.Archetype_Light.Count)
-            world.Archetype_Light.Buffer2[i].Position <- world.Archetype_Light.Buffer0[i].Position
+        while (i < world.Archetype_PointLight.Count)
+            world.Archetype_PointLight.Buffer3[i].Position <- world.Archetype_PointLight.Buffer0[i].Position
+            world.Archetype_PointLight.Buffer3[i].Color <- Vector4(1, 1, 1, 1)
             i <- i + 1
-        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_Light.Buffer2, uint32(world.Archetype_Light.Count))
+        Graphics.UpdateBuffer(pointLightBuffer, world.Archetype_PointLight.Buffer3, uint32(world.Archetype_PointLight.Count))
 
+        currentTime <- currentTime + dt
         //GC.Collect(2, GCCollectionMode.Forced, true)
 
     let update(dt: float64) =
