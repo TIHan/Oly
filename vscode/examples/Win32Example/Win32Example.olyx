@@ -17,6 +17,8 @@ open static TerraFX.Interop.Windows.WM
 open static TerraFX.Interop.Windows.WS
 open static TerraFX.Interop.Windows.SW
 
+alias vk = Evergreen.Graphics.Backend.Vulkan
+
 class Marker
 
 #[blittable]
@@ -86,6 +88,7 @@ runWindowMessage(hwnd: HWND): () =
     // loop(hwnd, default)
 
 main(): () =
+    let vulkanApp = vk.Initialize()
     let hwnd = createWindow()
     if (hwnd == HWND.NULL)
         print("Unable to create window.")
