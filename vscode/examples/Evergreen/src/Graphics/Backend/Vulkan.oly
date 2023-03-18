@@ -1,0 +1,70 @@
+internal module Evergreen.Graphics.Internal.Backend.Vulkan
+
+open System
+open System.Collections.Generic
+open System.Collections.Concurrent
+open System.Runtime.InteropServices
+open TerraFX.Interop.Vulkan
+open static TerraFX.Interop.Vulkan.Vulkan
+
+#[open]
+extension VkResultExtensions =
+    inherits VkResult
+
+    static op_Inequality(result1: VkResult, result2: VkResult): bool =
+        fromEnum(result1) == fromEnum(result2)
+
+private initVulkan(): () =
+    ()
+
+private createInstance(): VkInstance =
+    let appName = "Vulkan Application"
+    let engineName = "Vulkan Engine"
+
+    let mutable appInfo = default: VkApplicationInfo
+    appInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO
+    appInfo.pApplicationName <- UnsafeCast(&&appName.GetPinnableReference())
+    appInfo.applicationVersion <- VK_MAKE_VERSION(1, 0, 0)
+    appInfo.pEngineName <- UnsafeCast(&&engineName.GetPinnableReference())
+    appInfo.engineVersion <- VK_MAKE_VERSION(1, 0, 0)
+    appInfo.apiVersion <- VK_API_VERSION_1_3
+
+    let mutable createInfo = default: VkInstanceCreateInfo
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+    createInfo.pApplicationInfo <- &&appInfo
+
+    createInfo.enabledLayerCount <- 0
+
+    let mutable instance = default
+
+    if (vkCreateInstance(&&createInfo, nullptr, &&instance) != VkResult.VK_SUCCESS)
+        fail("Failed to create instance.")
+
+    instance
+
+    // VkInstanceCreateInfo createInfo{};
+    // createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    // createInfo.pApplicationInfo = &appInfo;
+
+    // uint32_t glfwExtensionCount = 0;
+    // const char** glfwExtensions;
+    // glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    // createInfo.enabledExtensionCount = glfwExtensionCount;
+    // createInfo.ppEnabledExtensionNames = glfwExtensions;
+
+    // createInfo.enabledLayerCount = 0;
+
+    // if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+    //     throw std::runtime_error("failed to create instance!");
+    // }
+
+//     void createInstance() {
+//     VkApplicationInfo appInfo{};
+//     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+//     appInfo.pApplicationName = "Hello Triangle";
+//     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+//     appInfo.pEngineName = "No Engine";
+//     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+//     appInfo.apiVersion = VK_API_VERSION_1_0;
+// }

@@ -3,7 +3,7 @@
 #load "*.oly"
 
 #reference "../core/prelude.olyx"
-#package "TerraFX.Interop.Windows,10.0.22000-rc1"
+#reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 
 open System
 open System.Runtime.InteropServices

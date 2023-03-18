@@ -2,6 +2,7 @@
 #library
 
 #load "*.oly"
+#load "Backend/*.oly"
 
 #reference "../../../core/prelude.olyx"
 #package "Veldrid,4.9.0"
@@ -9,6 +10,9 @@
 #package "Veldrid.SPIRV,1.0.15"
 #package "Veldrid.ImGui,5.89.2-ga121087cad"
 #package "Veldrid.ImageSharp,4.9.0"
+
+#package "TerraFX.Interop.Vulkan,1.3.239"
+#package "TerraFX.Interop.Windows,10.0.22621.1"
 
 namespace Evergreen.Graphics
 
@@ -71,7 +75,7 @@ module Graphics =
 
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
-        options.PreferDepthRangeZeroToOne <- true  
+        options.PreferDepthRangeZeroToOne <- true
 #if DEBUG
         options.Debug <- true
 #end   

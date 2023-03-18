@@ -72,5 +72,5 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
 
         // render
         if (fixedUpdateCount > 0)
-            let alpha = 1: float64//System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
+            let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
             render(ConvertTicksToSeconds(dtFixed), alpha)
