@@ -69,6 +69,22 @@ module internal rec Helpers =
 
     [<Sealed>]
     type internal OlySignatureTypeProvider (cenv: cenv) =
+
+        let tryGetNamespaceAndName(olyEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
+            if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
+                let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                match olyEntRef.Enclosing with
+                | OlyILEnclosing.Namespace(olyPath, _) ->
+                    Some(olyPath, olyEntRef.NameHandle)
+                | _ ->
+                    None
+            else
+                let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                match olyEntDef.Enclosing with
+                | OlyILEnclosing.Namespace(olyPath, _) ->
+                    Some(olyPath, olyEntDef.NameHandle)
+                | _ ->
+                    None
         
         interface ISignatureTypeProvider<OlyILType, int> with
 
@@ -123,14 +139,13 @@ module internal rec Helpers =
                     match olyModifier with
                     | OlyILTypeEntity(olyEntInst) ->
                         match olyEntInst with
-                        | OlyILEntityInstance(olyEntDefOrRefHandle, _) when olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference ->
-                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
-                            match olyEntRef.Enclosing with
-                            | OlyILEnclosing.Namespace(olyPath, _) when olyPath.Length = 3 ->
+                        | OlyILEntityInstance(olyEntDefOrRefHandle, _) ->
+                            match tryGetNamespaceAndName olyEntDefOrRefHandle with
+                            | Some(olyPath, name) ->
                                 let path1 = cenv.olyAsm.GetStringOrEmpty(olyPath[0])
                                 let path2 = cenv.olyAsm.GetStringOrEmpty(olyPath[1])
                                 let path3 = cenv.olyAsm.GetStringOrEmpty(olyPath[2])
-                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                let name = cenv.olyAsm.GetStringOrEmpty(name)
                                 if (path1 = "System") && (path2 = "Runtime") && (path3 = "InteropServices") then
                                     match name with
                                     | "InAttribute" ->

@@ -20,6 +20,8 @@ type ParsingLargeText() =
     [<Benchmark>]
     member _.Run() =
         let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), LargeSyntaxExample.Text).GetRoot(Unchecked.defaultof<_>)
+        if root.Tree.GetDiagnostics(System.Threading.CancellationToken.None).IsEmpty |> not then
+            failwith "Errors"
         let rec loop (node: OlySyntaxNode) =
             node.Children
             |> ImArray.iter loop

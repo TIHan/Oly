@@ -31,7 +31,6 @@ type private DotNetInfo =
         StubPath: string
         References: OlyPath imarray
         ReferenceNames: ImmutableHashSet<string>
-        NonFrameworkReferenceNames: ImmutableHashSet<string>
         DepsJson: string
         RuntimeconfigJson: string option
     }
@@ -130,6 +129,13 @@ static class Program
                 File.WriteAllText(Path.Combine(dir.FullName, "Program.cs"), programCs)
                 File.WriteAllText(Path.Combine(dir.FullName, "__oly_placeholder.csproj"), stub)
                 ct.ThrowIfCancellationRequested()
+
+                let publishDir = 
+                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
+                    //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
+
+                try Directory.Delete(publishDir) with | _ -> ()
+
                 use p = new ExternalProcess("dotnet", "build -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
                 //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
                 let! _result = p.RunAsync(ct)
@@ -138,10 +144,6 @@ static class Program
                     |> ImArray.ofSeq
                     |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
                     |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
-
-                let publishDir = 
-                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
-                    //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
 
                 let depsJson = 
                     try
@@ -158,11 +160,6 @@ static class Program
                     else
                         None
 
-                let minimalRefs =
-                    Directory.EnumerateFiles(publishDir, "*.dll")
-                    |> Seq.map (fun x -> Path.GetFileName(x))
-                    |> ImmutableHashSet.CreateRange
-
                 let refNames =
                     refs
                     |> Seq.map (fun x -> OlyPath.GetFileName(x))
@@ -178,7 +175,7 @@ static class Program
                 try File.Delete(Path.Combine(dir.FullName, "Program.cs")) with | _ -> ()
                 try Directory.Delete(Path.Combine(dir.FullName, "obj"), true) with | _ -> ()
 
-                return { StubPath = publishDir; References = refs; ReferenceNames = refNames; NonFrameworkReferenceNames = minimalRefs; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
+                return { StubPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
             finally
                 ()
                 //try Directory.Delete(dir.FullName, true) with | _ -> ()
@@ -273,8 +270,13 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         let pathStr = path.ToString()
         Path.GetFileNameWithoutExtension(pathStr)   
 
-    override this.OnBeforeReferencesImported() =
-        ()
+    override this.OnBeforeReferencesImportedAsync(projPath: OlyPath, targetInfo: OlyTargetInfo, ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<unit> =
+        backgroundTask {
+            let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
+            let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
+            netInfos[projPath] <- netInfo
+            return ()
+        }
 
     override this.OnAfterReferencesImported() =
         // TODO: We need to add a test scenario for this.
@@ -375,15 +377,24 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         else
             false
 
-    override this.ImportReferenceAsync(targetInfo, path, ct) =
+    override this.ImportReferenceAsync(projPath, targetInfo, path, ct) =
         backgroundTask {
+            let netInfo = netInfos[projPath]
             try
                 let pathStr = path.ToString()
                 let dir = OlyPath.GetDirectory(path)
                 let name = this.GetReferenceAssemblyName(path)
                 let ext = Path.GetExtension(pathStr).ToLower()
+
+                let isTransitive =
+                    // This is ok to check because, at this point, 'netInfo' only has framework references.
+                    // We do not want to make the framework references transitive for dotnet.
+                    not(netInfo.ReferenceNames.Contains(OlyPath.GetFileName(path)))
+
                 match assemblyCache.TryGetValue(path) with
-                | true, (path, version, ilAsm, _) -> return Result.Ok(OlyCompilationReference.Create(path, version, ilAsm) |> Some)
+                | true, (path, version, ilAsm, _) -> 
+                    let compRef = OlyCompilationReference.Create(path, version, ilAsm)
+                    return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
                 | _ ->
                     if ext.Equals(".cs") then
                         // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
@@ -420,7 +431,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                                 csOutputs.[path] <- ms
                             )
 
-                            return Result.Ok(compRef |> Some)
+                            return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
                         else
                             ms.Dispose()
                             return Result.Error(sprintf "%A" result.Diagnostics)
@@ -434,7 +445,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                             addPossibleFixups(ilAsm, possibleFixups)
                         let compRef = addAssemblyReference path ilAsm
                         addDirectoryWatcher dir ("*" + ext)
-                        return Result.Ok(compRef |> Some)
+                        return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
             with
             | ex ->
                 return Result.Error(ex.ToString())

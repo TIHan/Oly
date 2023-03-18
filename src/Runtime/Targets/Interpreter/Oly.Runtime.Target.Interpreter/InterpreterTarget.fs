@@ -18,7 +18,10 @@ type InterpreterTarget() =
 
     let relativeOutputDir = String.Empty
 
-    override this.OnBeforeReferencesImported() = ()
+    override this.OnBeforeReferencesImportedAsync(_, _, _) = 
+        backgroundTask {
+            return ()
+        }
         
     override this.OnAfterReferencesImported() = ()
 
@@ -56,7 +59,7 @@ type InterpreterTarget() =
 
     override this.CanImportReference(path: OlyPath): bool = false
 
-    override this.ImportReferenceAsync(_, path: OlyPath, ct: System.Threading.CancellationToken) =
+    override this.ImportReferenceAsync(_, _, path: OlyPath, ct: System.Threading.CancellationToken) =
         backgroundTask {
             try
                 return raise (System.NotSupportedException($"{path}"))

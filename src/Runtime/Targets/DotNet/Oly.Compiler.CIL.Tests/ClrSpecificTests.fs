@@ -126,8 +126,8 @@ let projectPath2 = OlyPath.Create "olytest2"
 let dotnetReferences =
     dotnetTarget.ResolveReferencesAsync(projectPath, targetInfo, ImArray.empty, ImArray.empty, System.Threading.CancellationToken.None).Result.Paths
     |> ImArray.map (fun x -> 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, x, System.Threading.CancellationToken.None).Result with
-        | Ok(Some res) -> OlyProjectReference.Create res
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, x, System.Threading.CancellationToken.None).Result with
+        | Ok(Some res) -> OlyProjectReference.Create res.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
     )
@@ -757,8 +757,8 @@ public interface IExample3
     File.WriteAllText(tmp, csSrc)
 
     let csRef = 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
+        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
 
@@ -839,8 +839,8 @@ public interface IExample3
     File.WriteAllText(tmp, csSrc)
 
     let csRef = 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
+        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
 
@@ -921,8 +921,8 @@ public interface IExample3
     File.WriteAllText(tmp, csSrc)
 
     let csRef = 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
+        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
 
@@ -1003,8 +1003,8 @@ public interface IExample3
     File.WriteAllText(tmp, csSrc)
 
     let csRef = 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
+        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
 
@@ -1081,8 +1081,8 @@ public interface IExample
     File.WriteAllText(tmp, csSrc)
 
     let csRef = 
-        match dotnetTarget.ImportReferenceAsync(targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef
+        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
+        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
         | Ok(None) -> failwith "None"
         | Error msg -> failwith msg
 

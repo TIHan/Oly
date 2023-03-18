@@ -64,6 +64,12 @@ type OlyTargetInfo(name: string, outputKind: OlyOutputKind) =
     member _.OutputKind = outputKind
     member _.IsExecutable = outputKind = OlyOutputKind.Executable
 
+[<Sealed>]
+type OlyImportedReference(compRef: OlyCompilationReference, isTransitive: bool) =
+    
+    member _.CompilationReference = compRef
+    member _.IsTransitive = isTransitive
+
 [<AbstractClass>]
 type OlyBuild(platformName: string) =
 
@@ -94,9 +100,9 @@ type OlyBuild(platformName: string) =
 
     abstract CanImportReference : path: OlyPath -> bool
 
-    abstract ImportReferenceAsync : targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyCompilationReference option, string>>
+    abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
 
-    abstract OnBeforeReferencesImported : unit -> unit
+    abstract OnBeforeReferencesImportedAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * ct: CancellationToken -> Task<unit>
     
     abstract OnAfterReferencesImported : unit -> unit
 
@@ -104,15 +110,21 @@ type OlyBuild(platformName: string) =
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyProjectReference =
-    | Compilation of OlyCompilationReference
+    | Compilation of OlyCompilationReference * disableTransitive: bool
     | Project of projectPath: OlyPath
+
+    member this.IsTransitive =
+        match this with
+        | Compilation(disableTransitive=true) -> false
+        | _ -> true
 
     member this.Path =
         match this with
-        | Compilation(r) -> r.Path
+        | Compilation(r, _) -> r.Path
         | Project(path) -> path
 
-    static member Create(compilationReference) = Compilation(compilationReference)
+    static member Create(compilationReference) = Compilation(compilationReference, false)
+    static member CreateNonTransitive(compilationReference) = Compilation(compilationReference, true)
 
 [<Sealed>]
 type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree) =
@@ -273,25 +285,26 @@ module WorkspaceHelpers =
         let transitiveReferences =
             let h = HashSet<string>(StringComparer.OrdinalIgnoreCase)
             let builder = imarray.CreateBuilder()
-            let rec loop (references: OlyProjectReference imarray) =
+            let rec loop checkTransitive (references: OlyProjectReference imarray) =
                 references
                 |> ImArray.iter (fun r ->
                     ct.ThrowIfCancellationRequested()
-                    match r with
-                    | OlyProjectReference.Project(projectId) ->
-                        if h.Add(projectId.ToString()) then
-                            match solution.TryGetProject projectId with
-                            | Some refProj -> 
-                                let compRef = refProj.AsCompilationReference
-                                builder.Add(compRef)
-                                loop refProj.References
-                            | _ -> 
-                                OlyAssert.Fail("Unable to find project.")
-                    | OlyProjectReference.Compilation(r) ->
-                        if h.Add(r.Path.ToString()) then
-                            builder.Add(r)
+                    if not(checkTransitive) || r.IsTransitive then
+                        match r with
+                        | OlyProjectReference.Project(projectId) ->
+                            if h.Add(projectId.ToString()) then
+                                match solution.TryGetProject projectId with
+                                | Some refProj -> 
+                                    let compRef = refProj.AsCompilationReference
+                                    builder.Add(compRef)
+                                    loop true refProj.References
+                                | _ -> 
+                                    OlyAssert.Fail("Unable to find project.")
+                        | OlyProjectReference.Compilation(r, _) ->
+                            if h.Add(r.Path.ToString()) then
+                                builder.Add(r)
                 )
-            loop references
+            loop false references
             builder.ToImmutable()
         transitiveReferences
 
@@ -741,7 +754,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))
 
             try
-                targetPlatform.OnBeforeReferencesImported()
+                do! targetPlatform.OnBeforeReferencesImportedAsync(projPath, targetInfo, ct)
             with
             | ex ->
                 diags.Add(OlyDiagnostic.CreateError(ex.Message))
@@ -752,11 +765,14 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 backgroundTask {
                     let path = OlyPath.Combine(absoluteDir, path.ToString())
                     if targetPlatform.CanImportReference path then
-                        match! targetPlatform.ImportReferenceAsync(targetInfo, path, ct) with
+                        match! targetPlatform.ImportReferenceAsync(projPath, targetInfo, path, ct) with
                         | Ok r -> 
                             match r with
                             | Some r ->
-                                return OlyProjectReference.Create(r) |> Some
+                                if r.IsTransitive then
+                                    return OlyProjectReference.Create(r.CompilationReference) |> Some
+                                else
+                                    return OlyProjectReference.CreateNonTransitive(r.CompilationReference) |> Some
                             | _ ->
                                 return None
                         | Error msg ->

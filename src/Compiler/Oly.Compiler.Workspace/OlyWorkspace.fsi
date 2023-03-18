@@ -46,6 +46,14 @@ type OlyTargetInfo =
     member OutputKind: OlyOutputKind
     member IsExecutable: bool
 
+[<Sealed>]
+type OlyImportedReference =
+
+    new : compRef: OlyCompilationReference * isTransitive: bool -> OlyImportedReference
+
+    member CompilationReference: OlyCompilationReference
+    member IsTransitive: bool
+
 [<AbstractClass>]
 type OlyBuild =
 
@@ -69,9 +77,9 @@ type OlyBuild =
 
     abstract CanImportReference : path: OlyPath -> bool
 
-    abstract ImportReferenceAsync : targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyCompilationReference option, string>>
+    abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
 
-    abstract OnBeforeReferencesImported : unit -> unit
+    abstract OnBeforeReferencesImportedAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * ct: CancellationToken -> Task<unit>
     
     abstract OnAfterReferencesImported : unit -> unit
 
@@ -80,7 +88,11 @@ type OlyBuild =
 [<Sealed>]
 type OlyProjectReference =
 
+    member IsTransitive: bool
+
     static member Create : OlyCompilationReference -> OlyProjectReference
+
+    static member CreateNonTransitive : OlyCompilationReference -> OlyProjectReference
 
 [<Sealed>]
 type OlyDocument =

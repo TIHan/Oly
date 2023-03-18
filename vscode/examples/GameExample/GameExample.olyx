@@ -173,7 +173,7 @@ main(): () =
         // server
         let objId = physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
-        let physicsBox = world.CreatePointLight(transform, Color.Multiply(Color.One, 100), objId, default)
+        let physicsBox = world.CreatePointLight(transform, Color.Multiply(Color.One, 5), objId, default)
 
         // client
         physicsBoxLightInstances.Count <- physicsBoxLightInstances.Count + 1
