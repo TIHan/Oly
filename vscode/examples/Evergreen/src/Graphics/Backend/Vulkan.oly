@@ -83,12 +83,17 @@ sealed class VulkanSwapChainSupportDetails =
         }
 
 sealed class VulkanSwapChain =
+    Device: VkDevice
     SwapChain: VkSwapchainKHR
 
-    new(swapChain: VkSwapchainKHR) =
+    new(device: VkDevice, swapChain: VkSwapchainKHR) =
         {
+            Device = device
             SwapChain = swapChain
         }
+
+    GetSwapChainImages(): VkImage[] =
+        getSwapChainImages(this.Device, this.SwapChain)
 
 private sealed class PtrPtrHandle =
     implements IDisposable
@@ -568,7 +573,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     if (vkCreateSwapchainKHR(device, &&createInfo, nullptr, &&swapChain) != VkResult.VK_SUCCESS)
         fail("Failed to create swap chain.")
 
-    VulkanSwapChain(swapChain)
+    VulkanSwapChain(device, swapChain)
 
 // -----------------------------------------------------------------------
 
@@ -623,6 +628,17 @@ private getDeviceExtensionProperties(device: VkPhysicalDevice): VkExtensionPrope
     extensionsHandle.Free()
 
     UnsafeCast(extensions)
+
+private getSwapChainImages(device: VkDevice, swapChain: VkSwapchainKHR): VkImage[] =
+    let mutable imageCount = 0: uint32
+    let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, nullptr)
+    
+    let images = Array.ZeroCreate<VkExtensionProperties>(int32(imageCount))
+    let mutable imagesHandle = fixed(images)
+    let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, UnsafeCast(imagesHandle.AddrOfPinnedObject()))
+    imagesHandle.Free()
+
+    UnsafeCast(images)
 
 // -----------------------------------------------------------------------
 
