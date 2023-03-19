@@ -36,15 +36,21 @@ sealed class VulkanApplication =
     Instance: VkInstance
     PhysicalDevice: VkPhysicalDevice
     Device: VkDevice
+    GraphicsQueue: VkQueue
+    ComputeQueue: VkQueue
+    TransferQueue: VkQueue
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(validationLayersEnabled: bool, instance: VkInstance, physicalDevice: VkPhysicalDevice, device: VkDevice, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
             PhysicalDevice = physicalDevice
             Device = device
+            GraphicsQueue = graphicsQueue
+            ComputeQueue = computeQueue
+            TransferQueue = transferQueue
             DebugMessenger = debugMessenger
             DebugReportCallback = debugReportCallback
         }
@@ -108,17 +114,30 @@ Initialize(): VulkanApplication =
     let physicalDevice = findSuitableDevice(physicalDevices)
 
     let queueFamilyProperties = getPhysicalDeviceQueueFamilyProperties(physicalDevice)
-    let graphicsQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
-    let computeQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
-    let transferQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
+    let graphicsFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
+    let computeFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
+    let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
 
-    let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsQueueIndex, computeQueueIndex, transferQueueIndex)
+    let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsFamilyIndex, computeFamilyIndex, transferFamilyIndex)
 
-    VulkanApplication(enableValidationLayers, instance, physicalDevice, device, debugMessenger, debugReportCallback)
+
+    if (graphicsFamilyIndex != computeFamilyIndex || graphicsFamilyIndex != transferFamilyIndex)
+        fail("Queue families are not handled properly.")
+
+    let mutable graphicsQueue = default
+    vkGetDeviceQueue(device, uint32(graphicsFamilyIndex), 0, &&graphicsQueue)
+
+    let mutable computeQueue = default
+    vkGetDeviceQueue(device, uint32(computeFamilyIndex), 0, &&computeQueue)
+
+    let mutable transferQueue = default
+    vkGetDeviceQueue(device, uint32(transferFamilyIndex), 0, &&transferQueue)
+
+    VulkanApplication(enableValidationLayers, instance, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
     vkDestroyDevice(app.Device, nullptr)
-    
+
     if (app.ValidationLayersEnabled)
         destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
         destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
@@ -292,14 +311,29 @@ private createInstance(enableValidationLayers: bool, validationLayers: string[])
     instance
 
 private createDevice(enableValidationLayers: bool, validationLayers: string[], physicalDevice: VkPhysicalDevice, graphicsFamilyIndex: int32, computeFamilyIndex: int32, transferFamilyIndex: int32): VkDevice =
-    let mutable queuePriority = 1.0: float32
-    let mutable queueCreateInfo = default: VkDeviceQueueCreateInfo
-
     // Graphics Queue
-    queueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-    queueCreateInfo.queueFamilyIndex <- uint32(graphicsFamilyIndex)
-    queueCreateInfo.queueCount <- 1
-    queueCreateInfo.pQueuePriorities <- &&queuePriority
+    let mutable graphicsQueuePriority = 1.0: float32
+    let mutable graphicsQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    graphicsQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    graphicsQueueCreateInfo.queueFamilyIndex <- uint32(graphicsFamilyIndex)
+    graphicsQueueCreateInfo.queueCount <- 1
+    graphicsQueueCreateInfo.pQueuePriorities <- &&graphicsQueuePriority
+
+    // // Compute Queue
+    // let mutable computeQueuePriority = 1.0: float32
+    // let mutable computeQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    // computeQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    // computeQueueCreateInfo.queueFamilyIndex <- uint32(computeFamilyIndex)
+    // computeQueueCreateInfo.queueCount <- 1
+    // computeQueueCreateInfo.pQueuePriorities <- &&computeQueuePriority
+
+    // // Transfer Queue
+    // let mutable transferQueuePriority = 1.0: float32
+    // let mutable transferQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    // transferQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    // transferQueueCreateInfo.queueFamilyIndex <- uint32(transferFamilyIndex)
+    // transferQueueCreateInfo.queueCount <- 1
+    // transferQueueCreateInfo.pQueuePriorities <- &&transferQueuePriority
 
     let mutable deviceFeatures = default: VkPhysicalDeviceFeatures
 
@@ -307,8 +341,10 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
 
     // Queues
-    createInfo.queueCreateInfoCount <- 1
-    createInfo.pQueueCreateInfos <- &&queueCreateInfo
+    let queueCreateInfos = [graphicsQueueCreateInfo] //;computeQueueCreateInfo;transferQueueCreateInfo]
+    let mutable queueCreateInfosHandle = fixed(queueCreateInfos)
+    createInfo.queueCreateInfoCount <- uint32(queueCreateInfos.Length)
+    createInfo.pQueueCreateInfos <- UnsafeCast(queueCreateInfosHandle.AddrOfPinnedObject())
     createInfo.pEnabledFeatures <- &&deviceFeatures
     createInfo.enabledExtensionCount <- 0
 
@@ -322,6 +358,10 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     let mutable device = default
     if (vkCreateDevice(physicalDevice, &&createInfo, nullptr, &&device) != VkResult.VK_SUCCESS)
         fail("Failed to create device.")
+
+    // Cleanup
+    queueCreateInfosHandle.Free()
+
     device
 
 // -----------------------------------------------------------------------
