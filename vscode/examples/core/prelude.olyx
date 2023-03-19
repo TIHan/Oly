@@ -651,6 +651,20 @@ extension ArrayExtensions =
         else
             fail("Unable to find item index.")
 
+    static FindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
+        let mutable isFound = false
+        let mutable i = 0
+        while (i < arr.Length && !isFound)
+            let item = arr[i]
+            if (predicate(i, item))
+                isFound <- true
+            else
+                i <- i + 1
+        if (isFound)
+            i
+        else
+            fail("Unable to find item index.")
+
     static Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0

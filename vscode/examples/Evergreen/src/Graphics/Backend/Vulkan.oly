@@ -121,6 +121,10 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     let graphicsFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
     let computeFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
     let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
+    let presentFamilyIndex = Array.FindIndex(queueFamilyProperties, (i: int32, x: VkQueueFamilyProperties) ->
+
+   // let mutable isPresentSupported = VkBool32.FALSE
+   // let throwAwayResult = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, &&presentFamilyIndex, surface, &&isPresentSupported)
 
     let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsFamilyIndex, computeFamilyIndex, transferFamilyIndex)
 
