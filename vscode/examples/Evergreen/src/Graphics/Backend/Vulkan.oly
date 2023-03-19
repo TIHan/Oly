@@ -1,6 +1,7 @@
 module Evergreen.Graphics.Backend.Vulkan
 
 open System
+open System.Text
 open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
@@ -21,13 +22,21 @@ extension VkResultExtensions =
 (|)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
 #[intrinsic("or")]
 (|)(VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessageTypeFlagsEXT): VkDebugUtilsMessageTypeFlagsEXT
+#[intrinsic("or")]
+(|)(VkDebugReportFlagsEXT, VkDebugReportFlagsEXT): VkDebugReportFlagsEXT
 
-struct VulkanApplication =
+sealed class VulkanApplication =
+    ValidationLayersEnabled: bool
     Instance: VkInstance
+    DebugMessenger: VkDebugUtilsMessengerEXT
+    DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(instance: VkInstance) =
+    new(validationLayersEnabled: bool, instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
+            ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
+            DebugMessenger = debugMessenger
+            DebugReportCallback = debugReportCallback
         }
 
 sealed class PtrPtrHandle =
@@ -52,11 +61,11 @@ sealed class PtrPtrHandle =
             i <- i + 1
         this.ptrPtr.Free()
 
-private getBytes(str: string): byte[||] =
-    UnsafeCast(System.Text.UTF8Encoding.UTF8.GetBytes(str))
-
 private fixed(o: object): GCHandle =
     GCHandle.Alloc(o, GCHandleType.Pinned)
+
+private fixedUTF8(str: string): GCHandle =
+    GCHandle.Alloc(UTF8Encoding.UTF8.GetBytes(str), GCHandleType.Pinned)
 
 private fixedCopy(strs: string[]): PtrPtrHandle =
     let bytePtrs = Array.ZeroCreate<byte*>(strs.Length)
@@ -64,7 +73,7 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
     let mutable i = 0
     while (i < handles.Length)
-        let mutable gcHandle = GCHandle.Alloc(getBytes(strs[i]), GCHandleType.Pinned)
+        let mutable gcHandle = fixedUTF8(strs[i])
         handles[i] <- gcHandle
         bytePtrs[i] <- UnsafeCast(gcHandle.AddrOfPinnedObject())
         i <- i + 1
@@ -72,14 +81,28 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
     let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
     PtrPtrHandle(handles, gcHandle)
 
-Initialize(): VulkanApplication =
-    let instance = createInstance(true)
-    let result = checkValidationLayerSupport()
+// ---------------------------------------------------------------------
 
-    VulkanApplication(instance)
+Initialize(): VulkanApplication =
+    let enableValidationLayers = true
+    let instance = createInstance(enableValidationLayers)
+
+    let mutable debugMessenger = default
+    setupDebugMessenger(enableValidationLayers, instance, &&debugMessenger)
+
+    let mutable debugReportCallback = default
+    setupDebugReportCallback(enableValidationLayers, instance, &&debugReportCallback)
+
+    VulkanApplication(enableValidationLayers, instance, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
-    vkDestroyInstance(app.Instance, nullptr)
+   if (app.ValidationLayersEnabled)
+       destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
+       destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
+
+   vkDestroyInstance(app.Instance, nullptr)
+
+// ---------------------------------------------------------------------
 
 private alias PFN_vkCreateDebugUtilsMessengerEXT = static blittable (VkInstance, VkDebugUtilsMessengerCreateInfoEXT*, VkAllocationCallbacks*, VkDebugUtilsMessengerEXT*) -> VkResult
 private alias PFN_vkDestroyDebugUtilsMessengerEXT = static blittable (VkInstance, VkDebugUtilsMessengerEXT, VkAllocationCallbacks*) -> ()
@@ -92,10 +115,10 @@ private createDebugUtilsMessengerEXT(
         ): VkResult =
 
     let pName = "vkCreateDebugUtilsMessengerEXT"
-    let mutable pNameHandle = fixed(pName)
+    let mutable pNameHandle = fixedUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
-    if (func == nint(0))
+    if (func != nint(0))
         let func = UnsafeCast<PFN_vkCreateDebugUtilsMessengerEXT>(func)
         func(instance, pCreateInfo, pAllocator, pDebugMessenger)
     else
@@ -103,17 +126,48 @@ private createDebugUtilsMessengerEXT(
 
 private destroyDebugUtilsMessengerEXT(instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT, pAllocator: VkAllocationCallbacks*): () =
     let pName = "vkDestroyDebugUtilsMessengerEXT"
-    let mutable pNameHandle = fixed(pName)
+    let mutable pNameHandle = fixedUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
-    if (func == nint(0))
+    if (func != nint(0))
         let func = UnsafeCast<PFN_vkDestroyDebugUtilsMessengerEXT>(func)
         func(instance, debugMessenger, pAllocator)
 
+private alias PFN_vkCreateDebugReportCallbackEXT = static blittable (VkInstance, VkDebugReportCallbackCreateInfoEXT*, VkAllocationCallbacks*, VkDebugReportCallbackEXT*) -> VkResult
+private alias PFN_vkDestroyDebugReportCallbackEXT = static blittable (VkInstance, VkDebugReportCallbackEXT, VkAllocationCallbacks*) -> ()
+
+private createDebugReportCallbackEXT(
+        instance: VkInstance, 
+        pCreateInfo: VkDebugReportCallbackCreateInfoEXT*,
+        pAllocator: VkAllocationCallbacks*,
+        pDebugReportCallback: VkDebugReportCallbackEXT*
+        ): VkResult =
+
+    let pName = "vkCreateDebugReportCallbackEXT"
+    let mutable pNameHandle = fixedUTF8(pName)
+    let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+    pNameHandle.Free()
+    if (func != nint(0))
+        let func = UnsafeCast<PFN_vkCreateDebugReportCallbackEXT>(func)
+        func(instance, pCreateInfo, pAllocator, pDebugReportCallback)
+    else
+        VkResult.VK_ERROR_EXTENSION_NOT_PRESENT
+
+private destroyDebugReportCallbackEXT(instance: VkInstance, debugReportCallback: VkDebugReportCallbackEXT, pAllocator: VkAllocationCallbacks*): () =
+    let pName = "vkDestroyDebugReportCallbackEXT"
+    let mutable pNameHandle = fixedUTF8(pName)
+    let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+    pNameHandle.Free()
+    if (func != nint(0))
+        let func = UnsafeCast<PFN_vkDestroyDebugReportCallbackEXT>(func)
+        func(instance, debugReportCallback, pAllocator)
+
 private getRequiredExtensions(enableValidationLayers: bool): string[] =
     if (enableValidationLayers)
-        let name = System.Text.Encoding.UTF8.GetString(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
-        [name]
+        [
+            Encoding.UTF8.GetString(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            Encoding.UTF8.GetString(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
+        ]
     else
         []
 
@@ -121,9 +175,15 @@ private getRequiredExtensions(enableValidationLayers: bool): string[] =
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
     print("validation layer: ")
     let callback = *pCallbackData
-
     let str = System.String(UnsafeCast<int8*>(callback.pMessage))
-    print(str)
+    printLine(str)
+    VkBool32.FALSE
+
+#[blittable]
+private debugReportCallback(flags: VkDebugReportFlagsEXT, objectType: VkDebugReportObjectTypeEXT, a: uint64, b: nuint, c: int32, d: int8*, pMessage: int8*, f: void*): VkBool32 =
+    print("validation layer: ")
+    let str = System.String(UnsafeCast<int8*>(pMessage))
+    printLine(str)
     VkBool32.FALSE
 
 private populateDebugMessengerCreateInfo(createInfo: byref<VkDebugUtilsMessengerCreateInfoEXT>): () =
@@ -133,7 +193,33 @@ private populateDebugMessengerCreateInfo(createInfo: byref<VkDebugUtilsMessenger
     createInfo.messageType <- VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
     createInfo.pfnUserCallback <- __oly_load_function_ptr(debugCallback)
 
+private setupDebugMessenger(enableValidationLayers: bool, instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT*): () =
+    if (enableValidationLayers)
+        let mutable createInfo = default: VkDebugUtilsMessengerCreateInfoEXT
+        populateDebugMessengerCreateInfo(&createInfo)
+
+        if (createDebugUtilsMessengerEXT(instance, &&createInfo, nullptr, debugMessenger) != VkResult.VK_SUCCESS)
+            fail("Failed to set up debug messenger.")
+
+private populateDebugReportCallbackCreateInfo(createInfo: byref<VkDebugReportCallbackCreateInfoEXT>): () =
+    createInfo <- default
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT
+    createInfo.flags <- VkDebugReportFlagsEXT.VK_DEBUG_REPORT_WARNING_BIT_EXT | VkDebugReportFlagsEXT.VK_DEBUG_REPORT_ERROR_BIT_EXT
+    createInfo.pfnCallback <- __oly_load_function_ptr(debugReportCallback)
+
+private setupDebugReportCallback(enableValidationLayers: bool, instance: VkInstance, debugReportCallback: VkDebugReportCallbackEXT*): () =
+    if (enableValidationLayers)
+        let mutable createInfo = default: VkDebugReportCallbackCreateInfoEXT
+        populateDebugReportCallbackCreateInfo(&createInfo)
+
+        if (createDebugReportCallbackEXT(instance, &&createInfo, nullptr, debugReportCallback) != VkResult.VK_SUCCESS)
+            fail("Failed to set up debug report callback.")
+
 private createInstance(enableValidationLayers: bool): VkInstance =
+    let validationLayers = ["VK_LAYER_KHRONOS_validation"]
+    if (enableValidationLayers && !checkValidationLayerSupport(validationLayers))
+        fail("Validation layers were requested, but not available.")
+
     let appName = "Vulkan Application"
     let engineName = "Vulkan Engine"
 
@@ -154,20 +240,16 @@ private createInstance(enableValidationLayers: bool): VkInstance =
 
     let extensions = getRequiredExtensions(enableValidationLayers)
     let extensionsHandle = fixedCopy(extensions)
-
-    let validationLayers = ["VK_LAYER_KHRONOS_validation"]
     let validationLayersHandle = fixedCopy(validationLayers)
 
     createInfo.enabledExtensionCount <- uint32(extensions.Length)
     createInfo.ppEnabledExtensionNames <- UnsafeCast(extensionsHandle.Pointer)
 
-    let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
     if (enableValidationLayers)
-        let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
-
         createInfo.enabledLayerCount <- uint32(validationLayers.Length)
         createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersHandle.Pointer)
 
+        let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
         populateDebugMessengerCreateInfo(&debugCreateInfo)
         createInfo.pNext <- UnsafeCast(&&debugCreateInfo)
     else
@@ -187,16 +269,38 @@ private createInstance(enableValidationLayers: bool): VkInstance =
 
     instance
 
-private checkValidationLayerSupport(): bool =
-    let mutable layerCount = 0: uint32
+private checkValidationLayerSupport(validationLayers: string[]): bool =
+    if (validationLayers.Length == 0)
+        true
+    else
+        let mutable layerCount = 0: uint32
 
-    if (vkEnumerateInstanceLayerProperties(&&layerCount, nullptr) != VkResult.VK_SUCCESS)
-        fail("Failed to enumerate instance layer properties.")
+        if (vkEnumerateInstanceLayerProperties(&&layerCount, nullptr) != VkResult.VK_SUCCESS)
+            fail("Failed to enumerate instance layer properties.")
 
-    let availableLayers = Array.ZeroCreate<VkLayerProperties>(int32(layerCount))
-    let mutable availableLayersHandle = fixed(availableLayers)
-    if (vkEnumerateInstanceLayerProperties(&&layerCount, UnsafeCast(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
-        fail("Failed to enumerate instance layer properties.")
-    availableLayersHandle.Free()
+        let availableLayers = Array.ZeroCreate<VkLayerProperties>(int32(layerCount))
+        let mutable availableLayersHandle = fixed(availableLayers)
+        if (vkEnumerateInstanceLayerProperties(&&layerCount, UnsafeCast(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
+            fail("Failed to enumerate instance layer properties.")
+        availableLayersHandle.Free()
 
-    false
+        let mutable found = true
+
+        let mutable i = 0
+        while (i < validationLayers.Length)
+            let mutable foundLayer = false
+
+            let mutable j = 0
+            while (j < availableLayers.Length)
+                let layerProperties = availableLayers[j]
+                let layerName = String(UnsafeCast<int8*>(&&layerProperties.layerName))
+                if (layerName == validationLayers[i])
+                    foundLayer <- true
+                j <- j + 1
+
+            if (!foundLayer)
+                found <- false
+
+            i <- i + 1
+
+        found

@@ -95,3 +95,4 @@ main(): () =
     else
         showWindow(hwnd)
         runWindowMessage(hwnd)
+        vk.Destroy(vulkanApp)
