@@ -171,6 +171,9 @@ nint<T>(T*): nint
 nint(void*): nint
 
 #[intrinsic("cast")]
+nint(int32): nint
+
+#[intrinsic("cast")]
 nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
 
 #[intrinsic("cast")]
