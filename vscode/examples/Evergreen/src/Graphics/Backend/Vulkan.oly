@@ -40,10 +40,11 @@ sealed class VulkanApplication =
     GraphicsQueue: VkQueue
     ComputeQueue: VkQueue
     TransferQueue: VkQueue
+    PresentQueue: VkQueue
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -53,6 +54,7 @@ sealed class VulkanApplication =
             GraphicsQueue = graphicsQueue
             ComputeQueue = computeQueue
             TransferQueue = transferQueue
+            PresentQueue = presentQueue
             DebugMessenger = debugMessenger
             DebugReportCallback = debugReportCallback
         }
@@ -121,26 +123,29 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     let graphicsFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
     let computeFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
     let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
-    let presentFamilyIndex = Array.FindIndex(queueFamilyProperties, (i: int32, x: VkQueueFamilyProperties) ->
+    let presentFamilyIndex = 
+        Array.FindIndex(queueFamilyProperties, 
+            (i: int32, x: VkQueueFamilyProperties) ->
+                let mutable isPresentSupported = VkBool32.FALSE
+                let throwAwayResult = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, uint32(i), surface, &&isPresentSupported)
+                isPresentSupported == VkBool32.TRUE
+        )
 
-   // let mutable isPresentSupported = VkBool32.FALSE
-   // let throwAwayResult = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, &&presentFamilyIndex, surface, &&isPresentSupported)
-
-    let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsFamilyIndex, computeFamilyIndex, transferFamilyIndex)
-
-    if (graphicsFamilyIndex != computeFamilyIndex || graphicsFamilyIndex != transferFamilyIndex)
-        fail("Queue families are not handled properly.")
+    let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsFamilyIndex, computeFamilyIndex, transferFamilyIndex, presentFamilyIndex)
 
     let mutable graphicsQueue = default
-    vkGetDeviceQueue(device, uint32(graphicsFamilyIndex), 0, &&graphicsQueue)
+    vkGetDeviceQueue(device, uint32(graphicsFamilyIndex), uint32(graphicsFamilyIndex), &&graphicsQueue)
 
     let mutable computeQueue = default
-    vkGetDeviceQueue(device, uint32(computeFamilyIndex), 0, &&computeQueue)
+    vkGetDeviceQueue(device, uint32(computeFamilyIndex), uint32(computeFamilyIndex), &&computeQueue)
 
     let mutable transferQueue = default
-    vkGetDeviceQueue(device, uint32(transferFamilyIndex), 0, &&transferQueue)
+    vkGetDeviceQueue(device, uint32(transferFamilyIndex), uint32(transferFamilyIndex), &&transferQueue)
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, debugMessenger, debugReportCallback)
+    let mutable presentQueue = default
+    vkGetDeviceQueue(device, uint32(transferFamilyIndex), uint32(transferFamilyIndex), &&presentQueue)
+
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
     vkDestroyDevice(app.Device, nullptr)
@@ -344,7 +349,7 @@ private createSurface(instance: VkInstance, hwnd: nint, hinstance: nint): VkSurf
         fail("Failed to create window surface.")
     surface
 
-private createDevice(enableValidationLayers: bool, validationLayers: string[], physicalDevice: VkPhysicalDevice, graphicsFamilyIndex: int32, computeFamilyIndex: int32, transferFamilyIndex: int32): VkDevice =
+private createDevice(enableValidationLayers: bool, validationLayers: string[], physicalDevice: VkPhysicalDevice, graphicsFamilyIndex: int32, computeFamilyIndex: int32, transferFamilyIndex: int32, presentFamilyIndex: int32): VkDevice =
     // Graphics Queue
     let mutable graphicsQueuePriority = 1.0: float32
     let mutable graphicsQueueCreateInfo = default: VkDeviceQueueCreateInfo
@@ -353,21 +358,29 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     graphicsQueueCreateInfo.queueCount <- 1
     graphicsQueueCreateInfo.pQueuePriorities <- &&graphicsQueuePriority
 
-    // // Compute Queue
-    // let mutable computeQueuePriority = 1.0: float32
-    // let mutable computeQueueCreateInfo = default: VkDeviceQueueCreateInfo
-    // computeQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-    // computeQueueCreateInfo.queueFamilyIndex <- uint32(computeFamilyIndex)
-    // computeQueueCreateInfo.queueCount <- 1
-    // computeQueueCreateInfo.pQueuePriorities <- &&computeQueuePriority
+    // Compute Queue
+    let mutable computeQueuePriority = 1.0: float32
+    let mutable computeQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    computeQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    computeQueueCreateInfo.queueFamilyIndex <- uint32(computeFamilyIndex)
+    computeQueueCreateInfo.queueCount <- 1
+    computeQueueCreateInfo.pQueuePriorities <- &&computeQueuePriority
 
-    // // Transfer Queue
-    // let mutable transferQueuePriority = 1.0: float32
-    // let mutable transferQueueCreateInfo = default: VkDeviceQueueCreateInfo
-    // transferQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-    // transferQueueCreateInfo.queueFamilyIndex <- uint32(transferFamilyIndex)
-    // transferQueueCreateInfo.queueCount <- 1
-    // transferQueueCreateInfo.pQueuePriorities <- &&transferQueuePriority
+    // Transfer Queue
+    let mutable transferQueuePriority = 1.0: float32
+    let mutable transferQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    transferQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    transferQueueCreateInfo.queueFamilyIndex <- uint32(transferFamilyIndex)
+    transferQueueCreateInfo.queueCount <- 1
+    transferQueueCreateInfo.pQueuePriorities <- &&transferQueuePriority
+
+    // Present Queue
+    let mutable presentQueuePriority = 1.0: float32
+    let mutable presentQueueCreateInfo = default: VkDeviceQueueCreateInfo
+    presentQueueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    presentQueueCreateInfo.queueFamilyIndex <- uint32(presentFamilyIndex)
+    presentQueueCreateInfo.queueCount <- 1
+    presentQueueCreateInfo.pQueuePriorities <- &&presentQueuePriority
 
     let mutable deviceFeatures = default: VkPhysicalDeviceFeatures
 
@@ -375,7 +388,8 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
 
     // Queues
-    let queueCreateInfos = [graphicsQueueCreateInfo] //;computeQueueCreateInfo;transferQueueCreateInfo]
+    let queueCreateInfos = [graphicsQueueCreateInfo;computeQueueCreateInfo;transferQueueCreateInfo;presentQueueCreateInfo]
+    let queueCreateInfos = Array.DistinctBy(queueCreateInfos, x -> x.queueFamilyIndex)
     let mutable queueCreateInfosHandle = fixed(queueCreateInfos)
     createInfo.queueCreateInfoCount <- uint32(queueCreateInfos.Length)
     createInfo.pQueueCreateInfos <- UnsafeCast(queueCreateInfosHandle.AddrOfPinnedObject())
