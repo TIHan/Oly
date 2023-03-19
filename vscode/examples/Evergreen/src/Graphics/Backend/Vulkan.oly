@@ -28,13 +28,15 @@ extension VkResultExtensions =
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
     Instance: VkInstance
+    Device: VkPhysicalDevice
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(validationLayersEnabled: bool, instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, device: VkPhysicalDevice, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
+            Device = device
             DebugMessenger = debugMessenger
             DebugReportCallback = debugReportCallback
         }
@@ -64,8 +66,8 @@ sealed class PtrPtrHandle =
 private fixed(o: object): GCHandle =
     GCHandle.Alloc(o, GCHandleType.Pinned)
 
-private fixedUTF8(str: string): GCHandle =
-    GCHandle.Alloc(UTF8Encoding.UTF8.GetBytes(str), GCHandleType.Pinned)
+private fixedCopyUTF8(str: string): GCHandle =
+    fixed(UTF8Encoding.UTF8.GetBytes(str))
 
 private fixedCopy(strs: string[]): PtrPtrHandle =
     let bytePtrs = Array.ZeroCreate<byte*>(strs.Length)
@@ -73,7 +75,7 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
     let mutable i = 0
     while (i < handles.Length)
-        let mutable gcHandle = fixedUTF8(strs[i])
+        let mutable gcHandle = fixedCopyUTF8(strs[i])
         handles[i] <- gcHandle
         bytePtrs[i] <- UnsafeCast(gcHandle.AddrOfPinnedObject())
         i <- i + 1
@@ -93,14 +95,17 @@ Initialize(): VulkanApplication =
     let mutable debugReportCallback = default
     setupDebugReportCallback(enableValidationLayers, instance, &&debugReportCallback)
 
-    VulkanApplication(enableValidationLayers, instance, debugMessenger, debugReportCallback)
+    let devices = getPhysicalDevices(instance)
+    let device = getSuitableDevice(devices)
+
+    VulkanApplication(enableValidationLayers, instance, device, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
-   if (app.ValidationLayersEnabled)
-       destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
-       destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
+    if (app.ValidationLayersEnabled)
+        destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
+        destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
 
-   vkDestroyInstance(app.Instance, nullptr)
+    vkDestroyInstance(app.Instance, nullptr)
 
 // ---------------------------------------------------------------------
 
@@ -115,7 +120,7 @@ private createDebugUtilsMessengerEXT(
         ): VkResult =
 
     let pName = "vkCreateDebugUtilsMessengerEXT"
-    let mutable pNameHandle = fixedUTF8(pName)
+    let mutable pNameHandle = fixedCopyUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
     if (func != nint(0))
@@ -126,7 +131,7 @@ private createDebugUtilsMessengerEXT(
 
 private destroyDebugUtilsMessengerEXT(instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT, pAllocator: VkAllocationCallbacks*): () =
     let pName = "vkDestroyDebugUtilsMessengerEXT"
-    let mutable pNameHandle = fixedUTF8(pName)
+    let mutable pNameHandle = fixedCopyUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
     if (func != nint(0))
@@ -144,7 +149,7 @@ private createDebugReportCallbackEXT(
         ): VkResult =
 
     let pName = "vkCreateDebugReportCallbackEXT"
-    let mutable pNameHandle = fixedUTF8(pName)
+    let mutable pNameHandle = fixedCopyUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
     if (func != nint(0))
@@ -155,7 +160,7 @@ private createDebugReportCallbackEXT(
 
 private destroyDebugReportCallbackEXT(instance: VkInstance, debugReportCallback: VkDebugReportCallbackEXT, pAllocator: VkAllocationCallbacks*): () =
     let pName = "vkDestroyDebugReportCallbackEXT"
-    let mutable pNameHandle = fixedUTF8(pName)
+    let mutable pNameHandle = fixedCopyUTF8(pName)
     let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
     pNameHandle.Free()
     if (func != nint(0))
@@ -175,14 +180,14 @@ private getRequiredExtensions(enableValidationLayers: bool): string[] =
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
     print("validation layer: ")
     let callback = *pCallbackData
-    let str = System.String(UnsafeCast<int8*>(callback.pMessage))
+    let str = String(UnsafeCast<int8*>(callback.pMessage))
     printLine(str)
     VkBool32.FALSE
 
 #[blittable]
 private debugReportCallback(flags: VkDebugReportFlagsEXT, objectType: VkDebugReportObjectTypeEXT, a: uint64, b: nuint, c: int32, d: int8*, pMessage: int8*, f: void*): VkBool32 =
     print("validation layer: ")
-    let str = System.String(UnsafeCast<int8*>(pMessage))
+    let str = String(UnsafeCast<int8*>(pMessage))
     printLine(str)
     VkBool32.FALSE
 
@@ -269,20 +274,55 @@ private createInstance(enableValidationLayers: bool): VkInstance =
 
     instance
 
+private getInstanceLayerProperties(): VkLayerProperties[] =
+    let mutable layerCount = 0: uint32
+
+    if (vkEnumerateInstanceLayerProperties(&&layerCount, nullptr) != VkResult.VK_SUCCESS)
+        fail("Failed to enumerate instance layer properties.")
+
+    let availableLayers = Array.ZeroCreate<VkLayerProperties>(int32(layerCount))
+    let mutable availableLayersHandle = fixed(availableLayers)
+    if (vkEnumerateInstanceLayerProperties(&&layerCount, UnsafeCast(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
+        fail("Failed to enumerate instance layer properties.")
+    availableLayersHandle.Free()
+
+    UnsafeCast<VkLayerProperties[]>(availableLayers)
+
+private getPhysicalDevices(instance: VkInstance): VkPhysicalDevice[] =
+    let mutable deviceCount = 0: uint32
+
+    if (vkEnumeratePhysicalDevices(instance, &&deviceCount, nullptr) != VkResult.VK_SUCCESS)
+        fail("Failed to enumerate physical devices.")
+
+    let availableDevices = Array.ZeroCreate<VkPhysicalDevice>(int32(deviceCount))
+    let mutable availableDevicesHandle = fixed(availableDevices)
+    if (vkEnumeratePhysicalDevices(instance, &&deviceCount, UnsafeCast(availableDevicesHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
+        fail("Failed to enumerate physical devices.")
+    availableDevicesHandle.Free()
+
+    UnsafeCast<VkPhysicalDevice[]>(availableDevices)
+
+private getSuitableDevice(devices: VkPhysicalDevice[]): VkPhysicalDevice =
+    Array.Find(devices, isDeviceSuitable)
+
+private isDeviceSuitable(device: VkPhysicalDevice): bool =
+    let mutable deviceProperties = default: VkPhysicalDeviceProperties
+    let mutable deviceFeatures = default: VkPhysicalDeviceFeatures
+
+    vkGetPhysicalDeviceProperties(device, &&deviceProperties)
+    vkGetPhysicalDeviceFeatures(device, &&deviceFeatures)
+
+    match (deviceProperties.deviceType)
+    | VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU when (deviceFeatures.geometryShader == VkBool32.TRUE) =>
+        true
+    | _ =>
+        false
+
 private checkValidationLayerSupport(validationLayers: string[]): bool =
     if (validationLayers.Length == 0)
         true
     else
-        let mutable layerCount = 0: uint32
-
-        if (vkEnumerateInstanceLayerProperties(&&layerCount, nullptr) != VkResult.VK_SUCCESS)
-            fail("Failed to enumerate instance layer properties.")
-
-        let availableLayers = Array.ZeroCreate<VkLayerProperties>(int32(layerCount))
-        let mutable availableLayersHandle = fixed(availableLayers)
-        if (vkEnumerateInstanceLayerProperties(&&layerCount, UnsafeCast(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
-            fail("Failed to enumerate instance layer properties.")
-        availableLayersHandle.Free()
+        let availableLayers = getInstanceLayerProperties()
 
         let mutable found = true
 
