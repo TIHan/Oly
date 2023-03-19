@@ -31,7 +31,7 @@ wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
     else
         DefWindowProc(hWnd, msg, wParam, lParam)
 
-createWindow(): HWND =
+createWindow(): (HWND, HINSTANCE) =
     let m = typeof<Marker>().Module
     let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
     let mutable wc = default: WNDCLASSW
@@ -48,7 +48,7 @@ createWindow(): HWND =
 
     let result = RegisterClass(&&wc)
     if (result == 0)
-        HWND.NULL
+        (HWND.NULL, hInstance)
     else
         let hwnd =
             CreateWindowEx(
@@ -68,7 +68,7 @@ createWindow(): HWND =
 
         gc.Free()
         gc2.Free()
-        hwnd
+        (hwnd, hInstance)
 
 showWindow(hwnd: HWND): () =
     let result = ShowWindow(hwnd, SW_SHOW)
@@ -88,11 +88,13 @@ runWindowMessage(hwnd: HWND): () =
     // loop(hwnd, default)
 
 main(): () =
-    let vulkanApp = vk.Initialize()
-    let hwnd = createWindow()
-    if (hwnd == HWND.NULL)
-        print("Unable to create window.")
-    else
+    match (createWindow())
+    | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
+        fail("Failed to create window.")
+    | (hwnd, hinstance) =>
+        let vulkanApp = Evergreen.Graphics.Backend.Vulkan.Initialize(nint(hwnd.Value), nint(hinstance.Value))
         showWindow(hwnd)
         runWindowMessage(hwnd)
         vk.Destroy(vulkanApp)
+    | _ =>
+        fail("Should not happen, fix language as this should be exhaustive.")

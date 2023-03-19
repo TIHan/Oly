@@ -34,6 +34,7 @@ extension VkResultExtensions =
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
     Instance: VkInstance
+    Surface: VkSurfaceKHR
     PhysicalDevice: VkPhysicalDevice
     Device: VkDevice
     GraphicsQueue: VkQueue
@@ -42,10 +43,11 @@ sealed class VulkanApplication =
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(validationLayersEnabled: bool, instance: VkInstance, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
+            Surface = surface
             PhysicalDevice = physicalDevice
             Device = device
             GraphicsQueue = graphicsQueue
@@ -99,7 +101,7 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
 // ---------------------------------------------------------------------
 
-Initialize(): VulkanApplication =
+Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     let enableValidationLayers = true
     let validationLayers = ["VK_LAYER_KHRONOS_validation"]
     let instance = createInstance(enableValidationLayers, validationLayers)
@@ -110,6 +112,8 @@ Initialize(): VulkanApplication =
     let mutable debugReportCallback = default
     setupDebugReportCallback(enableValidationLayers, instance, &&debugReportCallback)
 
+    let surface = createSurface(instance, hwnd, hinstance)
+
     let physicalDevices = getPhysicalDevices(instance)
     let physicalDevice = findSuitableDevice(physicalDevices)
 
@@ -119,7 +123,6 @@ Initialize(): VulkanApplication =
     let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
 
     let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsFamilyIndex, computeFamilyIndex, transferFamilyIndex)
-
 
     if (graphicsFamilyIndex != computeFamilyIndex || graphicsFamilyIndex != transferFamilyIndex)
         fail("Queue families are not handled properly.")
@@ -133,10 +136,12 @@ Initialize(): VulkanApplication =
     let mutable transferQueue = default
     vkGetDeviceQueue(device, uint32(transferFamilyIndex), 0, &&transferQueue)
 
-    VulkanApplication(enableValidationLayers, instance, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, debugMessenger, debugReportCallback)
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
     vkDestroyDevice(app.Device, nullptr)
+
+    vkDestroySurfaceKHR(app.Instance, app.Surface, nullptr)
 
     if (app.ValidationLayersEnabled)
         destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
@@ -208,10 +213,15 @@ private getRequiredExtensions(enableValidationLayers: bool): string[] =
     if (enableValidationLayers)
         [
             Encoding.UTF8.GetString(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-            Encoding.UTF8.GetString(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
+            Encoding.UTF8.GetString(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+            "VK_KHR_surface";
+            "VK_KHR_win32_surface"
         ]
     else
-        []
+        [
+            "VK_KHR_surface";
+            "VK_KHR_win32_surface"
+        ]
 
 #[blittable]
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
@@ -309,6 +319,26 @@ private createInstance(enableValidationLayers: bool, validationLayers: string[])
     extensionsHandle.Dispose()
 
     instance
+
+private createSurface(instance: VkInstance, hwnd: nint, hinstance: nint): VkSurfaceKHR =
+    let mutable surface = default: VkSurfaceKHR
+
+    let mutable createInfo = default: VkWin32SurfaceCreateInfoKHR
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR
+    createInfo.hwnd <- hwnd
+    createInfo.hinstance <- hinstance
+
+    let mutable instanceImports = default: VkInstanceManualImports
+    let pName = "vkCreateWin32SurfaceKHR"
+    let mutable pNameHandle = fixedCopyUTF8(pName)
+    let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+    pNameHandle.Free()
+    if (func == nint(0))
+        fail("Failed to query instance function.")
+    instanceImports.vkCreateWin32SurfaceKHR <- UnsafeCast(func)
+    if (instanceImports.vkCreateWin32SurfaceKHR(instance, &&createInfo, nullptr, &&surface) != VkResult.VK_SUCCESS)
+        fail("Failed to create window surface.")
+    surface
 
 private createDevice(enableValidationLayers: bool, validationLayers: string[], physicalDevice: VkPhysicalDevice, graphicsFamilyIndex: int32, computeFamilyIndex: int32, transferFamilyIndex: int32): VkDevice =
     // Graphics Queue
