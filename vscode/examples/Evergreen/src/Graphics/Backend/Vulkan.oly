@@ -85,15 +85,16 @@ sealed class VulkanSwapChainSupportDetails =
 sealed class VulkanSwapChain =
     Device: VkDevice
     SwapChain: VkSwapchainKHR
+    Images: VkImage[]
+    ImageViews: VkImageView[]
 
-    new(device: VkDevice, swapChain: VkSwapchainKHR) =
+    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[]) =
         {
             Device = device
             SwapChain = swapChain
+            Images = images
+            ImageViews = imageViews
         }
-
-    GetSwapChainImages(): VkImage[] =
-        getSwapChainImages(this.Device, this.SwapChain)
 
 private sealed class PtrPtrHandle =
     implements IDisposable
@@ -186,6 +187,10 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, debugReportCallback, swapChain)
 
 Destroy(app: VulkanApplication): () =
+    let mutable i = 0
+    while (i < app.SwapChain.ImageViews.Length)
+        vkDestroyImageView(app.Device, app.SwapChain.ImageViews[i], nullptr)
+        i <- i + 1
     vkDestroySwapchainKHR(app.Device, app.SwapChain.SwapChain, nullptr)
     
     vkDestroyDevice(app.Device, nullptr)
@@ -573,7 +578,34 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     if (vkCreateSwapchainKHR(device, &&createInfo, nullptr, &&swapChain) != VkResult.VK_SUCCESS)
         fail("Failed to create swap chain.")
 
-    VulkanSwapChain(device, swapChain)
+    // Getting images
+    let images = getSwapChainImages(device, swapChain)
+    let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format))
+
+    VulkanSwapChain(device, swapChain, images, imageViews)
+
+private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat): VkImageView =
+    let mutable createInfo = default: VkImageViewCreateInfo
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
+    createInfo.image <- image
+    createInfo.viewType <- VkImageViewType.VK_IMAGE_VIEW_TYPE_2D
+    createInfo.format <- imageFormat
+    createInfo.components.r <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
+    createInfo.components.g <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
+    createInfo.components.b <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
+    createInfo.components.a <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
+
+    createInfo.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT
+    createInfo.subresourceRange.baseMipLevel <- 0
+    createInfo.subresourceRange.levelCount <- 1
+    createInfo.subresourceRange.baseArrayLayer <- 0
+    createInfo.subresourceRange.layerCount <- 1
+
+    let mutable imageView = default: VkImageView
+    if (vkCreateImageView(device, &&createInfo, nullptr, &&imageView) != VkResult.VK_SUCCESS)
+        fail("Failed to create image view.")
+    
+    imageView
 
 // -----------------------------------------------------------------------
 
