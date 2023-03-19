@@ -34,15 +34,15 @@ sealed class PtrPtrHandle =
     implements IDisposable
 
     private mutable handles: GCHandle[||]
-    private mutable ptrPtr: void*
+    private mutable ptrPtr: GCHandle
 
-    new(handles: GCHandle[||], ptrPtr: void*) =
+    new(handles: GCHandle[||], ptrPtr: GCHandle) =
         {
             handles = handles
             ptrPtr = ptrPtr
         }
 
-    Pointer: void* get() = this.ptrPtr
+    Pointer: void* get() = UnsafeCast(this.ptrPtr.AddrOfPinnedObject())
 
     Dispose(): () =
         let mutable i = 0
@@ -50,6 +50,7 @@ sealed class PtrPtrHandle =
             let mutable handle = this.handles[i]
             handle.Free()
             i <- i + 1
+        this.ptrPtr.Free()
 
 private getBytes(str: string): byte[||] =
     UnsafeCast(System.Text.UTF8Encoding.UTF8.GetBytes(str))
@@ -58,20 +59,18 @@ private fixed(o: object): GCHandle =
     GCHandle.Alloc(o, GCHandleType.Pinned)
 
 private fixedCopy(strs: string[]): PtrPtrHandle =
-    if (strs.Length == 0)
-        PtrPtrHandle([||], nullptr)
-    else
-        let arrPtrPtr = Array.ZeroCreate<byte*>(strs.Length)
-        let handles = Array.ZeroCreate(strs.Length + 1)
-        let mutable ptrPtr = GCHandle.Alloc(arrPtrPtr, GCHandleType.Pinned)
-        handles[0] <- ptrPtr
-        let mutable i = 1
-        while (i < handles.Length)
-            let mutable gcHandle = GCHandle.Alloc(getBytes(strs[i - 1]), GCHandleType.Pinned)
-            handles[i] <- gcHandle
-            arrPtrPtr[i - 1] <- UnsafeCast(gcHandle.AddrOfPinnedObject())
-            i <- i + 1
-        PtrPtrHandle(handles, UnsafeCast(ptrPtr.AddrOfPinnedObject()))
+    let bytePtrs = Array.ZeroCreate<byte*>(strs.Length)
+    let handles = Array.ZeroCreate(strs.Length)
+
+    let mutable i = 0
+    while (i < handles.Length)
+        let mutable gcHandle = GCHandle.Alloc(getBytes(strs[i]), GCHandleType.Pinned)
+        handles[i] <- gcHandle
+        bytePtrs[i] <- UnsafeCast(gcHandle.AddrOfPinnedObject())
+        i <- i + 1
+
+    let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
+    PtrPtrHandle(handles, gcHandle)
 
 Initialize(): VulkanApplication =
     let instance = createInstance(true)
@@ -113,7 +112,8 @@ private destroyDebugUtilsMessengerEXT(instance: VkInstance, debugMessenger: VkDe
 
 private getRequiredExtensions(enableValidationLayers: bool): string[] =
     if (enableValidationLayers)
-        [VK_EXT_DEBUG_UTILS_EXTENSION_NAME.ToString()]
+        let name = System.Text.Encoding.UTF8.GetString(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
+        [name]
     else
         []
 
@@ -153,20 +153,20 @@ private createInstance(enableValidationLayers: bool): VkInstance =
     createInfo.pApplicationInfo <- &&appInfo
 
     let extensions = getRequiredExtensions(enableValidationLayers)
-    let extensionsPtrPtr = fixedCopy(extensions)
+    let extensionsHandle = fixedCopy(extensions)
 
     let validationLayers = ["VK_LAYER_KHRONOS_validation"]
-    let validationLayersPtrPtr = fixedCopy(validationLayers)
+    let validationLayersHandle = fixedCopy(validationLayers)
 
-    createInfo.enabledExtensionCount <- 0//uint32(extensions.Length)
-    createInfo.ppEnabledExtensionNames <- UnsafeCast(extensionsPtrPtr.Pointer)
+    createInfo.enabledExtensionCount <- uint32(extensions.Length)
+    createInfo.ppEnabledExtensionNames <- UnsafeCast(extensionsHandle.Pointer)
 
     let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
     if (enableValidationLayers)
         let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
 
-        createInfo.enabledLayerCount <- 0//uint32(validationLayers.Length)
-        createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersPtrPtr.Pointer)
+        createInfo.enabledLayerCount <- uint32(validationLayers.Length)
+        createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersHandle.Pointer)
 
         populateDebugMessengerCreateInfo(&debugCreateInfo)
         createInfo.pNext <- UnsafeCast(&&debugCreateInfo)
@@ -182,8 +182,8 @@ private createInstance(enableValidationLayers: bool): VkInstance =
     // Cleanup
     appNameHandle.Free()
     engineNameHandle.Free()
-    validationLayersPtrPtr.Dispose()
-    extensionsPtrPtr.Dispose()
+    validationLayersHandle.Dispose()
+    extensionsHandle.Dispose()
 
     instance
 
