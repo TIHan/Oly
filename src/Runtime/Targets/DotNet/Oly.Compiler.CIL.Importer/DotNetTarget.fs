@@ -260,6 +260,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     let netInfos = ConcurrentDictionary<OlyPath, DotNetInfo>()
 
+    let frameworkRefs = ConcurrentDictionary<string, DotNetInfo>()
+
     member _.GetCSharpOutput(path) =
         match csOutputs.TryGetValue path with
         | true, ms -> ms
@@ -272,10 +274,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     override this.OnBeforeReferencesImportedAsync(projPath: OlyPath, targetInfo: OlyTargetInfo, ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<unit> =
         backgroundTask {
-            let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-            let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
-            netInfos[projPath] <- netInfo
-            return ()
+            match frameworkRefs.TryGetValue targetInfo.Name with
+            | true, netInfo ->
+                netInfos[projPath] <- netInfo
+                ()
+            | _ ->
+                let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
+                let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
+                netInfos[projPath] <- netInfo
+                frameworkRefs[targetInfo.Name] <- netInfo
+                return ()
         }
 
     override this.OnAfterReferencesImported() =
