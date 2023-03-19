@@ -31,6 +31,15 @@ extension VkResultExtensions =
 #[intrinsic("equal")]
 (==)(VkQueueFlags, VkQueueFlags): bool
 
+#[intrinsic("equal")]
+(==)(VkFormat, VkFormat): bool
+
+#[intrinsic("equal")]
+(==)(VkColorSpaceKHR, VkColorSpaceKHR): bool
+
+#[intrinsic("equal")]
+(==)(VkPresentModeKHR, VkPresentModeKHR): bool
+
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
     Instance: VkInstance
@@ -43,8 +52,9 @@ sealed class VulkanApplication =
     PresentQueue: VkQueue
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
+    SwapChain: VulkanSwapChain
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT, swapChain: VulkanSwapChain) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -57,9 +67,30 @@ sealed class VulkanApplication =
             PresentQueue = presentQueue
             DebugMessenger = debugMessenger
             DebugReportCallback = debugReportCallback
+            SwapChain = swapChain
         }
 
-sealed class PtrPtrHandle =
+sealed class VulkanSwapChainSupportDetails =
+    Capabilities: VkSurfaceCapabilitiesKHR
+    Formats: VkSurfaceFormatKHR[]
+    PresentModes: VkPresentModeKHR[]
+
+    new(capabilities: VkSurfaceCapabilitiesKHR, formats: VkSurfaceFormatKHR[], presentModes: VkPresentModeKHR[]) =
+        {
+            Capabilities = capabilities
+            Formats = formats
+            PresentModes = presentModes
+        }
+
+sealed class VulkanSwapChain =
+    SwapChain: VkSwapchainKHR
+
+    new(swapChain: VkSwapchainKHR) =
+        {
+            SwapChain = swapChain
+        }
+
+private sealed class PtrPtrHandle =
     implements IDisposable
 
     private mutable handles: GCHandle[||]
@@ -145,9 +176,13 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     let mutable presentQueue = default
     vkGetDeviceQueue(device, uint32(transferFamilyIndex), uint32(transferFamilyIndex), &&presentQueue)
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, debugReportCallback)
+    let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
+
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, debugReportCallback, swapChain)
 
 Destroy(app: VulkanApplication): () =
+    vkDestroySwapchainKHR(app.Device, app.SwapChain.SwapChain, nullptr)
+    
     vkDestroyDevice(app.Device, nullptr)
 
     vkDestroySurfaceKHR(app.Instance, app.Surface, nullptr)
@@ -231,6 +266,11 @@ private getRequiredExtensions(enableValidationLayers: bool): string[] =
             "VK_KHR_surface";
             "VK_KHR_win32_surface"
         ]
+
+private getRequiredDeviceExtensions(): string[] =
+    [
+        "VK_KHR_swapchain"
+    ]
 
 #[blittable]
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
@@ -394,7 +434,6 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     createInfo.queueCreateInfoCount <- uint32(queueCreateInfos.Length)
     createInfo.pQueueCreateInfos <- UnsafeCast(queueCreateInfosHandle.AddrOfPinnedObject())
     createInfo.pEnabledFeatures <- &&deviceFeatures
-    createInfo.enabledExtensionCount <- 0
 
     let validationLayersHandle = fixedCopy(validationLayers)
     if (enableValidationLayers)
@@ -403,14 +442,133 @@ private createDevice(enableValidationLayers: bool, validationLayers: string[], p
     else
         createInfo.enabledLayerCount <- 0
 
+    let deviceExtensions = getRequiredDeviceExtensions()
+    if (!checkExtensionsSupport(physicalDevice, deviceExtensions))
+        fail("Failed to validate device extensions.")
+    
+    createInfo.enabledExtensionCount <- uint32(deviceExtensions.Length)
+    let requiredDeviceExtensionsHandle = fixedCopy(deviceExtensions)
+    createInfo.ppEnabledExtensionNames <- UnsafeCast(requiredDeviceExtensionsHandle.Pointer)  
+
     let mutable device = default
     if (vkCreateDevice(physicalDevice, &&createInfo, nullptr, &&device) != VkResult.VK_SUCCESS)
         fail("Failed to create device.")
 
     // Cleanup
     queueCreateInfosHandle.Free()
+    requiredDeviceExtensionsHandle.Dispose()
 
     device
+
+private createSwapChainSupportDetails(device: VkPhysicalDevice, surface: VkSurfaceKHR): VulkanSwapChainSupportDetails =
+    let mutable capabilities = default: VkSurfaceCapabilitiesKHR
+    let throwAwayResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &&capabilities)
+
+    let mutable formatCount = 0: uint32
+
+    let throwAwayResult = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &&formatCount, nullptr)
+
+    let formats = Array.ZeroCreate<VkSurfaceFormatKHR>(int32(formatCount))
+    let mutable formatsHandle = fixed(formats)
+    let throwAwayResult = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &&formatCount, UnsafeCast(formatsHandle.AddrOfPinnedObject()))
+    formatsHandle.Free()
+
+    let mutable presentModeCount = 0: uint32
+
+    let throwAwayResult = vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &&presentModeCount, nullptr)
+
+    let presentModes = Array.ZeroCreate<VkPresentModeKHR>(int32(presentModeCount))
+    let mutable presentModesHandle = fixed(presentModes)
+    let throwAwayResult = vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &&presentModeCount, UnsafeCast(presentModesHandle.AddrOfPinnedObject()))
+    presentModesHandle.Free()
+
+    VulkanSwapChainSupportDetails(capabilities, UnsafeCast(formats), UnsafeCast(presentModes))
+
+private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[]): VkSurfaceFormatKHR =
+    Array.Find(formats, (x: VkSurfaceFormatKHR) -> x.format == VkFormat.VK_FORMAT_B8G8R8A8_SRGB && x.colorSpace == VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+
+private findSwapPresentMode(presentModes: VkPresentModeKHR[]): VkPresentModeKHR =
+    Array.Find(presentModes,
+        (x: VkPresentModeKHR) ->
+            x == VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR
+    )
+
+private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2D =
+    if (capabilities.currentExtent.width != uint32.MaxValue)
+        capabilities.currentExtent
+    else
+        fail("Invalid swap-extent.")
+//     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+//     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+//         return capabilities.currentExtent;
+//     } else {
+//         int width, height;
+//         glfwGetFramebufferSize(window, &width, &height);
+
+//         VkExtent2D actualExtent = {
+//             static_cast<uint32_t>(width),
+//             static_cast<uint32_t>(height)
+//         };
+
+//         actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+//         actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+//         return actualExtent;
+//     }
+// }
+
+private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surface: VkSurfaceKHR, graphicsFamilyIndex: uint32, presentFamilyIndex: uint32): VulkanSwapChain =
+    let details = createSwapChainSupportDetails(physicalDevice, surface)
+
+    let swapChainAdequate =
+        details.Formats.Length > 0 && details.PresentModes.Length > 0
+
+    if (!swapChainAdequate)
+        fail("Swap chain is not adequate.")
+
+    let surfaceFormat = findSwapSurfaceFormat(details.Formats)
+    let presentMode = findSwapPresentMode(details.PresentModes)
+    let extent = findSwapExtent(&details.Capabilities)
+
+    // Request at least more than one image.
+    let mutable imageCount = details.Capabilities.minImageCount + 1
+
+    if (details.Capabilities.maxImageCount > 0 && imageCount > details.Capabilities.maxImageCount)
+        imageCount <- details.Capabilities.maxImageCount   
+
+    let mutable createInfo = default: VkSwapchainCreateInfoKHR
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
+    createInfo.surface <- surface
+    createInfo.minImageCount <- imageCount
+    createInfo.imageFormat <- surfaceFormat.format
+    createInfo.imageColorSpace <- surfaceFormat.colorSpace
+    createInfo.imageExtent <- extent
+    createInfo.imageArrayLayers <- 1
+    createInfo.imageUsage <- VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+
+    let queueFamilyIndices = [graphicsFamilyIndex;presentFamilyIndex]
+    let mutable queueFamilyIndicesHandle = fixed(queueFamilyIndices)
+    if (graphicsFamilyIndex != presentFamilyIndex)
+        createInfo.imageSharingMode <- VkSharingMode.VK_SHARING_MODE_CONCURRENT
+        createInfo.queueFamilyIndexCount <- 2
+        createInfo.pQueueFamilyIndices <- UnsafeCast(queueFamilyIndicesHandle.AddrOfPinnedObject())
+    else
+        createInfo.imageSharingMode <- VkSharingMode.VK_SHARING_MODE_EXCLUSIVE
+        createInfo.queueFamilyIndexCount <- 0 // Optional
+        createInfo.pQueueFamilyIndices <- nullptr // Optional
+
+    createInfo.preTransform <- details.Capabilities.currentTransform
+    createInfo.compositeAlpha <- VkCompositeAlphaFlagsKHR.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+
+    createInfo.presentMode <- presentMode
+    createInfo.clipped <- VkBool32.TRUE
+    createInfo.oldSwapchain <- VkSwapchainKHR.NULL
+
+    let mutable swapChain = default
+    if (vkCreateSwapchainKHR(device, &&createInfo, nullptr, &&swapChain) != VkResult.VK_SUCCESS)
+        fail("Failed to create swap chain.")
+
+    VulkanSwapChain(swapChain)
 
 // -----------------------------------------------------------------------
 
@@ -454,23 +612,45 @@ private getPhysicalDeviceQueueFamilyProperties(device: VkPhysicalDevice): VkQueu
 
     UnsafeCast<VkQueueFamilyProperties[]>(queueFamilies)
 
+private getDeviceExtensionProperties(device: VkPhysicalDevice): VkExtensionProperties[] =
+    let mutable extensionCount = 0: uint32
+
+    let throwAwayResult = vkEnumerateDeviceExtensionProperties(device, nullptr, &&extensionCount, nullptr)
+
+    let extensions = Array.ZeroCreate<VkExtensionProperties>(int32(extensionCount))
+    let mutable extensionsHandle = fixed(extensions)
+    let throwAwayResult = vkEnumerateDeviceExtensionProperties(device, nullptr, &&extensionCount, UnsafeCast(extensionsHandle.AddrOfPinnedObject()))
+    extensionsHandle.Free()
+
+    UnsafeCast(extensions)
+
 // -----------------------------------------------------------------------
 
 private findSuitableDevice(devices: VkPhysicalDevice[]): VkPhysicalDevice =
-    Array.Find(devices, isDeviceSuitable)
+    Array.MaxByUInt32(devices, getDeviceSuitableScore)
 
-private isDeviceSuitable(device: VkPhysicalDevice): bool =
+private getDeviceSuitableScore(device: VkPhysicalDevice): uint32 =
     let mutable deviceProperties = default: VkPhysicalDeviceProperties
     let mutable deviceFeatures = default: VkPhysicalDeviceFeatures
 
     vkGetPhysicalDeviceProperties(device, &&deviceProperties)
     vkGetPhysicalDeviceFeatures(device, &&deviceFeatures)
 
-    match (deviceProperties.deviceType)
-    | VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU when (deviceFeatures.geometryShader == VkBool32.TRUE) =>
-        true
-    | _ =>
-        false
+    let score =
+        match (deviceProperties.deviceType)
+        | VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU when (deviceFeatures.geometryShader == VkBool32.TRUE) =>
+            1000 + deviceProperties.limits.maxImageDimension2D
+        | _ =>
+            0
+
+    // let deviceName = String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
+    // print("Device Name and Score: ")
+    // print(deviceName)
+    // print(" - Score ")
+    // print(score)
+    // print("\n")
+
+    score
 
 private checkValidationLayerSupport(validationLayers: string[]): bool =
     if (validationLayers.Length == 0)
@@ -493,6 +673,33 @@ private checkValidationLayerSupport(validationLayers: string[]): bool =
                 j <- j + 1
 
             if (!foundLayer)
+                found <- false
+
+            i <- i + 1
+
+        found
+
+private checkExtensionsSupport(device: VkPhysicalDevice, deviceExtensions: string[]): bool =
+    if (deviceExtensions.Length == 0)
+        true
+    else
+        let availableExtensions = getDeviceExtensionProperties(device)
+
+        let mutable found = true
+
+        let mutable i = 0
+        while (i < deviceExtensions.Length)
+            let mutable foundExtension = false
+
+            let mutable j = 0
+            while (j < availableExtensions.Length)
+                let extensionProperties = availableExtensions[j]
+                let extensionName = String(UnsafeCast<int8*>(&&extensionProperties.extensionName))
+                if (extensionName == deviceExtensions[i])
+                    foundExtension <- true
+                j <- j + 1
+
+            if (!foundExtension)
                 found <- false
 
             i <- i + 1

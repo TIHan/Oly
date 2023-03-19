@@ -638,6 +638,38 @@ extension ArrayExtensions =
             i <- i + 1
         UnsafeCast(newArr)
 
+    static MaxByUInt32<T>(arr: T[], f: T -> uint32): T =
+        let mutable maxValue = 0: uint32
+        let mutable found = -1
+        let mutable i = 0
+        while (i < arr.Length)
+            let item = arr[i]
+            let value = f(item)
+            if (value > maxValue)
+                maxValue <- value
+                found <- i
+            i <- i + 1
+
+        if (found == -1)
+            fail("Empty array.")
+        arr[found]
+
+    static Filter<T>(arr: T[], f: T -> bool): T[] =
+        let indicesToInclude = System.Collections.Generic.List<int32>()
+        let mutable i = 0
+        while (i < arr.Length)
+            let item = arr[i]
+            if (f(item))
+                indicesToInclude.Add(i)
+            i <- i + 1
+        
+        let newArr = System.Array.ZeroCreate<T>(indicesToInclude.Count)
+        let mutable i = 0
+        while (i < newArr.Length)
+            newArr[i] <- arr[indicesToInclude[i]]
+            i <- i + 1
+        UnsafeCast(newArr)
+
     static Find<T>(arr: T[], predicate: T -> bool): T =
         let mutable result: T = unchecked default
         let mutable isFound = false

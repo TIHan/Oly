@@ -1915,7 +1915,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                         failwith "Not yet."
 
                     | _ ->
-                        failwithf "Invalid intrinsic function '%A'." funcIntrin
+                        OlyAssert.Fail(sprintf "Invalid intrinsic function '%A'." funcIntrin)
                 | _ ->
 
                     let ilArgExprs =
@@ -1933,7 +1933,8 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                         OlyAssert.False(func.IsTargetJump)
                         OlyILOperation.New(ilFuncInst, ilArgExprs)
                     else
-                        Assert.ThrowIfNot(func.Parameters.Length = ilArgExprs.Length)
+                        if func.Parameters.Length <> ilArgExprs.Length then
+                            OlyAssert.Fail($"Parameters and arguments do not match - {func.Name}")
                         if isVirtualCall then
                             OlyAssert.False(func.IsTargetJump)
                             OlyILOperation.CallVirtual(ilFuncInst, ilArgExprs)
