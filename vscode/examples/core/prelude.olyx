@@ -634,7 +634,7 @@ extension ArrayExtensions =
         let newArr = System.Array.ZeroCreate<T>(indicesToInclude.Count)
         let mutable i = 0
         while (i < newArr.Length)
-            newArr[i] <- arr[i]
+            newArr[i] <- arr[indicesToInclude[i]]
             i <- i + 1
         UnsafeCast(newArr)
 
