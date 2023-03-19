@@ -22,7 +22,7 @@ alias vk = Evergreen.Graphics.Backend.Vulkan
 class Marker
 
 #[blittable]
-//#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
 wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
     if(msg == 2 /* WM_DESTROY - need conversions */)
         print("Quitting...\n")
