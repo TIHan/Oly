@@ -502,6 +502,14 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
             let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
             TypeSymbol.Tuple(tyArgs, names)
 
+    | TypeSymbol.Function(argTys, returnTy) ->
+        if ty.IsFormal then
+            ty
+        else
+            let argTys = argTys |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+            let returnTy = retargetType currentAsmIdent importer tyPars returnTy
+            TypeSymbol.Function(argTys, returnTy)
+
     | _ ->
         if ty.Arity > 0 then
             if ty.IsFormal then
