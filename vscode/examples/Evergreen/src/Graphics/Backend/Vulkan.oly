@@ -18,24 +18,32 @@ extension VkResultExtensions =
     static op_Inequality(result1: VkResult, result2: VkResult): bool =
         fromEnum(result1) != fromEnum(result2)
 
-#[intrinsic("or")]
+#[intrinsic("bitwise_or")]
 (|)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
-#[intrinsic("or")]
+#[intrinsic("bitwise_or")]
 (|)(VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessageTypeFlagsEXT): VkDebugUtilsMessageTypeFlagsEXT
-#[intrinsic("or")]
+#[intrinsic("bitwise_or")]
 (|)(VkDebugReportFlagsEXT, VkDebugReportFlagsEXT): VkDebugReportFlagsEXT
+
+#[intrinsic("bitwise_and")]
+(&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
+
+#[intrinsic("equal")]
+(==)(VkQueueFlags, VkQueueFlags): bool
 
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
     Instance: VkInstance
-    Device: VkPhysicalDevice
+    PhysicalDevice: VkPhysicalDevice
+    Device: VkDevice
     DebugMessenger: VkDebugUtilsMessengerEXT
     DebugReportCallback: VkDebugReportCallbackEXT
 
-    new(validationLayersEnabled: bool, instance: VkInstance, device: VkPhysicalDevice, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
+    new(validationLayersEnabled: bool, instance: VkInstance, physicalDevice: VkPhysicalDevice, device: VkDevice, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
+            PhysicalDevice = physicalDevice
             Device = device
             DebugMessenger = debugMessenger
             DebugReportCallback = debugReportCallback
@@ -87,7 +95,8 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
 Initialize(): VulkanApplication =
     let enableValidationLayers = true
-    let instance = createInstance(enableValidationLayers)
+    let validationLayers = ["VK_LAYER_KHRONOS_validation"]
+    let instance = createInstance(enableValidationLayers, validationLayers)
 
     let mutable debugMessenger = default
     setupDebugMessenger(enableValidationLayers, instance, &&debugMessenger)
@@ -95,12 +104,21 @@ Initialize(): VulkanApplication =
     let mutable debugReportCallback = default
     setupDebugReportCallback(enableValidationLayers, instance, &&debugReportCallback)
 
-    let devices = getPhysicalDevices(instance)
-    let device = getSuitableDevice(devices)
+    let physicalDevices = getPhysicalDevices(instance)
+    let physicalDevice = findSuitableDevice(physicalDevices)
 
-    VulkanApplication(enableValidationLayers, instance, device, debugMessenger, debugReportCallback)
+    let queueFamilyProperties = getPhysicalDeviceQueueFamilyProperties(physicalDevice)
+    let graphicsQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
+    let computeQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
+    let transferQueueIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
+
+    let device = createDevice(enableValidationLayers, validationLayers, physicalDevice, graphicsQueueIndex, computeQueueIndex, transferQueueIndex)
+
+    VulkanApplication(enableValidationLayers, instance, physicalDevice, device, debugMessenger, debugReportCallback)
 
 Destroy(app: VulkanApplication): () =
+    vkDestroyDevice(app.Device, nullptr)
+    
     if (app.ValidationLayersEnabled)
         destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
         destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
@@ -220,8 +238,7 @@ private setupDebugReportCallback(enableValidationLayers: bool, instance: VkInsta
         if (createDebugReportCallbackEXT(instance, &&createInfo, nullptr, debugReportCallback) != VkResult.VK_SUCCESS)
             fail("Failed to set up debug report callback.")
 
-private createInstance(enableValidationLayers: bool): VkInstance =
-    let validationLayers = ["VK_LAYER_KHRONOS_validation"]
+private createInstance(enableValidationLayers: bool, validationLayers: string[]): VkInstance =
     if (enableValidationLayers && !checkValidationLayerSupport(validationLayers))
         fail("Validation layers were requested, but not available.")
 
@@ -274,6 +291,41 @@ private createInstance(enableValidationLayers: bool): VkInstance =
 
     instance
 
+private createDevice(enableValidationLayers: bool, validationLayers: string[], physicalDevice: VkPhysicalDevice, graphicsFamilyIndex: int32, computeFamilyIndex: int32, transferFamilyIndex: int32): VkDevice =
+    let mutable queuePriority = 1.0: float32
+    let mutable queueCreateInfo = default: VkDeviceQueueCreateInfo
+
+    // Graphics Queue
+    queueCreateInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+    queueCreateInfo.queueFamilyIndex <- uint32(graphicsFamilyIndex)
+    queueCreateInfo.queueCount <- 1
+    queueCreateInfo.pQueuePriorities <- &&queuePriority
+
+    let mutable deviceFeatures = default: VkPhysicalDeviceFeatures
+
+    let mutable createInfo = default: VkDeviceCreateInfo
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+
+    // Queues
+    createInfo.queueCreateInfoCount <- 1
+    createInfo.pQueueCreateInfos <- &&queueCreateInfo
+    createInfo.pEnabledFeatures <- &&deviceFeatures
+    createInfo.enabledExtensionCount <- 0
+
+    let validationLayersHandle = fixedCopy(validationLayers)
+    if (enableValidationLayers)
+        createInfo.enabledLayerCount <- uint32(validationLayers.Length)
+        createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersHandle.Pointer)
+    else
+        createInfo.enabledLayerCount <- 0
+
+    let mutable device = default
+    if (vkCreateDevice(physicalDevice, &&createInfo, nullptr, &&device) != VkResult.VK_SUCCESS)
+        fail("Failed to create device.")
+    device
+
+// -----------------------------------------------------------------------
+
 private getInstanceLayerProperties(): VkLayerProperties[] =
     let mutable layerCount = 0: uint32
 
@@ -302,7 +354,21 @@ private getPhysicalDevices(instance: VkInstance): VkPhysicalDevice[] =
 
     UnsafeCast<VkPhysicalDevice[]>(availableDevices)
 
-private getSuitableDevice(devices: VkPhysicalDevice[]): VkPhysicalDevice =
+private getPhysicalDeviceQueueFamilyProperties(device: VkPhysicalDevice): VkQueueFamilyProperties[] =
+    let mutable queueFamilyCount = 0: uint32
+
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &&queueFamilyCount, nullptr)
+
+    let queueFamilies = Array.ZeroCreate<VkQueueFamilyProperties>(int32(queueFamilyCount))
+    let mutable queueFamiliesHandle = fixed(queueFamilies)
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &&queueFamilyCount, UnsafeCast(queueFamiliesHandle.AddrOfPinnedObject()))
+    queueFamiliesHandle.Free()
+
+    UnsafeCast<VkQueueFamilyProperties[]>(queueFamilies)
+
+// -----------------------------------------------------------------------
+
+private findSuitableDevice(devices: VkPhysicalDevice[]): VkPhysicalDevice =
     Array.Find(devices, isDeviceSuitable)
 
 private isDeviceSuitable(device: VkPhysicalDevice): bool =
