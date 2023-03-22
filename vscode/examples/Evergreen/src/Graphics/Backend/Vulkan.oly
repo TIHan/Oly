@@ -23,7 +23,7 @@ extension VkResultExtensions =
 #[intrinsic("bitwise_or")]
 (|)(VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessageTypeFlagsEXT): VkDebugUtilsMessageTypeFlagsEXT
 #[intrinsic("bitwise_or")]
-(|)(VkDebugReportFlagsEXT, VkDebugReportFlagsEXT): VkDebugReportFlagsEXT
+(|)(VkColorComponentFlags, VkColorComponentFlags): VkColorComponentFlags
 
 #[intrinsic("bitwise_and")]
 (&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
@@ -51,10 +51,9 @@ sealed class VulkanApplication =
     TransferQueue: VkQueue
     PresentQueue: VkQueue
     DebugMessenger: VkDebugUtilsMessengerEXT
-    DebugReportCallback: VkDebugReportCallbackEXT
     SwapChain: VulkanSwapChain
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, debugReportCallback: VkDebugReportCallbackEXT, swapChain: VulkanSwapChain) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, swapChain: VulkanSwapChain) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -66,7 +65,6 @@ sealed class VulkanApplication =
             TransferQueue = transferQueue
             PresentQueue = presentQueue
             DebugMessenger = debugMessenger
-            DebugReportCallback = debugReportCallback
             SwapChain = swapChain
         }
 
@@ -84,16 +82,20 @@ sealed class VulkanSwapChainSupportDetails =
 
 sealed class VulkanSwapChain =
     Device: VkDevice
-    SwapChain: VkSwapchainKHR
+    mutable SwapChain: VkSwapchainKHR
     Images: VkImage[]
     ImageViews: VkImageView[]
+    mutable Extent: VkExtent2D
+    ImageFormat: VkFormat
 
-    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[]) =
+    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, imageFormat: VkFormat) =
         {
             Device = device
             SwapChain = swapChain
             Images = images
             ImageViews = imageViews
+            Extent = extent
+            ImageFormat = imageFormat
         }
 
 private sealed class PtrPtrHandle =
@@ -148,9 +150,6 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     let mutable debugMessenger = default
     setupDebugMessenger(enableValidationLayers, instance, &&debugMessenger)
 
-    let mutable debugReportCallback = default
-    setupDebugReportCallback(enableValidationLayers, instance, &&debugReportCallback)
-
     let surface = createSurface(instance, hwnd, hinstance)
 
     let physicalDevices = getPhysicalDevices(instance)
@@ -184,7 +183,7 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
 
     let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, debugReportCallback, swapChain)
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, swapChain)
 
 Destroy(app: VulkanApplication): () =
     let mutable i = 0
@@ -198,10 +197,38 @@ Destroy(app: VulkanApplication): () =
     vkDestroySurfaceKHR(app.Instance, app.Surface, nullptr)
 
     if (app.ValidationLayersEnabled)
-        destroyDebugReportCallbackEXT(app.Instance, app.DebugReportCallback, nullptr)
         destroyDebugUtilsMessengerEXT(app.Instance, app.DebugMessenger, nullptr)
 
     vkDestroyInstance(app.Instance, nullptr)
+
+CreateShaderModule(app: VulkanApplication, byteCode: Span<byte>): VkShaderModule =
+    createShaderModule(app.Device, byteCode)
+
+DestroyShaderModule(app: VulkanApplication, shaderModule: VkShaderModule): () =
+    vkDestroyShaderModule(app.Device, shaderModule, nullptr)
+
+CreatePipelineLayout(app: VulkanApplication): VkPipelineLayout =
+    createPipelineLayout(app.Device)
+
+DestroyPipelineLayout(app: VulkanApplication, pipelineLayout: VkPipelineLayout): () =
+    vkDestroyPipelineLayout(app.Device, pipelineLayout, nullptr)
+
+CreateRenderPass(app: VulkanApplication): VkRenderPass =
+    createRenderPass(app.Device, app.SwapChain.ImageFormat)
+
+DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
+    vkDestroyRenderPass(app.Device, renderPass, nullptr)
+
+CreateGraphicsPipeline(app: VulkanApplication, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
+    let stages =
+        [|
+            createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
+            createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
+        |]
+    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, app.SwapChain.Extent)
+
+DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
+    vkDestroyPipeline(app.Device, pipeline, nullptr)
 
 // ---------------------------------------------------------------------
 
@@ -233,35 +260,6 @@ private destroyDebugUtilsMessengerEXT(instance: VkInstance, debugMessenger: VkDe
     if (func != nint(0))
         let func = UnsafeCast<PFN_vkDestroyDebugUtilsMessengerEXT>(func)
         func(instance, debugMessenger, pAllocator)
-
-private alias PFN_vkCreateDebugReportCallbackEXT = static blittable (VkInstance, VkDebugReportCallbackCreateInfoEXT*, VkAllocationCallbacks*, VkDebugReportCallbackEXT*) -> VkResult
-private alias PFN_vkDestroyDebugReportCallbackEXT = static blittable (VkInstance, VkDebugReportCallbackEXT, VkAllocationCallbacks*) -> ()
-
-private createDebugReportCallbackEXT(
-        instance: VkInstance, 
-        pCreateInfo: VkDebugReportCallbackCreateInfoEXT*,
-        pAllocator: VkAllocationCallbacks*,
-        pDebugReportCallback: VkDebugReportCallbackEXT*
-        ): VkResult =
-
-    let pName = "vkCreateDebugReportCallbackEXT"
-    let mutable pNameHandle = fixedCopyUTF8(pName)
-    let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
-    pNameHandle.Free()
-    if (func != nint(0))
-        let func = UnsafeCast<PFN_vkCreateDebugReportCallbackEXT>(func)
-        func(instance, pCreateInfo, pAllocator, pDebugReportCallback)
-    else
-        VkResult.VK_ERROR_EXTENSION_NOT_PRESENT
-
-private destroyDebugReportCallbackEXT(instance: VkInstance, debugReportCallback: VkDebugReportCallbackEXT, pAllocator: VkAllocationCallbacks*): () =
-    let pName = "vkDestroyDebugReportCallbackEXT"
-    let mutable pNameHandle = fixedCopyUTF8(pName)
-    let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
-    pNameHandle.Free()
-    if (func != nint(0))
-        let func = UnsafeCast<PFN_vkDestroyDebugReportCallbackEXT>(func)
-        func(instance, debugReportCallback, pAllocator)
 
 private getRequiredExtensions(enableValidationLayers: bool): string[] =
     if (enableValidationLayers)
@@ -311,20 +309,6 @@ private setupDebugMessenger(enableValidationLayers: bool, instance: VkInstance, 
 
         if (createDebugUtilsMessengerEXT(instance, &&createInfo, nullptr, debugMessenger) != VkResult.VK_SUCCESS)
             fail("Failed to set up debug messenger.")
-
-private populateDebugReportCallbackCreateInfo(createInfo: byref<VkDebugReportCallbackCreateInfoEXT>): () =
-    createInfo <- default
-    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT
-    createInfo.flags <- VkDebugReportFlagsEXT.VK_DEBUG_REPORT_WARNING_BIT_EXT | VkDebugReportFlagsEXT.VK_DEBUG_REPORT_ERROR_BIT_EXT
-    createInfo.pfnCallback <- __oly_load_function_ptr(debugReportCallback)
-
-private setupDebugReportCallback(enableValidationLayers: bool, instance: VkInstance, debugReportCallback: VkDebugReportCallbackEXT*): () =
-    if (enableValidationLayers)
-        let mutable createInfo = default: VkDebugReportCallbackCreateInfoEXT
-        populateDebugReportCallbackCreateInfo(&createInfo)
-
-        if (createDebugReportCallbackEXT(instance, &&createInfo, nullptr, debugReportCallback) != VkResult.VK_SUCCESS)
-            fail("Failed to set up debug report callback.")
 
 private createInstance(enableValidationLayers: bool, validationLayers: string[]): VkInstance =
     if (enableValidationLayers && !checkValidationLayerSupport(validationLayers))
@@ -582,7 +566,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     let images = getSwapChainImages(device, swapChain)
     let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format))
 
-    VulkanSwapChain(device, swapChain, images, imageViews)
+    VulkanSwapChain(device, swapChain, images, imageViews, extent, surfaceFormat.format)
 
 private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat): VkImageView =
     let mutable createInfo = default: VkImageViewCreateInfo
@@ -606,6 +590,204 @@ private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat)
         fail("Failed to create image view.")
     
     imageView
+
+private createShaderModule(device: VkDevice, mutable byteCode: Span<byte>): VkShaderModule =
+    let byteCodeRef = &byteCode.GetPinnableReference()
+
+    let mutable createInfo = default: VkShaderModuleCreateInfo
+    createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
+    createInfo.codeSize <- nuint(byteCode.Length)
+    createInfo.pCode <- UnsafeCast(&&byteCodeRef)
+
+    let mutable shaderModule = default: VkShaderModule
+    if (vkCreateShaderModule(device, &&createInfo, nullptr, &&shaderModule) != VkResult.VK_SUCCESS)
+        fail("Failed to create shader module.")
+    shaderModule
+
+private createShaderStageInfo(shaderModule: VkShaderModule, stage: VkShaderStageFlags): VkPipelineShaderStageCreateInfo =
+    let mutable shaderStageInfo = default: VkPipelineShaderStageCreateInfo
+    shaderStageInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+    shaderStageInfo.stage <- stage
+    shaderStageInfo.`module` <- shaderModule
+    shaderStageInfo
+
+private createPipelineLayout(device: VkDevice): VkPipelineLayout =
+    let mutable pipelineLayoutInfo = default: VkPipelineLayoutCreateInfo
+    pipelineLayoutInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+    pipelineLayoutInfo.setLayoutCount <- 0 // Optional
+    pipelineLayoutInfo.pSetLayouts <- nullptr // Optional
+    pipelineLayoutInfo.pushConstantRangeCount <- 0 // Optional
+    pipelineLayoutInfo.pPushConstantRanges <- nullptr // Optional
+
+    let mutable pipelineLayout = default
+    if (vkCreatePipelineLayout(device, &&pipelineLayoutInfo, nullptr, &&pipelineLayout) != VkResult.VK_SUCCESS)
+        fail("Failed to create pipeline layout.")
+
+    pipelineLayout
+
+private createGraphicsPipeline(device: VkDevice, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, stages: VkPipelineShaderStageCreateInfo[||], swapChainExtent: VkExtent2D): VkPipeline =
+    let dynamicStates =
+        [
+            VkDynamicState.VK_DYNAMIC_STATE_VIEWPORT;
+            VkDynamicState.VK_DYNAMIC_STATE_SCISSOR
+        ]
+
+    let mutable dynamicStatesHandle = fixed(dynamicStates)
+
+    let mutable dynamicState = default: VkPipelineDynamicStateCreateInfo
+    dynamicState.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO
+    dynamicState.dynamicStateCount <- uint32(dynamicStates.Length)
+    dynamicState.pDynamicStates <- UnsafeCast(dynamicStatesHandle.AddrOfPinnedObject())
+
+    let mutable vertexInputInfo = default: VkPipelineVertexInputStateCreateInfo
+    vertexInputInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
+    vertexInputInfo.vertexBindingDescriptionCount <- 0
+    vertexInputInfo.pVertexBindingDescriptions <- nullptr // Optional
+    vertexInputInfo.vertexAttributeDescriptionCount <- 0
+    vertexInputInfo.pVertexAttributeDescriptions <- nullptr // Optional
+
+    let mutable inputAssembly = default: VkPipelineInputAssemblyStateCreateInfo
+    inputAssembly.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
+    inputAssembly.topology <- VkPrimitiveTopology.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+    inputAssembly.primitiveRestartEnable <- VkBool32.FALSE
+
+    let mutable viewport = default: VkViewport
+    viewport.x <- 0
+    viewport.y <- 0
+    viewport.width <- float32(swapChainExtent.width)
+    viewport.height <- float32(swapChainExtent.height)
+    viewport.minDepth <- 0
+    viewport.maxDepth <- 1
+
+    let mutable scissor = default: VkRect2D
+    scissor.offset <- default
+    scissor.extent <- swapChainExtent
+
+    let mutable viewportState = default: VkPipelineViewportStateCreateInfo
+    viewportState.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
+    viewportState.viewportCount <- 1
+    viewportState.pViewports <- &&viewport
+    viewportState.scissorCount <- 1
+    viewportState.pScissors <- &&scissor
+
+    let mutable rasterizer = default: VkPipelineRasterizationStateCreateInfo
+    rasterizer.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
+    rasterizer.depthClampEnable <- VkBool32.FALSE
+    rasterizer.rasterizerDiscardEnable <- VkBool32.FALSE
+    rasterizer.polygonMode <- VkPolygonMode.VK_POLYGON_MODE_FILL
+    rasterizer.lineWidth <- 1
+    rasterizer.cullMode <- VkCullModeFlags.VK_CULL_MODE_BACK_BIT
+    rasterizer.frontFace <- VkFrontFace.VK_FRONT_FACE_CLOCKWISE // TODO: Make this counter clockwise at some point.
+
+    // TODO: We will want to enable this at some point.
+    rasterizer.depthBiasEnable <- VkBool32.FALSE
+    rasterizer.depthBiasConstantFactor <- 0 // Optional
+    rasterizer.depthBiasClamp <- 0 // Optional
+    rasterizer.depthBiasSlopeFactor <- 0 // Optional
+
+    let mutable multisampling = default: VkPipelineMultisampleStateCreateInfo
+    multisampling.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
+    multisampling.sampleShadingEnable <- VkBool32.FALSE
+    multisampling.rasterizationSamples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
+    multisampling.minSampleShading <- 1 // Optional
+    multisampling.pSampleMask <- nullptr // Optional
+    multisampling.alphaToCoverageEnable <- VkBool32.FALSE // Optional
+    multisampling.alphaToOneEnable <- VkBool32.FALSE // Optional
+
+    let mutable colorBlendAttachment = default: VkPipelineColorBlendAttachmentState
+    colorBlendAttachment.colorWriteMask <- VkColorComponentFlags.VK_COLOR_COMPONENT_R_BIT | VkColorComponentFlags.VK_COLOR_COMPONENT_G_BIT | VkColorComponentFlags.VK_COLOR_COMPONENT_B_BIT | VkColorComponentFlags.VK_COLOR_COMPONENT_A_BIT
+    colorBlendAttachment.blendEnable <- VkBool32.FALSE
+    colorBlendAttachment.srcColorBlendFactor <- VkBlendFactor.VK_BLEND_FACTOR_ONE // Optional
+    colorBlendAttachment.dstColorBlendFactor <- VkBlendFactor.VK_BLEND_FACTOR_ZERO // Optional
+    colorBlendAttachment.colorBlendOp <- VkBlendOp.VK_BLEND_OP_ADD // Optional
+    colorBlendAttachment.srcAlphaBlendFactor <- VkBlendFactor.VK_BLEND_FACTOR_ONE // Optional
+    colorBlendAttachment.dstAlphaBlendFactor <- VkBlendFactor.VK_BLEND_FACTOR_ZERO // Optional
+    colorBlendAttachment.alphaBlendOp <- VkBlendOp.VK_BLEND_OP_ADD // Optional
+
+    let mutable colorBlending = default: VkPipelineColorBlendStateCreateInfo
+    colorBlending.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
+    colorBlending.logicOpEnable <- VkBool32.FALSE
+    colorBlending.logicOp <- VkLogicOp.VK_LOGIC_OP_COPY // Optional
+    colorBlending.attachmentCount <- 1
+    colorBlending.pAttachments <- &&colorBlendAttachment
+
+    // TODO: What do we do about the fixed buffer here?
+    colorBlending.blendConstants.FixedElementField <- 0 // Optional
+// colorBlending.blendConstants[0] = 0.0f; // Optional
+// colorBlending.blendConstants[1] = 0.0f; // Optional
+// colorBlending.blendConstants[2] = 0.0f; // Optional
+// colorBlending.blendConstants[3] = 0.0f; // Optional
+
+    let pName = "main"
+    let mutable pNameHandle = fixedCopyUTF8(pName)
+    let stageCount = stages.Length
+    let mutable i = 0
+    while (i < stageCount)
+        stages[i].pName <- UnsafeCast(pNameHandle.AddrOfPinnedObject())
+        i <- i + 1
+    let mutable stagesHandle = fixed(stages)
+
+    let mutable pipelineInfo = default: VkGraphicsPipelineCreateInfo
+    pipelineInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
+    pipelineInfo.stageCount <- uint32(stageCount)
+    pipelineInfo.pStages <- UnsafeCast(stagesHandle.AddrOfPinnedObject())
+    pipelineInfo.pVertexInputState <- &&vertexInputInfo
+    pipelineInfo.pInputAssemblyState <- &&inputAssembly
+    pipelineInfo.pViewportState <- &&viewportState
+    pipelineInfo.pRasterizationState <- &&rasterizer
+    pipelineInfo.pMultisampleState <- &&multisampling
+    pipelineInfo.pDepthStencilState <- nullptr // Optional
+    pipelineInfo.pColorBlendState <- &&colorBlending
+    pipelineInfo.pDynamicState <- &&dynamicState
+    pipelineInfo.layout <- pipelineLayout
+    pipelineInfo.renderPass <- renderPass
+    pipelineInfo.subpass <- 0
+    pipelineInfo.basePipelineHandle <- VkPipeline.NULL // Optional
+    pipelineInfo.basePipelineIndex <- -1 // Optional
+
+    let mutable graphicsPipeline = default
+    if (vkCreateGraphicsPipelines(device, VkPipelineCache.NULL, 1, &&pipelineInfo, nullptr, &&graphicsPipeline) != VkResult.VK_SUCCESS)
+        fail("Failed to create graphics pipeline.")
+
+    // Cleanup
+    stagesHandle.Free()
+    pNameHandle.Free()
+    dynamicStatesHandle.Free()
+    
+    graphicsPipeline
+
+private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRenderPass =
+    let mutable colorAttachment = default: VkAttachmentDescription
+    colorAttachment.format <- swapChainImageFormat
+    colorAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
+    colorAttachment.loadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_CLEAR
+    colorAttachment.storeOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_STORE
+    colorAttachment.stencilLoadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    colorAttachment.stencilStoreOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE
+    colorAttachment.initialLayout <- VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
+    colorAttachment.finalLayout <- VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+
+    let mutable colorAttachmentRef = default: VkAttachmentReference
+    colorAttachmentRef.attachment <- 0
+    colorAttachmentRef.layout <- VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+
+    let mutable subpass = default: VkSubpassDescription
+    subpass.pipelineBindPoint <- VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS
+    subpass.colorAttachmentCount <- 1
+    subpass.pColorAttachments <- &&colorAttachmentRef
+
+    let mutable renderPassInfo = default: VkRenderPassCreateInfo
+    renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
+    renderPassInfo.attachmentCount <- 1
+    renderPassInfo.pAttachments <- &&colorAttachment
+    renderPassInfo.subpassCount <- 1
+    renderPassInfo.pSubpasses <- &&subpass
+
+    let mutable renderPass = default
+    if (vkCreateRenderPass(device, &&renderPassInfo, nullptr, &&renderPass) != VkResult.VK_SUCCESS)
+        fail("Failed to create render pass.")
+    
+    renderPass
 
 // -----------------------------------------------------------------------
 
@@ -665,7 +847,7 @@ private getSwapChainImages(device: VkDevice, swapChain: VkSwapchainKHR): VkImage
     let mutable imageCount = 0: uint32
     let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, nullptr)
     
-    let images = Array.ZeroCreate<VkExtensionProperties>(int32(imageCount))
+    let images = Array.ZeroCreate<VkImage>(int32(imageCount))
     let mutable imagesHandle = fixed(images)
     let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, UnsafeCast(imagesHandle.AddrOfPinnedObject()))
     imagesHandle.Free()

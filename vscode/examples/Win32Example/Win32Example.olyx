@@ -92,9 +92,29 @@ main(): () =
     | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
         fail("Failed to create window.")
     | (hwnd, hinstance) =>
-        let vulkanApp = Evergreen.Graphics.Backend.Vulkan.Initialize(nint(hwnd.Value), nint(hinstance.Value))
+        let vulkanApp = vk.Initialize(nint(hwnd.Value), nint(hinstance.Value))
+
+        let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
+        let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
+
+        let vertexShaderModule = vk.CreateShaderModule(vulkanApp, Span(vertexShaderByteCode))
+        let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, Span(fragmentShaderByteCode))
+
+        let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
+        let renderPass = vk.CreateRenderPass(vulkanApp)
+
+        let graphicsPipeline = vk.CreateGraphicsPipeline(vulkanApp, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
+
         showWindow(hwnd)
         runWindowMessage(hwnd)
+
+        vk.DestroyPipeline(vulkanApp, graphicsPipeline)
+        vk.DestroyRenderPass(vulkanApp, renderPass)
+        vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
+
+        vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
+        vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
+
         vk.Destroy(vulkanApp)
     | _ =>
         fail("Should not happen, fix language as this should be exhaustive.")
