@@ -47,13 +47,17 @@ sealed class VulkanApplication =
     PhysicalDevice: VkPhysicalDevice
     Device: VkDevice
     GraphicsQueue: VkQueue
+    GraphicsQueueFamilyIndex: uint32
     ComputeQueue: VkQueue
+    ComputeQueueFamilyIndex: uint32
     TransferQueue: VkQueue
+    TransferQueueFamilyIndex: uint32
     PresentQueue: VkQueue
+    PresentQueueFamilyIndex: uint32
     DebugMessenger: VkDebugUtilsMessengerEXT
     SwapChain: VulkanSwapChain
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, computeQueue: VkQueue, transferQueue: VkQueue, presentQueue: VkQueue, debugMessenger: VkDebugUtilsMessengerEXT, swapChain: VulkanSwapChain) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, swapChain: VulkanSwapChain) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -61,9 +65,13 @@ sealed class VulkanApplication =
             PhysicalDevice = physicalDevice
             Device = device
             GraphicsQueue = graphicsQueue
+            GraphicsQueueFamilyIndex = graphicsQueueFamilyIndex
             ComputeQueue = computeQueue
+            ComputeQueueFamilyIndex = computeQueueFamilyIndex
             TransferQueue = transferQueue
+            TransferQueueFamilyIndex = transferQueueFamilyIndex
             PresentQueue = presentQueue
+            PresentQueueFamilyIndex = presentQueueFamilyIndex
             DebugMessenger = debugMessenger
             SwapChain = swapChain
         }
@@ -179,11 +187,11 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     vkGetDeviceQueue(device, uint32(transferFamilyIndex), uint32(transferFamilyIndex), &&transferQueue)
 
     let mutable presentQueue = default
-    vkGetDeviceQueue(device, uint32(transferFamilyIndex), uint32(transferFamilyIndex), &&presentQueue)
+    vkGetDeviceQueue(device, uint32(presentFamilyIndex), uint32(presentFamilyIndex), &&presentQueue)
 
     let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, computeQueue, transferQueue, presentQueue, debugMessenger, swapChain)
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, swapChain)
 
 Destroy(app: VulkanApplication): () =
     let mutable i = 0
@@ -241,6 +249,12 @@ DestroyFramebuffers(app: VulkanApplication, mutable framebuffers: ReadOnlySpan<V
     while (i < framebuffers.Length)
         DestroyFramebuffer(app, framebuffers[i])
         i <- i + 1
+
+CreateGraphicsCommandPool(app: VulkanApplication): VkCommandPool =
+    createCommandPool(app.Device, app.GraphicsQueueFamilyIndex)
+
+DestroyCommandPool(app: VulkanApplication, commandPool: VkCommandPool): () =
+    vkDestroyCommandPool(app.Device, commandPool, nullptr)
 
 // ---------------------------------------------------------------------
 
@@ -817,6 +831,18 @@ private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView:
         fail("Failed to create framebuffer.")
     
     framebuffer
+
+private createCommandPool(device: VkDevice, queueFamilyIndex: uint32): VkCommandPool =
+    let mutable poolInfo = default: VkCommandPoolCreateInfo
+    poolInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+    poolInfo.flags <- VkCommandPoolCreateFlags.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+    poolInfo.queueFamilyIndex <- queueFamilyIndex
+
+    let mutable commandPool = default
+    if (vkCreateCommandPool(device, &&poolInfo, nullptr, &&commandPool) != VkResult.VK_SUCCESS)
+        fail("Failed to create command pool.")
+
+    commandPool
 
 // -----------------------------------------------------------------------
 

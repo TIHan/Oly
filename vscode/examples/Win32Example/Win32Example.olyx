@@ -107,8 +107,12 @@ main(): () =
 
         let graphicsPipeline = vk.CreateGraphicsPipeline(vulkanApp, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
 
+        let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
+
         showWindow(hwnd)
         runWindowMessage(hwnd)
+
+        vk.DestroyCommandPool(vulkanApp, commandPool)
 
         vk.DestroyPipeline(vulkanApp, graphicsPipeline)
 
