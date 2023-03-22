@@ -201,7 +201,7 @@ Destroy(app: VulkanApplication): () =
 
     vkDestroyInstance(app.Instance, nullptr)
 
-CreateShaderModule(app: VulkanApplication, byteCode: Span<byte>): VkShaderModule =
+CreateShaderModule(app: VulkanApplication, byteCode: ReadOnlySpan<byte>): VkShaderModule =
     createShaderModule(app.Device, byteCode)
 
 DestroyShaderModule(app: VulkanApplication, shaderModule: VkShaderModule): () =
@@ -229,6 +229,18 @@ CreateGraphicsPipeline(app: VulkanApplication, pipelineLayout: VkPipelineLayout,
 
 DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
+
+CreateSwapChainFramebuffers(app: VulkanApplication, renderPass: VkRenderPass): VkFramebuffer[||] =
+    Array.MapAsMutable(app.SwapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, app.SwapChain.Extent.width, app.SwapChain.Extent.height))
+
+DestroyFramebuffer(app: VulkanApplication, framebuffer: VkFramebuffer): () =
+    vkDestroyFramebuffer(app.Device, framebuffer, nullptr)
+
+DestroyFramebuffers(app: VulkanApplication, mutable framebuffers: ReadOnlySpan<VkFramebuffer>): () =
+    let mutable i = 0
+    while (i < framebuffers.Length)
+        DestroyFramebuffer(app, framebuffers[i])
+        i <- i + 1
 
 // ---------------------------------------------------------------------
 
@@ -591,7 +603,7 @@ private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat)
     
     imageView
 
-private createShaderModule(device: VkDevice, mutable byteCode: Span<byte>): VkShaderModule =
+private createShaderModule(device: VkDevice, mutable byteCode: ReadOnlySpan<byte>): VkShaderModule =
     let byteCodeRef = &byteCode.GetPinnableReference()
 
     let mutable createInfo = default: VkShaderModuleCreateInfo
@@ -602,6 +614,7 @@ private createShaderModule(device: VkDevice, mutable byteCode: Span<byte>): VkSh
     let mutable shaderModule = default: VkShaderModule
     if (vkCreateShaderModule(device, &&createInfo, nullptr, &&shaderModule) != VkResult.VK_SUCCESS)
         fail("Failed to create shader module.")
+        
     shaderModule
 
 private createShaderStageInfo(shaderModule: VkShaderModule, stage: VkShaderStageFlags): VkPipelineShaderStageCreateInfo =
@@ -788,6 +801,22 @@ private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRe
         fail("Failed to create render pass.")
     
     renderPass
+
+private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView: VkImageView, width: uint32, height: uint32): VkFramebuffer =
+    let mutable framebufferInfo = default: VkFramebufferCreateInfo
+    framebufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+    framebufferInfo.renderPass <- renderPass
+    framebufferInfo.attachmentCount <- 1
+    framebufferInfo.pAttachments <- &&imageView
+    framebufferInfo.width <- width
+    framebufferInfo.height <- height
+    framebufferInfo.layers <- 1
+
+    let mutable framebuffer = default
+    if (vkCreateFramebuffer(device, &&framebufferInfo, nullptr, &&framebuffer) != VkResult.VK_SUCCESS)
+        fail("Failed to create framebuffer.")
+    
+    framebuffer
 
 // -----------------------------------------------------------------------
 

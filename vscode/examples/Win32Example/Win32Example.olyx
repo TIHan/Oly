@@ -97,11 +97,13 @@ main(): () =
         let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
         let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
 
-        let vertexShaderModule = vk.CreateShaderModule(vulkanApp, Span(vertexShaderByteCode))
-        let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, Span(fragmentShaderByteCode))
+        let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
+        let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
         let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
         let renderPass = vk.CreateRenderPass(vulkanApp)
+
+        let swapChainFramebuffers = vk.CreateSwapChainFramebuffers(vulkanApp, renderPass)
 
         let graphicsPipeline = vk.CreateGraphicsPipeline(vulkanApp, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
 
@@ -109,6 +111,9 @@ main(): () =
         runWindowMessage(hwnd)
 
         vk.DestroyPipeline(vulkanApp, graphicsPipeline)
+
+        vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))
+
         vk.DestroyRenderPass(vulkanApp, renderPass)
         vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 

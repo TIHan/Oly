@@ -163,13 +163,25 @@ module private MetadataHelpers =
             else
                 match returnTy.TryElementType with
                 | ValueSome elementTy when returnTy.IsByRef_t ->
-                    encodeType(encoder.Type(true), elementTy, asmBuilder)
+                    match returnTy with
+                    | ClrTypeHandle.ModReq(modifierTy, ty) when modifierTy = asmBuilder.tr_InAttribute ->
+                        encoder.CustomModifiers().AddModifier(modifierTy.EntityHandle, false) |> ignore
+                        let mutable encoder = encoder.Type(true)
+                        encodeType(encoder, ty, asmBuilder)
+                    | _ ->
+                        encodeType(encoder.Type(true), elementTy, asmBuilder)
                 | _ ->
                     encodeType(encoder.Type(false), returnTy, asmBuilder)
         else
             match returnTy.TryElementType with
             | ValueSome elementTy when returnTy.IsByRef_t ->
-                encodeType(encoder.Type(true), elementTy, asmBuilder)
+                match returnTy with
+                | ClrTypeHandle.ModReq(modifierTy, ty) when modifierTy = asmBuilder.tr_InAttribute ->
+                    encoder.CustomModifiers().AddModifier(modifierTy.EntityHandle, false) |> ignore
+                    let mutable encoder = encoder.Type(true)
+                    encodeType(encoder, ty, asmBuilder)
+                | _ ->
+                    encodeType(encoder.Type(true), elementTy, asmBuilder)
             | _ ->
                 encodeType(encoder.Type(false), returnTy, asmBuilder)
 
@@ -179,11 +191,11 @@ module private MetadataHelpers =
             match parTy.TryElementType with
             | ValueSome elementTy when parTy.IsByRef_t ->
                 match parTy with
-                | ClrTypeHandle.ModReq(modifierTy, _) when modifierTy = asmBuilder.tr_InAttribute ->
+                | ClrTypeHandle.ModReq(modifierTy, ty) when modifierTy = asmBuilder.tr_InAttribute ->
                     let mutable parEncoder = encoder.AddParameter()
                     parEncoder.CustomModifiers().AddModifier(modifierTy.EntityHandle, false) |> ignore
                     let mutable parTyEncoder = parEncoder.Type(true)
-                    encodeType(parTyEncoder, elementTy, asmBuilder)
+                    encodeType(parTyEncoder, ty, asmBuilder)
                 | _ ->
                     encodeType(encoder.AddParameter().Type(true), elementTy, asmBuilder)
             | _ ->

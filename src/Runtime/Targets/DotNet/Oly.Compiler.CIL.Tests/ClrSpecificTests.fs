@@ -1629,6 +1629,22 @@ main(): () =
     |> runWithExpectedOutput "hello"
 
 [<Fact>]
+let ``get_Item for ReadOnlySpan``() =
+    let src =
+        """
+open System
+open System.Collections.Generic
+
+main(): () =
+    let xs = [|1;2;3|]
+    let mutable xs = ReadOnlySpan(xs)
+    Console.Write(xs.get_Item(1))
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "2"
+
+[<Fact>]
 let ``Intrinsic alias should be able to get mscorlib methods``() =
     let src =
         """
