@@ -21,14 +21,23 @@ alias vk = Evergreen.Graphics.Backend.Vulkan
 
 class Marker
 
+enum Win32WindowEvent =
+    | WindowResized
+
+mutable win32WindowEvents: System.Collections.Generic.List<Win32WindowEvent> = System.Collections.Generic.List<Win32WindowEvent>()
+
 #[blittable]
 #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
 wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
-    if(msg == 2 /* WM_DESTROY - need conversions */)
+    match (int32(msg))
+    | WM_DESTROY =>
         print("Quitting...\n")
         PostQuitMessage(0)
         default
-    else
+    | WM_SIZE =>
+        win32WindowEvents.Add(Win32WindowEvent.WindowResized)
+        DefWindowProc(hWnd, msg, wParam, lParam)
+    | _ =>
         DefWindowProc(hWnd, msg, wParam, lParam)
 
 createWindow(): (HWND, HINSTANCE) =
@@ -75,25 +84,12 @@ showWindow(hwnd: HWND): () =
     let result = UpdateWindow(hwnd)
     let result = SetFocus(hwnd)
 
-runWindowMessage(hwnd: HWND): () =
-    let mutable msg = default: MSG
-    while (GetMessage(&&msg, hwnd, 0, 0) == BOOL.TRUE)
-        let result = TranslateMessage(&&msg)
-        let result = DispatchMessage(&&msg)
-    // static let loop(hwnd, mutable msg): () =
-    //     if(GetMessage(&&msg, hwnd, 0, 0) == BOOL.TRUE)
-    //         let result = TranslateMessage(&&msg)
-    //         let result = DispatchMessage(&&msg)
-    //         loop(hwnd, default)
-    // loop(hwnd, default)
-
 main(): () =
     match (createWindow())
     | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
         fail("Failed to create window.")
     | (hwnd, hinstance) =>
         let vulkanAppOptions = vk.VulkanApplicationOptions()
-        vulkanAppOptions.PreferredMaxFramesInFlight <- 2
         let vulkanApp = vk.Initialize(nint(hwnd.Value), nint(hinstance.Value), vulkanAppOptions)
 
         let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
@@ -140,7 +136,23 @@ main(): () =
 
         vk.Draw(vulkanApp, index -> commandBuffers[index])
 
-        runWindowMessage(hwnd)
+        // --- BEGIN LOOP
+
+        let mutable quit = false
+        let mutable msg = default: MSG
+        while (!quit)
+            while (PeekMessage(&&msg, hwnd, 0, 0, uint32(PM_REMOVE)) == BOOL.TRUE)
+                let result = TranslateMessage(&&msg)
+                let result = DispatchMessage(&&msg)
+
+                if (msg.wParam.Value == nuint(WM_DESTROY))
+                    quit <- true
+
+            if (!quit)
+                System.Threading.Thread.Sleep(100)
+                vk.Draw(vulkanApp, index -> commandBuffers[index])
+
+        // --- END LOOP
 
         vk.WaitForIdle(vulkanApp)
 

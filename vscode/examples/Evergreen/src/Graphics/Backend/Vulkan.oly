@@ -62,6 +62,7 @@ sealed class VulkanApplication =
     SwapChain: VulkanSwapChain
 
     internal mutable currentFrame: int32
+    internal mutable framebufferResized: bool
     MaxFramesInFlight: int32
 
     new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], swapChain: VulkanSwapChain, maxFramesInFlight: int32) =
@@ -85,6 +86,7 @@ sealed class VulkanApplication =
             InFlightFences = inFlightFences
             SwapChain = swapChain
             currentFrame = 0
+            framebufferResized = false
             MaxFramesInFlight = maxFramesInFlight
         }
 
@@ -166,13 +168,9 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
 // ---------------------------------------------------------------------
 
-sealed class VulkanApplicationOptions =
-    mutable PreferredMaxFramesInFlight: int32 = 1
+sealed class VulkanApplicationOptions
 
 Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): VulkanApplication =
-    if (options.PreferredMaxFramesInFlight <= 0)
-        fail("Invalid 'PreferredMaxFramesInFlight'.")
-
     let enableValidationLayers = true
     let validationLayers = ["VK_LAYER_KHRONOS_validation"]
     let instance = createInstance(enableValidationLayers, validationLayers)
@@ -211,10 +209,10 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
     let mutable presentQueue = default
     vkGetDeviceQueue(device, uint32(presentFamilyIndex), uint32(presentFamilyIndex), &&presentQueue)
-
+    
     let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
-    let maxFramesInFlight = Math.Min(swapChain.Images.Length, options.PreferredMaxFramesInFlight)
+    let maxFramesInFlight = swapChain.Images.Length
 
     // Sync objects
     let mutable semaphoreInfo = default: VkSemaphoreCreateInfo
@@ -325,7 +323,10 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
     if (vkResetCommandBuffer(commandBuffer.CommandBuffer, default) != VkResult.VK_SUCCESS)
         fail("Failed to reset command buffer.!")
 
-Draw(app: VulkanApplication, acquireCommandBufferByFrame: int32 -> VulkanCommandBuffer): () =
+ResizeFramebuffer(app: VulkanApplication): () =
+    app.framebufferResized <- true
+
+Draw(app: VulkanApplication, acquireCommandBuffer: int32 -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
 
     let mutable inFlightFence = app.InFlightFences[currentFrame]
@@ -339,14 +340,24 @@ Draw(app: VulkanApplication, acquireCommandBufferByFrame: int32 -> VulkanCommand
         fail("Failed to reset fences.")
 
     let mutable imageIndex = default
-    if (vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, imageAvailableSemaphore, VkFence.NULL, &&imageIndex) != VkResult.VK_SUCCESS)
+    let result = vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, imageAvailableSemaphore, VkFence.NULL, &&imageIndex)
+
+    if (result == VkResult.VK_ERROR_OUT_OF_DATE_KHR)
+        fail("beef")
+    else if (result != VkResult.VK_SUCCESS)
         fail("Failed to acquire next image.")
+    else
+        let commandBuffer = acquireCommandBuffer(currentFrame)
 
-    let commandBuffer = acquireCommandBufferByFrame(currentFrame)
+        let result = draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
 
-    draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
+        if (result == VkResult.VK_ERROR_OUT_OF_DATE_KHR || result == VkResult.VK_SUBOPTIMAL_KHR || app.framebufferResized)
+            app.framebufferResized <- false
+            fail("BEEEF")
+        else if (result != VkResult.VK_SUCCESS)
+            fail("Failed to present.")
 
-    app.currentFrame <- (app.currentFrame + 1) % app.InFlightFences.Length
+        app.currentFrame <- (app.currentFrame + 1) % app.InFlightFences.Length
 
 WaitForIdle(app: VulkanApplication): () =
     if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
@@ -647,7 +658,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     let extent = findSwapExtent(&details.Capabilities)
 
     // Request at least more than one image.
-    let mutable imageCount = details.Capabilities.minImageCount + 1
+    let mutable imageCount = Math.Max(details.Capabilities.minImageCount, 2)
 
     if (details.Capabilities.maxImageCount > 0 && imageCount > details.Capabilities.maxImageCount)
         imageCount <- details.Capabilities.maxImageCount   
@@ -1188,7 +1199,7 @@ newtype VulkanCommandBuffer =
         if (vkEndCommandBuffer(this.CommandBuffer) != VkResult.VK_SUCCESS)
             fail("Failed to record command buffer.")
 
-private draw(mutable swapChain: VkSwapchainKHR, graphicsQueue: VkQueue, presentQueue: VkQueue, commandBuffer: VkCommandBuffer, mutable imageIndex: uint32, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence): () =
+private draw(mutable swapChain: VkSwapchainKHR, graphicsQueue: VkQueue, presentQueue: VkQueue, commandBuffer: VkCommandBuffer, mutable imageIndex: uint32, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence): VkResult =
     let mutable submitInfo = default: VkSubmitInfo
     submitInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO
 
@@ -1221,5 +1232,4 @@ private draw(mutable swapChain: VkSwapchainKHR, graphicsQueue: VkQueue, presentQ
     presentInfo.pImageIndices <- &&imageIndex
     presentInfo.pResults <- nullptr // Optional
 
-    if (vkQueuePresentKHR(presentQueue, &&presentInfo) != VkResult.VK_SUCCESS)
-        fail("Failed to present.")
+    vkQueuePresentKHR(presentQueue, &&presentInfo)
