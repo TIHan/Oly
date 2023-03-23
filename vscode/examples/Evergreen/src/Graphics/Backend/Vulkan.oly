@@ -5,6 +5,7 @@ open System.Text
 open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
@@ -55,9 +56,12 @@ sealed class VulkanApplication =
     PresentQueue: VkQueue
     PresentQueueFamilyIndex: uint32
     DebugMessenger: VkDebugUtilsMessengerEXT
+    ImageAvailableSemaphore: VkSemaphore
+    RenderFinishedSemaphore: VkSemaphore
+    InFlightFence: VkFence
     SwapChain: VulkanSwapChain
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, swapChain: VulkanSwapChain) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence, swapChain: VulkanSwapChain) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -73,6 +77,9 @@ sealed class VulkanApplication =
             PresentQueue = presentQueue
             PresentQueueFamilyIndex = presentQueueFamilyIndex
             DebugMessenger = debugMessenger
+            ImageAvailableSemaphore = imageAvailableSemaphore
+            RenderFinishedSemaphore = renderFinishedSemaphore
+            InFlightFence = inFlightFence
             SwapChain = swapChain
         }
 
@@ -90,19 +97,23 @@ sealed class VulkanSwapChainSupportDetails =
 
 sealed class VulkanSwapChain =
     Device: VkDevice
-    mutable SwapChain: VkSwapchainKHR
+    SwapChain: VkSwapchainKHR
     Images: VkImage[]
     ImageViews: VkImageView[]
-    mutable Extent: VkExtent2D
+    Extent: VkExtent2D
+    Viewport: VkViewport
+    Scissor: VkRect2D
     ImageFormat: VkFormat
 
-    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, imageFormat: VkFormat) =
+    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat) =
         {
             Device = device
             SwapChain = swapChain
             Images = images
             ImageViews = imageViews
             Extent = extent
+            Viewport = viewport
+            Scissor = scissor
             ImageFormat = imageFormat
         }
 
@@ -171,7 +182,8 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
         Array.FindIndex(queueFamilyProperties, 
             (i: int32, x: VkQueueFamilyProperties) ->
                 let mutable isPresentSupported = VkBool32.FALSE
-                let throwAwayResult = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, uint32(i), surface, &&isPresentSupported)
+                if (vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, uint32(i), surface, &&isPresentSupported) != VkResult.VK_SUCCESS)
+                    fail("Failed to get physical device surface support.")
                 isPresentSupported == VkBool32.TRUE
         )
 
@@ -191,9 +203,35 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
 
     let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, swapChain)
+    // Sync objects
+    let mutable semaphoreInfo = default: VkSemaphoreCreateInfo
+    semaphoreInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+
+    let mutable fenceInfo = default: VkFenceCreateInfo
+    fenceInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+    fenceInfo.flags <- VkFenceCreateFlags.VK_FENCE_CREATE_SIGNALED_BIT
+
+    let mutable imageAvailableSemaphore = default
+    let mutable renderFinishedSemaphore = default
+    let mutable inFlightFence = default
+
+    if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&imageAvailableSemaphore) != VkResult.VK_SUCCESS)
+        fail("Failed to create semaphore.")
+
+    if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&renderFinishedSemaphore) != VkResult.VK_SUCCESS)
+        fail("Failed to create semaphore.")
+
+    if (vkCreateFence(device, &&fenceInfo, nullptr, &&inFlightFence) != VkResult.VK_SUCCESS)
+        fail("Failed to create fence.")
+
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence, swapChain)
 
 Destroy(app: VulkanApplication): () =
+
+    vkDestroyFence(app.Device, app.InFlightFence, nullptr)
+    vkDestroySemaphore(app.Device, app.ImageAvailableSemaphore, nullptr)
+    vkDestroySemaphore(app.Device, app.RenderFinishedSemaphore, nullptr)
+
     let mutable i = 0
     while (i < app.SwapChain.ImageViews.Length)
         vkDestroyImageView(app.Device, app.SwapChain.ImageViews[i], nullptr)
@@ -255,6 +293,34 @@ CreateGraphicsCommandPool(app: VulkanApplication): VkCommandPool =
 
 DestroyCommandPool(app: VulkanApplication, commandPool: VkCommandPool): () =
     vkDestroyCommandPool(app.Device, commandPool, nullptr)
+
+CreateCommandBuffer(app: VulkanApplication, commandPool: VkCommandPool): VulkanCommandBuffer =
+    VulkanCommandBuffer(createCommandBuffer(app.Device, commandPool))
+
+ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): () =
+    if (vkResetCommandBuffer(commandBuffer.CommandBuffer, default) != VkResult.VK_SUCCESS)
+        fail("Failed to reset command buffer.!")
+
+Draw(app: VulkanApplication, acquireCommandBufferByImageIndex: int32 -> VulkanCommandBuffer): () =
+    let mutable inFlightFence = app.InFlightFence
+
+    if (vkWaitForFences(app.Device, 1, &&inFlightFence, VkBool32.TRUE, uint64.MaxValue) != VkResult.VK_SUCCESS)
+        fail("Failed to wait for fences.")
+
+    if (vkResetFences(app.Device, 1, &&inFlightFence) != VkResult.VK_SUCCESS)
+        fail("Failed to reset fences.")
+
+    let mutable imageIndex = default
+    if (vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, app.ImageAvailableSemaphore, VkFence.NULL, &&imageIndex) != VkResult.VK_SUCCESS)
+        fail("Failed to acquire next image.")
+
+    let commandBuffer = acquireCommandBufferByImageIndex(int32(imageIndex))
+
+    draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, app.ImageAvailableSemaphore, app.RenderFinishedSemaphore, app.InFlightFence)
+
+WaitForIdle(app: VulkanApplication): () =
+    if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
+        fail("Failed to wait for idle on device.")
 
 // ---------------------------------------------------------------------
 
@@ -592,7 +658,19 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     let images = getSwapChainImages(device, swapChain)
     let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format))
 
-    VulkanSwapChain(device, swapChain, images, imageViews, extent, surfaceFormat.format)
+    let mutable viewport = default: VkViewport
+    viewport.x <- 0
+    viewport.y <- 0
+    viewport.width <- float32(extent.width)
+    viewport.height <- float32(extent.height)
+    viewport.minDepth <- 0
+    viewport.maxDepth <- 1
+
+    let mutable scissor = default: VkRect2D
+    scissor.offset <- default
+    scissor.extent <- extent
+
+    VulkanSwapChain(device, swapChain, images, imageViews, extent, viewport, scissor, surfaceFormat.format)
 
 private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat): VkImageView =
     let mutable createInfo = default: VkImageViewCreateInfo
@@ -803,12 +881,22 @@ private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRe
     subpass.colorAttachmentCount <- 1
     subpass.pColorAttachments <- &&colorAttachmentRef
 
+    let mutable dependency = default: VkSubpassDependency
+    dependency.srcSubpass <- VK_SUBPASS_EXTERNAL
+    dependency.dstSubpass <- 0
+    dependency.srcStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    dependency.srcAccessMask <- default
+    dependency.dstStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    dependency.dstAccessMask <- VkAccessFlags.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+
     let mutable renderPassInfo = default: VkRenderPassCreateInfo
     renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
     renderPassInfo.attachmentCount <- 1
     renderPassInfo.pAttachments <- &&colorAttachment
     renderPassInfo.subpassCount <- 1
     renderPassInfo.pSubpasses <- &&subpass
+    renderPassInfo.dependencyCount <- 1
+    renderPassInfo.pDependencies <- &&dependency
 
     let mutable renderPass = default
     if (vkCreateRenderPass(device, &&renderPassInfo, nullptr, &&renderPass) != VkResult.VK_SUCCESS)
@@ -843,6 +931,19 @@ private createCommandPool(device: VkDevice, queueFamilyIndex: uint32): VkCommand
         fail("Failed to create command pool.")
 
     commandPool
+
+private createCommandBuffer(device: VkDevice, commandPool: VkCommandPool): VkCommandBuffer =
+    let mutable allocInfo = default: VkCommandBufferAllocateInfo
+    allocInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+    allocInfo.commandPool <- commandPool
+    allocInfo.level <- VkCommandBufferLevel.VK_COMMAND_BUFFER_LEVEL_PRIMARY
+    allocInfo.commandBufferCount <- 1
+
+    let mutable commandBuffer = default
+    if (vkAllocateCommandBuffers(device, &&allocInfo, &&commandBuffer) != VkResult.VK_SUCCESS)
+        fail("Failed to allocate command buffer.")
+
+    commandBuffer
 
 // -----------------------------------------------------------------------
 
@@ -990,3 +1091,105 @@ private checkExtensionsSupport(device: VkPhysicalDevice, deviceExtensions: strin
             i <- i + 1
 
         found
+
+// -----------------------------------------------------------------------
+
+alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint
+
+/// Runtime alias for 'VkCommandBuffer'.
+newtype VulkanCommandBuffer =
+    CommandBuffer: VkCommandBuffer
+
+    Begin(): () =
+        let mutable beginInfo = default: VkCommandBufferBeginInfo
+        beginInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+        beginInfo.flags <- default // Optional
+        beginInfo.pInheritanceInfo <- nullptr // Optional
+
+        if (vkBeginCommandBuffer(this.CommandBuffer, &&beginInfo) != VkResult.VK_SUCCESS)
+            fail("Failed to begin recording command buffer.")
+
+    BeginRenderPass(renderPass: VkRenderPass, framebuffer: VkFramebuffer, extent: VkExtent2D): () =
+        let mutable renderPassInfo = default: VkRenderPassBeginInfo
+        renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+        renderPassInfo.renderPass <- renderPass
+        renderPassInfo.framebuffer <- framebuffer
+        renderPassInfo.renderArea.offset.x <- 0
+        renderPassInfo.renderArea.offset.y <- 0
+        renderPassInfo.renderArea.extent <- extent
+
+        let mutable clearValue = default: VkClearValue
+        let mutable clearColorValue = default: VkClearColorValue
+        let mutable clearDepthStencilValue = default: VkClearDepthStencilValue
+
+        let clearColorValue0 = &clearColorValue.float32.FixedElementField
+        let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
+        let clearColorValue2 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
+        let clearColorValue3 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
+
+        clearColorValue0 <- 0
+        clearColorValue1 <- 0
+        clearColorValue2 <- 0
+        clearColorValue3 <- 1
+
+        clearValue.color <- clearColorValue
+        clearValue.depthStencil <- clearDepthStencilValue
+        renderPassInfo.clearValueCount <- 1
+        renderPassInfo.pClearValues <- &&clearValue
+
+        vkCmdBeginRenderPass(this.CommandBuffer, &&renderPassInfo, VkSubpassContents.VK_SUBPASS_CONTENTS_INLINE)
+
+    BindPipeline(pipeline: VkPipeline, pipelineBindPoint: VkPipelineBindPoint): () =
+        vkCmdBindPipeline(this.CommandBuffer, pipelineBindPoint, pipeline)
+
+    SetViewport(mutable viewport: VkViewport): () =
+        vkCmdSetViewport(this.CommandBuffer, 0, 1, &&viewport)
+
+    SetScissor(mutable scissor: VkRect2D): () =
+        vkCmdSetScissor(this.CommandBuffer, 0, 1, &&scissor)
+
+    Draw(vertexCount: uint32, instanceCount: uint32): () =
+        vkCmdDraw(this.CommandBuffer, vertexCount, instanceCount, 0, 0)
+
+    EndRenderPass(): () =
+        vkCmdEndRenderPass(this.CommandBuffer)
+
+    End(): () =
+        if (vkEndCommandBuffer(this.CommandBuffer) != VkResult.VK_SUCCESS)
+            fail("Failed to record command buffer.")
+
+private draw(mutable swapChain: VkSwapchainKHR, graphicsQueue: VkQueue, presentQueue: VkQueue, commandBuffer: VkCommandBuffer, mutable imageIndex: uint32, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence): () =
+    let mutable submitInfo = default: VkSubmitInfo
+    submitInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO
+
+    let mutable waitSemaphore = imageAvailableSemaphore
+    let mutable waitStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+
+    submitInfo.waitSemaphoreCount <- 1
+    submitInfo.pWaitSemaphores <- &&waitSemaphore
+    submitInfo.pWaitDstStageMask <- &&waitStage
+    submitInfo.commandBufferCount <- 1
+    submitInfo.pCommandBuffers <- &&commandBuffer
+
+    let mutable signalSemaphore = renderFinishedSemaphore
+    
+    submitInfo.signalSemaphoreCount <- 1
+    submitInfo.pSignalSemaphores <- &&signalSemaphore
+
+    if (vkQueueSubmit(graphicsQueue, 1, &&submitInfo, inFlightFence) != VkResult.VK_SUCCESS)
+        fail("Failed to submit draw command buffer.")
+
+    let mutable presentInfo = default: VkPresentInfoKHR
+    presentInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+
+    presentInfo.waitSemaphoreCount <- 1
+    presentInfo.pWaitSemaphores <- &&signalSemaphore
+
+    presentInfo.swapchainCount <- 1
+    presentInfo.pSwapchains <- &&swapChain
+
+    presentInfo.pImageIndices <- &&imageIndex
+    presentInfo.pResults <- nullptr // Optional
+
+    if (vkQueuePresentKHR(presentQueue, &&presentInfo) != VkResult.VK_SUCCESS)
+        fail("Failed to present.")

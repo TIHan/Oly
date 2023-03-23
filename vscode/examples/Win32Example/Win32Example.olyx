@@ -109,8 +109,38 @@ main(): () =
 
         let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
 
+        let commandBuffers = 
+            let commandBuffers = Array.ZeroCreate(swapChainFramebuffers.Length)
+            let mutable i = 0
+            while (i < commandBuffers.Length)
+                commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
+                i <- i + 1
+            commandBuffers
+
+        let recordCommands(commandBuffer: vk.VulkanCommandBuffer, framebuffer, extent, viewport, scissor) =
+            commandBuffer.Begin()
+            commandBuffer.BeginRenderPass(renderPass, framebuffer, extent)
+
+            commandBuffer.BindPipeline(graphicsPipeline, vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
+            commandBuffer.SetViewport(viewport)
+            commandBuffer.SetScissor(scissor)
+            commandBuffer.Draw(3, 1)
+
+            commandBuffer.EndRenderPass()
+            commandBuffer.End()
+
+        let mutable i = 0
+        while (i < swapChainFramebuffers.Length)
+            recordCommands(commandBuffers[i], swapChainFramebuffers[i], vulkanApp.SwapChain.Extent, vulkanApp.SwapChain.Viewport, vulkanApp.SwapChain.Scissor)
+            i <- i + 1
+            
         showWindow(hwnd)
+
+        vk.Draw(vulkanApp, index -> commandBuffers[index])
+
         runWindowMessage(hwnd)
+
+        vk.WaitForIdle(vulkanApp)
 
         vk.DestroyCommandPool(vulkanApp, commandPool)
 
