@@ -92,7 +92,9 @@ main(): () =
     | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
         fail("Failed to create window.")
     | (hwnd, hinstance) =>
-        let vulkanApp = vk.Initialize(nint(hwnd.Value), nint(hinstance.Value))
+        let vulkanAppOptions = vk.VulkanApplicationOptions()
+        vulkanAppOptions.PreferredMaxFramesInFlight <- 2
+        let vulkanApp = vk.Initialize(nint(hwnd.Value), nint(hinstance.Value), vulkanAppOptions)
 
         let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
         let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
@@ -130,10 +132,10 @@ main(): () =
             commandBuffer.End()
 
         let mutable i = 0
-        while (i < swapChainFramebuffers.Length)
+        while (i < vulkanApp.MaxFramesInFlight)
             recordCommands(commandBuffers[i], swapChainFramebuffers[i], vulkanApp.SwapChain.Extent, vulkanApp.SwapChain.Viewport, vulkanApp.SwapChain.Scissor)
             i <- i + 1
-            
+
         showWindow(hwnd)
 
         vk.Draw(vulkanApp, index -> commandBuffers[index])

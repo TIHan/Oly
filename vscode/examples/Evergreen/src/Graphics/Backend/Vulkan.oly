@@ -56,12 +56,15 @@ sealed class VulkanApplication =
     PresentQueue: VkQueue
     PresentQueueFamilyIndex: uint32
     DebugMessenger: VkDebugUtilsMessengerEXT
-    ImageAvailableSemaphore: VkSemaphore
-    RenderFinishedSemaphore: VkSemaphore
-    InFlightFence: VkFence
+    ImageAvailableSemaphores: VkSemaphore[]
+    RenderFinishedSemaphores: VkSemaphore[]
+    InFlightFences: VkFence[]
     SwapChain: VulkanSwapChain
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence, swapChain: VulkanSwapChain) =
+    internal mutable currentFrame: int32
+    MaxFramesInFlight: int32
+
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], swapChain: VulkanSwapChain, maxFramesInFlight: int32) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -77,10 +80,12 @@ sealed class VulkanApplication =
             PresentQueue = presentQueue
             PresentQueueFamilyIndex = presentQueueFamilyIndex
             DebugMessenger = debugMessenger
-            ImageAvailableSemaphore = imageAvailableSemaphore
-            RenderFinishedSemaphore = renderFinishedSemaphore
-            InFlightFence = inFlightFence
+            ImageAvailableSemaphores = imageAvailableSemaphores
+            RenderFinishedSemaphores = renderFinishedSemaphores
+            InFlightFences = inFlightFences
             SwapChain = swapChain
+            currentFrame = 0
+            MaxFramesInFlight = maxFramesInFlight
         }
 
 sealed class VulkanSwapChainSupportDetails =
@@ -161,7 +166,13 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
 // ---------------------------------------------------------------------
 
-Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
+sealed class VulkanApplicationOptions =
+    mutable PreferredMaxFramesInFlight: int32 = 1
+
+Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): VulkanApplication =
+    if (options.PreferredMaxFramesInFlight <= 0)
+        fail("Invalid 'PreferredMaxFramesInFlight'.")
+
     let enableValidationLayers = true
     let validationLayers = ["VK_LAYER_KHRONOS_validation"]
     let instance = createInstance(enableValidationLayers, validationLayers)
@@ -203,6 +214,8 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
 
     let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
+    let maxFramesInFlight = Math.Min(swapChain.Images.Length, options.PreferredMaxFramesInFlight)
+
     // Sync objects
     let mutable semaphoreInfo = default: VkSemaphoreCreateInfo
     semaphoreInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
@@ -211,26 +224,37 @@ Initialize(hwnd: nint, hinstance: nint): VulkanApplication =
     fenceInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
     fenceInfo.flags <- VkFenceCreateFlags.VK_FENCE_CREATE_SIGNALED_BIT
 
-    let mutable imageAvailableSemaphore = default
-    let mutable renderFinishedSemaphore = default
-    let mutable inFlightFence = default
+    let inFlightFences = Array.ZeroCreate(maxFramesInFlight)
+    let imageAvailableSemaphores = Array.ZeroCreate(inFlightFences.Length)
+    let renderFinishedSemaphores = Array.ZeroCreate(inFlightFences.Length)
 
-    if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&imageAvailableSemaphore) != VkResult.VK_SUCCESS)
-        fail("Failed to create semaphore.")
+    let mutable i = 0
+    while (i < inFlightFences.Length)
+        let imageAvailableSemaphore = &imageAvailableSemaphores[i]
+        let renderFinishedSemaphore = &renderFinishedSemaphores[i]
+        let inFlightFence = &inFlightFences[i]
 
-    if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&renderFinishedSemaphore) != VkResult.VK_SUCCESS)
-        fail("Failed to create semaphore.")
+        if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&imageAvailableSemaphore) != VkResult.VK_SUCCESS)
+            fail("Failed to create semaphore.")
 
-    if (vkCreateFence(device, &&fenceInfo, nullptr, &&inFlightFence) != VkResult.VK_SUCCESS)
-        fail("Failed to create fence.")
+        if (vkCreateSemaphore(device, &&semaphoreInfo, nullptr, &&renderFinishedSemaphore) != VkResult.VK_SUCCESS)
+            fail("Failed to create semaphore.")
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence, swapChain)
+        if (vkCreateFence(device, &&fenceInfo, nullptr, &&inFlightFence) != VkResult.VK_SUCCESS)
+            fail("Failed to create fence.")
+
+        i <- i + 1
+
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), swapChain, maxFramesInFlight)
 
 Destroy(app: VulkanApplication): () =
 
-    vkDestroyFence(app.Device, app.InFlightFence, nullptr)
-    vkDestroySemaphore(app.Device, app.ImageAvailableSemaphore, nullptr)
-    vkDestroySemaphore(app.Device, app.RenderFinishedSemaphore, nullptr)
+    let mutable i = 0
+    while (i < app.InFlightFences.Length)
+        vkDestroyFence(app.Device, app.InFlightFences[i], nullptr)
+        vkDestroySemaphore(app.Device, app.ImageAvailableSemaphores[i], nullptr)
+        vkDestroySemaphore(app.Device, app.RenderFinishedSemaphores[i], nullptr)
+        i <- i + 1
 
     let mutable i = 0
     while (i < app.SwapChain.ImageViews.Length)
@@ -301,8 +325,12 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
     if (vkResetCommandBuffer(commandBuffer.CommandBuffer, default) != VkResult.VK_SUCCESS)
         fail("Failed to reset command buffer.!")
 
-Draw(app: VulkanApplication, acquireCommandBufferByImageIndex: int32 -> VulkanCommandBuffer): () =
-    let mutable inFlightFence = app.InFlightFence
+Draw(app: VulkanApplication, acquireCommandBufferByFrame: int32 -> VulkanCommandBuffer): () =
+    let currentFrame = app.currentFrame
+
+    let mutable inFlightFence = app.InFlightFences[currentFrame]
+    let imageAvailableSemaphore = app.ImageAvailableSemaphores[currentFrame]
+    let renderFinishedSemaphore = app.RenderFinishedSemaphores[currentFrame]
 
     if (vkWaitForFences(app.Device, 1, &&inFlightFence, VkBool32.TRUE, uint64.MaxValue) != VkResult.VK_SUCCESS)
         fail("Failed to wait for fences.")
@@ -311,12 +339,14 @@ Draw(app: VulkanApplication, acquireCommandBufferByImageIndex: int32 -> VulkanCo
         fail("Failed to reset fences.")
 
     let mutable imageIndex = default
-    if (vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, app.ImageAvailableSemaphore, VkFence.NULL, &&imageIndex) != VkResult.VK_SUCCESS)
+    if (vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, imageAvailableSemaphore, VkFence.NULL, &&imageIndex) != VkResult.VK_SUCCESS)
         fail("Failed to acquire next image.")
 
-    let commandBuffer = acquireCommandBufferByImageIndex(int32(imageIndex))
+    let commandBuffer = acquireCommandBufferByFrame(currentFrame)
 
-    draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, app.ImageAvailableSemaphore, app.RenderFinishedSemaphore, app.InFlightFence)
+    draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
+
+    app.currentFrame <- (app.currentFrame + 1) % app.InFlightFences.Length
 
 WaitForIdle(app: VulkanApplication): () =
     if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
