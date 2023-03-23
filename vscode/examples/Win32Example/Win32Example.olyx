@@ -154,7 +154,15 @@ main(): () =
         let mutable quit = false
         let draw() =
             try
-                vk.Draw(vulkanApp, swapChain, index -> commandBuffers[index])
+                vk.Draw(vulkanApp, swapChain, 
+                    (imageIndex, frame) -> 
+                        let commandBuffer = commandBuffers[frame]
+                        let framebuffer = swapChainFramebuffers[imageIndex]
+
+                        vk.ResetCommandBuffer(vulkanApp, commandBuffer)
+                        recordCommands(commandBuffer, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
+                        commandBuffer
+                )
             catch (ex: vk.VulkanSwapChainOutOfDateException) =>
                 vk.WaitForIdle(vulkanApp)
                 cleanupSwapChain()

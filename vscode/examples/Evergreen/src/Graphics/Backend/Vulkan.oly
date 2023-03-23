@@ -330,7 +330,7 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
 ResizeFramebuffer(app: VulkanApplication): () =
     app.framebufferResized <- true
 
-Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: int32 -> VulkanCommandBuffer): () =
+Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (imageIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
 
     let mutable inFlightFence = app.InFlightFences[currentFrame]
@@ -351,7 +351,7 @@ Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: i
     else if (result != VkResult.VK_SUCCESS)
         fail("Failed to acquire next image.")
     else
-        let commandBuffer = acquireCommandBuffer(currentFrame)
+        let commandBuffer = acquireCommandBuffer(int32(imageIndex), currentFrame)
 
         let result = draw(swapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
 
@@ -665,7 +665,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     let extent = findSwapExtent(&details.Capabilities)
 
     // Request at least more than one image.
-    let mutable imageCount = Math.Max(details.Capabilities.minImageCount, 2)
+    let mutable imageCount = details.Capabilities.minImageCount + 1
 
     if (details.Capabilities.maxImageCount > 0 && imageCount > details.Capabilities.maxImageCount)
         imageCount <- details.Capabilities.maxImageCount   
