@@ -99,23 +99,9 @@ main(): () =
         let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
         let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
-        let renderPass = vk.CreateRenderPass(vulkanApp)
-
-        let swapChainFramebuffers = vk.CreateSwapChainFramebuffers(vulkanApp, renderPass)
-
-        let graphicsPipeline = vk.CreateGraphicsPipeline(vulkanApp, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
-
         let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
 
-        let commandBuffers = 
-            let commandBuffers = Array.ZeroCreate(swapChainFramebuffers.Length)
-            let mutable i = 0
-            while (i < commandBuffers.Length)
-                commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
-                i <- i + 1
-            commandBuffers
-
-        let recordCommands(commandBuffer: vk.VulkanCommandBuffer, framebuffer, extent, viewport, scissor) =
+        let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
             commandBuffer.Begin()
             commandBuffer.BeginRenderPass(renderPass, framebuffer, extent)
 
@@ -127,42 +113,80 @@ main(): () =
             commandBuffer.EndRenderPass()
             commandBuffer.End()
 
-        let mutable i = 0
-        while (i < vulkanApp.MaxFramesInFlight)
-            recordCommands(commandBuffers[i], swapChainFramebuffers[i], vulkanApp.SwapChain.Extent, vulkanApp.SwapChain.Viewport, vulkanApp.SwapChain.Scissor)
-            i <- i + 1
+        let mutable swapChain = unchecked default
+        let mutable commandBuffers = unchecked default
+        let mutable graphicsPipeline = unchecked default
+        let mutable renderPass = unchecked default
+        let mutable swapChainFramebuffers = unchecked default
+        let recreateSwapChain() =
+            vk.ResetCurrentFrame(vulkanApp)
+            swapChain <- vk.CreateSwapChain(vulkanApp)
+            renderPass <- vk.CreateRenderPass(vulkanApp, swapChain)
 
+            swapChainFramebuffers <- vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
+
+            graphicsPipeline <- vk.CreateGraphicsPipeline(vulkanApp, swapChain, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
+
+            commandBuffers <- 
+                let commandBuffers = Array.ZeroCreate(swapChainFramebuffers.Length)
+                let mutable i = 0
+                while (i < commandBuffers.Length)
+                    commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
+                    i <- i + 1
+                commandBuffers
+
+            let mutable i = 0
+            while (i < swapChain.Images.Length)
+                recordCommands(commandBuffers[i], graphicsPipeline, renderPass, swapChainFramebuffers[i], swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
+                i <- i + 1
+
+        let cleanupSwapChain() =
+            if (swapChain !== unchecked default)
+                vk.DestroyPipeline(vulkanApp, graphicsPipeline)
+                vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))   
+                vk.DestroyRenderPass(vulkanApp, renderPass)
+                vk.DestroySwapChain(vulkanApp, swapChain)
+                swapChain <- unchecked default
+
+        recreateSwapChain()
         showWindow(hwnd)
 
-        vk.Draw(vulkanApp, index -> commandBuffers[index])
+        let mutable quit = false
+        let draw() =
+            try
+                vk.Draw(vulkanApp, swapChain, index -> commandBuffers[index])
+            catch (ex: vk.VulkanSwapChainOutOfDateException) =>
+                vk.WaitForIdle(vulkanApp)
+                cleanupSwapChain()
+                try
+                    recreateSwapChain()
+                catch (ex: vk.VulkanSwapChainCreationFailedException) =>
+                    // swap-chain failed to create, bail out of application
+                    quit <- true
+        draw()
 
         // --- BEGIN LOOP
 
-        let mutable quit = false
         let mutable msg = default: MSG
         while (!quit)
             while (PeekMessage(&&msg, hwnd, 0, 0, uint32(PM_REMOVE)) == BOOL.TRUE)
                 let result = TranslateMessage(&&msg)
                 let result = DispatchMessage(&&msg)
 
-                if (msg.wParam.Value == nuint(WM_DESTROY))
-                    quit <- true
+                // if (msg.wParam.Value == nuint(WM_DESTROY) || msg.wParam.Value == nuint(WM_QUIT))
+                //     quit <- true
 
             if (!quit)
                 System.Threading.Thread.Sleep(100)
-                vk.Draw(vulkanApp, index -> commandBuffers[index])
+                draw()
 
         // --- END LOOP
 
         vk.WaitForIdle(vulkanApp)
 
+        cleanupSwapChain()
+
         vk.DestroyCommandPool(vulkanApp, commandPool)
-
-        vk.DestroyPipeline(vulkanApp, graphicsPipeline)
-
-        vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))
-
-        vk.DestroyRenderPass(vulkanApp, renderPass)
         vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 
         vk.DestroyShaderModule(vulkanApp, vertexShaderModule)

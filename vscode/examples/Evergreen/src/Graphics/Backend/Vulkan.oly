@@ -9,6 +9,12 @@ open System.Runtime.CompilerServices
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
+sealed class VulkanSwapChainOutOfDateException =
+    inherits Exception
+
+sealed class VulkanSwapChainCreationFailedException =
+    inherits Exception
+
 #[open]
 extension VkResultExtensions =
     inherits VkResult
@@ -59,13 +65,11 @@ sealed class VulkanApplication =
     ImageAvailableSemaphores: VkSemaphore[]
     RenderFinishedSemaphores: VkSemaphore[]
     InFlightFences: VkFence[]
-    SwapChain: VulkanSwapChain
 
     internal mutable currentFrame: int32
     internal mutable framebufferResized: bool
-    MaxFramesInFlight: int32
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], swapChain: VulkanSwapChain, maxFramesInFlight: int32) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[]) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -84,10 +88,8 @@ sealed class VulkanApplication =
             ImageAvailableSemaphores = imageAvailableSemaphores
             RenderFinishedSemaphores = renderFinishedSemaphores
             InFlightFences = inFlightFences
-            SwapChain = swapChain
             currentFrame = 0
             framebufferResized = false
-            MaxFramesInFlight = maxFramesInFlight
         }
 
 sealed class VulkanSwapChainSupportDetails =
@@ -103,7 +105,7 @@ sealed class VulkanSwapChainSupportDetails =
         }
 
 sealed class VulkanSwapChain =
-    Device: VkDevice
+  //  Device: VkDevice
     SwapChain: VkSwapchainKHR
     Images: VkImage[]
     ImageViews: VkImageView[]
@@ -114,7 +116,7 @@ sealed class VulkanSwapChain =
 
     new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat) =
         {
-            Device = device
+      //      Device = device
             SwapChain = swapChain
             Images = images
             ImageViews = imageViews
@@ -209,10 +211,8 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
     let mutable presentQueue = default
     vkGetDeviceQueue(device, uint32(presentFamilyIndex), uint32(presentFamilyIndex), &&presentQueue)
-    
-    let swapChain = createSwapChain(physicalDevice, device, surface, uint32(graphicsFamilyIndex), uint32(presentFamilyIndex))
 
-    let maxFramesInFlight = swapChain.Images.Length
+    let maxFramesInFlight = 2
 
     // Sync objects
     let mutable semaphoreInfo = default: VkSemaphoreCreateInfo
@@ -243,7 +243,17 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
         i <- i + 1
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), swapChain, maxFramesInFlight)
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences))
+
+CreateSwapChain(app: VulkanApplication): VulkanSwapChain =
+    createSwapChain(app.PhysicalDevice, app.Device, app.Surface, app.GraphicsQueueFamilyIndex, app.PresentQueueFamilyIndex)
+
+DestroySwapChain(app: VulkanApplication, swapChain: VulkanSwapChain): () =
+    let mutable i = 0
+    while (i < swapChain.ImageViews.Length)
+        vkDestroyImageView(app.Device, swapChain.ImageViews[i], nullptr)
+        i <- i + 1
+    vkDestroySwapchainKHR(app.Device, swapChain.SwapChain, nullptr)
 
 Destroy(app: VulkanApplication): () =
 
@@ -253,12 +263,6 @@ Destroy(app: VulkanApplication): () =
         vkDestroySemaphore(app.Device, app.ImageAvailableSemaphores[i], nullptr)
         vkDestroySemaphore(app.Device, app.RenderFinishedSemaphores[i], nullptr)
         i <- i + 1
-
-    let mutable i = 0
-    while (i < app.SwapChain.ImageViews.Length)
-        vkDestroyImageView(app.Device, app.SwapChain.ImageViews[i], nullptr)
-        i <- i + 1
-    vkDestroySwapchainKHR(app.Device, app.SwapChain.SwapChain, nullptr)
     
     vkDestroyDevice(app.Device, nullptr)
 
@@ -281,25 +285,25 @@ CreatePipelineLayout(app: VulkanApplication): VkPipelineLayout =
 DestroyPipelineLayout(app: VulkanApplication, pipelineLayout: VkPipelineLayout): () =
     vkDestroyPipelineLayout(app.Device, pipelineLayout, nullptr)
 
-CreateRenderPass(app: VulkanApplication): VkRenderPass =
-    createRenderPass(app.Device, app.SwapChain.ImageFormat)
+CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPass =
+    createRenderPass(app.Device, swapChain.ImageFormat)
 
 DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
     vkDestroyRenderPass(app.Device, renderPass, nullptr)
 
-CreateGraphicsPipeline(app: VulkanApplication, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
+CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
     let stages =
         [|
             createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
             createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
         |]
-    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, app.SwapChain.Extent)
+    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, swapChain.Extent)
 
 DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
 
-CreateSwapChainFramebuffers(app: VulkanApplication, renderPass: VkRenderPass): VkFramebuffer[||] =
-    Array.MapAsMutable(app.SwapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, app.SwapChain.Extent.width, app.SwapChain.Extent.height))
+CreateSwapChainFramebuffers(app: VulkanApplication, swapChain: VulkanSwapChain, renderPass: VkRenderPass): VkFramebuffer[||] =
+    Array.MapAsMutable(swapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, swapChain.Extent.width, swapChain.Extent.height))
 
 DestroyFramebuffer(app: VulkanApplication, framebuffer: VkFramebuffer): () =
     vkDestroyFramebuffer(app.Device, framebuffer, nullptr)
@@ -326,7 +330,7 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
 ResizeFramebuffer(app: VulkanApplication): () =
     app.framebufferResized <- true
 
-Draw(app: VulkanApplication, acquireCommandBuffer: int32 -> VulkanCommandBuffer): () =
+Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: int32 -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
 
     let mutable inFlightFence = app.InFlightFences[currentFrame]
@@ -340,20 +344,20 @@ Draw(app: VulkanApplication, acquireCommandBuffer: int32 -> VulkanCommandBuffer)
         fail("Failed to reset fences.")
 
     let mutable imageIndex = default
-    let result = vkAcquireNextImageKHR(app.Device, app.SwapChain.SwapChain, uint64.MaxValue, imageAvailableSemaphore, VkFence.NULL, &&imageIndex)
+    let result = vkAcquireNextImageKHR(app.Device, swapChain.SwapChain, uint64.MaxValue, imageAvailableSemaphore, VkFence.NULL, &&imageIndex)
 
     if (result == VkResult.VK_ERROR_OUT_OF_DATE_KHR)
-        fail("beef")
+        throw VulkanSwapChainOutOfDateException()
     else if (result != VkResult.VK_SUCCESS)
         fail("Failed to acquire next image.")
     else
         let commandBuffer = acquireCommandBuffer(currentFrame)
 
-        let result = draw(app.SwapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
+        let result = draw(swapChain.SwapChain, app.GraphicsQueue, app.PresentQueue, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, inFlightFence)
 
         if (result == VkResult.VK_ERROR_OUT_OF_DATE_KHR || result == VkResult.VK_SUBOPTIMAL_KHR || app.framebufferResized)
             app.framebufferResized <- false
-            fail("BEEEF")
+            throw VulkanSwapChainOutOfDateException()
         else if (result != VkResult.VK_SUCCESS)
             fail("Failed to present.")
 
@@ -362,6 +366,9 @@ Draw(app: VulkanApplication, acquireCommandBuffer: int32 -> VulkanCommandBuffer)
 WaitForIdle(app: VulkanApplication): () =
     if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
         fail("Failed to wait for idle on device.")
+        
+ResetCurrentFrame(app: VulkanApplication): () =
+    app.currentFrame <- 0
 
 // ---------------------------------------------------------------------
 
@@ -690,6 +697,9 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     createInfo.presentMode <- presentMode
     createInfo.clipped <- VkBool32.TRUE
     createInfo.oldSwapchain <- VkSwapchainKHR.NULL
+
+    if (fromEnum(createInfo.preTransform) == 0)
+        throw VulkanSwapChainCreationFailedException()
 
     let mutable swapChain = default
     if (vkCreateSwapchainKHR(device, &&createInfo, nullptr, &&swapChain) != VkResult.VK_SUCCESS)
