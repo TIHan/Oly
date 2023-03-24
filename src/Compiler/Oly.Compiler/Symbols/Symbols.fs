@@ -3301,11 +3301,17 @@ type TypeSymbol =
     member this.HasTypeParameter =
         this.TryTypeParameter.IsSome
 
+    /// TODO: Rename to "IsAnyFunction".
     member this.IsFunction_t =
         match stripTypeEquations this with
         | Function _ -> true
-        | NativePtr(TypeSymbol.Function _) -> true
+        | NativeFunctionPtr _ -> true
         | ForAll(_, TypeSymbol.Function _) -> true
+        | _ -> false
+
+    member this.IsNativeFunctionPtr_t =
+        match stripTypeEquations this with
+        | NativeFunctionPtr _ -> true
         | _ -> false
 
     member this.IsUnit_t =
@@ -3438,6 +3444,11 @@ type TypeSymbol =
     member this.IsVariadicInferenceVariable =
         match stripTypeEquations this with
         | TypeSymbol.InferenceVariable(Some tyPar, _) -> tyPar.IsVariadic
+        | _ -> false
+
+    member this.IsVariadicTypeVariable =
+        match stripTypeEquations this with
+        | TypeSymbol.Variable(tyPar) -> tyPar.IsVariadic
         | _ -> false
 
     member this.IsStruct =
@@ -3582,6 +3593,7 @@ type TypeSymbol =
                 obj.ReferenceEquals(FormalDependentIndexerType, ty)
             | _ -> false
 
+    /// TODO: Rename to "TryAnyFunction".
     member this.TryFunction =
         match stripTypeEquations this with
         | TypeSymbol.Function(argTys, returnTy)

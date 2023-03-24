@@ -45,6 +45,8 @@ createWindow(): (HWND, HINSTANCE) =
     let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
     let mutable wc = default: WNDCLASSW
 
+    let wndProcPtr = &&wndProc
+
     let mutable example = "Hello World Class"
     let mutable windowName = "\U0001F47D"
     let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
@@ -52,7 +54,7 @@ createWindow(): (HWND, HINSTANCE) =
     let addr = ToPtr(gc.AddrOfPinnedObject())
     let addr2 = ToPtr(gc2.AddrOfPinnedObject())
     wc.hInstance <- hInstance
-    wc.lpfnWndProc <- __oly_load_function_ptr(wndProc)
+    wc.lpfnWndProc <- wndProcPtr
     wc.lpszClassName <- addr
 
     let result = RegisterClass(&&wc)

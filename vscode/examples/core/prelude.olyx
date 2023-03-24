@@ -522,6 +522,9 @@ print(object): ()
 #[intrinsic("unsafe_address_of")]
 (&&)<T>(T): T*
 
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
 #[intrinsic("bitwise_and")]
 (&)(uint8, uint8): uint8
 #[intrinsic("bitwise_and")]

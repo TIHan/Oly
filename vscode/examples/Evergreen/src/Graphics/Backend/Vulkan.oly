@@ -440,7 +440,7 @@ private populateDebugMessengerCreateInfo(createInfo: byref<VkDebugUtilsMessenger
     createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT
     createInfo.messageSeverity <- VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
     createInfo.messageType <- VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
-    createInfo.pfnUserCallback <- __oly_load_function_ptr(debugCallback)
+    createInfo.pfnUserCallback <- &&debugCallback
 
 private setupDebugMessenger(enableValidationLayers: bool, instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT*): () =
     if (enableValidationLayers)

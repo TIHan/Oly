@@ -207,16 +207,21 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy ->
                     match argTy.TryFunction with
-                    | ValueSome(argTys, _) -> 
-                        // This handles overloads that take a function type to only
-                        // accept the same number of arguments for the function type.
-                        let argCount1 = 
-                            match par.Type.TryFunction with
-                            | ValueSome(argTys, _) -> argTys.Length
-                            | _ -> 0
-                        let argCount2 = argTys.Length
-                        argCount1 = argCount2 &&
-                        subsumesTypeWith Generalizable par.Type argTy
+                    | ValueSome(argTys, _) when par.Type.IsFunction_t -> 
+                        match par.Type.TryFunction with
+                        | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
+                            // Variadic variables will always return true.
+                            true
+                        | _ ->
+                            // This handles overloads that take a function type to only
+                            // accept the same number of arguments for the function type.
+                            let argCount1 = 
+                                match par.Type.TryFunction with
+                                | ValueSome(argTys, _) -> argTys.Length
+                                | _ -> 0
+                            let argCount2 = argTys.Length
+                            argCount1 = argCount2 &&
+                            subsumesTypeWith Generalizable par.Type argTy
                     | _ ->
                         subsumesTypeWith Generalizable par.Type argTy
                 )
@@ -260,7 +265,8 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
     if funcs2.Length = 1 then funcs2
     else
         let funcs3 = 
-            if returnTyOpt.IsSome then
+            // If we have a *solved* return type, choose the least generic.
+            if returnTyOpt.IsSome && returnTyOpt.Value.IsSolved then
                 filterFunctionsForOverloadingLeastGeneric funcs2
             else
                 funcs2

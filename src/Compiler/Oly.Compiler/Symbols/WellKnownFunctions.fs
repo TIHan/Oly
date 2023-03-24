@@ -316,9 +316,9 @@ let LoadFunctionPtr =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
     let tyPars =
         seq {
-            TypeParameterSymbol("TFunction", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TFunctionPtr", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
             TypeParameterSymbol("TReturn", 1, 0, false, TypeParameterKind.Function 1, ref ImArray.empty)
-            TypeParameterSymbol("TArguments", 2, 0, true, TypeParameterKind.Function 2, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 2, 0, true, TypeParameterKind.Function 2, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {

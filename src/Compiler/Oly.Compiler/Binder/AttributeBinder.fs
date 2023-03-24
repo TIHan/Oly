@@ -512,6 +512,12 @@ let bindIntrinsicPrimitivesForFunction cenv (env: BinderEnvironment) (syntaxAttr
                 | _ ->
                     error()
 
+            elif tyParCount = 3 && parCount = 1 then
+                match intrinsicName with
+                | "load_function_ptr" -> ()
+                | _ ->
+                    error()
+
             elif tyParCount > 0 && parCount = 1 then
                 match intrinsicName with
                 | "cast" -> ()

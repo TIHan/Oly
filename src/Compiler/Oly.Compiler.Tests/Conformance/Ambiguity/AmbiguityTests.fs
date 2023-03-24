@@ -1227,3 +1227,24 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Correct overload selected for load_function_ptr intrinsic``() =
+    let src =
+        """
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+test(): () = ()
+
+main(): () =
+    let ~^~ptr = &&test
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "ptr: static () -> ()"

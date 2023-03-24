@@ -501,7 +501,7 @@ main(): () =
             updateWorldPhysics(dt)
             i <- i + 1
 
-        // Client
+        // Client    
         Graphics.UpdateInstances(physicsBoxInstances, world.Archetype_Box.Buffer0)
         Graphics.UpdateBuffer(physicsBoxColors, world.Archetype_Box.Buffer1, uint32(world.Archetype_Box.Count))
         Graphics.UpdateInstances(physicsBoxLightInstances, world.Archetype_PointLight.Buffer0)
