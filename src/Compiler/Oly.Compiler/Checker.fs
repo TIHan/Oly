@@ -631,14 +631,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             if (not value.IsMutable && value.Type.IsAnyStruct) || value.Type.IsReadOnlyByRef then
-                errorWith value.Name (receiver.GetValidUserSyntax())
+                errorWith value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check receiver then
                 if field.Type.IsAnyStruct && not field.IsMutable then
-                    errorWith field.Name (receiver.GetValidUserSyntax())
+                    errorWith field.Name receiver.SyntaxNameOrDefault
                     false
                 else
                     true
@@ -648,7 +648,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
             match prop.Getter with
             | Some(getter) ->
-                checkCall syntaxInfo.Syntax receiverOpt getter
+                checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt getter
             | _ ->
                 ()
             true
@@ -662,7 +662,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env value.Type rhs
         if not value.IsMutable then
-            errorWith value.Name expr.Syntax
+            errorWith value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;syntaxNameOpt=syntaxNameOpt;field=field;rhs=rhs) ->
         checkExpressionType env field.Type rhs
@@ -672,7 +672,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
                 | Some syntaxName ->
                     errorWith field.Name syntaxName
                 | _ ->
-                    errorWith field.Name expr.Syntax
+                    errorWith field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
         if not lhsExpr.Type.IsReadWriteByRef then
@@ -681,14 +681,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
         match prop.Setter with
         | Some(setter) ->
-            checkCall syntaxInfo.Syntax receiverOpt setter
+            checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt setter
         | _ ->
             ()
 
     | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
         match prop.Getter with
         | Some(getter) ->
-            checkCall syntaxInfo.Syntax receiverOpt getter
+            checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt getter
         | _ ->
             ()
 
@@ -697,7 +697,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         | Some syntaxValueName ->
             checkCall syntaxValueName receiverOpt value
         | _ ->
-            checkCall syntaxInfo.Syntax receiverOpt value
+            checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
 
     | _ ->
         ()

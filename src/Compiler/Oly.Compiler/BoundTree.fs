@@ -159,17 +159,37 @@ and ReadOnlyFreeTypeVariables = System.Collections.ObjectModel.ReadOnlyDictionar
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundSyntaxInfo =
     | User of syntax: OlySyntaxNode * benv: BoundEnvironment
+    | UserWithName of syntax: OlySyntaxNode * syntaxName: OlySyntaxName * benv: BoundEnvironment
     | Generated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
 
     member this.TryEnvironment =
         match this with
-        | User(_, benv) -> Some benv
+        | User(_, benv)
+        | UserWithName(_, _, benv) -> Some benv
         | _ -> None
 
     member this.Syntax =
         match this with
-        | User(syntax, _) -> syntax
+        | User(syntax, _) 
+        | UserWithName(syntax, _, _) -> syntax
         | Generated(syntaxTree) -> syntaxTree.DummyNode
+
+    member this.SyntaxNameOrDefault =
+        match this.TrySyntaxName with
+        | Some(syntaxName) -> syntaxName :> OlySyntaxNode
+        | _ -> this.Syntax
+
+    member this.TrySyntaxAndEnvironment =
+        match this with
+        | User(syntax, benv)
+        | UserWithName(syntax, _, benv) -> Some(syntax, benv)
+        | _ -> None
+
+    member this.TrySyntaxName =
+        match this with
+        | User(syntax, _) -> syntax.TryName
+        | UserWithName(_, syntaxName, _) -> Some syntaxName
+        | _ -> None
 
     member this.IsGeneratedKind =
         match this with
@@ -331,6 +351,36 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
         | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
         | Witness(expr, _, _) -> expr.Syntax
+
+    member this.SyntaxNameOrDefault =
+        match this with
+        | While(syntaxInfo=syntaxInfo)
+        | None(syntaxInfo=syntaxInfo)
+        | Error(syntaxInfo=syntaxInfo)
+        | Call(syntaxInfo=syntaxInfo)
+        | SetValue(syntaxInfo=syntaxInfo)
+        | SetContentsOfAddress(syntaxInfo=syntaxInfo)
+        | Value(syntaxInfo=syntaxInfo)
+        | Sequential(syntaxInfo=syntaxInfo)
+        | MemberDefinition(syntaxInfo=syntaxInfo)
+        | Let(syntaxInfo=syntaxInfo)
+        | IfElse(syntaxInfo=syntaxInfo) 
+        | GetProperty(syntaxInfo=syntaxInfo)
+        | SetProperty(syntaxInfo=syntaxInfo) 
+        | Literal(syntaxInfo=syntaxInfo)
+        | GetField(syntaxInfo=syntaxInfo)
+        | SetField(syntaxInfo=syntaxInfo)
+        | EntityDefinition(syntaxInfo=syntaxInfo)
+        | Lambda(syntaxInfo=syntaxInfo)
+        | NewTuple(syntaxInfo=syntaxInfo)
+        | Typed(syntaxInfo=syntaxInfo) 
+        | Try(syntaxInfo=syntaxInfo) -> syntaxInfo.SyntaxNameOrDefault
+        | Match(syntax=syntax) -> syntax :> OlySyntaxNode
+        | NewArray(syntax=syntax) -> syntax :> OlySyntaxNode
+        | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
+        | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
+        | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
+        | Witness(expr, _, _) -> expr.SyntaxNameOrDefault
 
     member this.FirstReturnExpression =
         match this with

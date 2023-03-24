@@ -1434,7 +1434,7 @@ type OlyBoundModel internal (
                 getSymbolsByNameAndValue addSymbol benv predicate syntaxValueName value
 
             | BoundExpression.Value(syntaxInfo, value) ->
-                match syntaxInfo.Syntax.TryName, syntaxInfo.TryEnvironment with
+                match syntaxInfo.TrySyntaxName, syntaxInfo.TryEnvironment with
                 | Some syntaxName, Some benv ->
                     getSymbolsByNameAndValue addSymbol benv predicate syntaxName.LastName value
                 | _ ->

@@ -279,26 +279,26 @@ module Patterns =
                 match bindingInfo with
                 | BindingFunction(func=func)
                 | BindingPattern(_, func) when not func.IsFunctionGroup ->
-                    match syntaxInfo with
-                    | BoundSyntaxInfo.User(syntax, benv) ->
+                    match syntaxInfo.TrySyntaxAndEnvironment with
+                    | Some(syntax, benv) ->
                         let syntax =
                             match syntax.TryGetBindingDeclaration() with
                             | ValueSome syntax -> syntax :> OlySyntaxNode
                             | _ -> syntax
                         let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, func)
                         Some(valueSymbol, convert boundModel rhsExpr ct)
-                    | BoundSyntaxInfo.Generated _ ->
+                    | _ ->
                         failwith "Should have user syntax."
                 | BindingField(field=field) ->
-                    match syntaxInfo with
-                    | BoundSyntaxInfo.User(syntax, benv) ->
+                    match syntaxInfo.TrySyntaxAndEnvironment with
+                    | Some(syntax, benv) ->
                         let syntax =
                             match syntax.TryGetBindingDeclaration() with
                             | ValueSome syntax -> syntax :> OlySyntaxNode
                             | _ -> syntax
                         let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, field)
                         Some(valueSymbol, convert boundModel rhsExpr ct)
-                    | BoundSyntaxInfo.Generated _ ->
+                    | _ ->
                         failwith "Should have user syntax."
                 | _ ->
                     None
@@ -317,26 +317,26 @@ module Patterns =
         | Expression(BoundExpression.Let(syntaxInfo, binding, rhsExpr, bodyExpr), boundModel, ct) ->
             match binding with
             | BindingLocalFunction(func=func) when not func.IsFunctionGroup ->
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntax, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntax, benv) ->
                     let syntax =
                         match syntax.TryGetBindingDeclaration() with
                         | ValueSome syntax -> syntax :> OlySyntaxNode
                         | _ -> syntax
                     let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, func)
                     Some(valueSymbol, convert boundModel rhsExpr ct, convert boundModel bodyExpr ct)
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
             | BindingLocal(value=value) ->
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntax, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntax, benv) ->
                     let syntax =
                         match syntax.TryGetBindingDeclaration() with
                         | ValueSome syntax -> syntax :> OlySyntaxNode
                         | _ -> syntax
                     let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, value)
                     Some(valueSymbol, convert boundModel rhsExpr ct, convert boundModel bodyExpr ct)
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
             | _ ->
                 None
@@ -349,10 +349,10 @@ module Patterns =
                 when value.TryWellKnownFunction = ValueNone ->
             ct.ThrowIfCancellationRequested()
             let syntaxNode, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
 
             let callKind =
@@ -406,10 +406,10 @@ module Patterns =
         | Expression(BoundExpression.Value(syntaxInfo, value), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let syntax, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
 
             let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, value)
@@ -422,10 +422,10 @@ module Patterns =
         | Expression(BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, value, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let syntaxNode, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
 
             let syntax =
@@ -450,10 +450,10 @@ module Patterns =
         | Expression(BoundExpression.GetField(syntaxInfo, receiver, syntaxNameOpt, field), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let syntaxNode, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
 
             let syntax =
@@ -470,10 +470,10 @@ module Patterns =
         | Expression(BoundExpression.SetField(syntaxInfo, receiver, syntaxNameOpt, field, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let syntaxNode, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     failwith "Should have user syntax."
 
             let syntaxNode =
@@ -614,10 +614,10 @@ module Patterns =
             let bodyExpr = lazyBodyExpr.Expression
 
             let syntaxNode, benv =
-                match syntaxInfo with
-                | BoundSyntaxInfo.User(syntaxNode, benv) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
                     syntaxNode, benv
-                | BoundSyntaxInfo.Generated _ ->
+                | _ ->
                     match bodyExpr.TryEnvironment, bodyExpr.Syntax.Parent with
                     | Some benv, syntaxNode when not(isNull(syntaxNode)) ->
                         syntaxNode, benv

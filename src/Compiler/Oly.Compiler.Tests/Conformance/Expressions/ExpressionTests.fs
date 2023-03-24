@@ -7061,3 +7061,15 @@ extension AdditionExtends<T1, T2, T3> =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should get right signature for enclosing type of enum``() =
+    let src =
+        """
+enum TestEnum =
+    | A
+
+main(): () =
+    let a = ~^~TestEnum.A
+        """
+    src |> hasSymbolSignatureTextByCursor "TestEnum"

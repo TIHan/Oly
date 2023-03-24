@@ -435,7 +435,7 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
             let syntaxInfo =
                 match syntaxNameOpt with
                 | Some(syntaxName) ->
-                    BoundSyntaxInfo.User(syntaxName, env.benv)
+                    BoundSyntaxInfo.UserWithName(syntaxToCapture, syntaxName, env.benv)
                 | _ ->
                     BoundSyntaxInfo.Generated(cenv.syntaxTree)
 

@@ -445,7 +445,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         match cenv.scopes.TryGetValue value.Id with
         | true, scope ->
             if env.isReturnableAddress && scope = env.scope then
-                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.Syntax)
+                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
         | _ ->
             ()
         match env.freeLocals.TryGetValue value.Id with
@@ -453,7 +453,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
             let syntaxNode =
                 match syntaxNameOpt with
                 | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> expr.Syntax
+                | _ -> expr.SyntaxNameOrDefault
             cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it is captured.", 10, syntaxNode)
         | _ ->
             ()
@@ -462,7 +462,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         match cenv.scopes.TryGetValue value.Id with
         | true, scope ->
             if env.isReturnableAddress && scope = env.scope then
-                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.Syntax)
+                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
         | _ ->
             ()
 
