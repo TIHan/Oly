@@ -2668,7 +2668,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                         funcs
                                 let funcs = find realTy
                                 if funcs.IsEmpty then
-                                    failwith "Function not found"
+                                    failwithf "Function not found: %A" funcInst.Name
                                 if funcs.Length > 1 then
                                     failwith "Too many functions"
                                 funcs.[0]

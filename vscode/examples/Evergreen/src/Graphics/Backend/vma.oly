@@ -154,3 +154,9 @@ vmaCreateBuffer(
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaDestroyBuffer")]
 vmaDestroyBuffer(allocator: VmaAllocator, buffer: VkBuffer, allocation: VmaAllocation): ()
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaMapMemory")]
+vmaMapMemory(allocator: VmaAllocator, allocation: VmaAllocation, ppData: (void*)*): VkResult
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaUnmapMemory")]
+vmaUnmapMemory(allocator: VmaAllocator, allocation: VmaAllocation): ()

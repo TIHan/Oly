@@ -2,6 +2,7 @@ module Evergreen.Graphics.Backend.Vulkan
 
 open System
 open System.Text
+open System.Numerics
 open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
@@ -41,6 +42,8 @@ extension VkResultExtensions =
 (|)(VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessageTypeFlagsEXT): VkDebugUtilsMessageTypeFlagsEXT
 #[intrinsic("bitwise_or")]
 (|)(VkColorComponentFlags, VkColorComponentFlags): VkColorComponentFlags
+#[intrinsic("bitwise_or")]
+(|)(VmaAllocationCreateFlags, VmaAllocationCreateFlags): VmaAllocationCreateFlags
 
 #[intrinsic("bitwise_and")]
 (&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
@@ -61,6 +64,9 @@ extension VkResultExtensions =
 
 #[intrinsic("equal")]
 (==)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): bool
+
+private success(result: VkResult): bool =
+    result == VkResult.VK_SUCCESS
 
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
@@ -341,13 +347,13 @@ CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPa
 DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
     vkDestroyRenderPass(app.Device, renderPass, nullptr)
 
-CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
+CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
     let stages =
         [|
             createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
             createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
         |]
-    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, swapChain.Extent)
+    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, vertexBindingDescriptions, vertexAttributeDescriptions, swapChain.Extent)
 
 DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
@@ -380,12 +386,27 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
 ResizeFramebuffer(app: VulkanApplication): () =
     app.framebufferResized <- true
 
+CreateVertexBindingDescription<T>(binding: uint32, isInstance: bool): VkVertexInputBindingDescription where T: unmanaged =
+    createVertexInputBindingDescription<T>(binding, isInstance)
+
+CreateVertexAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
+    createVertexInputAttributeDescriptions<T>(binding)
+
 CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags): VulkanBuffer =
     match (createBuffer(app.Allocator, size, usage))
     | (buffer, allocation) =>
-        VulkanBuffer(buffer, allocation)
+        VulkanBuffer(buffer, allocation, size)
     | _ =>
         fail("Should not happen")
+
+UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable rosData: ReadOnlySpan<T>): () where T: unmanaged =
+    let mutable pData = default: void*
+    if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
+        fail("Failed to map memory.")
+
+    rosData.CopyTo(Span(pData, rosData.Length))
+
+    vmaUnmapMemory(app.Allocator, buffer.Allocation)
 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
@@ -840,7 +861,14 @@ private createPipelineLayout(device: VkDevice): VkPipelineLayout =
 
     pipelineLayout
 
-private createGraphicsPipeline(device: VkDevice, pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, stages: VkPipelineShaderStageCreateInfo[||], swapChainExtent: VkExtent2D): VkPipeline =
+private createGraphicsPipeline(
+        device: VkDevice, 
+        pipelineLayout: VkPipelineLayout, 
+        renderPass: VkRenderPass, 
+        stages: VkPipelineShaderStageCreateInfo[||],
+        vertexBindingDescriptions: VkVertexInputBindingDescription[],
+        vertexAttributeDescriptions: VkVertexInputAttributeDescription[], 
+        swapChainExtent: VkExtent2D): VkPipeline =
     let dynamicStates =
         [
             VkDynamicState.VK_DYNAMIC_STATE_VIEWPORT;
@@ -854,12 +882,15 @@ private createGraphicsPipeline(device: VkDevice, pipelineLayout: VkPipelineLayou
     dynamicState.dynamicStateCount <- uint32(dynamicStates.Length)
     dynamicState.pDynamicStates <- UnsafeCast(dynamicStatesHandle.AddrOfPinnedObject())
 
+    let mutable vertexBindingDescriptionsHandle = fixed(vertexBindingDescriptions)
+    let mutable vertexAttributeDescriptionsHandle = fixed(vertexAttributeDescriptions)
+
     let mutable vertexInputInfo = default: VkPipelineVertexInputStateCreateInfo
     vertexInputInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
-    vertexInputInfo.vertexBindingDescriptionCount <- 0
-    vertexInputInfo.pVertexBindingDescriptions <- nullptr // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount <- 0
-    vertexInputInfo.pVertexAttributeDescriptions <- nullptr // Optional
+    vertexInputInfo.vertexBindingDescriptionCount <- uint32(vertexBindingDescriptions.Length)
+    vertexInputInfo.pVertexBindingDescriptions <- UnsafeCast(vertexBindingDescriptionsHandle.AddrOfPinnedObject())
+    vertexInputInfo.vertexAttributeDescriptionCount <- uint32(vertexAttributeDescriptions.Length)
+    vertexInputInfo.pVertexAttributeDescriptions <- UnsafeCast(vertexAttributeDescriptionsHandle.AddrOfPinnedObject())
 
     let mutable inputAssembly = default: VkPipelineInputAssemblyStateCreateInfo
     inputAssembly.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
@@ -1058,11 +1089,13 @@ private createCommandBuffer(device: VkDevice, commandPool: VkCommandPool): VkCom
 private sealed class VulkanBuffer =
     Buffer: VkBuffer
     Allocation: VmaAllocation
+    Size: uint64
 
-    new(buffer: VkBuffer, allocation: VmaAllocation) =
+    new(buffer: VkBuffer, allocation: VmaAllocation, size: uint64) =
         {
             Buffer = buffer
             Allocation = allocation
+            Size = size
         }
 
 private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsageFlags): (VkBuffer, VmaAllocation) =
@@ -1073,13 +1106,58 @@ private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsage
 
     let mutable allocInfo = default: VmaAllocationCreateInfo
     allocInfo.usage <- VmaMemoryUsage.VMA_MEMORY_USAGE_AUTO
+    allocInfo.flags <- VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
 
     let mutable buffer = default: VkBuffer
     let mutable allocation = default: VmaAllocation
-    if (vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, nullptr) != VkResult.VK_SUCCESS)
+    if (!success(vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, nullptr)))
         fail("Failed to create buffer.")
 
     (buffer, allocation)
+
+private createVertexInputBindingDescription<T>(binding: uint32, isInstance: bool): VkVertexInputBindingDescription where T: unmanaged =
+    let mutable bindingDescription = default: VkVertexInputBindingDescription
+    bindingDescription.binding <- binding
+    bindingDescription.stride <- uint32(sizeof<T>)
+    bindingDescription.inputRate <- if (isInstance) VkVertexInputRate.VK_VERTEX_INPUT_RATE_INSTANCE else VkVertexInputRate.VK_VERTEX_INPUT_RATE_VERTEX
+    bindingDescription
+
+private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
+    let ty = typeof<T>()
+    let size = sizeof<T>
+    let fields = UnsafeCast<System.Reflection.FieldInfo[]>(ty.GetFields())
+    let fields = Array.Filter(fields, x -> !x.IsStatic)
+
+    let create(location, offset, field: System.Reflection.FieldInfo) =
+        let mutable attributeDescription = default: VkVertexInputAttributeDescription
+        attributeDescription.binding <- binding
+        attributeDescription.location <- location
+        attributeDescription.offset <- offset
+
+        let mutable size = 0
+        if (field.FieldType === typeof<Vector2>())
+            attributeDescription.format <- VkFormat.VK_FORMAT_R32G32_SFLOAT
+            size <- sizeof<Vector2>
+        else if (field.FieldType === typeof<Vector3>())
+            attributeDescription.format <- VkFormat.VK_FORMAT_R32G32B32_SFLOAT
+            size <- sizeof<Vector3>
+        else
+            throw NotSupportedException(field.FieldType.ToString())
+
+        (attributeDescription, uint32(size))
+
+    let attributeDescriptions = Array.ZeroCreate(fields.Length)
+    let mutable i = 0
+    let mutable currentOffset = 0: uint32
+    while (i < fields.Length)
+        match (create(uint32(i), currentOffset, fields[i]))
+        | (attributeDescription, size) =>
+            currentOffset <- currentOffset + size
+            attributeDescriptions[i] <- attributeDescription
+        | _ =>
+            fail("should not happen")
+        i <- i + 1
+    UnsafeCast(attributeDescriptions)
 
 // -----------------------------------------------------------------------
 
@@ -1279,6 +1357,28 @@ newtype VulkanCommandBuffer =
 
     Draw(vertexCount: uint32, instanceCount: uint32): () =
         vkCmdDraw(this.CommandBuffer, vertexCount, instanceCount, 0, 0)
+
+    BindVertexBuffers(mutable rosVertexBuffers: ReadOnlySpan<VulkanBuffer>): () =
+        let vertexBuffers = Array.ZeroCreate<VkBuffer>(rosVertexBuffers.Length)
+        let mutable i = 0
+        while (i < vertexBuffers.Length)
+            let vertexBuffer = rosVertexBuffers[i]
+            vertexBuffers[i] <- vertexBuffer.Buffer // TODO: rosVertexBuffers[i].Buffer has a compiler bug! wrong value!
+            i <- i + 1
+        let mutable vertexBuffersHandle = fixed(vertexBuffers)
+
+        let offsets = Array.ZeroCreate<uint64>(rosVertexBuffers.Length)
+        let mutable i = 0
+        while (i < offsets.Length)
+            offsets[i] <- 0
+            i <- i + 1
+        let mutable offsetsHandle = fixed(offsets)
+
+        vkCmdBindVertexBuffers(this.CommandBuffer, 0, 1, UnsafeCast(vertexBuffersHandle.AddrOfPinnedObject()), UnsafeCast(offsetsHandle.AddrOfPinnedObject()))
+
+        // Cleanup
+        offsetsHandle.Free()
+        vertexBuffersHandle.Free()
 
     EndRenderPass(): () =
         vkCmdEndRenderPass(this.CommandBuffer)
