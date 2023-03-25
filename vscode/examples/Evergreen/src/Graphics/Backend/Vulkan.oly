@@ -274,12 +274,9 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
         i <- i + 1
 
-    let x = &&vkGetInstanceProcAddr
-    let y = &&vkGetDeviceProcAddr
-
     let mutable vulkanFunctions = default: VmaVulkanFunctions
-    vulkanFunctions.vkGetInstanceProcAddr <- UnsafeCast(x)
-    vulkanFunctions.vkGetDeviceProcAddr <- UnsafeCast(y)
+    vulkanFunctions.vkGetInstanceProcAddr <- &&vkGetInstanceProcAddr
+    vulkanFunctions.vkGetDeviceProcAddr <- &&vkGetDeviceProcAddr
 
     let mutable allocatorCreateInfo = default: VmaAllocatorCreateInfo
     allocatorCreateInfo.vulkanApiVersion <- VK_API_VERSION_1_3

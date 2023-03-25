@@ -29,9 +29,12 @@ struct VmaDeviceMemoryCallbacks =
     mutable pfnFree: nuint = default // TODO: instead of 'nint' use 'PFN_vmaFreeDeviceMemoryFunction'
     mutable pUserData: void* = default
 
+alias PFN_vkGetInstanceProcAddr = static (instance: VkInstance, pName: int8*) -> static blittable () -> ()
+alias PFN_vkGetDeviceProcAddr = static (device: VkDevice, pName: int8*) -> static blittable () -> ()
+
 struct VmaVulkanFunctions =
-    mutable vkGetInstanceProcAddr: nuint = default// PFN_vkGetInstanceProcAddr
-    mutable vkGetDeviceProcAddr: nuint = default // PFN_vkGetDeviceProcAddr
+    mutable vkGetInstanceProcAddr: PFN_vkGetInstanceProcAddr = default
+    mutable vkGetDeviceProcAddr: PFN_vkGetDeviceProcAddr = default
     mutable vkGetPhysicalDeviceProperties: nuint = default // PFN_vkGetPhysicalDeviceProperties
     mutable vkGetPhysicalDeviceMemoryProperties: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties
     mutable vkAllocateMemory: nuint = default // PFN_vkAllocateMemory

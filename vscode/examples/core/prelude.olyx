@@ -195,6 +195,9 @@ nuint(uint8): nuint
 nuint(void*): nuint
 
 #[intrinsic("cast")]
+nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuint
+
+#[intrinsic("cast")]
 ToVoidPtr(int32): void*
 
 #[intrinsic("cast")]
