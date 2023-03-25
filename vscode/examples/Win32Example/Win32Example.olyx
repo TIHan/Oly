@@ -7,8 +7,6 @@
 #reference "../Evergreen/src/Window/Evergreen.Window.olyx"
 
 open System
-open System.Runtime.InteropServices
-open System.Runtime.CompilerServices
 open Evergreen.Window
 
 private alias vk = Evergreen.Graphics.Backend.Vulkan
