@@ -1362,8 +1362,7 @@ newtype VulkanCommandBuffer =
         let vertexBuffers = Array.ZeroCreate<VkBuffer>(rosVertexBuffers.Length)
         let mutable i = 0
         while (i < vertexBuffers.Length)
-            let vertexBuffer = rosVertexBuffers[i]
-            vertexBuffers[i] <- vertexBuffer.Buffer // TODO: rosVertexBuffers[i].Buffer has a compiler bug! wrong value!
+            vertexBuffers[i] <- rosVertexBuffers[i].Buffer
             i <- i + 1
         let mutable vertexBuffersHandle = fixed(vertexBuffers)
 

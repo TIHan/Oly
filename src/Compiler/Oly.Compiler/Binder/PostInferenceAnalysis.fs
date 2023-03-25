@@ -523,6 +523,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
 
     | BoundExpression.Call(_, receiverOpt, witnessArgs, args, syntaxNameOpt, value, _) ->
         if not value.IsFunctionGroup then
+            // We expect 'witnessArgs' to have been evaluated by now.
             Assert.ThrowIfNot(witnessArgs.HasValue)
 
         let env =

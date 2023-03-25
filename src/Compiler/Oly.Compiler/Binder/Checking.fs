@@ -484,6 +484,31 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
     | _ ->
         expr
 
+let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
+    match expr with
+    | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, syntaxNameOpt, value, _) ->
+        match value with
+        | :? FunctionGroupSymbol as funcGroup ->
+            if funcGroup.IsAddressOf then
+                match expectedTyOpt with
+                | Some expectedTy when not expectedTy.IsSolved ->
+                    match argExprs[0] with
+                    | AutoDereferenced(argExpr) ->
+                        UnifyTypes Flexible expectedTy argExpr.Type
+                        |> ignore
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
+                   
+            match tryOverloadedCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
+            | Some expr -> expr
+            | _ -> expr
+        | _ ->
+            expr
+    | _ ->
+        OlyAssert.Fail("Expected 'Call' expression.")
+
 let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: BoundExpression) =
     match expr with
     | BoundExpression.Value(syntaxInfo, value) when value.IsFunction ->
@@ -521,26 +546,14 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (expecte
         else
             BoundExpression.Witness(newBodyExpr, witnessTy, exprTy)
 
-    | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, syntaxNameOpt, value, _) ->
-        match value with
-        | :? FunctionGroupSymbol as funcGroup ->
-            if funcGroup.IsAddressOf then
-                match expectedTyOpt with
-                | Some expectedTy when not expectedTy.IsSolved ->
-                    match argExprs[0] with
-                    | AutoDereferenced(argExpr) ->
-                        UnifyTypes Flexible expectedTy argExpr.Type
-                        |> ignore
-                    | _ ->
-                        ()
-                | _ ->
-                    ()
-                    
-            match tryOverloadedCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
-            | Some expr -> expr
-            | _ -> expr
-        | _ ->
-            expr
+    | BoundExpression.Call _ ->
+        checkCallerCallExpression cenv env expectedTyOpt isArgForAddrOf expr
+
+    | AutoDereferenced(exprAsAddr) ->
+        // We do this to make sure we actually check the call 'FromAddress'.
+        checkCallerExpression cenv env None false exprAsAddr
+        |> autoDereferenceExpression
+
     | _ ->
         expr
 
