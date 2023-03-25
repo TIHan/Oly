@@ -1,0 +1,75 @@
+module Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
+
+open System
+open System.Text
+open System.Collections.Generic
+open System.Collections.Concurrent
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open TerraFX.Interop.Vulkan
+open static TerraFX.Interop.Vulkan.Vulkan
+
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaAllocator =
+    private Value: nuint = default
+
+enum VmaAllocatorCreateFlags =
+    | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT = 0x00000001
+    | VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT = 0x00000002
+    | VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT = 0x00000004
+    | VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT = 0x00000008
+    | VMA_ALLOCATOR_CREATE_AMD_DEVICE_COHERENT_MEMORY_BIT = 0x00000010
+    | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT = 0x00000020
+    | VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT = 0x00000040
+    | VMA_ALLOCATOR_CREATE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaDeviceMemoryCallbacks =
+    mutable pfnAllocate: nuint = default // TODO: instead of 'nint' use 'PFN_vmaAllocateDeviceMemoryFunction'
+    mutable pfnFree: nuint = default // TODO: instead of 'nint' use 'PFN_vmaFreeDeviceMemoryFunction'
+    mutable pUserData: void* = default
+
+struct VmaVulkanFunctions =
+    mutable vkGetInstanceProcAddr: nuint = default// PFN_vkGetInstanceProcAddr
+    mutable vkGetDeviceProcAddr: nuint = default // PFN_vkGetDeviceProcAddr
+    mutable vkGetPhysicalDeviceProperties: nuint = default // PFN_vkGetPhysicalDeviceProperties
+    mutable vkGetPhysicalDeviceMemoryProperties: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties
+    mutable vkAllocateMemory: nuint = default // PFN_vkAllocateMemory
+    mutable vkFreeMemory: nuint = default // PFN_vkFreeMemory
+    mutable vkMapMemory: nuint = default // PFN_vkMapMemory
+    mutable vkUnmapMemory: nuint = default // PFN_vkUnmapMemory
+    mutable vkFlushMappedMemoryRanges: nuint = default // PFN_vkFlushMappedMemoryRanges
+    mutable vkInvalidateMappedMemoryRanges: nuint = default // PFN_vkInvalidateMappedMemoryRanges
+    mutable vkBindBufferMemory: nuint = default // PFN_vkBindBufferMemory
+    mutable vkBindImageMemory: nuint = default // PFN_vkBindImageMemory
+    mutable vkGetBufferMemoryRequirements: nuint = default // PFN_vkGetBufferMemoryRequirements
+    mutable vkGetImageMemoryRequirements: nuint = default // PFN_vkGetImageMemoryRequirements
+    mutable vkCreateBuffer: nuint = default // PFN_vkCreateBuffer
+    mutable vkDestroyBuffer: nuint = default // PFN_vkDestroyBuffer
+    mutable vkCreateImage: nuint = default // PFN_vkCreateImage
+    mutable vkDestroyImage: nuint = default // PFN_vkDestroyImage
+    mutable vkCmdCopyBuffer: nuint = default // PFN_vkCmdCopyBuffer
+    mutable vkGetBufferMemoryRequirements2KHR: nuint = default // PFN_vkGetBufferMemoryRequirements2KHR
+    mutable vkGetImageMemoryRequirements2KHR: nuint = default // PFN_vkGetImageMemoryRequirements2KHR
+    mutable vkBindBufferMemory2KHR: nuint = default // PFN_vkBindBufferMemory2KHR
+    mutable vkBindImageMemory2KHR: nuint = default // PFN_vkBindImageMemory2KHR
+    mutable vkGetPhysicalDeviceMemoryProperties2KHR: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties2KHR
+    mutable vkGetDeviceBufferMemoryRequirements: nuint = default // PFN_vkGetDeviceBufferMemoryRequirements
+    mutable vkGetDeviceImageMemoryRequirements: nuint = default // PFN_vkGetDeviceImageMemoryRequirements
+
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaAllocatorCreateInfo =
+    mutable flags: VmaAllocatorCreateFlags = default
+    mutable physicalDevice: VkPhysicalDevice = default
+    mutable device: VkDevice = default
+    mutable preferredLargeHeapBlockSize: uint64 = default // VkDeviceSize
+    mutable pAllocationCallbacks: VkAllocationCallbacks* = default
+    mutable pDeviceMemoryCallbacks: VmaDeviceMemoryCallbacks* = default
+    mutable pHeapSizeLimit: uint64* = default // VkDeviceSize*
+    mutable pVulkanFunctions: VmaVulkanFunctions* = default
+    mutable instance: VkInstance = default
+    mutable vulkanApiVersion: uint32 = default
+    mutable pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags = default
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaCreateAllocator")]
+vmaCreateAllocator(pCreateInfo: VmaAllocatorCreateInfo*, pAllocator: VmaAllocator*): VkResult

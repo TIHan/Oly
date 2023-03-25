@@ -8,6 +8,7 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
+open static Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
 
 sealed class VulkanSwapChainOutOfDateException =
     inherits Exception
@@ -272,6 +273,24 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
             fail("Failed to create fence.")
 
         i <- i + 1
+
+    let x = &&vkGetInstanceProcAddr
+    let y = &&vkGetDeviceProcAddr
+
+    let mutable vulkanFunctions = default: VmaVulkanFunctions
+    vulkanFunctions.vkGetInstanceProcAddr <- UnsafeCast(x)
+    vulkanFunctions.vkGetDeviceProcAddr <- UnsafeCast(y)
+
+    let mutable allocatorCreateInfo = default: VmaAllocatorCreateInfo
+    allocatorCreateInfo.vulkanApiVersion <- VK_API_VERSION_1_3
+    allocatorCreateInfo.physicalDevice <- physicalDevice
+    allocatorCreateInfo.device <- device
+    allocatorCreateInfo.instance <- instance
+    allocatorCreateInfo.pVulkanFunctions <- &&vulkanFunctions
+
+    let mutable allocator = default: VmaAllocator
+    if (vmaCreateAllocator(&&allocatorCreateInfo, &&allocator) != VkResult.VK_SUCCESS)
+        fail("Failed to create allocator.")
 
     VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences))
 
