@@ -399,14 +399,20 @@ CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags): V
     | _ =>
         fail("Should not happen")
 
-UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable rosData: ReadOnlySpan<T>): () where T: unmanaged =
+UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData: ReadOnlySpan<T>): () where T: unmanaged =
     let mutable pData = default: void*
     if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
         fail("Failed to map memory.")
 
-    rosData.CopyTo(Span(pData, rosData.Length))
+    bufferData.CopyTo(Span(pData, bufferData.Length))
 
     vmaUnmapMemory(app.Allocator, buffer.Allocation)
+
+UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[||]): () where T: unmanaged =
+    UpdateBuffer<T>(app, buffer, ReadOnlySpan(bufferData))
+
+UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): () where T: unmanaged =
+    UpdateBuffer<T>(app, buffer, ReadOnlySpan(UnsafeCast<T[||]>(bufferData)))
 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
@@ -1378,6 +1384,15 @@ newtype VulkanCommandBuffer =
         // Cleanup
         offsetsHandle.Free()
         vertexBuffersHandle.Free()
+
+    BindVertexBuffers(vertexBuffers: VulkanBuffer[||]): () =
+        this.BindVertexBuffers(ReadOnlySpan(vertexBuffers))
+
+    BindVertexBuffers(vertexBuffers: VulkanBuffer[]): () =
+        this.BindVertexBuffers(ReadOnlySpan(UnsafeCast<VulkanBuffer[||]>(vertexBuffers)))
+
+    BindVertexBuffer(vertexBuffer: VulkanBuffer): () =
+        this.BindVertexBuffers([vertexBuffer])
 
     EndRenderPass(): () =
         vkCmdEndRenderPass(this.CommandBuffer)

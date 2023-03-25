@@ -17,10 +17,6 @@ private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
 #[intrinsic("bitwise_or")]
 (|)(VkBufferUsageFlags, VkBufferUsageFlags): VkBufferUsageFlags
 
-ToSpan<T>(arr: T[]): ReadOnlySpan<T> =
-    let arr = UnsafeCast<T[||]>(arr)
-    ReadOnlySpan(arr)
-
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
     Position: Vector2
@@ -49,7 +45,7 @@ main(): () =
     printLine(vulkanApp.GetDeviceName())
 
     let buffer = vk.CreateBuffer(vulkanApp, 65536, VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT)
-    vk.UpdateBuffer(vulkanApp, buffer, ToSpan(Vertices))
+    vk.UpdateBuffer(vulkanApp, buffer, Vertices)
 
     let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
     let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
@@ -69,7 +65,7 @@ main(): () =
         commandBuffer.BindPipeline(graphicsPipeline, vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
         commandBuffer.SetViewport(viewport)
         commandBuffer.SetScissor(scissor)
-        commandBuffer.BindVertexBuffers(ReadOnlySpan([|buffer|]))
+        commandBuffer.BindVertexBuffer(buffer)
         commandBuffer.Draw(3, 1)
 
         commandBuffer.EndRenderPass()
