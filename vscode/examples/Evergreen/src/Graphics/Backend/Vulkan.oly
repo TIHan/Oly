@@ -80,6 +80,7 @@ sealed class VulkanApplication =
     ImageAvailableSemaphores: VkSemaphore[]
     RenderFinishedSemaphores: VkSemaphore[]
     InFlightFences: VkFence[]
+    Allocator: VmaAllocator
 
     internal mutable currentFrame: int32
     internal mutable framebufferResized: bool
@@ -92,7 +93,7 @@ sealed class VulkanApplication =
         vkGetPhysicalDeviceProperties(this.PhysicalDevice, &&deviceProperties)
         String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
 
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[]) =
+    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], allocator: VmaAllocator) =
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -113,6 +114,7 @@ sealed class VulkanApplication =
             InFlightFences = inFlightFences
             currentFrame = 0
             framebufferResized = false
+            Allocator = allocator
         }
 
 sealed class VulkanSwapChainSupportDetails =
@@ -289,7 +291,7 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
     if (vmaCreateAllocator(&&allocatorCreateInfo, &&allocator) != VkResult.VK_SUCCESS)
         fail("Failed to create allocator.")
 
-    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences))
+    VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), allocator)
 
 CreateSwapChain(app: VulkanApplication): VulkanSwapChain =
     createSwapChain(app.PhysicalDevice, app.Device, app.Surface, app.GraphicsQueueFamilyIndex, app.PresentQueueFamilyIndex)
@@ -302,6 +304,8 @@ DestroySwapChain(app: VulkanApplication, swapChain: VulkanSwapChain): () =
     vkDestroySwapchainKHR(app.Device, swapChain.SwapChain, nullptr)
 
 Destroy(app: VulkanApplication): () =
+
+    vmaDestroyAllocator(app.Allocator)
 
     let mutable i = 0
     while (i < app.InFlightFences.Length)
@@ -375,6 +379,16 @@ ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): 
 
 ResizeFramebuffer(app: VulkanApplication): () =
     app.framebufferResized <- true
+
+CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags): VulkanBuffer =
+    match (createBuffer(app.Allocator, size, usage))
+    | (buffer, allocation) =>
+        VulkanBuffer(buffer, allocation)
+    | _ =>
+        fail("Should not happen")
+
+DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
+    vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
 
 Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (imageIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
@@ -1040,6 +1054,32 @@ private createCommandBuffer(device: VkDevice, commandPool: VkCommandPool): VkCom
         fail("Failed to allocate command buffer.")
 
     commandBuffer
+
+private sealed class VulkanBuffer =
+    Buffer: VkBuffer
+    Allocation: VmaAllocation
+
+    new(buffer: VkBuffer, allocation: VmaAllocation) =
+        {
+            Buffer = buffer
+            Allocation = allocation
+        }
+
+private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsageFlags): (VkBuffer, VmaAllocation) =
+    let mutable bufferInfo = default: VkBufferCreateInfo
+    bufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
+    bufferInfo.size <- size
+    bufferInfo.usage <- usage
+
+    let mutable allocInfo = default: VmaAllocationCreateInfo
+    allocInfo.usage <- VmaMemoryUsage.VMA_MEMORY_USAGE_AUTO
+
+    let mutable buffer = default: VkBuffer
+    let mutable allocation = default: VmaAllocation
+    if (vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, nullptr) != VkResult.VK_SUCCESS)
+        fail("Failed to create buffer.")
+
+    (buffer, allocation)
 
 // -----------------------------------------------------------------------
 

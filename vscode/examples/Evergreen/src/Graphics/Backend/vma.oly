@@ -13,6 +13,15 @@ open static TerraFX.Interop.Vulkan.Vulkan
 struct VmaAllocator =
     private Value: nuint = default
 
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaAllocation =
+    private Value: nuint = default
+
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaPool =
+    private Value: nuint = default
+
+#[Flags()]
 enum VmaAllocatorCreateFlags =
     | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT = 0x00000001
     | VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT = 0x00000002
@@ -22,6 +31,49 @@ enum VmaAllocatorCreateFlags =
     | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT = 0x00000020
     | VMA_ALLOCATOR_CREATE_EXT_MEMORY_PRIORITY_BIT = 0x00000040
     | VMA_ALLOCATOR_CREATE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+
+#[Flags()]
+enum VmaAllocationCreateFlags =
+    | VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT = 0x00000001
+    | VMA_ALLOCATION_CREATE_NEVER_ALLOCATE_BIT = 0x00000002
+    | VMA_ALLOCATION_CREATE_MAPPED_BIT = 0x00000004
+    | VMA_ALLOCATION_CREATE_USER_DATA_COPY_STRING_BIT = 0x00000020
+    | VMA_ALLOCATION_CREATE_UPPER_ADDRESS_BIT = 0x00000040
+    | VMA_ALLOCATION_CREATE_DONT_BIND_BIT = 0x00000080
+    | VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT = 0x00000100
+    | VMA_ALLOCATION_CREATE_CAN_ALIAS_BIT = 0x00000200
+    | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT = 0x00000400
+    | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT = 0x00000800
+    | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT = 0x00001000
+    | VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT = 0x00010000
+    | VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT = 0x00020000
+    | VMA_ALLOCATION_CREATE_STRATEGY_MIN_OFFSET_BIT  = 0x00040000
+    | VMA_ALLOCATION_CREATE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+
+    //     VMA_ALLOCATION_CREATE_STRATEGY_BEST_FIT_BIT = VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
+    //     /** Alias to #VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT.
+    //     */
+    //     VMA_ALLOCATION_CREATE_STRATEGY_FIRST_FIT_BIT = VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT,
+    //     /** A bit mask to extract only `STRATEGY` bits from entire set of flags.
+    //     */
+    //     VMA_ALLOCATION_CREATE_STRATEGY_MASK =
+    //         VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT |
+    //         VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT |
+    //         VMA_ALLOCATION_CREATE_STRATEGY_MIN_OFFSET_BIT,
+
+#[Flags()]
+enum VmaMemoryUsage =
+    | VMA_MEMORY_USAGE_UNKNOWN = 0
+    | VMA_MEMORY_USAGE_GPU_ONLY = 1
+    | VMA_MEMORY_USAGE_CPU_ONLY = 2
+    | VMA_MEMORY_USAGE_CPU_TO_GPU = 3
+    | VMA_MEMORY_USAGE_GPU_TO_CPU = 4
+    | VMA_MEMORY_USAGE_CPU_COPY = 5
+    | VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED = 6
+    | VMA_MEMORY_USAGE_AUTO = 7
+    | VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE = 8
+    | VMA_MEMORY_USAGE_AUTO_PREFER_HOST = 9
+    | VMA_MEMORY_USAGE_MAX_ENUM = 0x7FFFFFFF
 
 #[StructLayout(LayoutKind.Sequential)]
 struct VmaDeviceMemoryCallbacks =
@@ -72,7 +124,33 @@ struct VmaAllocatorCreateInfo =
     mutable pVulkanFunctions: VmaVulkanFunctions* = default
     mutable instance: VkInstance = default
     mutable vulkanApiVersion: uint32 = default
-    mutable pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags = default
+    mutable pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags* = default
+
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaAllocationCreateInfo =
+    mutable flags: VmaAllocationCreateFlags = default
+    mutable usage: VmaMemoryUsage = default
+    mutable requiredFlags: VkMemoryPropertyFlags = default
+    mutable preferredFlags: VkMemoryPropertyFlags = default
+    mutable memoryTypeBits: uint32 = default
+    mutable vmaPool: VmaPool = default
+    mutable pUserData: void* = default
+    mutable priority: float32 = default
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaCreateAllocator")]
 vmaCreateAllocator(pCreateInfo: VmaAllocatorCreateInfo*, pAllocator: VmaAllocator*): VkResult
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaDestroyAllocator")]
+vmaDestroyAllocator(allocator: VmaAllocator): ()
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaCreateBuffer")]
+vmaCreateBuffer(
+    allocator: VmaAllocator, 
+    pBufferCreateInfo: VkBufferCreateInfo*, 
+    pAllocationCreateInfo: VmaAllocationCreateInfo*, 
+    #[Out()] pBuffer: VkBuffer*,
+    #[Out()] pAllocation: VmaAllocation*,
+    #[Out()] pAllocationInfo: void*): VkResult
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaDestroyBuffer")]
+vmaDestroyBuffer(allocator: VmaAllocator, buffer: VkBuffer, allocation: VmaAllocation): ()

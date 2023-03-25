@@ -10,6 +10,10 @@ open System
 open Evergreen.Window
 
 private alias vk = Evergreen.Graphics.Backend.Vulkan
+private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
+
+#[intrinsic("bitwise_or")]
+(|)(VkBufferUsageFlags, VkBufferUsageFlags): VkBufferUsageFlags
 
 main(): () =
     let window = IWindow.CreateWin32("Vulkan Example")
@@ -95,6 +99,8 @@ main(): () =
 
     // --- BEGIN LOOP
 
+    let buffer = vk.CreateBuffer(vulkanApp, 65536, VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT)
+
     while (!window.IsClosed)
         let inputSnapshot = window.PumpEvents()
         let keyEvents = inputSnapshot.KeyEvents
@@ -111,6 +117,8 @@ main(): () =
     // --- END LOOP
 
     vk.WaitForIdle(vulkanApp)
+
+    vk.DestroyBuffer(vulkanApp, buffer)
 
     cleanupSwapChain()
 
