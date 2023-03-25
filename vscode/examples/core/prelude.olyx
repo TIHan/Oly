@@ -165,6 +165,9 @@ float64(int64): float64
 float64(float32): float64
 
 #[intrinsic("cast")]
+char(nuint): char
+
+#[intrinsic("cast")]
 nint<T>(T*): nint
 
 #[intrinsic("cast")]
@@ -527,6 +530,8 @@ print(object): ()
 
 #[intrinsic("bitwise_and")]
 (&)(uint8, uint8): uint8
+#[intrinsic("bitwise_and")]
+(&)(uint16, uint16): uint16
 #[intrinsic("bitwise_and")]
 (&)(int32, int32): int32
 #[intrinsic("bitwise_and")]

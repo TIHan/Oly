@@ -1,0 +1,22 @@
+#target "dotnet: net7"
+#library
+
+#load "*.oly"
+
+#reference "../../../core/prelude.olyx"
+#package "TerraFX.Interop.Windows,10.0.22621.1"
+
+namespace Evergreen.Window
+
+interface IWindow =
+    get Title: string
+    get HWND: nint
+    get HINSTANCE: nint
+    get IsClosed: bool
+
+    Show(): ()
+    PumpEvents(): InputSnapshot
+    Close(): ()
+
+    static CreateWin32(title: string): IWindow =
+        Win32Window(title)

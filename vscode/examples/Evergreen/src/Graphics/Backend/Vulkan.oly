@@ -12,8 +12,17 @@ open static TerraFX.Interop.Vulkan.Vulkan
 sealed class VulkanSwapChainOutOfDateException =
     inherits Exception
 
+    internal new() = base()
+
 sealed class VulkanSwapChainCreationFailedException =
     inherits Exception
+
+    internal new() = base()
+
+sealed class VulkanValidationException =
+    inherits Exception
+
+    internal new(msg: string) = base(msg)
 
 #[open]
 extension VkResultExtensions =
@@ -34,6 +43,8 @@ extension VkResultExtensions =
 
 #[intrinsic("bitwise_and")]
 (&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
+#[intrinsic("bitwise_and")]
+(&)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
 
 #[intrinsic("equal")]
 (==)(VkQueueFlags, VkQueueFlags): bool
@@ -46,6 +57,9 @@ extension VkResultExtensions =
 
 #[intrinsic("equal")]
 (==)(VkPresentModeKHR, VkPresentModeKHR): bool
+
+#[intrinsic("equal")]
+(==)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): bool
 
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
@@ -68,6 +82,14 @@ sealed class VulkanApplication =
 
     internal mutable currentFrame: int32
     internal mutable framebufferResized: bool
+
+    MaxFramesInFlight: int32 get() = this.InFlightFences.Length
+    CurrentFrame: int32 get() = this.currentFrame
+
+    GetDeviceName(): string =
+        let mutable deviceProperties = default
+        vkGetPhysicalDeviceProperties(this.PhysicalDevice, &&deviceProperties)
+        String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
 
     new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[]) =
         {
@@ -170,11 +192,21 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 
 // ---------------------------------------------------------------------
 
-sealed class VulkanApplicationOptions
+sealed class VulkanApplicationOptions =
+    get set MaxFramesInFlight: int32 = 2
+    get set ValidationEnabled: bool = false
+
+private validateOptions(options: VulkanApplicationOptions): () =
+    if (options.MaxFramesInFlight <= 0)
+        fail("'MaxFramesInFlight' cannot be less than or equal to zero.")
 
 Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): VulkanApplication =
-    let enableValidationLayers = true
-    let validationLayers = ["VK_LAYER_KHRONOS_validation"]
+    validateOptions(options)
+
+    let maxFramesInFlight = options.MaxFramesInFlight
+    let enableValidationLayers = options.ValidationEnabled
+    
+    let validationLayers = if (enableValidationLayers) ["VK_LAYER_KHRONOS_validation"] else []
     let instance = createInstance(enableValidationLayers, validationLayers)
 
     let mutable debugMessenger = default
@@ -211,8 +243,6 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
     let mutable presentQueue = default
     vkGetDeviceQueue(device, uint32(presentFamilyIndex), uint32(presentFamilyIndex), &&presentQueue)
-
-    let maxFramesInFlight = 2
 
     // Sync objects
     let mutable semaphoreInfo = default: VkSemaphoreCreateInfo
@@ -421,17 +451,16 @@ private getRequiredDeviceExtensions(): string[] =
     ]
 
 #[blittable]
+#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
+    if ((messageSeverity & VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) == VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+        let callback = *pCallbackData
+        let str = String(UnsafeCast<int8*>(callback.pMessage))
+        throw VulkanValidationException(str)
+
     print("validation layer: ")
     let callback = *pCallbackData
     let str = String(UnsafeCast<int8*>(callback.pMessage))
-    printLine(str)
-    VkBool32.FALSE
-
-#[blittable]
-private debugReportCallback(flags: VkDebugReportFlagsEXT, objectType: VkDebugReportObjectTypeEXT, a: uint64, b: nuint, c: int32, d: int8*, pMessage: int8*, f: void*): VkBool32 =
-    print("validation layer: ")
-    let str = String(UnsafeCast<int8*>(pMessage))
     printLine(str)
     VkBool32.FALSE
 
@@ -1079,13 +1108,6 @@ private getDeviceSuitableScore(device: VkPhysicalDevice): uint32 =
             1000 + deviceProperties.limits.maxImageDimension2D
         | _ =>
             0
-
-    // let deviceName = String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
-    // print("Device Name and Score: ")
-    // print(deviceName)
-    // print(" - Score ")
-    // print(score)
-    // print("\n")
 
     score
 

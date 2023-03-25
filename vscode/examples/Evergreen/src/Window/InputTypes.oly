@@ -1,0 +1,70 @@
+namespace Evergreen.Window
+
+open System
+
+struct MouseInfo =
+    get set X: int32 = 0
+    get set Y: int32 = 0
+    get set RelativeX: int32 = 0
+    get set RelativeY: int32 = 0
+
+enum Key =
+    | Unknown
+    | A
+    | B
+    | C
+    | D
+    | E
+    | F
+    | G
+    | H
+    | I
+    | J
+    | K
+    | L
+    | M
+    | N
+    | O
+    | P
+    | Q
+    | R
+    | S
+    | T
+    | U
+    | V
+    | W
+    | X
+    | Y
+    | Z
+
+enum KeyEventFlags =
+    | Up     = 0b001
+    | Down   = 0b010
+    | Repeat = 0b110
+
+struct KeyEvent =
+    get Key: Key
+    get Flags: KeyEventFlags
+
+    new(key: Key, flags: KeyEventFlags) =
+        {
+            Key = key
+            Flags = flags
+        }
+
+    IsUp: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Up) == fromEnum(KeyEventFlags.Up)
+    IsDown: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Down) == fromEnum(KeyEventFlags.Down)
+    IsRepeat: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Repeat) == fromEnum(KeyEventFlags.Repeat)
+
+    overrides ToString(): string =
+        string.Format("(Key = {0}, Flags = {1})", [|this.Key: object;this.Flags|])
+
+sealed class InputSnapshot =
+    get KeyEvents: KeyEvent[]
+    get MouseInfo: MouseInfo
+
+    new(keyEvents: KeyEvent[], mouseInfo: MouseInfo) =
+        {
+            KeyEvents = keyEvents
+            MouseInfo = mouseInfo
+        }

@@ -1,0 +1,249 @@
+namespace Evergreen.Window
+
+open System
+open System.Collections.Generic
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open TerraFX.Interop.Windows
+open Evergreen.Window
+open static TerraFX.Interop.Windows.Windows
+open static TerraFX.Interop.Windows.CS
+open static TerraFX.Interop.Windows.GWLP
+open static TerraFX.Interop.Windows.PM
+open static TerraFX.Interop.Windows.WM
+open static TerraFX.Interop.Windows.WS
+open static TerraFX.Interop.Windows.SW
+
+internal class Marker
+
+internal module Win32 =
+
+    RegisterRawMouseInput(): () =
+        let mutable rawMouse = default: RAWINPUTDEVICE
+        rawMouse.usUsagePage <- 0x01
+        rawMouse.usUsage <- 0x02
+        rawMouse.dwFlags <- 0
+        rawMouse.hwndTarget <- HWND.NULL
+        if (RegisterRawInputDevices(&&rawMouse, 1, uint32(sizeof<RAWINPUTDEVICE>)) == BOOL.FALSE)
+            fail("Failed to register raw input device.")
+
+    GetRawMouseInput(hrawinput: HRAWINPUT): RAWMOUSE =
+        let mutable inp = default: RAWINPUT
+        let pData = UnsafeCast<void*>(&&inp)
+        let mutable size = uint32(sizeof<RAWINPUT>)
+        let bytesCopied = GetRawInputData(hrawinput, 0x10000003, pData, &&size, uint32(sizeof<RAWINPUTHEADER>))
+        inp.`data`.mouse
+
+    IsMouseRelative(rawMouse: RAWMOUSE): bool =
+        (rawMouse.usFlags & 0x01) == 0
+
+    TranslateKey(c: char): Key =
+        match (c)
+        | 'A' => Key.A
+        | 'B' => Key.B
+        | 'C' => Key.C
+        | 'D' => Key.D
+        | 'E' => Key.E
+        | 'F' => Key.F
+        | 'G' => Key.G
+        | 'H' => Key.H
+        | 'I' => Key.I
+        | 'J' => Key.J
+        | 'K' => Key.K
+        | 'L' => Key.L
+        | 'M' => Key.M
+        | 'N' => Key.N
+        | 'O' => Key.O
+        | 'P' => Key.P
+        | 'Q' => Key.Q
+        | 'R' => Key.R
+        | 'S' => Key.S
+        | 'T' => Key.T
+        | 'U' => Key.U
+        | 'V' => Key.V
+        | 'W' => Key.W
+        | 'X' => Key.X
+        | 'Y' => Key.Y
+        | 'Z' => Key.Z
+        | _ => Key.Unknown
+
+    #[blittable]
+    #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+    private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
+        match (int32(msg))
+        | WM_DESTROY =>
+            PostQuitMessage(0)
+            default
+        | WM_SIZE =>
+            DefWindowProc(hWnd, msg, wParam, lParam)
+        | _ =>
+            DefWindowProc(hWnd, msg, wParam, lParam)
+
+    CreateWindow(title: string): (HWND, HINSTANCE) =
+        Win32.RegisterRawMouseInput()
+        let m = typeof<Marker>().Module
+        let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
+        let mutable wc = default: WNDCLASSW
+
+        let wndProcPtr = &&wndProc
+
+        let mutable example = "Win32Window"
+        let mutable windowName = title
+        let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
+        let mutable gc2 = GCHandle.Alloc(windowName, GCHandleType.Pinned)
+        let addr = ToPtr(gc.AddrOfPinnedObject())
+        let addr2 = ToPtr(gc2.AddrOfPinnedObject())
+        wc.hInstance <- hInstance
+        wc.lpfnWndProc <- wndProcPtr
+        wc.lpszClassName <- addr
+
+        let result = RegisterClass(&&wc)
+        if (result == 0)
+            (HWND.NULL, hInstance)
+        else
+            let hwnd =
+                CreateWindowEx(
+                    0, 
+                    wc.lpszClassName, 
+                    addr2,
+                    uint32(WS_OVERLAPPEDWINDOW),
+                    CW_USEDEFAULT, 
+                    CW_USEDEFAULT, 
+                    CW_USEDEFAULT, 
+                    CW_USEDEFAULT, 
+                    HWND.NULL, 
+                    HMENU.NULL, 
+                    hInstance, 
+                    default
+                )
+
+            gc.Free()
+            gc2.Free()
+            (hwnd, hInstance)
+
+    ShowWindow(hwnd: HWND): () =
+        let result = ShowWindow(hwnd, SW_SHOW)
+        let result = UpdateWindow(hwnd)
+        let result = SetFocus(hwnd)
+
+internal sealed class Win32Window =
+    implements IWindow
+
+    private mutable title: string
+    private mutable hwnd: HWND
+    private mutable hinstance: HINSTANCE
+    private mutable isCursorHidden: bool
+    private mutable mouseInfo: MouseInfo
+    private mutable keyEvents: List<KeyEvent>
+    private mutable keysDown: HashSet<Key>
+
+    Title: string get() = this.title
+    HWND: nint get() = nint(this.hwnd.Value)
+    HINSTANCE: nint get() = nint(this.hinstance.Value)
+    IsClosed: bool get() = IsWindow(this.hwnd) != BOOL.TRUE
+
+    new(title: string) =
+        match (Win32.CreateWindow(title))
+        | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
+            fail("Failed to create window.")
+        | (hwnd, hinstance) =>
+            {
+                title = title
+                keyEvents = List(128)
+                keysDown = HashSet(128)
+                mouseInfo = MouseInfo()
+                isCursorHidden = false
+                hwnd = hwnd
+                hinstance = hinstance
+            }
+        | _ =>
+            // TODO: Fix language to handle this kind of exhaustiveness
+            fail("should not happen")
+
+    Show(): () =
+        Win32.ShowWindow(this.hwnd)
+
+    Close(): () =
+        let result = CloseWindow(this.hwnd)
+
+    PumpEvents(): InputSnapshot =
+        #[inline]
+        let getKeyEvents(): KeyEvent[] =
+            let xs = this.keyEvents.ToArray()
+            this.keyEvents.Clear()
+            UnsafeCast(xs)
+
+        let hwnd = this.hwnd
+        let mutable msg = default: MSG
+        while (PeekMessage(&&msg, hwnd, 0, 0, uint32(PM_REMOVE)) == BOOL.TRUE)
+            let result = TranslateMessage(&&msg)
+            let result = DispatchMessage(&&msg)
+
+            match (int32(msg.message))
+            | WM_INPUT =>
+                let rawMouse = Win32.GetRawMouseInput(UnsafeCast(msg.lParam))
+                let isRelative = Win32.IsMouseRelative(rawMouse)
+                if (rawMouse.lLastX != 0 || rawMouse.lLastY != 0)
+                    let mutable newMouseInfo = default: MouseInfo
+                    newMouseInfo.X <- this.mouseInfo.X + rawMouse.lLastX
+                    newMouseInfo.Y <- this.mouseInfo.Y + rawMouse.lLastY
+                    newMouseInfo.RelativeX <- rawMouse.lLastX
+                    newMouseInfo.RelativeY <- rawMouse.lLastY
+                    if (this.isCursorHidden)
+                        // center()
+                        ()
+                    else
+                        this.mouseInfo <- newMouseInfo
+
+            | WM_KEYDOWN
+            | WM_SYSKEYDOWN =>
+                let mutable key = char(msg.wParam.Value)
+                let key = Win32.TranslateKey(key)
+                match (key)
+                | Key.Unknown => ()
+                | _ =>
+                    let flags =
+                        if (this.keysDown.Add(key))
+                            KeyEventFlags.Down
+                        else
+                            KeyEventFlags.Repeat
+                    let keyEvent = KeyEvent(key, flags)
+                    this.keyEvents.Add(keyEvent)
+
+            | WM_KEYUP
+            | WM_SYSKEYUP =>
+                let mutable key = char(msg.wParam.Value)
+                let key = Win32.TranslateKey(key)
+                match (key)
+                | Key.Unknown => ()
+                | _ =>
+                    let result = this.keysDown.Remove(key)
+                    let flags = KeyEventFlags.Up
+                    let keyEvent = KeyEvent(key, flags)
+                    this.keyEvents.Add(keyEvent)
+
+            | WM_LBUTTONDOWN =>
+                () // left mouse button
+
+            | WM_LBUTTONUP =>
+                () // left mouse button up
+
+            | WM_RBUTTONDOWN =>
+                () // left mouse button
+
+            | WM_RBUTTONUP =>
+                () // left mouse button up
+
+            | WM_MBUTTONDOWN =>
+                ()
+
+            | WM_MBUTTONUP =>
+                ()
+
+            | WM_QUIT =>
+                ()
+
+            | _ =>
+                ()
+
+        InputSnapshot(getKeyEvents(), this.mouseInfo)

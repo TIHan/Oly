@@ -1487,7 +1487,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         if (not env.isInConstructor && not field.IsMutable) ||
             // TODO: Does not take into account subsumption
            (env.isInConstructor && not (areEnclosingsEqual env.context.RealEntity.AsEnclosing field.Enclosing)) then
-            failwith "Field must be mutable."
+            failwith ($"Field must be mutable. Field: {field.Name}, EnclosingType: {field.Enclosing.AsType.DebugName}")
         GenSetFieldExpression cenv env ilTextRange (Some receiver) field rhs
 
     | E.SetValue(value=value;rhs=rhs) ->

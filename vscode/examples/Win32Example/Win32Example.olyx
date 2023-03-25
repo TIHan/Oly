@@ -4,204 +4,122 @@
 
 #reference "../core/prelude.olyx"
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
+#reference "../Evergreen/src/Window/Evergreen.Window.olyx"
 
 open System
 open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
-open TerraFX.Interop.Windows
-open static TerraFX.Interop.Windows.Windows
-open static TerraFX.Interop.Windows.CS
-open static TerraFX.Interop.Windows.GWLP
-open static TerraFX.Interop.Windows.PM
-open static TerraFX.Interop.Windows.WM
-open static TerraFX.Interop.Windows.WS
-open static TerraFX.Interop.Windows.SW
+open Evergreen.Window
 
-alias vk = Evergreen.Graphics.Backend.Vulkan
-
-class Marker
-
-enum Win32WindowEvent =
-    | WindowResized
-
-mutable win32WindowEvents: System.Collections.Generic.List<Win32WindowEvent> = System.Collections.Generic.List<Win32WindowEvent>()
-
-#[blittable]
-#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
-wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
-    match (int32(msg))
-    | WM_DESTROY =>
-        print("Quitting...\n")
-        PostQuitMessage(0)
-        default
-    | WM_SIZE =>
-        win32WindowEvents.Add(Win32WindowEvent.WindowResized)
-        DefWindowProc(hWnd, msg, wParam, lParam)
-    | _ =>
-        DefWindowProc(hWnd, msg, wParam, lParam)
-
-createWindow(): (HWND, HINSTANCE) =
-    let m = typeof<Marker>().Module
-    let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
-    let mutable wc = default: WNDCLASSW
-
-    let wndProcPtr = &&wndProc
-
-    let mutable example = "Hello World Class"
-    let mutable windowName = "\U0001F47D"
-    let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
-    let mutable gc2 = GCHandle.Alloc(windowName, GCHandleType.Pinned)
-    let addr = ToPtr(gc.AddrOfPinnedObject())
-    let addr2 = ToPtr(gc2.AddrOfPinnedObject())
-    wc.hInstance <- hInstance
-    wc.lpfnWndProc <- wndProcPtr
-    wc.lpszClassName <- addr
-
-    let result = RegisterClass(&&wc)
-    if (result == 0)
-        (HWND.NULL, hInstance)
-    else
-        let hwnd =
-            CreateWindowEx(
-                0, 
-                wc.lpszClassName, 
-                addr2,
-                uint32(WS_OVERLAPPEDWINDOW),
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                HWND.NULL, 
-                HMENU.NULL, 
-                hInstance, 
-                default
-            )
-
-        gc.Free()
-        gc2.Free()
-        (hwnd, hInstance)
-
-showWindow(hwnd: HWND): () =
-    let result = ShowWindow(hwnd, SW_SHOW)
-    let result = UpdateWindow(hwnd)
-    let result = SetFocus(hwnd)
+private alias vk = Evergreen.Graphics.Backend.Vulkan
 
 main(): () =
-    match (createWindow())
-    | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
-        fail("Failed to create window.")
-    | (hwnd, hinstance) =>
-        let vulkanAppOptions = vk.VulkanApplicationOptions()
-        let vulkanApp = vk.Initialize(nint(hwnd.Value), nint(hinstance.Value), vulkanAppOptions)
+    let window = IWindow.CreateWin32("Vulkan Example")
 
-        let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
-        let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
+    let vulkanAppOptions = vk.VulkanApplicationOptions()
+    vulkanAppOptions.ValidationEnabled <- true
+    let vulkanApp = vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
-        let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
-        let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
+    printLine(vulkanApp.GetDeviceName())
 
-        let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
-        let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
+    let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
+    let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
 
-        let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
-            commandBuffer.Begin()
-            commandBuffer.BeginRenderPass(renderPass, framebuffer, extent)
+    let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
+    let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
-            commandBuffer.BindPipeline(graphicsPipeline, vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
-            commandBuffer.SetViewport(viewport)
-            commandBuffer.SetScissor(scissor)
-            commandBuffer.Draw(3, 1)
+    let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
+    let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
 
-            commandBuffer.EndRenderPass()
-            commandBuffer.End()
+    let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
+        vk.ResetCommandBuffer(vulkanApp, commandBuffer)
 
-        let mutable swapChain = unchecked default
-        let mutable commandBuffers = unchecked default
-        let mutable graphicsPipeline = unchecked default
-        let mutable renderPass = unchecked default
-        let mutable swapChainFramebuffers = unchecked default
-        let recreateSwapChain() =
-            vk.ResetCurrentFrame(vulkanApp)
-            swapChain <- vk.CreateSwapChain(vulkanApp)
-            renderPass <- vk.CreateRenderPass(vulkanApp, swapChain)
+        commandBuffer.Begin()
+        commandBuffer.BeginRenderPass(renderPass, framebuffer, extent)
 
-            swapChainFramebuffers <- vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
+        commandBuffer.BindPipeline(graphicsPipeline, vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
+        commandBuffer.SetViewport(viewport)
+        commandBuffer.SetScissor(scissor)
+        commandBuffer.Draw(3, 1)
 
-            graphicsPipeline <- vk.CreateGraphicsPipeline(vulkanApp, swapChain, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
+        commandBuffer.EndRenderPass()
+        commandBuffer.End()
 
-            commandBuffers <- 
-                let commandBuffers = Array.ZeroCreate(swapChainFramebuffers.Length)
-                let mutable i = 0
-                while (i < commandBuffers.Length)
-                    commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
-                    i <- i + 1
-                commandBuffers
+    let commandBuffers =
+        let commandBuffers = Array.ZeroCreate(vulkanApp.MaxFramesInFlight)
+        let mutable i = 0
+        while (i < commandBuffers.Length)
+            commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
+            i <- i + 1
+        commandBuffers
 
-            let mutable i = 0
-            while (i < swapChain.Images.Length)
-                recordCommands(commandBuffers[i], graphicsPipeline, renderPass, swapChainFramebuffers[i], swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
-                i <- i + 1
+    let mutable swapChain = unchecked default
+    let mutable graphicsPipeline = unchecked default
+    let mutable renderPass = unchecked default
+    let mutable swapChainFramebuffers = unchecked default
+    let recreateSwapChain() =
+        vk.ResetCurrentFrame(vulkanApp)
+        swapChain <- vk.CreateSwapChain(vulkanApp)
+        renderPass <- vk.CreateRenderPass(vulkanApp, swapChain)
+        swapChainFramebuffers <- vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
+        graphicsPipeline <- vk.CreateGraphicsPipeline(vulkanApp, swapChain, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
 
-        let cleanupSwapChain() =
-            if (swapChain !== unchecked default)
-                vk.DestroyPipeline(vulkanApp, graphicsPipeline)
-                vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))   
-                vk.DestroyRenderPass(vulkanApp, renderPass)
-                vk.DestroySwapChain(vulkanApp, swapChain)
-                swapChain <- unchecked default
+    let cleanupSwapChain() =
+        if (swapChain !== unchecked default)
+            vk.DestroyPipeline(vulkanApp, graphicsPipeline)
+            vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))   
+            vk.DestroyRenderPass(vulkanApp, renderPass)
+            vk.DestroySwapChain(vulkanApp, swapChain)
+            swapChain <- unchecked default
 
-        recreateSwapChain()
-        showWindow(hwnd)
+    recreateSwapChain()
+    window.Show()
 
-        let mutable quit = false
-        let draw() =
+    let draw() =
+        try
+            vk.Draw(vulkanApp, swapChain, 
+                (imageIndex, frame) -> 
+                    let commandBuffer = commandBuffers[frame]
+                    let framebuffer = swapChainFramebuffers[imageIndex]
+
+                    recordCommands(commandBuffer, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
+                    commandBuffer
+            )
+        catch (ex: vk.VulkanSwapChainOutOfDateException) =>
+            vk.WaitForIdle(vulkanApp)
+            cleanupSwapChain()
             try
-                vk.Draw(vulkanApp, swapChain, 
-                    (imageIndex, frame) -> 
-                        let commandBuffer = commandBuffers[frame]
-                        let framebuffer = swapChainFramebuffers[imageIndex]
+                recreateSwapChain()
+            catch (ex: vk.VulkanSwapChainCreationFailedException) =>
+                // swap-chain failed to create, bail out of application
+                ()
+    draw()
 
-                        vk.ResetCommandBuffer(vulkanApp, commandBuffer)
-                        recordCommands(commandBuffer, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
-                        commandBuffer
-                )
-            catch (ex: vk.VulkanSwapChainOutOfDateException) =>
-                vk.WaitForIdle(vulkanApp)
-                cleanupSwapChain()
-                try
-                    recreateSwapChain()
-                catch (ex: vk.VulkanSwapChainCreationFailedException) =>
-                    // swap-chain failed to create, bail out of application
-                    quit <- true
+    // --- BEGIN LOOP
+
+    while (!window.IsClosed)
+        let inputSnapshot = window.PumpEvents()
+        let keyEvents = inputSnapshot.KeyEvents
+
+        let mutable i = 0
+        while (i < keyEvents.Length)
+            let keyEvent = keyEvents[i]
+            if (keyEvent.IsDown && !keyEvent.IsRepeat)
+                printLine(keyEvent)
+            i <- i + 1
+
         draw()
 
-        // --- BEGIN LOOP
+    // --- END LOOP
 
-        let mutable msg = default: MSG
-        while (!quit)
-            while (PeekMessage(&&msg, hwnd, 0, 0, uint32(PM_REMOVE)) == BOOL.TRUE)
-                let result = TranslateMessage(&&msg)
-                let result = DispatchMessage(&&msg)
+    vk.WaitForIdle(vulkanApp)
 
-                // if (msg.wParam.Value == nuint(WM_DESTROY) || msg.wParam.Value == nuint(WM_QUIT))
-                //     quit <- true
+    cleanupSwapChain()
 
-            if (!quit)
-                System.Threading.Thread.Sleep(100)
-                draw()
+    vk.DestroyCommandPool(vulkanApp, commandPool)
+    vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 
-        // --- END LOOP
+    vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
+    vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
 
-        vk.WaitForIdle(vulkanApp)
-
-        cleanupSwapChain()
-
-        vk.DestroyCommandPool(vulkanApp, commandPool)
-        vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
-
-        vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
-        vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
-
-        vk.Destroy(vulkanApp)
-    | _ =>
-        fail("Should not happen, fix language as this should be exhaustive.")
+    vk.Destroy(vulkanApp)
