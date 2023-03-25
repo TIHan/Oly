@@ -3219,3 +3219,26 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "48"
+
+[<Fact>]
+let ``Indexing into a ReadOnlySpan of a ref type should give the correct value``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint64")]
+alias uint64
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class TestData =
+    X: uint64 = 123456789
+
+main(): () =
+    let mutable xs = ReadOnlySpan([|TestData()|])
+    print(xs.get_Item(0).X)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "123456789"
