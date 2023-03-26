@@ -54,8 +54,7 @@ main(): () =
             VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
         )
-    let bufferSpan = ReadOnlySpan(UnsafeCast<Vertex[||]>(Vertices))
-    vk.UpdateBuffer(vulkanApp, buffer, bufferSpan)
+    vk.UpdateBuffer(vulkanApp, buffer, Vertices)
 
     let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
     let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
