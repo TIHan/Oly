@@ -63,6 +63,9 @@ type LocalManager (localFlags: ResizeArray<OlyIRLocalFlags>) =
     member _.IsAddressExposed(localIndex) =
         localFlags[localIndex].HasFlag(OlyIRLocalFlags.AddressExposed)
 
+    member _.MarkAddressExposed(localIndex) =
+        localFlags[localIndex] <- localFlags[localIndex] ||| OlyIRLocalFlags.AddressExposed
+
     member _.GetFlags() = localFlags |> ImArray.ofSeq
     member _.Count = localFlags.Count
 
@@ -381,7 +384,7 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irExpr: E<_, _, _>) =
+let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irExpr: E<_, _, _>) isEmplaced =
     let optimizeOperation irExpr =
         match irExpr with
         | E.Operation(irTextRange, irOp) ->
@@ -484,7 +487,9 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             | V.Local(localIndex, resultTy) ->
                 E.Value(irTextRange, V.Local(localOffset + localIndex, resultTy))
             | V.LocalAddress(localIndex, kind, resultTy) ->
-                E.Value(irTextRange, V.LocalAddress(localOffset + localIndex, kind, resultTy))
+                let fixedLocalIndex = localOffset + localIndex
+                optenv.localManager.MarkAddressExposed(fixedLocalIndex)
+                E.Value(irTextRange, V.LocalAddress(fixedLocalIndex, kind, resultTy))
 
             | V.Argument(argIndex, resultTy) ->
                 match argMap[argIndex] with
@@ -497,6 +502,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                                 OlyIRByRefKind.ReadWrite
                             else
                                 OlyIRByRefKind.Read
+                        optenv.localManager.MarkAddressExposed(localIndex)
                         E.Value(irTextRange, V.LocalAddress(localIndex, irByRefKind, resultTy))
                     else
                         E.Value(irTextRange, V.Local(localIndex, resultTy))
@@ -516,9 +522,13 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             | V.ArgumentAddress(argIndex, kind, resultTy) ->
                 match argMap[argIndex] with
                 | SubValue.Local(localIndex, _) ->
+                    optenv.localManager.MarkAddressExposed(localIndex)
                     E.Value(irTextRange, V.LocalAddress(localIndex, kind, resultTy))
                 | SubValue.Argument(argIndex) ->
-                    E.Value(irTextRange, V.Argument(argIndex, resultTy))
+                    if isEmplaced then
+                        E.Value(irTextRange, V.ArgumentAddress(argIndex, kind, resultTy))
+                    else
+                        E.Value(irTextRange, V.Argument(argIndex, resultTy))
                 | sub ->
                     OlyAssert.Fail($"ArgumentAddress: bad forwardsub {sub}")
 
@@ -643,7 +653,7 @@ let tryInlineFunction optenv irExpr =
                 |> ignore
 
             let irFinalExpr =
-                inlineFunction optenv func localOffset argMap irFuncBodyExpr
+                inlineFunction optenv func localOffset argMap irFuncBodyExpr func.Flags.IsStackEmplace
 
             let irInlinedExpr =
                 (irFinalExpr, argMap)

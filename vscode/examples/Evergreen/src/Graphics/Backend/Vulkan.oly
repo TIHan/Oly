@@ -407,7 +407,7 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
         let mutable pData = default: void*
         if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
             fail("Failed to map memory.")
-    
+
         bufferData.CopyTo(Span(pData, bufferData.Length))
     
         vmaUnmapMemory(app.Allocator, buffer.Allocation)
@@ -1157,6 +1157,10 @@ private createVertexInputBindingDescription<T>(binding: uint32, isInstance: bool
     bindingDescription.stride <- uint32(sizeof<T>)
     bindingDescription.inputRate <- if (isInstance) VkVertexInputRate.VK_VERTEX_INPUT_RATE_INSTANCE else VkVertexInputRate.VK_VERTEX_INPUT_RATE_VERTEX
     bindingDescription
+
+private struct VertexInputs =
+    mutable AttributeDescriptions: VkVertexInputAttributeDescription[] = []
+    mutable Size: uint32 = 0
 
 private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
     let ty = typeof<T>()
