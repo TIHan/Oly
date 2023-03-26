@@ -797,7 +797,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                         match irArg with
                         | E.Value(value=V.Local(localIndex, _)) ->
                             if par.IsMutable <> env.ILLocals[localIndex].IsMutable then
-                                OlyAssert.Fail("Invalid local for stack-emplaced function.")
+                                OlyAssert.Fail("Invalid local mutability for stack-emplaced function.")
 
                             if par.IsMutable then
                                 cenv.LocalMutability[localIndex] <- true
