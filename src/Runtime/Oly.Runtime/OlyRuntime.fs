@@ -789,18 +789,27 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     and record the local if it is mutable or not because we will do a forced forward-sub
                     regardless of mutability for stack-emplaced functions.
 
-                    REVIEW: Looks like we don't have to do this for V.Argument, but we might in the future.
+                    This is also validation for stack-emplaced function calls.
                 *)
                 if func.Flags.IsStackEmplace then
                     (func.Parameters, irArgs)
                     ||> ImArray.iter2 (fun par irArg ->
-                        if par.IsMutable then
-                            match irArg with
-                            | E.Value(value=V.Local(localIndex, _)) ->
+                        match irArg with
+                        | E.Value(value=V.Local(localIndex, _)) ->
+                            if par.IsMutable <> env.ILLocals[localIndex].IsMutable then
+                                OlyAssert.Fail("Invalid local for stack-emplaced function.")
+
+                            if par.IsMutable then
                                 cenv.LocalMutability[localIndex] <- true
-                            | _ ->
-                                ()
+
+                        | E.Value(value=V.Argument(argIndex, _)) ->
+                            if par.IsMutable <> env.Function.IsArgumentMutable(argIndex) then
+                                OlyAssert.Fail("Invalid argument mutability for stack-emplaced function.")
+
+                        | _ ->
+                            OlyAssert.Fail("Invalid stack-emplaced function call.")
                     )
+
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
