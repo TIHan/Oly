@@ -127,6 +127,7 @@ type OlyILFunctionFlags =
     | Pure                          = 0x000200
     | RequiresExplicitTypeArguments = 0x001000
     | ParameterLess                 = 0x010000
+    | StackEmplace                  = 0x100030
 
 [<Flags>]
 type OlyILFieldFlags =

@@ -53,9 +53,9 @@ let (|OrCall|_|) (expr: E) =
     | _ ->
         None
 
-let (|TargetJumpCall|_|) (expr: E) =
+let (|StackEmplaceCall|_|) (expr: E) =
     match expr.Strip() with
-    | E.Call(receiverOpt=None;value=value;args=args) when value.IsTargetJump ->
+    | E.Call(receiverOpt=None;value=value;args=args) when value.IsStackEmplace ->
         Some(value :?> IFunctionSymbol, args)
     | _ ->
         None

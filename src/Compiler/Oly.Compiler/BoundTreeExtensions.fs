@@ -201,7 +201,7 @@ module private Helpers =
         override _.VisitLocalBindingInfo(bindingInfo) =
             let value = bindingInfo.Value
             //OlyAssert.Equal(value.Formal, value)
-            if not value.IsStaticLocalFunction && not value.IsTargetJump && predicate value && not (locals.Add(value.Id)) then 
+            if not value.IsStaticLocalFunction && not value.IsStackEmplace && predicate value && not (locals.Add(value.Id)) then 
                 failwithf "Local already added - name: %s id: %i" value.Name value.Id
             true            
 

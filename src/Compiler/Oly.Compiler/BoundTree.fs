@@ -17,7 +17,7 @@ type LambdaFlags =
     | None                  = 0x0000
     | Inline                = 0x0001
     | Static                = 0x0010
-    | TargetJump            = 0x0100
+    | StackEmplace          = 0x0101
 
     /// Only used in lambda-lifting
     | Bound                 = 0x1000

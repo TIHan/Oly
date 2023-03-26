@@ -96,7 +96,7 @@ let toTargetJump(expr: E) =
             ImArray.empty
             expr.Type
             MemberFlags.Private
-            (FunctionFlags.TargetJump ||| FunctionFlags.Inline)
+            FunctionFlags.StackEmplace
             WellKnownFunction.None
             None
             false
@@ -106,7 +106,7 @@ let toTargetJump(expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            (LambdaFlags.TargetJump ||| LambdaFlags.Inline),
+            LambdaFlags.StackEmplace,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -156,7 +156,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
             pars
             expr.Type
             MemberFlags.Private
-            FunctionFlags.TargetJump
+            FunctionFlags.StackEmplace
             WellKnownFunction.None
             None
             false
@@ -166,7 +166,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.TargetJump,
+            LambdaFlags.StackEmplace,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -254,7 +254,7 @@ let isSimpleExpression (expr: E) =
         argExprs
         |> ImArray.forall isReallySimpleExpression
     | E.Call(receiverOpt=None;args=argExprs;value=value) ->
-        if value.IsTargetJump then
+        if value.IsStackEmplace then
 #if DEBUG
             argExprs
             |> ImArray.forall (function 

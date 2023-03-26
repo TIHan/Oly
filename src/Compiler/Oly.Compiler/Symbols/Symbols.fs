@@ -1590,7 +1590,7 @@ type FunctionFlags =
 
     | EntryPoint                    = 0x000001000000L
 
-    | TargetJump                    = 0x000100000100L
+    | StackEmplace                  = 0x000100000300L
 
     | RequiresExplicitTypeArguments = 0x001000000000L
 
@@ -3918,8 +3918,8 @@ module SymbolExtensions =
                 (this.FunctionFlags &&& FunctionFlags.StaticLocal = FunctionFlags.StaticLocal) &&
                 this.IsLocal
 
-            member this.IsTargetJump =
-                (this.FunctionFlags &&& FunctionFlags.TargetJump = FunctionFlags.TargetJump) &&
+            member this.IsStackEmplace =
+                (this.FunctionFlags &&& FunctionFlags.StackEmplace = FunctionFlags.StackEmplace) &&
                 this.IsLocal
 
             member this.RequiresExplicitTypeArguments =

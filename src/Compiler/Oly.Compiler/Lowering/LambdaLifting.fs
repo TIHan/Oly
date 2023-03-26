@@ -849,7 +849,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
             if bindingInfo.Value.IsStaticLocalFunction then
                 E.Let(syntaxInfo, bindingInfo, makeLambdaBound rhsExpr, bodyExpr)
             else
-                if lambdaFlags.HasFlag(LambdaFlags.TargetJump) then
+                if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
                     let freeLocals = origExpr.GetFreeImmutableLocals()
                     let freeTyVars = origExpr.GetFreeTypeVariables()
 
@@ -893,7 +893,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 pars
                                 returnTy
                                 MemberFlags.Private
-                                ((func.FunctionFlags &&& ~~~FunctionFlags.TargetJump) ||| FunctionFlags.StaticLocal ||| FunctionFlags.InlineAlways)
+                                (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
                                 WellKnownFunction.None
                                 None
                                 false
@@ -907,7 +907,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                             LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
 
                         let newRhsExpr =
-                            E.CreateLambda(syntaxInfoLambda, ((lambdaFlags &&& ~~~LambdaFlags.TargetJump)||| LambdaFlags.Static ||| LambdaFlags.Bound), tyPars, pars, newLazyLambdaBodyExpr)
+                            E.CreateLambda(syntaxInfoLambda, (LambdaFlags.StackEmplace ||| LambdaFlags.Static ||| LambdaFlags.Bound), tyPars, pars, newLazyLambdaBodyExpr)
 
                         let newBodyExpr = 
                             let newArgExprs =

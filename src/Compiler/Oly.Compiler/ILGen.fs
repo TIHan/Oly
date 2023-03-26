@@ -1679,9 +1679,6 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     if not value.TypeParameters.IsEmpty && value.Formal = value then
         OlyAssert.Fail "Unexpected formal value."
 
-    if value.IsTargetJump && not env.isReturnable then
-        failwith "Continuation must be the last call/tail call."
-
     match value with
     | :? IFunctionSymbol as func ->
         if func.LogicalParameterCount <> argExprs.Length then
@@ -1930,13 +1927,13 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     let ilFuncInst = GenFunctionAsILFunctionInstance cenv env witnessArgs func
 
                     if func.IsConstructor && not func.IsBase then
-                        OlyAssert.False(func.IsTargetJump)
+                        OlyAssert.False(func.IsStackEmplace)
                         OlyILOperation.New(ilFuncInst, ilArgExprs)
                     else
                         if func.Parameters.Length <> ilArgExprs.Length then
                             OlyAssert.Fail($"Parameters and arguments do not match - {func.Name}")
                         if isVirtualCall then
-                            OlyAssert.False(func.IsTargetJump)
+                            OlyAssert.False(func.IsStackEmplace)
                             OlyILOperation.CallVirtual(ilFuncInst, ilArgExprs)
                         else
                             OlyILOperation.Call(ilFuncInst, ilArgExprs)
