@@ -190,10 +190,9 @@ let optimizeImmediateExpression cenv origExpr =
             else
                 origExpr
 
-        | E.Literal(literalSyntaxInfo, literal) ->
+        | E.Literal(_, literal) ->
             if canEliminateBinding settings bindingInfo literal.Type then
                 let mutable canEliminate = true
-                let literalExpr = E.Literal(literalSyntaxInfo, literal)
                 let newBodyExpr =
                     bodyExpr.Rewrite(
                         (fun expr -> 
@@ -217,7 +216,7 @@ let optimizeImmediateExpression cenv origExpr =
                         ), fun expr ->
                         match expr with
                         | E.Value(_, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
-                            literalExpr
+                            rhsExpr
                         | _ ->
                             expr
                     )
