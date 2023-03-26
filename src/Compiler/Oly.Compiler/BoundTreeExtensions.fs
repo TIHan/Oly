@@ -208,7 +208,7 @@ module private Helpers =
         override this.VisitExpression(expr) =
             match expr with
             | BoundExpression.Lambda(flags=flags) ->
-                if checkInnerLambdas then
+                if checkInnerLambdas || flags.HasFlag(LambdaFlags.StackEmplace) then
                     Iterator.HandlePossibleLambda((fun x -> not(locals.Contains(x.Formal.Id)) && predicate x), canCache, true, expr, freeLocals, locals)
                     
 

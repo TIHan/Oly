@@ -850,7 +850,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                 E.Let(syntaxInfo, bindingInfo, makeLambdaBound rhsExpr, bodyExpr)
             else
                 if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
-                    let freeLocals = origExpr.GetFreeImmutableLocals()
+                    let freeLocals = origExpr.GetFreeLocals()
                     let freeTyVars = origExpr.GetFreeTypeVariables()
 
                     match rhsExpr with
@@ -874,7 +874,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                         let pars =
                             freeLocals
                             |> ImArray.map (fun (_, x) -> 
-                                let par = createLocalParameterValue(ImArray.empty, x.Name, x.Type.Substitute(tyParLookup), false)
+                                let par = createLocalParameterValue(ImArray.empty, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
                                 valueLookup[x.Id] <- par :> IValueSymbol
                                 par
                             )

@@ -85,6 +85,7 @@ type internal RuntimeFunctionFlags =
     | GenericsErased       = 0b00010000
     | SignatureUsesNewType = 0b00100000
     | EntryPoint           = 0b01000000
+    | StackEmplace         = 0b10000100
 
 [<Sealed>]
 type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray, name: string) =
@@ -112,6 +113,8 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
 
     /// Function is able to be inlined in all situations.
     member _.IsInlineable = funcFlags &&& RuntimeFunctionFlags.Inlineable = RuntimeFunctionFlags.Inlineable
+
+    member _.IsStackEmplace = funcFlags.HasFlag(RuntimeFunctionFlags.StackEmplace)
 
     member _.IsConstructor = ilFuncFlags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
 

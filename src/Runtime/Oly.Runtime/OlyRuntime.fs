@@ -123,6 +123,8 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
 let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILFunctionDefinition) =
     if ilFuncDef.IsConstructor || ilFuncDef.IsAbstract || (ilFuncDef.IsVirtual && not ilFuncDef.IsSealed) || ilFuncDef.IsExported || ilFuncDef.IsImported then
         false
+    elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
+        true
     elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineNever then
         false
     elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineAlways then
@@ -209,6 +211,12 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             RuntimeFunctionFlags.External
         else
             RuntimeFunctionFlags.None
+
+    let irFlags =
+        if ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
+            irFlags ||| RuntimeFunctionFlags.StackEmplace
+        else
+            irFlags
 
     let irFlags =
         match ilAsm.EntryPoint with

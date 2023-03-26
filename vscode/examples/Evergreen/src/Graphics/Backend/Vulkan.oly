@@ -399,7 +399,7 @@ CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags, fl
     | _ =>
         fail("Should not happen")
 
-UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: ReadOnlySpan<T>): () where T: unmanaged =
+UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData: ReadOnlySpan<T>): () where T: unmanaged =
     let mutable memPropFlags = default: VkMemoryPropertyFlags
     vmaGetAllocationMemoryProperties(app.Allocator, buffer.Allocation, &&memPropFlags)
 
@@ -408,7 +408,6 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: ReadOn
         if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
             fail("Failed to map memory.")
     
-        let mutable bufferData = bufferData
         bufferData.CopyTo(Span(pData, bufferData.Length))
     
         vmaUnmapMemory(app.Allocator, buffer.Allocation)
@@ -424,7 +423,6 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: ReadOn
             )
         match (stagingBuffer)
         | (stagingBuffer, stagingAllocation) =>
-            let mutable bufferData = bufferData
             let bufferSpan = Span<T>(allocationInfo.pMappedData, bufferData.Length)
             bufferData.CopyTo(bufferSpan)
             if (!success(vmaFlushAllocation(app.Allocator, stagingAllocation, 0, VK_WHOLE_SIZE)))

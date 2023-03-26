@@ -391,12 +391,12 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
 
             | O.StoreArgument(argIndex, irRhsExpr, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.Local(localIndex, true) ->
+                | SubValue.Local(localIndex, _) ->
                     E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
                 | SubValue.Argument(argIndex) ->
                     E.Operation(irTextRange, O.StoreArgument(argIndex, irRhsExpr, resultTy))
-                | _ ->
-                    OlyAssert.Fail("bad forwardsub")
+                | sub ->
+                    OlyAssert.Fail($"StoreArgument: bad forwardsub {sub}")
 
             | O.Call _ ->
                 match tryInlineFunction optenv irExpr with
@@ -515,12 +515,12 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
 
             | V.ArgumentAddress(argIndex, kind, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.Local(localIndex, true) ->
+                | SubValue.Local(localIndex, _) ->
                     E.Value(irTextRange, V.LocalAddress(localIndex, kind, resultTy))
                 | SubValue.Argument(argIndex) ->
                     E.Value(irTextRange, V.Argument(argIndex, resultTy))
-                | _ ->
-                    OlyAssert.Fail("bad forwardsub")
+                | sub ->
+                    OlyAssert.Fail($"ArgumentAddress: bad forwardsub {sub}")
 
             | _ ->
                 irExpr
@@ -594,7 +594,10 @@ let tryInlineFunction optenv irExpr =
                     let isArgAddressExposed = irFuncBody.ArgumentFlags[i].HasFlag(OlyIRLocalFlags.AddressExposed)
 
                     let isForwardSub =
-                        if isMutable || isArgAddressExposed then false
+                        if func.Flags.IsStackEmplace then
+                            true
+                        elif isMutable || isArgAddressExposed then 
+                            false
                         else
                             match irArgExprs[i] with
                             | E.Value(value=irValue) ->
@@ -625,9 +628,10 @@ let tryInlineFunction optenv irExpr =
                             | V.Argument(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.ArgumentAddress(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.Constant(constant, _) -> SubValue.Constant(constant)
-                            | _ -> OlyAssert.Fail("bad forwardsub")
-                        | _ ->
-                            OlyAssert.Fail("bad forwardsub")
+                            | _ -> 
+                                OlyAssert.Fail($"bad forwardsub {irValue}")
+                        | expr ->
+                            OlyAssert.Fail($"bad forwardsub {expr}")
                     else                       
                         SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                 )

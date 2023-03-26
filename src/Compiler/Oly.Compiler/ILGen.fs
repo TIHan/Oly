@@ -684,6 +684,12 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                     memberFlags
 
         let ilFuncFlags =
+            if func.IsStackEmplace then
+                ilFuncFlags ||| OlyILFunctionFlags.StackEmplace
+            else
+                ilFuncFlags
+
+        let ilFuncFlags =
             if func.IsMutable then
                 ilFuncFlags ||| OlyILFunctionFlags.Mutable
             else
