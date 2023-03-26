@@ -1174,17 +1174,14 @@ private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInpu
         attributeDescription.location <- location
         attributeDescription.offset <- offset
 
-        let mutable size = 0
         if (field.FieldType === typeof<Vector2>())
             attributeDescription.format <- VkFormat.VK_FORMAT_R32G32_SFLOAT
-            size <- sizeof<Vector2>
+            (attributeDescription, uint32(sizeof<Vector2>))
         else if (field.FieldType === typeof<Vector3>())
             attributeDescription.format <- VkFormat.VK_FORMAT_R32G32B32_SFLOAT
-            size <- sizeof<Vector3>
+            (attributeDescription, uint32(sizeof<Vector3>))
         else
             throw NotSupportedException(field.FieldType.ToString())
-
-        (attributeDescription, uint32(size))
 
     let attributeDescriptions = Array.ZeroCreate(fields.Length)
     let mutable i = 0

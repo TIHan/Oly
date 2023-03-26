@@ -767,6 +767,40 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             OlyAssert.False(func.EnclosingType.IsShape)
 
             if func.Flags.IsInlineable then
+
+                (*
+                    Stack Emplace:
+
+                    This fixes a nasty and hidden bug in this example:
+
+                    let mutable currentOffset = 0
+                    match (abc)
+                    | abc =>   // May or may not use a stack-emplace function for the target. Let's assume it does.
+                        work()
+                        work()
+                        work()
+                        currentOffset <- currentOffset + 5
+                        print(currentOffset) // The bug here was that it prints "0" with optimizations on, due to copy-prop.
+                    | _ =>
+                        ()
+
+                    Pattern matches could use a stack-emplace function for the target,
+                    therefore, we need to check the parameters and the argument expressions of locals
+                    and record the local if it is mutable or not because we will do a forced forward-sub
+                    regardless of mutability for stack-emplaced functions.
+
+                    REVIEW: Looks like we don't have to do this for V.Argument, but we might in the future.
+                *)
+                if func.Flags.IsStackEmplace then
+                    (func.Parameters, irArgs)
+                    ||> ImArray.iter2 (fun par irArg ->
+                        if par.IsMutable then
+                            match irArg with
+                            | E.Value(value=V.Local(localIndex, _)) ->
+                                cenv.LocalMutability[localIndex] <- true
+                            | _ ->
+                                ()
+                    )
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
