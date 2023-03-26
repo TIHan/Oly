@@ -170,7 +170,7 @@ let optimizeImmediateExpression cenv origExpr =
         origExpr
 #endif
 
-    | E.Let(_, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.IsLocal || bindingInfo.Value.IsBase ->
+    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.IsLocal || bindingInfo.Value.IsBase ->
         match rhsExpr with
         | E.Value(_, rhsValue) when not(rhsValue.IsMutable) && rhsValue.IsLocal ->
             if canEliminateBinding settings bindingInfo rhsValue.Type then
@@ -195,23 +195,39 @@ let optimizeImmediateExpression cenv origExpr =
                 let mutable canEliminate = true
                 let literalExpr = E.Literal(literalSyntaxInfo, literal)
                 let newBodyExpr =
-                    bodyExpr.Rewrite(fun expr ->
+                    bodyExpr.Rewrite(
+                        (fun expr -> 
+                            match expr with
+                            | AddressOf(E.Value(value=value)) ->
+                                if value.Id = bindingInfo.Value.Id then
+                                    canEliminate <- false
+                                    false
+                                else
+                                    true
+                            | E.Call(value=value) ->
+                                // We do this to ensure we do not replace an argument for a stack-emplaced function
+                                // with a literal as it is illegal.
+                                if value.IsStackEmplace then
+                                    canEliminate <- false
+                                    false
+                                else
+                                    true
+                            | _ ->
+                                true
+                        ), fun expr ->
                         match expr with
-                        | AddressOf(argExpr) when literalExpr = argExpr  ->
-                            canEliminate <- false
-                            expr
                         | E.Value(_, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
                             literalExpr
                         | _ ->
                             expr
                     )
-                if canEliminate then
-                    if newBodyExpr = bodyExpr then
-                        origExpr
-                    else
-                        newBodyExpr
-                else
+                if newBodyExpr = bodyExpr then
                     origExpr
+                else
+                    if canEliminate then
+                        newBodyExpr
+                    else
+                        E.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
             else
                 origExpr
         | _ ->
