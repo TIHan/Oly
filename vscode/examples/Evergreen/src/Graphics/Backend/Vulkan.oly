@@ -49,21 +49,21 @@ extension VkResultExtensions =
 (&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
 #[intrinsic("bitwise_and")]
 (&)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
+#[intrinsic("bitwise_and")]
+(&)(VkMemoryPropertyFlags, VkMemoryPropertyFlags): VkMemoryPropertyFlags
 
 #[intrinsic("equal")]
 (==)(VkQueueFlags, VkQueueFlags): bool
-
 #[intrinsic("equal")]
 (==)(VkFormat, VkFormat): bool
-
 #[intrinsic("equal")]
 (==)(VkColorSpaceKHR, VkColorSpaceKHR): bool
-
 #[intrinsic("equal")]
 (==)(VkPresentModeKHR, VkPresentModeKHR): bool
-
 #[intrinsic("equal")]
 (==)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): bool
+#[intrinsic("equal")]
+(==)(VkMemoryPropertyFlags, VkMemoryPropertyFlags): bool
 
 private success(result: VkResult): bool =
     result == VkResult.VK_SUCCESS
@@ -392,27 +392,57 @@ CreateVertexBindingDescription<T>(binding: uint32, isInstance: bool): VkVertexIn
 CreateVertexAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
     createVertexInputAttributeDescriptions<T>(binding)
 
-CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags): VulkanBuffer =
-    match (createBuffer(app.Allocator, size, usage))
+CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags, flags: VmaAllocationCreateFlags): VulkanBuffer =
+    match (createBuffer(app.Allocator, size, usage, flags, nullptr))
     | (buffer, allocation) =>
         VulkanBuffer(buffer, allocation, size)
     | _ =>
         fail("Should not happen")
 
 UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData: ReadOnlySpan<T>): () where T: unmanaged =
-    let mutable pData = default: void*
-    if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
-        fail("Failed to map memory.")
+    let mutable memPropFlags = default: VkMemoryPropertyFlags
+    vmaGetAllocationMemoryProperties(app.Allocator, buffer.Allocation, &&memPropFlags)
 
-    bufferData.CopyTo(Span(pData, bufferData.Length))
+    if ((memPropFlags & VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+        let mutable pData = default: void*
+        if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
+            fail("Failed to map memory.")
+    
+        bufferData.CopyTo(Span(pData, bufferData.Length))
+    
+        vmaUnmapMemory(app.Allocator, buffer.Allocation)
+    else
+        let mutable allocationInfo = default
+        let stagingBuffer = 
+            createBuffer(
+                app.Allocator, 
+                buffer.Size, 
+                VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                &&allocationInfo
+            )
+        match (stagingBuffer)
+        | (stagingBuffer, stagingAllocation) =>
+            let bufferSpan = Span<T>(allocationInfo.pMappedData, bufferData.Length)
+            bufferData.CopyTo(bufferSpan)
+            if (!success(vmaFlushAllocation(app.Allocator, stagingAllocation, 0, VK_WHOLE_SIZE)))
+                fail("Failed to flush allocation.")
 
-    vmaUnmapMemory(app.Allocator, buffer.Allocation)
+            let mutable bufferCopy = default: VkBufferCopy
+            bufferCopy.srcOffset <- 0
+            bufferCopy.dstOffset <- 0
+            bufferCopy.size <- uint64(sizeof<T> * bufferData.Length)
+
+            fail("not implemented yet")
+            //vkCmdCopyBuffer()
+        | _ =>
+            fail("should not happen")
 
 UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[||]): () where T: unmanaged =
     UpdateBuffer<T>(app, buffer, ReadOnlySpan(bufferData))
 
 UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): () where T: unmanaged =
-    UpdateBuffer<T>(app, buffer, ReadOnlySpan(UnsafeCast<T[||]>(bufferData)))
+    UpdateBuffer<T>(app, buffer, ReadOnlySpan<T>(UnsafeCast<T[||]>(bufferData)))
 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
@@ -1104,7 +1134,7 @@ private sealed class VulkanBuffer =
             Size = size
         }
 
-private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsageFlags): (VkBuffer, VmaAllocation) =
+private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsageFlags, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkBuffer, VmaAllocation) =
     let mutable bufferInfo = default: VkBufferCreateInfo
     bufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
     bufferInfo.size <- size
@@ -1112,11 +1142,11 @@ private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsage
 
     let mutable allocInfo = default: VmaAllocationCreateInfo
     allocInfo.usage <- VmaMemoryUsage.VMA_MEMORY_USAGE_AUTO
-    allocInfo.flags <- VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+    allocInfo.flags <- flags
 
     let mutable buffer = default: VkBuffer
     let mutable allocation = default: VmaAllocation
-    if (!success(vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, nullptr)))
+    if (!success(vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, pAllocationInfo)))
         fail("Failed to create buffer.")
 
     (buffer, allocation)

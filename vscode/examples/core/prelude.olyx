@@ -117,6 +117,9 @@ int32(float64): int32
 uint64(uint32): uint64
 
 #[intrinsic("cast")]
+uint64(int32): uint64
+
+#[intrinsic("cast")]
 uint64(int64): uint64
 
 #[intrinsic("cast")]

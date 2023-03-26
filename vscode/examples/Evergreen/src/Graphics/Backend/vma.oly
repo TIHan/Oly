@@ -137,6 +137,16 @@ struct VmaAllocationCreateInfo =
     mutable pUserData: void* = default
     mutable priority: float32 = default
 
+#[StructLayout(LayoutKind.Sequential)]
+struct VmaAllocationInfo =
+    mutable memoryType: uint32 = default
+    mutable devicememory: VkDeviceMemory = default
+    mutable offset: uint64 = default // VkDeviceSize
+    mutable size: uint64 = default // VkDeviceSize
+    mutable pMappedData: void* = default
+    mutable pUserData: void* = default
+    mutable pName: int8* = default
+
 #[import("C", "VulkanMemoryAllocator.dll", "vmaCreateAllocator")]
 vmaCreateAllocator(pCreateInfo: VmaAllocatorCreateInfo*, pAllocator: VmaAllocator*): VkResult
 
@@ -150,7 +160,7 @@ vmaCreateBuffer(
     pAllocationCreateInfo: VmaAllocationCreateInfo*, 
     #[Out()] pBuffer: VkBuffer*,
     #[Out()] pAllocation: VmaAllocation*,
-    #[Out()] pAllocationInfo: void*): VkResult
+    #[Out()] pAllocationInfo: VmaAllocationInfo*): VkResult
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaDestroyBuffer")]
 vmaDestroyBuffer(allocator: VmaAllocator, buffer: VkBuffer, allocation: VmaAllocation): ()
@@ -160,3 +170,9 @@ vmaMapMemory(allocator: VmaAllocator, allocation: VmaAllocation, ppData: (void*)
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaUnmapMemory")]
 vmaUnmapMemory(allocator: VmaAllocator, allocation: VmaAllocation): ()
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaGetAllocationMemoryProperties")]
+vmaGetAllocationMemoryProperties(allocator: VmaAllocator, allocation: VmaAllocation, pFlags: VkMemoryPropertyFlags*): ()
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaFlushAllocation")]
+vmaFlushAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: uint64, size: uint64): VkResult

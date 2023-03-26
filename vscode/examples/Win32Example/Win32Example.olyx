@@ -13,9 +13,12 @@ open Evergreen.Window
 
 private alias vk = Evergreen.Graphics.Backend.Vulkan
 private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
+private alias VmaAllocationCreateFlags = Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator.VmaAllocationCreateFlags
 
 #[intrinsic("bitwise_or")]
 (|)(VkBufferUsageFlags, VkBufferUsageFlags): VkBufferUsageFlags
+#[intrinsic("bitwise_or")]
+(|)(VmaAllocationCreateFlags, VmaAllocationCreateFlags): VmaAllocationCreateFlags
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
@@ -44,8 +47,15 @@ main(): () =
 
     printLine(vulkanApp.GetDeviceName())
 
-    let buffer = vk.CreateBuffer(vulkanApp, 65536, VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT)
-    vk.UpdateBuffer(vulkanApp, buffer, Vertices)
+    let buffer = 
+        vk.CreateBuffer(
+            vulkanApp, 
+            65536, 
+            VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+        )
+    let bufferSpan = ReadOnlySpan(UnsafeCast<Vertex[||]>(Vertices))
+    vk.UpdateBuffer(vulkanApp, buffer, bufferSpan)
 
     let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
     let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
