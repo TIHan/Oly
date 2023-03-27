@@ -55,7 +55,8 @@ main(): () =
             vulkanApp, 
             65536, 
             VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+           // VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
         )
     vk.UpdateBuffer(vulkanApp, buffer, Vertices)
 
@@ -66,7 +67,6 @@ main(): () =
     let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
-    let commandPool = vk.CreateGraphicsCommandPool(vulkanApp)
 
     let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
         vk.ResetCommandBuffer(vulkanApp, commandBuffer)
@@ -87,7 +87,7 @@ main(): () =
         let commandBuffers = Array.ZeroCreate(vulkanApp.MaxFramesInFlight)
         let mutable i = 0
         while (i < commandBuffers.Length)
-            commandBuffers[i] <- vk.CreateCommandBuffer(vulkanApp, commandPool)
+            commandBuffers[i] <- vk.CreateGraphicsCommandBuffer(vulkanApp)
             i <- i + 1
         commandBuffers
 
@@ -158,8 +158,7 @@ main(): () =
     vk.DestroyBuffer(vulkanApp, buffer)
 
     cleanupSwapChain()
-
-    vk.DestroyCommandPool(vulkanApp, commandPool)
+    
     vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 
     vk.DestroyShaderModule(vulkanApp, vertexShaderModule)

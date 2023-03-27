@@ -76,10 +76,13 @@ sealed class VulkanApplication =
     Device: VkDevice
     GraphicsQueue: VkQueue
     GraphicsQueueFamilyIndex: uint32
+    GraphicsCommandPool: VkCommandPool
     ComputeQueue: VkQueue
     ComputeQueueFamilyIndex: uint32
+    ComputeCommandPool: VkCommandPool
     TransferQueue: VkQueue
     TransferQueueFamilyIndex: uint32
+    TransferCommandPool: VkCommandPool
     PresentQueue: VkQueue
     PresentQueueFamilyIndex: uint32
     DebugMessenger: VkDebugUtilsMessengerEXT
@@ -100,6 +103,9 @@ sealed class VulkanApplication =
         String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
 
     new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], allocator: VmaAllocator) =
+        let graphicsCommandPool = createCommandPool(device, graphicsQueueFamilyIndex)
+        let computeCommandPool = createCommandPool(device, computeQueueFamilyIndex)
+        let transferCommandPool = createCommandPool(device, transferQueueFamilyIndex)
         {
             ValidationLayersEnabled = validationLayersEnabled
             Instance = instance
@@ -108,10 +114,13 @@ sealed class VulkanApplication =
             Device = device
             GraphicsQueue = graphicsQueue
             GraphicsQueueFamilyIndex = graphicsQueueFamilyIndex
+            GraphicsCommandPool = graphicsCommandPool
             ComputeQueue = computeQueue
             ComputeQueueFamilyIndex = computeQueueFamilyIndex
+            ComputeCommandPool = computeCommandPool
             TransferQueue = transferQueue
             TransferQueueFamilyIndex = transferQueueFamilyIndex
+            TransferCommandPool = transferCommandPool
             PresentQueue = presentQueue
             PresentQueueFamilyIndex = presentQueueFamilyIndex
             DebugMessenger = debugMessenger
@@ -320,6 +329,9 @@ Destroy(app: VulkanApplication): () =
         vkDestroySemaphore(app.Device, app.RenderFinishedSemaphores[i], nullptr)
         i <- i + 1
     
+    vkDestroyCommandPool(app.Device, app.GraphicsCommandPool, nullptr)
+    vkDestroyCommandPool(app.Device, app.ComputeCommandPool, nullptr)
+    vkDestroyCommandPool(app.Device, app.TransferCommandPool, nullptr)
     vkDestroyDevice(app.Device, nullptr)
 
     vkDestroySurfaceKHR(app.Instance, app.Surface, nullptr)
@@ -370,14 +382,14 @@ DestroyFramebuffers(app: VulkanApplication, mutable framebuffers: ReadOnlySpan<V
         DestroyFramebuffer(app, framebuffers[i])
         i <- i + 1
 
-CreateGraphicsCommandPool(app: VulkanApplication): VkCommandPool =
-    createCommandPool(app.Device, app.GraphicsQueueFamilyIndex)
+CreateGraphicsCommandBuffer(app: VulkanApplication): VulkanCommandBuffer =
+    VulkanCommandBuffer(createCommandBuffer(app.Device, app.GraphicsCommandPool))
 
-DestroyCommandPool(app: VulkanApplication, commandPool: VkCommandPool): () =
-    vkDestroyCommandPool(app.Device, commandPool, nullptr)
+CreateComputeCommandBuffer(app: VulkanApplication): VulkanCommandBuffer =
+    VulkanCommandBuffer(createCommandBuffer(app.Device, app.ComputeCommandPool))
 
-CreateCommandBuffer(app: VulkanApplication, commandPool: VkCommandPool): VulkanCommandBuffer =
-    VulkanCommandBuffer(createCommandBuffer(app.Device, commandPool))
+CreateTransferCommandBuffer(app: VulkanApplication): VulkanCommandBuffer =
+    VulkanCommandBuffer(createCommandBuffer(app.Device, app.TransferCommandPool))
 
 ResetCommandBuffer(app: VulkanApplication, commandBuffer: VulkanCommandBuffer): () =
     if (vkResetCommandBuffer(commandBuffer.CommandBuffer, default) != VkResult.VK_SUCCESS)
@@ -427,14 +439,41 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
             bufferData.CopyTo(bufferSpan)
             if (!success(vmaFlushAllocation(app.Allocator, stagingAllocation, 0, VK_WHOLE_SIZE)))
                 fail("Failed to flush allocation.")
-
+            
             let mutable bufferCopy = default: VkBufferCopy
             bufferCopy.srcOffset <- 0
             bufferCopy.dstOffset <- 0
             bufferCopy.size <- uint64(sizeof<T> * bufferData.Length)
 
-            fail("not implemented yet")
-            //vkCmdCopyBuffer()
+            let mutable commandBuffer = createCommandBuffer(app.Device, app.TransferCommandPool)
+
+            let mutable beginInfo = default: VkCommandBufferBeginInfo
+            beginInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+            beginInfo.flags <- default // Optional
+            beginInfo.pInheritanceInfo <- nullptr // Optional
+
+            if (!success(vkBeginCommandBuffer(commandBuffer, &&beginInfo)))
+                fail("Failed to begin command buffer.")
+
+            vkCmdCopyBuffer(commandBuffer, stagingBuffer, buffer.Buffer, 1, &&bufferCopy)
+
+            if (!success(vkEndCommandBuffer(commandBuffer)))
+                fail("Failed to end command buffer.")
+            
+            let mutable submitInfo = default: VkSubmitInfo
+            submitInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO
+            submitInfo.commandBufferCount <- 1
+            submitInfo.pCommandBuffers <- &&commandBuffer
+
+            if (!success(vkQueueSubmit(app.TransferQueue, 1, &&submitInfo, default)))
+                fail("Failed to submit queue.")
+
+            if (!success(vkDeviceWaitIdle(app.Device)))
+                fail("Failed to wait idle on device.")
+
+            vkFreeCommandBuffers(app.Device, app.TransferCommandPool, 1, &&commandBuffer)
+
+            vmaDestroyBuffer(app.Allocator, stagingBuffer, stagingAllocation)
         | _ =>
             fail("should not happen")
 

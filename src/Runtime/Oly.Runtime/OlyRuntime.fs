@@ -634,7 +634,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
                 | OlyILByRefKind.Read -> OlyIRByRefKind.Read
             if not env.ILLocals.[localIndex].IsMutable && irByRefKind = OlyIRByRefKind.ReadWrite then
-                failwith "Invalid IL."
+                failwith "Invalid IL for local."
             let elementTy = cenv.EmitType(localTy)
             let resultTy = createByReferenceRuntimeType irByRefKind localTy
             V.LocalAddress(localIndex, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
