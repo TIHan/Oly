@@ -486,6 +486,12 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
 
+CreateDescriptorSetLayout(app: VulkanApplication, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
+    createDescriptSetLayout(app.Device, binding, descriptorType, stageFlags)
+
+DestroyDescriptorSetLayout(app: VulkanApplication, descriptorSetLayout: VkDescriptorSetLayout): () =
+    vkDestroyDescriptorSetLayout(app.Device, descriptorSetLayout, nullptr)
+
 Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (imageIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
 
@@ -1197,10 +1203,6 @@ private createVertexInputBindingDescription<T>(binding: uint32, isInstance: bool
     bindingDescription.inputRate <- if (isInstance) VkVertexInputRate.VK_VERTEX_INPUT_RATE_INSTANCE else VkVertexInputRate.VK_VERTEX_INPUT_RATE_VERTEX
     bindingDescription
 
-private struct VertexInputs =
-    mutable AttributeDescriptions: VkVertexInputAttributeDescription[] = []
-    mutable Size: uint32 = 0
-
 private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
     let ty = typeof<T>()
     let size = sizeof<T>
@@ -1234,6 +1236,25 @@ private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInpu
             fail("should not happen")
         i <- i + 1
     UnsafeCast(attributeDescriptions)
+
+createDescriptSetLayout(device: VkDevice, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
+    let mutable layoutBinding = default: VkDescriptorSetLayoutBinding
+    layoutBinding.binding <- binding
+    layoutBinding.descriptorType <- descriptorType
+    layoutBinding.descriptorCount <- 1
+    layoutBinding.stageFlags <- stageFlags
+    layoutBinding.pImmutableSamplers <- nullptr
+
+    let mutable layoutInfo = default: VkDescriptorSetLayoutCreateInfo
+    layoutInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
+    layoutInfo.bindingCount <- 1
+    layoutInfo.pBindings <- &&layoutBinding
+
+    let mutable descriptorSetLayout = default: VkDescriptorSetLayout
+    if (!success(vkCreateDescriptorSetLayout(device, &&layoutInfo, nullptr, &&descriptorSetLayout)))
+        fail("Failed to create descriptor set layout.")
+
+    descriptorSetLayout
 
 // -----------------------------------------------------------------------
 
