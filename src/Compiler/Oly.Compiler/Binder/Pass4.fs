@@ -1299,6 +1299,22 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
 
 let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
     let elements =
+        // TODO: Uncomment this when we figure out the final design of not requiring ";" for
+        //       array expressions.
+        //let syntaxElements =
+        //    let syntaxElements =
+        //        syntaxElements
+        //        |> ImArray.map (fun syntaxElement ->
+        //            syntaxElement.FlattenSequentials()
+        //        )
+        //    if syntaxElements.Length > 1 then
+        //        syntaxElements
+        //        |> ImArray.reduce ImArray.append
+        //    elif syntaxElements.Length = 1 then
+        //        syntaxElements[0]
+        //    else
+        //        ImArray.empty
+
         syntaxElements
         |> ImArray.map (fun syntaxElement ->
             let _, item = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxElement syntaxElement
