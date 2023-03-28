@@ -14458,3 +14458,27 @@ module Test2 =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Newtype with a static function``() =
+    let src =
+        """
+#[open]
+newtype Option<T> =
+    private value: T
+
+    static Some(value: T): Option<T> = Option(unchecked default)
+
+    GetValue(): T = this.value
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = Some("passed")
+    print(x.GetValue())
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
