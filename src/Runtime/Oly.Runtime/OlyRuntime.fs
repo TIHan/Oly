@@ -2783,7 +2783,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 //        func.EnclosingType.TypeArguments
                 //    else 
                 //        funcTyArgs
-                if genericContext.IsErasingFunction || genericContext.FunctionTypeArguments.IsEmpty then
+                if genericContext.IsErasingFunction then
                     GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
                 else                     
                     GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)

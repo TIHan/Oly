@@ -14432,3 +14432,29 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Recursive type arguments but unused``() =
+    let src =
+        """
+namespace Test
+
+module Test1 =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+module Test2 =
+
+    main(): () =
+        let m = M()
+        Test1.print("passed")
+
+    struct N<T>
+
+    struct M =
+        mutable E: N<M> = default
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
