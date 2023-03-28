@@ -133,6 +133,8 @@ type GenericContext =
 
     member this.Length = this.enclosingTyArgs.Length + this.funcTyArgs.Length
 
+    member this.EnclosingTypeArguments = this.enclosingTyArgs
+
     member this.TypeArguments = this.enclosingTyArgs.AddRange(this.funcTyArgs)
 
     member this.IsErasingType = this.isTyErasing

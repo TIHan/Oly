@@ -3523,13 +3523,13 @@ let ``Enum types require cases 2``() =
         """
 enum Test =
 
-    static test(): () = ()
+    test(): () = ()
         """
     Oly src
     |> withErrorDiagnostics
         [
             "Enum declaration must specify one or more cases."
-            "Value declaration not valid on an 'enum' type."
+            "Instance member not valid on an 'enum' type."
         ]
     |> ignore
 

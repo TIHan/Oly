@@ -478,7 +478,10 @@ let addBindingDeclarationsToEntityPass2 cenv env (bindings: (BindingInfoSymbol *
     )
 
     entBuilder.SetBindings(cenv.pass, bindings)
-    if entBuilder.Entity.IsEnum then ()
+    if entBuilder.Entity.IsEnum then
+        entBuilder.SetProperties(cenv.pass, props.ToImmutable())
+        entBuilder.SetFunctions(cenv.pass, funcs.ToImmutable())
+        entBuilder.SetPatterns(cenv.pass, pats.ToImmutable())
     else
         entBuilder.SetFields(cenv.pass, fields.ToImmutable())
         entBuilder.SetProperties(cenv.pass, props.ToImmutable())

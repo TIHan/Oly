@@ -109,8 +109,8 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
     not hasErrors
 
 let checkEnumForInvalidFieldOrFunction (cenv: cenv) syntaxNode (binding: BindingInfoSymbol) =
-    if binding.Value.Enclosing.IsEnum then
-        cenv.diagnostics.Error("Value declaration not valid on an 'enum' type.", 10, syntaxNode)
+    if binding.Value.Enclosing.IsEnum && binding.Value.IsInstance then
+        cenv.diagnostics.Error("Instance member not valid on an 'enum' type.", 10, syntaxNode)
 
 let private checkUsageTypeExport cenv env syntaxNode (name: string) (ty: TypeSymbol) =
     // Do not strip type equations here.

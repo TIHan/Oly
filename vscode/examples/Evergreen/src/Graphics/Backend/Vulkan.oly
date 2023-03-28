@@ -417,7 +417,7 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
 
     if ((memPropFlags & VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
         let mutable pData = default: void*
-        if (!success(vmaMapMemory(app.Allocator, buffer.Allocation, &&pData)))
+        if (vmaMapMemory(app.Allocator, buffer.Allocation, &&pData) != VkResult.VK_SUCCESS)
             fail("Failed to map memory.")
 
         bufferData.CopyTo(Span(pData, bufferData.Length))

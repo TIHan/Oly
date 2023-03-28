@@ -14389,3 +14389,46 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
+
+[<Fact>]
+let ``Witness pass should work for unrelated T``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+extension VkResultExtensions =
+    inherits VkResult
+
+    #[not inline]
+    static op_Equality(result1: VkResult, result2: VkResult): bool =
+        true
+
+#[not inline]
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+enum VkResult =
+    | VK_SUCCESS
+    | VK_FAILURE
+
+struct TestStruct
+
+#[not inline]
+update<T>(): () =
+    if (VkResult.VK_SUCCESS == VkResult.VK_SUCCESS)
+        print("passed")
+
+main(): () =
+    update<TestStruct>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore

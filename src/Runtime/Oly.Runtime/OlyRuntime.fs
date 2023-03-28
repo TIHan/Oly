@@ -1606,28 +1606,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             funcs[0].MakeInstance(enclosing.AsType, funcTyArgs)
 
-    let resolveWitnesses ilAsm ilWitnesses (funcTyArgs: _ imarray) (passedWitnesses: _ imarray) (genericContext: GenericContext) =
-        let witnesses =
-            let fixedGenericContext =
-                // TODO: This could add support for witness resolving for type parameters on types.
-                //let funcTyArgs =
-                //    if func.Flags.IsConstructor then
-                //        func.EnclosingType.TypeArguments
-                //    else
-                //        funcTyArgs
-                if genericContext.IsErasingFunction || genericContext.FunctionTypeArguments.IsEmpty then
-                    genericContext.AddErasingFunctionTypeArguments(funcTyArgs)
-                else                     
-                    genericContext.AddFunctionTypeArguments(funcTyArgs)
-            ilWitnesses
-            |> ImArray.map (fun x -> 
-                resolveWitness ilAsm x fixedGenericContext
-            )
-
-        witnesses.AddRange(passedWitnesses)
-        |> Seq.distinct
-        |> ImArray.ofSeq
-
     let findFormalFunctionsByTypeAndFunctionSignature (targetTy: RuntimeType) (targetFunc: RuntimeFunction) =
         let ty =
             if targetTy.IsPrimitive then
@@ -2270,8 +2248,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | ValueSome(emittedFunc) -> 
                 emittedFunc
             | _ ->
-                if func.EnclosingType.IsEnum then
-                    failwith "Member functions on an 'enum' are not allowed."
+                if func.EnclosingType.IsEnum && func.Flags.IsInstance then
+                    failwith "Instance member functions on an 'enum' are not allowed."
 
                 let enclosingTyParCount = enclosingTy.TypeArguments.Length
 
@@ -2409,9 +2387,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                             funcs
 
                                     if funcs.IsEmpty then
-                                        failwithf "Function not found: %A" func.Name
+                                        failwithf "When emitting function definition, function not found: %A" func.Name
                                     elif funcs.Length > 1 then
-                                        failwithf "Duplicate functions found: %A" func.Name
+                                        failwithf "When emitting function definition, duplicate functions found: %A" func.Name
                                     else
                                         let foundFunc = funcs.[0]
                                         this.EmitFunction(foundFunc)
@@ -2719,7 +2697,24 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                         funcs
                                 let funcs = find realTy
                                 if funcs.IsEmpty then
-                                    failwithf "Function not found: %A" funcInst.Name
+                                    // Error since we did not find the function.
+                                    // Below is just for printing, no actual necessary logic.
+                                    let tyArgsText =
+                                        if funcInst.TypeArguments.IsEmpty then
+                                            ""
+                                        elif funcInst.TypeArguments.Length = 1 then
+                                            $"<{funcInst.TypeArguments[0].Name}>"
+                                        else
+                                            "<" + (funcInst.TypeArguments |> ImArray.map (fun x -> x.Name) |> ImArray.reduce (fun x y -> x + ", " + y)) + ">"
+                                    let parsText =
+                                        if funcInst.Parameters.IsEmpty then
+                                            $"(): {funcInst.ReturnType.Name}"
+                                        elif funcInst.Parameters.Length = 1 then
+                                            $"({funcInst.Parameters[0].Type.Name}): {funcInst.ReturnType.Name}"
+                                        else
+                                            "(" + (funcInst.Parameters |> ImArray.map (fun x -> x.Type.Name) |> ImArray.reduce (fun x y -> x + ", " + y)) + $"): {funcInst.ReturnType.Name}"
+
+                                    failwith $"Function not found: {funcInst.Name}{tyArgsText}{parsText}\nReal Type: {realTy.Name}\nEnclosing Type: {enclosingTy.Name}"                                  
                                 if funcs.Length > 1 then
                                     failwith "Too many functions"
                                 funcs.[0]
@@ -2779,8 +2774,27 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         else
             funcs.[0].MakeReference(enclosingTy)
 
-    member this.ResolveWitnesses(ilAsm, ilWitnesses, funcTyArgs, passedWitnesses, genericContext) =
-        resolveWitnesses ilAsm ilWitnesses funcTyArgs passedWitnesses genericContext
+    member private this.ResolveWitnesses(ilAsm, ilWitnesses, funcTyArgs, passedWitnesses, genericContext) =
+        let witnesses =
+            let fixedGenericContext =
+                // TODO: This could add support for witness resolving for type parameters on types.
+                //let funcTyArgs =
+                //    if func.Flags.IsConstructor then
+                //        func.EnclosingType.TypeArguments
+                //    else 
+                //        funcTyArgs
+                if genericContext.IsErasingFunction || genericContext.FunctionTypeArguments.IsEmpty then
+                    GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
+                else                     
+                    GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)
+            ilWitnesses
+            |> ImArray.map (fun x -> 
+                resolveWitness ilAsm x fixedGenericContext
+            )
+
+        witnesses.AddRange(passedWitnesses)
+        |> Seq.distinct
+        |> ImArray.ofSeq
 
     member private this.AreFunctionSpecificationsEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
         ilFuncSpec1.IsInstance = ilFuncSpec2.IsInstance &&
