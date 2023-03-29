@@ -2324,16 +2324,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         OlyAssert.False(func.Flags.IsConstructor && func.Flags.IsInstance)
                         OlyAssert.True(externalInfoOpt.IsNone)
 
-                        let fakeReceiverTy =
-                            let extendsTy = func.EnclosingType.Extends[0]
-                            if extendsTy.IsAnyStruct then
-                                createByReferenceRuntimeType OlyIRByRefKind.Read extendsTy
-                            else
-                                extendsTy
-
                         let pars =
-                            pars
-                            |> ImArray.prependOne (OlyIRParameter("", this.EmitType(fakeReceiverTy), false))
+                            if func.Flags.IsInstance then
+                                let fakeReceiverTy =
+                                    let extendsTy = func.EnclosingType.Extends[0]
+                                    if extendsTy.IsAnyStruct then
+                                        createByReferenceRuntimeType OlyIRByRefKind.Read extendsTy
+                                    else
+                                        extendsTy
+                                pars
+                                |> ImArray.prependOne (OlyIRParameter("", this.EmitType(fakeReceiverTy), false))
+                            else
+                                pars
 
                         flags.SetStatic(), pars
                     else

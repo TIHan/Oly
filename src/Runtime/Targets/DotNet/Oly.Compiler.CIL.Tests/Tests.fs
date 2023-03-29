@@ -14467,7 +14467,7 @@ let ``Newtype with a static function``() =
 newtype Option<T> =
     private value: T
 
-    static Some(value: T): Option<T> = Option(unchecked default)
+    static Some(value: T): Option<T> = Option(value)
 
     GetValue(): T = this.value
 
