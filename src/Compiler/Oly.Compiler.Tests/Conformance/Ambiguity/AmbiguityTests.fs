@@ -130,12 +130,6 @@ class Test =
     ^
 """
         )
-        ("'x(): ()' has duplicate member definitions.",
-            """
-    x() : ()
-    ^
-"""
-        )
     ]
     |> ignore
 

@@ -89,7 +89,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 true
         )
 
-    let fieldSet =
+    let fieldOrPropSet =
         ent.FindIntrinsicFields(env.benv, QueryMemberFlags.StaticOrInstance)
         |> Seq.filter (fun x ->
             match x.Enclosing.TryEntity with
@@ -101,17 +101,15 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         )
         |> HashSet
 
-    let propSet =
-        ent.FindIntrinsicProperties(env.benv, QueryMemberFlags.StaticOrInstance)
-        |> Seq.filter (fun x ->
-            match x.Enclosing.TryEntity with
-            | Some ent -> ent.Id <> entBuilder.Entity.Id
-            | _ -> true
-        )
-        |> Seq.map (fun x ->
-            x.Name
-        )
-        |> HashSet
+    ent.FindIntrinsicProperties(env.benv, QueryMemberFlags.StaticOrInstance)
+    |> Seq.filter (fun x ->
+        match x.Enclosing.TryEntity with
+        | Some ent -> ent.Id <> entBuilder.Entity.Id
+        | _ -> true
+    )
+    |> Seq.iter (fun x ->
+        fieldOrPropSet.Add(x.Name) |> ignore
+    )
 
     let inheritedFuncSet = FunctionSignatureMutableSet.Create(funcs)
     let funcSet = FunctionSignatureMutableSet.Create([])
@@ -140,9 +138,6 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     true
             | _ ->
                 false
-
-    let doesPropAlreadyExist (prop: IPropertySymbol) =
-        propSet.Add(prop.Name) |> not      
 
     let env =
         match syntaxTyDeclBody with
@@ -216,11 +211,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         | _ -> ()
 
         let duplicateError (value: IValueSymbol) syntaxNode =
-            cenv.diagnostics.Error(sprintf "'%s' has duplicate member definitions." (printValue env.benv value), 10, syntaxNode)
-
-        if fieldSet.Contains(binding.Value.Name) then
-            if not binding.Value.IsInvalid then
-                duplicateError binding.Value syntax.Identifier
+            if not value.IsInvalid then
+                cenv.diagnostics.Error(sprintf "'%s' has duplicate member definitions." (printValue env.benv value), 10, syntaxNode)
 
         let tryOverride (func: FunctionSymbol) =
             let mostSpecificFuncs =
@@ -315,69 +307,64 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             elif doesFuncAlreadyExist func then
                 duplicateError func syntax.Identifier
 
-        if binding.Value.IsProperty then
-            if fieldSet.Add(binding.Value.Name) then
-                if not ent.IsInterface then
-                    match binding.Value with
-                    | :? IPropertySymbol as prop ->
+        if binding.Value.IsProperty then           
+            if not ent.IsInterface then
+                match binding.Value with
+                | :? IPropertySymbol as prop ->
 
-                        let mustCheckExistsGetter =
-                            match prop.Getter with
-                            | Some getter ->
-                                let getter = getter :?> FunctionSymbol
-                                if tryOverride getter then
-                                    if not getter.IsExplicitOverrides then
-                                        checkFunc getter
+                    let mustCheckExistsGetter =
+                        match prop.Getter with
+                        | Some getter ->
+                            let getter = getter :?> FunctionSymbol
+                            if tryOverride getter then
+                                if not getter.IsExplicitOverrides then
+                                    checkFunc getter
+                                false
+                            else
+                                if getter.IsExplicitOverrides then
+                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'get' to override.", 10, syntax.Identifier)
                                     false
                                 else
-                                    if getter.IsExplicitOverrides then
-                                        cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'get' to override.", 10, syntax.Identifier)
-                                        false
-                                    else
-                                        true
-                            | _ ->
-                                false
+                                    true
+                        | _ ->
+                            false
 
-                        let mustCheckExistsSetter =
-                            match prop.Setter with
-                            | Some setter ->
-                                let setter = setter :?> FunctionSymbol
-                                if tryOverride setter then
-                                    if not setter.IsExplicitOverrides then
-                                        checkFunc setter
+                    let mustCheckExistsSetter =
+                        match prop.Setter with
+                        | Some setter ->
+                            let setter = setter :?> FunctionSymbol
+                            if tryOverride setter then
+                                if not setter.IsExplicitOverrides then
+                                    checkFunc setter
+                                false
+                            else
+                                if setter.IsExplicitOverrides then
+                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'set' to override.", 10, syntax.Identifier)
                                     false
                                 else
-                                    if setter.IsExplicitOverrides then
-                                        cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'set' to override.", 10, syntax.Identifier)
-                                        false
-                                    else
-                                        true
-                            | _ ->
-                                false
+                                    true
+                        | _ ->
+                            false
 
-                        if mustCheckExistsGetter || mustCheckExistsSetter then
-                            if doesPropAlreadyExist prop then
-                                duplicateError prop syntax.Identifier
-                    | _ ->
-                        ()
-                else
-                    if doesPropAlreadyExist (binding.Value :?> IPropertySymbol) then
-                        duplicateError binding.Value syntax.Identifier
-            else
-                ()
+                    if mustCheckExistsGetter || mustCheckExistsSetter then
+                        if fieldOrPropSet.Add(binding.Value.Name) |> not then
+                            duplicateError binding.Value syntax.Identifier
+                | _ ->
+                    ()
 
         elif binding.Value.IsField then
-            fieldSet.Add(binding.Value.Name) |> ignore
+            if fieldOrPropSet.Add(binding.Value.Name) then
+                if not ent.IsNewtype && not isImpl && ((binding.Value.IsInstance && hasImplicitInstanceDefaultCtor) || (not binding.Value.IsInstance && hasImplicitStaticDefaultCtor)) then
+                    cenv.diagnostics.Error($"The field '{binding.Value.Name}' must be given a default value.", 10, syntax.Identifier)
 
-            if not ent.IsNewtype && not isImpl && ((binding.Value.IsInstance && hasImplicitInstanceDefaultCtor) || (not binding.Value.IsInstance && hasImplicitStaticDefaultCtor)) then
-                cenv.diagnostics.Error($"The field '{binding.Value.Name}' must be given a default value.", 10, syntax.Identifier)
+                if not ent.IsModule && isImpl && not hasImplicitInstanceDefaultCtor && binding.Value.IsInstance then
+                    cenv.diagnostics.Error($"The field '{binding.Value.Name}' must not be given a default value.", 10, syntax.Identifier)
 
-            if not ent.IsModule && isImpl && not hasImplicitInstanceDefaultCtor && binding.Value.IsInstance then
-                cenv.diagnostics.Error($"The field '{binding.Value.Name}' must not be given a default value.", 10, syntax.Identifier)
-
-            if ent.IsNewtype then
-                if binding.Value.IsMutable then
-                    cenv.diagnostics.Error($"The field '{binding.Value.Name}' cannot be mutable on newtypes.", 10, syntax.Identifier)
+                if ent.IsNewtype then
+                    if binding.Value.IsMutable then
+                        cenv.diagnostics.Error($"The field '{binding.Value.Name}' cannot be mutable on newtypes.", 10, syntax.Identifier)
+            else
+                duplicateError binding.Value syntax.Identifier
 
         elif binding.Value.IsFunction then
             handleFunc (binding.Value :?> FunctionSymbol)

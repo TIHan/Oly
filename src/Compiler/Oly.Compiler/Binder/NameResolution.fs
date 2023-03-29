@@ -2069,9 +2069,6 @@ let bindValueModifiersAndKindAsMemberFlags
            isExplicitNew then
             cenv.diagnostics.Error("Invalid modifiers for 'pattern' declaration.", 10, syntaxValueDeclKind)
 
-        if not enclosing.IsClassOrStructOrModule then
-            cenv.diagnostics.Error("'pattern' declarations are only allowed on 'class', 'struct' and 'module' types.", 10, syntaxValueDeclKind)
-
         MemberFlags.None, valueExplicitness
 
     elif enclosing.IsModule then

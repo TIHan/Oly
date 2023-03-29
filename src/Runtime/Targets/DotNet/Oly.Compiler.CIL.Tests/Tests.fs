@@ -14482,3 +14482,132 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Newtype option API``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(===)(o1: __oly_object, o2: __oly_object): bool
+#[intrinsic("not_equal")]
+(!==)(o1: __oly_object, o2: __oly_object): bool
+
+#[open]
+newtype Option<T> where T: not struct =
+    private value: T
+
+    pattern Some(option: Option<T>): T when (option.value !== unchecked default) =>
+        option.value
+
+    pattern None(option: Option<T>): () when (option.value === unchecked default) =>
+        ()
+
+    static Some(value: T): Option<T> = Option(value)
+
+    static None: Option<T>
+        get() = Option(unchecked default)
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = Some("passed")
+    match (x)
+    | Some(text) =>
+        print(text)
+    | _ =>
+        ()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Newtype option API - different member order``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(===)(o1: __oly_object, o2: __oly_object): bool
+#[intrinsic("not_equal")]
+(!==)(o1: __oly_object, o2: __oly_object): bool
+
+#[open]
+newtype Option<T> where T: not struct =
+    private value: T
+
+    static Some(value: T): Option<T> = Option(value)
+
+    static None: Option<T>
+        get() = Option(unchecked default)
+
+    pattern Some(option: Option<T>): T when (option.value !== unchecked default) =>
+        option.value
+
+    pattern None(option: Option<T>): () when (option.value === unchecked default) =>
+        ()
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = Some("passed")
+    match (x)
+    | Some(text) =>
+        print(text)
+    | _ =>
+        ()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Newtype option API 2``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(===)(o1: __oly_object, o2: __oly_object): bool
+#[intrinsic("not_equal")]
+(!==)(o1: __oly_object, o2: __oly_object): bool
+
+#[open]
+newtype Option<T> where T: not struct =
+    private value: T
+
+    pattern Some(option: Option<T>): T when (option.value !== unchecked default) =>
+        option.value
+
+    pattern None(option: Option<T>): () when (option.value === unchecked default) =>
+        ()
+
+    static Some(value: T): Option<T> = Option(value)
+
+    static None: Option<T>
+        get() = Option(unchecked default)
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x: Option<__oly_utf16> = None
+    match (x)
+    | Some(text) =>
+        print(text)
+    | _ =>
+        print("passed")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
