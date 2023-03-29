@@ -211,28 +211,28 @@ type BoundEnvironment =
         | ValueSome ent -> ValueSome ent
         | _ -> ValueNone
 
-    member this.GetScopedTypeParameters(func: IFunctionSymbol) =
-        if func.IsConstructor then
-            func.Enclosing.TypeParameters
+    member this.GetScopedTypeParameters(value: IValueSymbol) =
+        if value.IsConstructor then
+            value.Enclosing.TypeParameters
         else
-            match func.Enclosing with
+            match value.Enclosing with
             | EnclosingSymbol.Local ->
-                this.EnclosingTypeParameters.AddRange(func.TypeParameters)
+                this.EnclosingTypeParameters.AddRange(value.TypeParameters)
             | _ ->
-                func.Enclosing.TypeParameters.AddRange(func.TypeParameters)
+                value.Enclosing.TypeParameters.AddRange(value.TypeParameters)
 
-    member this.GetScopedTypeArguments(func: IFunctionSymbol) =
-        if func.IsConstructor then
-            func.Enclosing.TypeArguments
+    member this.GetScopedTypeArguments(value: IValueSymbol) =
+        if value.IsConstructor then
+            value.Enclosing.TypeArguments
         else
-            match func.Enclosing with
+            match value.Enclosing with
             | EnclosingSymbol.Local ->
                 let enclosingTyInst =
                     this.EnclosingTypeParameters
                     |> ImArray.map (fun x -> x.AsType)
-                enclosingTyInst.AddRange(func.TypeArguments)
+                enclosingTyInst.AddRange(value.TypeArguments)
             | _ ->
-                func.Enclosing.TypeArguments.AddRange(func.TypeArguments)
+                value.Enclosing.TypeArguments.AddRange(value.TypeArguments)
 
     /// Get an unqualified type within the current scope.
     /// An empty array means a type is not found in the current scope.

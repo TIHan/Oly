@@ -907,6 +907,8 @@ let actualValue (enclosing: EnclosingSymbol) (tyArgs: TypeArgumentSymbol imarray
         actualFunction enclosing tyArgs func :> IValueSymbol
     | :? IFieldSymbol as field ->
         actualField enclosing tyArgs field :> IValueSymbol
+    | :? IPropertySymbol as prop ->
+        actualProperty enclosing tyArgs prop :> IValueSymbol
     | _ ->
         if value.ValueFlags &&& ValueFlags.Invalid = ValueFlags.Invalid then
             value

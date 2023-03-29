@@ -1240,29 +1240,31 @@ let findMostSpecificFunctionsOfType (benv: BoundEnvironment) queryMemberFlags fu
     combineConcreteAndExtensionMembers intrinsicFuncs extrinsicFuncs
 
 let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
+    if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then value
+    else
+
     match value with
-    | :? LocalSymbol -> value
-    | :? IFieldSymbol -> value // REVIEW/TODO: Do we need to do this?
-    | :? IFunctionSymbol as func ->
-        if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then value
-        else
-            let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
-            let tyArgs =
-                let tyPars = benv.GetScopedTypeParameters(func)
-                let tyArgs = benv.GetScopedTypeArguments(func)
-                tyArgs
-                |> ImArray.map (fun ty ->
-                    freshenTypeAux benv tyPars ImArray.empty ty cache
-                )
+    | :? LocalSymbol
+    | :? IFieldSymbol -> value
+    | :? IPropertySymbol
+    | :? IFunctionSymbol ->
+        let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
+        let tyArgs =
+            let tyPars = benv.GetScopedTypeParameters(value)
+            let tyArgs = benv.GetScopedTypeArguments(value)
+            tyArgs
+            |> ImArray.map (fun ty ->
+                freshenTypeAux benv tyPars ImArray.empty ty cache
+            )
 
-            let enclosing = 
-                let tyArgsForEnclosing =
-                    tyArgs 
-                    |> Seq.take value.Enclosing.TypeParameters.Length 
-                    |> ImmutableArray.CreateRange
-                applyEnclosing tyArgsForEnclosing value.Enclosing
+        let enclosing = 
+            let tyArgsForEnclosing =
+                tyArgs 
+                |> Seq.take value.Enclosing.TypeParameters.Length 
+                |> ImmutableArray.CreateRange
+            applyEnclosing tyArgsForEnclosing value.Enclosing
 
-            actualFunction enclosing tyArgs func :> IValueSymbol
+        actualValue enclosing tyArgs value.Formal
     | _ ->
         if not value.IsInvalid then
             failwith "Invalid value symbol"

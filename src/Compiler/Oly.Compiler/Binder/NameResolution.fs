@@ -467,11 +467,11 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
                     AddressOfReceiverIfPossible prop.Enclosing.AsType receiver
                 else
                     receiver
-            let expr = BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), Some(receiverExpr), syntaxNameOpt, prop)
+            let expr = BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), Some(receiverExpr), syntaxNameOpt, freshenValue env.benv prop :?> IPropertySymbol)
             checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
             expr
         | _ ->
-            BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), None, syntaxNameOpt, prop)
+            BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), None, syntaxNameOpt, freshenValue env.benv prop :?> IPropertySymbol)
     | _ ->
         createValueExpr value
 
