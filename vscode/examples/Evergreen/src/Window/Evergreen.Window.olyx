@@ -9,10 +9,10 @@
 namespace Evergreen.Window
 
 interface IWindow =
-    get Title: string
-    get HWND: nint
-    get HINSTANCE: nint
-    get IsClosed: bool
+    Title: string get
+    HWND: nint get
+    HINSTANCE: nint get
+    IsClosed: bool get
 
     Show(): ()
     PumpEvents(): InputSnapshot

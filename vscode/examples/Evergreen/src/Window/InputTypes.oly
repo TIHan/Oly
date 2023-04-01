@@ -3,10 +3,10 @@ namespace Evergreen.Window
 open System
 
 struct MouseInfo =
-    get set X: int32 = 0
-    get set Y: int32 = 0
-    get set RelativeX: int32 = 0
-    get set RelativeY: int32 = 0
+    X: int32 get set = 0
+    Y: int32 get set = 0
+    RelativeX: int32 get set = 0
+    RelativeY: int32 get set = 0
 
 enum Key =
     | Unknown
@@ -43,8 +43,8 @@ enum KeyEventFlags =
     | Repeat = 0b110
 
 struct KeyEvent =
-    get Key: Key
-    get Flags: KeyEventFlags
+    Key: Key get
+    Flags: KeyEventFlags get
 
     new(key: Key, flags: KeyEventFlags) =
         {
@@ -60,8 +60,8 @@ struct KeyEvent =
         string.Format("(Key = {0}, Flags = {1})", [|this.Key: object;this.Flags|])
 
 sealed class InputSnapshot =
-    get KeyEvents: KeyEvent[]
-    get MouseInfo: MouseInfo
+    KeyEvents: KeyEvent[] get
+    MouseInfo: MouseInfo get
 
     new(keyEvents: KeyEvent[], mouseInfo: MouseInfo) =
         {

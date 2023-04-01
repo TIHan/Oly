@@ -237,7 +237,7 @@ struct Camera =
     private mutable yaw: float32
     private mutable pitch: float32
 
-    private static get DefaultRotation: Quaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
+    private static DefaultRotation: Quaternion get = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
     new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
         {
@@ -326,7 +326,7 @@ struct EntityId =
     IsNil: bool get() = this.Version == 0
 
 sealed class Archetype<T0> where T0: unmanaged =
-    get set Count: int32
+    Count: int32 get set
 
     Lookup: int32[||]
     EntityIds: EntityId[||]
@@ -350,7 +350,7 @@ sealed class Archetype<T0> where T0: unmanaged =
 
 sealed class Archetype<T0, T1> where T0: unmanaged 
                                where T1: unmanaged =
-    get set Count: int32
+    Count: int32 get set
 
     Lookup: int32[||]
     EntityIds: EntityId[||]
@@ -378,7 +378,7 @@ sealed class Archetype<T0, T1> where T0: unmanaged
 sealed class Archetype<T0, T1, T2> where T0: unmanaged 
                                    where T1: unmanaged 
                                    where T2: unmanaged =
-    get set Count: int32
+    Count: int32 get set
 
     Lookup: int32[||]
     EntityIds: EntityId[||]
@@ -410,7 +410,7 @@ sealed class Archetype<T0, T1, T2, T3> where T0: unmanaged
                                        where T1: unmanaged 
                                        where T2: unmanaged 
                                        where T3: unmanaged =
-    get set Count: int32
+    Count: int32 get set
 
     Lookup: int32[||]
     EntityIds: EntityId[||]
