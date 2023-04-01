@@ -331,11 +331,21 @@
       <Field name="newToken">SyntaxToken</Field>
       <Field name="pars">SyntaxParameters</Field>
     </Case>
-    <Case name="Get">
+	<Case name="Get">
+		<Field name="getToken">SyntaxToken</Field>
+	</Case>
+	<Case name="Set">
+		<Field name="setToken">SyntaxToken</Field>
+	</Case>
+	<Case name="GetSet">
+		<Field name="getToken">SyntaxToken</Field>
+		<Field name="setToken">SyntaxToken</Field>
+	</Case>
+    <Case name="Getter">
       <Field name="getToken">SyntaxToken</Field>
       <Field name="pars">SyntaxParameters</Field>
     </Case>
-    <Case name="Set">
+    <Case name="Setter">
       <Field name="setToken">SyntaxToken</Field>
       <Field name="pars">SyntaxParameters</Field>
     </Case>
@@ -588,30 +598,20 @@
 
   <Node name="SyntaxValueDeclarationKind">
     <Case name="Let">
-      <Field name="letToken">SyntaxToken</Field>
+        <Field name="letToken">SyntaxToken</Field>
     </Case>
     <Case name="LetBind">
-      <Field name="letExclamationToken">SyntaxToken</Field>
+        <Field name="letExclamationToken">SyntaxToken</Field>
     </Case>
-	  <Case name="Constant">
+	<Case name="Constant">
 	    <Field name="constantToken">SyntaxToken</Field>
-	  </Case>
-    <Case name="Get">
-      <Field name="getToken">SyntaxToken</Field>
-    </Case>
-    <Case name="Set">
-      <Field name="setToken">SyntaxToken</Field>
-    </Case>
-    <Case name="GetSet">
-      <Field name="getToken">SyntaxToken</Field>
-      <Field name="setToken">SyntaxToken</Field>
-    </Case>
+	</Case>
 	<Case name="Pattern">
-	  <Field name="patternToken">SyntaxToken</Field>
+	    <Field name="patternToken">SyntaxToken</Field>
 	</Case>
     <Case name="None" />
     <Case name="Error">
-      <Field name="token">SyntaxToken</Field>
+        <Field name="token">SyntaxToken</Field>
     </Case>
   </Node>
 

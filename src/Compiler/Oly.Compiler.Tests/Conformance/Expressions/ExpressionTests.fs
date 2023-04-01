@@ -2139,9 +2139,9 @@ test() : () =
 let ``Should compile with certain constraint order``() =
     let src =
         """
-test<T>() : () where T : TestTrait<T>, { get x: int32 } = ()
+test<T>() : () where T : TestTrait<T>, { x: int32 get } = ()
     
-interface TestTrait<T> where T : { get x: int32 }
+interface TestTrait<T> where T : { x: int32 get }
 
 #[intrinsic("int32")]
 alias int32
@@ -2154,9 +2154,9 @@ alias int32
 let ``Should compile with certain constraint order 2``() =
     let src =
         """
-test<T>() : () where T : { get x: int32 }, TestTrait<T> = ()
+test<T>() : () where T : { x: int32 get }, TestTrait<T> = ()
     
-interface TestTrait<T> where T : { get x: int32 }
+interface TestTrait<T> where T : { x: int32 get }
 
 #[intrinsic("int32")]
 alias int32
@@ -2171,15 +2171,15 @@ let ``Should compile with certain constraint order 3``() =
         """
 open extension TestExtension
     
-interface TestTrait<T> where T : { get x: int32 }
+interface TestTrait<T> where T : { x: int32 get }
     
-test<T>() : () where T : TestTrait<T>, { get x: int32 } = ()
+test<T>() : () where T : TestTrait<T>, { x: int32 get } = ()
     
 #[intrinsic("int32")]
 alias int32
     
 class Test =
-    get x: int32 = 0
+    x: int32 get = 0
     
 extension TestExtension =
     inherits Test
@@ -2198,15 +2198,15 @@ let ``Should compile with certain constraint order 4``() =
         """
 open extension TestExtension
     
-interface TestTrait<T> where T : { get x: int32 }
+interface TestTrait<T> where T : { x: int32 get }
     
-test<T>() : () where T : { get x: int32 }, TestTrait<T> = ()
+test<T>() : () where T : { x: int32 get }, TestTrait<T> = ()
     
 #[intrinsic("int32")]
 alias int32
     
 class Test =
-    get x: int32 = 0
+    x: int32 get = 0
     
 extension TestExtension =
     inherits Test
@@ -2889,10 +2889,10 @@ let ``Type can have a mutable field for the shape``() =
     let src =
         """
 struct TestStruct =
-    get set x: __oly_int32
+    x: __oly_int32 get set
     new(x: __oly_int32) = { x = x }
 
-test<T>(t: T): __oly_int32 where T: { get x: __oly_int32 } = t.x
+test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get } = t.x
 
 main(): () =
     let ts = TestStruct(123)
@@ -2907,10 +2907,10 @@ let ``Type must have a mutable field for the shape``() =
     let src =
         """
 struct TestStruct =
-    get x: __oly_int32
+    x: __oly_int32 get
     new(x: __oly_int32) = { x = x }
 
-test<T>(t: T): __oly_int32 where T: { get set x: __oly_int32 } = t.x
+test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get set } = t.x
 
 main(): () =
     let ts = TestStruct(123)
@@ -4485,7 +4485,7 @@ interface IMemory<T> where T: struct =
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
 
-    get Length: int32
+    Length: int32 get
 
 interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
@@ -4601,7 +4601,7 @@ interface IMemory<T> where T: struct =
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
 
-    get Length: int32
+    Length: int32 get
 
 interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
@@ -5329,7 +5329,7 @@ module Entities =
                 Version = version
             }
 
-        static get None: EntityId = EntityId(0, 0)
+        static None: EntityId get = EntityId(0, 0)
         """
     Oly src
     |> shouldCompile
@@ -5354,9 +5354,8 @@ module Entities =
                 Version = version
             }
 
-        static get None: EntityId = 
-            let x: EntityId = EntityId(0, 0)
-            x
+        static None: EntityId get = let x: EntityId = EntityId(0, 0)
+                                    x
         """
     Oly src
     |> shouldCompile
@@ -5795,15 +5794,15 @@ let ``Incorrect static overrides signature should error``() =
         """
 class Test =
 
-    static overrides get X: __oly_int64 = 1
+    static X: __oly_int64 overrides get = 1
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("The property 'static get X: __oly_int64' cannot find a 'get' to override.",
                 """
-    static overrides get X: __oly_int64 = 1
-                         ^
+    static X: __oly_int64 overrides get = 1
+           ^
 """
             )
         ]
@@ -5815,20 +5814,20 @@ let ``Incorrect static overrides signature should error 2``() =
         """
 interface ITest =
 
-    static abstract get X: __oly_int32
+    static X: __oly_int32 abstract get
 
 class Test =
     implements ITest
 
-    static overrides get X: __oly_int64 = 1
+    static X: __oly_int64 overrides get = 1
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("The property 'static get X: __oly_int64' cannot find a 'get' to override.",
                 """
-    static overrides get X: __oly_int64 = 1
-                         ^
+    static X: __oly_int64 overrides get = 1
+           ^
 """
             )
             ("The function 'static get_X(): __oly_int32' is not implemented for 'ITest' on 'Test'.",
@@ -6850,7 +6849,7 @@ let ``Property returning function ptr should pass``() =
         """
 module TestModule =
 
-    get X: static __oly_int32 -> () = unchecked default
+    X: static __oly_int32 -> () get = unchecked default
 
 main(): () =
     TestModule.X(123)
@@ -6865,7 +6864,7 @@ let ``Property returning function ptr should pass 2``() =
         """
 class TestClass =
 
-    get X: static __oly_int32 -> () = unchecked default
+    X: static __oly_int32 -> () get = unchecked default
 
 main(): () =
     let t = TestClass()
@@ -6881,7 +6880,7 @@ let ``Property returning function ptr should pass 3``() =
         """
 module TestModule =
 
-    get X: static __oly_int32 -> (static __oly_int32 -> ()) = unchecked default
+    X: static __oly_int32 -> (static __oly_int32 -> ()) get = unchecked default
 
 main(): () =
     TestModule.X(123)(345)
@@ -6896,7 +6895,7 @@ let ``Property returning function ptr should pass 4``() =
         """
 module TestModule =
 
-    get X: static __oly_int32 -> static __oly_int32 -> () = unchecked default
+    X: static __oly_int32 -> static __oly_int32 -> () get = unchecked default
 
 main(): () =
     TestModule.X(123)(345)
@@ -6911,7 +6910,7 @@ let ``Property returning function ptr should pass 5``() =
         """
 module TestModule =
 
-    get X: static __oly_int32 -> __oly_int32 -> () = unchecked default
+    X: static __oly_int32 -> __oly_int32 -> () get = unchecked default
 
 main(): () =
     TestModule.X(123)(345)
@@ -6926,7 +6925,7 @@ let ``Property returning function ptr should pass 6``() =
         """
 class TestClass =
 
-    get X: static __oly_int32 -> static __oly_int32 -> () = unchecked default
+    X: static __oly_int32 -> static __oly_int32 -> () get = unchecked default
 
 main(): () =
     let t = TestClass()

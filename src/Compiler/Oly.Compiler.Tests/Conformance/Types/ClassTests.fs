@@ -51,7 +51,7 @@ let ``Class 4 - should fail due to not providing a property field``() =
     let src =
         """
 interface IA =
-    get value: __oly_int32
+    value: __oly_int32 get
 
 class A =
     implements IA
@@ -797,7 +797,7 @@ let ``Basic property with overrides getter should compile``() =
         """
 interface IA =
 
-    static abstract get X: __oly_int32
+    static X: __oly_int32 abstract get
 
 class A =
     implements IA
@@ -815,7 +815,7 @@ let ``Basic property with overrides getter should compile 2``() =
         """
 interface IA =
 
-    get X: __oly_int32
+    X: __oly_int32 get
 
 class A =
     implements IA
@@ -833,7 +833,7 @@ let ``Basic property with overrides getter should compile 3``() =
         """
 abstract class B =
 
-    static abstract default get X: __oly_int32 = 5
+    static X: __oly_int32 abstract default get = 5
 
 class A =
     inherits B
@@ -851,7 +851,7 @@ let ``Basic property with overrides getter should compile 4``() =
         """
 interface IA =
 
-    static abstract get X: __oly_int32
+    static X: __oly_int32 abstract get 
 
 class A =
     implements IA

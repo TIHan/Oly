@@ -367,9 +367,12 @@ module OlySyntaxTreeExtensions =
                 funcName.Identifier
             | OlySyntaxBindingDeclaration.New(newToken, _) ->
                 newToken
-            | OlySyntaxBindingDeclaration.Get(getToken, _) ->
+            | OlySyntaxBindingDeclaration.Getter(getToken, _)
+            | OlySyntaxBindingDeclaration.Get(getToken)
+            | OlySyntaxBindingDeclaration.GetSet(getToken, _)->
                 getToken
-            | OlySyntaxBindingDeclaration.Set(setToken, _) ->
+            | OlySyntaxBindingDeclaration.Setter(setToken, _)
+            | OlySyntaxBindingDeclaration.Set(setToken) ->
                 setToken
             | OlySyntaxBindingDeclaration.Error(errorToken) ->
                 errorToken

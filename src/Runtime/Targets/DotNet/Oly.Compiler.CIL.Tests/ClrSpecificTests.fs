@@ -409,11 +409,11 @@ alias (&)<T>
 
 struct TestStruct =
 
-    get set x: Int32
+    x: Int32 get set
 
     new(x: Int32) = { x = x }
 
-test<T>(x: T&): Int32 where T: { get set x: Int32 } = 
+test<T>(x: T&): Int32 where T: { x: Int32 get set } = 
     let mutable result = Int32.Parse("123")
     x.x <- result.GetHashCode()
     x.x
@@ -1093,7 +1093,7 @@ open System
 class Test =
     implements IExample
 
-    get X: Int32
+    X: Int32 get
     new() = { X = 123 }
 
 main(): () =
@@ -1953,7 +1953,7 @@ let ``Use mscorlib type to pass the shape constraint``() =
 open System
 open System.Diagnostics
 
-test<T>(x: T): () where T: { get Elapsed: TimeSpan } = ()
+test<T>(x: T): () where T: { Elapsed: TimeSpan get } = ()
 
 main() : () =
     let s = Stopwatch()

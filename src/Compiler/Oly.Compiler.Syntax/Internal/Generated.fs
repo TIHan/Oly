@@ -1529,10 +1529,21 @@ type SyntaxBindingDeclaration =
         fullWidth: int
     | Get
         of
+        getToken: SyntaxToken
+    | Set
+        of
+        setToken: SyntaxToken
+    | GetSet
+        of
+        getToken: SyntaxToken *
+        setToken: SyntaxToken *
+        fullWidth: int
+    | Getter
+        of
         getToken: SyntaxToken *
         pars: SyntaxParameters *
         fullWidth: int
-    | Set
+    | Setter
         of
         setToken: SyntaxToken *
         pars: SyntaxParameters *
@@ -1569,12 +1580,25 @@ type SyntaxBindingDeclaration =
                 | 0 -> newToken :> ISyntaxNode
                 | 1 -> pars :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Get(getToken, pars, _) ->
+            | Get(getToken) ->
+                match index with
+                | 0 -> getToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Set(setToken) ->
+                match index with
+                | 0 -> setToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | GetSet(getToken, setToken, _) ->
+                match index with
+                | 0 -> getToken :> ISyntaxNode
+                | 1 -> setToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Getter(getToken, pars, _) ->
                 match index with
                 | 0 -> getToken :> ISyntaxNode
                 | 1 -> pars :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Set(setToken, pars, _) ->
+            | Setter(setToken, pars, _) ->
                 match index with
                 | 0 -> setToken :> ISyntaxNode
                 | 1 -> pars :> ISyntaxNode
@@ -1589,8 +1613,11 @@ type SyntaxBindingDeclaration =
             | Function _ -> 5
             | Value _ -> 2
             | New _ -> 2
-            | Get _ -> 2
-            | Set _ -> 2
+            | Get _ -> 1
+            | Set _ -> 1
+            | GetSet _ -> 2
+            | Getter _ -> 2
+            | Setter _ -> 2
             | Error _ -> 1
 
         member this.FullWidth =
@@ -1601,9 +1628,15 @@ type SyntaxBindingDeclaration =
                 fullWidth
             | New(fullWidth=fullWidth) ->
                 fullWidth
-            | Get(fullWidth=fullWidth) ->
+            | Get(x) ->
+                (x :> ISyntaxNode).FullWidth
+            | Set(x) ->
+                (x :> ISyntaxNode).FullWidth
+            | GetSet(fullWidth=fullWidth) ->
                 fullWidth
-            | Set(fullWidth=fullWidth) ->
+            | Getter(fullWidth=fullWidth) ->
+                fullWidth
+            | Setter(fullWidth=fullWidth) ->
                 fullWidth
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
@@ -2513,17 +2546,6 @@ type SyntaxValueDeclarationKind =
     | Constant
         of
         constantToken: SyntaxToken
-    | Get
-        of
-        getToken: SyntaxToken
-    | Set
-        of
-        setToken: SyntaxToken
-    | GetSet
-        of
-        getToken: SyntaxToken *
-        setToken: SyntaxToken *
-        fullWidth: int
     | Pattern
         of
         patternToken: SyntaxToken
@@ -2555,19 +2577,6 @@ type SyntaxValueDeclarationKind =
                 match index with
                 | 0 -> constantToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Get(getToken) ->
-                match index with
-                | 0 -> getToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | Set(setToken) ->
-                match index with
-                | 0 -> setToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | GetSet(getToken, setToken, _) ->
-                match index with
-                | 0 -> getToken :> ISyntaxNode
-                | 1 -> setToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | Pattern(patternToken) ->
                 match index with
                 | 0 -> patternToken :> ISyntaxNode
@@ -2584,9 +2593,6 @@ type SyntaxValueDeclarationKind =
             | Let _ -> 1
             | LetBind _ -> 1
             | Constant _ -> 1
-            | Get _ -> 1
-            | Set _ -> 1
-            | GetSet _ -> 2
             | Pattern _ -> 1
             | None _ -> 0
             | Error _ -> 1
@@ -2599,12 +2605,6 @@ type SyntaxValueDeclarationKind =
                 (x :> ISyntaxNode).FullWidth
             | Constant(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | Get(x) ->
-                (x :> ISyntaxNode).FullWidth
-            | Set(x) ->
-                (x :> ISyntaxNode).FullWidth
-            | GetSet(fullWidth=fullWidth) ->
-                fullWidth
             | Pattern(x) ->
                 (x :> ISyntaxNode).FullWidth
             | None _ ->

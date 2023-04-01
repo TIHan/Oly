@@ -1965,13 +1965,6 @@ let bindValueModifiersAndKindAsMemberFlags
     | OlySyntaxValueDeclarationKind.Let _
     | OlySyntaxValueDeclarationKind.LetBind _ ->
         isExplicitLet <- true
-    | OlySyntaxValueDeclarationKind.Get _ ->
-        isExplicitGet <- true
-    | OlySyntaxValueDeclarationKind.Set _ ->
-        isExplicitSet <- true
-    | OlySyntaxValueDeclarationKind.GetSet _ ->
-        isExplicitGet <- true
-        isExplicitSet <- true
     | OlySyntaxValueDeclarationKind.Pattern _ ->
         isExplicitPattern <- true
     | _ ->

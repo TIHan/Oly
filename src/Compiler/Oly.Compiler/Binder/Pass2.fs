@@ -213,19 +213,22 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
             | _ ->
                 None, None
 
-        let prop = createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
-        let getterOrSetterBindings =
-            seq {
-                getOrSet1
-                match getOrSetOpt2 with
-                | Some(bindingInfo) ->
-                    bindingInfo
-                | _ ->
-                    ()
-            }
-            |> ImArray.ofSeq
+        match getOrSet1 with
+        | BindingProperty _ -> getOrSet1
+        | _ ->
+            let prop = createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
+            let getterOrSetterBindings =
+                seq {
+                    getOrSet1
+                    match getOrSetOpt2 with
+                    | Some(bindingInfo) ->
+                        bindingInfo
+                    | _ ->
+                        ()
+                }
+                |> ImArray.ofSeq
 
-        BindingProperty(getterOrSetterBindings, prop)
+            BindingProperty(getterOrSetterBindings, prop)
 
     | _ ->
         raise(InternalCompilerException())
@@ -258,12 +261,16 @@ let private bindTopLevelValueDeclaration
 
     let valueExplicitness =
         match syntaxBinding with
+        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Getter _, _, _)
         | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _)
         | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _) ->
             { valueExplicitness with IsExplicitGet = true }
-        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _) 
+        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Setter _, _, _) 
         | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _) ->
             { valueExplicitness with IsExplicitSet = true }
+        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.GetSet _, _, _)
+        | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.GetSet _) ->
+            { valueExplicitness with IsExplicitGet = true; IsExplicitSet = true }
         | _ ->
             valueExplicitness
 

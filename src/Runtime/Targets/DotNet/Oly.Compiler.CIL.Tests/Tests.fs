@@ -1671,11 +1671,11 @@ let ``Able to use simple shape``() =
         """
 class Test =
 
-    get x: int32
-    get y: int32
+    x: int32 get
+    y: int32 get
     new(x: int32, y: int32) = { x = x; y = y }
 
-test<T>(x: T): int32 where T: { get x: int32; get y: int32 } =
+test<T>(x: T): int32 where T: { x: int32 get; y: int32 get } =
     x.y
 
 main(): () =
@@ -1694,11 +1694,11 @@ let ``Able to use simple shape 2``() =
         """
 struct Test =
 
-    get x: int32
-    get y: int32
+    x: int32 get
+    y: int32 get
     new(x: int32, y: int32) = { x = x; y = y }
 
-test<T>(x: T): int32 where T: { get x: int32; get y: int32 } =
+test<T>(x: T): int32 where T: { x: int32 get; y: int32 get } =
     x.y
 
 main(): () =
@@ -1717,11 +1717,11 @@ let ``Able to use simple shape that captures type parameter``() =
         """
 struct Test =
 
-    get x: int32
-    get y: int32
+    x: int32 get
+    y: int32 get
     new(x: int32, y: int32) = { x = x; y = y }
 
-test<T, U>(x: T): U where T: { get x: int32; get y: U } =
+test<T, U>(x: T): U where T: { x: int32 get; y: U get } =
     x.y
 
 main(): () =
@@ -3782,7 +3782,7 @@ let ``Should run successfully with a open module 3``() =
         """
 open static TestModule
 
-test<T>() : () where T : { get x: int32 } = ()
+test<T>() : () where T : { x: int32 get } = ()
 
 #[intrinsic("int32")]
 alias int32
@@ -3790,7 +3790,7 @@ alias int32
 module TestModule =
 
     class Test =
-        get x: int32 = 0
+        x: int32 get = 0
 
 main() : () =
     test<Test>()
@@ -3807,9 +3807,9 @@ let ``Should run successfully with a open module 4``() =
 open static TestModule
 open extension TestExtension
 
-interface TestTrait<T> where T : { get x: int32 }
+interface TestTrait<T> where T : { x: int32 get }
 
-test<T>() : () where T : { get x: int32 }, TestTrait<T> = ()
+test<T>() : () where T : { x: int32 get }, TestTrait<T> = ()
 
 #[intrinsic("int32")]
 alias int32
@@ -3817,7 +3817,7 @@ alias int32
 module TestModule =
 
     class Test =
-        get x: int32 = 0
+        x: int32 get = 0
 
 extension TestExtension =
     inherits Test
@@ -4465,11 +4465,11 @@ print(__oly_object): ()
 
 struct TestStruct =
 
-    get set x: int32
+    x: int32 get set
 
     new(x: int32) = { x = x }
 
-test<T>(x: T&): int32 where T: { get set x: int32 } = 
+test<T>(x: T&): int32 where T: { x: int32 get set } = 
     x.x <- 500
     x.x
 
@@ -4548,11 +4548,11 @@ class Test1 =
 class Test =
     inherits Test1
 
-    get x: float32
-    get y: int32
+    x: float32 get
+    y: int32 get
     new(x: float32, y: int32) = { x = x; y = y }
 
-test<T>(x: T) : int32 where T: { get x: float32; get y: int32; test(): () } =
+test<T>(x: T) : int32 where T: { x: float32 get; y: int32 get; test(): () } =
     x.test()
     x.y
 
@@ -4588,11 +4588,11 @@ class Test1 =
 class Test<T1, T2, T3, T4, T5> =
     inherits Test1
 
-    get x: T3
-    get y: T1
+    x: T3 get
+    y: T1 get
     new(x: T3, y: T1) = { x = x; y = y }
 
-test<T>(x: T) : int32 where T: { get x: float32; get y: int32; test(): () } =
+test<T>(x: T) : int32 where T: { x: float32 get; y: int32 get; test(): () } =
     x.test()
     x.y
 
@@ -8776,12 +8776,12 @@ print(__oly_object): ()
 
 interface ITest =
 
-    get x: int32
+    x: int32 get
 
 class Test =
     implements ITest
 
-    get x: int32
+    x: int32 get
     new() = { x = 5 }
 
 test(t: ITest): int32 = t.x
@@ -8810,11 +8810,12 @@ print(__oly_object): ()
 
 interface ITest =
 
-    get x: int32
+    x: int32 get
 
 class Test =
 
-    abstract default get x: int32
+    x: int32 abstract default get
+
     new() = { x = 5 }
 
 extension TestExtension =
@@ -8847,17 +8848,17 @@ print(__oly_object): ()
 
 interface ITest =
 
-    get x: int32
+    x: int32 get
 
 interface ITest2 =
 
-    get x: int32
+    x: int32 get
 
 class Test =
 
     implements ITest2
 
-    get x: int32
+    x: int32 get
     new() = { x = 5 }
 
 extension TestExtension =
@@ -9472,7 +9473,7 @@ print(__oly_object): ()
 
 class Test =
 
-    get y: int32 = 256
+    y: int32 get = 256
 
 main(): () =
     let t = Test()
@@ -9498,7 +9499,7 @@ class Test =
     Value: int32
     new(value: int32) = { Value = value }
 
-    static get Default: Test = Test(123)
+    static Default: Test get = Test(123)
 
 main(): () =
     let t = Test.Default
@@ -9521,7 +9522,7 @@ print(__oly_object): ()
 
 class Test =
 
-    static get Default: int32 = 123
+    static Default: int32 get = 123
 
 main(): () =
     print(Test.Default)
@@ -9543,7 +9544,7 @@ print(__oly_object): ()
 
 module Test =
 
-    get Default: int32 = 123
+    Default: int32 get = 123
 
 main(): () =
     print(Test.Default)
@@ -9575,9 +9576,10 @@ module Test =
         print("Y")
         789
 
-    get Default: int32 =
-        print("_DEFAULT_")
-        Test2.X
+    Default: int32 
+        get =
+            print("_DEFAULT_")
+            Test2.X
 
 main(): () =
     print(Test2.X)
@@ -9612,9 +9614,10 @@ module Test =
         print("_Y_")
         789
 
-    get Default: int32 =
-        print("_DEFAULT_")
-        Test2.X
+    Default: int32 
+        get =
+            print("_DEFAULT_")
+            Test2.X
 
 main(): () =
     print(Test2.X)
@@ -9648,9 +9651,10 @@ module Test =
         print("_Y_")
         789
 
-    get Default: int32 =
-        print("_DEFAULT_")
-        Test2.X
+    Default: int32 
+        get =
+            print("_DEFAULT_")
+            Test2.X
 
 main(): () =
     print(Test2.X)
@@ -9684,13 +9688,14 @@ module Test =
         print("_Y_")
         789
 
-    get Default: int32 =
-        print("_DEFAULT_")
-        let w = Test2.X
-        print(w)
-        print("_AAA_")
-        print(w)
-        w
+    Default: int32
+        get =
+            print("_DEFAULT_")
+            let w = Test2.X
+            print(w)
+            print("_AAA_")
+            print(w)
+            w
 
 main(): () =
     print(Test2.X)
@@ -10068,7 +10073,7 @@ interface IMemory<T> where T: struct =
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
 
-    get Length: int32
+    Length: int32 get
 
 interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
@@ -10531,7 +10536,7 @@ interface IMemory<T> where T: struct =
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
 
-    get Length: int32
+    Length: int32 get
 
 interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
@@ -13223,12 +13228,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    get set Position: int
+    Position: int get set
    
 class Item =
     implements IMoveable
 
-    get set Name: string = "Bar"
+    Name: string get set = "Bar"
 
     Position: int
         get() =
@@ -13286,12 +13291,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    get set Position: int
+    Position: int get set
    
 struct Item =
     implements IMoveable
 
-    get set Name: string = "Bar"
+    Name: string get set = "Bar"
 
     Position: int
         #[not inline]
@@ -13353,12 +13358,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    get set Position: int
+    Position: int get set
    
 struct Item =
     implements IMoveable
 
-    get set Name: string = "Bar"
+    Name: string get set = "Bar"
 
     Position: int
         #[inline]

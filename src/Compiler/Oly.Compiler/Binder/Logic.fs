@@ -208,13 +208,34 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
 
         func
 
-    let bindValue env (syntaxIdent: OlySyntaxToken) syntaxReturnTyAnnot =
-        let ty = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
-        let value = 
+    let bindPropertyGetterSetter (cenv: cenv) env syntaxNode (syntaxParsOpt: OlySyntaxParameters option) propName propTy =
+        match syntaxParsOpt with
+        | Some syntaxPars ->
+            let funcName =
+                if isExplicitSet then "set_" + propName
+                else "get_" + propName
+            let returnTy =
+                if isExplicitSet then TypeSymbol.Unit
+                else propTy
+    
+            let func = bindFunction env funcName (false, ImArray.empty) returnTy syntaxNode syntaxPars
+    
+            let logicalPars = func.LogicalParameters
+            if isExplicitSet && (logicalPars.IsEmpty || not (areTypesEqual logicalPars.[0].Type propTy)) then
+                cenv.diagnostics.Error($"Expected first parameter of 'set' binding to be of type '{printType env.benv propTy}'.", 10, syntaxNode)
+    
+            if func.IsLocal then
+                BindingLocalFunction(func)
+                |> Choice2Of2
+                |> Some
+            else
+                BindingFunction(func)
+                |> Choice1Of2
+                |> Some
+        | _ ->
             match enclosing with
             | EnclosingSymbol.Entity(enclosingEnt) ->
-                let name = syntaxIdent.ValueText
-
+                let name = propName 
                 // If we have a 'get or 'set' - this is an auto property for a class, struct, or module.
                 // Or it can be for the signature of standard properties with basic getters and setters on shapes and interfaces.
                 if valueExplicitness.IsExplicitGet || valueExplicitness.IsExplicitSet then
@@ -224,10 +245,10 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                             let getterName = "get_" + name
                             let getterPars =
                                 if isInstance then
-                                    createInstancePars false getterName syntaxIdent ImArray.empty
+                                    createInstancePars false getterName syntaxNode ImArray.empty
                                 else
                                     ImArray.empty
-                            let getter = createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars ty memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
+                            let getter = createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
                             Some getter
                         else
                             None
@@ -235,11 +256,11 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                     let setterOpt =
                         if valueExplicitness.IsExplicitSet then
                             let setterName = "set_" + name
-                            let parValue = createLocalParameterValue(ImArray.empty, "", ty, false)
+                            let parValue = createLocalParameterValue(ImArray.empty, "", propTy, false)
                             let pars = ImArray.createOne parValue
                             let setterPars =
                                 if isInstance then
-                                    createInstancePars false setterName syntaxIdent pars
+                                    createInstancePars false setterName syntaxNode pars
                                 else
                                     pars
                             let isMutable = 
@@ -253,12 +274,12 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                             None
 
                     if valueExplicitness.IsExplicitSet && not valueExplicitness.IsExplicitGet && (enclosingEnt.IsStruct || enclosingEnt.IsClass || enclosingEnt.IsModule) then
-                        cenv.diagnostics.Error("Auto property must have a getter.", 10, syntaxIdent)
+                        cenv.diagnostics.Error("Auto property must have a getter.", 10, syntaxNode)
 
                     if enclosingEnt.IsTypeExtension then
-                        cenv.diagnostics.Error("Type extensions cannot have auto properties. Use explicitly implemented properties instead.", 10, syntaxIdent)
+                        cenv.diagnostics.Error("Type extensions cannot have auto properties. Use explicitly implemented properties instead.", 10, syntaxNode)
                     elif enclosingEnt.IsEnum then
-                        cenv.diagnostics.Error("Enums cannot have properties.", 10, syntaxIdent)
+                        cenv.diagnostics.Error("Enums cannot have properties.", 10, syntaxNode)
 
                     let associatedFormalPropId = ref None
                     let backingFieldOpt =
@@ -278,7 +299,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                                 enclosing
                                 ImArray.empty
                                 backingFieldName
-                                ty
+                                propTy
                                 backingFieldMemberFlags
                                 backingFieldValueFlags
                                 associatedFormalPropId
@@ -291,25 +312,38 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                             enclosing
                             attrs
                             name
-                            ty
+                            propTy
                             (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
                             getterOpt
                             setterOpt
                             backingFieldOpt
                             :> IValueSymbol
                     associatedFormalPropId.contents <- Some propValue.Id
-                    propValue
+                
+                    BindingProperty(ImArray.empty, propValue :?> PropertySymbol)
+                    |> Choice1Of2
+                    |> Some
                 else
-                    let valueFlags =
-                        if valueExplicitness.IsExplicitMutable then
-                            ValueFlags.Mutable
-                        else
-                            ValueFlags.None
+                    None
+            | _ ->
+                None
 
-                    if not enclosingEnt.IsClass && not enclosingEnt.IsStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
-                        cenv.diagnostics.Error("Fields are not allowed here.", 10, syntaxIdent)
+    let bindValue env (syntaxIdent: OlySyntaxToken) syntaxReturnTyAnnot =
+        let ty = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
+        let value = 
+            match enclosing with
+            | EnclosingSymbol.Entity(enclosingEnt) ->
+                let name = syntaxIdent.ValueText             
+                let valueFlags =
+                    if valueExplicitness.IsExplicitMutable then
+                        ValueFlags.Mutable
+                    else
+                        ValueFlags.None
+
+                if not enclosingEnt.IsClass && not enclosingEnt.IsStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
+                    cenv.diagnostics.Error("Fields are not allowed here.", 10, syntaxIdent)
                         
-                    createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
+                createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
             | _ ->
                 if valueExplicitness.IsExplicitMutable then
                     createMutableLocalValue syntaxIdent.ValueText ty
@@ -434,35 +468,34 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
             cenv.diagnostics.Error("Constructors can only be declared within a type definition.", 10, syntaxNewToken)
             None
 
-    | OlySyntaxBindingDeclaration.Get(syntaxGetOrSetToken, syntaxPars)
-    | OlySyntaxBindingDeclaration.Set(syntaxGetOrSetToken, syntaxPars) ->
+    | OlySyntaxBindingDeclaration.Getter(syntaxGetOrSetToken, syntaxPars)
+    | OlySyntaxBindingDeclaration.Setter(syntaxGetOrSetToken, syntaxPars) ->
         match propInfoOpt with
         | None ->
             cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
             None
 
         | Some(propName, propTy, _) ->
-            let funcName =
-                if isExplicitSet then "set_" + propName
-                else "get_" + propName
-            let returnTy =
-                if isExplicitSet then TypeSymbol.Unit
-                else propTy
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken (Some syntaxPars) propName propTy
 
-            let func = bindFunction env funcName (false, ImArray.empty) returnTy syntaxGetOrSetToken syntaxPars
+    | OlySyntaxBindingDeclaration.Get(syntaxGetOrSetToken)
+    | OlySyntaxBindingDeclaration.Set(syntaxGetOrSetToken) ->
+        match propInfoOpt with
+        | None ->
+            cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
+            None
 
-            let logicalPars = func.LogicalParameters
-            if isExplicitSet && (logicalPars.IsEmpty || not (areTypesEqual logicalPars.[0].Type propTy)) then
-                cenv.diagnostics.Error($"Expected first parameter of 'set' binding to be of type '{printType env.benv propTy}'.", 10, syntaxGetOrSetToken)
+        | Some(propName, propTy, _) ->
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propName propTy
 
-            if func.IsLocal then
-                BindingLocalFunction(func)
-                |> Choice2Of2
-                |> Some
-            else
-                BindingFunction(func)
-                |> Choice1Of2
-                |> Some
+    | OlySyntaxBindingDeclaration.GetSet(syntaxGetToken, syntaxSetToken) ->
+        match propInfoOpt with
+        | None ->
+            cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
+            None
+
+        | Some(propName, propTy, _) ->
+            bindPropertyGetterSetter cenv env syntaxBindingDecl None propName propTy
 
     | OlySyntaxBindingDeclaration.Error(_) ->
         None

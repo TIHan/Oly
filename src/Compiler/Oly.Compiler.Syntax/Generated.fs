@@ -1700,16 +1700,37 @@ module OlySyntaxBindingDeclaration =
         | _ ->
             Option.None
 
-    let (|Get|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxParameters ) option =
+    let (|Get|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxBindingDeclaration.Get _ ->
+            Option.Some (node.Children.[0] :?> _)
+        | _ ->
+            Option.None
+
+    let (|Set|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxBindingDeclaration.Set _ ->
+            Option.Some (node.Children.[0] :?> _)
+        | _ ->
+            Option.None
+
+    let (|GetSet|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxBindingDeclaration.GetSet _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
         | _ ->
             Option.None
 
-    let (|Set|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxParameters ) option =
+    let (|Getter|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxParameters ) option =
         match node.Internal with
-        | SyntaxBindingDeclaration.Set _ ->
+        | SyntaxBindingDeclaration.Getter _ ->
+            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
+        | _ ->
+            Option.None
+
+    let (|Setter|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxParameters ) option =
+        match node.Internal with
+        | SyntaxBindingDeclaration.Setter _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
         | _ ->
             Option.None
@@ -2749,27 +2770,6 @@ module OlySyntaxValueDeclarationKind =
         match node.Internal with
         | SyntaxValueDeclarationKind.Constant _ ->
             Option.Some (node.Children.[0] :?> _)
-        | _ ->
-            Option.None
-
-    let (|Get|_|) (node: OlySyntaxValueDeclarationKind) : ( OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxValueDeclarationKind.Get _ ->
-            Option.Some (node.Children.[0] :?> _)
-        | _ ->
-            Option.None
-
-    let (|Set|_|) (node: OlySyntaxValueDeclarationKind) : ( OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxValueDeclarationKind.Set _ ->
-            Option.Some (node.Children.[0] :?> _)
-        | _ ->
-            Option.None
-
-    let (|GetSet|_|) (node: OlySyntaxValueDeclarationKind) : ( OlySyntaxToken * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxValueDeclarationKind.GetSet _ ->
-            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
         | _ ->
             Option.None
 

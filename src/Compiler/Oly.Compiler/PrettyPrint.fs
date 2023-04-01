@@ -446,6 +446,7 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             printField benv field, ""
 
         | :? IPropertySymbol as prop ->
+            // TODO: Fix 'get' 'set' from printing in the front.
             if prop.Getter.IsSome && prop.Setter.IsSome then
                 "get set " + prop.Name + ": ", ""
             elif prop.Getter.IsSome then

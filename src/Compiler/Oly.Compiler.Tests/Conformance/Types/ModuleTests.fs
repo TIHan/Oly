@@ -187,7 +187,7 @@ let ``Module with private members cannot be accessed 5``() =
         """
 module Test1 =
 
-    private get M: __oly_int32 = 1
+    M: __oly_int32 private get = 1
 
 module Test2 =
 
@@ -213,7 +213,7 @@ let ``Module with private members cannot be accessed 6``() =
 #[open]
 module Test1 =
 
-    private get M: __oly_int32 = 1
+    M: __oly_int32 private get = 1
 
 module Test2 =
 

@@ -1877,20 +1877,6 @@ let tryParseBindingDeclaration state =
         error(ExpectedSyntaxAfterToken("parameters", New), SyntaxBindingDeclaration.New(newToken, SyntaxParameters.Parameters(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
     | _ ->
 
-    match bt2 GET tryParseParameters state with
-    | Some(getToken), Some(pars) ->
-        SyntaxBindingDeclaration.Get(getToken, pars, ep s state) |> Some
-    | Some(getToken), _ ->
-        error(ExpectedSyntaxAfterToken("parameters", Get), SyntaxBindingDeclaration.Get(getToken, SyntaxParameters.Parameters(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
-    | _ ->
-
-    match bt2 SET tryParseParameters state with
-    | Some(setToken), Some(pars) ->
-        SyntaxBindingDeclaration.Set(setToken, pars, ep s state) |> Some
-    | Some(setToken), _ ->
-        error(ExpectedSyntaxAfterToken("parameters", Set), SyntaxBindingDeclaration.Set(setToken, SyntaxParameters.Parameters(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
-    | _ ->
-
     None
 
 let parseLambdaKind state =
@@ -1974,37 +1960,6 @@ let tryParseValueDeclarationKind state =
     match bt CONSTANT state with
     | Some(constantToken) ->
         SyntaxValueDeclarationKind.Constant(constantToken) |> Some
-    | _ ->
-
-    match bt GET state with
-    | Some(getToken) ->
-        // Disambiguate get()
-        match bt (tryPeek LEFT_PARENTHESIS) state with
-        | Some _ -> None
-        | _ ->
-
-        match bt SET state with
-        | Some(setToken) ->
-            SyntaxValueDeclarationKind.GetSet(getToken, setToken, ep s state) |> Some
-        | _ ->
-                
-        SyntaxValueDeclarationKind.Get(getToken) |> Some
-    | _ ->
-
-    match bt SET state with
-    | Some(setToken) ->
-        // Disambiguate set()
-        match bt (tryPeek LEFT_PARENTHESIS) state with
-        | Some _ -> None
-        | _ ->
-
-        match bt GET state with
-        | Some(getToken) ->
-            errorDo(InvalidSyntax("'get' must come before 'set'."), getToken) state
-            SyntaxValueDeclarationKind.GetSet(setToken, getToken, ep s state) |> Some
-        | _ ->
-
-        SyntaxValueDeclarationKind.Set(setToken) |> Some
     | _ ->
 
     match bt PATTERN state with
@@ -2268,18 +2223,29 @@ let tryParsePropertyBindingDeclaration state =
 
     match bt2 GET tryParseParameters state with
     | Some(getToken), Some(pars) ->
-        SyntaxBindingDeclaration.Get(getToken, pars, ep s state) |> Some
+        SyntaxBindingDeclaration.Getter(getToken, pars, ep s state) |> Some
     | Some(getToken), _ ->
-        errorDo(ExpectedSyntaxAfterToken("parameters", Get), getToken) state
-        SyntaxBindingDeclaration.Get(getToken, SyntaxParameters.Empty(), ep s state) |> Some
+
+        match bt SET state with
+        | Some(setToken) ->
+            SyntaxBindingDeclaration.GetSet(getToken, setToken, ep s state) |> Some
+        | _ ->
+
+        SyntaxBindingDeclaration.Get(getToken) |> Some
     | _ ->
 
     match bt2 SET tryParseParameters state with
     | Some(setToken), Some(pars) ->
-        SyntaxBindingDeclaration.Set(setToken, pars, ep s state) |> Some
+        SyntaxBindingDeclaration.Setter(setToken, pars, ep s state) |> Some
     | Some(setToken), _ ->
-        errorDo(ExpectedSyntaxAfterToken("parameters", Set), setToken) state
-        SyntaxBindingDeclaration.Set(setToken, SyntaxParameters.Empty(), ep s state) |> Some
+
+        match bt GET state with
+        | Some(getToken) ->
+            errorDo(InvalidSyntax("'get' must come before 'set'."), getToken) state
+            SyntaxBindingDeclaration.GetSet(setToken, getToken, ep s state) |> Some
+        | _ ->
+
+        SyntaxBindingDeclaration.Set(setToken) |> Some
     | _ ->
 
     None
