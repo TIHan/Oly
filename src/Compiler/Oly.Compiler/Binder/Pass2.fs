@@ -335,7 +335,8 @@ let private bindTopLevelValueDeclaration
         | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _)
         | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _) ->
             { valueExplicitness with IsExplicitGet = true }
-        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Setter _, _, _) 
+        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Setter _, _, _)
+        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)
         | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _) ->
             { valueExplicitness with IsExplicitSet = true }
         | _ ->

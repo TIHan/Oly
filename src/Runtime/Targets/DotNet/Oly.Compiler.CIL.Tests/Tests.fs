@@ -13233,7 +13233,7 @@ interface IMoveable =
 class Item =
     implements IMoveable
 
-    Name: string set, get = "Bar"
+    Name: string get, set = "Bar"
 
     Position: int
         get() =
