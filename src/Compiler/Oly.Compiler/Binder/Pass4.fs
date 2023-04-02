@@ -426,10 +426,9 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
     | OlySyntaxExpression.OpenExtensionDeclaration _ ->
         env, BoundExpression.None(BoundSyntaxInfo.User(syntaxExpr, env.benv))
 
-    | OlySyntaxExpression.ValueDeclaration(_, _, syntaxValueDeclPremodifierList, syntaxValueDeclKind, _, syntaxBinding) ->
+    | OlySyntaxExpression.ValueDeclaration(_, _, syntaxValueDeclPremodifierList, _, _, syntaxBinding) ->
         match bindingInfos.TryGetValue(syntaxBinding.Declaration) with
         | true, bindingInfo ->
-
             // TODO: We could probably make this more efficient...
             let isExplicitMutable =
                 if bindingInfo.Value.IsProperty then
