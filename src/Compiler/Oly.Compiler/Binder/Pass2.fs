@@ -60,6 +60,181 @@ let private bindTopLevelBindingDeclarationSignature cenv env (syntaxAttrs, attrs
 
     binding
 
+let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) attrs memberFlags valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration, syntaxPropBindings: OlySyntaxPropertyBinding imarray) =
+    let enclosingEnt = enclosing.AsEntity
+
+    let propName, propTy =
+        match syntaxBindingDecl with
+        | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot) ->
+            syntaxIdent.ValueText, bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
+        | _ ->
+            cenv.diagnostics.Error("Invalid property declaration.", 10, syntaxBindingDecl)
+            "", invalidType()
+
+    OlyAssert.False(syntaxPropBindings.IsEmpty)
+
+    if syntaxPropBindings.Length > 2 then
+        cenv.diagnostics.Error($"Too many bindings for property '{propName}'.", 10, syntaxBindingDecl)
+
+    let getOrSet1 =
+        match syntaxPropBindings[0] with
+        | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
+            match syntaxValueDeclKind with
+            | OlySyntaxValueDeclarationKind.None _
+            | OlySyntaxValueDeclarationKind.Error _ -> ()
+            | _ ->
+                cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
+            bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
+        | _ ->
+            raise(InternalCompilerUnreachedException())
+
+    let getOrSetOpt2 =
+        if syntaxPropBindings.Length = 2 then
+            match syntaxPropBindings[1] with
+            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
+                match syntaxValueDeclKind with
+                | OlySyntaxValueDeclarationKind.None _
+                | OlySyntaxValueDeclarationKind.Error _ -> ()
+                | _ ->
+                    cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
+                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
+                Some bindingInfo
+            | _ ->
+                raise(InternalCompilerUnreachedException())
+        else
+            None
+
+    let getterOpt, setterOpt =
+        match getOrSet1 with
+        | BindingFunction(func) ->
+            match func.Semantic with
+            | GetterFunction ->
+                match getOrSetOpt2 with
+                | None ->
+                    Some func, None
+                | Some(bindingInfo) ->
+                    match bindingInfo with
+                    | BindingFunction(func2) ->
+                        match func2.Semantic with
+                        | SetterFunction ->
+                            Some func, Some func2
+                        | GetterFunction ->
+                            cenv.diagnostics.Error("More than one 'get' binding declaration.", 10, syntaxBindingDecl)
+                            Some func, None
+                        | _ ->
+                            Some func, None
+                    | _ ->
+                        Some func, None
+
+            | SetterFunction ->
+                match getOrSetOpt2 with
+                | None ->
+                    None, Some func
+                | Some(bindingInfo) ->
+                    match bindingInfo with
+                    | BindingFunction(func2) ->
+                        match func2.Semantic with
+                        | GetterFunction ->
+                            Some func2, Some func
+                        | SetterFunction ->
+                            cenv.diagnostics.Error("More than one 'set' binding declaration.", 10, syntaxBindingDecl)
+                            None, Some func
+                        | _ ->
+                            None, Some func
+                    | _ ->
+                        None, Some func
+
+            | _ ->
+                None, None
+                
+        | _ ->
+            None, None
+
+    let isAutoProp =
+        syntaxPropBindings
+        |> ImArray.forall (function
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+                true
+            | _ ->
+                false
+        )
+
+    let hasAutoPropSet =
+        if isAutoProp then
+            syntaxPropBindings
+            |> ImArray.exists (function
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+                    true
+                | _ ->
+                    false
+            )
+        else
+            false
+
+    let memberFlags =
+        (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| (getOrSet1.Value.MemberFlags &&& MemberFlags.AccessorMask)
+
+    let prop =
+        if isAutoProp then
+            let associatedFormalPropId = ref None
+            let backingFieldOpt =
+                if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
+                    let backingFieldName = propName // Same name as the property, but it's private.
+                    let backingFieldMemberFlags =
+                        if memberFlags.HasFlag(MemberFlags.Instance) then
+                            MemberFlags.Instance ||| MemberFlags.Private
+                        else
+                            MemberFlags.None ||| MemberFlags.Private
+                    let backingFieldValueFlags =
+                        if hasAutoPropSet then
+                            ValueFlags.Mutable
+                        else
+                            ValueFlags.None
+                    createFieldValue
+                        enclosing
+                        ImArray.empty
+                        backingFieldName
+                        propTy
+                        backingFieldMemberFlags
+                        backingFieldValueFlags
+                        associatedFormalPropId
+                    |> Some
+                else
+                    None
+
+            let prop =
+                createPropertyValue
+                    enclosing
+                    attrs
+                    propName
+                    propTy
+                    (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
+                    getterOpt
+                    setterOpt
+                    backingFieldOpt
+
+            associatedFormalPropId.contents <- Some prop.Id
+            prop
+        else
+            createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
+
+    let getterOrSetterBindings =
+        seq {
+            getOrSet1
+            match getOrSetOpt2 with
+            | Some(bindingInfo) ->
+                bindingInfo
+            | _ ->
+                ()
+        }
+        |> ImArray.ofSeq
+
+    BindingProperty(getterOrSetterBindings, prop)
+
 let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding =
     match syntaxBinding with
     | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _) ->
@@ -117,188 +292,13 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
             cenv.diagnostics.Error("Expected 'pattern' with 'when'.", 10, syntaxBinding.Declaration.Identifier)
             bindingInfo
 
-    | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxBindingList) ->
+    | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList) ->
         match propInfoOpt with
         | Some _ ->
             cenv.diagnostics.Error("Invalid property declaration.", 10, syntaxBindingDecl)
             invalidBinding syntaxBindingDecl.Identifier.ValueText
         | _ ->
-
-        let enclosingEnt = enclosing.AsEntity
-
-        let propName, propTy =
-            match syntaxBindingDecl with
-            | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot) ->
-                syntaxIdent.ValueText, bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
-            | _ ->
-                cenv.diagnostics.Error("Invalid property declaration.", 10, syntaxBindingDecl)
-                "", invalidType()
-
-        let syntaxBindings = syntaxBindingList.ChildrenOfType
-        if syntaxBindings.IsEmpty then
-            raise(InternalCompilerException())
-
-        if syntaxBindings.Length > 2 then
-            cenv.diagnostics.Error($"Too many bindings for property '{propName}'.", 10, syntaxBindingDecl)
-
-        let getOrSet1 =
-            match syntaxBindings[0] with
-            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
-                match syntaxValueDeclKind with
-                | OlySyntaxValueDeclarationKind.None _
-                | OlySyntaxValueDeclarationKind.Error _ -> ()
-                | _ ->
-                    cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-                bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
-            | _ ->
-                raise(InternalCompilerUnreachedException())
-
-        let getOrSetOpt2 =
-            if syntaxBindings.Length = 2 then
-                match syntaxBindings[1] with
-                | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
-                    match syntaxValueDeclKind with
-                    | OlySyntaxValueDeclarationKind.None _
-                    | OlySyntaxValueDeclarationKind.Error _ -> ()
-                    | _ ->
-                        cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-                    let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
-                    Some bindingInfo
-                | _ ->
-                    raise(InternalCompilerUnreachedException())
-            else
-                None
-
-        let getterOpt, setterOpt =
-            match getOrSet1 with
-            | BindingFunction(func) ->
-                match func.Semantic with
-                | GetterFunction ->
-                    match getOrSetOpt2 with
-                    | None ->
-                        Some func, None
-                    | Some(bindingInfo) ->
-                        match bindingInfo with
-                        | BindingFunction(func2) ->
-                            match func2.Semantic with
-                            | SetterFunction ->
-                                Some func, Some func2
-                            | GetterFunction ->
-                                cenv.diagnostics.Error("More than one 'get' binding declaration.", 10, syntaxBindingDecl)
-                                Some func, None
-                            | _ ->
-                                Some func, None
-                        | _ ->
-                            Some func, None
-
-                | SetterFunction ->
-                    match getOrSetOpt2 with
-                    | None ->
-                        None, Some func
-                    | Some(bindingInfo) ->
-                        match bindingInfo with
-                        | BindingFunction(func2) ->
-                            match func2.Semantic with
-                            | GetterFunction ->
-                                Some func2, Some func
-                            | SetterFunction ->
-                                cenv.diagnostics.Error("More than one 'set' binding declaration.", 10, syntaxBindingDecl)
-                                None, Some func
-                            | _ ->
-                                None, Some func
-                        | _ ->
-                            None, Some func
-
-                | _ ->
-                    None, None
-                    
-            | _ ->
-                None, None
-
-        let isAutoProp =
-            syntaxBindings
-            |> ImArray.forall (function
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _))
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _))
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
-                    true
-                | _ ->
-                    false
-            )
-
-        let hasAutoPropSet =
-            if isAutoProp then
-                syntaxBindings
-                |> ImArray.exists (function
-                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
-                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
-                        true
-                    | _ ->
-                        false
-                )
-            else
-                false
-
-        let memberFlags =
-            (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| (getOrSet1.Value.MemberFlags &&& MemberFlags.AccessorMask)
-
-        let prop =
-            if isAutoProp then
-                let associatedFormalPropId = ref None
-                let backingFieldOpt =
-                    if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
-                        let backingFieldName = propName // Same name as the property, but it's private.
-                        let backingFieldMemberFlags =
-                            if memberFlags.HasFlag(MemberFlags.Instance) then
-                                MemberFlags.Instance ||| MemberFlags.Private
-                            else
-                                MemberFlags.None ||| MemberFlags.Private
-                        let backingFieldValueFlags =
-                            if hasAutoPropSet then
-                                ValueFlags.Mutable
-                            else
-                                ValueFlags.None
-                        createFieldValue
-                            enclosing
-                            ImArray.empty
-                            backingFieldName
-                            propTy
-                            backingFieldMemberFlags
-                            backingFieldValueFlags
-                            associatedFormalPropId
-                        |> Some
-                    else
-                        None
-
-                let prop =
-                    createPropertyValue
-                        enclosing
-                        attrs
-                        propName
-                        propTy
-                        (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
-                        getterOpt
-                        setterOpt
-                        backingFieldOpt
-
-                associatedFormalPropId.contents <- Some prop.Id
-                prop
-            else
-                createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
-
-        let getterOrSetterBindings =
-            seq {
-                getOrSet1
-                match getOrSetOpt2 with
-                | Some(bindingInfo) ->
-                    bindingInfo
-                | _ ->
-                    ()
-            }
-            |> ImArray.ofSeq
-
-        BindingProperty(getterOrSetterBindings, prop)
+            bindTopLevelPropertyBinding cenv env enclosing attrs memberFlags valueExplicitness (syntaxBindingDecl, syntaxPropBindingList.ChildrenOfType)
 
     | _ ->
         raise(InternalCompilerException())
