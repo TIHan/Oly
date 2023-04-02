@@ -337,10 +337,6 @@
 	<Case name="Set">
 		<Field name="setToken">SyntaxToken</Field>
 	</Case>
-	<Case name="GetSet">
-		<Field name="getToken">SyntaxToken</Field>
-		<Field name="setToken">SyntaxToken</Field>
-	</Case>
     <Case name="Getter">
       <Field name="getToken">SyntaxToken</Field>
       <Field name="pars">SyntaxParameters</Field>
@@ -391,7 +387,7 @@
     </Case>
     <Case name="Property">
       <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
-      <Field name="bindingList">SyntaxPropertyBinding SyntaxList</Field>
+      <Field name="bindingList">SyntaxPropertyBinding SyntaxSeparatorList</Field>
     </Case>
 	<Case name="PatternWithGuard">
 		<Field name="bindingDecl">SyntaxBindingDeclaration</Field>

@@ -49,7 +49,7 @@ let private bindTopLevelBindingDeclarationSignature cenv env (syntaxAttrs, attrs
     let binding = bindMemberBindingDeclaration cenv env attrs true memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
     checkEnumForInvalidFieldOrFunction cenv syntaxBindingDecl binding
 
-    if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness syntaxBindingDecl then
+    if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness propInfoOpt.IsNone syntaxBindingDecl then
         checkSyntaxBindingDeclaration cenv valueExplicitness syntaxBindingDecl
 
     match binding.Value with
@@ -123,6 +123,8 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
             cenv.diagnostics.Error("Invalid property declaration.", 10, syntaxBindingDecl)
             invalidBinding syntaxBindingDecl.Identifier.ValueText
         | _ ->
+
+        let enclosingEnt = enclosing.AsEntity
 
         let propName, propTy =
             match syntaxBindingDecl with
@@ -213,22 +215,90 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
             | _ ->
                 None, None
 
-        match getOrSet1 with
-        | BindingProperty _ -> getOrSet1
-        | _ ->
-            let prop = createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
-            let getterOrSetterBindings =
-                seq {
-                    getOrSet1
-                    match getOrSetOpt2 with
-                    | Some(bindingInfo) ->
-                        bindingInfo
-                    | _ ->
-                        ()
-                }
-                |> ImArray.ofSeq
+        let isAutoProp =
+            syntaxBindings
+            |> ImArray.forall (function
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _))
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _))
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+                    true
+                | _ ->
+                    false
+            )
 
-            BindingProperty(getterOrSetterBindings, prop)
+        let hasAutoPropSet =
+            if isAutoProp then
+                syntaxBindings
+                |> ImArray.exists (function
+                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+                        true
+                    | _ ->
+                        false
+                )
+            else
+                false
+
+        let memberFlags =
+            (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| (getOrSet1.Value.MemberFlags &&& MemberFlags.AccessorMask)
+
+        let prop =
+            if isAutoProp then
+                let associatedFormalPropId = ref None
+                let backingFieldOpt =
+                    if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
+                        let backingFieldName = propName // Same name as the property, but it's private.
+                        let backingFieldMemberFlags =
+                            if memberFlags.HasFlag(MemberFlags.Instance) then
+                                MemberFlags.Instance ||| MemberFlags.Private
+                            else
+                                MemberFlags.None ||| MemberFlags.Private
+                        let backingFieldValueFlags =
+                            if hasAutoPropSet then
+                                ValueFlags.Mutable
+                            else
+                                ValueFlags.None
+                        createFieldValue
+                            enclosing
+                            ImArray.empty
+                            backingFieldName
+                            propTy
+                            backingFieldMemberFlags
+                            backingFieldValueFlags
+                            associatedFormalPropId
+                        |> Some
+                    else
+                        None
+
+                let prop =
+                    createPropertyValue
+                        enclosing
+                        attrs
+                        propName
+                        propTy
+                        (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
+                        getterOpt
+                        setterOpt
+                        backingFieldOpt
+
+                associatedFormalPropId.contents <- Some prop.Id
+                prop
+            else
+                createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
+
+        let getterOrSetterBindings =
+            seq {
+                getOrSet1
+                match getOrSetOpt2 with
+                | Some(bindingInfo) ->
+                    bindingInfo
+                | _ ->
+                    ()
+            }
+            |> ImArray.ofSeq
+
+        BindingProperty(getterOrSetterBindings, prop)
 
     | _ ->
         raise(InternalCompilerException())
@@ -268,9 +338,6 @@ let private bindTopLevelValueDeclaration
         | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Setter _, _, _) 
         | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _) ->
             { valueExplicitness with IsExplicitSet = true }
-        | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.GetSet _, _, _)
-        | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.GetSet _) ->
-            { valueExplicitness with IsExplicitGet = true; IsExplicitSet = true }
         | _ ->
             valueExplicitness
 

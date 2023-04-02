@@ -368,8 +368,7 @@ module OlySyntaxTreeExtensions =
             | OlySyntaxBindingDeclaration.New(newToken, _) ->
                 newToken
             | OlySyntaxBindingDeclaration.Getter(getToken, _)
-            | OlySyntaxBindingDeclaration.Get(getToken)
-            | OlySyntaxBindingDeclaration.GetSet(getToken, _)->
+            | OlySyntaxBindingDeclaration.Get(getToken) ->
                 getToken
             | OlySyntaxBindingDeclaration.Setter(setToken, _)
             | OlySyntaxBindingDeclaration.Set(setToken) ->

@@ -273,56 +273,22 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                         else
                             None
 
-                    if valueExplicitness.IsExplicitSet && not valueExplicitness.IsExplicitGet && (enclosingEnt.IsStruct || enclosingEnt.IsClass || enclosingEnt.IsModule) then
-                        cenv.diagnostics.Error("Auto property must have a getter.", 10, syntaxNode)
-
                     if enclosingEnt.IsTypeExtension then
                         cenv.diagnostics.Error("Type extensions cannot have auto properties. Use explicitly implemented properties instead.", 10, syntaxNode)
                     elif enclosingEnt.IsEnum then
                         cenv.diagnostics.Error("Enums cannot have properties.", 10, syntaxNode)
 
-                    let associatedFormalPropId = ref None
-                    let backingFieldOpt =
-                        if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
-                            let backingFieldName = name // Same name as the property, but it's private.
-                            let backingFieldMemberFlags =
-                                if memberFlags.HasFlag(MemberFlags.Instance) then
-                                    MemberFlags.Instance ||| MemberFlags.Private
-                                else
-                                    MemberFlags.None ||| MemberFlags.Private
-                            let backingFieldValueFlags =
-                                if valueExplicitness.IsExplicitSet then
-                                    ValueFlags.Mutable
-                                else
-                                    ValueFlags.None
-                            createFieldValue
-                                enclosing
-                                ImArray.empty
-                                backingFieldName
-                                propTy
-                                backingFieldMemberFlags
-                                backingFieldValueFlags
-                                associatedFormalPropId
-                            |> Some
-                        else
-                            None
-
-                    let propValue =
-                        createPropertyValue
-                            enclosing
-                            attrs
-                            name
-                            propTy
-                            (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
-                            getterOpt
-                            setterOpt
-                            backingFieldOpt
-                            :> IValueSymbol
-                    associatedFormalPropId.contents <- Some propValue.Id
-                
-                    BindingProperty(ImArray.empty, propValue :?> PropertySymbol)
-                    |> Choice1Of2
-                    |> Some
+                    if getterOpt.IsSome then
+                        OlyAssert.False(setterOpt.IsSome)
+                        BindingFunction(getterOpt.Value) 
+                        |> Choice1Of2
+                        |> Some
+                    elif setterOpt.IsSome then
+                        BindingFunction(setterOpt.Value) 
+                        |> Choice1Of2
+                        |> Some
+                    else
+                        None
                 else
                     None
             | _ ->
@@ -487,15 +453,6 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
 
         | Some(propName, propTy, _) ->
             bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propName propTy
-
-    | OlySyntaxBindingDeclaration.GetSet(syntaxGetToken, syntaxSetToken) ->
-        match propInfoOpt with
-        | None ->
-            cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
-            None
-
-        | Some(propName, propTy, _) ->
-            bindPropertyGetterSetter cenv env syntaxBindingDecl None propName propTy
 
     | OlySyntaxBindingDeclaration.Error(_) ->
         None

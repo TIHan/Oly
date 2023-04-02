@@ -3,10 +3,10 @@ namespace Evergreen.Window
 open System
 
 struct MouseInfo =
-    X: int32 get set = 0
-    Y: int32 get set = 0
-    RelativeX: int32 get set = 0
-    RelativeY: int32 get set = 0
+    X: int32 set, get = 0
+    Y: int32 set, get = 0
+    RelativeX: int32 set, get = 0
+    RelativeY: int32 set, get = 0
 
 enum Key =
     | Unknown

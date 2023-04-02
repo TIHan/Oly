@@ -211,8 +211,8 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
 // ---------------------------------------------------------------------
 
 sealed class VulkanApplicationOptions =
-    MaxFramesInFlight: int32 get set = 2
-    ValidationEnabled: bool get set = false
+    MaxFramesInFlight: int32 set, get = 2
+    ValidationEnabled: bool set, get = false
 
 private validateOptions(options: VulkanApplicationOptions): () =
     if (options.MaxFramesInFlight <= 0)

@@ -4465,11 +4465,11 @@ print(__oly_object): ()
 
 struct TestStruct =
 
-    x: int32 get set
+    x: int32 get, set
 
     new(x: int32) = { x = x }
 
-test<T>(x: T&): int32 where T: { x: int32 get set } = 
+test<T>(x: T&): int32 where T: { x: int32 get, set } = 
     x.x <- 500
     x.x
 
@@ -13228,12 +13228,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    Position: int get set
+    Position: int get, set
    
 class Item =
     implements IMoveable
 
-    Name: string get set = "Bar"
+    Name: string set, get = "Bar"
 
     Position: int
         get() =
@@ -13291,12 +13291,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    Position: int get set
+    Position: int get, set
    
 struct Item =
     implements IMoveable
 
-    Name: string get set = "Bar"
+    Name: string set, get = "Bar"
 
     Position: int
         #[not inline]
@@ -13358,12 +13358,12 @@ alias byref<T>
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
-    Position: int get set
+    Position: int get, set
    
 struct Item =
     implements IMoveable
 
-    Name: string get set = "Bar"
+    Name: string set, get = "Bar"
 
     Position: int
         #[inline]

@@ -1714,13 +1714,6 @@ module OlySyntaxBindingDeclaration =
         | _ ->
             Option.None
 
-    let (|GetSet|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxBindingDeclaration.GetSet _ ->
-            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
-        | _ ->
-            Option.None
-
     let (|Getter|_|) (node: OlySyntaxBindingDeclaration) : ( OlySyntaxToken * OlySyntaxParameters ) option =
         match node.Internal with
         | SyntaxBindingDeclaration.Getter _ ->
@@ -1919,7 +1912,7 @@ module OlySyntaxBinding =
         | _ ->
             Option.None
 
-    let (|Property|_|) (node: OlySyntaxBinding) : ( OlySyntaxBindingDeclaration * OlySyntaxPropertyBinding OlySyntaxList ) option =
+    let (|Property|_|) (node: OlySyntaxBinding) : ( OlySyntaxBindingDeclaration * OlySyntaxPropertyBinding OlySyntaxSeparatorList ) option =
         match node.Internal with
         | SyntaxBinding.Property _ ->
             Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _)
@@ -3798,7 +3791,7 @@ module private Convert =
         | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxPropertyBinding> as internalNode -> OlySyntaxList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode

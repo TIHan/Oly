@@ -1533,11 +1533,6 @@ type SyntaxBindingDeclaration =
     | Set
         of
         setToken: SyntaxToken
-    | GetSet
-        of
-        getToken: SyntaxToken *
-        setToken: SyntaxToken *
-        fullWidth: int
     | Getter
         of
         getToken: SyntaxToken *
@@ -1588,11 +1583,6 @@ type SyntaxBindingDeclaration =
                 match index with
                 | 0 -> setToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | GetSet(getToken, setToken, _) ->
-                match index with
-                | 0 -> getToken :> ISyntaxNode
-                | 1 -> setToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | Getter(getToken, pars, _) ->
                 match index with
                 | 0 -> getToken :> ISyntaxNode
@@ -1615,7 +1605,6 @@ type SyntaxBindingDeclaration =
             | New _ -> 2
             | Get _ -> 1
             | Set _ -> 1
-            | GetSet _ -> 2
             | Getter _ -> 2
             | Setter _ -> 2
             | Error _ -> 1
@@ -1632,8 +1621,6 @@ type SyntaxBindingDeclaration =
                 (x :> ISyntaxNode).FullWidth
             | Set(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | GetSet(fullWidth=fullWidth) ->
-                fullWidth
             | Getter(fullWidth=fullWidth) ->
                 fullWidth
             | Setter(fullWidth=fullWidth) ->
@@ -1750,7 +1737,7 @@ type SyntaxBinding =
     | Property
         of
         bindingDecl: SyntaxBindingDeclaration *
-        bindingList: SyntaxPropertyBinding SyntaxList *
+        bindingList: SyntaxPropertyBinding SyntaxSeparatorList *
         fullWidth: int
     | PatternWithGuard
         of

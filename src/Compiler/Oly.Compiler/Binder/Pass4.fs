@@ -504,11 +504,6 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
                         let exprs =
                             match bindingInfo with
                             | BindingProperty(getterAndSetterBindings=bindings) ->
-                                let bindings =
-                                    if bindings.IsEmpty then
-                                        ImArray.createOne bindingInfo
-                                    else
-                                        bindings
                                 (syntaxPropBindings, bindings)
                                 ||> ImArray.map2 (fun syntaxPropBinding binding ->
                                     match syntaxPropBinding with
@@ -520,16 +515,11 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
                             | _ ->
                                 raise(InternalCompilerException())
 
-                        match bindingInfo with
-                        | BindingProperty(getterAndSetterBindings=bindings) when bindings.IsEmpty ->
-                            OlyAssert.Equal(exprs.Length, 1)
-                            exprs[0]
-                        | _ ->
-                            let expr = BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
-                            BoundExpression.MemberDefinition(
-                                BoundSyntaxInfo.User(syntaxExpr, env.benv),
-                                BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo, expr)
-                            )
+                        let expr = BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
+                        BoundExpression.MemberDefinition(
+                            BoundSyntaxInfo.User(syntaxExpr, env.benv),
+                            BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo, expr)
+                        )
 
                     | OlySyntaxBinding.PatternWithGuard(_, syntaxImplicitGuardBinding) ->
                         let guardFuncOpt =

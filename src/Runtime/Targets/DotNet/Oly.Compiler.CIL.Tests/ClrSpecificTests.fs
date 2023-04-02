@@ -409,11 +409,11 @@ alias (&)<T>
 
 struct TestStruct =
 
-    x: Int32 get set
+    x: Int32 get, set
 
     new(x: Int32) = { x = x }
 
-test<T>(x: T&): Int32 where T: { x: Int32 get set } = 
+test<T>(x: T&): Int32 where T: { x: Int32 get, set } = 
     let mutable result = Int32.Parse("123")
     x.x <- result.GetHashCode()
     x.x

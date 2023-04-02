@@ -182,8 +182,7 @@ type SyntaxBindingDeclaration with
         | SyntaxBindingDeclaration.New(newToken, _, _) ->
             newToken
         | SyntaxBindingDeclaration.Getter(getToken, _, _)
-        | SyntaxBindingDeclaration.Get(getToken) 
-        | SyntaxBindingDeclaration.GetSet(getToken, _, _) ->
+        | SyntaxBindingDeclaration.Get(getToken) ->
             getToken
         | SyntaxBindingDeclaration.Setter(setToken, _, _)
         | SyntaxBindingDeclaration.Set(setToken) ->
@@ -209,15 +208,13 @@ type SyntaxBindingDeclaration with
     member this.IsExplicitGet =
         match this with
         | SyntaxBindingDeclaration.Get _
-        | SyntaxBindingDeclaration.Getter _
-        | SyntaxBindingDeclaration.GetSet _ -> true
+        | SyntaxBindingDeclaration.Getter _ -> true
         | _ -> false
 
     member this.IsExplicitSet =
         match this with
         | SyntaxBindingDeclaration.Set _
-        | SyntaxBindingDeclaration.Setter _
-        | SyntaxBindingDeclaration.GetSet _ -> true
+        | SyntaxBindingDeclaration.Setter _ -> true
         | _ -> false
 
     member this.IsExplicitFunction =

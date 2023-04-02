@@ -888,6 +888,37 @@ let parseSeparatorListOld separatorToken nodeName errorNode tryParseNode state =
     | _ ->
         SyntaxSeparatorList.Empty()
 
+let tryParseListWithSeparatorOptionalCommaAux willAlign tryParseNode state =
+    let s = sp state
+
+    let tryParse = 
+        if willAlign then
+            tryAlign tryParseNode
+        else
+            tryParseNode
+
+    match bt2 tryParse COMMA state with
+    | Some(node), Some(separatorToken) ->
+        match tryParseListWithSeparatorOptionalCommaAux false tryParseNode state with
+        | Some(rest) ->
+            SyntaxSeparatorList.List(node, separatorToken, rest, ep s state) |> Some
+        | _ ->
+            errorDo (InvalidSyntax "',' is optional.", separatorToken) state
+            SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Empty(), ep s state) |> Some
+
+    | Some(node), _ ->
+        match tryParseListWithSeparatorOptionalCommaAux true tryParseNode state with
+        | Some(rest) ->
+            SyntaxSeparatorList.List(node, dummyToken(), rest, ep s state) |> Some
+        | _ ->
+            SyntaxSeparatorList.List(node, dummyToken(), SyntaxSeparatorList.Empty(), ep s state) |> Some
+
+    | _ ->
+        None
+
+let tryParseListWithSeparatorOptionalComma tryParseNode state =
+    tryParseListWithSeparatorOptionalCommaAux false tryParseNode state
+
 let tryParseList tryParseNode state =
     let s = sp state
 
@@ -2225,12 +2256,6 @@ let tryParsePropertyBindingDeclaration state =
     | Some(getToken), Some(pars) ->
         SyntaxBindingDeclaration.Getter(getToken, pars, ep s state) |> Some
     | Some(getToken), _ ->
-
-        match bt SET state with
-        | Some(setToken) ->
-            SyntaxBindingDeclaration.GetSet(getToken, setToken, ep s state) |> Some
-        | _ ->
-
         SyntaxBindingDeclaration.Get(getToken) |> Some
     | _ ->
 
@@ -2238,13 +2263,6 @@ let tryParsePropertyBindingDeclaration state =
     | Some(setToken), Some(pars) ->
         SyntaxBindingDeclaration.Setter(setToken, pars, ep s state) |> Some
     | Some(setToken), _ ->
-
-        match bt GET state with
-        | Some(getToken) ->
-            errorDo(InvalidSyntax("'get' must come before 'set'."), getToken) state
-            SyntaxBindingDeclaration.GetSet(setToken, getToken, ep s state) |> Some
-        | _ ->
-
         SyntaxBindingDeclaration.Set(setToken) |> Some
     | _ ->
 
@@ -2276,7 +2294,7 @@ let tryParsePropertyBinding state =
     None
 
 let tryParsePropertyBindings state =
-    match bt (tryOffside (tryParseList (alignRecover tryParsePropertyBinding))) state with
+    match bt (tryOffside (tryParseListWithSeparatorOptionalComma tryParsePropertyBinding)) state with
     | Some(getOrSetBindingList) ->
         getOrSetBindingList |> Some
     | _ ->

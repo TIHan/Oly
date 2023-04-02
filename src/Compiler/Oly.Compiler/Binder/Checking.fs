@@ -51,19 +51,22 @@ let checkTypeParameterCount (cenv: cenv) syntaxNode expectedTyParCount tyParCoun
     if expectedTyParCount <> tyParCount then
         cenv.diagnostics.Error(sprintf "Expected '%i' type argument(s) but got '%i'." expectedTyParCount tyParCount, 0, syntaxNode)
 
-let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindingInfo: BindingInfoSymbol) memberFlags (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
+let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindingInfo: BindingInfoSymbol) memberFlags (valueExplicitness: ValueExplicitness) mustHaveImpl (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     let mutable hasErrors = false
 
     let mustHaveImpl =
-        if bindingInfo.Value.IsFunction then
-            match enclosing with
-            | EnclosingSymbol.Entity(ent) ->
-                not ent.IsShape && 
-                not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract) && 
-                not (attributesContainImport attrs) && 
-                not (attributesContainIntrinsic attrs)
-            | _ ->
-                true
+        if mustHaveImpl then
+            if bindingInfo.Value.IsFunction then
+                match enclosing with
+                | EnclosingSymbol.Entity(ent) ->
+                    not ent.IsShape && 
+                    not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract) && 
+                    not (attributesContainImport attrs) && 
+                    not (attributesContainIntrinsic attrs)
+                | _ ->
+                    true
+            else
+                false
         else
             false
 

@@ -475,7 +475,7 @@ let computeConversionTree cenv (tree: XmlElement) =
     $"        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxPropertyBinding> as internalNode -> OlySyntaxList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
     $"        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode\n"

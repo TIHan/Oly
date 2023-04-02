@@ -2889,7 +2889,7 @@ let ``Type can have a mutable field for the shape``() =
     let src =
         """
 struct TestStruct =
-    x: __oly_int32 get set
+    x: __oly_int32 get, set
     new(x: __oly_int32) = { x = x }
 
 test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get } = t.x
@@ -2910,7 +2910,7 @@ struct TestStruct =
     x: __oly_int32 get
     new(x: __oly_int32) = { x = x }
 
-test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get set } = t.x
+test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get, set } = t.x
 
 main(): () =
     let ts = TestStruct(123)
