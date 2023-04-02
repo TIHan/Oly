@@ -432,142 +432,14 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
 
             // TODO: We could probably make this more efficient...
             let isExplicitMutable =
-                syntaxValueDeclPremodifierList.ChildrenOfType
-                |> ImArray.exists (function OlySyntaxValueDeclarationPremodifier.Mutable _ -> true | _ -> false)
+                if bindingInfo.Value.IsProperty then
+                    false
+                else
+                    syntaxValueDeclPremodifierList.ChildrenOfType
+                    |> ImArray.exists (function OlySyntaxValueDeclarationPremodifier.Mutable _ -> true | _ -> false)
 
             let expr =
-                let rec bind syntaxBinding (bindingInfo: BindingInfoSymbol) =
-                    match syntaxBinding with
-                    | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, syntaxRhs) ->
-
-                        let env1, implicitBaseOpt =
-                            match currentEnclosing env with
-                            | EnclosingSymbol.Entity(ent) when not ent.Extends.IsEmpty && (ent.IsClass || ent.IsStruct) && bindingInfo.Value.IsFunction ->
-                                let baseTy = ent.Extends.[0]
-                                match baseTy.TryEntity with
-                                | ValueSome baseEnt ->
-                                    if bindingInfo.Value.IsInstance then
-                                        if bindingInfo.Value.IsConstructor then
-                                            let baseCtors = createBaseInstanceConstructors "base" baseEnt
-                                            if baseCtors.IsEmpty then
-                                                env, None
-                                            else
-                                                let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length)
-                                                env.SetUnqualifiedValue(funcGroup), None
-                                        else
-                                            let mightBeReadOnly = not isExplicitMutable
-                                            let baseValue = createBaseValue "base" false mightBeReadOnly baseEnt
-                                            let env = env.SetUnqualifiedValue(baseValue)
-                                            env, Some baseValue
-                                    else
-                                        env, None
-                                | _ ->
-                                    env, None
-                            | _ ->
-                                env, None
-
-                        let env2, implicitThisOpt =
-                            match currentEnclosing env with
-                            | EnclosingSymbol.Entity(ent) when ent.IsModule ->
-                                env1, None
-                            | EnclosingSymbol.Entity(ent) ->
-                                if bindingInfo.Value.IsInstance && bindingInfo.Value.IsFunction then
-                                    let mightBeReadOnly = not isExplicitMutable && (bindingInfo.Value.AsFunction.Semantic <> FunctionSemantic.SetterFunction)
-                                    let thisPar = createThisValue "this" bindingInfo.Value.IsConstructor mightBeReadOnly (ent.ToInstantiation())
-                                    env1.SetUnqualifiedValue(thisPar), Some thisPar
-                                else
-                                    env1, None
-                            | _ ->
-                                env1, None
-
-                        let env3 =
-                            (env2, bindingInfo.Value.TypeParameters)
-                            ||> ImArray.fold scopeInTypeParameter
-
-                        let rhsExpr = bindMemberValueRightSideExpression cenv { env3 with implicitThisOpt = implicitThisOpt } syntaxBindingDecl implicitBaseOpt bindingInfo syntaxRhs
-                        let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingInfo rhsExpr
-                        let binding =
-                            BoundBinding.Implementation(
-                                BoundSyntaxInfo.User(syntaxBinding, env.benv),
-                                bindingInfo,
-                                rhsExpr
-                            )
-                        BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxExpr, env.benv), binding)
-
-                    | OlySyntaxBinding.Signature(_) ->
-                        BoundExpression.MemberDefinition(
-                            BoundSyntaxInfo.User(syntaxExpr, env.benv),
-                            BoundBinding.Signature(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo))
-
-                    | OlySyntaxBinding.Property(_, syntaxPropBindingList) ->
-                        let syntaxPropBindings = syntaxPropBindingList.ChildrenOfType
-                        let exprs =
-                            match bindingInfo with
-                            | BindingProperty(getterAndSetterBindings=bindings) ->
-                                (syntaxPropBindings, bindings)
-                                ||> ImArray.map2 (fun syntaxPropBinding binding ->
-                                    match syntaxPropBinding with
-                                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, syntaxBinding) ->
-                                        bind syntaxBinding binding
-                                    | _ ->
-                                        raise(InternalCompilerUnreachedException())
-                                )
-                            | _ ->
-                                raise(InternalCompilerException())
-
-                        let expr = BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
-                        BoundExpression.MemberDefinition(
-                            BoundSyntaxInfo.User(syntaxExpr, env.benv),
-                            BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo, expr)
-                        )
-
-                    | OlySyntaxBinding.PatternWithGuard(_, syntaxImplicitGuardBinding) ->
-                        let guardFuncOpt =
-                            match bindingInfo with
-                            | BindingPattern(pat, _) -> pat.PatternGuardFunction |> Option.map (fun x -> x :?> FunctionSymbol)
-                            | _ -> None
-
-                        match bindingInfo, guardFuncOpt, syntaxImplicitGuardBinding with
-                        | BindingPattern(_, func), Some guardFunc, OlySyntaxGuardBinding.Implementation(syntaxWhenToken, _, _, syntaxCondExpr, _, _, syntaxRhsExpr) ->
-                            let bindingGuardInfo = BindingFunction(guardFunc)
-
-                            let env1 =
-                                (env, guardFunc.TypeParameters)
-                                ||> ImArray.fold scopeInTypeParameter
-                            let condExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken None bindingGuardInfo syntaxCondExpr
-                            let bindingGuardInfo = BindingFunction(guardFunc)
-                            let bindingGuardInfo, condExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingGuardInfo condExpr
-                            let bindingGuard =
-                                BoundBinding.Implementation(
-                                    BoundSyntaxInfo.User(syntaxImplicitGuardBinding, env.benv),
-                                    bindingGuardInfo,
-                                    condExpr
-                                )
-
-                            let env1 =
-                                (env, func.TypeParameters)
-                                ||> ImArray.fold scopeInTypeParameter
-                            let rhsExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken None bindingInfo syntaxRhsExpr
-                            let bindingInfo = BindingFunction(func)
-                            let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingInfo rhsExpr
-                            let binding =
-                                BoundBinding.Implementation(
-                                    BoundSyntaxInfo.User(syntaxBinding, env.benv),
-                                    bindingInfo,
-                                    rhsExpr
-                                )
-
-                            E.Sequential(
-                                BoundSyntaxInfo.User(syntaxBinding, env.benv),
-                                BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxExpr, env.benv), bindingGuard),
-                                BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxExpr, env.benv), binding)
-                            )
-                        | _ ->
-                            E.Error(BoundSyntaxInfo.User(syntaxBinding, env.benv))
-
-                    | _ ->
-                        raise(InternalCompilerUnreachedException())
-                bind syntaxBinding bindingInfo
+                bindTopLevelBinding cenv env syntaxExpr isExplicitMutable bindingInfo syntaxBinding
 
             env, expr
         | _ ->
