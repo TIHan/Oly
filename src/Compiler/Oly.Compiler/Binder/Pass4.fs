@@ -476,11 +476,29 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
         | _ ->
             raise(InternalCompilerException())
 
-    let expr = BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
-    BoundExpression.MemberDefinition(
-        BoundSyntaxInfo.User(syntaxParentNode, env.benv),
-        BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo, expr)
-    )
+    let expr = 
+        match exprs[exprs.Length - 1] with
+        | E.MemberDefinition(_, binding) when bindingInfo.Value.IsAutoProperty ->
+            match binding with
+            | BoundBinding.Implementation(_, _, rhsExpr) -> 
+                match rhsExpr with
+                | E.Lambda(body=lazyBodyExpr) -> lazyBodyExpr.Expression
+                | _ -> OlyAssert.Fail("Expected 'Lambda' expression.")
+            | BoundBinding.Signature _ -> E.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        | _ ->
+            BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
+
+    match expr with
+    | E.None _ ->
+        BoundExpression.MemberDefinition(
+            BoundSyntaxInfo.User(syntaxParentNode, env.benv),
+            BoundBinding.Signature(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo)
+        )
+    | _ ->
+        BoundExpression.MemberDefinition(
+            BoundSyntaxInfo.User(syntaxParentNode, env.benv),
+            BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo, expr)
+        )
 
 let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode isExplicitMutable (bindingInfo: BindingInfoSymbol) (syntaxBinding: OlySyntaxBinding) =
     match syntaxBinding with

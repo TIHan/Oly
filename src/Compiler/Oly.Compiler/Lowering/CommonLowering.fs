@@ -179,13 +179,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModule && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo None origExpr
     | E.MemberDefinition(binding=BoundBinding.Implementation(syntaxInfo, bindingInfo, rhsExpr)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModule && bindingInfo.Value.IsAutoProperty ->
-        let rhsExprs = rhsExpr.FlattenSequentialExpressions()
-        let rhsExpr = rhsExprs[rhsExprs.Length - 1]
-        match rhsExpr with
-        | E.MemberDefinition(binding=BoundBinding.Implementation(_, _, E.Lambda(body=rhsExpr))) ->
-            lowerAutoProperty syntaxInfo bindingInfo (Some rhsExpr.Expression) origExpr
-        | _ ->
-            lowerAutoProperty syntaxInfo bindingInfo (Some rhsExpr) origExpr
+        lowerAutoProperty syntaxInfo bindingInfo (Some rhsExpr) origExpr
 
 #if DEBUG
     | E.MemberDefinition(binding=binding) ->
