@@ -88,7 +88,7 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
             | _ ->
                 ()
 
-    if valueExplicitness.IsExplicitOverrides then
+    if valueExplicitness.IsExplicitOverrides && mustHaveImpl then
         cenv.diagnostics.Error("'overrides' cannot be used in a context where there is no implementation. Remove 'overrides'.", 10, syntaxBindingDecl.Identifier)
         hasErrors <- true
 

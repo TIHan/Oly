@@ -464,7 +464,8 @@ module OlySyntaxTreeExtensions =
             match this with
             | OlySyntaxBinding.Implementation(bindingDecl, _, _)
             | OlySyntaxBinding.Signature(bindingDecl)
-            | OlySyntaxBinding.Property(bindingDecl, _) 
+            | OlySyntaxBinding.Property(bindingDecl, _)
+            | OlySyntaxBinding.PropertyWithDefault(bindingDecl, _, _, _)
             | OlySyntaxBinding.PatternWithGuard(bindingDecl, _) -> bindingDecl
             | _ -> 
                 failwith "Invalid syntax binding."
@@ -1133,6 +1134,7 @@ module OlySyntaxTreeExtensions =
                         | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                         | OlySyntaxBinding.Signature(syntaxBindingDecl)
                         | OlySyntaxBinding.Property(syntaxBindingDecl, _)
+                        | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
                         | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
                             builder.Add(syntaxAttrs, syntaxBindingDecl)
                         | _ ->
@@ -1212,7 +1214,8 @@ module OlySyntaxTreeExtensions =
                             match syntaxBinding with
                             | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                             | OlySyntaxBinding.Signature(syntaxBindingDecl)
-                            | OlySyntaxBinding.Property(syntaxBindingDecl, _) 
+                            | OlySyntaxBinding.Property(syntaxBindingDecl, _)
+                            | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
                             | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
                                 ValueSome syntaxBindingDecl
                             | _ ->
@@ -1227,6 +1230,7 @@ module OlySyntaxTreeExtensions =
                         | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                         | OlySyntaxBinding.Signature(syntaxBindingDecl)
                         | OlySyntaxBinding.Property(syntaxBindingDecl, _) 
+                        | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
                         | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
                             ValueSome syntaxBindingDecl
                         | _ ->
@@ -1241,6 +1245,7 @@ module OlySyntaxTreeExtensions =
                     | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                     | OlySyntaxBinding.Signature(syntaxBindingDecl)
                     | OlySyntaxBinding.Property(syntaxBindingDecl, _) 
+                    | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
                     | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
                         ValueSome syntaxBindingDecl
                     | _ ->

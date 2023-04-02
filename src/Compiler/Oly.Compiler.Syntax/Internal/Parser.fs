@@ -2278,19 +2278,27 @@ let tryParsePropertyBinding state =
 
     let sBinding = sp state
 
-    match bt3 tryParsePropertyBindingDeclaration EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
-    | Some(getOrSetBindingDecl), Some(equalsToken), Some(rhsExpr) ->
-        let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, rhsExpr, ep sBinding state)
-        SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
-    | Some(getOrSetBindingDecl), Some(equalsToken), _ ->
-        errorDo(ExpectedSyntaxAfterToken("expression", Equal), equalsToken) state
-        let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, SyntaxExpression.Error(dummyToken()), ep sBinding state)
-        SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
-    | Some(getOrSetBindingDecl), _, _ ->
-        let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
-        SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+    match bt tryParsePropertyBindingDeclaration state with
+    | Some(getOrSetBindingDecl) ->
+        match getOrSetBindingDecl with
+        | SyntaxBindingDeclaration.Get _
+        | SyntaxBindingDeclaration.Set _ ->
+            let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
+            SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+        | _ ->
+            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+            | Some(equalsToken), Some(rhsExpr) ->
+                let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, rhsExpr, ep sBinding state)
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+            | Some(equalsToken), _ ->
+                errorDo(ExpectedSyntaxAfterToken("expression", Equal), equalsToken) state
+                let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, SyntaxExpression.Error(dummyToken()), ep sBinding state)
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+            | _ ->
+                let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
     | _ ->
-
+    
     None
 
 let tryParsePropertyBindings state =
@@ -2389,16 +2397,22 @@ let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context pre
                 | _ ->
                     match bt tryParsePropertyBindings state with
                     | Some(propBindingList) ->
+                        let binding = 
+                            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+                            | Some(equalToken), Some(expr) ->
+                                SyntaxBinding.PropertyWithDefault(binding, propBindingList, equalToken, expr, ep sBinding state)
+                            | Some(equalToken), _ ->
+                                errorDo(ExpectedSyntaxAfterToken("expression", Equal), equalToken) state
+                                SyntaxBinding.PropertyWithDefault(binding, propBindingList, equalToken, SyntaxExpression.Error(dummyToken()), ep sBinding state)
+                            | _ ->
+                                SyntaxBinding.Property(binding, propBindingList, ep sBinding state)
+
                         let eValueDecl = ep s state
-
-                        let binding = SyntaxBinding.Property(binding, propBindingList, ep sBinding state)
-
                         SyntaxExpression.ValueDeclaration(attrs, accessor, premodifierList, kind, postmodifierList, binding, eValueDecl)
                         |> Some
                     | _ ->
-                        let eValueDecl = ep s state
-
                         let binding = SyntaxBinding.Signature(binding)
+                        let eValueDecl = ep s state
 
                         let body = parseAlignedExpression context state
                         SyntaxExpression.Sequential(

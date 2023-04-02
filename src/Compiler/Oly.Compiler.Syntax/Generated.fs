@@ -1919,6 +1919,13 @@ module OlySyntaxBinding =
         | _ ->
             Option.None
 
+    let (|PropertyWithDefault|_|) (node: OlySyntaxBinding) : ( OlySyntaxBindingDeclaration * OlySyntaxPropertyBinding OlySyntaxSeparatorList * OlySyntaxToken * OlySyntaxExpression ) option =
+        match node.Internal with
+        | SyntaxBinding.PropertyWithDefault _ ->
+            Option.Some (node.Children.[0] :?> _, node.Children.[1] :?> _, node.Children.[2] :?> _, node.Children.[3] :?> _)
+        | _ ->
+            Option.None
+
     let (|PatternWithGuard|_|) (node: OlySyntaxBinding) : ( OlySyntaxBindingDeclaration * OlySyntaxGuardBinding ) option =
         match node.Internal with
         | SyntaxBinding.PatternWithGuard _ ->

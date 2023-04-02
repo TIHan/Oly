@@ -461,7 +461,7 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
     | _ ->
         env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
-let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bindingInfo (syntaxPropBindings: OlySyntaxPropertyBinding imarray) =
+let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bindingInfo (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
     let exprs =
         match bindingInfo with
         | BindingProperty(getterAndSetterBindings=bindings) ->
@@ -477,15 +477,15 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
             raise(InternalCompilerException())
 
     let expr = 
-        match exprs[exprs.Length - 1] with
-        | E.MemberDefinition(_, binding) when bindingInfo.Value.IsAutoProperty ->
-            match binding with
-            | BoundBinding.Implementation(_, _, rhsExpr) -> 
-                match rhsExpr with
-                | E.Lambda(body=lazyBodyExpr) -> lazyBodyExpr.Expression
-                | _ -> OlyAssert.Fail("Expected 'Lambda' expression.")
-            | BoundBinding.Signature _ -> E.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-        | _ ->
+        if bindingInfo.Value.IsAutoProperty then
+            match syntaxRhsExprOpt with
+            | Some(syntaxRhsExpr) ->
+                bindLocalExpression cenv env (Some bindingInfo.Type) syntaxRhsExpr syntaxRhsExpr
+                |> snd
+            | _ ->
+                E.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        else
+            OlyAssert.False(syntaxRhsExprOpt.IsSome)
             BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
 
     match expr with
@@ -565,7 +565,11 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
 
     | OlySyntaxBinding.Property(_, syntaxPropBindingList) ->
         OlyAssert.False(isExplicitMutable)
-        bindTopLevelPropertyBinding cenv env syntaxNode syntaxBinding bindingInfo syntaxPropBindingList.ChildrenOfType
+        bindTopLevelPropertyBinding cenv env syntaxNode syntaxBinding bindingInfo syntaxPropBindingList.ChildrenOfType None
+
+    | OlySyntaxBinding.PropertyWithDefault(_, syntaxPropBindingList, _, syntaxRhsExpr) ->
+        OlyAssert.False(isExplicitMutable)
+        bindTopLevelPropertyBinding cenv env syntaxNode syntaxBinding bindingInfo syntaxPropBindingList.ChildrenOfType (Some syntaxRhsExpr)
 
     | OlySyntaxBinding.PatternWithGuard(_, syntaxImplicitGuardBinding) ->
         let guardFuncOpt =

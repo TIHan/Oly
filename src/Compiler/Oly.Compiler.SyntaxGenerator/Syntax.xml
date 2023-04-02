@@ -389,6 +389,12 @@
       <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
       <Field name="bindingList">SyntaxPropertyBinding SyntaxSeparatorList</Field>
     </Case>
+	<Case name="PropertyWithDefault">
+	  <Field name="bindingDecl">SyntaxBindingDeclaration</Field>
+	  <Field name="bindingList">SyntaxPropertyBinding SyntaxSeparatorList</Field>
+	  <Field name="equalToken">SyntaxToken</Field>
+	  <Field name="rhsExpr">SyntaxExpression</Field>
+	</Case>
 	<Case name="PatternWithGuard">
 		<Field name="bindingDecl">SyntaxBindingDeclaration</Field>
 		<Field name="guardBinding">SyntaxGuardBinding</Field>

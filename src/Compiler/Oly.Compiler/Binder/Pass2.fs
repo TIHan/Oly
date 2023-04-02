@@ -292,7 +292,8 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
             cenv.diagnostics.Error("Expected 'pattern' with 'when'.", 10, syntaxBinding.Declaration.Identifier)
             bindingInfo
 
-    | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList) ->
+    | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
+    | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
         match propInfoOpt with
         | Some _ ->
             cenv.diagnostics.Error("Invalid property declaration.", 10, syntaxBindingDecl)

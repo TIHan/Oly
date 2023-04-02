@@ -1739,6 +1739,13 @@ type SyntaxBinding =
         bindingDecl: SyntaxBindingDeclaration *
         bindingList: SyntaxPropertyBinding SyntaxSeparatorList *
         fullWidth: int
+    | PropertyWithDefault
+        of
+        bindingDecl: SyntaxBindingDeclaration *
+        bindingList: SyntaxPropertyBinding SyntaxSeparatorList *
+        equalToken: SyntaxToken *
+        rhsExpr: SyntaxExpression *
+        fullWidth: int
     | PatternWithGuard
         of
         bindingDecl: SyntaxBindingDeclaration *
@@ -1770,6 +1777,13 @@ type SyntaxBinding =
                 | 0 -> bindingDecl :> ISyntaxNode
                 | 1 -> bindingList :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | PropertyWithDefault(bindingDecl, bindingList, equalToken, rhsExpr, _) ->
+                match index with
+                | 0 -> bindingDecl :> ISyntaxNode
+                | 1 -> bindingList :> ISyntaxNode
+                | 2 -> equalToken :> ISyntaxNode
+                | 3 -> rhsExpr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | PatternWithGuard(bindingDecl, guardBinding, _) ->
                 match index with
                 | 0 -> bindingDecl :> ISyntaxNode
@@ -1781,6 +1795,7 @@ type SyntaxBinding =
             | Implementation _ -> 3
             | Signature _ -> 1
             | Property _ -> 2
+            | PropertyWithDefault _ -> 4
             | PatternWithGuard _ -> 2
 
         member this.FullWidth =
@@ -1790,6 +1805,8 @@ type SyntaxBinding =
             | Signature(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Property(fullWidth=fullWidth) ->
+                fullWidth
+            | PropertyWithDefault(fullWidth=fullWidth) ->
                 fullWidth
             | PatternWithGuard(fullWidth=fullWidth) ->
                 fullWidth
