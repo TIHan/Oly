@@ -239,11 +239,15 @@ type OlyBoundModel with
                 boundTree.ForEachForTooling(function
                     | :? BoundExpression as expr ->
                         match expr with
-                        | BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, benv), binding) when binding.Info.Value.IsFunction ->
+                        | BoundExpression.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsFunction ->
                             match binding with
                             | BoundBinding.Implementation(_, _, rhsExpr) ->
-                                let valueSymbol = OlyValueSymbol(this, benv, syntaxNode, binding.Info.Value)
-                                analyzer diagLogger valueSymbol (convert this rhsExpr ct) ct
+                                match syntaxInfo.TrySyntaxAndEnvironment with
+                                | Some(syntaxNode, benv) ->
+                                    let valueSymbol = OlyValueSymbol(this, benv, syntaxNode, binding.Info.Value)
+                                    analyzer diagLogger valueSymbol (convert this rhsExpr ct) ct
+                                | _ ->
+                                    ()
                             | _ ->
                                 ()
                         | _ ->
@@ -382,7 +386,7 @@ module Patterns =
         match texpr with
         | Expression(BoundExpression.Literal(syntaxInfo, literal), _, ct) ->
             ct.ThrowIfCancellationRequested()
-            if syntaxInfo.IsGeneratedKind then
+            if syntaxInfo.IsGenerated then
                 failwith "Should have user syntax."
             match literal with
             | BoundLiteral.Constant(ConstantSymbol.Int32 value) ->

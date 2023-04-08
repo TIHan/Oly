@@ -751,7 +751,7 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
         | Some syntaxName ->
             let bodyExpr =
                 let syntaxInfo = 
-                    BoundSyntaxInfo.CreateUser(
+                    BoundSyntaxInfo.User(
                         syntaxToCapture, 
                         env.benv, 
                         Some syntaxName,
@@ -1286,7 +1286,7 @@ let private bindThrowExpression cenv (env: BinderEnvironment) syntaxNode syntaxA
     let expr =
         match bindIdentifierAsFormalItem cenv env syntaxNode None resInfo "throw" with
         | ResolutionFormalItem.Value(_, value) ->
-            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, None, None)
+            let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, None, None)
             bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
@@ -1329,7 +1329,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
     let expr =
         match bindIdentifierAsFormalItem cenv env syntaxToCapture None resInfo ident with
         | ResolutionFormalItem.Value(_, value) ->
-            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxBrackets, env.benv, None, None)
+            let syntaxInfo = BoundSyntaxInfo.User(syntaxBrackets, env.benv, None, None)
             bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
@@ -1535,7 +1535,7 @@ let private bindLocalValueDeclaration
                     )
 
             let callExpr, _ =
-                let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, None, None)
+                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, None, None)
                 bindValueAsCallExpression
                     cenv
                     env

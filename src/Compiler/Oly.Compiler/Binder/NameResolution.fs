@@ -434,7 +434,7 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
         else
             OlyAssert.False(value.IsFunction)
             let syntaxInfo = 
-                BoundSyntaxInfo.CreateUser(
+                BoundSyntaxInfo.User(
                     syntaxToCapture, 
                     env.benv, 
                     syntaxNameOpt, 
@@ -514,7 +514,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
     let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
     let finalExpr, value = 
-        let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt, None)
+        let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxNameOpt, None)
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
     match value.TryWellKnownFunction with
@@ -769,7 +769,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
     | :? IFunctionSymbol as func ->
         if func.IsFunctionGroup && resInfo.resArgs.IsExplicit then
             let syntaxInfo =
-                BoundSyntaxInfo.CreateUser(
+                BoundSyntaxInfo.User(
                     syntaxToCapture, 
                     env.benv, 
                     syntaxNameOpt,

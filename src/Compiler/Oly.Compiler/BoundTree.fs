@@ -42,7 +42,7 @@ type BoundBinding =
         | Signature(syntaxInfo=syntaxInfo) -> syntaxInfo
 
     member this.IsGenerated =
-        this.SyntaxInfo.IsGeneratedKind
+        this.SyntaxInfo.IsGenerated
 
     member this.Info =
         match this with
@@ -62,7 +62,7 @@ type BoundBinding =
     member this.GetValidUserSyntax() =
         match this with
         | Implementation(syntaxInfo=syntaxInfo;rhs=rhsExpr) ->
-            if syntaxInfo.IsGeneratedKind then
+            if syntaxInfo.IsGenerated then
                 rhsExpr.GetValidUserSyntax()
             else
                 syntaxInfo.Syntax
@@ -158,29 +158,30 @@ and FreeVariables = System.Collections.Generic.Dictionary<int64, TypeParameterSy
 and ReadOnlyFreeTypeVariables = System.Collections.ObjectModel.ReadOnlyDictionary<int64, TypeParameterSymbol>
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundSyntaxInfo =
-    | User of 
+    private
+    | InternalUser of 
         syntax: OlySyntaxNode * 
         benv: BoundEnvironment
 
-    | UserWithName of 
+    | InternalUserWithName of 
         syntax: OlySyntaxNode *  
         benv: BoundEnvironment *
         syntaxName: OlySyntaxName *
         tyOpt: TypeSymbol option
 
-    | Generated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
+    | InternalGenerated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
 
     member this.TryEnvironment =
         match this with
-        | User(_, benv)
-        | UserWithName(_, benv, _, _) -> Some benv
+        | InternalUser(_, benv)
+        | InternalUserWithName(_, benv, _, _) -> Some benv
         | _ -> None
 
     member this.Syntax =
         match this with
-        | User(syntax, _) 
-        | UserWithName(syntax, _, _, _) -> syntax
-        | Generated(syntaxTree) -> syntaxTree.DummyNode
+        | InternalUser(syntax, _) 
+        | InternalUserWithName(syntax, _, _, _) -> syntax
+        | InternalGenerated(syntaxTree) -> syntaxTree.DummyNode
 
     member this.SyntaxNameOrDefault =
         match this.TrySyntaxName with
@@ -189,19 +190,28 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     member this.TrySyntaxAndEnvironment =
         match this with
-        | User(syntax, benv)
-        | UserWithName(syntax, benv, _, _) -> Some(syntax, benv)
+        | InternalUser(syntax, benv)
+        | InternalUserWithName(syntax, benv, _, _) -> Some(syntax, benv)
+        | _ -> None
+
+    member this.TrySyntaxNameAndEnvironment =
+        match this with
+        | InternalUserWithName(_, benv, syntaxName, _) -> Some(syntaxName, benv)
+        | _ -> None
+
+    member this.TryType =
+        match this with
+        | InternalUserWithName(tyOpt=tyOpt) -> tyOpt
         | _ -> None
 
     member this.TrySyntaxName =
         match this with
-        | User(syntax, _) -> syntax.TryName
-        | UserWithName(_, _, syntaxName, _) -> Some syntaxName
+        | InternalUserWithName(_, _, syntaxName, _) -> Some syntaxName
         | _ -> None
 
-    member this.IsGeneratedKind =
+    member this.IsGenerated =
         match this with
-        | Generated _ -> true
+        | InternalGenerated _ -> true
         | _ -> false
 
     member this.ToDebugString() =
@@ -211,12 +221,26 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             text
 
-    static member CreateUser(syntaxNode, benv, syntaxNameOpt, tyOpt) =
+    static member Generated(syntaxTree: OlySyntaxTree) =
+        InternalGenerated(syntaxTree)
+
+    static member User(syntaxNode: OlySyntaxNode, benv) =
+        match syntaxNode.TryName with
+        | Some(syntaxName) ->
+            InternalUserWithName(syntaxNode, benv, syntaxName, None)
+        | _ ->
+            InternalUser(syntaxNode, benv)
+
+    static member User(syntaxNode, benv, syntaxNameOpt, tyOpt) =
         match syntaxNameOpt with
         | Some(syntaxName) ->
-            UserWithName(syntaxNode, benv, syntaxName, tyOpt)
+            InternalUserWithName(syntaxNode, benv, syntaxName, tyOpt)
         | _ ->
-            User(syntaxNode, benv)
+            match syntaxNode.TryName with
+            | Some(syntaxName) ->
+                InternalUserWithName(syntaxNode, benv, syntaxName, tyOpt)
+            | _ ->
+                InternalUser(syntaxNode, benv)
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
@@ -278,9 +302,9 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Call(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
         | MemberDefinition(binding=binding) ->
             binding.GetValidUserSyntax()
-        | GetField(BoundSyntaxInfo.Generated _, receiver, _, _) ->
+        | GetField(syntaxInfo, receiver, _, _) when syntaxInfo.IsGenerated ->
             receiver.GetValidUserSyntax()
-        | SetField(BoundSyntaxInfo.Generated _, receiver, _, _, rhs) ->
+        | SetField(syntaxInfo, receiver, _, _, rhs) when syntaxInfo.IsGenerated ->
             let r1 = receiver.GetValidUserSyntax()
             if r1.IsDummy then
                 rhs.GetValidUserSyntax()
@@ -307,7 +331,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Sequential(syntaxInfo=syntaxInfo)
         | IfElse(syntaxInfo=syntaxInfo)
         | NewTuple(syntaxInfo=syntaxInfo)
-        | MemberDefinition(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGeneratedKind
+        | MemberDefinition(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGenerated
         | _ -> false
 
     member this.IsLambdaExpression =

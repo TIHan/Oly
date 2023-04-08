@@ -76,7 +76,7 @@ let (|FromAddress|_|) (expr: E) =
 
 let (|LambdaWrappedFunctionCall|_|) (expr: E) =
     match expr.Strip() with
-    | E.Lambda(syntaxInfo=syntaxInfo;pars=pars;body=lazyBodyExpr) when syntaxInfo.IsGeneratedKind ->
+    | E.Lambda(syntaxInfo=syntaxInfo;pars=pars;body=lazyBodyExpr) when syntaxInfo.IsGenerated ->
         match lazyBodyExpr.Expression with
         | E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;args=argExprs;value=value) when value.IsFunction && pars.Length = argExprs.Length ->
             let areSame =
@@ -136,7 +136,7 @@ let (|AutoDereferenced|_|) (expr: E) =
     | FromAddress(argExpr) when expr.IsGenerated ->
         Some(argExpr)
 
-    | E.Let(BoundSyntaxInfo.Generated _, bindingInfo, rhsExpr, FromAddress(E.Value(value=value2))) when bindingInfo.Value.Id = value2.Id ->
+    | E.Let(syntaxInfo, bindingInfo, rhsExpr, FromAddress(E.Value(value=value2))) when syntaxInfo.IsGenerated && bindingInfo.Value.Id = value2.Id ->
         Some(rhsExpr)
 
     | _ ->

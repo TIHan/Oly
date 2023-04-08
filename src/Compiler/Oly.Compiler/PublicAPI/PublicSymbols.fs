@@ -1117,7 +1117,7 @@ type OlyBoundModel internal (
                             | OlySyntaxExpression.Name(syntaxName) ->
                                 match arg with
                                 | ConstantSymbol.External(func) ->
-                                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName func
+                                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName func None
                                 | _ ->
                                     ()
                             | _ ->
@@ -1130,7 +1130,7 @@ type OlyBoundModel internal (
 
                 match syntaxReceiverExpr with
                 | OlySyntaxExpression.Name(syntaxName) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName ctor
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName ctor None
                 | _ ->
                     ()
             | _ ->
@@ -1186,7 +1186,7 @@ type OlyBoundModel internal (
         | _ ->
             ()
 
-    and getSymbolsByNameAndValue (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxName: OlySyntaxName) (value: IValueSymbol) : unit =
+    and getSymbolsByNameAndValue (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxName: OlySyntaxName) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
         // TODO: What is 'value.IsBridge' doing again?
         if value.IsSingleUse then ()
         else
@@ -1430,13 +1430,17 @@ type OlyBoundModel internal (
 
         | :? BoundExpression as boundNode ->
             match boundNode with
-            | BoundExpression.Call(BoundSyntaxInfo.UserWithName(_, benv, syntaxName, _), _, _witnessArgs (* will need this for explicit witnesses *), _, value, _) ->
-                getSymbolsByNameAndValue addSymbol benv predicate syntaxName value
+            | BoundExpression.Call(syntaxInfo, _, _witnessArgs (* will need this for explicit witnesses *), _, value, _) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
+                | _ ->
+                    ()
 
             | BoundExpression.Value(syntaxInfo, value) ->
-                match syntaxInfo.TrySyntaxName, syntaxInfo.TryEnvironment with
-                | Some syntaxName, Some benv ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName.LastName value
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName.LastName value syntaxInfo.TryType
                 | _ ->
                     ()
 
@@ -1472,11 +1476,11 @@ type OlyBoundModel internal (
             | BoundExpression.SetProperty(syntaxInfo, _, syntaxNameOpt, prop, _) ->
                 match syntaxInfo.TryEnvironment, syntaxNameOpt with
                 | Some benv, Some syntaxName ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop None
                 | _ ->
                     ()
 
-            | BoundExpression.Let(syntaxInfo, bindingInfo, _, _) when not syntaxInfo.IsGeneratedKind ->
+            | BoundExpression.Let(syntaxInfo, bindingInfo, _, _) when not syntaxInfo.IsGenerated ->
                 match syntaxInfo.TryEnvironment with
                 | Some benv ->
                     let syntax =
@@ -1487,7 +1491,7 @@ type OlyBoundModel internal (
                 | _ ->
                     ()
 
-            | BoundExpression.MemberDefinition(syntaxInfo, binding) when not syntaxInfo.IsGeneratedKind ->
+            | BoundExpression.MemberDefinition(syntaxInfo, binding) when not syntaxInfo.IsGenerated ->
                 let attrs =
                     match binding.Info.Value with
                     | :? IFunctionSymbol as func -> func.Attributes
@@ -1636,7 +1640,7 @@ type OlyBoundModel internal (
                 match syntaxPattern with
                 | OlySyntaxPattern.Name(syntaxName)
                 | OlySyntaxPattern.Function(syntaxName, _, _, _) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName field
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName field None
                 | _ ->
                     ()
 
@@ -1646,7 +1650,7 @@ type OlyBoundModel internal (
             | BoundCasePattern.Local(syntaxPattern, benv, value) ->
                 match syntaxPattern with
                 | OlySyntaxPattern.Name(syntaxName) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value None
                 | _ ->
                     ()
 
@@ -1654,7 +1658,7 @@ type OlyBoundModel internal (
                 match syntaxPattern with
                 | OlySyntaxPattern.Name(syntaxName)
                 | OlySyntaxPattern.Function(syntaxName, _, _, _) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName pat.PatternFunction
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName pat.PatternFunction None
                 | _ ->
                     ()
 
@@ -1721,7 +1725,7 @@ type OlyBoundModel internal (
                 match boundNode with
                 | :? BoundExpression as expr ->
                     match expr with
-                    | BoundExpression.Let(BoundSyntaxInfo.User _, _, _, ((BoundExpression.None _) as noneExpr)) ->
+                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _) as noneExpr)) when not syntaxInfo.IsGenerated ->
                         let column = expr.Syntax.GetTextRange(ct).Start.Column
                         if offside >= column then
                             match noneExpr.TryEnvironment with
