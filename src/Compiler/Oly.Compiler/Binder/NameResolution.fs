@@ -499,7 +499,7 @@ let bindNameAsFormalItem (cenv: cenv) env syntaxToCaptureOpt (receiverInfoOpt: R
     | _ ->
         raise(InternalCompilerException())
 
-let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (syntaxNode: OlySyntaxNode) (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) (syntaxNameOpt: OlySyntaxName option) (originalValue: IValueSymbol) =
+let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) (syntaxInfo: BoundSyntaxInfo) (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) (originalValue: IValueSymbol) =
     let tyArgOffset =
         if not originalValue.IsInstance then
             0
@@ -513,16 +513,12 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
     let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
     let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
-    let finalExpr, value = 
-        let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxNameOpt, None)
+    let finalExpr, value =
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
     match value.TryWellKnownFunction with
     | ValueSome(WellKnownFunction.Upcast) when argExprs.Length = 1 ->
-        let syntax =
-            match syntaxNameOpt with
-            | Some syntaxName -> syntaxName :> OlySyntaxNode
-            | _ -> syntaxNode
+        let syntax = syntaxInfo.SyntaxNameOrDefault
         if syntaxTyArgs.IsEmpty then
             cenv.diagnostics.Error("Intrinsic 'upcast' call must have explicit type arguments.", 10, syntax)
 
@@ -765,21 +761,22 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
         receiverInfoOpt
         |> Option.bind (fun x -> x.expr)
 
+    let syntaxInfo =
+        BoundSyntaxInfo.User(
+            syntaxToCapture, 
+            env.benv, 
+            syntaxNameOpt,
+            receiverInfoOpt
+            |> Option.bind (fun x ->
+                match x.item with
+                | ReceiverItem.Type(ty) -> Some ty
+                | _ -> None
+            )
+        )
+
     match value with
     | :? IFunctionSymbol as func ->
         if func.IsFunctionGroup && resInfo.resArgs.IsExplicit then
-            let syntaxInfo =
-                BoundSyntaxInfo.User(
-                    syntaxToCapture, 
-                    env.benv, 
-                    syntaxNameOpt,
-                    receiverInfoOpt
-                    |> Option.bind (fun x ->
-                        match x.item with
-                        | ReceiverItem.Type(ty) -> Some ty
-                        | _ -> None
-                    )
-                )
             BoundExpression.Call(
                 syntaxInfo,
                 receiverExprOpt,
@@ -803,7 +800,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
                 else
                     resInfo.argExprs
 
-            bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxToCapture syntaxNode receiverExprOpt argExprs (syntaxTyArgsRoot, syntaxTyArgs) syntaxNameOpt value
+            bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo receiverExprOpt argExprs (syntaxTyArgsRoot, syntaxTyArgs) value
             |> ResolutionItem.Expression
         else
             if resInfo.InPatternOnlyContext then
@@ -817,7 +814,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
         // However, if we are in a pattern-only context, we ignore the resolution args being explicit as
         // we might have a constant.
         if not syntaxTyArgs.IsEmpty || (resInfo.resArgs.IsExplicit && not resInfo.InPatternOnlyContext) then
-            bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxToCapture syntaxNode receiverExprOpt resInfo.argExprs (syntaxTyArgsRoot, syntaxTyArgs) syntaxNameOpt value
+            bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo receiverExprOpt resInfo.argExprs (syntaxTyArgsRoot, syntaxTyArgs) value
             |> ResolutionItem.Expression
         else
             bindValueAsFieldOrNotFunctionExpression cenv env syntaxToCapture receiverInfoOpt syntaxNameOpt value
@@ -2489,7 +2486,7 @@ let bindImplements (cenv: cenv) (env: BinderEnvironment) (syntaxImplements: OlyS
 let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnvironment) (syntaxInfo: BoundSyntaxInfo) receiverExprOpt argExprs (value: IValueSymbol, syntaxNameOpt: OlySyntaxName option) =
     match syntaxNameOpt with
     | Some(OlySyntaxName.Generic(_, syntaxTyArgs)) ->
-        bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo.Syntax syntaxInfo.Syntax receiverExprOpt argExprs (syntaxTyArgs, syntaxTyArgs.Values) syntaxNameOpt value
+        bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo receiverExprOpt argExprs (syntaxTyArgs, syntaxTyArgs.Values) value
     | _ -> 
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs ImArray.empty value
         |> fst
