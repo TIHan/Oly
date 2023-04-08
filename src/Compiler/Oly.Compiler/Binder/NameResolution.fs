@@ -267,7 +267,7 @@ type ResolutionFormalItem =
     | None
     | Error
     | Type of TypeSymbol
-    | Value of IValueSymbol
+    | Value of receiverTyOpt: TypeSymbol option * IValueSymbol
     | Namespace of INamespaceSymbol
 
 /// Order of name resolution precedence:
@@ -326,13 +326,15 @@ let private determineConstructorOrTypeAsFormalItem (cenv: cenv) (env: BinderEnvi
         // No constructors found, return the type.
         ResolutionFormalItem.Type(ent.AsType)
     else
-        FunctionGroupSymbol.CreateIfPossible(ctors) :> IValueSymbol
-        |> ResolutionFormalItem.Value
+        ResolutionFormalItem.Value(
+            None,
+            FunctionGroupSymbol.CreateIfPossible(ctors)
+        )
 
 let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) isPatternContext (ident: string) =
     if isPatternContext then
         let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) true) ident
-        ResolutionFormalItem.Value(value)
+        ResolutionFormalItem.Value(Some receiverTy, value)
     else
         // Nested entities of receiverTy take precedence over its member values.
         receiverTy.TryFindNestedEntity(env.benv, ident, resTyArity)
@@ -341,7 +343,7 @@ let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: c
         )
         |> Option.defaultWith (fun () ->
             let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) false) ident
-            ResolutionFormalItem.Value(value)
+            ResolutionFormalItem.Value(Some receiverTy, value)
         )
 
 let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (args: ResolutionArguments) (ident: string) =
@@ -380,7 +382,7 @@ let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: Binder
         bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType cenv env syntaxNode receiverTy resTyArity resArgs isPatternContext ident
     else
         let value = bindIdentifierAsMemberValue cenv env syntaxNode isStatic receiverTy resTyArity resArgs isPatternContext ident
-        ResolutionFormalItem.Value(value)
+        ResolutionFormalItem.Value(Some receiverTy, value)
 
 let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (ident: string) =
     if System.String.IsNullOrWhiteSpace(ident) then
@@ -506,7 +508,10 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
                 0
     let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
     let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
-    let finalExpr, value = bindValueAsCallExpression cenv env syntaxToCapture syntaxNode receiverExprOpt argExprs tyArgs syntaxNameOpt originalValue
+
+    let finalExpr, value = 
+        let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
+        bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
     match value.TryWellKnownFunction with
     | ValueSome(WellKnownFunction.Upcast) when argExprs.Length = 1 ->
@@ -536,7 +541,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
     | _ ->
         finalExpr
 
-let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (syntaxNode: OlySyntaxNode) (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (tyArgs: TypeArgumentSymbol imarray) (syntaxNameOpt: OlySyntaxName option) (originalValue: IValueSymbol) : _ * IValueSymbol =
+let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (tyArgs: TypeArgumentSymbol imarray) (originalValue: IValueSymbol) : _ * IValueSymbol =
     let value = originalValue.Substitute(tyArgs)
 
     let isLastTyParVariadic =
@@ -577,8 +582,8 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
         else
             argExprs
 
-    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv)) argExprs syntaxNode value   
-    let witnessArgs = createWitnessArguments cenv env syntaxNode syntaxNameOpt value
+    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv)) argExprs syntaxInfo.Syntax value   
+    let witnessArgs = createWitnessArguments cenv env syntaxInfo.Syntax syntaxInfo.TrySyntaxName value
 
     let receiverExprOpt =
         receiverExprOpt
@@ -616,26 +621,17 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
 
     match value with
     | :? IPropertySymbol as prop when prop.Getter.IsNone ->
-        let syntaxNode =
-            match syntaxNameOpt with
-            | Some syntaxName -> syntaxName :> OlySyntaxNode
-            | _ -> syntaxToCapture
+        let syntaxNode = syntaxInfo.SyntaxNameOrDefault
         cenv.diagnostics.Error($"Property '{prop.Name}' cannot be used for an indirect call because it does not have a 'get' function.", 10, syntaxNode)
     | _ ->
         ()
 
-    let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
-
     if value.IsProperty then
-        let syntaxNode =
-            match syntaxNameOpt with
-            | Some syntaxName -> syntaxName :> OlySyntaxNode
-            | _ -> syntaxToCapture
         let getPropertyExpr =
             E.GetProperty(
-                BoundSyntaxInfo.User(syntaxNode, env.benv),
+                syntaxInfo,
                 receiverOpt,
-                syntaxNameOpt,
+                syntaxInfo.TrySyntaxName,
                 value.AsProperty
             )
 
@@ -744,7 +740,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
             ResolutionItem.Invalid(syntaxMemberExpr)
         | ResolutionFormalItem.Error ->
             ResolutionItem.Error(syntaxMemberExpr)
-        | ResolutionFormalItem.Value value ->
+        | ResolutionFormalItem.Value(_, value) ->
             bind cenv env (BoundExpression.CreateValue(cenv.syntaxTree, value)) syntaxMemberExpr
         | ResolutionFormalItem.Type ty ->
             bindMemberExpressionWithTypeAsItem cenv env syntaxToCapture ty syntaxMemberExpr
@@ -910,7 +906,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                 let ty = bindTypeConstructor cenv env syntaxName resInfo.resTyArity ty (syntaxTyArgsRoot, syntaxTyArgs)
                 ResolutionItem.Type(syntaxName, ty)
 
-            | ResolutionFormalItem.Value value ->
+            | ResolutionFormalItem.Value(_, value) ->
                 let syntaxNode =
                     match syntaxExprOpt with
                     | Some syntaxExpr -> syntaxExpr :> OlySyntaxNode
@@ -965,7 +961,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                 let receiverInfo = { item = ReceiverItem.Type(ty); isStatic = true; expr = None }
                 bind cenv env (Some receiverInfo) resInfo syntaxRootName syntaxTailName
 
-            | ResolutionFormalItem.Value value ->
+            | ResolutionFormalItem.Value(_, value) ->
                 match syntaxExprOpt with
                 | None -> ResolutionItem.Invalid(syntaxName)
                 | Some syntaxExpr ->
@@ -1238,9 +1234,9 @@ let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (
             if funcs.IsEmpty then
                 None
             elif funcs.Length = 1 then
-                ResolutionFormalItem.Value(funcs[0]) |> Some
+                ResolutionFormalItem.Value(None, funcs[0]) |> Some
             else
-                ResolutionFormalItem.Value(FunctionGroupSymbol.Create(funcs)) |> Some
+                ResolutionFormalItem.Value(None, FunctionGroupSymbol.Create(funcs)) |> Some
 
         | _ ->
             if value.IsFunction then
@@ -1248,11 +1244,11 @@ let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (
                 | ResolutionArguments.NotAFunctionCall -> None
                 | _ -> 
                     if value.AsFunction.IsPatternFunction = isPatternContext then
-                        ResolutionFormalItem.Value(value) |> Some
+                        ResolutionFormalItem.Value(None, value) |> Some
                     else
                         None
             else
-                ResolutionFormalItem.Value(value) |> Some
+                ResolutionFormalItem.Value(None, value) |> Some
     | _ ->
         None
 
@@ -2479,5 +2475,5 @@ let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnv
     | Some(OlySyntaxName.Generic(_, syntaxTyArgs)) ->
         bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo.Syntax syntaxInfo.Syntax receiverExprOpt argExprs (syntaxTyArgs, syntaxTyArgs.Values) syntaxNameOpt value
     | _ -> 
-        bindValueAsCallExpression cenv env syntaxInfo.Syntax syntaxInfo.Syntax receiverExprOpt argExprs ImArray.empty syntaxNameOpt value
+        bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs ImArray.empty value
         |> fst

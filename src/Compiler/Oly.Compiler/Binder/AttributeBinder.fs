@@ -252,7 +252,7 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                 let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArityZero, ResolutionContext.ValueOnly)
                 let resFormalItem = bindNameAsFormalItem cenv env None None resInfo syntaxName
                 match resFormalItem with
-                | ResolutionFormalItem.Value value when value.IsFunction ->
+                | ResolutionFormalItem.Value(_, value) when value.IsFunction ->
                     let func = value :?> IFunctionSymbol
                     if func.Parameters.Length = 3 && argExprs.Length = 3 then
                         let strArgs =
