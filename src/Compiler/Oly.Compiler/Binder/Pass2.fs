@@ -440,7 +440,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         let ty = ent.AsType
 
         let mutable hasExplicitNonEnumCase = false
-        let mutable extendsTyOpt = (Some ent.Extends[0])
+        let mutable runtimeTyOpt = (ent :> IEntitySymbol).RuntimeType
         let mutable requireAllCasesAConstant = false
         let mutable autoIncrement = 0
         let fieldConstants =
@@ -449,7 +449,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
                 match syntaxCase with
                 | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, syntaxExpr) ->
                     requireAllCasesAConstant <- true
-                    let constantExpr = bindConstantExpression cenv env extendsTyOpt syntaxExpr
+                    let constantExpr = bindConstantExpression cenv env runtimeTyOpt syntaxExpr
                     match tryEvaluateFixedIntegralConstantExpression cenv env constantExpr with
                     | ValueSome(_value, constantSymbol) ->
                         let field = createFieldConstant enclosing ImArray.empty syntaxIdent.ValueText ty MemberFlags.Public constantSymbol

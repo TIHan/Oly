@@ -371,9 +371,9 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
             )
 
         let inheritCount = Seq.length ent.Extends
-        if ent.IsTypeExtension || ent.IsAlias || ent.IsEnum || ent.IsNewtype then 
+        if ent.IsTypeExtension || ent.IsAlias || ent.IsNewtype then 
             if inheritCount <> 1 then
-                cenv.diagnostics.Error(sprintf "Aliases, enums, newtypes, and type extensions must inherit from a single type that will be extended.", 10, syntaxIdent)
+                cenv.diagnostics.Error(sprintf "Aliases, newtypes, and type extensions must inherit from a single type that will be extended.", 10, syntaxIdent)
             else
                 ent.Extends
                 |> Seq.iter (fun ty ->

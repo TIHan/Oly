@@ -839,7 +839,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val TypeReferenceVoid: ClrTypeHandle = sysTy "Void" false
     member val TypeReferenceObject: ClrTypeHandle = sysTyObject
     member val TypeReferenceValueType: ClrTypeHandle = sysTy "ValueType" false
-    member val TypeReferenceEnum: ClrTypeHandle = sysTy "Enum" true
+    member val TypeReferenceEnum: ClrTypeHandle = sysTy "Enum" false
     member val TypeReferenceByte: ClrTypeHandle = sysTy "Byte" true
     member val TypeReferenceSByte: ClrTypeHandle = sysTy "SByte" true
     member val TypeReferenceInt16: ClrTypeHandle = sysTy "Int16" true

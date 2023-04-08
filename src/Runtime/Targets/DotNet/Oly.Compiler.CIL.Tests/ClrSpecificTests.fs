@@ -3242,3 +3242,43 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "123456789"
+
+[<Fact>]
+let ``Cast to SystemEnum``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum E =
+    | A
+
+main(): () =
+    let x: Enum = E.A
+    print(x)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "A"
+
+[<Fact>]
+let ``Cast to SystemValueType``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum E =
+    | A
+
+main(): () =
+    let x: ValueType = E.A
+    print(x)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "A"

@@ -1865,6 +1865,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             this.EmitType(x)
                         )
 
+                let runtimeTyOpt = 
+                    tyDef.RuntimeType
+                    |> Option.map (fun x ->
+                        // REVIEW: Do we need to subscribe the the runtime type?
+                        this.SubscribeType(x, tyDef)
+                        this.EmitType(x)
+                    )
+
                 let flags =
                     if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
                         OlyIRTypeFlags.GenericsErased
@@ -1890,7 +1898,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ ->
                         ImArray.empty
 
-                let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs)
+                let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
                 emitted.[tyDef.TypeArguments] <- res
                 if not mustDelayFuncs then
                     isEmittingTypeDefinition <- false
@@ -3063,6 +3071,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeEntity.TypeArguments = fullTyArgs
                         RuntimeEntity.Extends = ImArray.empty
                         RuntimeEntity.Implements = ImArray.empty
+                        RuntimeEntity.RuntimeType = None
                         RuntimeEntity.Formal = Unchecked.defaultof<_>
                         RuntimeEntity.Fields = ImArray.empty
                         RuntimeEntity.Attributes = ImArray.empty
@@ -3078,17 +3087,28 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ty = RuntimeType.Entity(ent)
                 asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeTypeArgumentListTable())
 
+                let runtimeTyOpt =
+                    ilEntDef.RuntimeType
+                    |> Option.map (fun x -> this.ResolveType(0, ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+
+                // Set RuntimeType first before Extends and Implements.
+                ent.RuntimeType <- runtimeTyOpt
+
                 let extends =
                     ilEntDef.Extends
                     |> ImArray.map (fun x -> this.ResolveType(0, ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
 
                 let extends =
-                    // TODO: Handle enums.
                     if extends.IsEmpty then
                         if ent.IsClass then
                             ImArray.createOne RuntimeType.BaseObject
                         elif ent.IsAttribute then
                             ImArray.createOne RuntimeType.BaseAttribute
+                        elif ent.IsEnum then
+                            if ent.IsAnyStruct then
+                                ImArray.createOne RuntimeType.BaseStructEnum
+                            else
+                                raise(NotSupportedException("Enum non-struct runtime type."))
                         elif ent.IsAnyStruct then
                             ImArray.createOne RuntimeType.BaseStruct
                         else

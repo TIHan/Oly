@@ -72,7 +72,8 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         tyPars: OlyIRTypeParameter<'Type> imarray * 
         extends: 'Type imarray * 
         implements: 'Type imarray * 
-        attrs: OlyIRAttribute<'Type, 'Function> imarray 
+        attrs: OlyIRAttribute<'Type, 'Function> imarray *
+        runtimeTyOpt: 'Type option
             -> 'Type
 
     abstract EmitTypeGenericInstance : ty: 'Type * tyArgs: 'Type imarray -> 'Type

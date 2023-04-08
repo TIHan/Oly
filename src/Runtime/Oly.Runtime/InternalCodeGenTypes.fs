@@ -260,6 +260,7 @@ type RuntimeEntity =
         TypeArguments: RuntimeType imarray
         mutable Extends: RuntimeType imarray
         mutable Implements: RuntimeType imarray
+        mutable RuntimeType: RuntimeType option
         mutable Formal: RuntimeEntity
         mutable Fields: RuntimeField imarray
         mutable Attributes: RuntimeAttribute imarray
@@ -275,10 +276,13 @@ type RuntimeEntity =
     member this.AssemblyIdentity = this.ILAssembly.Identity
 
     member this.IsAnyStruct =
-        this.ILEntityKind = OlyILEntityKind.Struct ||
-        (
-            (this.IsTypeExtension || this.IsEnum || this.IsNewtype || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
-        )
+        if this.IsEnum then
+            this.RuntimeType.Value.IsAnyStruct
+        else
+            this.ILEntityKind = OlyILEntityKind.Struct ||
+            (
+                (this.IsTypeExtension || this.IsNewtype || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
+            )
 
     member this.IsEnum =
         this.ILEntityKind = OlyILEntityKind.Enum
@@ -791,6 +795,11 @@ type RuntimeType =
         match this with
         | Entity(ent) -> ent.Implements
         | _ -> ImArray.empty
+
+    member this.RuntimeType: RuntimeType option =
+        match this with
+        | Entity(ent) -> ent.RuntimeType
+        | _ -> None
 
     member this.TypeParameters: RuntimeTypeParameter imarray =
         match this with
@@ -1392,8 +1401,10 @@ type RuntimeType with
             this
 
     member this.StripAliasAndNewtypeAndEnum(): RuntimeType =
-        if (this.IsAlias || this.IsNewtype || this.IsEnum) && this.Extends.Length = 1 then
+        if (this.IsAlias || this.IsNewtype) && this.Extends.Length = 1 then
             this.Extends.[0].StripAliasAndNewtypeAndEnum()
+        elif this.IsEnum then
+            this.RuntimeType.Value.StripAliasAndNewtypeAndEnum()
         else
             this
 

@@ -58,7 +58,7 @@ type DummyEmitter(onEmitBody) =
         member this.EmitTypeBool() = DummyType("bool")
         member this.EmitTypeByRef(arg1, arg2) = DummyType("by_ref")
         member this.EmitTypeChar16() = DummyType("char16")
-        member this.EmitTypeDefinition(enclosing, kind, flags, name, tyPars, extends, implements, attrs) = 
+        member this.EmitTypeDefinition(enclosing, kind, flags, name, tyPars, extends, implements, attrs, runtimeTyOpt) = 
             DummyType(name)
         member this.EmitTypeFloat32() = DummyType("float32")
         member this.EmitTypeFloat64() = DummyType("float64")
@@ -103,7 +103,8 @@ let addEntity (ilAsm: OlyILAssembly) (ilEntDefHandle: OlyILEntityDefinitionHandl
             ImArray.empty,
             ImArray.empty,
             ImArray.empty,
-            ImArray.empty
+            ImArray.empty,
+            None
         )
 
     ilAsm.SetEntityDefinition(ilEntDefHandle, ilEntDef)

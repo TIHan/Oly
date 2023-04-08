@@ -646,6 +646,8 @@ module internal rec Helpers =
             else
                 olyMemberFlags
 
+        let olyTy = fieldDef.DecodeSignature(OlySignatureTypeProvider(cenv), 0)
+
         let isLiteral = fieldDef.Attributes &&& FieldAttributes.Literal = FieldAttributes.Literal
         if isLiteral then
             let constantHandle = fieldDef.GetDefaultValue()
@@ -655,61 +657,61 @@ module internal rec Helpers =
             | ConstantTypeCode.Byte ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt8(blob.ReadByte())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.SByte ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int8(blob.ReadSByte())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int16 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int16(blob.ReadInt16())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt16 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt16(blob.ReadUInt16())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int32 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int32(blob.ReadInt32())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt32 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt32(blob.ReadUInt32())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int64 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int64(blob.ReadInt64())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt64 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt64(blob.ReadUInt64())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Single ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Float32(blob.ReadSingle())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Double ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Float64(blob.ReadDouble())
-                let olyConstant = OlyILFieldConstant(nameHandle, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | _ ->
@@ -721,7 +723,6 @@ module internal rec Helpers =
                 OlyILAttribute.Import(olyAsm.AddString "CLR", ImArray.empty, olyAsm.AddString name)
             }
             |> ImArray.ofSeq
-        let olyTy = fieldDef.DecodeSignature(OlySignatureTypeProvider(cenv), 0)
 
         let olyFieldFlags =
             if (fieldDef.Attributes &&& FieldAttributes.InitOnly = FieldAttributes.InitOnly) || isLiteral then
@@ -1154,17 +1155,21 @@ module internal rec Helpers =
                 let impl = reader.GetInterfaceImplementation(handle)
                 importAsOlyILType cenv impl.Interface
             )
+
         let olyInherits =
-            if isEnum && olyFields.Length > 0 then
-                let olyFirstFieldTy = olyAsm.GetFieldDefinition(olyFields.[0]).Type
-                ImArray.createOne olyFirstFieldTy
+            let baseTy = tyDef.BaseType
+            if baseTy.IsNil then
+                ImArray.empty
             else
-                let baseTy = tyDef.BaseType
-                if baseTy.IsNil then
-                    ImArray.empty
-                else
-                    importAsOlyILType cenv baseTy
-                    |> ImArray.createOne
+                importAsOlyILType cenv baseTy
+                |> ImArray.createOne
+
+        let olyRuntimeTyOpt =
+            if olyEntKind = OlyILEntityKind.Enum then
+                let olyFirstFieldTy = olyAsm.GetFieldDefinition(olyFields.[0]).Type
+                Some olyFirstFieldTy
+            else
+                None
 
         let olyProps =
             tyDef.GetProperties().ToImmutableArray()
@@ -1323,7 +1328,8 @@ module internal rec Helpers =
                 olyPatDefs,
                 olyNestedEntDefHandles,
                 (if isInterface then ImArray.empty else olyImplements),
-                (if isInterface then olyImplements else olyInherits)
+                (if isInterface then olyImplements else olyInherits),
+                olyRuntimeTyOpt
             )
         
         olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)

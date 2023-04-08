@@ -331,6 +331,12 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             ent.Implements
             |> ImArray.map (retargetType currentAsmIdent importer tyPars)
 
+    let lazyRuntimeTyOpt =
+        lazy
+            let tyPars = lazyTyPars.Value
+            ent.RuntimeType
+            |> Option.map (retargetType currentAsmIdent importer tyPars)
+
     let lazyInstanceCtors =
         lazy
             ent.InstanceConstructors
@@ -350,6 +356,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
         member this.Enclosing = enclosing
         member this.Entities = lazyEntities.Value
         member this.Extends = lazyExtends.Value
+        member this.RuntimeType = lazyRuntimeTyOpt.Value
         member this.Fields = lazyFields.Value
         member this.Flags = ent.Flags
         member this.Formal = this
@@ -1450,7 +1457,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
             let fieldTy = importTypeSymbol cenv enclosing.TypeParameters ImArray.empty ilFieldDef.Type
             if ilFieldDef.IsConstant && enclosing.IsEnum then
                 match enclosing.TryType with
-                | Some(enclosingTy) when not enclosingTy.Inherits.IsEmpty && areTypesEqual enclosingTy.Inherits.[0] fieldTy ->
+                | Some(enclosingTy) when enclosingTy.RuntimeType.IsSome && areTypesEqual enclosingTy.RuntimeType.Value fieldTy ->
                     enclosingTy
                 | _ ->
                     fieldTy
@@ -1460,7 +1467,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let lazyConstant =
         lazy
             match ilFieldDef with
-            | OlyILFieldConstant(_, ilNamedConst, _) ->
+            | OlyILFieldConstant(_, _, ilNamedConst, _) ->
                 match ilNamedConst with
                 | OlyILConstant.UInt8(value) -> ConstantSymbol.UInt8(value) |> ValueSome
                 | OlyILConstant.Int8(value) -> ConstantSymbol.Int8(value) |> ValueSome
@@ -1557,7 +1564,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                 importEntitySymbolFromDefinition cenv ilEntDefHandle
             )
 
-    let lazyInherits =
+    let lazyExtends =
         lazy
             ilEntDef.Extends
             |> ImArray.map (fun ilTy ->
@@ -1571,6 +1578,11 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
         lazy
             ilEntDef.Implements
             |> ImArray.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
+
+    let lazyRuntimeTyOpt =
+        lazy
+            ilEntDef.RuntimeType
+            |> Option.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
 
     let lazyFuncs =
         lazy
@@ -1715,8 +1727,9 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
         member _.Implements: TypeSymbol imarray = lazyImplements.Value
 
-        member this.Extends: TypeSymbol imarray = 
-            lazyInherits.Value
+        member this.Extends: TypeSymbol imarray = lazyExtends.Value
+
+        member _.RuntimeType: TypeSymbol option = lazyRuntimeTyOpt.Value
 
         member _.Kind: EntityKind = kind
 

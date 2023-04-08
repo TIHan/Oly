@@ -1545,7 +1545,7 @@ type OlyBoundModel internal (
                         match syntaxBodyExpr with
                         | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, _) ->  
                             if ent.IsEnum then
-                                if ent.Extends.Length = 1 then
+                                if (ent :> IEntitySymbol).RuntimeType.IsSome then
                                     let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
                                     let ty = ent.AsType
                                     let mutable i = 0

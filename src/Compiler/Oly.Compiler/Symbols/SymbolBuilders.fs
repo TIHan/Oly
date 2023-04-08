@@ -17,6 +17,7 @@ type EntitySymbolBuilder private (
                                  tyParsHole: Ref<imarray<TypeParameterSymbol>>,
                                  extendsHole: Ref<imarray<TypeSymbol>>,
                                  implementsHole: Ref<imarray<TypeSymbol>>,
+                                 runtimeTyOptHole: Ref<option<TypeSymbol>>,
                                  entsHole: Ref<imarray<IEntitySymbol>>) =
 
     let mutable bindings: (BindingInfoSymbol * bool) imarray = bindings
@@ -50,6 +51,13 @@ type EntitySymbolBuilder private (
         match pass with
         | Pass1 ->
             implementsHole.contents <- implements
+        | _ ->
+            failwith "Invalid pass."
+
+    member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol) =
+        match pass with
+        | Pass1 ->
+            runtimeTyOptHole.contents <- Some runtimeTy
         | _ ->
             failwith "Invalid pass."
 
@@ -130,9 +138,10 @@ type EntitySymbolBuilder private (
         let extendsHole = ref ImArray.empty
         let implementsHole = ref ImArray.empty
         let entsHole = ref ImArray.empty
+        let runtimeTyOptHole = ref None
 
-        let ent = EntitySymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole)
-        EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, entsHole)
+        let ent = EntitySymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
+        EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
 
     static member CreateModule(containingAsmOpt, enclosing, flags, name) =
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module)

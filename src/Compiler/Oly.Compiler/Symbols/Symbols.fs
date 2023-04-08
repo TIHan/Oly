@@ -178,6 +178,8 @@ type IEntitySymbol =
 
     abstract Implements : TypeSymbol imarray
 
+    abstract RuntimeType : TypeSymbol option
+
     abstract Formal : IEntitySymbol
 
     abstract Attributes : AttributeSymbol imarray
@@ -185,7 +187,7 @@ type IEntitySymbol =
     abstract Flags : EntityFlags
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: _ imarray ref) =
+type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: _ imarray ref) =
     
     let id = newId()
 
@@ -240,6 +242,7 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
         member _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
         member _.Implements = implements.contents
         member _.Extends = extends.contents
+        member _.RuntimeType = runtimeTyOpt.contents
         member _.TypeParameters = tyPars.contents
         member _.Kind = kind
         member _.ContainingAssembly = containingAsmOpt
@@ -475,6 +478,8 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
     let mutable appliedProps = ValueNone
     [<VolatileField>]
     let mutable appliedPats = ValueNone
+    [<VolatileField>]
+    let mutable appliedRuntimeTyOpt = ValueNone
     let id = newId ()
 
     let tyArgs = takeTypeArguments tyArgs ent.TypeParameters.Length
@@ -599,6 +604,17 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
                     inherits
             | ValueSome(inherits) ->
                 inherits
+
+        member _.RuntimeType =
+            match appliedRuntimeTyOpt with
+            | ValueNone ->
+                if ent.RuntimeType.IsNone then None
+                else
+                    let runtimeTyOpt = actualType tyArgs ent.RuntimeType.Value |> Some
+                    appliedRuntimeTyOpt <- ValueSome runtimeTyOpt
+                    runtimeTyOpt
+            | ValueSome(runtimeTyOpt) ->
+                runtimeTyOpt
 
         member _.Name = ent.Name
         member _.TypeArguments = tyArgs
@@ -1329,6 +1345,7 @@ type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) 
         member this.Properties = ImArray.empty
         member this.TypeArguments = ImArray.empty
         member this.TypeParameters = ImArray.empty
+        member this.RuntimeType = None
 
 [<RequireQualifiedAccess>]
 type EnclosingSymbol =
@@ -3239,6 +3256,11 @@ type TypeSymbol =
         | Function _ -> this.IsFormal
         | _ -> false
 
+    member this.RuntimeType =
+        match stripTypeEquations this with
+        | Entity(ent) -> ent.RuntimeType
+        | _ -> None
+
     member this.Inherits =
         match stripTypeEquations this with
         | Entity(ent) -> ent.Extends
@@ -4355,8 +4377,8 @@ module SymbolExtensions =
                     match this.Extends |> Seq.tryExactlyOne with
                     | Some realTy -> realTy.IsAnyStruct
                     | _ -> false
-                | EntityKind.Enum 
                 | EntityKind.Newtype when this.Extends.Length = 1 -> this.Extends.[0].IsAnyStruct
+                | EntityKind.Enum when this.RuntimeType.IsSome -> this.RuntimeType.Value.IsAnyStruct
                 | _ ->
                     false
     

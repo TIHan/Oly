@@ -1898,7 +1898,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let appliedTyHandle = asmBuilder.AddGenericInstanceTypeReference(ty.Handle, tyArgHandles)
             ClrTypeInfo.TypeGenericInstance(ty, tyArgHandles, appliedTyHandle)
 
-        member this.EmitTypeDefinition(enclosing, kind, flags, name, irTyPars, extends, implements, irAttrs) =
+        member this.EmitTypeDefinition(enclosing, kind, flags, name, irTyPars, extends, implements, irAttrs, runtimeTyOpt) =
             let name =
                 if flags &&& OlyIRTypeFlags.GenericsErased = OlyIRTypeFlags.GenericsErased then
                     name + newUniquePrivateTypeName()
@@ -1914,18 +1914,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let isTypeExtension = kind = OlyILEntityKind.TypeExtension
             let isAttribute = kind = OlyILEntityKind.Attribute
 
-            let enumBaseTyOpt =
+            let enumRuntimeTyOpt =
                 if isEnum then
-                    extends[0] |> Some
+                    runtimeTyOpt
                 else
                     None
 
             let isAnyStruct =
                 isStruct ||
-                (match enumBaseTyOpt with Some ty -> ty.IsStruct | _ -> false)
+                (match enumRuntimeTyOpt with Some ty -> ty.IsStruct | _ -> false)
 
             let inherits =
-                // TODO: This assumes enum is an int32, handle other cases.
                 if isEnum || isNewtype then ImArray.empty
                 else extends
 
@@ -1949,7 +1948,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.handle, writeAttrArgs irArgs irNamedArgs)
             )
 
-            let inherits =
+            let extends =
                 if kind = OlyILEntityKind.Closure then
                     ImArray.empty
                 else
@@ -2003,7 +2002,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             tyDefBuilder.Attributes <- tyAttrs
 
-            match enumBaseTyOpt with
+            match enumRuntimeTyOpt with
             | Some enumBaseTy ->
                 tyDefBuilder.AddFieldDefinition(
                     FieldAttributes.Public ||| FieldAttributes.SpecialName ||| FieldAttributes.RTSpecialName,
@@ -2016,20 +2015,20 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 ()
 
             if isInterface then
-                if not inherits.IsEmpty then
-                    tyDefBuilder.InterfaceImplementations <- inherits |> ImArray.map (fun x -> x.Handle)
+                if not extends.IsEmpty then
+                    tyDefBuilder.InterfaceImplementations <- extends |> ImArray.map (fun x -> x.Handle)
             else
-                if inherits.Length > 1 && not isTypeExtension then
+                if extends.Length > 1 && not isTypeExtension then
                     failwith "Multiple inheritance not supported on the CLR."
 
-                if inherits.Length = 1 && not isTypeExtension then
-                    tyDefBuilder.BaseType <- inherits.[0].Handle
+                if extends.Length = 1 && not isTypeExtension then
+                    tyDefBuilder.BaseType <- extends.[0].Handle
 
                 if not implements.IsEmpty && not isTypeExtension then
                     tyDefBuilder.InterfaceImplementations <- implements |> ImArray.map (fun x -> x.Handle)
 
             if isTypeExtension then
-                let extendedTy = inherits |> Seq.exactlyOne
+                let extendedTy = extends |> Seq.exactlyOne
                 // ** INSTANCE GENERATION **
 
                 let instanceTyDefBuilder = asmBuilder.CreateTypeDefinitionBuilder(tyDefBuilder.Handle, namespac, "__oly_instance", tyPars, false)
@@ -2087,9 +2086,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ClrTypeInfo.TypeDefinition(asmBuilder, instanceTyDefBuilder, isReadOnly, false, None, ValueNone, false, false)
 
                 // *********************************
-                ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, enumBaseTyOpt, ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle), isAnyStruct, false)
+                ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, enumRuntimeTyOpt, ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle), isAnyStruct, false)
             else
-                ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, enumBaseTyOpt, ValueNone, isAnyStruct, kind = OlyILEntityKind.Closure)
+                ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, enumRuntimeTyOpt, ValueNone, isAnyStruct, kind = OlyILEntityKind.Closure)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic
@@ -2126,7 +2125,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
                 let attrs =
                     if irConstValueOpt.IsSome then
-                        attrs ||| FieldAttributes.Literal
+                        attrs ||| FieldAttributes.Literal ||| FieldAttributes.HasDefault
                     else
                         attrs
 

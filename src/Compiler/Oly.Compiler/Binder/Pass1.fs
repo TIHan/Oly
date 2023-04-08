@@ -56,13 +56,12 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
     )
     (**)
 
+    if entBuilder.Entity.IsEnum then
+        // Int32 is default for enum declarations.
+        entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
+
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
-        
-        if entBuilder.Entity.IsEnum then
-            // While enums always need cases, we set the extends for error recovery.
-            entBuilder.SetExtends(cenv.pass, ImArray.createOne TypeSymbol.Int32)
-
         env
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, _, syntaxExpr) ->
@@ -108,16 +107,6 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
             else
                 extends
         (* END NEWTYPE LOGIC *)
-
-        let extends =
-            if extends.IsEmpty then
-                if ent.IsEnum then
-                    // TODO: This is currently the default. How can the user change this?
-                    ImArray.createOne TypeSymbol.Int32
-                else
-                    ImArray.empty
-            else
-                extends
 
         // Check recursive inheritance.
         let extends =

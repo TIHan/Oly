@@ -6731,7 +6731,7 @@ alias void<T>
   ^^^^^^^^^^^^^^^^^
 """
             )
-            ("Aliases, enums, newtypes, and type extensions must inherit from a single type that will be extended.",
+            ("Aliases, newtypes, and type extensions must inherit from a single type that will be extended.",
             """
 alias void<T>
       ^^^^

@@ -190,12 +190,13 @@ type OlyILEntityDefinition =
         patDefs: OlyILPatternDefinitionHandle imarray *
         entDefs: OlyILEntityDefinitionHandle imarray *
         implements: OlyILType imarray *
-        extends: OlyILType imarray
+        extends: OlyILType imarray *
+        runtimeTyOpt: OlyILType option
 
     member this.UpdateKind(kind: OlyILEntityKind) =
         match this with
-        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits) ->
-            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits)
+        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, runtimeTyOpt) ->
+            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, runtimeTyOpt)
 
     member this.EntityDefinitionHandles =
         match this with
@@ -261,6 +262,10 @@ type OlyILEntityDefinition =
     member this.IsIntrinsic =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+
+    member this.RuntimeType =
+        match this with
+        | OlyILEntityDefinition(runtimeTyOpt=runtimeTyOpt) -> runtimeTyOpt
 
 [<NoEquality;NoComparison>]
 type OlyILEntityInstance =
@@ -529,7 +534,7 @@ type OlyILConstant =
 [<NoEquality;NoComparison>]
 type OlyILFieldDefinition =
     | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags
-    | OlyILFieldConstant of name: OlyILStringHandle * constant: OlyILConstant * memberFlags: OlyILMemberFlags
+    | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant * memberFlags: OlyILMemberFlags
 
     member this.IsConstant =
         match this with
@@ -544,7 +549,7 @@ type OlyILFieldDefinition =
     member this.Type =
         match this with
         | OlyILFieldDefinition(ty=ty) -> ty
-        | OlyILFieldConstant(_, constant, _) -> constant.Type
+        | OlyILFieldConstant(ty=ty) -> ty
 
     member this.Flags =
         match this with

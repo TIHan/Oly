@@ -1650,27 +1650,27 @@ type InterpreterRuntimeEmitter() =
         member this.EmitFunctionBody(irFuncBody: Lazy<_>, _, func: InterpreterFunction): unit =
             func.Body <- Some irFuncBody
 
-        member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, inherits, implements, _): InterpreterType = 
+        member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, extends, implements, _, runtimeTyOpt): InterpreterType = 
             let funcs = ResizeArray()
             let fields = ResizeArray()
             let isStruct =
                 if (kind = OlyILEntityKind.Struct) then
                     true
                 elif (kind = OlyILEntityKind.Enum) then
-                    inherits[0].IsStruct
+                    runtimeTyOpt.Value.IsStruct
                 else
                     false
-            let ty = InterpreterType.Custom(enclosing, name, ImArray.empty, funcs, fields, (kind = OlyILEntityKind.TypeExtension), isStruct, (kind = OlyILEntityKind.Enum), (kind = OlyILEntityKind.Interface), inherits, implements)
-            if kind = OlyILEntityKind.TypeExtension && inherits.Length = 1 then
+            let ty = InterpreterType.Custom(enclosing, name, ImArray.empty, funcs, fields, (kind = OlyILEntityKind.TypeExtension), isStruct, (kind = OlyILEntityKind.Enum), (kind = OlyILEntityKind.Interface), extends, implements)
+            if kind = OlyILEntityKind.TypeExtension && extends.Length = 1 then
                 let valueFieldName = "__oly_instance_value"
-                let valueField = InterpreterField(ty, valueFieldName, inherits.[0], None, ref None)
+                let valueField = InterpreterField(ty, valueFieldName, extends.[0], None, ref None)
                 fields.Add(valueField)
 
                 let ctorName = "__oly_instance_ctor"
                 let ctor = InterpreterFunction(env, ctorName, ty, true, true, false, false, None, None)
                 ctor.Body <-
                     let arg0 = OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Argument(0, ty))
-                    let arg1 = OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Argument(1, inherits.[0]))
+                    let arg1 = OlyIRExpression.Value(OlyIRDebugSourceTextRange.Empty, OlyIRValue.Argument(1, extends.[0]))
                     let body =
                         OlyIRExpression.CreateSequential(
                             [

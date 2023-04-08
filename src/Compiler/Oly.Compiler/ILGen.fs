@@ -582,7 +582,7 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
         let ilFieldDef = 
             match field.Constant with
             | ValueSome(constValue) ->
-                OlyILFieldConstant(GenString cenv field.Name, GenConstant cenv env constValue, memberFlags)
+                OlyILFieldConstant(GenString cenv field.Name, emitILType cenv env field.Type, GenConstant cenv env constValue, memberFlags)
             | _ ->
                 OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
@@ -1032,7 +1032,7 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         if not closureHasValidFunctions then
             failwith "Not a valid closure. A closure must have a single instance constructor and single instance function."
 
-    let ilInherits =
+    let ilExtends =
         ent.Extends 
         |> ImArray.map (emitILType cenv env)
 
@@ -1173,6 +1173,16 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
                 ilFuncDefs
                 |> ImArray.ofSeq
 
+        let ilRuntimeTyOpt =
+            ent.RuntimeType
+            |> Option.map (fun ty -> emitILType cenv env ty)
+
+#if DEBUG
+        if ilRuntimeTyOpt.IsSome then   
+            OlyAssert.True(ilImplements.IsEmpty)
+            OlyAssert.True(ilExtends.IsEmpty)
+#endif
+
         let ilEntDef = 
             OlyILEntityDefinition(
                 ilEntKind,
@@ -1187,7 +1197,8 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
                 ilPatDefs,
                 ilEntDefHandles,
                 ilImplements,
-                ilInherits)
+                ilExtends,
+                ilRuntimeTyOpt)
 
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)
     )
