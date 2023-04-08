@@ -433,7 +433,18 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
                 BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), value)
         else
             OlyAssert.False(value.IsFunction)
-            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
+            let syntaxInfo = 
+                BoundSyntaxInfo.CreateUser(
+                    syntaxToCapture, 
+                    env.benv, 
+                    syntaxNameOpt, 
+                    receiverInfoOpt 
+                    |> Option.bind (fun x ->
+                        match x.item with
+                        | ReceiverItem.Type(ty) -> Some ty
+                        | _ -> None
+                    )
+                )
             BoundExpression.Value(syntaxInfo, value)
 
     match value with
@@ -503,7 +514,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
     let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
     let finalExpr, value = 
-        let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
+        let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt, None)
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
     match value.TryWellKnownFunction with
@@ -757,8 +768,20 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
     match value with
     | :? IFunctionSymbol as func ->
         if func.IsFunctionGroup && resInfo.resArgs.IsExplicit then
+            let syntaxInfo =
+                BoundSyntaxInfo.CreateUser(
+                    syntaxToCapture, 
+                    env.benv, 
+                    syntaxNameOpt,
+                    receiverInfoOpt
+                    |> Option.bind (fun x ->
+                        match x.item with
+                        | ReceiverItem.Type(ty) -> Some ty
+                        | _ -> None
+                    )
+                )
             BoundExpression.Call(
-                BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt),
+                syntaxInfo,
                 receiverExprOpt,
                 CacheValueWithArg(fun _ _ -> ImArray.empty),
                 resInfo.argExprs,

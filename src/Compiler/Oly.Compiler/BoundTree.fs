@@ -211,15 +211,12 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             text
 
-    static member CreateUser(syntaxNode, benv, syntaxNameOpt) =
+    static member CreateUser(syntaxNode, benv, syntaxNameOpt, tyOpt) =
         match syntaxNameOpt with
         | Some(syntaxName) ->
-            UserWithName(syntaxNode, benv, syntaxName, None)
+            UserWithName(syntaxNode, benv, syntaxName, tyOpt)
         | _ ->
             User(syntaxNode, benv)
-
-    static member CreateUser(syntaxNode, benv, syntaxName, receiverTyOpt) =
-        UserWithName(syntaxNode, syntaxName, benv, receiverTyOpt)
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression

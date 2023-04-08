@@ -328,7 +328,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
         lambdaPars
         |> ImArray.map (fun x -> BoundExpression.CreateValue(cenv.syntaxTree, x))
 
-    let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, syntaxNameOpt)
+    let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, syntaxNameOpt, None)
     
     let callExpr =
         BoundExpression.Call(

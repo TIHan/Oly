@@ -750,7 +750,18 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
         match syntaxCallBodyExpr2.TryName with
         | Some syntaxName ->
             let bodyExpr =
-                let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, Some syntaxName)
+                let syntaxInfo = 
+                    BoundSyntaxInfo.CreateUser(
+                        syntaxToCapture, 
+                        env.benv, 
+                        Some syntaxName,
+                        receiverInfoOpt
+                        |> Option.bind (fun x ->
+                            match x.item with
+                            | ReceiverItem.Type(ty) -> Some ty
+                            | _ -> None
+                        )
+                    )
                 bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty bridge
                 |> fst
                 |> checkExpression cenv env None
@@ -1275,7 +1286,7 @@ let private bindThrowExpression cenv (env: BinderEnvironment) syntaxNode syntaxA
     let expr =
         match bindIdentifierAsFormalItem cenv env syntaxNode None resInfo "throw" with
         | ResolutionFormalItem.Value(_, value) ->
-            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, None)
+            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, None, None)
             bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
@@ -1318,7 +1329,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
     let expr =
         match bindIdentifierAsFormalItem cenv env syntaxToCapture None resInfo ident with
         | ResolutionFormalItem.Value(_, value) ->
-            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxBrackets, env.benv, None)
+            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxBrackets, env.benv, None, None)
             bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
@@ -1524,7 +1535,7 @@ let private bindLocalValueDeclaration
                     )
 
             let callExpr, _ =
-                let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, None)
+                let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, None, None)
                 bindValueAsCallExpression
                     cenv
                     env
