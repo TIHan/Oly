@@ -624,6 +624,8 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
     | _ ->
         ()
 
+    let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
+
     if value.IsProperty then
         let syntaxNode =
             match syntaxNameOpt with
@@ -641,11 +643,10 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
 
         let callExpr = 
             BoundExpression.Call(
-                BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+                syntaxInfo,
                 None,
                 CacheValueWithArg.FromValue(ImArray.empty),
                 argExprs,
-                syntaxNameOpt,
                 bridge,
                 false
             )
@@ -661,11 +662,10 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
     else
         let expr = 
             BoundExpression.Call(
-                BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+                syntaxInfo,
                 receiverOpt,
                 witnessArgs,
                 argExprs,
-                syntaxNameOpt,
                 value,
                 isVirtualCall
             )
@@ -769,11 +769,10 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
     | :? IFunctionSymbol as func ->
         if func.IsFunctionGroup && resInfo.resArgs.IsExplicit then
             BoundExpression.Call(
-                BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+                BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt),
                 receiverExprOpt,
                 CacheValueWithArg(fun _ _ -> ImArray.empty),
                 resInfo.argExprs,
-                syntaxNameOpt,
                 func,
                 false
             )

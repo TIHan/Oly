@@ -282,7 +282,7 @@ let substitute
                         let appliedValue = value.Formal.Substitute(allTyArgs)
                         BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, appliedValue, rhsExpr)
 
-                | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, syntaxNameOpt, value, isVirtualCall) ->
+                | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                     let subbedWitnessArgs = 
                         WitnessSolution.EmplaceSubstitute(
                             witnessArgs.GetValue(None, System.Threading.CancellationToken.None),
@@ -350,7 +350,6 @@ let substitute
                                 receiverOpt,
                                 subbedWitnessArgs,
                                 newArgExprs,
-                                syntaxNameOpt,
                                 appliedClosureInvoke,
                                 isVirtualCall
                             )
@@ -365,7 +364,6 @@ let substitute
                                 receiverOpt,
                                 subbedWitnessArgs,
                                 newArgExprs,
-                                syntaxNameOpt,
                                 appliedNewValue,
                                 isVirtualCall
                             )
@@ -385,7 +383,6 @@ let substitute
                             receiverOpt,
                             subbedWitnessArgs,
                             newArgExprs,
-                            syntaxNameOpt,
                             appliedValue,
                             isVirtualCall
                         )
@@ -631,7 +628,6 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
         None,
         CacheValueWithArg.FromValue(ImArray.empty),
         ctorArgExprs,
-        None,
         ctor,
         false
     )
@@ -915,9 +911,9 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 |> ImArray.map (fun (_, x) -> E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), x))
                             bodyExpr.Rewrite(fun expr ->
                                 match expr with
-                                | E.Call(syntaxInfo, None, witnessArgs, argExprs, syntaxNameOpt, value, false) when value.Formal.Id = func.Id ->
+                                | E.Call(syntaxInfo, None, witnessArgs, argExprs, value, false) when value.Formal.Id = func.Id ->
                                     let newFunc = newFunc.Apply(freeTyVars.Values |> Seq.map (fun x -> x.AsType) |> ImArray.ofSeq)
-                                    E.Call(syntaxInfo, None, witnessArgs, argExprs.AddRange(newArgExprs), syntaxNameOpt, newFunc, false)
+                                    E.Call(syntaxInfo, None, witnessArgs, argExprs.AddRange(newArgExprs), newFunc, false)
                                 | _ ->
                                     expr
                             )

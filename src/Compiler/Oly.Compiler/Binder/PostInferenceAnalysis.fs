@@ -521,7 +521,7 @@ and analyzeExpression cenv env (expr: BoundExpression) =
     | BoundExpression.Typed(body=bodyExpr) -> 
         analyzeExpression cenv env bodyExpr
 
-    | BoundExpression.Call(_, receiverOpt, witnessArgs, args, syntaxNameOpt, value, _) ->
+    | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, _) ->
         if not value.IsFunctionGroup then
             // We expect 'witnessArgs' to have been evaluated by now.
             Assert.ThrowIfNot(witnessArgs.HasValue)
@@ -544,8 +544,8 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         receiverOpt
         |> Option.iter (fun receiver -> analyzeExpression cenv env receiver)
 
-        match syntaxNameOpt with
-        | Some syntaxName ->
+        match syntaxInfo with
+        | BoundSyntaxInfo.UserWithName(_, syntaxName, _) ->
             checkValue cenv env syntaxName value
         | _ ->
             checkValue cenv env syntaxNode value

@@ -114,7 +114,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
 
                     BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, tyPars, parValues, lazyBody)
 
-            | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, syntaxValueName, value, isVirtualCall) ->
+            | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, isVirtualCall) ->
                 let newReceiverOpt = 
                     receiverOpt
                     |> Option.map this.Rewrite
@@ -123,7 +123,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 if newReceiverOpt = receiverOpt && newArgs = args then
                     expr
                 else
-                    BoundExpression.Call(syntaxInfo, newReceiverOpt, witnessArgs, newArgs, syntaxValueName, value, isVirtualCall)
+                    BoundExpression.Call(syntaxInfo, newReceiverOpt, witnessArgs, newArgs, value, isVirtualCall)
 
             | BoundExpression.MemberDefinition(syntaxInfo, BoundBinding.Implementation(syntaxInfo2, bindingInfo, rhsExpr)) ->
                 let newRhsExpr = this.Rewrite(rhsExpr)

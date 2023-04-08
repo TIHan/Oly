@@ -288,7 +288,6 @@ let private tryOverloadedCallExpression
         (env: BinderEnvironment) 
         (expectedTyOpt: TypeSymbol option) 
         (syntaxInfo: BoundSyntaxInfo) 
-        (syntaxNameOpt: OlySyntaxName option)
         (receiverExprOpt: BoundExpression option)
         (argExprs: BoundExpression imarray)
         (isArgForAddrOf: bool)
@@ -315,7 +314,7 @@ let private tryOverloadedCallExpression
             None
         else
             let func = FunctionGroupSymbol.CreateIfPossible(funcs)
-            bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxNameOpt)
+            bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
             |> Some
 
 let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
@@ -328,14 +327,15 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
     let argExprs =
         lambdaPars
         |> ImArray.map (fun x -> BoundExpression.CreateValue(cenv.syntaxTree, x))
+
+    let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxNode, env.benv, syntaxNameOpt)
     
     let callExpr =
         BoundExpression.Call(
-            BoundSyntaxInfo.User(syntaxNode, env.benv),
+            syntaxInfo,
             None,
             (CacheValueWithArg.FromValue ImArray.empty),
             argExprs,
-            syntaxNameOpt,
             freshFunc,
             func.IsVirtual && not func.IsFinal
         )
@@ -389,7 +389,7 @@ let private tryOverloadPartialCallExpression
 
 let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, syntaxNameOpt, value, isVirtualCall) ->
+    | BoundExpression.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
 
         let isAddrOf = value.IsAddressOf
 
@@ -480,7 +480,6 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
             receiverExprOpt,
             witnessArgs,
             argExprs,
-            syntaxNameOpt,
             value,
             isVirtualCall
         )
@@ -489,7 +488,7 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
 
 let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, syntaxNameOpt, value, _) ->
+    | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, _) ->
         match value with
         | :? FunctionGroupSymbol as funcGroup ->
             if funcGroup.IsAddressOf then
@@ -504,7 +503,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (exp
                 | _ ->
                     ()
                    
-            match tryOverloadedCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
+            match tryOverloadedCallExpression cenv env expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
             | Some expr -> expr
             | _ -> expr
         | _ ->
@@ -562,7 +561,7 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (expecte
 
 let private lateCheckCalleeExpression cenv env expr =
     match expr with
-    | LoadFunctionPtr(syntaxInfo, _, funcLoadFunctionPtr, argExpr) ->
+    | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, argExpr) ->
         match argExpr with
         | LambdaWrappedFunctionCall(syntaxInfo, func) ->
             match func.Type.TryFunction with

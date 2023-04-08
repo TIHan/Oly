@@ -220,11 +220,11 @@ module private Helpers =
                 base.VisitExpression(expr)
 
             // TODO: We shouldn't use the Call's syntax, we need the value syntax
-            | BoundExpression.Call(syntaxInfo=syntaxInfo;syntaxValueNameOpt=syntaxNameOpt;value=value) ->
+            | BoundExpression.Call(syntaxInfo=syntaxInfo;value=value) ->
                 let syntax = syntaxInfo.Syntax
                 if checkValue value.Formal then
                     let syntaxOpt =
-                        match syntaxNameOpt with
+                        match syntaxInfo.TrySyntaxName with
                         | Some syntaxName -> Some syntaxName
                         | _ ->
                             match syntax with
@@ -1155,8 +1155,8 @@ let areTargetExpressionsEqual (expr1: E) (expr2: E) =
     if obj.ReferenceEquals(expr1, expr2) then true
     else
         match expr1, expr2 with
-        | E.Call(_, None, witnessArgs1, argExprs1, _, value1, false),
-            E.Call(_, None, witnessArgs2, argExprs2, _, value2, false) ->
+        | E.Call(_, None, witnessArgs1, argExprs1, value1, false),
+            E.Call(_, None, witnessArgs2, argExprs2, value2, false) ->
             value1.IsFunction &&
             areValueSignaturesEqual value1 value2 && 
             argExprs1.Length = argExprs2.Length &&

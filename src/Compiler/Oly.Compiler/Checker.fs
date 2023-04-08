@@ -692,12 +692,8 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         | _ ->
             ()
 
-    | BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;syntaxValueNameOpt=syntaxValueNameOpt;value=value) ->
-        match syntaxValueNameOpt with
-        | Some syntaxValueName ->
-            checkCall syntaxValueName receiverOpt value
-        | _ ->
-            checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
+    | BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;value=value) ->
+        checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
 
     | _ ->
         ()
@@ -717,7 +713,7 @@ and checkConstraintsForSolving
 /// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
 and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, _, value, _) when not value.IsFunctionGroup ->
+    | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, _) when not value.IsFunctionGroup ->
         let syntaxNode =
             match syntaxInfo.Syntax with
             | :? OlySyntaxExpression as syntax ->

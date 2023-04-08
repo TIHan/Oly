@@ -120,7 +120,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
             raise(System.NotImplementedException())
         origExpr
 
-    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, syntaxNameOpt, value, isVirtualCall) ->
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
             let bridgeValue = createLocalBridgeValue value.Type
@@ -129,7 +129,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
                 syntaxInfoBridge,
                 BindingLocal(bridgeValue),
                 LoadRefCellContents (E.Value(syntaxInfoBridge, newValue)),
-                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, syntaxNameOpt, bridgeValue, isVirtualCall)
+                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, bridgeValue, isVirtualCall)
             )
         | _ ->
             origExpr

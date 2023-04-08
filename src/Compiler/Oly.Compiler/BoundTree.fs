@@ -203,6 +203,13 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             text
 
+    static member CreateUser(syntaxNode, benv, syntaxNameOpt) =
+        match syntaxNameOpt with
+        | Some(syntaxName) ->
+            UserWithName(syntaxNode, syntaxName, benv)
+        | _ ->
+            User(syntaxNode, benv)
+
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
 
@@ -213,7 +220,15 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | ErrorWithType of syntax: OlySyntaxName * benv: BoundEnvironment * ty: TypeSymbol
     | Sequential of syntaxInfo: BoundSyntaxInfo * expr1: BoundExpression * expr2: BoundExpression
     | MemberDefinition of syntaxInfo: BoundSyntaxInfo * binding: BoundBinding
-    | Call of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * witnessArgs: CacheValueWithArg<OlySyntaxType imarray option, WitnessSolution imarray> * args: ImmutableArray<BoundExpression> * syntaxValueNameOpt: OlySyntaxName option * value: IValueSymbol * isVirtualCall: bool
+
+    | Call of 
+        syntaxInfo: BoundSyntaxInfo * 
+        receiverOpt: BoundExpression option * 
+        witnessArgs: CacheValueWithArg<OlySyntaxType imarray option, WitnessSolution imarray> * 
+        args: ImmutableArray<BoundExpression> *
+        value: IValueSymbol * 
+        isVirtualCall: bool
+
     | Value of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol
     | SetValue of syntaxInfo: BoundSyntaxInfo * syntaxValueNameOpt: OlySyntaxName option * value: IValueSymbol * rhs: BoundExpression
     | SetContentsOfAddress of syntaxInfo: BoundSyntaxInfo * lhs: BoundExpression * rhs: BoundExpression

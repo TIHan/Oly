@@ -97,8 +97,8 @@ let (|LambdaWrappedFunctionCall|_|) (expr: E) =
 
 let (|LoadFunctionPtr|_|) (expr: E) =
     match expr.Strip() with
-    | E.Call(syntaxInfo=syntaxInfo;syntaxValueNameOpt=syntaxNameOpt;receiverOpt=None;value=value;args=args) when args.Length = 1 && value.IsLoadFunctionPtr ->
-        Some(syntaxInfo, syntaxNameOpt, value :?> IFunctionSymbol, args[0])
+    | E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;value=value;args=args) when args.Length = 1 && value.IsLoadFunctionPtr ->
+        Some(syntaxInfo, value :?> IFunctionSymbol, args[0])
     | _ ->
         None
 

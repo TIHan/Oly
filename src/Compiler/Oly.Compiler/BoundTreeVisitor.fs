@@ -145,7 +145,7 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
             | BoundExpression.Typed(_, bodyExpr, _) ->
                 this.VisitExpression(bodyExpr) |> ignore
 
-            | BoundExpression.Call(_, receiverOpt, _, args, _, _, _) ->
+            | BoundExpression.Call(_, receiverOpt, _, args, _, _) ->
                 for i = 0 to args.Length - 1 do
                     this.VisitExpression(args.[i]) |> ignore
                 match receiverOpt with

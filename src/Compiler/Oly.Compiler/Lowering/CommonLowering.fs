@@ -164,13 +164,12 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     // LoadFunctionPtr lambda removal
     // Removes the wrapping lambda if this is a LoadFunctionPtr.
     // LoadFunctionPtr will now have a direct argument of the function value.
-    | LoadFunctionPtr(syntaxInfo, syntaxNameOpt, funcLoadFunctionPtr, LambdaWrappedFunctionCall(syntaxInfoFunc, func)) ->
+    | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, LambdaWrappedFunctionCall(syntaxInfoFunc, func)) ->
         E.Call(
             syntaxInfo,
             None,
             CacheValueWithArg.FromValue ImArray.empty,
             ImArray.createOne(E.Value(syntaxInfoFunc, func)),
-            syntaxNameOpt,
             funcLoadFunctionPtr,
             false
         )
@@ -200,7 +199,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         true
                 else
                     false
-            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.empty, syntaxNameOpt, getter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.empty, getter, isVirtualCall)
         | _ ->
             origExpr
     | E.SetProperty(syntaxInfo, receiverOpt, syntaxNameOpt, prop, rhs) ->
@@ -215,7 +214,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         true
                 else
                     false
-            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.createOne rhs, syntaxNameOpt, setter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.createOne rhs, setter, isVirtualCall)
         | _ ->
             origExpr
 
@@ -356,13 +355,14 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                             true                            
 
                     let callExpr =
-                        E.Call(BoundSyntaxInfo.Generated(syntaxTree),
+                        E.Call(
+                            BoundSyntaxInfo.Generated(syntaxTree),
                             receiverOpt,
                             CacheValueWithArg.FromValue(ImArray.empty),
                             argExprs,
-                            None,
                             funcToCall,
-                            isVirtualCall)
+                            isVirtualCall
+                        )
 
                     E.Lambda(
                         BoundSyntaxInfo.Generated(syntaxTree),
@@ -443,7 +443,6 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                             (Some(thisExpr)),
                                             CacheValueWithArg.FromValue(ImArray.empty),
                                             ImArray.empty,
-                                            None,
                                             baseDefaultInstanceCtor,
                                             false
                                         ))

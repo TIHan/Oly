@@ -10,13 +10,13 @@ open Oly.Compiler.Internal.BoundTreePatterns
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.IgnoreFunction, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.IgnoreFunction, false)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(syntaxInfo, None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.equalFunc, false)
+    BoundExpression.Call(syntaxInfo, None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.equalFunc, false)
 
 let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
     EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
@@ -26,21 +26,21 @@ let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.notEqualFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.notEqualFunc, false)
 
 let And (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.andFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.andFunc, false)
 
 let Or (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, None, WellKnownFunctions.orFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.orFunc, false)
 
 let LogicalAnd (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
@@ -64,8 +64,7 @@ let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExp
         BoundSyntaxInfo.Generated(syntaxTree), 
         None, 
         CacheValueWithArg.FromValue(ImArray.empty), 
-        argExprs, 
-        None, 
+        argExprs,
         WellKnownFunctions.LoadTupleElement.Apply(tyArgs), 
         false
     )
@@ -125,7 +124,6 @@ let private createGeneratedCallExpression syntaxTree (value: IValueSymbol) (tyAr
         None,
         CacheValueWithArg.FromValue(witnessArgs),
         args,
-        None,
         actualValue value.Enclosing tyArgs value.Formal,
         isVirtualCall
     )

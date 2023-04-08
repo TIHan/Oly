@@ -178,8 +178,8 @@ let optimizeImmediateExpression cenv origExpr =
                     bodyExpr.Rewrite(function
                         | E.Value(syntaxInfo, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
                             E.Value(syntaxInfo, rhsValue)
-                        | E.Call(syntaxInfo, receiverOpt, witnessArgs, args, syntaxValueNameOpt, value, isVirtualCall) when value.Formal.Id = bindingInfo.Value.Id ->
-                            E.Call(syntaxInfo, receiverOpt, witnessArgs, args, syntaxValueNameOpt, actualValue rhsValue.Enclosing value.AllTypeArguments rhsValue, isVirtualCall)
+                        | E.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, isVirtualCall) when value.Formal.Id = bindingInfo.Value.Id ->
+                            E.Call(syntaxInfo, receiverOpt, witnessArgs, args, actualValue rhsValue.Enclosing value.AllTypeArguments rhsValue, isVirtualCall)
                         | expr ->
                             expr
                     )

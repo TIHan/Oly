@@ -60,7 +60,7 @@ let substituteLocals
                     | _ ->
                         origExpr
 
-                | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, syntaxNameOpt, value, isVirtualCall) 
+                | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtualCall) 
                         when value.IsLocal && not value.IsFunction ->
 
                     match localLookup.TryGetValue value.Formal.Id with
@@ -70,7 +70,6 @@ let substituteLocals
                             None,
                             witnessArgs,
                             argExprs,
-                            syntaxNameOpt,
                             newValue,
                             isVirtualCall
                         )
@@ -121,7 +120,6 @@ let toTargetJump(expr: E) =
             None,
             CacheValueWithArg.FromValue(ImArray.empty),
             ImArray.empty,
-            None,
             local,
             false
         )
@@ -181,7 +179,6 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
             None,
             CacheValueWithArg.FromValue(ImArray.empty),
             freeLocals |> ImArray.map (fun x -> E.Value(syntaxInfo, x)),
-            None,
             local,
             false
         )
@@ -326,7 +323,6 @@ let createCallExpression syntaxInfo (func: IFunctionSymbol) witnessArgs argExprs
         None,
         CacheValueWithArg.FromValue(witnessArgs),
         argExprs,
-        None,
         func,
         func.IsVirtual
     )

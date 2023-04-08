@@ -1437,7 +1437,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Unit _ ->
         OlyILExpression.Value(ilTextRange, OlyILValue.Unit)
 
-    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, _, value, isVirtualCall) ->
+    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
         let witnessArgs = witnessArgs.GetValue(None, CancellationToken.None)

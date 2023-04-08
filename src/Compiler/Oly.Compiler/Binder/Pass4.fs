@@ -200,14 +200,14 @@ let private bindPatternByResolutionItem
 
         // TODO: We should return BoundCasePattern.Function, but we do not have a pattern at this point.
         env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal())
-    | ResolutionItem.Expression(BoundExpression.Call(syntaxInfo, _, _, _, syntaxValueNameOpt, value, _) as callExpr) ->
+    | ResolutionItem.Expression(BoundExpression.Call(syntaxInfo, _, _, _, value, _) as callExpr) ->
         // Pattern overloading specific
         let callExpr =
             match value with
             | :? FunctionGroupSymbol as funcGroup ->
                 let argExprs =
                     let syntaxInfo =
-                        match syntaxValueNameOpt with
+                        match syntaxInfo.TrySyntaxName with
                         | Some syntaxName -> BoundSyntaxInfo.User(syntaxName, env.benv)
                         | _ -> syntaxInfo
                     BoundExpression.CreateValue(syntaxInfo, createLocalGeneratedValue "tmp" matchTy)
@@ -237,7 +237,7 @@ let private bindPatternByResolutionItem
                         (BoundSyntaxInfo.User(syntaxPattern, env.benv))
                         None
                         argExprs
-                        (value, syntaxValueNameOpt)
+                        (value, syntaxInfo.TrySyntaxName)
                 callExpr
             | _ ->
                 callExpr
@@ -1662,7 +1662,6 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                             Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue)),
                             CacheValueWithArg.FromValue(ImArray.empty),
                             ImArray.empty,
-                            None,
                             baseCtor,
                             false
                         )

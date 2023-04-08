@@ -345,13 +345,13 @@ module Patterns =
 
     let (|Call|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;syntaxValueNameOpt=syntaxValueNameOpt;value=value;isVirtualCall=isVirtualCall), boundModel, ct)
+        | Expression(BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value;isVirtualCall=isVirtualCall), boundModel, ct)
                 when value.TryWellKnownFunction = ValueNone ->
             ct.ThrowIfCancellationRequested()
-            let syntaxNode, benv =
-                match syntaxInfo.TrySyntaxAndEnvironment with
-                | Some(syntaxNode, benv) ->
-                    syntaxNode, benv
+            let benv =
+                match syntaxInfo.TryEnvironment with
+                | Some(benv) ->
+                    benv
                 | _ ->
                     failwith "Should have user syntax."
 
@@ -370,10 +370,7 @@ module Patterns =
             let argTExprs =
                 argExprs
                 |> ImArray.map (fun x -> convert boundModel x ct)
-            let syntax =
-                match syntaxValueNameOpt with
-                | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> syntaxNode
+            let syntax = syntaxInfo.SyntaxNameOrDefault
             let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, value)
             // TODO: Add witnesses
             Some(callKind, valueSymbol, argTExprs)
