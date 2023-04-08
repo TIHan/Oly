@@ -3308,10 +3308,18 @@ enum E =
     | B
     | C
 
+#[open]
+extension EExtensions =
+    inherits E
+
+    static op_Equality(value1: E, value2: E): bool =
+        print("passed")
+        true
+
 main(): () =
     let x = E.A
-    if (x == E.A || x == E.B)
-        print("passed")
+    if (x == E.A)
+        ()
     else
         print("failed")
         """

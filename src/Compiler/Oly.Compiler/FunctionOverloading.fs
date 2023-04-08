@@ -264,30 +264,19 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
 
     if funcs2.Length = 1 then funcs2
     else
-        let funcs3 = 
-            // If we have a *solved* return type, choose the least generic.
-            if returnTyOpt.IsSome && returnTyOpt.Value.IsSolved then
-                filterFunctionsForOverloadingLeastGeneric funcs2
-            else
-                funcs2
+        let funcs3 = filterFunctionsForOverloadingByWeight resArgs None funcs2
 
-        let funcs4 =
-            if returnTyOpt.IsSome then
-                if funcs3.Length = 1 then
-                    funcs3
-                elif funcs3.IsEmpty then
-                    filterFunctionsForOverloadingFinalPhase funcs2
-                else
-                    filterFunctionsForOverloadingFinalPhase funcs3
-            else
-                funcs3
-
-        let funcs5 = filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs4
-
+        // If we have a *solved* return type, choose the least generic.
         if returnTyOpt.IsSome then
-            filterFunctionsForOverloadingByLeastGenericReturnType funcs5
+            let funcs4 =
+                filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
+                |> filterFunctionsForOverloadingFinalPhase
+            if returnTyOpt.Value.IsSolved then
+                filterFunctionsForOverloadingByLeastGenericReturnType funcs4
+            else
+                funcs4
         else
-            filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs4
+            funcs3
 
 let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray): _ imarray =
     if funcs.Length <= 1 then funcs
