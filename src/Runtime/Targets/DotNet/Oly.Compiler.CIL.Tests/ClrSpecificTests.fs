@@ -3282,3 +3282,39 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "A"
+
+[<Fact>]
+let ``Enum equality overload check``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(value1: Enum, value2: Enum): bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+#[intrinsic("or")]
+(||)(bool, bool): bool
+
+enum E =
+    | A
+    | B
+    | C
+
+main(): () =
+    let x = E.A
+    if (x == E.A || x == E.B)
+        print("passed")
+    else
+        print("failed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"

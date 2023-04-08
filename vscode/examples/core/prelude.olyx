@@ -794,11 +794,11 @@ printLine(value: int32): () =
 
 // Enum functions
 
-#[intrinsic("cast")]
-toEnum<T>(uint64): T where T: System.Enum
+#[intrinsic("equal")]
+(==)(value1: System.Enum, value2: System.Enum): bool
 
-#[intrinsic("cast")]
-fromEnum<T>(T): uint64 where T: System.Enum
+#[intrinsic("equal")]
+(!=)(value1: System.Enum, value2: System.Enum): bool
 
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult

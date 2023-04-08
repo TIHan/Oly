@@ -26,16 +26,6 @@ sealed class VulkanValidationException =
 
     internal new(msg: string) = base(msg)
 
-#[open]
-extension VkResultExtensions =
-    inherits VkResult
-
-    static op_Equality(result1: VkResult, result2: VkResult): bool =
-        fromEnum(result1) == fromEnum(result2)
-
-    static op_Inequality(result1: VkResult, result2: VkResult): bool =
-        fromEnum(result1) != fromEnum(result2)
-
 #[intrinsic("bitwise_or")]
 (|)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
 #[intrinsic("bitwise_or")]
@@ -859,7 +849,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     createInfo.clipped <- VkBool32.TRUE
     createInfo.oldSwapchain <- VkSwapchainKHR.NULL
 
-    if (fromEnum(createInfo.preTransform) == 0)
+    if (createInfo.preTransform == (default: VkSurfaceTransformFlagsKHR))
         throw VulkanSwapChainCreationFailedException()
 
     let mutable swapChain = default

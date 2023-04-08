@@ -3526,8 +3526,6 @@ type TypeSymbol =
                 | ConstraintSymbol.Struct -> true
                 | _ -> false
             )
-        | BaseStruct
-        | BaseStructEnum -> true
         | _ -> false
 
     member this.IsSealed =
