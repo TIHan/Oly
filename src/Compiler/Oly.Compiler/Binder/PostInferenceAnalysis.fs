@@ -544,8 +544,8 @@ and analyzeExpression cenv env (expr: BoundExpression) =
         receiverOpt
         |> Option.iter (fun receiver -> analyzeExpression cenv env receiver)
 
-        match syntaxInfo with
-        | BoundSyntaxInfo.UserWithName(_, syntaxName, _) ->
+        match syntaxInfo.TrySyntaxName with
+        | Some(syntaxName) ->
             checkValue cenv env syntaxName value
         | _ ->
             checkValue cenv env syntaxNode value

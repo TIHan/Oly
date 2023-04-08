@@ -1430,7 +1430,7 @@ type OlyBoundModel internal (
 
         | :? BoundExpression as boundNode ->
             match boundNode with
-            | BoundExpression.Call(BoundSyntaxInfo.UserWithName(_, syntaxName, benv), _, _witnessArgs (* will need this for explicit witnesses *), _, value, _) ->
+            | BoundExpression.Call(BoundSyntaxInfo.UserWithName(_, benv, syntaxName, _), _, _witnessArgs (* will need this for explicit witnesses *), _, value, _) ->
                 getSymbolsByNameAndValue addSymbol benv predicate syntaxName value
 
             | BoundExpression.Value(syntaxInfo, value) ->

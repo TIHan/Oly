@@ -158,20 +158,28 @@ and FreeVariables = System.Collections.Generic.Dictionary<int64, TypeParameterSy
 and ReadOnlyFreeTypeVariables = System.Collections.ObjectModel.ReadOnlyDictionary<int64, TypeParameterSymbol>
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundSyntaxInfo =
-    | User of syntax: OlySyntaxNode * benv: BoundEnvironment
-    | UserWithName of syntax: OlySyntaxNode * syntaxName: OlySyntaxName * benv: BoundEnvironment
+    | User of 
+        syntax: OlySyntaxNode * 
+        benv: BoundEnvironment
+
+    | UserWithName of 
+        syntax: OlySyntaxNode *  
+        benv: BoundEnvironment *
+        syntaxName: OlySyntaxName *
+        tyOpt: TypeSymbol option
+
     | Generated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
 
     member this.TryEnvironment =
         match this with
         | User(_, benv)
-        | UserWithName(_, _, benv) -> Some benv
+        | UserWithName(_, benv, _, _) -> Some benv
         | _ -> None
 
     member this.Syntax =
         match this with
         | User(syntax, _) 
-        | UserWithName(syntax, _, _) -> syntax
+        | UserWithName(syntax, _, _, _) -> syntax
         | Generated(syntaxTree) -> syntaxTree.DummyNode
 
     member this.SyntaxNameOrDefault =
@@ -182,13 +190,13 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     member this.TrySyntaxAndEnvironment =
         match this with
         | User(syntax, benv)
-        | UserWithName(syntax, _, benv) -> Some(syntax, benv)
+        | UserWithName(syntax, benv, _, _) -> Some(syntax, benv)
         | _ -> None
 
     member this.TrySyntaxName =
         match this with
         | User(syntax, _) -> syntax.TryName
-        | UserWithName(_, syntaxName, _) -> Some syntaxName
+        | UserWithName(_, _, syntaxName, _) -> Some syntaxName
         | _ -> None
 
     member this.IsGeneratedKind =
@@ -206,9 +214,12 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     static member CreateUser(syntaxNode, benv, syntaxNameOpt) =
         match syntaxNameOpt with
         | Some(syntaxName) ->
-            UserWithName(syntaxNode, syntaxName, benv)
+            UserWithName(syntaxNode, benv, syntaxName, None)
         | _ ->
             User(syntaxNode, benv)
+
+    static member CreateUser(syntaxNode, benv, syntaxName, receiverTyOpt) =
+        UserWithName(syntaxNode, syntaxName, benv, receiverTyOpt)
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression

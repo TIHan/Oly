@@ -433,14 +433,7 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
                 BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), value)
         else
             OlyAssert.False(value.IsFunction)
-
-            let syntaxInfo =
-                match syntaxNameOpt with
-                | Some(syntaxName) ->
-                    BoundSyntaxInfo.UserWithName(syntaxToCapture, syntaxName, env.benv)
-                | _ ->
-                    BoundSyntaxInfo.Generated(cenv.syntaxTree)
-
+            let syntaxInfo = BoundSyntaxInfo.CreateUser(syntaxToCapture, env.benv, syntaxNameOpt)
             BoundExpression.Value(syntaxInfo, value)
 
     match value with
