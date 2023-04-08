@@ -1201,10 +1201,14 @@ type OlyBoundModel internal (
                 |> ImArray.ofSeq
 
         let mutable enclosing = 
-            if value.IsConstructor then
-                value.Enclosing.Enclosing
-            else
-                value.Enclosing
+            match enclosingTyOpt with
+            | Some(TypeSymbol.Entity(ent)) when not value.IsInstanceNotConstructor && ent.IsAlias ->
+                ent.AsEnclosing
+            | _ ->
+                if value.IsConstructor then
+                    value.Enclosing.Enclosing
+                else
+                    value.Enclosing
         syntaxNames
         |> ImArray.iter (fun syntaxName ->
             getTypeSymbolByNameAndEnclosing addSymbol benv predicate syntaxName enclosing
