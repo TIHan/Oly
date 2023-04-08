@@ -266,15 +266,9 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
     else
         let funcs3 = filterFunctionsForOverloadingByWeight resArgs None funcs2
 
-        // If we have a *solved* return type, choose the least generic.
         if returnTyOpt.IsSome then
-            let funcs4 =
-                filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
-                |> filterFunctionsForOverloadingFinalPhase
-            if returnTyOpt.Value.IsSolved then
-                filterFunctionsForOverloadingByLeastGenericReturnType funcs4
-            else
-                funcs4
+            filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
+            |> filterFunctionsForOverloadingFinalPhase
         else
             funcs3
 
