@@ -7072,3 +7072,80 @@ main(): () =
     let a = ~^~TestEnum.A
         """
     src |> hasSymbolSignatureTextByCursor "TestEnum"
+
+[<Fact>]
+let ``Should get right signature for alias member call``() =
+    let src =
+        """
+class CoolClass =
+
+    static Test(): () = ()
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    ~^~CoolClassAlias.Test()
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
+let ``Should get right signature for alias member property getter``() =
+    let src =
+        """
+class CoolClass =
+
+    static Test: __oly_int32 get() = 1
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    let result = ~^~CoolClassAlias.Test
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
+let ``Should get right signature for alias member property setter``() =
+    let src =
+        """
+class CoolClass =
+
+    static Test: __oly_int32 get, set = 0
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    ~^~CoolClassAlias.Test <- 5
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
+let ``Should get right signature for alias member field``() =
+    let src =
+        """
+class CoolClass =
+
+    static Test: __oly_int32 = 1
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    let result = ~^~CoolClassAlias.Test
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
+let ``Should get right signature for alias member pattern``() =
+    let src =
+        """
+class CoolClass =
+
+    pattern Test(x: __oly_int32): __oly_int32 = x
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    match (1)
+    | ~^~CoolClassAlias.Test(x) => ()
+    | _ => ()
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
