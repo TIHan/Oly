@@ -497,8 +497,24 @@ let bindIntrinsicPrimitivesForFunction cenv (env: BinderEnvironment) (syntaxAttr
 
             elif tyParCount = 1 && parCount = 2 then
                 match intrinsicName with
+                | "add"
+                | "subtract"
+                | "multiply"
+                | "divide"
+                | "remainder" 
+                | "and"
+                | "or"
                 | "equal"
-                | "not_equal"
+                | "not_equal" 
+                | "greater_than"
+                | "greater_than_or_equal"
+                | "less_than"
+                | "less_than_or_equal"
+                | "bitwise_or"
+                | "bitwise_exclusive_or"
+                | "bitwise_and" 
+                | "bitwise_shift_left"
+                | "bitwise_shift_right"
                 // TODO: Rename to "load_array_element"
                 | "get_element" -> ()
                 | _ ->

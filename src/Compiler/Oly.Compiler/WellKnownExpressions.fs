@@ -25,6 +25,17 @@ let ImplicitCast benv (expr: BoundExpression) castToType =
     else
         expr
 
+let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
+    if castToType.IsEnum then
+        let exprTy = expr.Type
+        match castToType.AsEntity.RuntimeType with
+        | Some(runtimeTy) when areTypesEqual runtimeTy exprTy ->
+            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
+        | _ ->
+            expr
+    else
+        expr
+
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
