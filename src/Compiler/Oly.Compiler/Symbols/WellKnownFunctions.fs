@@ -5,6 +5,19 @@ open Oly.Core
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 
+let UnsafeCast =
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("cast"))
+    let tyPars =
+        seq {
+            TypeParameterSymbol("T", 0, 0, TypeParameterKind.Function 0, ref ImArray.empty)
+        } |> ImArray.ofSeq
+    let pars =
+        seq {
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
+        } |> ImArray.ofSeq
+    let returnTy = tyPars.[0].AsType
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Cast None false
+
 let Upcast =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("upcast"))
     let tyPars =

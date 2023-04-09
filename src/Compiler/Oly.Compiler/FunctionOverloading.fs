@@ -302,6 +302,30 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
             | _ ->
                 ImArray.empty
         | ResolutionArguments.ByType argTys ->
+            // ******** SPECIAL IMPLICIT RULES ****
+            let implicitFuncs =
+                funcs
+                |> ImArray.filter (fun func ->
+                    match func.WellKnownFunction with
+                    | WellKnownFunction.None -> false
+                    | _ -> true
+                )
+            if not implicitFuncs.IsEmpty then
+                let argTys =
+                    argTys
+                    |> ImArray.map (fun x ->
+                        match x.TryEntity with
+                        | ValueSome(ent) when ent.RuntimeType.IsSome ->
+                            ent.RuntimeType.Value
+                        | _ ->
+                            x
+                    )
+                implicitFuncs
+                |> ImArray.filter (fun func ->
+                    checkArgTys rigidity func argTys
+                )
+            else
+            // ************************************
             funcs
             |> ImArray.filter (fun func ->
                 checkArgTys rigidity func argTys

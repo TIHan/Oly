@@ -1242,3 +1242,35 @@ main(): () =
         """
     src
     |> hasSymbolSignatureTextByCursor "ptr: static () -> ()"
+
+[<Fact>]
+let ``Correct intrinsic overload selected for enum``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("base_struct_enum")]
+alias BaseStructEnum
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: BaseStructEnum
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+enum E =
+    | A
+    | B
+    | C
+
+main(): () =
+    let x = E.A ~^~== E.A
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "(==)(int32, int32): bool"

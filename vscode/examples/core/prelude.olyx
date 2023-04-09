@@ -792,14 +792,6 @@ printLine(value: int32): () =
 (==)(str1: string, str2: string): bool = System.String.Equals(str1, str2)
 (!=)(str1: string, str2: string): bool = !System.String.Equals(str1, str2)
 
-// Enum functions
-
-#[intrinsic("equal")]
-(==)(value1: System.Enum, value2: System.Enum): bool
-
-#[intrinsic("equal")]
-(!=)(value1: System.Enum, value2: System.Enum): bool
-
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
 

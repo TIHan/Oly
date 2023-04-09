@@ -7,6 +7,24 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.BoundTreePatterns
 
+let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
+    let syntaxTree = expr.Syntax.Tree
+    let argExprs = [|expr|] |> ImArray.ofSeq
+    let func = (freshenValue benv WellKnownFunctions.UnsafeCast).AsFunction
+    UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, func, false)
+
+let ImplicitCast benv (expr: BoundExpression) castToType =
+    let exprTy = expr.Type
+    if exprTy.IsEnum then
+        match exprTy.AsEntity.RuntimeType with
+        | Some(runtimeTy) when areTypesEqual runtimeTy castToType ->
+            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
+        | _ ->
+            expr
+    else
+        expr
+
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr

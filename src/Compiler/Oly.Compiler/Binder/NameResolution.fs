@@ -582,6 +582,22 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         else
             argExprs
 
+    let argExprs =
+        // ******** SPECIAL IMPLICIT RULES ****
+        match value.TryWellKnownFunction with
+        | ValueSome _ ->
+            let argTys = value.AsFunction.Parameters |> ImArray.map (fun x -> x.Type)
+            if argTys.Length = argExprs.Length then
+                (argExprs, argTys)
+                ||> ImArray.map2 (fun argExpr argTy ->
+                    Oly.Compiler.Internal.WellKnownExpressions.ImplicitCast env.benv argExpr argTy
+                )
+            else
+                argExprs
+        | _ ->
+        // ************************************
+        argExprs
+
     let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv)) argExprs syntaxInfo.Syntax value   
     let witnessArgs = createWitnessArguments cenv env syntaxInfo.Syntax syntaxInfo.TrySyntaxName value
 

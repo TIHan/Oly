@@ -280,7 +280,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.ForAll(_, TypeSymbol.Function(argTys=argTys1; returnTy=returnTy1)), TypeSymbol.Function(argTys=argTys2; returnTy=returnTy2) ->
 
             // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-            if argTys1.Length = 1 && argTys1[0].IsVariadicInferenceVariable then
+            if argTys1.Length = 1 && (if rigidity = Generalizable || rigidity = FlexibleAndGeneralizable then argTys1[0].IsVariadicTypeVariable elif rigidity = Flexible then argTys1[0].IsVariadicInferenceVariable else false) then
                 // TODO: Kind of a hack using TypeSymbol.Tuple.
                 let inputTy = 
                     if argTys2.IsEmpty then
@@ -292,7 +292,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
                 UnifyTypes rigidity argTys1[0] inputTy
 
-            elif argTys2.Length = 1 && argTys2[0].IsVariadicInferenceVariable then
+            elif argTys2.Length = 1 && (if rigidity = Generalizable || rigidity = FlexibleAndGeneralizable then argTys2[0].IsVariadicTypeVariable elif rigidity = Flexible then argTys2[0].IsVariadicInferenceVariable else false) then
                 // TODO: Kind of a hack using TypeSymbol.Tuple.
                 let inputTy = 
                     if argTys1.IsEmpty then

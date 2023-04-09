@@ -26,35 +26,6 @@ sealed class VulkanValidationException =
 
     internal new(msg: string) = base(msg)
 
-#[intrinsic("bitwise_or")]
-(|)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
-#[intrinsic("bitwise_or")]
-(|)(VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessageTypeFlagsEXT): VkDebugUtilsMessageTypeFlagsEXT
-#[intrinsic("bitwise_or")]
-(|)(VkColorComponentFlags, VkColorComponentFlags): VkColorComponentFlags
-#[intrinsic("bitwise_or")]
-(|)(VmaAllocationCreateFlags, VmaAllocationCreateFlags): VmaAllocationCreateFlags
-
-#[intrinsic("bitwise_and")]
-(&)(VkQueueFlags, VkQueueFlags): VkQueueFlags
-#[intrinsic("bitwise_and")]
-(&)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): VkDebugUtilsMessageSeverityFlagsEXT
-#[intrinsic("bitwise_and")]
-(&)(VkMemoryPropertyFlags, VkMemoryPropertyFlags): VkMemoryPropertyFlags
-
-#[intrinsic("equal")]
-(==)(VkQueueFlags, VkQueueFlags): bool
-#[intrinsic("equal")]
-(==)(VkFormat, VkFormat): bool
-#[intrinsic("equal")]
-(==)(VkColorSpaceKHR, VkColorSpaceKHR): bool
-#[intrinsic("equal")]
-(==)(VkPresentModeKHR, VkPresentModeKHR): bool
-#[intrinsic("equal")]
-(==)(VkDebugUtilsMessageSeverityFlagsEXT, VkDebugUtilsMessageSeverityFlagsEXT): bool
-#[intrinsic("equal")]
-(==)(VkMemoryPropertyFlags, VkMemoryPropertyFlags): bool
-
 private success(result: VkResult): bool =
     result == VkResult.VK_SUCCESS
 
