@@ -35,9 +35,6 @@ open SixLabors.ImageSharp.Processing
 
 module Graphics =
 
-    #[intrinsic("bitwise_or")]
-    private (|)(ShaderStages, ShaderStages): ShaderStages
-
     private mutable window: Window = unchecked default
     internal mutable graphicsDevice: GraphicsDevice = null
     internal mutable imGuiRenderer: ImGuiRenderer = null
@@ -429,7 +426,7 @@ module Graphics =
         let deviceBuffer = factory.CreateBuffer(BufferDescription(size, usage, size))
         graphicsDevice.UpdateBuffer(deviceBuffer, 0, buffer)
 
-        let deviceBufferCount = factory.CreateBuffer(BufferDescription(16, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        let deviceBufferCount = factory.CreateBuffer(BufferDescription(16, BufferUsage.UniformBuffer | BufferUsage.Dynamic))
         graphicsDevice.UpdateBuffer(deviceBufferCount, 0, &count)
 
         Buffer<T>(deviceBuffer, deviceBufferCount)
@@ -448,13 +445,13 @@ module Graphics =
     private CreateRenderTargetState(width: uint32, height: uint32, useDepth: bool): RenderTargetState =
         let depthTexture =
             if (useDepth)
-                let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.DepthStencil) | fromEnum(TextureUsage.Sampled))
+                let usages = TextureUsage.DepthStencil | TextureUsage.Sampled
                 factory.CreateTexture(
                     TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R16_UNorm, usages)
                 )
             else
                 null
-        let usages = toEnum<TextureUsage>(fromEnum(TextureUsage.RenderTarget) | fromEnum(TextureUsage.Sampled))
+        let usages = TextureUsage.RenderTarget | TextureUsage.Sampled
         let colorTexture = 
             factory.CreateTexture(
                 TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, usages)
@@ -472,7 +469,7 @@ module Graphics =
         RenderTarget(CreateRenderTargetState(width, height, true))
 
     private createGlobalUniformBuffer(slot: uint32): DeviceBuffer =
-        factory.CreateBuffer(BufferDescription(1024, toEnum(fromEnum(BufferUsage.UniformBuffer) | fromEnum(BufferUsage.Dynamic))))
+        factory.CreateBuffer(BufferDescription(1024, BufferUsage.UniformBuffer | BufferUsage.Dynamic))
 
     UpdateRenderTarget(width: uint32, height: uint32, renderTarget: RenderTarget): () =
         let oldRenderTargetState = renderTarget.State

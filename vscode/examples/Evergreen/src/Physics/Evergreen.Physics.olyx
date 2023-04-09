@@ -54,7 +54,7 @@ private struct NarrowPhaseCallbacks =
 
         //This function also exposes the speculative margin. It can be validly written to, but that is a very rare use case.
         //Most of the time, you can ignore this function's speculativeMargin parameter entirely.
-        fromEnum(a.Mobility) == fromEnum(CollidableMobility.Dynamic) || fromEnum(b.Mobility) == fromEnum(CollidableMobility.Dynamic)
+        a.Mobility == CollidableMobility.Dynamic || b.Mobility == CollidableMobility.Dynamic
 
     /// <summary>
     /// Chooses whether to allow contact generation to proceed for the children of two overlapping collidables in a compound-including pair.
@@ -305,9 +305,9 @@ sealed class Physics =
         bodyVelocity.Angular
 
     static CreatePhysicsObjectFromCollidableReference(mutable collidable: CollidableReference): PhysicsObject =
-        if (collidable.StaticHandle.Value >= 0 && (fromEnum(collidable.Mobility)) == (fromEnum(CollidableMobility.Static)))
+        if (collidable.StaticHandle.Value >= 0 && (collidable.Mobility == CollidableMobility.Static))
             PhysicsObject(1, collidable.StaticHandle.Value)
-        else if (collidable.BodyHandle.Value >= 0 && (fromEnum(collidable.Mobility)) == (fromEnum(CollidableMobility.Dynamic)))
+        else if (collidable.BodyHandle.Value >= 0 && (collidable.Mobility == CollidableMobility.Dynamic))
             PhysicsObject(0, collidable.BodyHandle.Value)
         else
             PhysicsObject(-1, -1)

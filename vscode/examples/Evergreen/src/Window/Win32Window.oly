@@ -85,8 +85,6 @@ internal module Win32 =
         let hInstance = HINSTANCE.op_Explicit(Marshal.GetHINSTANCE(m))
         let mutable wc = default: WNDCLASSW
 
-        let wndProcPtr = &&wndProc
-
         let mutable example = "Win32Window"
         let mutable windowName = title
         let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
@@ -94,7 +92,7 @@ internal module Win32 =
         let addr = ToPtr(gc.AddrOfPinnedObject())
         let addr2 = ToPtr(gc2.AddrOfPinnedObject())
         wc.hInstance <- hInstance
-        wc.lpfnWndProc <- wndProcPtr
+        wc.lpfnWndProc <- &&wndProc
         wc.lpszClassName <- addr
 
         let result = RegisterClass(&&wc)

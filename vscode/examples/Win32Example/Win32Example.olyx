@@ -15,11 +15,6 @@ private alias vk = Evergreen.Graphics.Backend.Vulkan
 private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
 private alias VmaAllocationCreateFlags = Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator.VmaAllocationCreateFlags
 
-#[intrinsic("bitwise_or")]
-(|)(VkBufferUsageFlags, VkBufferUsageFlags): VkBufferUsageFlags
-#[intrinsic("bitwise_or")]
-(|)(VmaAllocationCreateFlags, VmaAllocationCreateFlags): VmaAllocationCreateFlags
-
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
     Position: Vector2

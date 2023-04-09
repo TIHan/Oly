@@ -6,6 +6,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
+open Oly.Compiler.Internal.ImplicitRules
 
 let private filterFunctionsForOverloadingLeastGeneric (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
@@ -122,9 +123,12 @@ let private filterFunctionsForOverloadingByWeight resArgs (returnTyOpt: TypeSymb
                 else
                     currentRigidWeight
             if expectedTy.LogicalTypeParameterCount = ty.LogicalTypeParameterCount then
-                let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount)
-                let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount)
-                (struct(currentRigidWeight, currentWeight), expectedTyArgs |> ImArray.ofSeq, tyArgs |> ImArray.ofSeq)
+                let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount) |> ImArray.ofSeq
+                let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount) |> ImArray.ofSeq
+
+                OlyAssert.Equal(expectedTyArgs.Length, tyArgs.Length)
+
+                (struct(currentRigidWeight, currentWeight), expectedTyArgs, tyArgs)
                 |||> ImArray.fold2 (fun (struct(currentRigidWeight, currentWeight)) expectedTy ty ->
                     computeWeight (currentRigidWeight, currentWeight) expectedTy ty
                 )
@@ -302,30 +306,7 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
             | _ ->
                 ImArray.empty
         | ResolutionArguments.ByType argTys ->
-            //// ******** SPECIAL IMPLICIT RULES ****
-            //let implicitFuncs =
-            //    funcs
-            //    |> ImArray.filter (fun func ->
-            //        match func.WellKnownFunction with
-            //        | WellKnownFunction.None -> false
-            //        | _ -> true
-            //    )
-            //if not implicitFuncs.IsEmpty then
-            //    let argTys =
-            //        argTys
-            //        |> ImArray.map (fun x ->
-            //            match x.TryEntity with
-            //            | ValueSome(ent) when ent.RuntimeType.IsSome ->
-            //                ent.RuntimeType.Value
-            //            | _ ->
-            //                x
-            //        )
-            //    implicitFuncs
-            //    |> ImArray.filter (fun func ->
-            //        checkArgTys rigidity func argTys
-            //    )
-            //else
-            //// ************************************
+            let funcs, argTys = ImplicitPassingArgumentsForOverloading funcs argTys
             funcs
             |> ImArray.filter (fun func ->
                 checkArgTys rigidity func argTys

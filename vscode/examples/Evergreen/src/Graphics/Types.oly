@@ -513,7 +513,7 @@ class DrawCommand =
     static CreateSetWindowTarget(): DrawCommand =
         DrawCommand.SetWindowTarget()
 
-    pattern SetWindowTarget(cmd: DrawCommand): () when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetWindowTarget)) =>
+    pattern SetWindowTarget(cmd: DrawCommand): () when (cmd.Kind == DrawCommandKind.SetWindowTarget) =>
         let impl = UnsafeCast<DrawCommand.SetWindowTarget>(cmd)
         ()
 
@@ -531,7 +531,7 @@ class DrawCommand =
     static CreateSetRenderTarget(renderTarget: RenderTarget): DrawCommand =
         DrawCommand.SetRenderTarget(renderTarget)
 
-    pattern SetRenderTarget(cmd: DrawCommand): RenderTarget when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.SetRenderTarget)) =>
+    pattern SetRenderTarget(cmd: DrawCommand): RenderTarget when (cmd.Kind == DrawCommandKind.SetRenderTarget) =>
         let impl = UnsafeCast<DrawCommand.SetRenderTarget>(cmd)
         impl.RenderTarget
 
@@ -553,7 +553,7 @@ class DrawCommand =
     static CreateDrawMesh(mesh: Mesh, shader: Shader, instances: Instances): DrawCommand =
         DrawCommand.DrawMesh(mesh, shader, instances)
 
-    pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.DrawMesh)) =>
+    pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (cmd.Kind == DrawCommandKind.DrawMesh) =>
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
@@ -573,7 +573,7 @@ class DrawCommand =
     static CreateRunComputeShader(computeShader: ComputeShader, instances: Instances): DrawCommand =
         DrawCommand.RunComputeShader(computeShader, instances)
 
-    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.RunComputeShader)) =>
+    pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (cmd.Kind == DrawCommandKind.RunComputeShader) =>
         let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
         (impl.ComputeShader, impl.Instances)
 
@@ -593,7 +593,7 @@ class DrawCommand =
     static CreateBindTextureSet(textureSet: ShaderTextureSet, kind: BindResourceSetKind): DrawCommand =
         DrawCommand.BindTextureSet(textureSet, kind)
 
-    pattern BindTextureSet(cmd: DrawCommand): (ShaderTextureSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindTextureSet)) =>
+    pattern BindTextureSet(cmd: DrawCommand): (ShaderTextureSet, BindResourceSetKind) when (cmd.Kind == DrawCommandKind.BindTextureSet) =>
         let impl = UnsafeCast<DrawCommand.BindTextureSet>(cmd)
         (impl.TextureSet, impl.SetKind)
 
@@ -613,7 +613,7 @@ class DrawCommand =
     static CreateBindInstancesSet(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind): DrawCommand =
         DrawCommand.BindInstancesSet(instancesSet, kind)
 
-    pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindInstancesSet)) =>
+    pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (cmd.Kind == DrawCommandKind.BindInstancesSet) =>
         let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
         (impl.InstancesSet, impl.SetKind)
 
@@ -635,7 +635,7 @@ class DrawCommand =
     static CreateBindBufferSet(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32): DrawCommand =
         DrawCommand.BindBufferSet(BufferSet, kind, slot)
 
-    pattern BindBufferSet(cmd: DrawCommand): (bufferSet: BufferSet, setKind: BindResourceSetKind, slot: uint32) when (fromEnum(cmd.Kind) == fromEnum(DrawCommandKind.BindBufferSet)) =>
+    pattern BindBufferSet(cmd: DrawCommand): (bufferSet: BufferSet, setKind: BindResourceSetKind, slot: uint32) when (cmd.Kind == DrawCommandKind.BindBufferSet) =>
         let impl = UnsafeCast<DrawCommand.BindBufferSet>(cmd)
         (impl.BufferSet, impl.SetKind, impl.Slot)
 
@@ -696,7 +696,7 @@ sealed class Window =
 
     IsFullscreen: bool 
         get() = 
-            fromEnum<WindowState>(this.window.WindowState) == fromEnum<WindowState>(WindowState.FullScreen)
+            this.window.WindowState == WindowState.FullScreen
 
     HideCursor(): () =
         let result = Veldrid.Sdl2.Sdl2Native.SDL_SetRelativeMouseMode(true)

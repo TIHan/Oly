@@ -1274,3 +1274,111 @@ main(): () =
         """
     src
     |> hasSymbolSignatureTextByCursor "(==)(int32, int32): bool"
+
+[<Fact>]
+let ``Correct overloaded selected for function pointer``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[blittable]
+testFunc(): () = ()
+
+main(): () =
+    let ~^~ptr = &&testFunc
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "ptr: static blittable () -> ()"
+
+[<Fact>]
+let ``Correct overloaded selected for function pointer 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[blittable]
+testFunc(x: int32): int32 = x
+
+main(): () =
+    let ~^~ptr = &&testFunc
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "ptr: static blittable int32 -> int32"
+
+[<Fact>]
+let ``Correct overloaded selected for function pointer 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[blittable]
+testFunc(x: int32, y: int32): int32 = x
+
+main(): () =
+    let ~^~ptr = &&testFunc
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "ptr: static blittable (x: int32, y: int32) -> int32"

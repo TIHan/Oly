@@ -52,9 +52,9 @@ struct KeyEvent =
             Flags = flags
         }
 
-    IsUp: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Up) == fromEnum(KeyEventFlags.Up)
-    IsDown: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Down) == fromEnum(KeyEventFlags.Down)
-    IsRepeat: bool get() = fromEnum(this.Flags) & fromEnum(KeyEventFlags.Repeat) == fromEnum(KeyEventFlags.Repeat)
+    IsUp: bool get() = this.Flags & KeyEventFlags.Up == KeyEventFlags.Up
+    IsDown: bool get() = this.Flags & KeyEventFlags.Down == KeyEventFlags.Down
+    IsRepeat: bool get() = this.Flags & KeyEventFlags.Repeat == KeyEventFlags.Repeat
 
     overrides ToString(): string =
         string.Format("(Key = {0}, Flags = {1})", [|this.Key: object;this.Flags|])

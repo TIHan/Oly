@@ -420,7 +420,7 @@ let bindIntrinsicPrimitivesForFunction cenv (env: BinderEnvironment) (syntaxAttr
             let error () =
                 cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttr)
 
-            // TODO: Add more validation checks.
+            // TODO: Add more validation checks. We should do this validation later instead of early.
 
             match intrinsicName with
             | "get_tuple_element" ->

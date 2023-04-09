@@ -2799,9 +2799,6 @@ let private FormalDependentIndexerType =
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
 let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
 let private FormalReadByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.Read)
-let private EnumTypeParameters =
-    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) 
-    |> ImArray.createOne
 
 let TypeSymbolError =
     TypeSymbol.Error(None, None)
@@ -3075,12 +3072,12 @@ type TypeSymbol =
         | InferenceVariable _ 
         | BaseObject 
         | BaseStruct
+        | BaseStructEnum
         | BaseAttribute
         | NativeInt
         | NativeUInt 
         | ObjectInferenceVariable _ 
         | NumberInferenceVariable _ -> ImArray.empty
-        | BaseStructEnum _ -> EnumTypeParameters
         | RefCell _ -> FormalRefCellTypeParameters
         | Function _ -> FormalFunctionTypeParameters
         | HigherInferenceVariable(_, tyArgs, _, _)
@@ -4495,8 +4492,6 @@ module Types =
     let Tuple = FormalTupleType
 
     let NativePtr = FormalNativePtrType
-
-    let BaseEnum = TypeSymbol.BaseStructEnum
 
 [<AutoOpen>]
 module OtherExtensions =
