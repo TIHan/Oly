@@ -153,11 +153,6 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
             expr3
         )
 
-    // Cast/Typed removals
-    // TODO: Why do we have this again? Maybe we need to introduce Coerce expressions...
-    | Upcast(expr) ->
-        expr
-
     | E.Typed(body=bodyExpr) ->
         bodyExpr
 

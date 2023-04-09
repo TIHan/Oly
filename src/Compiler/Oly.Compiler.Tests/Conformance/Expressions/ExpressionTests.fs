@@ -2987,8 +2987,11 @@ extension Int32TestExtension =
 getResult(x: ITest): int32 =
     x.test()
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
-    let result = getResult(__oly_upcast<ITest>(123))
+    let result = getResult(cast<ITest>(123))
         """
     Oly src
     |> shouldCompile
@@ -3018,10 +3021,13 @@ getResult(x: ITest): int32 =
     x.test()
 
 getResult2(x: byref<int32>): int32 =
-    getResult(__oly_upcast<ITest>(x))
+    getResult(cast<ITest>(x))
+
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
 
 main(): () =
-    let result = getResult(__oly_upcast<ITest>(123))
+    let result = getResult(cast<ITest>(123))
         """
     Oly src
     |> shouldCompile
@@ -4347,7 +4353,7 @@ alias bool
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 module Array =
 
@@ -4467,7 +4473,7 @@ alias bool
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[intrinsic("get_length")]
 getLength<T>(T[||]): int32
@@ -4583,7 +4589,7 @@ alias bool
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[intrinsic("get_length")]
 getLength<T>(T[||]): int32

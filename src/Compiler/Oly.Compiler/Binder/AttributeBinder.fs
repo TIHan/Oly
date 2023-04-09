@@ -420,128 +420,22 @@ let bindIntrinsicPrimitivesForFunction cenv (env: BinderEnvironment) (syntaxAttr
             let error () =
                 cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttr)
 
-            // TODO: Add more validation checks. We should do this validation later instead of early.
-
             match intrinsicName with
-            | "get_tuple_element" ->
-                if tyParCount = 2 && parCount = 1 then
-                    ()
-                else
-                    error()
-
             | "constant" ->
                 if attrs |> ImArray.exists (function AttributeSymbol.Import _ -> true | _ -> false) then
                     ()
                 else
                     error()
 
-            | "throw" ->
-                if parCount = 1 && func.ReturnType.IsTypeVariable then ()
-                else error()
-
             | _ ->
-
-            if tyParCount = 0 && parCount = 2 then
-                match intrinsicName with
-                | "add"
-                | "subtract"
-                | "multiply"
-                | "divide"
-                | "remainder" 
-                | "and"
-                | "or"
-                | "equal"
-                | "not_equal" 
-                | "greater_than"
-                | "greater_than_or_equal"
-                | "less_than"
-                | "less_than_or_equal"
-                | "bitwise_or"
-                | "bitwise_exclusive_or"
-                | "bitwise_and" 
-                | "bitwise_shift_left"
-                | "bitwise_shift_right" -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount = 0 && parCount = 1 then
-                match intrinsicName with
-                | "cast"
-                | "negate" 
-                | "not"
-                | "bitwise_not"
-                | "print" 
-                | "ignore" -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount = 1 && parCount = 0 then
-                match intrinsicName with
-                | "load_null_ptr" ->
-                    if not func.ReturnType.IsAnyPtr then
+                match WellKnownFunction.TryFromName intrinsicName with
+                | Some(wkf) ->
+                    if Oly.Compiler.Internal.WellKnownFunctions.Validate(wkf, func) then
+                        ()
+                    else
                         error()
                 | _ ->
                     error()
-
-            elif tyParCount = 1 && parCount = 1 then
-                match intrinsicName with
-                | "cast"
-                | "address_of"
-                | "unsafe_address_of"
-                | "from_address"
-                // TODO: Rename to "load_array_length"
-                | "get_length" 
-                | "new_array" -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount = 1 && parCount = 2 then
-                match intrinsicName with
-                | "add"
-                | "subtract"
-                | "multiply"
-                | "divide"
-                | "remainder" 
-                | "and"
-                | "or"
-                | "equal"
-                | "not_equal" 
-                | "greater_than"
-                | "greater_than_or_equal"
-                | "less_than"
-                | "less_than_or_equal"
-                | "bitwise_or"
-                | "bitwise_exclusive_or"
-                | "bitwise_and" 
-                | "bitwise_shift_left"
-                | "bitwise_shift_right"
-                // TODO: Rename to "load_array_element"
-                | "get_element" -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount = 1 && parCount >= 3 then
-                match intrinsicName with
-                | "get_element" // TODO: Rename to "load_array_element"
-                // TODO: Rename to "store_array_element"
-                | "set_element"  -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount = 3 && parCount = 1 then
-                match intrinsicName with
-                | "load_function_ptr" -> ()
-                | _ ->
-                    error()
-
-            elif tyParCount > 0 && parCount = 1 then
-                match intrinsicName with
-                | "cast" -> ()
-                | _ ->
-                    error()
-
-            else
-                error()
         | _ ->
             ()
     | _ ->

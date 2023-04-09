@@ -514,33 +514,10 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
     let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
     let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
-    let finalExpr, value =
+    let finalExpr, _ =
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
-    match value.TryWellKnownFunction with
-    | ValueSome(WellKnownFunction.Upcast) when argExprs.Length = 1 ->
-        let syntax = syntaxInfo.SyntaxNameOrDefault
-        if syntaxTyArgs.IsEmpty then
-            cenv.diagnostics.Error("Intrinsic 'upcast' call must have explicit type arguments.", 10, syntax)
-
-        let argTy = argExprs[0].Type
-        let func = value :?> IFunctionSymbol
-        let tyArgs = func.TypeArguments
-        if tyArgs.Length = 1 then    
-            if subsumesTypeWith Generalizable tyArgs[0] argTy then
-                checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntax tyArgs[0] argTy
-                finalExpr
-            else
-                match tryFindTypeHasTypeExtensionImplementedType env.benv tyArgs[0] argTy with
-                | ValueSome ent ->
-                    BoundExpression.Witness(finalExpr, ent.AsType, tyArgs[0])
-                | _ ->
-                    cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
-                    finalExpr
-        else
-            finalExpr
-    | _ ->
-        finalExpr
+    finalExpr
 
 let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (tyArgs: TypeArgumentSymbol imarray) (originalValue: IValueSymbol) : _ * IValueSymbol =
     let value = originalValue.Substitute(tyArgs)
@@ -673,7 +650,29 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 value,
                 isVirtualCall
             )
-        expr, value
+
+        match value.TryWellKnownFunction with
+        | ValueSome(WellKnownFunction.Cast) when not value.TypeParameters.IsEmpty ->
+            let syntax = syntaxInfo.SyntaxNameOrDefault
+
+            let argTy = argExprs[0].Type
+            let func = value :?> IFunctionSymbol
+            let tyArgs = func.TypeArguments
+            if tyArgs.Length = 1 then    
+                if subsumesTypeWith Generalizable tyArgs[0] argTy then
+                    checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntax tyArgs[0] argTy
+                    expr, value
+                else
+                    match tryFindTypeHasTypeExtensionImplementedType env.benv tyArgs[0] argTy with
+                    | ValueSome ent ->
+                        BoundExpression.Witness(expr, ent.AsType, tyArgs[0]), value
+                    | _ ->
+                        cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
+                        expr, value
+            else
+                expr, value
+        | _ ->
+            expr, value
 
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =
     match syntaxReceiver with

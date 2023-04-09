@@ -1654,7 +1654,6 @@ type FunctionSemantic =
 [<RequireQualifiedAccess>]
 type WellKnownFunction =
     | None
-    | Upcast
     | Add
     | Subtract
     | Multiply
@@ -1679,6 +1678,7 @@ type WellKnownFunction =
     | Print
     | Throw
     | Cast
+    | UnsafeCast
     | Ignore
 
     | BitwiseAnd
@@ -1705,8 +1705,8 @@ type WellKnownFunction =
 
     static member TryFromName(name: string) =
         match name with
-        | "upcast" -> Upcast |> Some
         | "cast" -> Cast |> Some
+        | "unsafe_cast" -> UnsafeCast |> Some
         | "add" -> Add |> Some
         | "subtract" -> Subtract |> Some
         | "multiply" -> Multiply |> Some
@@ -3009,6 +3009,20 @@ type TypeSymbol =
         | TypeSymbol.Int64 -> true
         | _ -> false
 
+    member this.IsInteger =
+        match stripTypeEquations this with
+        | TypeSymbol.UInt8
+        | TypeSymbol.Int8
+        | TypeSymbol.UInt16
+        | TypeSymbol.Int16
+        | TypeSymbol.UInt32
+        | TypeSymbol.Int32
+        | TypeSymbol.UInt64
+        | TypeSymbol.Int64 
+        | TypeSymbol.NativeInt
+        | TypeSymbol.NativeUInt -> true
+        | _ -> false
+
     /// Is the type a float32 or float64?
     member this.IsReal =
         match stripTypeEquations this with
@@ -3429,6 +3443,21 @@ type TypeSymbol =
     member this.IsByRef_t =
         match stripTypeEquations this with
         | TypeSymbol.ByRef _ -> true
+        | _ -> false
+
+    member this.IsNativePtr_t =
+        match stripTypeEquations this with
+        | TypeSymbol.NativePtr _ -> true
+        | _ -> false
+
+    member this.IsAnyArray_t =
+        match stripTypeEquations this with
+        | TypeSymbol.Array _ -> true
+        | _ -> false
+
+    member this.IsMutableArray_t =
+        match stripTypeEquations this with
+        | TypeSymbol.Array(_, _, ArrayKind.Mutable) -> true
         | _ -> false
 
     member this.IsAnyPtr =

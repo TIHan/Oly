@@ -4694,8 +4694,11 @@ extension Int32TestExtension =
 getResult(x: ITest): int32 =
     x.test()
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
-    let result = getResult(__oly_upcast<ITest>(123))
+    let result = getResult(cast<ITest>(123))
     print(result)
         """
     Oly src
@@ -4728,8 +4731,11 @@ extension Int32TestExtension =
 getResult(x: ITest): int32 =
     x.test()
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
-    let result = getResult(__oly_upcast<ITest>(567))
+    let result = getResult(cast<ITest>(567))
     print(result)
         """
     Oly src
@@ -8824,9 +8830,12 @@ extension TestExtension =
 
 test(t: ITest): int32 = t.x
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
     let t = Test()
-    let result = test(__oly_upcast<ITest>(t))
+    let result = test(cast<ITest>(t))
     print(result)
         """
     Oly src
@@ -8867,9 +8876,12 @@ extension TestExtension =
 
 test(t: ITest): int32 = t.x
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
     let t = Test(): ITest2
-    let result = test(__oly_upcast<ITest>(t))
+    let result = test(cast<ITest>(t))
     print(result)
         """
     Oly src
@@ -8941,9 +8953,12 @@ extension TestExtension =
 
 test(t: ITest): int32 = t.x()
 
+#[intrinsic("cast")]
+cast<T>(__oly_object): T
+
 main(): () =
     let t = Test()
-    let result = test(__oly_upcast<ITest>(t))
+    let result = test(cast<ITest>(t))
     print(result)
         """
     Oly src
@@ -10058,7 +10073,7 @@ alias bool
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[intrinsic("get_length")]
 getLength<T>(T[||]): int32
@@ -10471,7 +10486,7 @@ print(object): ()
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -10829,7 +10844,7 @@ alias inref<T>
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
@@ -13224,7 +13239,7 @@ alias byref<T>
 #[intrinsic("add")]
 (+)(int, int): int
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
@@ -13287,7 +13302,7 @@ alias byref<T>
 #[intrinsic("add")]
 (+)(int, int): int
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =
@@ -13354,7 +13369,7 @@ alias byref<T>
 #[intrinsic("add")]
 (+)(int, int): int
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 unsafeCast<T>(__oly_object): T
 
 interface IMoveable =

@@ -109,13 +109,6 @@ let (|GetArrayElement|_|) (expr: E) =
     | _ ->
         None
 
-let (|Upcast|_|) (expr: E) =
-    match expr.Strip() with
-    | E.Call(receiverOpt=None;value=value;args=args) when args.Length = 1 && value.TryWellKnownFunction = ValueSome(WellKnownFunction.Upcast) ->
-        Some(args[0])
-    | _ ->
-        None
-
 let (|Equal|_|) (expr: E) =
     match expr.Strip() with
     | E.Call(receiverOpt=None;value=value;args=args) when args.Length = 2 && value.TryWellKnownFunction = ValueSome(WellKnownFunction.Equal) ->

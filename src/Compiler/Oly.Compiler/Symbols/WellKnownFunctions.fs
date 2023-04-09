@@ -5,21 +5,186 @@ open Oly.Core
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 
-let UnsafeCast =
-    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("cast"))
-    let tyPars =
-        seq {
-            TypeParameterSymbol("T", 0, 0, TypeParameterKind.Function 0, ref ImArray.empty)
-        } |> ImArray.ofSeq
-    let pars =
-        seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
-        } |> ImArray.ofSeq
-    let returnTy = tyPars.[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Cast None false
+/// Validates the well-known function.
+/// Returns true if it passes validation.
+let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
+    match wkf with
+    | WellKnownFunction.None -> true // Nothing to validate.
+    | wkf ->
+        if func.IsInstance then false
+        elif func.IsConstructor then false
+        elif func.IsVirtual || func.IsAbstract then false
+        elif func.Enclosing.TypeParameterCount <> 0 then false // Function cannot be under an enclosing with type parameters.
+        else
+            match wkf with
+            | WellKnownFunction.None -> true // Nothing to validate.
+            | WellKnownFunction.Add
+            | WellKnownFunction.Subtract
+            | WellKnownFunction.Multiply
+            | WellKnownFunction.Divide
+            | WellKnownFunction.Remainder 
+            | WellKnownFunction.BitwiseAnd
+            | WellKnownFunction.BitwiseOr
+            | WellKnownFunction.BitwiseExclusiveOr ->
+                if func.Parameters.Length <> 2 then false
+                else
+                    let parTy = func.Parameters[0].Type
+                    func.Parameters
+                    |> ImArray.forall (fun par -> areTypesEqual par.Type parTy) &&
+                    (areTypesEqual func.ReturnType parTy)
 
-let Upcast =
-    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("upcast"))
+            | WellKnownFunction.BitwiseShiftLeft
+            | WellKnownFunction.BitwiseShiftRight ->
+                if func.Parameters.Length <> 2 then false
+                else
+                    let parTy = func.Parameters[0].Type
+                    func.Parameters[1].Type.IsInteger &&
+                    (areTypesEqual func.ReturnType parTy)
+
+            | WellKnownFunction.BitwiseNot ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    (areTypesEqual func.ReturnType func.Parameters[0].Type)
+
+            | WellKnownFunction.And
+            | WellKnownFunction.Or ->
+                if func.Parameters.Length <> 2 then false
+                else
+                    func.Parameters
+                    |> ImArray.forall (fun par -> areTypesEqual par.Type TypeSymbol.Bool)
+
+            | WellKnownFunction.Not ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    areTypesEqual func.Parameters[0].Type TypeSymbol.Bool &&
+                    areTypesEqual func.ReturnType TypeSymbol.Bool
+
+            | WellKnownFunction.Negate ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    areTypesEqual func.ReturnType func.Parameters[0].Type
+
+            | WellKnownFunction.Equal
+            | WellKnownFunction.NotEqual
+            | WellKnownFunction.GreaterThan
+            | WellKnownFunction.GreaterThanOrEqual
+            | WellKnownFunction.LessThan
+            | WellKnownFunction.LessThanOrEqual ->
+                if func.Parameters.Length <> 2 then false
+                else
+                    let parTy = func.Parameters[0].Type
+                    func.Parameters
+                    |> ImArray.forall (fun par -> UnifyTypes Rigid par.Type parTy) &&
+                    (areTypesEqual func.ReturnType TypeSymbol.Bool)
+
+            | WellKnownFunction.Print ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    areTypesEqual func.ReturnType TypeSymbol.Unit
+
+            | WellKnownFunction.Throw ->
+                if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 1 then false
+                else
+                    areTypesEqual func.ReturnType func.TypeParameters[0].AsType
+                        
+            | WellKnownFunction.Cast ->
+                if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 1 then false
+                else 
+                    true
+
+            | WellKnownFunction.UnsafeCast ->
+                if func.Parameters.Length <> 1 then false
+                else 
+                    true
+
+            | WellKnownFunction.Ignore ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    areTypesEqual func.ReturnType TypeSymbol.Unit
+                        
+            | WellKnownFunction.AddressOf ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    not func.Parameters[0].Type.IsByRef_t &&
+                    func.ReturnType.IsByRef_t
+
+            | WellKnownFunction.UnsafeAddressOf ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    not func.Parameters[0].Type.IsByRef_t &&
+                    func.ReturnType.IsNativePtr_t
+
+            | WellKnownFunction.FromAddress ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    (func.Parameters[0].Type.IsByRef_t || func.Parameters[0].Type.IsNativePtr_t) &&
+                    not func.ReturnType.IsByRef_t
+
+            | WellKnownFunction.LoadNullPtr ->
+                // REVIEW: Does LoadNullPtr need a type-parameter?
+                if not func.Parameters.IsEmpty || func.TypeParameters.Length <> 1 then false
+                else
+                    func.ReturnType.IsAnyPtr
+
+            | WellKnownFunction.GetTupleElement ->
+                if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 2 then false
+                else
+                    // TODO: Add better validation.
+                    true
+
+            | WellKnownFunction.GetArrayLength ->
+                if func.Parameters.Length <> 1 then false
+                else
+                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.ReturnType.IsInteger
+
+            | WellKnownFunction.GetArrayElement ->
+                // TODO: Handle multi-dimensional arrays.
+                if func.Parameters.Length < 2 then false
+                else
+                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.Parameters[1].Type.IsInteger &&
+                    (
+                        areTypesEqual func.ReturnType func.Parameters[0].Type.TypeArguments[0] ||
+                        (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.TypeArguments[0] func.Parameters[0].Type.TypeArguments[0])
+                    )
+
+            | WellKnownFunction.SetArrayElement ->
+                // TODO: Handle multi-dimensional arrays.
+                if func.Parameters.Length < 3 then false
+                else
+                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.Parameters[1].Type.IsInteger &&
+                    (areTypesEqual func.ReturnType TypeSymbol.Unit)
+
+            | WellKnownFunction.NewMutableArray ->
+                // TODO: Handle multi-dimensional arrays.
+                if func.Parameters.Length <> 1 then false
+                else
+                    func.Parameters[0].Type.IsInteger &&
+                    func.ReturnType.IsMutableArray_t
+
+            | WellKnownFunction.LoadFunctionPtr ->
+                if func.TypeParameters.Length <> 3 then false
+                else
+                    // TODO: Add better validation.
+                    true
+
+            | WellKnownFunction.NewRefCell
+            | WellKnownFunction.LoadRefCellContents
+            | WellKnownFunction.StoreRefCellContents
+
+            | WellKnownFunction.LoadFunction
+            | WellKnownFunction.LoadStaticFunction ->
+                // TODO: Make this validation pass for certain cases.
+                false
+
+            | WellKnownFunction.Import // TODO: this is a little weird as its not really a function or op...
+            | WellKnownFunction.Constant ->
+                true
+
+let UnsafeCast =
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("unsafe_cast"))
     let tyPars =
         seq {
             TypeParameterSymbol("T", 0, 0, TypeParameterKind.Function 0, ref ImArray.empty)
@@ -29,7 +194,7 @@ let Upcast =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_upcast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Upcast None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Cast None false
 
 let addFunc =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("add"))

@@ -100,7 +100,7 @@ let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
 
                 member _.AssociatedFormalPattern = func.AssociatedFormalPattern
 
-            } :> IValueSymbol
+            }
 
 let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (argTys: TypeSymbol imarray) =
     // Implicits for Enums

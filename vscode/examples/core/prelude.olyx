@@ -74,157 +74,157 @@ alias base_struct_enum
 // Cast Operations
 
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint16(byte): uint16
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(uint16): uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(int32): uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(int64): uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(uint64): uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(float32): uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(byte): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(uint16): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(uint32): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(int64): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(uint64): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(float32): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int32(float64): int32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint64(uint32): uint64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint64(int32): uint64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint64(int64): uint64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int64(int32): int64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int64(uint32): int64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int64(uint64): int64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 int64(float64): int64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(byte): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(uint16): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(uint32): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(int32): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(int64): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float32(float64): float32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float64(uint8): float64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float64(uint16): float64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float64(int32): float64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float64(int64): float64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 float64(float32): float64
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 char(nuint): char
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint<T>(T*): nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint(void*): nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint(int32): nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(int32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint64): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint8): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(void*): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(int32): void*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(nuint): void*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 UnsafeCast<T>(object): T
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToPtr<T>(int32): T*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToPtr<T>(void*): T*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToPtr<T>(nint): T*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToPtr<T, TResult>(T*): TResult*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(void*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
 
 // Other Operations
@@ -515,7 +515,7 @@ print(object): ()
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): T
+(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct

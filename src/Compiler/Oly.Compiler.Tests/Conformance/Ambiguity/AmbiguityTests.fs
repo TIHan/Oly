@@ -725,10 +725,10 @@ alias byref<T>
 #[intrinsic("native_ptr")]
 alias (*)<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(void*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
 
 f(ptr: void*): () =
@@ -827,7 +827,7 @@ alias int16
 #[intrinsic("uint32")]
 alias uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(int32): uint32
 
 #[intrinsic("int32")]
@@ -848,22 +848,22 @@ alias float64
 #[intrinsic("native_int")]
 alias nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint<T>(T*): nint
 
 #[intrinsic("native_uint")]
 alias nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(int32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint8): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(void*): nuint
 
 #[intrinsic("bool")]
@@ -881,10 +881,10 @@ alias object
 #[intrinsic("native_ptr")]
 alias (*)<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(int32): void*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(nuint): void*
 
 #[intrinsic("add")]
@@ -951,7 +951,7 @@ alias int16
 #[intrinsic("uint32")]
 alias uint32
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 uint32(int32): uint32
 
 #[intrinsic("int32")]
@@ -972,22 +972,22 @@ alias float64
 #[intrinsic("native_int")]
 alias nint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nint<T>(T*): nint
 
 #[intrinsic("native_uint")]
 alias nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(int32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint32): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(uint8): nuint
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 nuint(void*): nuint
 
 #[intrinsic("bool")]
@@ -1005,10 +1005,10 @@ alias object
 #[intrinsic("native_ptr")]
 alias (*)<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(int32): void*
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 ToVoidPtr(nuint): void*
 
 #[intrinsic("add")]
@@ -1180,13 +1180,13 @@ alias (*)<T>
 #[intrinsic("print")]
 print(object): ()
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(void*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 UnsafeCast<T>(object): T
 
 #[intrinsic("unsafe_address_of")]

@@ -2603,7 +2603,7 @@ alias uint64
 #[intrinsic("native_ptr")]
 alias (*)<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 unsafeCast<T>(__oly_object): T
 
 #[intrinsic("by_ref_read_write")]
@@ -2736,13 +2736,13 @@ alias (*)<T>
 #[intrinsic("print")]
 print(object): ()
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(void*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
 
-#[intrinsic("cast")]
+#[intrinsic("unsafe_cast")]
 UnsafeCast<T>(object): T
 
 #[intrinsic("unsafe_address_of")]

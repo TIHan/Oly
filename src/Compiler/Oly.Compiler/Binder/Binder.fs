@@ -512,7 +512,6 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
 let createInitialBoundEnvironment () =
     let funcs =
         seq {
-            WellKnownFunctions.Upcast
             WellKnownFunctions.addFunc
             WellKnownFunctions.subtractFunc
             WellKnownFunctions.multiplyFunc

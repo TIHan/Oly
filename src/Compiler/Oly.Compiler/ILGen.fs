@@ -1868,7 +1868,8 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                         OlyILOperation.Print(ilArgExprs.[0])
                     | WellKnownFunction.Throw ->
                         OlyILOperation.Throw(ilArgExprs.[0], emitILType cenv env func.ReturnType)
-                    | WellKnownFunction.Cast ->
+                    | WellKnownFunction.Cast 
+                    | WellKnownFunction.UnsafeCast ->
                         OlyILOperation.Cast(ilArgExprs.[0], emitILType cenv env func.ReturnType)
                     | WellKnownFunction.Ignore ->
                         OlyILOperation.Ignore(ilArgExprs.[0])
