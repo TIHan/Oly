@@ -68,7 +68,7 @@ internal module Win32 =
         | _ => Key.Unknown
 
     #[blittable]
-    #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+    #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
     private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
         match (int32(msg))
         | WM_DESTROY =>

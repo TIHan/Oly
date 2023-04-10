@@ -544,7 +544,7 @@ private getRequiredDeviceExtensions(): string[] =
     ]
 
 #[blittable]
-#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
     if ((messageSeverity & VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) == VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
         let callback = *pCallbackData
@@ -1165,7 +1165,7 @@ private createVertexInputBindingDescription<T>(binding: uint32, isInstance: bool
     bindingDescription
 
 private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
-    let ty = typeof<T>()
+    let ty = typeof<T>
     let size = sizeof<T>
     let fields = UnsafeCast<System.Reflection.FieldInfo[]>(ty.GetFields())
     let fields = Array.Filter(fields, x -> !x.IsStatic)
@@ -1176,10 +1176,10 @@ private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInpu
         attributeDescription.location <- location
         attributeDescription.offset <- offset
 
-        if (field.FieldType === typeof<Vector2>())
+        if (field.FieldType === typeof<Vector2>)
             attributeDescription.format <- VkFormat.VK_FORMAT_R32G32_SFLOAT
             (attributeDescription, uint32(sizeof<Vector2>))
-        else if (field.FieldType === typeof<Vector3>())
+        else if (field.FieldType === typeof<Vector3>)
             attributeDescription.format <- VkFormat.VK_FORMAT_R32G32B32_SFLOAT
             (attributeDescription, uint32(sizeof<Vector3>))
         else

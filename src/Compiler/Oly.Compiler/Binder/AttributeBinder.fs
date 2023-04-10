@@ -176,7 +176,8 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
         BoundExpression.Literal(BoundSyntaxInfo.User(syntaxExpr, env.benv), BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)))
 
     | OlySyntaxExpression.Name(syntaxName) ->
-        let item = bindNameAsItem cenv env (Some syntaxExpr) None ResolutionInfo.Default syntaxName
+        let resInfo = ResolutionInfo.Default.UpdateArguments(ResolutionArguments.Any)
+        let item = bindNameAsItem cenv env (Some syntaxExpr) None resInfo syntaxName
         match item with
         | ResolutionItem.Error _ ->
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))

@@ -3326,3 +3326,29 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``typeof can be usesd in attribute``() =
+    let src =
+        """
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("constant")]
+#[import("intrinsic-CLR", "", "typeof")]
+typeof<require T>: System.Type
+
+#[blittable]
+#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
+test(): () =
+    ()
+
+main(): () =
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"

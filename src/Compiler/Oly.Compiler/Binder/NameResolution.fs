@@ -59,6 +59,9 @@ type ResolutionInfo =
     member this.UpdateContext(resContext: ResolutionContext) =
         { this with resContext = resContext }
 
+    member this.UpdateArguments(resArgs: ResolutionArguments) =
+        { this with resArgs = resArgs }
+
     /// Default of Resolution Info implies that we are not dealing with a function call.
     static member Default =
         {

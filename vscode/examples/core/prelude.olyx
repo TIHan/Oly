@@ -768,10 +768,9 @@ extension ArrayExtensions =
 (!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
 (-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
 
-// TODO: Get rid of the '()', but we cant because attributes dont like it
 #[intrinsic("constant")]
 #[import("intrinsic-CLR", "", "typeof")]
-typeof<require T>(): System.Type
+typeof<require T>: System.Type
 
 // TODO: make this an actual intrinsic like 'typeof'.
 sizeof<require T>: int32 =
