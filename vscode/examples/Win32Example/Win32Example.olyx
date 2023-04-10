@@ -69,25 +69,25 @@ main(): () =
     let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
     let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
-    // let globals =
-    //     [
-    //         (
-    //             let mutable globals = Globals()
-    //             globals
-    //         )
-    //     ]
+    let globals =
+        [
+            (
+                let mutable globals = Globals()
+                globals
+            )
+        ]
 
-    // let globalsBuffer =
-    //     vk.CreateBuffer(
-    //         vulkanApp,
-    //         uint64(sizeof<Globals>),
-    //         VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-    //         VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
-    //     )
+    let globalsBuffer =
+        vk.CreateBuffer(
+            vulkanApp,
+            uint64(sizeof<Globals>),
+            VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+        )
 
     let setLayouts = 
         [
-           // vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
+            vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
         ]
 
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, setLayouts)
