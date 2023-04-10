@@ -14,6 +14,8 @@ open Evergreen.Window
 private alias vk = Evergreen.Graphics.Backend.Vulkan
 private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
 private alias VmaAllocationCreateFlags = Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator.VmaAllocationCreateFlags
+private alias VkDescriptorType = TerraFX.Interop.Vulkan.VkDescriptorType
+private alias VkShaderStageFlags = TerraFX.Interop.Vulkan.VkShaderStageFlags
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
@@ -35,6 +37,12 @@ Vertices: Vertex[] =
         Vertex(Vector2(0.5, 0.5), Vector3(0, 1, 0));
         Vertex(Vector2(-0.5, 0.5), Vector3(0, 0, 1))
     ]
+
+#[StructLayout(LayoutKind.Sequential)]
+struct Globals =
+    mutable Model: Matrix4x4 = Matrix4x4.Identity
+    mutable View: Matrix4x4 = Matrix4x4.Identity
+    mutable Projection: Matrix4x4 = Matrix4x4.Identity
 
 main(): () =
     let window = IWindow.CreateWin32("Vulkan Example")
@@ -61,7 +69,28 @@ main(): () =
     let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
     let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
 
-    let pipelineLayout = vk.CreatePipelineLayout(vulkanApp)
+    // let globals =
+    //     [
+    //         (
+    //             let mutable globals = Globals()
+    //             globals
+    //         )
+    //     ]
+
+    // let globalsBuffer =
+    //     vk.CreateBuffer(
+    //         vulkanApp,
+    //         uint64(sizeof<Globals>),
+    //         VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    //         VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+    //     )
+
+    let setLayouts = 
+        [
+           // vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
+        ]
+
+    let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, setLayouts)
 
     let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
         vk.ResetCommandBuffer(vulkanApp, commandBuffer)
@@ -151,8 +180,14 @@ main(): () =
     vk.WaitForIdle(vulkanApp)
 
     vk.DestroyBuffer(vulkanApp, buffer)
+    vk.DestroyBuffer(vulkanApp, globalsBuffer)
 
     cleanupSwapChain()
+
+    let mutable i = 0
+    while (i < setLayouts.Length)
+        vk.DestroyDescriptorSetLayout(vulkanApp, setLayouts[i])
+        i <- i + 1
     
     vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 
