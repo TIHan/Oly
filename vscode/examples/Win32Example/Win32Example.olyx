@@ -90,6 +90,16 @@ main(): () =
             vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
         ]
 
+    let descriptorPool = vk.CreateDescriptorPool(vulkanApp, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uint32(vulkanApp.MaxFramesInFlight))
+    let descriptorSets = vk.CreateDescriptorSets(vulkanApp, descriptorPool, uint32(vulkanApp.MaxFramesInFlight), setLayouts)
+    let bufferInfos = vk.CreateDescriptorBufferInfos(vulkanApp, uint32(vulkanApp.MaxFramesInFlight), sizeof<Globals>)
+    let writeSets = vk.CreateWriteDescriptorSets(vulkanApp, descriptorSets, bufferInfos, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+
+    let mutable i = 0
+    while (i < writeSets.Length)
+        vk.UpdateDescriptorSet(vulkanApp, writeSets[i])
+        i <- i + 1
+
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, setLayouts)
 
     let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
@@ -190,6 +200,8 @@ main(): () =
         i <- i + 1
     
     vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
+
+    vk.DestroyDescriptorPool(vulkanApp, descriptorPool)
 
     vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
     vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
