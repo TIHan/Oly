@@ -2419,7 +2419,7 @@ main(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Member 'printTest2' does not exist on type 'Test2<?T, ?U>'."
+            "Member 'printTest2' does not exist on type 'Test2<?U, ?V>'."
             "Type parameter '?T' was unable to be inferred."
             "Type parameter '?U' was unable to be inferred."
         ]
@@ -7155,3 +7155,85 @@ main(): () =
     | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
+let ``This should error with constraints and inference``() =
+    let src =
+        """
+interface ITest
+
+class Test
+
+test<T>(x: T): () where T: ITest = ()
+
+main(): () =
+    let x = unchecked default
+    test(x)
+    let y: Test = x
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation '?T' is missing the constraint 'ITest'.",
+                """
+    test(x)
+    ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``This should error with constraints and inference 2``() =
+    let src =
+        """
+interface ITest
+
+class Test
+
+test<T>(x: T): () where T: ITest = ()
+
+main(): () =
+    let x: Test = unchecked default
+    test(x)
+    let y: Test = x
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'Test' is missing the constraint 'ITest'.",
+                """
+    test(x)
+    ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``This should error with constraints and inference 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest
+
+test<T>(x: T): () where T: ITest = ()
+
+main(): () =
+    let f(x) = 
+        test(x)
+        x: int32
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation '?T' is missing the constraint 'ITest'.",
+                """
+        test(x)
+        ^^^^
+"""
+            )
+        ]
+    |> ignore

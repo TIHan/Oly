@@ -20,7 +20,7 @@ let AnonymousEntityName = ""
 [<Literal>]
 let EntryPointName = "main"
 
-let mkVariableSolution() = VariableSolutionSymbol()
+let mkVariableSolution() = VariableSolutionSymbol(false)
 let mkVariableType name = TypeSymbol.Variable(name)
 let mkInferenceVariableType tyParOpt = TypeSymbol.InferenceVariable(tyParOpt, mkVariableSolution())
 let mkHigherInferenceVariableType tyParOpt tyArgs = TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, mkVariableSolution(), mkVariableSolution())
@@ -33,6 +33,8 @@ let mkSolvedHigherInferenceVariableType tyPar tyArgs ty =
     let varSolution = mkVariableSolution()
     varSolution.Solution <- Some(ty)
     TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
+
+let mkInferenceVariableTypeOfParameter () = TypeSymbol.InferenceVariable(None, VariableSolutionSymbol(true))
 
 [<System.Flags>]
 type AttributeFlags =
@@ -278,9 +280,9 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     | TypeSymbol.Entity(ent) -> (applyEntity tyArgs ent.Formal).AsType
     | TypeSymbol.Variable(tyPar) when tyPar.Arity > 0 -> TypeSymbol.HigherVariable(tyPar, takeTypeArguments tyArgs tyPar.Arity)
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
-        TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol())
+        TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false))
     | TypeSymbol.HigherInferenceVariable(tyParOpt, _, externalSolution, _) -> 
-        let solution = VariableSolutionSymbol()
+        let solution = VariableSolutionSymbol(false)
         match externalSolution.Solution with
         | Some (ty) -> 
             solution.Solution <- Some(applyType ty tyArgs)
@@ -2715,7 +2717,7 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: IEntitySymbol, funcOpt: I
     interface ISymbol
 
 [<Sealed>]
-type VariableSolutionSymbol () =
+type VariableSolutionSymbol (isTyOfParameter: bool) =
 
     let id = newId ()
 
@@ -2736,6 +2738,8 @@ type VariableSolutionSymbol () =
     // Mutability
     member this.ForceAddConstraint constr =
         constrs.Add(constr)
+
+    member this.IsTypeOfParameter = isTyOfParameter
 
     interface ISymbol
 

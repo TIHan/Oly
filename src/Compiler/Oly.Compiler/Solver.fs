@@ -302,15 +302,28 @@ and solveWitnessesByInferenceVariable env (syntaxNode: OlySyntaxNode) (witnessAr
 
         match varTyParOpt with
         | None ->
-            witnessArgs
-            |> ImArray.iter (fun witnessArg ->
-                let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(witnessArg.Entity.AsType))
-                if varSolution.Constraints |> Seq.exists (fun constr2 -> areConstraintsEqual constr constr2) |> not then
-                    varSolution.AddConstraint(constr)
-                witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
-            )
-            true
+            if varSolution.IsTypeOfParameter then
+                // Uncommenting this would allow inference variables created from parameters of local functions to
+                // aggregate possible constraints.
+                // For this feature to be sound, we must allow solving of constraints+witnesses a second time
+                // in PostInferenceAnalysis if there are constraint errors. These errors should only be reported once.
+                (*
+                // This inference variable is for the type of parameter, so we aggregate constraints.
+                witnessArgs
+                |> ImArray.iter (fun witnessArg ->
+                    let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(witnessArg.Entity.AsType))
+                    if varSolution.Constraints |> Seq.exists (fun constr2 -> areConstraintsEqual constr constr2) |> not then
+                        varSolution.AddConstraint(constr)
+                    witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
+                )
+                true
+                *)
+                false
+            else
+                false
         | Some tyPar ->
+            OlyAssert.False(varSolution.IsTypeOfParameter)
+
             witnessArgs
             |> ImArray.forall (fun witnessArg ->
                 let witnessTy = witnessArg.Entity.AsType

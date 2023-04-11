@@ -115,24 +115,24 @@ let checkEnumForInvalidFieldOrFunction (cenv: cenv) syntaxNode (binding: Binding
     if binding.Value.Enclosing.IsEnum && binding.Value.IsInstance then
         cenv.diagnostics.Error("Instance member not valid on an 'enum' type.", 10, syntaxNode)
 
-let private checkUsageTypeExport cenv env syntaxNode (name: string) (ty: TypeSymbol) =
+let private checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol) =
     // Do not strip type equations here.
     match ty with
     | TypeSymbol.Entity(ent) ->
         if not ent.IsExported && not ent.IsImported then
             cenv.diagnostics.Error($"'{name}' cannot be exported as its usage of type '{ent.Name}' is not imported or exported.", 10, syntaxNode)
         ent.TypeArguments
-        |> ImArray.iter (checkUsageTypeExport cenv env syntaxNode name)
+        |> ImArray.iter (checkUsageTypeExport cenv syntaxNode name)
     | _ ->
         ty.TypeArguments
-        |> ImArray.iter (checkUsageTypeExport cenv env syntaxNode name)
+        |> ImArray.iter (checkUsageTypeExport cenv syntaxNode name)
 
-let private checkTypeParameterExport cenv env syntaxNode (name: string) (tyPar: TypeParameterSymbol) =
+let private checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.iter (fun x ->
         match x.TryGetSubtypeOf() with
         | ValueSome constrTy ->
-            checkUsageTypeExport cenv env syntaxNode name constrTy
+            checkUsageTypeExport cenv syntaxNode name constrTy
         | _ ->
             ()
     )
@@ -147,7 +147,7 @@ let checkEntityExport cenv env syntaxNode (ent: IEntitySymbol) =
 
             ent.TypeParameters
             |> ImArray.iter (fun tyPar ->
-                checkTypeParameterExport cenv env syntaxNode ent.Name tyPar
+                checkTypeParameterExport cenv syntaxNode ent.Name tyPar
             )
 
             ent.Implements 
@@ -156,7 +156,7 @@ let checkEntityExport cenv env syntaxNode (ent: IEntitySymbol) =
                     cenv.diagnostics.Error($"'{ent.Name}' cannot be exported as its implementation for '{x.Name}' is not imported or exported.", 10, syntaxNode)
                 x.TypeArguments
                 |> ImArray.iter (fun tyArg ->
-                    checkUsageTypeExport cenv env syntaxNode ent.Name tyArg
+                    checkUsageTypeExport cenv syntaxNode ent.Name tyArg
                 )
             )
 
@@ -166,11 +166,11 @@ let checkEntityExport cenv env syntaxNode (ent: IEntitySymbol) =
                     cenv.diagnostics.Error($"'{ent.Name}' cannot be exported as its inheritance of '{x.Name}' is not imported or exported.", 10, syntaxNode)
                 x.TypeArguments
                 |> ImArray.iter (fun tyArg ->
-                    checkUsageTypeExport cenv env syntaxNode ent.Name tyArg
+                    checkUsageTypeExport cenv syntaxNode ent.Name tyArg
                 )
             )
 
-let checkValueExport cenv env syntaxNode (value: IValueSymbol) =
+let checkValueExport cenv syntaxNode (value: IValueSymbol) =
     if value.IsImported && value.IsExported then
         cenv.diagnostics.Error($"'{value.Name}' cannot be imported and exported at the same time.", 10, syntaxNode)
     else
@@ -180,10 +180,10 @@ let checkValueExport cenv env syntaxNode (value: IValueSymbol) =
 
             value.TypeParameters
             |> ImArray.iter (fun tyPar ->
-                checkTypeParameterExport cenv env syntaxNode value.Name tyPar
+                checkTypeParameterExport cenv syntaxNode value.Name tyPar
             )
 
-            checkUsageTypeExport cenv env syntaxNode value.Name value.Type
+            checkUsageTypeExport cenv syntaxNode value.Name value.Type
 
         if value.IsImported then
             if value.IsInstance && not value.Enclosing.IsImported then
@@ -253,7 +253,6 @@ let private filterByRefReturnTypes (argExprs: BoundExpression imarray) (funcs: I
     )
 
 let private tryOverloadResolution
-        (env: BinderEnvironment) 
         (expectedReturnTyOpt: TypeSymbol option) 
         (resArgs: ResolutionArguments)
         (isArgForAddrOf: bool)
@@ -306,7 +305,7 @@ let private tryOverloadedCallExpression
             x.Type
         )
         |> ResolutionArguments.ByType
-    match tryOverloadResolution env expectedTyOpt resArgs isArgForAddrOf funcs with
+    match tryOverloadResolution expectedTyOpt resArgs isArgForAddrOf funcs with
     | None -> None
     | Some funcs ->
         let funcs = filterByRefReturnTypes argExprs funcs
@@ -372,7 +371,7 @@ let private tryOverloadPartialCallExpression
         | _ ->
             ResolutionArguments.Any
 
-    match tryOverloadResolution env None resArgs false funcs with
+    match tryOverloadResolution None resArgs false funcs with
     | None -> None
     | Some funcs ->
         if funcs.IsEmpty then

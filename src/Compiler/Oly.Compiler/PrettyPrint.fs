@@ -167,7 +167,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
 
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
         match solution.Solution with
-        | Some (solution) -> printTypeAux benv isDefinition isTyCtor solution
+        | Some(solution) when ty.IsSolved -> printTypeAux benv isDefinition isTyCtor solution
         | _ ->
             match tyPar with
             | Some tyPar -> "?" + tyPar.DisplayName
@@ -175,7 +175,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
 
     | TypeSymbol.HigherInferenceVariable(tyPar, tyArgs, _, solutionWithTyInst) ->
         match solutionWithTyInst.Solution with
-        | Some (solution) -> printTypeAux benv isDefinition isTyCtor solution
+        | Some (solution) when ty.IsSolved -> printTypeAux benv isDefinition isTyCtor solution
         | _ ->
             // TODO: Do we need to do anything else here? What happens if we don't have a solution with tyArgs?
             match tyPar with

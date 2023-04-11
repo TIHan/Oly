@@ -327,7 +327,7 @@ type BinderPass4(state: PassState) =
                     memberDefIndex = 0
                 }
             let boundTree = bindSyntaxTreePass4 cenv state.env state.entBuilder state.syntaxTree
-            PostInferenceAnalysis.analyzeBoundTree diagLogger boundTree ct
+            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
             boundTree, diagLogger.GetDiagnostics()
         )
 

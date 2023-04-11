@@ -464,7 +464,7 @@ let bindMemberBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarra
     match bindBindingDeclarationAux cenv env attrs onlyBindAsType memberFlags valueExplicitness propInfoOpt syntaxBindingDecl with
     | Some(Choice1Of2(bindingInfo)) ->
         recordValueDeclaration cenv bindingInfo.Value syntaxBindingDecl.Identifier
-        checkValueExport cenv env syntaxBindingDecl.Identifier bindingInfo.Value
+        checkValueExport cenv syntaxBindingDecl.Identifier bindingInfo.Value
         bindingInfo
     | Some(Choice2Of2 _) ->
         OlyAssert.Fail("Bad member binding.")
@@ -474,7 +474,7 @@ let bindMemberBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarra
 let bindLetBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration) =  
     match bindBindingDeclarationAux cenv env attrs onlyBindAsType memberFlags valueExplicitness None syntaxBindingDecl with
     | Some(Choice2Of2(bindingInfo)) ->
-        checkValueExport cenv env syntaxBindingDecl.Identifier bindingInfo.Value
+        checkValueExport cenv syntaxBindingDecl.Identifier bindingInfo.Value
         bindingInfo
     | Some(Choice1Of2 _) ->
         OlyAssert.Fail("Bad let binding.")
@@ -583,7 +583,7 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
                     cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxIdent)
                     "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText
                 else
-                    syntaxIdent.ValueText, mkInferenceVariableType None
+                    syntaxIdent.ValueText, mkInferenceVariableTypeOfParameter()
             | _ ->
                 if onlyBindAsType then
                     "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText

@@ -12,31 +12,32 @@ open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.BoundTreePatterns
 
-type cenv = { scopes: System.Collections.Generic.Dictionary<int64, int>; diagnostics: OlyDiagnosticLogger; ct: CancellationToken; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
-type env = { scope: int; benv: BoundEnvironment; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals }
+type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
+type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals }
 
-let notReturnableAddress env = 
-    if env.isReturnableAddress then
-        { env with isReturnableAddress = false }
+let notReturnableAddress aenv = 
+    if aenv.isReturnableAddress then
+        { aenv with isReturnableAddress = false }
     else
-        env
+        aenv
 
-let returnableAddress env =
-    if env.isReturnableAddress then
-        env
+let returnableAddress aenv =
+    if aenv.isReturnableAddress then
+        aenv
     else
-        { env with isReturnableAddress = true }
+        { aenv with isReturnableAddress = true }
 
-let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
-    let benv = env.benv
+let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    let benv = aenv.envRoot.benv
+    let diagnostics = acenv.cenv.diagnostics
 
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
-        analyzeTypeEntity cenv env syntaxNode ent
+        analyzeTypeEntity acenv aenv syntaxNode ent
 
     | TypeSymbol.InferenceVariable(Some tyPar, _)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
-        cenv.diagnostics.Error(sprintf "Type parameter '%s' was unable to be inferred." (printType benv ty), 5, syntaxNode)
+        diagnostics.Error(sprintf "Type parameter '%s' was unable to be inferred." (printType benv ty), 5, syntaxNode)
         // We solve the inference variable with an error as to prevent a cascade of the same errors.
         // We only care about it at the earliest possible point.
         UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(Some tyPar, None))
@@ -44,7 +45,7 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
 
     | TypeSymbol.InferenceVariable(_, _)
     | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        cenv.diagnostics.Error("Unable to infer type at this location.", 5, syntaxNode)
+        diagnostics.Error("Unable to infer type at this location.", 5, syntaxNode)
         // We solve the inference variable with an error as to prevent a cascade of the same errors.
         // We only care about it at the earliest possible point.
         UnifyTypes TypeVariableRigidity.Flexible ty TypeSymbolError
@@ -53,93 +54,93 @@ let rec analyzeType cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     | TypeSymbol.NativeFunctionPtr(_, argTys, returnTy)
     | TypeSymbol.Function(argTys, returnTy) ->
         argTys
-        |> ImArray.iter (analyzeType cenv env syntaxNode)
-        analyzeType cenv env syntaxNode returnTy
+        |> ImArray.iter (analyzeType acenv aenv syntaxNode)
+        analyzeType acenv aenv syntaxNode returnTy
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
         tyPars 
-        |> ImArray.iter (fun tyPar -> analyzeType cenv env syntaxNode tyPar.AsType)
-        analyzeType cenv env syntaxNode innerTy
+        |> ImArray.iter (fun tyPar -> analyzeType acenv aenv syntaxNode tyPar.AsType)
+        analyzeType acenv aenv syntaxNode innerTy
 
     | TypeSymbol.Tuple(tyArgs, _) ->
-        analyzeTypeTuple cenv env syntaxNode tyArgs
+        analyzeTypeTuple acenv aenv syntaxNode tyArgs
 
     | TypeSymbol.Variable(tyPar) ->
-        analyzeTypeParameter cenv env syntaxNode tyPar
+        analyzeTypeParameter acenv aenv syntaxNode tyPar
 
     | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-        analyzeTypeParameter cenv env syntaxNode tyPar
-        analyzeTypeArguments cenv env syntaxNode tyArgs
+        analyzeTypeParameter acenv aenv syntaxNode tyPar
+        analyzeTypeArguments acenv aenv syntaxNode tyArgs
 
     | TypeSymbol.NativePtr(elementTy) ->
         if not elementTy.IsVoid_t then
-            analyzeType cenv env syntaxNode elementTy
+            analyzeType acenv aenv syntaxNode elementTy
 
     | TypeSymbol.Void ->
-        cenv.diagnostics.Error($"'{printType env.benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
+        diagnostics.Error($"'{printType benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
 
     | TypeSymbol.Error(_, Some msg) ->
-        cenv.diagnostics.Error(msg, 10, syntaxNode)
+        diagnostics.Error(msg, 10, syntaxNode)
     
     | _ ->
-        analyzeTypeArguments cenv env syntaxNode ty.TypeArguments
+        analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
 
-and analyzeTypeParameter cenv env (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
-    if not tyPar.Constraints.IsEmpty && cenv.checkedTypeParameters.Add(tyPar.Id) then
+and analyzeTypeParameter acenv aenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    if not tyPar.Constraints.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
         tyPar.Constraints
         |> ImArray.iter (function
             | ConstraintSymbol.SubtypeOf(lazyTy) ->
-                analyzeType cenv env syntaxNode lazyTy.Value
+                analyzeType acenv aenv syntaxNode lazyTy.Value
             | ConstraintSymbol.ConstantType(lazyTy) ->
-                analyzeType cenv env syntaxNode lazyTy.Value
+                analyzeType acenv aenv syntaxNode lazyTy.Value
             | _ ->
                 ()
         )
 
-and analyzeTypeForParameter cenv env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+and analyzeTypeForParameter acenv aenv (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) when tyPar.IsVariadic ->
-        cenv.diagnostics.Error($"Invalid use of variadic type parameter.", 10, syntaxNode)
+        acenv.cenv.diagnostics.Error($"Invalid use of variadic type parameter.", 10, syntaxNode)
     | _ ->
-        analyzeType cenv env syntaxNode ty
+        analyzeType acenv aenv syntaxNode ty
 
-and analyzeTypeArguments cenv env syntaxNode (tyArgs: TypeSymbol imarray) =
+and analyzeTypeArguments acenv aenv syntaxNode (tyArgs: TypeSymbol imarray) =
     tyArgs
-    |> ImArray.iter (analyzeType cenv env syntaxNode)
+    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
-and analyzeTypeArgumentsWithSyntax cenv env syntaxNode (syntaxTyArgs: OlySyntaxType imarray) (tyArgs: TypeSymbol imarray) =
+and analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode (syntaxTyArgs: OlySyntaxType imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTyArgs.Length <> tyArgs.Length then
-        analyzeTypeArguments cenv env syntaxNode tyArgs
+        analyzeTypeArguments acenv aenv syntaxNode tyArgs
     else
         (syntaxTyArgs, tyArgs)
         ||> ImArray.iter2 (fun syntaxTy tyArg ->
-            analyzeType cenv env syntaxTy tyArg
+            analyzeType acenv aenv syntaxTy tyArg
         )
 
-and analyzeTypeArgumentsWithSyntaxTuple cenv env syntaxNode (syntaxTupleElements: OlySyntaxTupleElement imarray) (tyArgs: TypeSymbol imarray) =
+and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElements: OlySyntaxTupleElement imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTupleElements.Length <> tyArgs.Length then
-        analyzeTypeArguments cenv env syntaxNode tyArgs
+        analyzeTypeArguments acenv aenv syntaxNode tyArgs
     else
         (syntaxTupleElements, tyArgs)
         ||> ImArray.iter2 (fun syntaxTupleElement tyArg ->
             match syntaxTupleElement with
             | OlySyntaxTupleElement.Type(syntaxTy)
             | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxTy) ->
-                analyzeType cenv env syntaxTy tyArg
+                analyzeType acenv aenv syntaxTy tyArg
             | _ ->
-                analyzeType cenv env syntaxTupleElement tyArg
+                analyzeType acenv aenv syntaxTupleElement tyArg
         )
 
-and analyzeTypeEntity cenv env (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =
-    match cenv.scopes.TryGetValue(ent.Formal.Id) with
+and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =
+    match acenv.scopes.TryGetValue(ent.Formal.Id) with
     | true, scope ->
         () // TODO: We will need scopes at some point right?
     | _ ->
         ()
 
     let cont() =
-        analyzeTypeArguments cenv env syntaxNode ent.TypeArguments
+        analyzeTypeArguments acenv aenv syntaxNode ent.TypeArguments
 
     let rec check (syntaxName: OlySyntaxName) =
         match syntaxName with
@@ -148,7 +149,7 @@ and analyzeTypeEntity cenv env (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) 
         | OlySyntaxName.Generic(_, syntaxTyArgs) ->
             match syntaxTyArgs with
             | OlySyntaxTypeArguments.TypeArguments(_, syntaxTyArgList, _) ->
-                analyzeTypeArgumentsWithSyntax cenv env syntaxNode syntaxTyArgList.ChildrenOfType ent.TypeArguments
+                analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode syntaxTyArgList.ChildrenOfType ent.TypeArguments
             | _ ->
                 cont()
         | _ ->
@@ -164,76 +165,76 @@ and analyzeTypeEntity cenv env (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) 
     | _ ->
         cont()
 
-and analyzeTypeTuple cenv env (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol imarray) =
+and analyzeTypeTuple acenv aenv (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol imarray) =
     let cont() =
-        analyzeTypeArguments cenv env syntaxNode tyArgs
+        analyzeTypeArguments acenv aenv syntaxNode tyArgs
 
     match syntaxNode with
     | :? OlySyntaxType as syntaxTy ->
         match syntaxTy with
         | OlySyntaxType.Tuple(_, syntaxTupleElementList, _) ->
-            analyzeTypeArgumentsWithSyntaxTuple cenv env syntaxNode syntaxTupleElementList.ChildrenOfType tyArgs
+            analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode syntaxTupleElementList.ChildrenOfType tyArgs
         | _ ->
             cont()
     | _ ->
         cont()
 
-and checkWitness cenv env (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol) =
+and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol) =
     match witness with
     | WitnessSymbol.TypeExtension(tyExt, specificAbstractFuncOpt) ->
-        checkEntity cenv env syntaxNode tyExt
+        checkEntity acenv aenv syntaxNode tyExt
         specificAbstractFuncOpt
-        |> Option.iter (fun x -> checkValue cenv env syntaxNode x)
+        |> Option.iter (fun x -> checkValue acenv aenv syntaxNode x)
 
     // TODO: Do we need to check these?
     | WitnessSymbol.TypeParameter _
     | WitnessSymbol.Type _ ->
         ()
 
-and checkWitnessSolution cenv env (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
-    checkEntity cenv env syntaxNode witness.Entity
+and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
+    checkEntity acenv aenv syntaxNode witness.Entity
     match witness.Solution with
-    | Some witness -> checkWitness cenv env syntaxNode witness
+    | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()
 
-and checkEntity cenv env syntaxNode (ent: IEntitySymbol) =
-    match cenv.scopes.TryGetValue ent.Id with
+and checkEntity acenv aenv syntaxNode (ent: IEntitySymbol) =
+    match acenv.scopes.TryGetValue ent.Id with
     | true, scope ->
         ()
     | _ ->
         ()
     ent.TypeArguments
-    |> ImArray.iter (analyzeType cenv env syntaxNode)
+    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
-and checkEnclosing cenv env syntaxNode (enclosing: EnclosingSymbol) =
+and checkEnclosing acenv aenv syntaxNode (enclosing: EnclosingSymbol) =
     match enclosing with
     | EnclosingSymbol.Entity(ent) ->
-        checkEntity cenv env syntaxNode ent
+        checkEntity acenv aenv syntaxNode ent
     | EnclosingSymbol.Witness(concreteTy, abstractEnt) ->
-        analyzeType cenv env syntaxNode concreteTy
-        checkEntity cenv env syntaxNode abstractEnt
+        analyzeType acenv aenv syntaxNode concreteTy
+        checkEntity acenv aenv syntaxNode abstractEnt
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace ->
         ()
 
-and checkPattern cenv env syntaxNode (pat: IPatternSymbol) =
-    checkEnclosing cenv env syntaxNode pat.Enclosing
-    checkValue cenv env syntaxNode pat.PatternFunction
-    pat.PatternGuardFunction |> Option.iter (fun func -> checkValue cenv env syntaxNode func)
+and checkPattern acenv aenv syntaxNode (pat: IPatternSymbol) =
+    checkEnclosing acenv aenv syntaxNode pat.Enclosing
+    checkValue acenv aenv syntaxNode pat.PatternFunction
+    pat.PatternGuardFunction |> Option.iter (fun func -> checkValue acenv aenv syntaxNode func)
 
-and checkValue cenv env syntaxNode (value: IValueSymbol) =
+and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
     if value.IsPattern then
-        checkPattern cenv env syntaxNode (value :?> IPatternSymbol)
+        checkPattern acenv aenv syntaxNode (value :?> IPatternSymbol)
     else
-        checkEnclosing cenv env syntaxNode value.Enclosing
+        checkEnclosing acenv aenv syntaxNode value.Enclosing
 
         let cont() =
             value.TypeArguments
-            |> ImArray.iter (fun tyArg -> analyzeType cenv env syntaxNode tyArg)
-            analyzeType cenv env syntaxNode value.Type
+            |> ImArray.iter (fun tyArg -> analyzeType acenv aenv syntaxNode tyArg)
+            analyzeType acenv aenv syntaxNode value.Type
             match value with
             | :? FunctionGroupSymbol as funcGroup ->
-                cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
+                acenv.cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
             | _ ->
                 ()
 
@@ -244,24 +245,24 @@ and checkValue cenv env syntaxNode (value: IValueSymbol) =
             | ValueSome(WellKnownFunction.LoadNullPtr) ->
                 let tyArg = func.TypeArguments[0]
                 if not tyArg.IsVoid_t then
-                    analyzeType cenv env syntaxNode tyArg
+                    analyzeType acenv aenv syntaxNode tyArg
                 match stripTypeEquations func.ReturnType with
                 | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_t -> ()
                 | _ ->
-                    analyzeType cenv env syntaxNode func.ReturnType
+                    analyzeType acenv aenv syntaxNode func.ReturnType
             | _ ->
                 cont()
         else
             cont()
 
-let rec getAddressReturningScope cenv env (expr: BoundExpression) =
+let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
     expr.GetReturningTargetExpressions()
     |> ImArray.map (fun x ->
         match x with
         | AddressOf(expr) ->
-            getAddressReturningScope cenv env expr
+            getAddressReturningScope acenv aenv expr
         | BoundExpression.Value(value=value) ->
-            match cenv.scopes.TryGetValue value.Id with
+            match acenv.scopes.TryGetValue value.Id with
             | true, scope -> scope
             | _ -> -1
         | _ ->
@@ -269,10 +270,10 @@ let rec getAddressReturningScope cenv env (expr: BoundExpression) =
     )
     |> ImArray.min
 
-let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
+let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
     match rhsExprOpt with
     | ValueSome rhsExpr ->
-        analyzeExpression cenv { env with scope = env.scope + 1; isReturnableAddress = true } rhsExpr
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
     | _ ->
         ()
 
@@ -281,26 +282,26 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
             if value.Type.IsByRef_t then
                 match rhsExprOpt with
                 | ValueSome rhsExpr ->
-                    getAddressReturningScope cenv env rhsExpr
+                    getAddressReturningScope acenv aenv rhsExpr
                 | _ ->
                     -1
             else
-                env.scope
+                aenv.scope
         if scope <> -1 then
-            cenv.scopes[value.Id] <- scope
+            acenv.scopes[value.Id] <- scope
 
     let checkValueTy () =
         match value.LogicalType.TryFunction with
         | ValueSome(argTys, returnTy) ->
             argTys
-            |> ImArray.iter (analyzeTypeForParameter cenv env syntaxNode)
-            analyzeTypeForParameter cenv env syntaxNode returnTy
+            |> ImArray.iter (analyzeTypeForParameter acenv aenv syntaxNode)
+            analyzeTypeForParameter acenv aenv syntaxNode returnTy
         | _ ->
-            analyzeTypeForParameter cenv env syntaxNode value.Type
+            analyzeTypeForParameter acenv aenv syntaxNode value.Type
 
     match value with
     | :? IFunctionSymbol as func ->
-        func.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        func.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
         match syntaxNode with
         | :? OlySyntaxBinding as syntaxBinding ->
             match syntaxBinding with
@@ -316,17 +317,17 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
                     | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
                         (syntaxParList.ChildrenOfType.AsMemory(), func.LogicalParameters)
                         ||> ROMem.iter2 (fun syntaxPar par ->
-                            par.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+                            par.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
                             match syntaxPar with
                             | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy)
                             | OlySyntaxParameter.Type(_, syntaxTy) ->
-                                analyzeTypeForParameter cenv env syntaxTy par.Type
+                                analyzeTypeForParameter acenv aenv syntaxTy par.Type
                             | _ ->
-                                analyzeTypeForParameter cenv env syntaxPar par.Type
+                                analyzeTypeForParameter acenv aenv syntaxPar par.Type
                         )
-                        analyzeTypeForParameter cenv env syntaxReturnTy func.ReturnType
+                        analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
                     | OlySyntaxParameters.Empty _ ->
-                        analyzeTypeForParameter cenv env syntaxReturnTy func.ReturnType
+                        analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
                     | _ ->
                         checkValueTy()
                 | _ ->
@@ -337,246 +338,254 @@ let rec analyzeBindingInfo cenv env (syntaxNode: OlySyntaxNode) (rhsExprOpt: Bou
             checkValueTy()
 
     | :? IFieldSymbol as field ->
-        field.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        field.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
         checkValueTy()
 
     | :? IPropertySymbol as prop ->
-        prop.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        prop.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
         checkValueTy()
 
     | :? IPatternSymbol as pat ->
-        pat.Attributes |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
+        pat.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
         checkValueTy()
 
     | _ ->
         checkValueTy()
 
-and analyzeBinding cenv env (binding: BoundBinding) =
-    analyzeBindingInfo cenv env binding.SyntaxInfo.Syntax binding.TryExpression binding.Info.Value
+and analyzeBinding acenv aenv (binding: BoundBinding) =
+    analyzeBindingInfo acenv aenv binding.SyntaxInfo.Syntax binding.TryExpression binding.Info.Value
 
-and analyzePattern cenv env (pat: BoundCasePattern) =
+and analyzePattern acenv aenv (pat: BoundCasePattern) =
     match pat with
     | BoundCasePattern.Function(syntaxPat, _, pat, witnessArgs, pats) ->
-        checkValue cenv env syntaxPat pat
+        checkValue acenv aenv syntaxPat pat
         witnessArgs
-        |> ImArray.iter (checkWitnessSolution cenv env syntaxPat)
+        |> ImArray.iter (checkWitnessSolution acenv aenv syntaxPat)
         pats
-        |> ImArray.iter (analyzePattern cenv env)
+        |> ImArray.iter (analyzePattern acenv aenv)
 
     | BoundCasePattern.Tuple(_, pats) ->
         pats
-        |> ImArray.iter (analyzePattern cenv env)
+        |> ImArray.iter (analyzePattern acenv aenv)
 
     | BoundCasePattern.Local(syntaxPat, _, value) ->
-        checkValue cenv env syntaxPat value
+        checkValue acenv aenv syntaxPat value
 
     | BoundCasePattern.FieldConstant(syntaxPat, _, field) ->
-        checkValue cenv env syntaxPat field
+        checkValue acenv aenv syntaxPat field
 
     | BoundCasePattern.Literal(syntaxPat, _, literal) ->
-        analyzeLiteral cenv env syntaxPat literal
+        analyzeLiteral acenv aenv syntaxPat literal
 
     | BoundCasePattern.Discard _ ->
         ()
 
-and analyzeMatchPattern cenv env (matchPat: BoundMatchPattern) =
+and analyzeMatchPattern acenv aenv (matchPat: BoundMatchPattern) =
     match matchPat with
     | BoundMatchPattern.Cases(_, pats) ->
-        pats |> ImArray.iter (analyzePattern cenv env)
+        pats |> ImArray.iter (analyzePattern acenv aenv)
     | BoundMatchPattern.Or(_, lhsMatchPat, rhsMatchPat) ->
-        analyzeMatchPattern cenv env lhsMatchPat
-        analyzeMatchPattern cenv env rhsMatchPat
+        analyzeMatchPattern acenv aenv lhsMatchPat
+        analyzeMatchPattern acenv aenv rhsMatchPat
 
-and analyzeLiteral cenv env (syntaxNode: OlySyntaxNode) (literal: BoundLiteral) =
+and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral) =
+    let diagnostics = acenv.cenv.diagnostics
+    let benv = aenv.envRoot.benv
+
     match literal with
     | BoundLiteral.NumberInference(lazyLiteral, _) -> 
-        tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral
+        tryEvaluateLazyLiteral diagnostics lazyLiteral
         |> ignore
     | BoundLiteral.NullInference(ty) ->
         if not ty.IsNullable && ty.IsSolved then
-            cenv.diagnostics.Error($"'null' is not allowed for '{printType env.benv ty}'.", 10, syntaxNode)
+            diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
         if not ty.IsAnyStruct && not ty.IsNullable && ty.IsSolved && not isUnchecked then
-            cenv.diagnostics.Error($"'default' is not allowed for '{printType env.benv ty}' as it could be null.", 10, syntaxNode)
+            diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
     | _ -> ()
-    analyzeType cenv env syntaxNode literal.Type
+    analyzeType acenv aenv syntaxNode literal.Type
 
-and analyzeConstant cenv env (syntaxNode: OlySyntaxNode) (constant: ConstantSymbol) =
+and analyzeConstant acenv aenv (syntaxNode: OlySyntaxNode) (constant: ConstantSymbol) =
     match constant with
     | ConstantSymbol.Array(elementTy, elements) ->
-        analyzeType cenv env syntaxNode elementTy
-        elements |> ImArray.iter (analyzeConstant cenv env syntaxNode)
+        analyzeType acenv aenv syntaxNode elementTy
+        elements |> ImArray.iter (analyzeConstant acenv aenv syntaxNode)
 
     | ConstantSymbol.External(func) ->
-        checkValue cenv env syntaxNode func
+        checkValue acenv aenv syntaxNode func
 
     | ConstantSymbol.TypeVariable(tyPar) ->
-        analyzeType cenv env syntaxNode tyPar.AsType
+        analyzeType acenv aenv syntaxNode tyPar.AsType
 
     | _ ->
         ()
 
-and analyzeAttribute cenv env (syntaxNode: OlySyntaxNode) (attr: AttributeSymbol) =
+and analyzeAttribute acenv aenv (syntaxNode: OlySyntaxNode) (attr: AttributeSymbol) =
     match attr with
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _) ->
-        checkValue cenv  env syntaxNode ctor
-        args |> ImArray.iter (analyzeConstant cenv env syntaxNode)
+        checkValue acenv  aenv syntaxNode ctor
+        args |> ImArray.iter (analyzeConstant acenv aenv syntaxNode)
         namedArgs
         |> ImArray.iter (function
             | AttributeNamedArgumentSymbol.Field(field, constant) ->
-                checkValue cenv env syntaxNode field
-                analyzeConstant cenv env syntaxNode constant
+                checkValue acenv aenv syntaxNode field
+                analyzeConstant acenv aenv syntaxNode constant
             | AttributeNamedArgumentSymbol.Property(prop, constant) ->
-                checkValue cenv env syntaxNode prop
-                analyzeConstant cenv env syntaxNode constant
+                checkValue acenv aenv syntaxNode prop
+                analyzeConstant acenv aenv syntaxNode constant
         )
 
     | _ ->
         ()
 
-and analyzeExpression cenv env (expr: BoundExpression) =
-    cenv.ct.ThrowIfCancellationRequested()
+and analyzeExpression acenv aenv (expr: BoundExpression) =
+    acenv.cenv.ct.ThrowIfCancellationRequested()
+
+    let diagnostics = acenv.cenv.diagnostics
 
     let syntaxNode = expr.Syntax
     match expr with
-    | AddressOf(AutoDereferenced(expr)) -> 
-        analyzeExpression cenv env expr
-    | AddressOf(BoundExpression.Value(syntaxInfo, value)) ->
-        match cenv.scopes.TryGetValue value.Id with
-        | true, scope ->
-            if env.isReturnableAddress && scope = env.scope then
-                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
-        | _ ->
-            ()
-        match env.freeLocals.TryGetValue value.Id with
-        | true, (syntaxNameOpt, _) when value.Type.IsByRef_t ->
-            let syntaxNode =
-                match syntaxNameOpt with
-                | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> expr.SyntaxNameOrDefault
-            cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it is captured.", 10, syntaxNode)
-        | _ ->
-            ()
     | BoundExpression.Value(syntaxInfo, value) 
             when value.IsLocal && not(value.IsFunction) && value.Type.IsByRef_t ->
-        match cenv.scopes.TryGetValue value.Id with
+        match acenv.scopes.TryGetValue value.Id with
         | true, scope ->
-            if env.isReturnableAddress && scope = env.scope then
-                cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
+            if aenv.isReturnableAddress && scope = aenv.scope then
+                diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
         | _ ->
             ()
 
     | BoundExpression.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, exprTy) ->
-        analyzeType cenv env syntaxNode exprTy
-        analyzeExpression cenv (notReturnableAddress env) conditionExpr
-        analyzeExpression cenv env trueTargetExpr
-        analyzeExpression cenv env falseTargetExpr
+        analyzeType acenv aenv syntaxNode exprTy
+        analyzeExpression acenv (notReturnableAddress aenv) conditionExpr
+        analyzeExpression acenv aenv trueTargetExpr
+        analyzeExpression acenv aenv falseTargetExpr
 
     | BoundExpression.Match(_, _, matchExprs, matchClauses, exprTy) ->
-        analyzeType cenv env syntaxNode exprTy
+        analyzeType acenv aenv syntaxNode exprTy
         matchExprs
-        |> ImArray.iter (analyzeExpression cenv (notReturnableAddress env))
+        |> ImArray.iter (analyzeExpression acenv (notReturnableAddress aenv))
         matchClauses
         |> ImArray.iter (function
             | BoundMatchClause.MatchClause(_, matchPat, conditionExprOpt, targetExpr) ->
-                analyzeMatchPattern cenv env matchPat
-                conditionExprOpt |> Option.iter (analyzeExpression cenv (notReturnableAddress env))
-                analyzeExpression cenv (notReturnableAddress env) targetExpr
+                analyzeMatchPattern acenv aenv matchPat
+                conditionExprOpt |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
+                analyzeExpression acenv (notReturnableAddress aenv) targetExpr
         )
 
     | BoundExpression.While(_, conditionExpr, bodyExpr) ->
-        analyzeExpression cenv (notReturnableAddress env) conditionExpr
-        analyzeExpression cenv (notReturnableAddress env) bodyExpr
+        analyzeExpression acenv (notReturnableAddress aenv) conditionExpr
+        analyzeExpression acenv (notReturnableAddress aenv) bodyExpr
 
     | BoundExpression.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
-        analyzeExpression cenv env bodyExpr
+        analyzeExpression acenv aenv bodyExpr
 
         catchCases
         |> ImArray.iter (function
             | BoundCatchCase.CatchCase(value, catchBodyExpr) ->
                 // TODO: 'syntaxNode' is not the accurate place for this.
-                analyzeType cenv env syntaxNode value.Type
-                analyzeExpression cenv env catchBodyExpr
+                analyzeType acenv aenv syntaxNode value.Type
+                analyzeExpression acenv aenv catchBodyExpr
         )
 
         finallyBodyExprOpt
         |> Option.iter (fun finallyBodyExpr ->
-            analyzeExpression cenv (notReturnableAddress env) finallyBodyExpr
+            analyzeExpression acenv (notReturnableAddress aenv) finallyBodyExpr
         )
 
     | BoundExpression.Witness(expr, witnessArg, ty) ->
-        analyzeExpression cenv env expr
-        analyzeType cenv env syntaxNode witnessArg
-        analyzeType cenv env syntaxNode ty
+        analyzeExpression acenv aenv expr
+        analyzeType acenv aenv syntaxNode witnessArg
+        analyzeType acenv aenv syntaxNode ty
 
     | BoundExpression.ErrorWithNamespace _
     | BoundExpression.ErrorWithType _ -> ()
 
     | BoundExpression.NewTuple(_, items, _) ->
-        items |> ImArray.iter (fun item -> analyzeExpression cenv (notReturnableAddress env) item)
+        items |> ImArray.iter (fun item -> analyzeExpression acenv (notReturnableAddress aenv) item)
 
     | BoundExpression.NewArray(_, _, elements, _) ->
-        elements |> ImArray.iter (fun element -> analyzeExpression cenv (notReturnableAddress env) element)
+        elements |> ImArray.iter (fun element -> analyzeExpression acenv (notReturnableAddress aenv) element)
 
     | BoundExpression.Typed(body=bodyExpr) -> 
-        analyzeExpression cenv env bodyExpr
+        analyzeExpression acenv aenv bodyExpr
 
     | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, _) ->
-        if not value.IsFunctionGroup then
-            // We expect 'witnessArgs' to have been evaluated by now.
-            Assert.ThrowIfNot(witnessArgs.HasValue)
-
-        let env =
-            if env.isReturnableAddress then
+        let aenv =
+            if aenv.isReturnableAddress then
                 match value.Type.TryFunction with
                 | ValueSome(_, outputTy) when outputTy.IsByRef_t ->
-                    env
+                    aenv
                 | _ ->
-                    notReturnableAddress env
+                    notReturnableAddress aenv
             else
-                env
+                aenv
 
-        witnessArgs.GetValue(None, CancellationToken.None)
-        |> ImArray.iter (fun x ->
-            checkWitnessSolution cenv env syntaxNode x
-        )
-        args |> ImArray.iter (fun arg -> analyzeExpression cenv env arg)
+        if not value.IsFunctionGroup then
+            OlyAssert.True(witnessArgs.HasValue)
+            witnessArgs.GetValue(None, CancellationToken.None)
+            |> ImArray.iter (fun x ->
+                checkWitnessSolution acenv aenv syntaxNode x
+            )
+
+        args |> ImArray.iter (fun arg -> analyzeExpression acenv aenv arg)
         receiverOpt
-        |> Option.iter (fun receiver -> analyzeExpression cenv env receiver)
+        |> Option.iter (fun receiver -> analyzeExpression acenv aenv receiver)
 
         match syntaxInfo.TrySyntaxName with
         | Some(syntaxName) ->
-            checkValue cenv env syntaxName value
+            checkValue acenv aenv syntaxName value
         | _ ->
-            checkValue cenv env syntaxNode value
+            checkValue acenv aenv syntaxNode value
+
+        match expr with
+        | AddressOf(AutoDereferenced(expr)) -> 
+            analyzeExpression acenv aenv expr
+        | AddressOf(BoundExpression.Value(syntaxInfo, value)) ->
+            match acenv.scopes.TryGetValue value.Id with
+            | true, scope ->
+                if aenv.isReturnableAddress && scope = aenv.scope then
+                    diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxInfo.SyntaxNameOrDefault)
+            | _ ->
+                ()
+            match aenv.freeLocals.TryGetValue value.Id with
+            | true, (syntaxNameOpt, _) when value.Type.IsByRef_t ->
+                let syntaxNode =
+                    match syntaxNameOpt with
+                    | Some syntaxName -> syntaxName :> OlySyntaxNode
+                    | _ -> expr.SyntaxNameOrDefault
+                diagnostics.Error($"Cannot take the address of '{value.Name}' as it is captured.", 10, syntaxNode)
+            | _ ->
+                ()
+        | _ ->
+            ()
 
     | BoundExpression.None _ -> ()
 
     | BoundExpression.GetField(receiver=receiver) ->
-        analyzeExpression cenv env receiver
+        analyzeExpression acenv aenv receiver
 
     | BoundExpression.SetField(_, receiver, _, field, rhs) ->
-        analyzeExpression cenv (notReturnableAddress env) rhs
-        analyzeExpression cenv (notReturnableAddress env) receiver
-        checkValue cenv env syntaxNode field
+        analyzeExpression acenv (notReturnableAddress aenv) rhs
+        analyzeExpression acenv (notReturnableAddress aenv) receiver
+        checkValue acenv aenv syntaxNode field
 
     | BoundExpression.GetProperty(receiverOpt=receiverOpt) ->
         receiverOpt
-        |> Option.iter (analyzeExpression cenv (notReturnableAddress env))
+        |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
 
     | BoundExpression.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
-        analyzeExpression cenv (notReturnableAddress env) rhs
+        analyzeExpression acenv (notReturnableAddress aenv) rhs
         receiverOpt
-        |> Option.iter (analyzeExpression cenv (notReturnableAddress env))
-        checkValue cenv env syntaxNode prop
+        |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
+        checkValue acenv aenv syntaxNode prop
 
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        analyzeExpression cenv (notReturnableAddress env) rhs
-        checkValue cenv env syntaxNode value
+        analyzeExpression acenv (notReturnableAddress aenv) rhs
+        checkValue acenv aenv syntaxNode value
 
     | BoundExpression.SetContentsOfAddress(_, lhsExpr, rhsExpr) ->
-        analyzeExpression cenv (notReturnableAddress env) lhsExpr
-        analyzeExpression cenv (notReturnableAddress env) rhsExpr
+        analyzeExpression acenv (notReturnableAddress aenv) lhsExpr
+        analyzeExpression acenv (notReturnableAddress aenv) rhsExpr
 
     | BoundExpression.Lambda(_, _, _, _, lazyBodyExpr, lazyTy, _, _) ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
@@ -591,48 +600,48 @@ and analyzeExpression cenv env (expr: BoundExpression) =
                         match syntaxNameOpt with
                         | Some syntaxName -> syntaxName :> OlySyntaxNode
                         | _ -> expr.Syntax
-                    cenv.diagnostics.Error($"'{x.Name}' is an address and cannot be captured.", 10, syntaxNode)
+                    diagnostics.Error($"'{x.Name}' is an address and cannot be captured.", 10, syntaxNode)
         )
 
         let isReturnableAddress = lazyTy.Type.IsByRef_t
-        analyzeExpression cenv { env with scope = env.scope + 1; isReturnableAddress = isReturnableAddress; freeLocals = freeLocals } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = isReturnableAddress; freeLocals = freeLocals } lazyBodyExpr.Expression
 
     | BoundExpression.MemberDefinition(_, binding) ->
         Assert.ThrowIf(binding.Info.Value.IsLocal)
-        analyzeBinding cenv (notReturnableAddress env) binding
+        analyzeBinding acenv (notReturnableAddress aenv) binding
 
     | BoundExpression.Sequential(_, e1, e2) ->
-        analyzeExpression cenv (notReturnableAddress env) e1
-        analyzeExpression cenv env e2
+        analyzeExpression acenv (notReturnableAddress aenv) e1
+        analyzeExpression acenv aenv e2
 
     | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
-        analyzeBindingInfo cenv env syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
-        analyzeExpression cenv env bodyExpr
+        analyzeBindingInfo acenv aenv syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
+        analyzeExpression acenv aenv bodyExpr
 
     | BoundExpression.Value(_, value) ->
-        checkValue cenv env syntaxNode value
+        checkValue acenv aenv syntaxNode value
 
     | BoundExpression.Literal(_, literal) ->
-        analyzeLiteral cenv env syntaxNode literal
+        analyzeLiteral acenv aenv syntaxNode literal
 
     | BoundExpression.EntityDefinition(body=bodyExpr;ent=ent) ->
         ent.Attributes
-        |> ImArray.iter (analyzeAttribute cenv env syntaxNode)
-        analyzeExpression cenv env bodyExpr
+        |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
+        analyzeExpression acenv aenv bodyExpr
 
     | BoundExpression.Unit _ -> ()
 
     | BoundExpression.Error _ -> ()
     
-let analyzeRoot cenv env (root: BoundRoot) =
+let analyzeRoot acenv aenv (root: BoundRoot) =
     match root with
     | BoundRoot.Namespace(body=bodyExpr)
     | BoundRoot.Global(body=bodyExpr) ->
-        analyzeExpression cenv env bodyExpr
+        analyzeExpression acenv aenv bodyExpr
 
-let analyzeBoundTree diagLogger (tree: BoundTree) ct =
-    let cenv = { scopes = System.Collections.Generic.Dictionary(); diagnostics = diagLogger; ct = ct; checkedTypeParameters = System.Collections.Generic.HashSet() }
-    let env = { scope = 0; benv = tree.RootEnvironment; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) }
-    analyzeRoot cenv env tree.Root
+let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
+    let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
+    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) }
+    analyzeRoot acenv aenv tree.Root
 
 

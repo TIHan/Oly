@@ -708,23 +708,9 @@ and checkConstraintsForSolving
         (witnessArgs: WitnessSolution imarray) =
     solveConstraints env syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
 
-/// This checks the expression to verify its correctness.
-/// It does not check all expressions under the expression.
-/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
-and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
+and checkWitnessesFromCallExpression (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, _) when not value.IsFunctionGroup ->
-        let syntaxNode =
-            match syntaxInfo.Syntax with
-            | :? OlySyntaxExpression as syntax ->
-                match syntax with
-                | OlySyntaxExpression.Call(syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.InfixCall(_, syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.PrefixCall(syntax, _) -> syntax :> OlySyntaxNode
-                | _ -> syntax :> OlySyntaxNode
-            | syntax ->
-                syntax
-
+    | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) when not value.IsFunctionGroup ->
         let syntaxTyArgsOpt =
             let syntaxTyArgs =
                 match syntaxInfo.Syntax with
@@ -740,8 +726,28 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
                 else
                     None
 
-        witnessArgs.GetValue(syntaxTyArgsOpt, System.Threading.CancellationToken.None)
-        |> ignore
+        witnessArgs.GetValue(syntaxTyArgsOpt, System.Threading.CancellationToken.None) |> ignore
+    | _ ->
+        OlyAssert.Fail("Expected 'Call' expression.")
+
+/// This checks the expression to verify its correctness.
+/// It does not check all expressions under the expression.
+/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
+and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
+    match expr with
+    | BoundExpression.Call(syntaxInfo, receiverOpt, _, argExprs, value, _) when not value.IsFunctionGroup ->
+        checkWitnessesFromCallExpression expr
+
+        let syntaxNode =
+            match syntaxInfo.Syntax with
+            | :? OlySyntaxExpression as syntax ->
+                match syntax with
+                | OlySyntaxExpression.Call(syntax, _) -> syntax :> OlySyntaxNode
+                | OlySyntaxExpression.InfixCall(_, syntax, _) -> syntax :> OlySyntaxNode
+                | OlySyntaxExpression.PrefixCall(syntax, _) -> syntax :> OlySyntaxNode
+                | _ -> syntax :> OlySyntaxNode
+            | syntax ->
+                syntax
 
         let valueTy = value.LogicalType
 
