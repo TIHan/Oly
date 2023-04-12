@@ -16,6 +16,9 @@ private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
 private alias VmaAllocationCreateFlags = Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator.VmaAllocationCreateFlags
 private alias VkDescriptorType = TerraFX.Interop.Vulkan.VkDescriptorType
 private alias VkShaderStageFlags = TerraFX.Interop.Vulkan.VkShaderStageFlags
+private alias VkDescriptorSet = TerraFX.Interop.Vulkan.VkDescriptorSet
+private alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
+private alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
@@ -43,6 +46,9 @@ struct Globals =
     mutable Model: Matrix4x4 = Matrix4x4.Identity
     mutable View: Matrix4x4 = Matrix4x4.Identity
     mutable Projection: Matrix4x4 = Matrix4x4.Identity
+
+radians(degrees: float64): float64 = degrees * System.Math.PI / 180
+radians(degrees: float32): float32 = float32(radians(float64(degrees)))
 
 main(): () =
     let window = IWindow.CreateWin32("Vulkan Example")
@@ -73,36 +79,44 @@ main(): () =
         [
             (
                 let mutable globals = Globals()
+                globals.Projection <- Matrix4x4.CreatePerspectiveFieldOfView(radians(45), 1, 0.1, 10)
+                globals.View <- Matrix4x4.CreateLookAt(Vector3(2, 2, 2), Vector3(0, 0, 0), Vector3(0, 0, 1))
+                globals.Model <- Matrix4x4.Identity//glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)
                 globals
             )
         ]
 
-    let globalsBuffer =
-        vk.CreateBuffer(
-            vulkanApp,
-            uint64(sizeof<Globals>),
-            VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+    let globalBuffers =
+        Array.Initialize(vulkanApp.MaxFramesInFlight, 
+            i ->
+                let buffer =
+                    vk.CreateBuffer(
+                        vulkanApp,
+                        uint64(sizeof<Globals>),
+                        VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                        VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+                    )
+                vk.UpdateBuffer(vulkanApp, buffer, [globals[0]])
+                buffer
         )
+    let globalBuffers = UnsafeCast<vk.VulkanBuffer[]>(globalBuffers)
 
-    let setLayouts = 
-        [
-            vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
-        ]
+    let setLayout = vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
 
     let descriptorPool = vk.CreateDescriptorPool(vulkanApp, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uint32(vulkanApp.MaxFramesInFlight))
-    let descriptorSets = vk.CreateDescriptorSets(vulkanApp, descriptorPool, uint32(vulkanApp.MaxFramesInFlight), setLayouts)
-    let bufferInfos = vk.CreateDescriptorBufferInfos(vulkanApp, uint32(vulkanApp.MaxFramesInFlight), sizeof<Globals>)
-    let writeSets = vk.CreateWriteDescriptorSets(vulkanApp, descriptorSets, bufferInfos, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+    let descriptorSets = vk.CreateDescriptorSets(vulkanApp, descriptorPool, uint32(vulkanApp.MaxFramesInFlight), setLayout)
 
     let mutable i = 0
-    while (i < writeSets.Length)
-        vk.UpdateDescriptorSet(vulkanApp, writeSets[i])
+    while (i < vulkanApp.MaxFramesInFlight)
+        vk.UpdateDescriptorSet(vulkanApp, descriptorSets[i], globalBuffers[i], VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
         i <- i + 1
 
-    let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, setLayouts)
+    let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, [setLayout])
 
-    let recordCommands(commandBuffer: vk.VulkanCommandBuffer, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
+    let recordCommands(commandBuffers: vk.VulkanCommandBuffer[||], descriptorSets: VkDescriptorSet[], frame: int32, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
+        let commandBuffer = commandBuffers[frame]
+        let descriptorSet = descriptorSets[frame]
+
         vk.ResetCommandBuffer(vulkanApp, commandBuffer)
 
         commandBuffer.Begin()
@@ -111,6 +125,7 @@ main(): () =
         commandBuffer.BindPipeline(graphicsPipeline, vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
         commandBuffer.SetViewport(viewport)
         commandBuffer.SetScissor(scissor)
+        commandBuffer.BindDescriptorSet(vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
         commandBuffer.BindVertexBuffer(buffer)
         commandBuffer.Draw(3, 1)
 
@@ -137,7 +152,19 @@ main(): () =
 
         let bindingDescs = [vk.CreateVertexBindingDescription<Vertex>(0, false)]
         let attrDescs = vk.CreateVertexAttributeDescriptions<Vertex>(0)
-        graphicsPipeline <- vk.CreateGraphicsPipeline(vulkanApp, swapChain, bindingDescs, attrDescs, pipelineLayout, renderPass, vertexShaderModule, fragmentShaderModule)
+        graphicsPipeline <- 
+            vk.CreateGraphicsPipeline(
+                vulkanApp, 
+                swapChain, 
+                bindingDescs, 
+                attrDescs, 
+                pipelineLayout, 
+                renderPass, 
+                VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
+                VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
+                vertexShaderModule, 
+                fragmentShaderModule
+            )
 
     let cleanupSwapChain() =
         if (swapChain !== unchecked default)
@@ -154,11 +181,10 @@ main(): () =
         try
             vk.Draw(vulkanApp, swapChain, 
                 (imageIndex, frame) -> 
-                    let commandBuffer = commandBuffers[frame]
                     let framebuffer = swapChainFramebuffers[imageIndex]
 
-                    recordCommands(commandBuffer, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
-                    commandBuffer
+                    recordCommands(commandBuffers, descriptorSets, frame, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
+                    commandBuffers[frame]
             )
         catch (ex: vk.VulkanSwapChainOutOfDateException) =>
             vk.WaitForIdle(vulkanApp)
@@ -190,14 +216,15 @@ main(): () =
     vk.WaitForIdle(vulkanApp)
 
     vk.DestroyBuffer(vulkanApp, buffer)
-    vk.DestroyBuffer(vulkanApp, globalsBuffer)
+
+    let mutable i = 0
+    while (i < globalBuffers.Length)
+        vk.DestroyBuffer(vulkanApp, globalBuffers[i])
+        i <- i + 1
 
     cleanupSwapChain()
 
-    let mutable i = 0
-    while (i < setLayouts.Length)
-        vk.DestroyDescriptorSetLayout(vulkanApp, setLayouts[i])
-        i <- i + 1
+    vk.DestroyDescriptorSetLayout(vulkanApp, setLayout)
     
     vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
 

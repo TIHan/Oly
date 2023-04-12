@@ -611,6 +611,14 @@ extension ArrayExtensions =
     #[intrinsic("new_array")]
     static ZeroCreate<T>(size: int32): T[||]
 
+    static Initialize<T>(size: int32, f: int32 -> T): T[||] =
+        let newArr = System.Array.ZeroCreate<T>(size)
+        let mutable i = 0
+        while (i < newArr.Length)
+            newArr[i] <- f(i)
+            i <- i + 1
+        newArr
+
     static Map<T, U>(arr: T[||], f: T -> U): U[||] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length)
         let mutable i = 0

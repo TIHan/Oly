@@ -7,6 +7,7 @@ open System.Collections.Generic
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
+open System.Diagnostics
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 open static Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
@@ -26,14 +27,12 @@ sealed class VulkanValidationException =
 
     internal new(msg: string) = base(msg)
 
-private success(result: VkResult): bool =
-    result == VkResult.VK_SUCCESS
-
 sealed class VulkanApplication =
     ValidationLayersEnabled: bool
     Instance: VkInstance
     Surface: VkSurfaceKHR
     PhysicalDevice: VkPhysicalDevice
+    PhysicalDeviceProperties: VkPhysicalDeviceProperties
     Device: VkDevice
     GraphicsQueue: VkQueue
     GraphicsQueueFamilyIndex: uint32
@@ -72,6 +71,7 @@ sealed class VulkanApplication =
             Instance = instance
             Surface = surface
             PhysicalDevice = physicalDevice
+            PhysicalDeviceProperties = getPhysicalDeviceProperties(physicalDevice)
             Device = device
             GraphicsQueue = graphicsQueue
             GraphicsQueueFamilyIndex = graphicsQueueFamilyIndex
@@ -320,13 +320,13 @@ CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPa
 DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
     vkDestroyRenderPass(app.Device, renderPass, nullptr)
 
-CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
+CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, cullMode: VkCullModeFlags, frontFace: VkFrontFace, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
     let stages =
         [|
             createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
             createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
         |]
-    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, vertexBindingDescriptions, vertexAttributeDescriptions, swapChain.Extent)
+    createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, cullMode, frontFace, vertexBindingDescriptions, vertexAttributeDescriptions, swapChain.Extent)
 
 DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
@@ -365,10 +365,20 @@ CreateVertexBindingDescription<T>(binding: uint32, isInstance: bool): VkVertexIn
 CreateVertexAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
     createVertexInputAttributeDescriptions<T>(binding)
 
-CreateBuffer(app: VulkanApplication, size: uint64, usage: VkBufferUsageFlags, flags: VmaAllocationCreateFlags): VulkanBuffer =
-    match (createBuffer(app.Allocator, size, usage, flags, nullptr))
+CreateBuffer(app: VulkanApplication, size: uint64, mutable usage: VkBufferUsageFlags, flags: VmaAllocationCreateFlags): VulkanBuffer =
+    let size =
+        if (usage & VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT == VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+            if (size < app.PhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment)
+                app.PhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment
+            else
+                size
+        else
+            size 
+
+    let mutable allocInfo = default: VmaAllocationInfo
+    match (createBuffer(app.Allocator, size, usage, flags, &&allocInfo))
     | (buffer, allocation) =>
-        VulkanBuffer(buffer, allocation, size)
+        VulkanBuffer(buffer, allocation, allocInfo.offset, size)
     | _ =>
         fail("Should not happen")
 
@@ -398,7 +408,7 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
         | (stagingBuffer, stagingAllocation) =>
             let bufferSpan = Span<T>(allocationInfo.pMappedData, bufferData.Length)
             bufferData.CopyTo(bufferSpan)
-            if (!success(vmaFlushAllocation(app.Allocator, stagingAllocation, 0, VK_WHOLE_SIZE)))
+            if (vmaFlushAllocation(app.Allocator, stagingAllocation, 0, VK_WHOLE_SIZE) != VkResult.VK_SUCCESS)
                 fail("Failed to flush allocation.")
             
             let mutable bufferCopy = default: VkBufferCopy
@@ -413,12 +423,12 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
             beginInfo.flags <- default // Optional
             beginInfo.pInheritanceInfo <- nullptr // Optional
 
-            if (!success(vkBeginCommandBuffer(commandBuffer, &&beginInfo)))
+            if (vkBeginCommandBuffer(commandBuffer, &&beginInfo) != VkResult.VK_SUCCESS)
                 fail("Failed to begin command buffer.")
 
             vkCmdCopyBuffer(commandBuffer, stagingBuffer, buffer.Buffer, 1, &&bufferCopy)
 
-            if (!success(vkEndCommandBuffer(commandBuffer)))
+            if (vkEndCommandBuffer(commandBuffer) != VkResult.VK_SUCCESS)
                 fail("Failed to end command buffer.")
             
             let mutable submitInfo = default: VkSubmitInfo
@@ -426,10 +436,10 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData
             submitInfo.commandBufferCount <- 1
             submitInfo.pCommandBuffers <- &&commandBuffer
 
-            if (!success(vkQueueSubmit(app.TransferQueue, 1, &&submitInfo, default)))
+            if (vkQueueSubmit(app.TransferQueue, 1, &&submitInfo, default) != VkResult.VK_SUCCESS)
                 fail("Failed to submit queue.")
 
-            if (!success(vkDeviceWaitIdle(app.Device)))
+            if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
                 fail("Failed to wait idle on device.")
 
             vkFreeCommandBuffers(app.Device, app.TransferCommandPool, 1, &&commandBuffer)
@@ -459,17 +469,11 @@ CreateDescriptorPool(app: VulkanApplication, descriptorType: VkDescriptorType, d
 DestroyDescriptorPool(app: VulkanApplication, descriptorPool: VkDescriptorPool): () =
     vkDestroyDescriptorPool(app.Device, descriptorPool, nullptr)
 
-CreateDescriptorSets(app: VulkanApplication, descriptorPool: VkDescriptorPool, descriptorSetCount: uint32, setLayouts: VkDescriptorSetLayout[]): VkDescriptorSet[] =
-    createDescriptorSets(app.Device, descriptorPool, descriptorSetCount, setLayouts)
+CreateDescriptorSets(app: VulkanApplication, descriptorPool: VkDescriptorPool, descriptorSetCount: uint32, setLayout: VkDescriptorSetLayout): VkDescriptorSet[] =
+    createDescriptorSets(app.Device, descriptorPool, descriptorSetCount, setLayout)
 
-CreateDescriptorBufferInfos(app: VulkanApplication, count: uint32, size: int32): VkDescriptorBufferInfo[] =
-    createDescriptorBufferInfos(count, 0, uint64(size))
-
-CreateWriteDescriptorSets(app: VulkanApplication, descriptorSets: VkDescriptorSet[], bufferInfos: VkDescriptorBufferInfo[], descriptorType: VkDescriptorType): VkWriteDescriptorSet[] =
-    createWriteDescriptorSets(descriptorSets, bufferInfos, descriptorType)
-
-UpdateDescriptorSet(app: VulkanApplication, writeSet: VkWriteDescriptorSet): () =
-    updateDescriptorSets(app.Device, 1, writeSet)
+UpdateDescriptorSet(app: VulkanApplication, descriptorSet: VkDescriptorSet, buffer: VulkanBuffer, descriptorType: VkDescriptorType): () =
+    updateDescriptorSet(app.Device, descriptorSet, buffer.Buffer, buffer.Offset, buffer.Size, descriptorType)
  
 Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (imageIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
@@ -563,6 +567,7 @@ private getRequiredDeviceExtensions(): string[] =
 
 #[blittable]
 #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
+#[DebuggerHidden()]
 private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
     if ((messageSeverity & VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) == VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
         let callback = *pCallbackData
@@ -930,6 +935,8 @@ private createGraphicsPipeline(
         pipelineLayout: VkPipelineLayout, 
         renderPass: VkRenderPass, 
         stages: VkPipelineShaderStageCreateInfo[||],
+        cullMode: VkCullModeFlags,
+        frontFace: VkFrontFace,
         vertexBindingDescriptions: VkVertexInputBindingDescription[],
         vertexAttributeDescriptions: VkVertexInputAttributeDescription[], 
         swapChainExtent: VkExtent2D): VkPipeline =
@@ -986,8 +993,8 @@ private createGraphicsPipeline(
     rasterizer.rasterizerDiscardEnable <- VkBool32.FALSE
     rasterizer.polygonMode <- VkPolygonMode.VK_POLYGON_MODE_FILL
     rasterizer.lineWidth <- 1
-    rasterizer.cullMode <- VkCullModeFlags.VK_CULL_MODE_BACK_BIT
-    rasterizer.frontFace <- VkFrontFace.VK_FRONT_FACE_CLOCKWISE // TODO: Make this counter clockwise at some point.
+    rasterizer.cullMode <- cullMode
+    rasterizer.frontFace <- frontFace
 
     // TODO: We will want to enable this at some point.
     rasterizer.depthBiasEnable <- VkBool32.FALSE
@@ -1153,12 +1160,14 @@ private createCommandBuffer(device: VkDevice, commandPool: VkCommandPool): VkCom
 private sealed class VulkanBuffer =
     Buffer: VkBuffer
     Allocation: VmaAllocation
+    Offset: uint64
     Size: uint64
 
-    new(buffer: VkBuffer, allocation: VmaAllocation, size: uint64) =
+    new(buffer: VkBuffer, allocation: VmaAllocation, offset: uint64, size: uint64) =
         {
             Buffer = buffer
             Allocation = allocation
+            Offset = offset
             Size = size
         }
 
@@ -1174,7 +1183,7 @@ private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsage
 
     let mutable buffer = default: VkBuffer
     let mutable allocation = default: VmaAllocation
-    if (!success(vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, pAllocationInfo)))
+    if (vmaCreateBuffer(allocator, &&bufferInfo, &&allocInfo, &&buffer, &&allocation, pAllocationInfo) != VkResult.VK_SUCCESS)
         fail("Failed to create buffer.")
 
     (buffer, allocation)
@@ -1234,7 +1243,7 @@ private createDescriptorSetLayout(device: VkDevice, binding: uint32, descriptorT
     layoutInfo.pBindings <- &&layoutBinding
 
     let mutable descriptorSetLayout = default: VkDescriptorSetLayout
-    if (!success(vkCreateDescriptorSetLayout(device, &&layoutInfo, nullptr, &&descriptorSetLayout)))
+    if (vkCreateDescriptorSetLayout(device, &&layoutInfo, nullptr, &&descriptorSetLayout) != VkResult.VK_SUCCESS)
         fail("Failed to create descriptor set layout.")
 
     descriptorSetLayout
@@ -1256,7 +1265,8 @@ private createDescriptorPool(device: VkDevice, descriptorType: VkDescriptorType,
 
     descriptorPool
 
-private createDescriptorSets(device: VkDevice, descriptorPool: VkDescriptorPool, descriptorSetCount: uint32, setLayouts: VkDescriptorSetLayout[]): VkDescriptorSet[] =
+private createDescriptorSets(device: VkDevice, descriptorPool: VkDescriptorPool, descriptorSetCount: uint32, setLayout: VkDescriptorSetLayout): VkDescriptorSet[] =
+    let setLayouts = Array.Initialize(int32(descriptorSetCount), i -> setLayout)
     let mutable setLayoutsHandle = fixed(setLayouts)
 
     let mutable allocInfo = default: VkDescriptorSetAllocateInfo
@@ -1276,48 +1286,26 @@ private createDescriptorSets(device: VkDevice, descriptorPool: VkDescriptorPool,
 
     UnsafeCast(descriptorSets)
 
-private createDescriptorBufferInfos(count: uint32, offset: uint64, range: uint64): VkDescriptorBufferInfo[] =
-    let bufferInfos = Array.ZeroCreate(int32(count))
+private updateDescriptorSet(device: VkDevice, descriptorSet: VkDescriptorSet, buffer: VkBuffer, offset: uint64, size: uint64, descriptorType: VkDescriptorType): () =
+    let mutable bufferInfo = default: VkDescriptorBufferInfo
+    bufferInfo.offset <- offset
+    bufferInfo.buffer <- buffer
+    bufferInfo.range <- size
 
-    let mutable i = 0
-    while (i < bufferInfos.Length)
-        bufferInfos[i] <-
-            let mutable bufferInfo = default: VkDescriptorBufferInfo
-            bufferInfo.offset <- offset
-            bufferInfo.range <- range
-            bufferInfo
-        i <- i + 1
+    let mutable descriptorWrite = default: VkWriteDescriptorSet
+    descriptorWrite.sType <- VkStructureType.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
+    descriptorWrite.dstSet <- descriptorSet
+    descriptorWrite.dstBinding <- 0
+    descriptorWrite.dstArrayElement <- 0
 
-    UnsafeCast(bufferInfos)
+    descriptorWrite.descriptorType <- descriptorType
+    descriptorWrite.descriptorCount <- 1
 
-private createWriteDescriptorSets(descriptorSets: VkDescriptorSet[], bufferInfos: VkDescriptorBufferInfo[], descriptorType: VkDescriptorType): VkWriteDescriptorSet[] =
-    let descriptorWrites = Array.ZeroCreate(descriptorSets.Length)
+    descriptorWrite.pBufferInfo <- &&bufferInfo
+    descriptorWrite.pImageInfo <- nullptr // Optional
+    descriptorWrite.pTexelBufferView <- nullptr // Optional
 
-    let mutable i = 0
-    while (i < descriptorWrites.Length)
-        let mutable bufferInfo = bufferInfos[i]
-
-        descriptorWrites[i] <-
-            let mutable descriptorWrite = default: VkWriteDescriptorSet
-            descriptorWrite.sType <- VkStructureType.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
-            descriptorWrite.dstSet <- descriptorSets[i]
-            descriptorWrite.dstBinding <- 0
-            descriptorWrite.dstArrayElement <- 0
-
-            descriptorWrite.descriptorType <- descriptorType
-            descriptorWrite.descriptorCount <- 1
-
-            descriptorWrite.pBufferInfo <- &&bufferInfo
-            descriptorWrite.pImageInfo <- nullptr // Optional
-            descriptorWrite.pTexelBufferView <- nullptr // Optional
-
-            descriptorWrite
-        i <- i + 1
-
-    UnsafeCast(descriptorWrites)
-
-private updateDescriptorSets(device: VkDevice, count: uint32, mutable descriptorWrite: VkWriteDescriptorSet): () =
-    vkUpdateDescriptorSets(device, count, &&descriptorWrite, 0, nullptr)
+    vkUpdateDescriptorSets(device, 1, &&descriptorWrite, 0, nullptr)
 
 // -----------------------------------------------------------------------
 
@@ -1404,6 +1392,11 @@ private getDeviceSuitableScore(device: VkPhysicalDevice): uint32 =
             0
 
     score
+
+private getPhysicalDeviceProperties(device: VkPhysicalDevice): VkPhysicalDeviceProperties =
+    let mutable deviceProperties = default: VkPhysicalDeviceProperties
+    vkGetPhysicalDeviceProperties(device, &&deviceProperties)
+    deviceProperties
 
 private checkValidationLayerSupport(validationLayers: string[]): bool =
     if (validationLayers.Length == 0)
@@ -1547,6 +1540,9 @@ newtype VulkanCommandBuffer =
 
     BindVertexBuffer(vertexBuffer: VulkanBuffer): () =
         this.BindVertexBuffers([vertexBuffer])
+
+    BindDescriptorSet(pipelineBindPoint: VkPipelineBindPoint, layout: VkPipelineLayout, mutable descriptorSet: VkDescriptorSet): () =
+        vkCmdBindDescriptorSets(this.CommandBuffer, pipelineBindPoint, layout, 0, 1, &&descriptorSet, 0, nullptr)
 
     EndRenderPass(): () =
         vkCmdEndRenderPass(this.CommandBuffer)
