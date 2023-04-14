@@ -446,15 +446,14 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             printField benv field, ""
 
         | :? IPropertySymbol as prop ->
-            // TODO: Fix 'get' 'set' from printing in the front.
             if prop.Getter.IsSome && prop.Setter.IsSome then
-                "get set " + prop.Name + ": ", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get, set", ""
             elif prop.Getter.IsSome then
-                "get " + prop.Name + ": ", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get", ""
             elif prop.Setter.IsSome then
-                "set " + prop.Name + ": ", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} set", ""
             else
-                prop.Name + ": ", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} (invalid)", ""
         | _ ->
             value.Name + ": ", ""
     let right =
@@ -469,7 +468,7 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             printedInput + ": " + printedOutput
 
         | _ ->
-            if value.IsField then ""
+            if value.IsField || value.IsProperty then ""
             else
                 printTypeAux benv false false value.Type
 

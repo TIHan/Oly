@@ -5314,7 +5314,7 @@ class Test =
     ~^~Length: __oly_int32 
         get() = 0
         """
-    src |> hasSymbolSignatureTextByCursor "get Length: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "Length: __oly_int32 get"
 
 [<Fact>]
 let ``Module with nested struct should pass``() =
@@ -5805,7 +5805,7 @@ class Test =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("The property 'static get X: __oly_int64' cannot find a 'get' to override.",
+            ("The property 'static X: __oly_int64 get' cannot find a 'get' to override.",
                 """
     static X: __oly_int64 overrides get = 1
            ^
@@ -5830,7 +5830,7 @@ class Test =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("The property 'static get X: __oly_int64' cannot find a 'get' to override.",
+            ("The property 'static X: __oly_int64 get' cannot find a 'get' to override.",
                 """
     static X: __oly_int64 overrides get = 1
            ^

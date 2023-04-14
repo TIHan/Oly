@@ -511,6 +511,41 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             None
 
+    member this.IsGetterFunction = 
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.Semantic = FunctionSemantic.GetterFunction
+        | _ ->
+            false
+
+    member this.IsSetterFunction = 
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.Semantic = FunctionSemantic.SetterFunction
+        | _ ->
+            false
+
+    member this.IsPatternFunction = 
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.Semantic = FunctionSemantic.PatternFunction
+        | _ ->
+            false
+
+    member this.IsPatternGuardFunction =
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.Semantic = FunctionSemantic.PatternGuardFunction
+        | _ ->
+            false
+
+    member this.IsNormalFunction =
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.Semantic = FunctionSemantic.NormalFunction
+        | _ ->
+            false
+
     override this.GetHashCode() = value.Formal.Id.GetHashCode()
 
     override this.Equals(o) =

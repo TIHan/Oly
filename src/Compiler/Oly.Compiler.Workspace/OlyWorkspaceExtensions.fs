@@ -662,10 +662,6 @@ type OlyDocument with
                                 completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
                             )
 
-                        let propFuncs = HashSet({ new IEqualityComparer<OlyValueSymbol> with
-                                                        member _.GetHashCode(value) = value.GetHashCode()
-                                                        member _.Equals(value1, value2) = value1 = value2 })
-
                         symbol.Fields
                         |> Seq.iter (fun field ->
                             ct.ThrowIfCancellationRequested()
@@ -680,24 +676,12 @@ type OlyDocument with
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
                                 completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
-
-                                match prop.TryPropertyGetterSetter with
-                                | Some(Some(getter), _) ->
-                                    propFuncs.Add(getter) |> ignore
-                                | _ ->
-                                    ()
-
-                                match prop.TryPropertyGetterSetter with
-                                | Some(_, Some(setter)) ->
-                                    propFuncs.Add(setter) |> ignore
-                                | _ ->
-                                    ()
                         )
 
                         symbol.Functions
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
-                            if propFuncs.Contains(func) |> not then
+                            if func.IsNormalFunction then
                                 if func.IsStatic = inStaticContext && not func.IsConstructor then
                                     let kind = classifyValueKind func
                                     let label =
@@ -710,11 +694,6 @@ type OlyDocument with
 
                     | :? OlyValueSymbol as symbol ->
                         let ty = symbol.Type
-
-                        let propFuncs = HashSet({ new IEqualityComparer<OlyValueSymbol> with
-                                                        member _.GetHashCode(value) = value.GetHashCode()
-                                                        member _.Equals(value1, value2) = value1 = value2 })
-
                             
                         ty.Fields
                         |> Seq.iter (fun field ->
@@ -730,24 +709,12 @@ type OlyDocument with
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
                                 completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
-
-                                match prop.TryPropertyGetterSetter with
-                                | Some(Some(getter), _) ->
-                                    propFuncs.Add(getter) |> ignore
-                                | _ ->
-                                    ()
-
-                                match prop.TryPropertyGetterSetter with
-                                | Some(_, Some(setter)) ->
-                                    propFuncs.Add(setter) |> ignore
-                                | _ ->
-                                    ()
                         )
 
                         ty.Functions
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
-                            if propFuncs.Contains(func) |> not then
+                            if func.IsNormalFunction then
                                 if func.IsStatic = inStaticContext && not func.IsConstructor then
                                     let kind = classifyValueKind func
                                     let label =
