@@ -120,37 +120,10 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
                 tyPar.Name
         name + "<" + (tyArgs |> Seq.map (printTypeAux benv isDefinition true) |> String.concat ", ") + ">"
 
-    | TypeSymbol.Function(argTys, returnTy) -> 
-        // TODO: Kind of a hack using TypeSymbol.Tuple.
-        let inputTy = 
-            if argTys.IsEmpty then
-                TypeSymbol.Unit
-            elif argTys.Length = 1 then
-                match stripTypeEquationsExceptAlias argTys[0] with
-                | TypeSymbol.Tuple _
-                | TypeSymbol.Unit ->
-                    TypeSymbol.Tuple(ImArray.createOne argTys[0], ImArray.empty)
-                | ty ->
-                    ty
-            else
-                TypeSymbol.Tuple(argTys, ImArray.empty)
+    | TypeSymbol.Function(inputTy, returnTy) -> 
         printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
 
-    | TypeSymbol.NativeFunctionPtr(ilCallConv, argTys, returnTy) ->
-        // TODO: Kind of a hack using TypeSymbol.Tuple.
-        let inputTy = 
-            if argTys.IsEmpty then
-                TypeSymbol.Unit
-            elif argTys.Length = 1 then
-                match stripTypeEquationsExceptAlias argTys[0] with
-                | TypeSymbol.Tuple _
-                | TypeSymbol.Unit ->
-                    TypeSymbol.Tuple(ImArray.createOne argTys[0], ImArray.empty)
-                | ty ->
-                    ty
-            else
-                TypeSymbol.Tuple(argTys, ImArray.empty)
-
+    | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
         if ilCallConv.HasFlag(Oly.Metadata.OlyILCallingConvention.Blittable) then
             "static blittable " +
             printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy

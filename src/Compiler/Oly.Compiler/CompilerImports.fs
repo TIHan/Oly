@@ -509,13 +509,13 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
             let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
             TypeSymbol.Tuple(tyArgs, names)
 
-    | TypeSymbol.Function(argTys, returnTy) ->
+    | TypeSymbol.Function(inputTy, returnTy) ->
         if ty.IsFormal then
             ty
         else
-            let argTys = argTys |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+            let inputTy = retargetType currentAsmIdent importer tyPars inputTy
             let returnTy = retargetType currentAsmIdent importer tyPars returnTy
-            TypeSymbol.Function(argTys, returnTy)
+            TypeSymbol.Function(inputTy, returnTy)
 
     | _ ->
         if ty.Arity > 0 then
@@ -884,11 +884,11 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
 
     | OlyILType.OlyILTypeFunction(ilArgTys, ilReturnTy) -> 
         let argTys, returnTy = importFunctionTypeInfo cenv enclosingTyPars funcTyPars ilArgTys ilReturnTy
-        TypeSymbol.Function(argTys, returnTy)
+        TypeSymbol.CreateFunction(argTys, returnTy)
 
     | OlyILType.OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy) ->
         let argTys, returnTy = importFunctionTypeInfo cenv enclosingTyPars funcTyPars ilArgTys ilReturnTy
-        TypeSymbol.NativeFunctionPtr(ilCc, argTys, returnTy)
+        TypeSymbol.CreateFunctionPtr(ilCc, argTys, returnTy)
 
     | OlyILType.OlyILTypeTuple(ilElementTys, ilNameHandles) ->
         let names =

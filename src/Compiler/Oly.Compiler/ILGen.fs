@@ -302,7 +302,12 @@ and GenTypeParameterAsILTypeVariableInfo (env: env) (tyPar: TypeParameterSymbol)
 and emitILType cenv env ty =
     emitILTypeAux cenv env false true ty
 
-and emitILFunctionTypeInfo cenv env (argTys: TypeSymbol imarray) (returnTy: TypeSymbol) =
+and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol) =
+    let argTys =
+        match inputTy with
+        | TypeSymbol.Unit -> ImArray.empty
+        | TypeSymbol.Tuple(argTys, _) -> argTys
+        | _ -> ImArray.createOne inputTy
     let ilArgTys =
         argTys
         |> ImArray.map (emitILType cenv env)

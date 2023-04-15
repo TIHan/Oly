@@ -51,10 +51,9 @@ let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty:
         UnifyTypes TypeVariableRigidity.Flexible ty TypeSymbolError
         |> ignore
 
-    | TypeSymbol.NativeFunctionPtr(_, argTys, returnTy)
-    | TypeSymbol.Function(argTys, returnTy) ->
-        argTys
-        |> ImArray.iter (analyzeType acenv aenv syntaxNode)
+    | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
+    | TypeSymbol.Function(inputTy, returnTy) ->
+        analyzeType acenv aenv syntaxNode inputTy
         analyzeType acenv aenv syntaxNode returnTy
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->

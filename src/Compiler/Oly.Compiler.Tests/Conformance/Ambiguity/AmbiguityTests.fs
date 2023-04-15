@@ -1381,4 +1381,4 @@ main(): () =
     let ~^~ptr = &&testFunc
         """
     src
-    |> hasSymbolSignatureTextByCursor "ptr: static blittable (x: int32, y: int32) -> int32"
+    |> hasSymbolSignatureTextByCursor "ptr: static blittable (int32, int32) -> int32"

@@ -500,7 +500,7 @@ let LoadFunctionPtr =
         } |> ImArray.ofSeq
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(ImArray.createOne tyPars[2].AsType, tyPars[1].AsType), false)
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[2].AsType, tyPars[1].AsType), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars[0].AsType
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.LoadFunctionPtr None false

@@ -275,77 +275,16 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
         | TypeSymbol.ConstantInt32 n1, TypeSymbol.ConstantInt32 n2 -> n1 = n2
 
-        | TypeSymbol.Function(argTys=argTys1; returnTy=returnTy1), TypeSymbol.Function(argTys=argTys2; returnTy=returnTy2)
-        | TypeSymbol.Function(argTys=argTys1; returnTy=returnTy1), TypeSymbol.ForAll(_, TypeSymbol.Function(argTys=argTys2; returnTy=returnTy2))
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(argTys=argTys1; returnTy=returnTy1)), TypeSymbol.Function(argTys=argTys2; returnTy=returnTy2) ->
+        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2)
+        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2))
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2) ->
+            UnifyTypes rigidity inputTy1 inputTy2 &&
+            UnifyTypes rigidity returnTy1 returnTy2
 
-            // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-            if argTys1.Length = 1 && (if rigidity = Generalizable || rigidity = FlexibleAndGeneralizable then argTys1[0].IsVariadicTypeVariable elif rigidity = Flexible then argTys1[0].IsVariadicInferenceVariable else false) then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if argTys2.IsEmpty then
-                        TypeSymbol.Unit
-                    elif argTys2.Length = 1 then
-                        argTys2[0]
-                    else
-                        TypeSymbol.Tuple(argTys2, ImArray.empty)
-
-                UnifyTypes rigidity argTys1[0] inputTy
-
-            elif argTys2.Length = 1 && (if rigidity = Generalizable || rigidity = FlexibleAndGeneralizable then argTys2[0].IsVariadicTypeVariable elif rigidity = Flexible then argTys2[0].IsVariadicInferenceVariable else false) then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if argTys1.IsEmpty then
-                        TypeSymbol.Unit
-                    elif argTys1.Length = 1 then
-                        argTys1[0]
-                    else
-                        TypeSymbol.Tuple(argTys1, ImArray.empty)
-
-                UnifyTypes rigidity inputTy argTys2[0]
-
-            elif argTys1.Length = argTys2.Length then
-                (argTys1, argTys2)
-                ||> ImArray.forall2 (UnifyTypes rigidity)
-                &&
-                UnifyTypes rigidity returnTy1 returnTy2
-            else
-                false
-
-        | TypeSymbol.NativeFunctionPtr(ilCallConv1, argTys1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, argTys2, returnTy2) ->
-            // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-            if argTys1.Length = 1 && argTys1[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if argTys2.IsEmpty then
-                        TypeSymbol.Unit
-                    elif argTys2.Length = 1 then
-                        argTys2[0]
-                    else
-                        TypeSymbol.Tuple(argTys2, ImArray.empty)
-
-                UnifyTypes rigidity argTys1[0] inputTy
-
-            elif argTys2.Length = 1 && argTys2[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if argTys1.IsEmpty then
-                        TypeSymbol.Unit
-                    elif argTys1.Length = 1 then
-                        argTys1[0]
-                    else
-                        TypeSymbol.Tuple(argTys1, ImArray.empty)
-
-                UnifyTypes rigidity inputTy argTys2[0]
-
-            elif argTys1.Length = argTys2.Length then
-                ilCallConv1 = ilCallConv2 &&
-                (argTys1, argTys2)
-                ||> ImArray.forall2 (UnifyTypes rigidity)
-                &&
-                UnifyTypes rigidity returnTy1 returnTy2
-            else
-                false
+        | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
+            UnifyTypes rigidity inputTy1 inputTy2 &&
+            UnifyTypes rigidity returnTy1 returnTy2 &&
+            ilCallConv1 = ilCallConv2
 
         | TypeSymbol.Tuple(tyArgs1, _), TypeSymbol.Tuple(tyArgs2, _) ->
             // This handles the actual expansion of the variadic type, which is stored as a tuple type.

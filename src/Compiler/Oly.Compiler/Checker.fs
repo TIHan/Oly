@@ -204,13 +204,15 @@ let rec checkStructTypeCycle (ty: TypeSymbol) =
     | TypeSymbol.Tuple(tyArgs, _) ->
         tyArgs
         |> Seq.forall (fun ty -> checkStructTypeCycle ty)
-    | TypeSymbol.Function(argTys, returnTy) ->
-        seq { yield! argTys; yield returnTy }
-        |> Seq.forall (fun ty -> checkStructTypeCycle ty)
     | TypeSymbol.ForAll(_, innerTy) ->
         checkStructTypeCycle innerTy
     | _ ->
-        true
+        match ty.TryFunction with
+        | ValueSome(argTys, returnTy) ->
+            seq { yield! argTys; yield returnTy }
+            |> Seq.forall (fun ty -> checkStructTypeCycle ty)
+        | _ ->
+            true
 
 let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (ent: IEntitySymbol) =
     let result, _ = checkStructCycle ent
@@ -422,19 +424,18 @@ and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode
     checkAmbiguousFunctionsFromEntity env syntaxNode ent
 
 and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) (ty: TypeSymbol) =
-    match stripTypeEquations ty with
-    | TypeSymbol.Function(argTys, returnTy) 
-    | TypeSymbol.ForAll(_, TypeSymbol.Function(argTys, returnTy)) ->
-        let syntaxBody = body.Syntax
-        let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
+    if ty.IsError_t then ()
+    else
+        match ty.TryFunction with
+        | ValueSome(argTys, returnTy) ->
+            let syntaxBody = body.Syntax
+            let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
 
-        solveFunctionInput env syntaxBody argTys argTysWithSyntax
-        solveTypes env body.FirstReturnExpression.Syntax returnTy body.Type
+            solveFunctionInput env syntaxBody argTys argTysWithSyntax
+            solveTypes env body.FirstReturnExpression.Syntax returnTy body.Type
 
-    | TypeSymbol.Error _ ->
-        ()
-    | _ ->
-        failwith "Expected a function type."
+        | _ ->
+            OlyAssert.Fail("Expected a function type.")
 
 and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (syntax: OlySyntaxBinding) (binding: LocalBindingInfoSymbol) (rhsExpr: BoundExpression) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) =
     let benv = env.benv

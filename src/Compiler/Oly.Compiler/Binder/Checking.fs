@@ -564,15 +564,15 @@ let private lateCheckCalleeExpression cenv env expr =
         match argExpr with
         | LambdaWrappedFunctionCall(syntaxInfo, func) ->
             match func.Type.TryFunction with
-            | ValueSome(inputTy, outputTy) ->
+            | ValueSome(argTys, returnTy) ->
                 // TODO: This is weird, all because this is to satisfy __oly_load_function_ptr type arguments.
                 //       Perhaps we should just change __oly_load_function_ptr to simply have 1 type argument be the return type.
-                let inputTyWithoutInstance =
+                let argTysWithoutInstance =
                     if func.IsInstance then
-                        inputTy.RemoveAt(0)
+                        argTys.RemoveAt(0)
                     else
-                        inputTy
-                let expectedFuncTy = TypeSymbol.Function(inputTyWithoutInstance, outputTy)
+                        argTys
+                let expectedFuncTy = TypeSymbol.CreateFunction(argTysWithoutInstance, returnTy)
                 checkTypes
                     (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
                     syntaxInfo.Syntax 
@@ -585,7 +585,7 @@ let private lateCheckCalleeExpression cenv env expr =
                     else
                         Oly.Metadata.OlyILCallingConvention.Default
 
-                let expectedReturnTy = TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, outputTy)
+                let expectedReturnTy = TypeSymbol.CreateFunctionPtr(ilCallConv, argTys, returnTy)
                 checkTypes
                     (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
                     syntaxInfo.Syntax 
