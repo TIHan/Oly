@@ -435,7 +435,7 @@ type OlyCompilation private (state: CompilationState) =
     let lazySigPhase =
         CacheValue(fun ct -> CompilationPhases.signature state ct)
 
-    static let tryGetLocation (compRef: OlyCompilation ref) (identity: OlyILAssemblyIdentity, s: ISymbol, ct) =
+    static member private tryGetLocation (compRef: OlyCompilation ref) (identity: OlyILAssemblyIdentity, s: ISymbol, ct) =
         if compRef.contents.AssemblyIdentity = identity then
             compRef.contents.State.cunits.Values
             |> Seq.tryPick (fun cunit ->
@@ -525,7 +525,7 @@ type OlyCompilation private (state: CompilationState) =
         if alreadyHasSyntaxTree then
             let compRef = ref Unchecked.defaultof<_>
 
-            let tryGetLocation = tryGetLocation compRef
+            let tryGetLocation = OlyCompilation.tryGetLocation compRef
                   
             let cunits =
                 let asm = state.assembly
@@ -557,7 +557,7 @@ type OlyCompilation private (state: CompilationState) =
 
         let prevCUnits = state.cunits
 
-        let tryGetLocation = tryGetLocation compRef
+        let tryGetLocation = OlyCompilation.tryGetLocation compRef
               
         let cunits =
             let lazyInitialState = state.lazyInitialState

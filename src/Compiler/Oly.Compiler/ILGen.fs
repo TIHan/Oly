@@ -1307,7 +1307,15 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
 
     OlyILExpression.Try(ilBodyExpr, ilCatchCases, ilFinallyExprBodyOpt)
 
+#if DEBUG
 and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
+    DebugStackGuard.Do(fun () ->
+        GenExpressionAux cenv prevEnv expr
+    )
+and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
+#else
+and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
+#endif
     let possiblyReturnableEnv = prevEnv
     let env =
         if prevEnv.isReturnable then

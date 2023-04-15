@@ -1,5 +1,7 @@
 ﻿module Oly.Core.TaskExtensions
 
+open System
+open System.Threading
 open System.Threading.Tasks
 
 [<RequireQualifiedAccess>]
@@ -105,26 +107,3 @@ type Async with
             (fun _ -> ts.SetCanceled()),
             cancellationToken)
         task.Result
-
-// This is like a band-aid.
-[<Sealed>]
-type StackGuard(maxDepth: int) =
-
-    member val MaxDepth = maxDepth
-
-    member val Depth = 1 with get, set
-
-    member inline this.Guard([<InlineIfLambda>] f) =
-        this.Depth <- this.Depth + 1
-        if this.Depth % this.MaxDepth = 0 then
-            try
-                async { 
-                    do! Async.SwitchToNewThread()
-                    return f()
-                } |> Async.RunImmediate
-            finally
-                this.Depth <- this.Depth - 1
-        else
-            let result = f()
-            this.Depth <- this.Depth - 1
-            result

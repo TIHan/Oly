@@ -17,11 +17,7 @@ type InterpreterEnvironment() =
 
     let builder = StringBuilder()
 
-    let stackGuard = StackGuard(50)
-
     member _.StandardOut = builder
-
-    member _.StackGuard = stackGuard
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type InterpreterType =
@@ -1381,7 +1377,6 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
         and evalExpr (stack: Stack<obj>) (expr: InterpreterExpression) =
-            env.StackGuard.Guard <| fun () ->
             match expr with
             | InterpreterExpression.Try _ ->
                 raise(NotImplementedException("'Try' expression"))

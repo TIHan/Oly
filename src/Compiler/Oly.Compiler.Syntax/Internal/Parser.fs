@@ -2902,7 +2902,13 @@ let parseExpressionAux context state =
             parseNextAlignedExpression s context res state
 
 let parseExpression context state =
+#if DEBUG
+    DebugStackGuard.Do(fun () ->
+        noAlign (parseExpressionAux context) state
+    )
+#else
     noAlign (parseExpressionAux context) state
+#endif
 
 let tryParseUpdateRecordExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
     if isNextToken (function With -> true | _ -> false) state then

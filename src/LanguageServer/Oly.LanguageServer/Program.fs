@@ -321,7 +321,9 @@ type OlyClassificationKind with
     member this.ToLspCompletionItemKind() =
         match this with
         | OlyClassificationKind.Function
-        | OlyClassificationKind.StaticFunction ->
+        | OlyClassificationKind.StaticFunction
+        | OlyClassificationKind.AbstractFunction 
+        | OlyClassificationKind.StaticAbstractFunction ->
             CompletionItemKind.Function
         | OlyClassificationKind.Constructor
         | OlyClassificationKind.ConstructorStruct ->

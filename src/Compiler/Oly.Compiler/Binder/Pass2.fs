@@ -233,6 +233,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
         }
         |> ImArray.ofSeq
 
+    recordValueDeclaration cenv prop syntaxBindingDecl.Identifier
     BindingProperty(getterOrSetterBindings, prop)
 
 let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding =

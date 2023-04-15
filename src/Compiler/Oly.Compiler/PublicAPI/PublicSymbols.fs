@@ -1882,6 +1882,12 @@ type OlyBoundModel internal (
             match value.Formal with
             | :? Internal.CompilerImports.RetargetedFunctionSymbol as func ->
                 this.TryFindDefinition(func.Original, ct)
+            | :? Internal.CompilerImports.RetargetedPropertySymbol as prop ->
+                this.TryFindDefinition(prop.Original, ct)
+            | :? Internal.CompilerImports.RetargetedFieldSymbol as field ->
+                this.TryFindDefinition(field.Original, ct)
+            | :? Internal.CompilerImports.RetargetedPatternSymbol as pat ->
+                this.TryFindDefinition(pat.Original, ct)
             | value ->
                 this.TryFindDefinition(value, ct)
         | _ ->
