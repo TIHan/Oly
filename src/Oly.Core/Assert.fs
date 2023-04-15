@@ -1,5 +1,8 @@
 ﻿namespace Oly.Core
 
+open System
+open System.Diagnostics
+open System.Runtime.CompilerServices
 open System.Collections.Generic
 
 [<RequireQualifiedAccess>]
@@ -13,55 +16,67 @@ module Assert =
         if not value then
             failwith "Assertion failed."
 
-[<RequireQualifiedAccess>]
-module OlyAssert =
+[<Sealed>]
+type OlyAssertionException(msg: string) =
+    inherit Exception(msg)
 
-    let inline Equal<'T when 'T: equality> (expected: 'T, actual: 'T) =
-#if DEBUG
+[<RequireQualifiedAccess;AbstractClass;Sealed>]
+type OlyAssert =
+
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member Equal<'T when 'T: equality> (expected: 'T, actual: 'T) =
         if expected <> actual then
-            failwith $"Assertion failed. Expected '{expected}', but was '{actual}'."
-#else
-        ()
-#endif
+            OlyAssertionException $"Assertion failed. Expected '{expected}', but was '{actual}'."
+            |> raise
 
-    let inline Contains<'T> (src: HashSet<'T>, expected: 'T) =
-#if DEBUG
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member Contains<'T> (src: HashSet<'T>, expected: 'T) =
         if not(src.Contains(expected)) then
-            failwith "Assertion failed."
-#else
-        ()
-#endif
+            OlyAssertionException "Assertion failed."
+            |> raise
 
-    let inline NotContains<'T> (src: HashSet<'T>, expected: 'T) =
-#if DEBUG
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member NotContains<'T> (src: HashSet<'T>, expected: 'T) =
         if src.Contains(expected) then
-            failwith "Assertion failed."
-#else
-        ()
-#endif
+            OlyAssertionException "Assertion failed."
+            |> raise
 
-    let inline ContainsKey<'TKey, 'TValue> (src: IDictionary<'TKey, 'TValue>, expectedKey: 'TKey) =
-#if DEBUG
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member ContainsKey<'TKey, 'TValue> (src: IDictionary<'TKey, 'TValue>, expectedKey: 'TKey) =
         if not(src.ContainsKey(expectedKey)) then
-            failwith "Assertion failed."
-#else
-        ()
-#endif
+            OlyAssertionException "Assertion failed."
+            |> raise
 
-    let inline Fail(msg: string) =
-        failwith msg
+    [<DebuggerHidden>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member Fail(msg: string) =
+        OlyAssertionException msg
+        |> raise
 
-    let inline True(actual: bool) =
-        Equal(true, actual)
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member True(actual: bool) =
+        OlyAssert.Equal(true, actual)
 
-    let inline False(actual: bool) =
-        Equal(false, actual)
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member False(actual: bool) =
+        OlyAssert.Equal(false, actual)
 
-    let inline NotNull(o: obj) =
-#if DEBUG
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member NotNull(o: obj) =
         match o with
-        | null -> failwith "Assertion failed. Object is null."
+        | null -> OlyAssertionException "Assertion failed. Object is null." |> raise
         | _ -> ()
-#else
-        ()
-#endif
