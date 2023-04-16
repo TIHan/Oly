@@ -7172,6 +7172,43 @@ main(): () =
     src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
 
 [<Fact>]
+let ``Should get right signature for type extension member``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+extension Int32Extensions =
+    inherits int32
+
+    static Test(): () = ()
+
+main(): () =
+    ~^~int32.Test()
+        """
+    src |> hasSymbolSignatureTextByCursor "int32"
+
+[<Fact>]
+let ``Should get right signature for type extension member 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+extension Int32Extensions =
+    inherits int32
+
+    Test(): () = ()
+
+main(): () =
+    let x = 1: int32
+    ~^~x.Test()
+        """
+    src |> hasSymbolSignatureTextByCursor "x: int32"
+
+[<Fact>]
 let ``This should error with constraints and inference``() =
     let src =
         """
