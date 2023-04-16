@@ -1420,7 +1420,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                 | BoundExpression.Lambda(body=lazyBodyExpr) when not lazyBodyExpr.HasExpression -> lazyBodyExpr.Run()
                 | _ -> ()
 
-                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, syntaxInfo.TryType)
+                let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
                 BoundExpression.SetValue(syntaxInfo, value, rhs)
 
             | BoundExpression.GetField(syntaxInfo, receiver, field) ->
@@ -1430,7 +1430,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                     else
                         receiver
 
-                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, None)
+                let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
                 BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhs)
 
             | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop) ->
@@ -1442,7 +1442,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                     else
                         receiverOpt
 
-                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, None)
+                let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
                 BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhs)
 
             // Undo the automatic dereference when we are trying to set the value of the by-ref.

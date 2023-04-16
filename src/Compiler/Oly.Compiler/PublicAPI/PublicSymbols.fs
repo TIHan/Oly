@@ -1504,7 +1504,7 @@ type OlyBoundModel internal (
             | BoundExpression.SetProperty(syntaxInfo, _, prop, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop None
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop syntaxInfo.TryType
                 | _ ->
                     ()
 

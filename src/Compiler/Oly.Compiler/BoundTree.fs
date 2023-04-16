@@ -220,6 +220,15 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             this.Syntax.GetText(CancellationToken.None).ToString()
 
+    member this.ReplaceIfPossible(syntaxNode: OlySyntaxNode) =
+        match this with
+        | InternalUser(_, benv) ->
+            InternalUser(syntaxNode, benv)
+        | InternalUserWithName(_, benv, syntaxName, tyOpt) ->
+            InternalUserWithName(syntaxNode, benv, syntaxName, tyOpt)
+        | _ ->
+            this          
+
     static member Generated(syntaxTree: OlySyntaxTree) =
         InternalGenerated(syntaxTree)
 
