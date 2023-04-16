@@ -243,7 +243,7 @@ let substitute
                         let appliedValue = value.Formal.Substitute(allTyArgs)
                         BoundExpression.Value(syntaxInfo, appliedValue)
 
-                | BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, value, rhsExpr) ->
+                | BoundExpression.SetValue(syntaxInfo, value, rhsExpr) ->
                     match valueLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
 
@@ -270,7 +270,7 @@ let substitute
                                 rhsExpr
                             )
                         else
-                            BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, appliedNewValue, rhsExpr)
+                            BoundExpression.SetValue(syntaxInfo, appliedNewValue, rhsExpr)
                     | _ ->
                         let allTyArgs =
                             (value.AllTypeParameters, value.AllTypeArguments) 
@@ -279,7 +279,7 @@ let substitute
                             )
 
                         let appliedValue = value.Formal.Substitute(allTyArgs)
-                        BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, appliedValue, rhsExpr)
+                        BoundExpression.SetValue(syntaxInfo, appliedValue, rhsExpr)
 
                 | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                     let subbedWitnessArgs = 

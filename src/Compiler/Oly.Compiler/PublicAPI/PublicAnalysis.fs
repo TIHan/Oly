@@ -420,20 +420,16 @@ module Patterns =
 
     let (|SetValue|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.SetValue(syntaxInfo, syntaxNameOpt, value, rhsExpr), boundModel, ct) ->
+        | Expression(BoundExpression.SetValue(syntaxInfo, value, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
-            let syntaxNode, benv =
-                match syntaxInfo.TrySyntaxAndEnvironment with
-                | Some(syntaxNode, benv) ->
-                    syntaxNode, benv
+            let benv =
+                match syntaxInfo.TryEnvironment with
+                | Some(benv) ->
+                    benv
                 | _ ->
                     failwith "Should have user syntax."
 
-            let syntax =
-                match syntaxNameOpt with
-                | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> syntaxNode
-            let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, value)
+            let valueSymbol = OlyValueSymbol(boundModel, benv, syntaxInfo.SyntaxNameOrDefault, value)
             Some(valueSymbol, convert boundModel rhsExpr ct)
         | _ ->
             None

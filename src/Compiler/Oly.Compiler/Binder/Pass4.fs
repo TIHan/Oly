@@ -1413,13 +1413,15 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
     let expr =
         let rec setExpr lhs =
             match lhs with
-            | BoundExpression.Value(_, value) when not value.IsFunction ->
+            | BoundExpression.Value(syntaxInfo, value) when not value.IsFunction ->
                 // REVIEW: We need force the lambda body expression evaluation.
                 //         Could we make this better?
                 match rhs with
                 | BoundExpression.Lambda(body=lazyBodyExpr) when not lazyBodyExpr.HasExpression -> lazyBodyExpr.Run()
                 | _ -> ()
-                BoundExpression.SetValue(BoundSyntaxInfo.User(syntaxToCapture, env.benv), lhs.Syntax.TryName, value, rhs)
+
+                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, syntaxInfo.TryType)
+                BoundExpression.SetValue(syntaxInfo, value, rhs)
 
             | BoundExpression.GetField(syntaxInfo, receiver, field) ->
                 let receiverExpr =

@@ -1493,10 +1493,10 @@ type OlyBoundModel internal (
                 | _ ->
                     ()
 
-            | BoundExpression.SetValue(syntaxInfo, syntaxValueNameOpt, value, _) ->
-                match syntaxInfo.TryEnvironment, syntaxValueNameOpt with
-                | Some benv, Some syntaxValueName ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxValueName.LastIdentifier value
+            | BoundExpression.SetValue(syntaxInfo, value, _) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
                 | _ ->
                     ()
 

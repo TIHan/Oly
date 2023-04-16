@@ -261,7 +261,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         isVirtualCall: bool
 
     | Value of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol
-    | SetValue of syntaxInfo: BoundSyntaxInfo * syntaxValueNameOpt: OlySyntaxName option * value: IValueSymbol * rhs: BoundExpression
+    | SetValue of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol * rhs: BoundExpression
     | SetContentsOfAddress of syntaxInfo: BoundSyntaxInfo * lhs: BoundExpression * rhs: BoundExpression
     | Literal of syntaxInfo: BoundSyntaxInfo * BoundLiteral
     | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntitySymbol
@@ -625,7 +625,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     static member CreateSetValue(value: IValueSymbol, rhsExpr: BoundExpression) =
         if not value.IsMutable then
             failwith "Value must be mutable."
-        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree), option.None, value, rhsExpr)
+        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree), value, rhsExpr)
 
     member this.ToDebugString() =
         let text = this.Syntax.GetText(CancellationToken.None).ToString()

@@ -100,18 +100,10 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
         | _ ->
             origExpr
 
-    | E.SetValue(syntaxInfo, syntaxNameOpt, value, rhsExpr) ->
+    | E.SetValue(syntaxInfo, value, rhsExpr) ->
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
-            let syntaxInfoValue =
-                match syntaxInfo.TryEnvironment with
-                | Some benv ->
-                    match syntaxNameOpt with
-                    | Some syntaxName -> BoundSyntaxInfo.User(syntaxName, benv)
-                    | _ -> syntaxInfo
-                | _ ->
-                    BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)
-            StoreRefCellContents (E.Value(syntaxInfoValue, newValue)) rhsExpr
+            StoreRefCellContents (E.Value(syntaxInfo, newValue)) rhsExpr
         | _ ->
             origExpr
 

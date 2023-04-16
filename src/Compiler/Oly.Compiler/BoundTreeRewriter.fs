@@ -198,13 +198,13 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 else
                     BoundExpression.NewArray(syntax, benv, newElements, resultTy)
 
-            | BoundExpression.SetValue(syntaxInfo, syntaxValueNameOpt, value, rhs) ->
+            | BoundExpression.SetValue(syntaxInfo, value, rhs) ->
                 let newRhs = this.Rewrite(rhs)
 
                 if newRhs = rhs then
                     expr
                 else
-                    BoundExpression.SetValue(syntaxInfo, syntaxValueNameOpt, value, newRhs)
+                    BoundExpression.SetValue(syntaxInfo, value, newRhs)
 
             | BoundExpression.SetContentsOfAddress(syntaxInfo, lhsExpr, rhsExpr) ->
                 let newLhsExpr = this.Rewrite(lhsExpr)

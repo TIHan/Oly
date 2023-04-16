@@ -108,7 +108,6 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                             else
                                                 E.SetValue(
                                                     syntaxInfo,
-                                                    None,
                                                     backingField,
                                                     E.CreateValue(
                                                         syntaxInfo.Syntax.Tree,
@@ -497,7 +496,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                 match fieldBinding with
                                 | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when not field.IsInstance ->
                                     E.CreateSequential(
-                                        E.SetValue(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), None, field, rhsExpr),
+                                        E.SetValue(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), field, rhsExpr),
                                         expr
                                     )
                                 | _ ->
