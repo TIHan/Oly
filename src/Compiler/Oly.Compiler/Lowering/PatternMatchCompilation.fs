@@ -21,11 +21,11 @@ let getFreeLocalsFromCasePattern (localLookup: Dictionary<int64, ILocalSymbol>) 
     | BoundCasePattern.Discard _
     | BoundCasePattern.Literal _
     | BoundCasePattern.FieldConstant _ -> ()
-    | BoundCasePattern.Function(_, _, _, _, casePatArgs)
+    | BoundCasePattern.Function(_, _, _, casePatArgs)
     | BoundCasePattern.Tuple(_, casePatArgs) ->
         casePatArgs
         |> ImArray.iter (getFreeLocalsFromCasePattern localLookup)
-    | BoundCasePattern.Local(_, _, local) ->
+    | BoundCasePattern.Local(_, local) ->
         localLookup[local.Id] <- local
 
 let getFreeLocalsFromMatchPattern (matchPattern: BoundMatchPattern) =
@@ -338,26 +338,38 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
     | BoundCasePattern.Discard _ ->
         createInfo None trueLiteralExpr (Ignore matchValueExpr)
 
-    | BoundCasePattern.Literal(syntax, benv, literal) ->        
-        createLiteralInfo cenv syntax benv matchValueExpr literal
+    | BoundCasePattern.Literal(syntaxInfo, literal) ->      
+        match syntaxInfo.TrySyntaxAndEnvironment with
+        | Some(syntax, benv) ->
+            createLiteralInfo cenv syntax benv matchValueExpr literal
+        | _ ->
+            OlyAssert.Fail("Expected user syntax.")
 
-    | BoundCasePattern.FieldConstant(syntax, benv, field) ->
-        let literal = field.Constant.Value.ToLiteral()
-        createLiteralInfo cenv syntax benv matchValueExpr literal
+    | BoundCasePattern.FieldConstant(syntaxInfo, field) ->
+        match syntaxInfo.TrySyntaxAndEnvironment with
+        | Some(syntax, benv) ->
+            let literal = field.Constant.Value.ToLiteral()
+            createLiteralInfo cenv syntax benv matchValueExpr literal
+        | _ ->
+            OlyAssert.Fail("Expected user syntax.")
 
-    | BoundCasePattern.Local(syntax, benv, value) ->
-        let newValue = createLocalValue value.Name value.Type
-        valueLookup.[matchPatternIndex].Add(newValue, value)
+    | BoundCasePattern.Local(syntaxInfo, value) ->
+        match syntaxInfo.TrySyntaxAndEnvironment with
+        | Some(syntax, benv) ->
+            let newValue = createLocalValue value.Name value.Type
+            valueLookup.[matchPatternIndex].Add(newValue, value)
 
-        let postExpr =
-            E.Let(
-                BoundSyntaxInfo.User(syntax, benv),
-                BindingLocal(newValue),
-                matchValueExpr,
-                cenv.NoneExpression
-            )
+            let postExpr =
+                E.Let(
+                    BoundSyntaxInfo.User(syntax, benv),
+                    BindingLocal(newValue),
+                    matchValueExpr,
+                    cenv.NoneExpression
+                )
 
-        createInfo None trueLiteralExpr postExpr
+            createInfo None trueLiteralExpr postExpr
+        | _ ->
+            OlyAssert.Fail("Expected user syntax.")
 
     | BoundCasePattern.Tuple(_, casePatArgs) ->
         let tmpValue = createLocalValue "tmp" matchValueExpr.Type
@@ -380,7 +392,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
         createInfo (Some matchValueLetExpr) info.Condition info.Post
 
-    | BoundCasePattern.Function(syntax, benv, pat, witnessArgs, casePatArgs) ->
+    | BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, casePatArgs) ->
         let patFunc = pat.PatternFunction
 
         match pat.PatternGuardFunction with
@@ -401,7 +413,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             let callGuardExpr =
                 createCallExpression
-                    (BoundSyntaxInfo.User(syntax, benv))
+                    syntaxInfo
                     patGuardFunc
                     witnessArgs
                     (ImArray.createOne matchValueExpr)
@@ -493,7 +505,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
         | _ ->
             let callExpr =
                 createCallExpression
-                    (BoundSyntaxInfo.User(syntax, benv))
+                    syntaxInfo
                     patFunc
                     witnessArgs
                     (ImArray.createOne matchValueExpr)
@@ -1077,8 +1089,8 @@ let tryCombineCasePattern (casePat1: BoundCasePattern) (casePat2: BoundCasePatte
     match casePat1, casePat2 with
     | BoundCasePattern.Discard _, _ ->
         Some(casePat1)
-    | BoundCasePattern.Literal(_, _, literal1),
-      BoundCasePattern.Literal(_, _, literal2) ->
+    | BoundCasePattern.Literal(_, literal1),
+      BoundCasePattern.Literal(_, literal2) ->
         if areLiteralsEqual literal1 literal2 then
             Some(casePat1)
         else
@@ -1097,8 +1109,8 @@ let tryCombineCasePattern (casePat1: BoundCasePattern) (casePat2: BoundCasePatte
         else
             None
 
-    | BoundCasePattern.Function(_, _, pat1, witnessArgs1, casePats1),
-      BoundCasePattern.Function(_, _, pat2, witnessArgs2, casePats2) 
+    | BoundCasePattern.Function(_, pat1, witnessArgs1, casePats1),
+      BoundCasePattern.Function(_, pat2, witnessArgs2, casePats2) 
             when pat1.PatternFunction.IsPure && 
                  areLogicalFunctionSignaturesEqual pat1.PatternFunction pat2.PatternFunction && 
                  witnessArgs1.Length = witnessArgs2.Length &&

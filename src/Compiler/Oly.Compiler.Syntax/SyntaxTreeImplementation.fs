@@ -480,6 +480,13 @@ module OlySyntaxTreeExtensions =
                 | OlySyntaxExpression.Name(name) -> Some name
                 | OlySyntaxExpression.Call(expr, _) -> expr.TryName
                 | _ -> None
+            | :? OlySyntaxPattern as pat ->
+                match pat with
+                | OlySyntaxPattern.Name(name)
+                | OlySyntaxPattern.Function(name, _, _, _) ->
+                    Some name
+                | _ ->
+                    None
             | _ ->
                 None
 

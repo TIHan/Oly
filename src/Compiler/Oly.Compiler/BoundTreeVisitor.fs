@@ -39,7 +39,7 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
         if result then
             match pattern with
             | BoundCasePattern.Tuple(_, patArgs)
-            | BoundCasePattern.Function(_, _, _, _, patArgs) ->
+            | BoundCasePattern.Function(_, _, _, patArgs) ->
                 patArgs
                 |> ImArray.iter (fun x -> this.VisitPattern x |> ignore)
             | _ ->

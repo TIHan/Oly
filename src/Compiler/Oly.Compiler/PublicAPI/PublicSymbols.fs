@@ -1664,29 +1664,31 @@ type OlyBoundModel internal (
                     
         | :? BoundCasePattern as pattern ->
             match pattern with
-            | BoundCasePattern.FieldConstant(syntaxPattern, benv, field) ->
-                match syntaxPattern with
-                | OlySyntaxPattern.Name(syntaxName)
-                | OlySyntaxPattern.Function(syntaxName, _, _, _) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName field None
+            | BoundCasePattern.FieldConstant(syntaxInfo, field) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName field syntaxInfo.TryType
                 | _ ->
                     ()
 
-            | BoundCasePattern.Literal(syntaxPattern, benv, literal) ->
-                getSymbolsByLiteral addSymbol benv predicate syntaxPattern literal
+            | BoundCasePattern.Literal(syntaxInfo, literal) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
+                    getSymbolsByLiteral addSymbol benv predicate syntaxNode literal
+                | _ ->
+                    ()
                 
-            | BoundCasePattern.Local(syntaxPattern, benv, value) ->
-                match syntaxPattern with
-                | OlySyntaxPattern.Name(syntaxName) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value None
+            | BoundCasePattern.Local(syntaxInfo, value) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
                 | _ ->
                     ()
 
-            | BoundCasePattern.Function(syntaxPattern, benv, pat, _, _) ->
-                match syntaxPattern with
-                | OlySyntaxPattern.Name(syntaxName)
-                | OlySyntaxPattern.Function(syntaxName, _, _, _) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName pat.PatternFunction None
+            | BoundCasePattern.Function(syntaxInfo, pat, _, _) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
+                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName pat.PatternFunction syntaxInfo.TryType
                 | _ ->
                     ()
 

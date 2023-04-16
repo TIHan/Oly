@@ -533,8 +533,12 @@ module Patterns =
         | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             match casePat with
-            | BoundCasePattern.Literal(syntaxNode, benv, literal) ->
-                Some(OlyConstantSymbol(boundModel, benv, syntaxNode, literal))
+            | BoundCasePattern.Literal(syntaxInfo, literal) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
+                    Some(OlyConstantSymbol(boundModel, benv, syntaxNode, literal))
+                | _ ->
+                    OlyAssert.Fail("Expected user syntax.")
             | _ ->
                 None
 
@@ -543,8 +547,12 @@ module Patterns =
         | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             match casePat with
-            | BoundCasePattern.Local(syntaxNode, benv, local) ->
-                Some(OlyValueSymbol(boundModel, benv, syntaxNode, local))
+            | BoundCasePattern.Local(syntaxInfo, local) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
+                    Some(OlyValueSymbol(boundModel, benv, syntaxNode, local))
+                | _ ->
+                    OlyAssert.Fail("Expected user syntax.")
             | _ ->
                 None
 
@@ -553,8 +561,12 @@ module Patterns =
         | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             match casePat with
-            | BoundCasePattern.FieldConstant(syntaxNode, benv, field) ->
-                Some(OlyValueSymbol(boundModel, benv, syntaxNode, field))
+            | BoundCasePattern.FieldConstant(syntaxInfo, field) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
+                    Some(OlyValueSymbol(boundModel, benv, syntaxNode, field))
+                | _ ->
+                    OlyAssert.Fail("Expected user syntax.")
             | _ ->
                 None
 
@@ -563,8 +575,12 @@ module Patterns =
         | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             match casePat with
-            | BoundCasePattern.Function(syntaxNode, benv, pat, _, casePatArgs) ->
-                Some(OlyValueSymbol(boundModel, benv, syntaxNode, pat), casePatArgs |> ImArray.map (fun x -> OlyAnalysisPattern.Pattern(x, boundModel, ct)))
+            | BoundCasePattern.Function(syntaxInfo, pat, _, casePatArgs) ->
+                match syntaxInfo.TrySyntaxAndEnvironment with
+                | Some(syntaxNode, benv) ->
+                    Some(OlyValueSymbol(boundModel, benv, syntaxNode, pat), casePatArgs |> ImArray.map (fun x -> OlyAnalysisPattern.Pattern(x, boundModel, ct)))
+                | _ ->
+                    OlyAssert.Fail("Expected user syntax.")
             | _ ->
                 None
 
@@ -573,7 +589,7 @@ module Patterns =
         | OlyAnalysisPattern.Pattern(casePat, boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             match casePat with
-            | BoundCasePattern.Tuple(syntaxNode, casePatArgs) ->
+            | BoundCasePattern.Tuple(_, casePatArgs) ->
                 Some(casePatArgs |> ImArray.map (fun x -> OlyAnalysisPattern.Pattern(x, boundModel, ct)))
             | _ ->
                 None

@@ -64,13 +64,14 @@ let bindNameAsCasePattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solv
         resItem  
 
 let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isFirstPatternSet (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) (patternLocals: HashSet<string>) (matchTy: TypeSymbol) (syntaxPattern: OlySyntaxPattern) =
+    let syntaxInfo = BoundSyntaxInfo.User(syntaxPattern, env.benv)
     match syntaxPattern with
     | OlySyntaxPattern.Discard _ ->
-        env, BoundCasePattern.Discard(syntaxPattern)
+        env, BoundCasePattern.Discard(syntaxInfo)
     
     | OlySyntaxPattern.Literal(syntaxLiteral) ->
         let literal = bindLiteral cenv env (Some matchTy) syntaxLiteral
-        env, BoundCasePattern.Literal(syntaxPattern, env.benv, literal)
+        env, BoundCasePattern.Literal(syntaxInfo, literal)
 
     | OlySyntaxPattern.Name(syntaxName) ->
         let syntaxIdentOpt =
@@ -105,18 +106,18 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
                         else
                             cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has not been declared in the first pattern set.", 10, syntaxIdent)
                             env, invalidLocal()
-            env, BoundCasePattern.Local(syntaxPattern, env.benv, local)
+            env, BoundCasePattern.Local(syntaxInfo, local)
         | _ ->
-            bindNameAsCasePattern cenv env solverEnv false syntaxPattern isFirstPatternSet clauseLocals patternLocals matchTy ImArray.empty syntaxName 
+            bindNameAsCasePattern cenv env solverEnv false syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy ImArray.empty syntaxName 
 
     | OlySyntaxPattern.Function(syntaxName, _, syntaxPatList, _) ->
-        bindNameAsCasePattern cenv env solverEnv true syntaxPattern isFirstPatternSet clauseLocals patternLocals matchTy syntaxPatList.ChildrenOfType syntaxName 
+        bindNameAsCasePattern cenv env solverEnv true syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy syntaxPatList.ChildrenOfType syntaxName 
 
     | OlySyntaxPattern.Parenthesis(_, syntaxPatList, _) ->
         // Unit
         if syntaxPatList.ChildrenOfType.IsEmpty then
             checkTypes solverEnv syntaxPattern TypeSymbol.Unit matchTy
-            env, BoundCasePattern.Discard(syntaxPattern)
+            env, BoundCasePattern.Discard(syntaxInfo)
 
         // Pattern in parenthesis
         elif syntaxPatList.ChildrenOfType.Length = 1 then
@@ -143,14 +144,14 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
 
             let tupleTy = TypeSymbol.CreateTuple(elementTys)
             checkTypes solverEnv syntaxPattern tupleTy matchTy
-            env, BoundCasePattern.Tuple(syntaxPattern, casePats)
+            env, BoundCasePattern.Tuple(syntaxInfo, casePats)
 
     | OlySyntaxPattern.Error _ ->
         checkTypes solverEnv syntaxPattern TypeSymbolError matchTy
-        env, BoundCasePattern.Discard(syntaxPattern)
+        env, BoundCasePattern.Discard(syntaxInfo)
 
     | _ ->
-        failwith "New pattern matching syntax not handled."
+        OlyAssert.Fail("New pattern matching syntax not handled.")
 
 let private bindPatternByResolutionItem 
         (cenv: cenv) 
@@ -161,13 +162,13 @@ let private bindPatternByResolutionItem
         isFirstPatternSet 
         (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) 
         (patternLocals: HashSet<string>) 
-        (syntaxPattern: OlySyntaxPattern) 
+        (syntaxInfo: BoundSyntaxInfo)
         (matchTy: TypeSymbol)
         (syntaxName, syntaxPatArgs, expectedPatArgTys: _ imarray)
         resItem =
     match resItem with
     | ResolutionItem.Error _ ->         
-        env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal())
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
     | ResolutionItem.Pattern(_, pat, witnessArgs) ->
         let func = pat.PatternFunction
         let returnTys = 
@@ -177,8 +178,8 @@ let private bindPatternByResolutionItem
             | TypeSymbol.Unit -> ImArray.empty
             | _ -> ImArray.createOne returnTy
         if expectedPatArgTys.Length <> returnTys.Length then
-            cenv.diagnostics.Error($"Pattern '{func.Name}' expected '{returnTys.Length}' argument(s), but given '{expectedPatArgTys.Length}'.", 10, syntaxPattern)
-            env, BoundCasePattern.Function(syntaxPattern, env.benv, pat, ImArray.empty, ImArray.empty)
+            cenv.diagnostics.Error($"Pattern '{func.Name}' expected '{returnTys.Length}' argument(s), but given '{expectedPatArgTys.Length}'.", 10, syntaxInfo.Syntax)
+            env, BoundCasePattern.Function(syntaxInfo, pat, ImArray.empty, ImArray.empty)
         else
 
             (syntaxPatArgs, expectedPatArgTys, returnTys)
@@ -192,25 +193,23 @@ let private bindPatternByResolutionItem
                     bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals patArgTy syntaxPatArg
                 )
 
-            env, BoundCasePattern.Function(syntaxPattern, env.benv, pat, witnessArgs, casePatArgs)
-    | ResolutionItem.Expression(BoundExpression.Value(value=(:? IFunctionSymbol as func))) ->
+            env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, casePatArgs)
+    | ResolutionItem.Expression(E.Value(value=(:? IFunctionSymbol as func))) ->
         // We do not show the error for a function group because it means we already have ambiguous functions.
         if not func.IsFunctionGroup then
             cenv.diagnostics.Error($"'{func.Name}' is not a pattern.", 10, syntaxName)
 
         // TODO: We should return BoundCasePattern.Function, but we do not have a pattern at this point.
-        env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal())
-    | ResolutionItem.Expression(BoundExpression.Call(syntaxInfo, _, _, _, value, _) as callExpr) ->
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
+    | ResolutionItem.Expression(E.Call(syntaxInfoFromCall, _, _, _, value, _) as callExpr) ->
+        let syntaxInfo =
+            BoundSyntaxInfo.User(syntaxInfo.Syntax, env.benv, syntaxInfoFromCall.TrySyntaxName, syntaxInfoFromCall.TryType)
         // Pattern overloading specific
         let callExpr =
             match value with
             | :? FunctionGroupSymbol as funcGroup ->
                 let argExprs =
-                    let syntaxInfo =
-                        match syntaxInfo.TrySyntaxName with
-                        | Some syntaxName -> BoundSyntaxInfo.User(syntaxName, env.benv)
-                        | _ -> syntaxInfo
-                    BoundExpression.CreateValue(syntaxInfo, createLocalGeneratedValue "tmp" matchTy)
+                    E.CreateValue(syntaxInfo, createLocalGeneratedValue "tmp" matchTy)
                     |> ImArray.createOne
                 let funcs =
                     funcGroup.Functions
@@ -234,7 +233,7 @@ let private bindPatternByResolutionItem
                     bindValueAsCallExpressionWithOptionalSyntaxName
                         cenv
                         env
-                        (BoundSyntaxInfo.User(syntaxPattern, env.benv))
+                        syntaxInfo
                         None
                         argExprs
                         (value, syntaxInfo.TrySyntaxName)
@@ -253,7 +252,7 @@ let private bindPatternByResolutionItem
                     match value with
                     | :? IFunctionSymbol as func ->
                         if func.ReturnType.IsUnit_t then
-                            cenv.diagnostics.Error($"'{func.Name}' returns '()' which requires not to be explicit with '()'.", 10, syntaxPattern)
+                            cenv.diagnostics.Error($"'{func.Name}' returns '()' which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
                     | _ ->
                         ()
 
@@ -267,29 +266,29 @@ let private bindPatternByResolutionItem
                     isFirstPatternSet
                     clauseLocals
                     patternLocals
-                    syntaxPattern
+                    syntaxInfo
                     matchTy
                     (syntaxName, syntaxPatArgs, expectedPatArgTys)
-                    (ResolutionItem.Pattern(syntaxPattern, pat2, witnessArgs))
+                    (ResolutionItem.Pattern(syntaxInfo.Syntax, pat2, witnessArgs))
             elif func.IsFunctionGroup then
                 // Ambiguous overloads, reported in PostInferenceAnalysis.
                 let pat = PatternSymbol(func.Enclosing, ImArray.empty, func.Name, func)
-                env, BoundCasePattern.Function(syntaxPattern, env.benv, pat, witnessArgs, ImArray.empty)
+                env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, ImArray.empty)
             else
                 cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-                env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal()) 
+                env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
         | _ ->
             cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-            env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal())
+            env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
             
-    | ResolutionItem.Expression(BoundExpression.Value(value=value)) when value.IsFieldConstant ->
+    | ResolutionItem.Expression(E.Value(value=value)) when value.IsFieldConstant ->
         let field = value :?> IFieldSymbol
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxPattern matchTy field.Type
-        env, BoundCasePattern.FieldConstant(syntaxPattern, env.benv, field)
+        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxInfo.Syntax matchTy field.Type
+        env, BoundCasePattern.FieldConstant(syntaxInfo, field)
 
     | _ ->
         cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-        env, BoundCasePattern.Local(syntaxPattern, env.benv, invalidLocal()) 
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
 
 // TODO: We should not be using EntitySymbolBuilder.
 //       The reason is because it is mutable and we do not want to do mutable things in this pass.
@@ -1005,7 +1004,7 @@ let private bindMatchPattern (cenv: cenv) (env: BinderEnvironment) solverEnv isF
         env, BoundMatchPattern.Or(syntaxMatchPattern, lhsMatchPattern, rhsMatchPattern)
 
     | OlySyntaxMatchPattern.Discard(syntaxToken) ->
-        let patterns = ImArray.init matchTys.Length (fun _ -> BoundCasePattern.Discard syntaxToken)
+        let patterns = ImArray.init matchTys.Length (fun _ -> BoundCasePattern.Discard(BoundSyntaxInfo.User(syntaxToken, env.benv)))
         env, BoundMatchPattern.Cases(syntaxMatchPattern, patterns)
 
     | OlySyntaxMatchPattern.Error _ ->

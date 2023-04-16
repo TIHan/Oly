@@ -324,15 +324,15 @@ module private Helpers =
         let rec handlePattern (pat: BoundCasePattern) =
             match pat with
             | BoundCasePattern.Discard _ -> ()
-            | BoundCasePattern.Literal(_, _, literal) -> handleLiteral literal
+            | BoundCasePattern.Literal(_, literal) -> handleLiteral literal
             | BoundCasePattern.Tuple(_, pats) ->
                 pats |> ImArray.iter handlePattern
-            | BoundCasePattern.Local(_, _, value) ->
+            | BoundCasePattern.Local(_, value) ->
                 implType value.Type
-            | BoundCasePattern.Function(_, _, func, _, pats) ->
+            | BoundCasePattern.Function(_, func, _, pats) ->
                 implType func.Type
                 pats |> ImArray.iter handlePattern
-            | BoundCasePattern.FieldConstant(_, _, field) ->
+            | BoundCasePattern.FieldConstant(_, field) ->
                 implType field.Type
 
         let rec handleMatchPattern (matchPat: BoundMatchPattern) =

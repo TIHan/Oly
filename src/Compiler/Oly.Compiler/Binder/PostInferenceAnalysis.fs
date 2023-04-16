@@ -355,11 +355,13 @@ and analyzeBinding acenv aenv (binding: BoundBinding) =
     analyzeBindingInfo acenv aenv binding.SyntaxInfo.Syntax binding.TryExpression binding.Info.Value
 
 and analyzePattern acenv aenv (pat: BoundCasePattern) =
+    let syntaxNode = pat.Syntax
+
     match pat with
-    | BoundCasePattern.Function(syntaxPat, _, pat, witnessArgs, pats) ->
-        checkValue acenv aenv syntaxPat pat
+    | BoundCasePattern.Function(_,  pat, witnessArgs, pats) ->
+        checkValue acenv aenv syntaxNode pat
         witnessArgs
-        |> ImArray.iter (checkWitnessSolution acenv aenv syntaxPat)
+        |> ImArray.iter (checkWitnessSolution acenv aenv syntaxNode)
         pats
         |> ImArray.iter (analyzePattern acenv aenv)
 
@@ -367,14 +369,14 @@ and analyzePattern acenv aenv (pat: BoundCasePattern) =
         pats
         |> ImArray.iter (analyzePattern acenv aenv)
 
-    | BoundCasePattern.Local(syntaxPat, _, value) ->
-        checkValue acenv aenv syntaxPat value
+    | BoundCasePattern.Local(_, value) ->
+        checkValue acenv aenv syntaxNode value
 
-    | BoundCasePattern.FieldConstant(syntaxPat, _, field) ->
-        checkValue acenv aenv syntaxPat field
+    | BoundCasePattern.FieldConstant(_, field) ->
+        checkValue acenv aenv syntaxNode field
 
-    | BoundCasePattern.Literal(syntaxPat, _, literal) ->
-        analyzeLiteral acenv aenv syntaxPat literal
+    | BoundCasePattern.Literal(_, literal) ->
+        analyzeLiteral acenv aenv syntaxNode literal
 
     | BoundCasePattern.Discard _ ->
         ()

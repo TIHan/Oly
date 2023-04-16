@@ -236,7 +236,7 @@ test(x: Option<__oly_int32>): () =
         [
             ("Expected type 'Option<__oly_utf16>' but is 'Option<__oly_int32>'.", """
     | Some<__oly_utf16>(_) => ()
-      ^^^^^^^^^^^^^^^^^
+      ^^^^^^^^^^^^^^^^^^^^
 """)
         ]
     |> ignore

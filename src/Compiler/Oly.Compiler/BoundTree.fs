@@ -220,6 +220,9 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         else
             this.Syntax.GetText(CancellationToken.None).ToString()
 
+    override this.ToString() =
+        this.ToDebugString()
+
     member this.ReplaceIfPossible(syntaxNode: OlySyntaxNode) =
         match this with
         | InternalUser(_, benv) ->
@@ -667,21 +670,21 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundCasePattern =
-    | Literal of OlySyntaxPattern * BoundEnvironment * BoundLiteral
-    | Local of OlySyntaxPattern * BoundEnvironment * ILocalSymbol
-    | FieldConstant of OlySyntaxPattern * BoundEnvironment * IFieldSymbol
-    | Function of OlySyntaxPattern * BoundEnvironment * IPatternSymbol * witnessArgs: WitnessSolution imarray * castPatArgs: BoundCasePattern imarray
-    | Tuple of OlySyntaxPattern * casePatArgs: BoundCasePattern imarray
-    | Discard of OlySyntaxNode
+    | Literal of BoundSyntaxInfo * BoundLiteral
+    | Local of BoundSyntaxInfo * ILocalSymbol
+    | FieldConstant of BoundSyntaxInfo * IFieldSymbol
+    | Function of BoundSyntaxInfo * IPatternSymbol * witnessArgs: WitnessSolution imarray * castPatArgs: BoundCasePattern imarray
+    | Tuple of BoundSyntaxInfo * casePatArgs: BoundCasePattern imarray
+    | Discard of BoundSyntaxInfo
 
     member this.Syntax: OlySyntaxNode =
         match this with
-        | Literal(syntax, _, _)
-        | Local(syntax, _, _)
-        | FieldConstant(syntax, _, _)
-        | Function(syntax, _, _, _, _)
-        | Tuple(syntax, _) -> syntax :> OlySyntaxNode
-        | Discard(syntax) -> syntax
+        | Literal(syntaxInfo, _)
+        | Local(syntaxInfo, _)
+        | FieldConstant(syntaxInfo, _)
+        | Function(syntaxInfo, _, _, _)
+        | Tuple(syntaxInfo, _)
+        | Discard(syntaxInfo) -> syntaxInfo.Syntax
 
     interface IBoundNode with
 

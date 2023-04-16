@@ -920,17 +920,17 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                 ResolutionItem.Type(syntaxName, ty)
 
             | ResolutionFormalItem.Value(_, value) ->
-                let syntaxNode =
+                let syntaxToCapture =
                     match syntaxExprOpt with
                     | Some syntaxExpr -> syntaxExpr :> OlySyntaxNode
-                    | _ -> syntaxName :> OlySyntaxNode
+                    | _ -> syntaxRootName
 
                 let syntaxRootName =
                     match syntaxParentNameOpt with
                     | Some(OlySyntaxName.Generic _ as syntaxRootName) -> syntaxRootName
                     | _ -> syntaxName
 
-                resolveFormalValue cenv env syntaxNode syntaxRootName receiverInfoOpt resInfo (syntaxTyArgsRoot, syntaxTyArgs) value
+                resolveFormalValue cenv env syntaxToCapture syntaxRootName receiverInfoOpt resInfo (syntaxTyArgsRoot, syntaxTyArgs) value
 
         | OlySyntaxName.Generic(syntaxInnerName, syntaxTyArgs) ->
             let resInfo = 
@@ -946,7 +946,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
 
         | OlySyntaxName.Qualified(syntaxHeadName, _, syntaxTailName) ->
             // We want types to take precedent for the 'syntaxHeadName'.
-            // If a type is not resolved, then it will try to choose a value - local,field, or function.
+            // If a type is not resolved, then it will try to choose a value - local, field, function, property or pattern.
             let newContext =
                 match resInfo.resContext with
                 | ResolutionContext.ValueOnly
