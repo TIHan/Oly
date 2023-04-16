@@ -139,39 +139,39 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
             | BoundExpression.Value _ ->
                 expr
 
-            | BoundExpression.GetField(syntaxInfo, receiver, syntaxNameOpt, field) ->
+            | BoundExpression.GetField(syntaxInfo, receiver, field) ->
                 let newReceiver = this.Rewrite(receiver)
 
                 if newReceiver = receiver then
                     expr
                 else
-                    BoundExpression.GetField(syntaxInfo, newReceiver, syntaxNameOpt, field)
+                    BoundExpression.GetField(syntaxInfo, newReceiver, field)
 
-            | BoundExpression.SetField(syntaxInfo, receiver, syntaxNameOpt, field, rhs) ->
+            | BoundExpression.SetField(syntaxInfo, receiver, field, rhs) ->
                 let newRhs = this.Rewrite(rhs)
                 let newReceiver = this.Rewrite(receiver)
 
                 if newReceiver = receiver && newRhs = rhs then
                     expr
                 else
-                    BoundExpression.SetField(syntaxInfo, newReceiver, syntaxNameOpt, field, newRhs)
+                    BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs)
 
-            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, syntaxName, prop) ->
+            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop) ->
                 let newReceiverOpt = receiverOpt |> Option.map this.Rewrite
 
                 if newReceiverOpt = receiverOpt then
                     expr
                 else
-                    BoundExpression.GetProperty(syntaxInfo, newReceiverOpt, syntaxName, prop)
+                    BoundExpression.GetProperty(syntaxInfo, newReceiverOpt, prop)
 
-            | BoundExpression.SetProperty(syntaxInfo, receiverOpt, syntaxName, prop, rhs) ->
+            | BoundExpression.SetProperty(syntaxInfo, receiverOpt, prop, rhs) ->
                 let newRhs = this.Rewrite(rhs)
                 let newReceiverOpt = receiverOpt |> Option.map this.Rewrite
 
                 if newReceiverOpt = receiverOpt && newRhs = rhs then
                     expr
                 else
-                    BoundExpression.SetProperty(syntaxInfo, newReceiverOpt, syntaxName, prop, newRhs)
+                    BoundExpression.SetProperty(syntaxInfo, newReceiverOpt, prop, newRhs)
 
             | BoundExpression.Sequential(syntaxInfo, expr1, expr2) ->
                 let newExpr1 = this.Rewrite(expr1)

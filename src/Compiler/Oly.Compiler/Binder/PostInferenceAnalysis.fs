@@ -563,7 +563,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.GetField(receiver=receiver) ->
         analyzeExpression acenv aenv receiver
 
-    | BoundExpression.SetField(_, receiver, _, field, rhs) ->
+    | BoundExpression.SetField(_, receiver, field, rhs) ->
         analyzeExpression acenv (notReturnableAddress aenv) rhs
         analyzeExpression acenv (notReturnableAddress aenv) receiver
         checkValue acenv aenv syntaxNode field

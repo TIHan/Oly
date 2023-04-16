@@ -746,7 +746,7 @@ type BoundTree with
                             Assert.ThrowIfNot(body.HasExpression)
                             iterator.VisitExpression(body.Expression) |> ignore
                         
-                        | BoundExpression.SetField(_, receiver, _, _, rhs) ->
+                        | BoundExpression.SetField(_, receiver, _, rhs) ->
                             iterator.VisitExpression(receiver) |> ignore
                             iterator.VisitExpression(rhs) |> ignore
 

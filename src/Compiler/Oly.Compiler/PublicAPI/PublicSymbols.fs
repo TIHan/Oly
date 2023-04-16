@@ -1426,11 +1426,6 @@ type OlyBoundModel internal (
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent func
                     getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot func.Type
 
-                | OlySyntaxBindingDeclaration.Get _
-                | OlySyntaxBindingDeclaration.Set _ ->
-                    // TODO:
-                    ()
-
                 | _ ->
                     ()
 
@@ -1490,16 +1485,10 @@ type OlyBoundModel internal (
                 | _ ->
                     ()
 
-            | BoundExpression.GetField(syntaxInfo, _, syntaxNameOpt, field) ->
-                match syntaxInfo.TryEnvironment, syntaxNameOpt with
-                | Some benv, Some syntaxName ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxName.LastIdentifier field
-                | _ ->
-                    ()
-
-            | BoundExpression.SetField(syntaxInfo, _, syntaxNameOpt, field, _) ->
-                match syntaxInfo.TryEnvironment, syntaxNameOpt with
-                | Some benv, Some syntaxName ->
+            | BoundExpression.GetField(syntaxInfo, _, field)
+            | BoundExpression.SetField(syntaxInfo, _, field, _) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxName.LastIdentifier field
                 | _ ->
                     ()
@@ -1511,10 +1500,10 @@ type OlyBoundModel internal (
                 | _ ->
                     ()
 
-            | BoundExpression.GetProperty(syntaxInfo, _, syntaxNameOpt, prop) 
-            | BoundExpression.SetProperty(syntaxInfo, _, syntaxNameOpt, prop, _) ->
-                match syntaxInfo.TryEnvironment, syntaxNameOpt with
-                | Some benv, Some syntaxName ->
+            | BoundExpression.GetProperty(syntaxInfo, _, prop) 
+            | BoundExpression.SetProperty(syntaxInfo, _, prop, _) ->
+                match syntaxInfo.TrySyntaxNameAndEnvironment with
+                | Some(syntaxName, benv) ->
                     getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop None
                 | _ ->
                     ()

@@ -7140,6 +7140,21 @@ main(): () =
     src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
 
 [<Fact>]
+let ``Should get right signature for alias member field 2``() =
+    let src =
+        """
+class CoolClass =
+
+    static mutable Test: __oly_int32 = 1
+
+alias CoolClassAlias = CoolClass
+
+main(): () =
+    ~^~CoolClassAlias.Test <- 5
+        """
+    src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
+
+[<Fact>]
 let ``Should get right signature for alias member pattern``() =
     let src =
         """

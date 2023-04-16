@@ -426,30 +426,21 @@ let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode 
         bindIdentifierWithNoReceiverAsFormalItem cenv env syntaxNode resInfo ident
 
 let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: OlySyntaxNode) (receiverInfoOpt: ReceiverInfo option) (syntaxNameOpt: OlySyntaxName option) (value: IValueSymbol) =
-    let createValueExpr (value: IValueSymbol) =
+    let createValueExpr syntaxInfo (value: IValueSymbol) =
         // If the value is invalid, we probably have a syntax name that isn't valid.
         // Therefore, try to get the syntax name from the main syntax node.
         if value.IsInvalid then
-            match syntaxToCapture.TryName with
-            | Some syntaxName ->
-                BoundExpression.Value(BoundSyntaxInfo.User(syntaxName, env.benv), value)
-            | _ ->
-                BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), value)
+            E.Value(syntaxInfo, value)
         else
             OlyAssert.False(value.IsFunction)
-            let syntaxInfo = 
-                BoundSyntaxInfo.User(
-                    syntaxToCapture, 
-                    env.benv, 
-                    syntaxNameOpt, 
-                    receiverInfoOpt 
-                    |> Option.bind (fun x ->
-                        match x.item with
-                        | ReceiverItem.Type(ty) -> Some ty
-                        | _ -> None
-                    )
-                )
-            BoundExpression.Value(syntaxInfo, value)
+            E.Value(syntaxInfo, value)
+
+    let syntaxInfo =
+        match receiverInfoOpt with
+        | Some({ item = ReceiverItem.Type(ty) }) ->
+            BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxNameOpt, Some ty)
+        | _ ->
+            BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxNameOpt, None)
 
     match value with
     | :? IFieldSymbol as field ->
@@ -458,16 +449,16 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
             let receiver2 =
                 // We are only interested in taking the address of the receiver if it's a value.
                 match receiver with
-                | BoundExpression.Value _ ->
+                | E.Value _ ->
                     if field.Enclosing.IsType then
                         AddressOfReceiverIfPossible field.Enclosing.AsType receiver
                     else
                         receiver
                 | _ ->
                     receiver
-            BoundExpression.GetField(BoundSyntaxInfo.User(syntaxToCapture, env.benv), receiver2, syntaxNameOpt, field)
+            E.GetField(syntaxInfo, receiver2, field)
         | _ ->
-            createValueExpr field
+            createValueExpr syntaxInfo field
 
     | :? IPropertySymbol as prop ->
         match receiverInfoOpt with
@@ -477,13 +468,13 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
                     AddressOfReceiverIfPossible prop.Enclosing.AsType receiver
                 else
                     receiver
-            let expr = BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), Some(receiverExpr), syntaxNameOpt, freshenValue env.benv prop :?> IPropertySymbol)
+            let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol)
             checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
             expr
         | _ ->
-            BoundExpression.GetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), None, syntaxNameOpt, freshenValue env.benv prop :?> IPropertySymbol)
+            E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol)
     | _ ->
-        createValueExpr value
+        createValueExpr syntaxInfo value
 
 let bindNameAsFormalItem (cenv: cenv) env syntaxToCaptureOpt (receiverInfoOpt: ReceiverInfo option) resInfo (syntaxName: OlySyntaxName) =
     match syntaxName with
@@ -619,14 +610,13 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             E.GetProperty(
                 syntaxInfo,
                 receiverOpt,
-                syntaxInfo.TrySyntaxName,
                 value.AsProperty
             )
 
         let bridge = createLocalBridgeValue value.Type
 
         let callExpr = 
-            BoundExpression.Call(
+            E.Call(
                 syntaxInfo,
                 None,
                 CacheValueWithArg.FromValue(ImArray.empty),

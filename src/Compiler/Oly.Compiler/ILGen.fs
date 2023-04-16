@@ -803,105 +803,24 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
 and GenAutoOrSignatureProperty cenv env (prop: IPropertySymbol) =
     OlyAssert.True(prop.IsFormal)
+    OlyAssert.False(prop.IsField)
 
     let ilGetterOpt, ilSetterOpt =
-        if prop.IsField then
+        let ilGetterOpt =
+            match prop.Getter with
+            | Some getter ->
+                GenFunctionAsILFunctionDefinition cenv env getter
+            | _ ->
+                OlyILFunctionDefinition.NilHandle
 
-            let ilGetterOpt =
-                match prop.Getter with
-                | Some getter ->
-                    let pars = getter.Parameters
+        let ilSetterOpt =
+            match prop.Setter with
+            | Some setter ->
+                GenFunctionAsILFunctionDefinition cenv env setter
+            | _ ->
+                OlyILFunctionDefinition.NilHandle
 
-                    let bodyExpr =
-                        E.CreateSequential(cenv.syntaxTree,
-                            [
-                                E.GetField(
-                                    BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                                    E.Value(
-                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                        pars.[0] (* wrong - does not handle static *)
-                                    ), 
-                                    None,
-                                    prop :?> IFieldSymbol
-                                )
-                            ]
-                        )
-                    let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
-                    let rhsExpr = 
-                        E.Lambda(
-                            BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                            LambdaFlags.None,
-                            ImArray.empty, 
-                            pars, 
-                            LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
-                            rhsExprTy, 
-                            ref ValueNone, 
-                            ref ValueNone
-                        )
-                    rhsExprTy.Expression <- rhsExpr
-                    GenFunctionDefinitionExpression cenv env cenv.syntaxTree.DummyNode getter rhsExpr
-                    GenFunctionAsILFunctionDefinition cenv env getter
-                | _ ->
-                    OlyILFunctionDefinition.NilHandle
-
-            let ilSetterOpt =
-                match prop.Setter with
-                | Some setter ->
-                    let pars = setter.Parameters
-
-                    let bodyExpr =
-                        E.CreateSequential(cenv.syntaxTree,
-                            [
-                                E.SetField(
-                                    BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                    E.Value(
-                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                        pars.[0] (* wrong - does not handle static *)
-                                    ), 
-                                    None,
-                                    prop :?> IFieldSymbol,
-                                    E.Value(
-                                        BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                                        pars.[1] (* wrong - does not handle static *)
-                                    )
-                                )
-                            ]
-                        )
-                    let rhsExprTy = LazyExpressionType(cenv.syntaxTree)
-                    let rhsExpr = 
-                        E.Lambda(
-                            BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                            LambdaFlags.None,
-                            ImArray.empty, 
-                            pars, 
-                            LazyExpression.CreateNonLazy(None, fun _ -> bodyExpr), 
-                            rhsExprTy, 
-                            ref ValueNone, 
-                            ref ValueNone
-                        )
-                    rhsExprTy.Expression <- rhsExpr
-                    GenFunctionDefinitionExpression cenv env cenv.syntaxTree.DummyNode setter rhsExpr
-                    GenFunctionAsILFunctionDefinition cenv env setter
-                | _ ->
-                    OlyILFunctionDefinition.NilHandle
-
-            ilGetterOpt, ilSetterOpt
-        else
-            let ilGetterOpt =
-                match prop.Getter with
-                | Some getter ->
-                    GenFunctionAsILFunctionDefinition cenv env getter
-                | _ ->
-                    OlyILFunctionDefinition.NilHandle
-
-            let ilSetterOpt =
-                match prop.Setter with
-                | Some setter ->
-                    GenFunctionAsILFunctionDefinition cenv env setter
-                | _ ->
-                    OlyILFunctionDefinition.NilHandle
-
-            ilGetterOpt, ilSetterOpt
+        ilGetterOpt, ilSetterOpt
 
     let ilAttrs = GenAttributes cenv env prop.Attributes
     let ilName = GenString cenv prop.Name

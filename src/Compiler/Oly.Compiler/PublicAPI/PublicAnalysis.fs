@@ -448,40 +448,32 @@ module Patterns =
 
     let (|InstanceField|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.GetField(syntaxInfo, receiver, syntaxNameOpt, field), boundModel, ct) ->
+        | Expression(BoundExpression.GetField(syntaxInfo, receiver, field), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
-            let syntaxNode, benv =
-                match syntaxInfo.TrySyntaxAndEnvironment with
-                | Some(syntaxNode, benv) ->
-                    syntaxNode, benv
+            let benv =
+                match syntaxInfo.TryEnvironment with
+                | Some(benv) ->
+                    benv
                 | _ ->
                     failwith "Should have user syntax."
 
-            let syntax =
-                match syntaxNameOpt with
-                | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> syntaxNode
-            let valueSymbol = OlyValueSymbol(boundModel, benv, syntax, field)
+            let valueSymbol = OlyValueSymbol(boundModel, benv, syntaxInfo.SyntaxNameOrDefault, field)
             Some(convert boundModel receiver ct, valueSymbol)
         | _ ->
             None
 
     let (|SetInstanceField|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.SetField(syntaxInfo, receiver, syntaxNameOpt, field, rhsExpr), boundModel, ct) ->
+        | Expression(BoundExpression.SetField(syntaxInfo, receiver, field, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
-            let syntaxNode, benv =
-                match syntaxInfo.TrySyntaxAndEnvironment with
-                | Some(syntaxNode, benv) ->
-                    syntaxNode, benv
+            let benv =
+                match syntaxInfo.TryEnvironment with
+                | Some(benv) ->
+                    benv
                 | _ ->
                     failwith "Should have user syntax."
 
-            let syntaxNode =
-                match syntaxNameOpt with
-                | Some syntaxName -> syntaxName :> OlySyntaxNode
-                | _ -> syntaxNode
-            let valueSymbol = OlyValueSymbol(boundModel, benv, syntaxNode, field)
+            let valueSymbol = OlyValueSymbol(boundModel, benv, syntaxInfo.SyntaxNameOrDefault, field)
             Some(convert boundModel receiver ct, valueSymbol, convert boundModel rhsExpr ct)
         | _ ->
             None

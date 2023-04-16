@@ -215,8 +215,7 @@ let substitute
                                     let getFieldExpr =
                                         BoundExpression.GetField(
                                             syntaxInfo, 
-                                            handleReceiverExpr newValue, 
-                                            None, 
+                                            handleReceiverExpr newValue,
                                             appliedNewValue :?> IFieldSymbol
                                         )
                                     // TODO: Get rid of this commented code, or actually use it.
@@ -534,8 +533,7 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
         ||> ImArray.map2 (fun field localPar ->
             E.SetField(
                 BoundSyntaxInfo.Generated(syntaxTree),
-                thisExpr, 
-                None, 
+                thisExpr,
                 field,
                 E.CreateValue(syntaxTree, localPar)
             )

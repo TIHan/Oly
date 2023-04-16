@@ -59,7 +59,6 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                                         syntaxInfo.Syntax.Tree,
                                                         pars[0]
                                                     ),
-                                                    None,
                                                     backingField
                                                 )
                                             else
@@ -100,7 +99,6 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                                         syntaxInfo.Syntax.Tree,
                                                         pars[0]
                                                     ),
-                                                    None,
                                                     backingField,
                                                     E.CreateValue(
                                                         syntaxInfo.Syntax.Tree,
@@ -182,7 +180,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 #endif
 
     // Get/Set property calls
-    | E.GetProperty(syntaxInfo, receiverOpt, syntaxNameOpt, prop) ->
+    | E.GetProperty(syntaxInfo, receiverOpt, prop) ->
         match prop.Getter with
         | Some getter ->
             let isVirtualCall =
@@ -197,7 +195,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
             E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.empty, getter, isVirtualCall)
         | _ ->
             origExpr
-    | E.SetProperty(syntaxInfo, receiverOpt, syntaxNameOpt, prop, rhs) ->
+    | E.SetProperty(syntaxInfo, receiverOpt, prop, rhs) ->
         match prop.Setter with
         | Some setter ->
             let isVirtualCall =
@@ -452,7 +450,6 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                 E.SetField(
                                     syntaxInfoGenerated,
                                     thisExpr,
-                                    None,
                                     (ent.GetInstanceFields()[0]),
                                     E.CreateValue(syntaxInfoGenerated, ctor.Parameters[1])
                                 )
@@ -462,7 +459,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                     match fieldBinding with
                                     | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when field.IsInstance ->
                                         E.CreateSequential(
-                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisExpr, None, field, rhsExpr),
+                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisExpr, field, rhsExpr),
                                             expr
                                         )
                                     | _ ->

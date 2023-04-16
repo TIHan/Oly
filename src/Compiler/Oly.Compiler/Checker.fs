@@ -608,7 +608,7 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (bound
         solveTypes env boundExpr.Syntax expectedTy boundExpr.Type
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
-    let errorWith name syntax =
+    let reportError name syntax =
         env.diagnostics.Error(sprintf "'%s' is not mutable." name, 10, syntax)
     
     let rec checkCall syntax (receiverOpt: BoundExpression option) (value: IValueSymbol) =
@@ -632,14 +632,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             if (not value.IsMutable && value.Type.IsAnyStruct) || value.Type.IsReadOnlyByRef then
-                errorWith value.Name receiver.SyntaxNameOrDefault
+                reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check receiver then
                 if field.Type.IsAnyStruct && not field.IsMutable then
-                    errorWith field.Name receiver.SyntaxNameOrDefault
+                    reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
                     true
@@ -663,17 +663,13 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env value.Type rhs
         if not value.IsMutable then
-            errorWith value.Name expr.SyntaxNameOrDefault
+            reportError value.Name expr.SyntaxNameOrDefault
 
-    | BoundExpression.SetField(receiver=receiver;syntaxNameOpt=syntaxNameOpt;field=field;rhs=rhs) ->
+    | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env field.Type rhs
         if check receiver then
             if not field.IsMutable then
-                match syntaxNameOpt with
-                | Some syntaxName ->
-                    errorWith field.Name syntaxName
-                | _ ->
-                    errorWith field.Name expr.SyntaxNameOrDefault
+                reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
         if not lhsExpr.Type.IsReadWriteByRef then

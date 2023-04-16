@@ -1180,7 +1180,11 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
 
                             let expectedTyOpt = Some field.Type
                             let _, boundExpr = bindLocalExpression cenv (env.SetReturnable(false)) expectedTyOpt syntaxExpr syntaxExpr
-                            BoundExpression.SetField(BoundSyntaxInfo.User(syntaxFieldPat, env.benv), thisExpr, Some syntaxName, field, boundExpr)
+
+                            let syntaxInfo =
+                                BoundSyntaxInfo.User(syntaxFieldPat, env.benv, Some syntaxName, None)
+
+                            BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr)
                         | _ ->
                             cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxConstructTy)
                             invalidExpression syntaxFieldPat env.benv
@@ -1417,27 +1421,27 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                 | _ -> ()
                 BoundExpression.SetValue(BoundSyntaxInfo.User(syntaxToCapture, env.benv), lhs.Syntax.TryName, value, rhs)
 
-            | BoundExpression.GetField(_, receiver, syntaxNameOpt, field) ->
+            | BoundExpression.GetField(syntaxInfo, receiver, field) ->
                 let receiverExpr =
                     if field.Enclosing.IsType then
                         AddressOfReceiverIfPossible field.Enclosing.AsType receiver
                     else
                         receiver
-                BoundExpression.SetField(BoundSyntaxInfo.User(syntaxToCapture, env.benv), receiverExpr, syntaxNameOpt, field, rhs)
 
-            | BoundExpression.GetProperty(_, receiverOpt, syntaxNameOpt, prop) ->
+                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, None)
+                BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhs)
+
+            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop) ->
                 if prop.Setter.IsNone then
-                    match syntaxNameOpt with
-                    | Some(syntaxName) ->
-                        cenv.diagnostics.Error($"Property '{prop.Name}' cannot be set.", 10, syntaxName)
-                    | _ ->
-                        cenv.diagnostics.Error($"Property '{prop.Name}' cannot be set.", 10, lhs.Syntax)
+                    cenv.diagnostics.Error($"Property '{prop.Name}' cannot be set.", 10, syntaxInfo.SyntaxNameOrDefault)
                 let receiverExprOpt =
                     if prop.Enclosing.IsType then
                         receiverOpt |> Option.map (AddressOfReceiverIfPossible prop.Enclosing.AsType)
                     else
                         receiverOpt
-                BoundExpression.SetProperty(BoundSyntaxInfo.User(syntaxToCapture, env.benv), receiverExprOpt, syntaxNameOpt, prop, rhs)
+
+                let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, syntaxInfo.TrySyntaxName, None)
+                BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhs)
 
             // Undo the automatic dereference when we are trying to set the value of the by-ref.
             | AutoDereferenced(undoDerefLhsExpr) ->

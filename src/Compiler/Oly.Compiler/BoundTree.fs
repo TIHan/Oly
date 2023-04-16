@@ -214,12 +214,11 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | InternalGenerated _ -> true
         | _ -> false
 
-    member this.ToDebugString() =
-        let text = this.Syntax.GetText(CancellationToken.None).ToString()
-        if String.IsNullOrWhiteSpace text then
-            this.ToString()
+    member private this.ToDebugString() =
+        if this.IsGenerated then
+            "(GENERATED)"
         else
-            text
+            this.Syntax.GetText(CancellationToken.None).ToString()
 
     static member Generated(syntaxTree: OlySyntaxTree) =
         InternalGenerated(syntaxTree)
@@ -266,10 +265,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | SetContentsOfAddress of syntaxInfo: BoundSyntaxInfo * lhs: BoundExpression * rhs: BoundExpression
     | Literal of syntaxInfo: BoundSyntaxInfo * BoundLiteral
     | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntitySymbol
-    | GetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * syntaxNameOpt: OlySyntaxName option * field: IFieldSymbol
-    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * syntaxNameOpt: OlySyntaxName option * field: IFieldSymbol * rhs: BoundExpression
-    | GetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * syntaxName: OlySyntaxName option * prop: IPropertySymbol
-    | SetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * syntaxName: OlySyntaxName option * prop: IPropertySymbol * rhs: BoundExpression
+    | GetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol
+    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression
+    | GetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol
+    | SetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol * rhs: BoundExpression
     | Lambda of syntaxInfo: BoundSyntaxInfo * flags: LambdaFlags * tyPars: TypeParameterSymbol imarray * pars: ImmutableArray<ILocalParameterSymbol> * body: LazyExpression * cachedLambdaTy: LazyExpressionType * freeLocals: ReadOnlyFreeLocals voption ref * freeVars: ReadOnlyFreeTypeVariables voption ref
     | Typed of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ty: TypeSymbol
     | Unit of syntax: OlySyntaxExpression * benv: BoundEnvironment
@@ -302,9 +301,9 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Call(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
         | MemberDefinition(binding=binding) ->
             binding.GetValidUserSyntax()
-        | GetField(syntaxInfo, receiver, _, _) when syntaxInfo.IsGenerated ->
+        | GetField(syntaxInfo, receiver, _) when syntaxInfo.IsGenerated ->
             receiver.GetValidUserSyntax()
-        | SetField(syntaxInfo, receiver, _, _, rhs) when syntaxInfo.IsGenerated ->
+        | SetField(syntaxInfo, receiver, _, rhs) when syntaxInfo.IsGenerated ->
             let r1 = receiver.GetValidUserSyntax()
             if r1.IsDummy then
                 rhs.GetValidUserSyntax()
