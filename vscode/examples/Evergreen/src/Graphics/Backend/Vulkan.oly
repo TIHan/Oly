@@ -1037,15 +1037,15 @@ private createGraphicsPipeline(
     colorBlending.attachmentCount <- 1
     colorBlending.pAttachments <- &&colorBlendAttachment
 
-    let clearColorValue0 = &colorBlending.blendConstants.FixedElementField
-    let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
-    let clearColorValue2 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
-    let clearColorValue3 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
+    let colorBlendingValue0 = &colorBlending.blendConstants.FixedElementField
+    let colorBlendingValue1 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(4))
+    let colorBlendingValue2 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(8))
+    let colorBlendingValue3 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(12))
 
-    clearColorValue0 <- 0 // Optional
-    clearColorValue1 <- 0 // Optional
-    clearColorValue2 <- 0 // Optional
-    clearColorValue3 <- 0 // Optional
+    colorBlendingValue0 <- 0 // Optional
+    colorBlendingValue1 <- 0 // Optional
+    colorBlendingValue2 <- 0 // Optional
+    colorBlendingValue3 <- 0 // Optional
 
     let pName = "main"
     let mutable pNameHandle = fixedCopyUTF8(pName)
