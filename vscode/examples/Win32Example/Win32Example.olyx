@@ -162,6 +162,7 @@ main(): () =
 
     let vulkanAppOptions = vk.VulkanApplicationOptions()
     vulkanAppOptions.ValidationEnabled <- true
+    vulkanAppOptions.MaxFramesInFlight <- 2
     let vulkanApp = vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
     printLine(vulkanApp.GetDeviceName())
@@ -220,7 +221,15 @@ main(): () =
 
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, [setLayout])
 
-    let recordCommands(commandBuffers: vk.VulkanCommandBuffer[||], descriptorSets: VkDescriptorSet[], frame: int32, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
+    let commandBuffers =
+        let commandBuffers = Array.ZeroCreate(vulkanApp.MaxFramesInFlight)
+        let mutable i = 0
+        while (i < commandBuffers.Length)
+            commandBuffers[i] <- vk.CreateGraphicsCommandBuffer(vulkanApp)
+            i <- i + 1
+        commandBuffers
+
+    let recordCommands(frame: int32, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
         let commandBuffer = commandBuffers[frame]
         let descriptorSet = descriptorSets[frame]
 
@@ -239,13 +248,7 @@ main(): () =
         commandBuffer.EndRenderPass()
         commandBuffer.End()
 
-    let commandBuffers =
-        let commandBuffers = Array.ZeroCreate(vulkanApp.MaxFramesInFlight)
-        let mutable i = 0
-        while (i < commandBuffers.Length)
-            commandBuffers[i] <- vk.CreateGraphicsCommandBuffer(vulkanApp)
-            i <- i + 1
-        commandBuffers
+        commandBuffer
 
     let mutable swapChain = unchecked default
     let mutable graphicsPipeline = unchecked default
@@ -276,7 +279,7 @@ main(): () =
     let cleanupSwapChain() =
         if (swapChain !== unchecked default)
             vk.DestroyPipeline(vulkanApp, graphicsPipeline)
-            vk.DestroyFramebuffers(vulkanApp, ReadOnlySpan(swapChainFramebuffers))   
+            vk.DestroyFramebuffers(vulkanApp, swapChainFramebuffers)   
             vk.DestroyRenderPass(vulkanApp, renderPass)
             vk.DestroySwapChain(vulkanApp, swapChain)
             swapChain <- unchecked default
@@ -284,23 +287,23 @@ main(): () =
     recreateSwapChain()
     window.Show()
 
+    let mutable forceQuit = false
     let draw() =
         try
             vk.Draw(vulkanApp, swapChain, 
-                (imageIndex, frame) -> 
-                    let framebuffer = swapChainFramebuffers[imageIndex]
-
-                    recordCommands(commandBuffers, descriptorSets, frame, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
-                    commandBuffers[frame]
+                (framebufferIndex, frame) -> 
+                    let framebuffer = swapChainFramebuffers[framebufferIndex]
+                    recordCommands(frame, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
             )
         catch (ex: vk.VulkanSwapChainOutOfDateException) =>
-            vk.WaitForIdle(vulkanApp)
-            cleanupSwapChain()
-            try
-                recreateSwapChain()
-            catch (ex: vk.VulkanSwapChainCreationFailedException) =>
-                // swap-chain failed to create, bail out of application
-                ()
+            if (!window.IsClosed && window.Height != 0 && window.Width != 0)
+                vk.WaitForIdle(vulkanApp)
+                cleanupSwapChain()
+                try
+                    recreateSwapChain()
+                catch (ex: vk.VulkanSwapChainCreationFailedException) =>
+                    // swap-chain failed to create, bail out of application
+                    ()
     draw()
 
     // --- BEGIN LOOP
@@ -316,7 +319,8 @@ main(): () =
                 printLine(keyEvent)
             i <- i + 1
 
-        draw()
+        if (window.Height != 0 && window.Width != 0)
+            draw()
 
     // --- END LOOP
 

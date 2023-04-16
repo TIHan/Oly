@@ -802,5 +802,6 @@ printLine(value: int32): () =
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
 
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 fail<TResult>(msg: string): TResult =
     throw System.Exception(msg)

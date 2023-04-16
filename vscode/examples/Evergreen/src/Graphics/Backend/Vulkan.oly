@@ -106,7 +106,6 @@ sealed class VulkanSwapChainSupportDetails =
         }
 
 sealed class VulkanSwapChain =
-  //  Device: VkDevice
     SwapChain: VkSwapchainKHR
     Images: VkImage[]
     ImageViews: VkImageView[]
@@ -115,9 +114,8 @@ sealed class VulkanSwapChain =
     Scissor: VkRect2D
     ImageFormat: VkFormat
 
-    new(device: VkDevice, swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat) =
+    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat) =
         {
-      //      Device = device
             SwapChain = swapChain
             Images = images
             ImageViews = imageViews
@@ -270,7 +268,7 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
     VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), allocator)
 
 CreateSwapChain(app: VulkanApplication): VulkanSwapChain =
-    createSwapChain(app.PhysicalDevice, app.Device, app.Surface, app.GraphicsQueueFamilyIndex, app.PresentQueueFamilyIndex)
+    createSwapChain(app.PhysicalDevice, app.Device, app.Surface, app.GraphicsQueueFamilyIndex, app.PresentQueueFamilyIndex, uint32(app.MaxFramesInFlight))
 
 DestroySwapChain(app: VulkanApplication, swapChain: VulkanSwapChain): () =
     let mutable i = 0
@@ -331,8 +329,8 @@ CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, verte
 DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
 
-CreateSwapChainFramebuffers(app: VulkanApplication, swapChain: VulkanSwapChain, renderPass: VkRenderPass): VkFramebuffer[||] =
-    Array.MapAsMutable(swapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, swapChain.Extent.width, swapChain.Extent.height))
+CreateSwapChainFramebuffers(app: VulkanApplication, swapChain: VulkanSwapChain, renderPass: VkRenderPass): VkFramebuffer[] =
+    Array.Map(swapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, swapChain.Extent.width, swapChain.Extent.height))
 
 DestroyFramebuffer(app: VulkanApplication, framebuffer: VkFramebuffer): () =
     vkDestroyFramebuffer(app.Device, framebuffer, nullptr)
@@ -342,6 +340,12 @@ DestroyFramebuffers(app: VulkanApplication, mutable framebuffers: ReadOnlySpan<V
     while (i < framebuffers.Length)
         DestroyFramebuffer(app, framebuffers[i])
         i <- i + 1
+
+DestroyFramebuffers(app: VulkanApplication, framebuffers: VkFramebuffer[||]): () =
+    DestroyFramebuffers(app, ReadOnlySpan(framebuffers))
+
+DestroyFramebuffers(app: VulkanApplication, framebuffers: VkFramebuffer[]): () =
+    DestroyFramebuffers(app, UnsafeCast<VkFramebuffer[||]>(framebuffers))
 
 CreateGraphicsCommandBuffer(app: VulkanApplication): VulkanCommandBuffer =
     VulkanCommandBuffer(createCommandBuffer(app.Device, app.GraphicsCommandPool))
@@ -475,7 +479,7 @@ CreateDescriptorSets(app: VulkanApplication, descriptorPool: VkDescriptorPool, d
 UpdateDescriptorSet(app: VulkanApplication, descriptorSet: VkDescriptorSet, buffer: VulkanBuffer, descriptorType: VkDescriptorType): () =
     updateDescriptorSet(app.Device, descriptorSet, buffer.Buffer, buffer.Offset, buffer.Size, descriptorType)
  
-Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (imageIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
+Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (framebufferIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
 
     let mutable inFlightFence = app.InFlightFences[currentFrame]
@@ -796,7 +800,7 @@ private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2
 //     }
 // }
 
-private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surface: VkSurfaceKHR, graphicsFamilyIndex: uint32, presentFamilyIndex: uint32): VulkanSwapChain =
+private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surface: VkSurfaceKHR, graphicsFamilyIndex: uint32, presentFamilyIndex: uint32, maxFramesInFlight: uint32): VulkanSwapChain =
     let details = createSwapChainSupportDetails(physicalDevice, surface)
 
     let swapChainAdequate =
@@ -814,6 +818,11 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
 
     if (details.Capabilities.maxImageCount > 0 && imageCount > details.Capabilities.maxImageCount)
         imageCount <- details.Capabilities.maxImageCount   
+
+    imageCount <- Math.Max(imageCount, maxFramesInFlight)
+
+    if (imageCount > details.Capabilities.maxImageCount)
+        fail("'MaxFramesInFlight' exceeds maximum swap-chain images.")
 
     let mutable createInfo = default: VkSwapchainCreateInfoKHR
     createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
@@ -866,7 +875,7 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     scissor.offset <- default
     scissor.extent <- extent
 
-    VulkanSwapChain(device, swapChain, images, imageViews, extent, viewport, scissor, surfaceFormat.format)
+    VulkanSwapChain(swapChain, images, imageViews, extent, viewport, scissor, surfaceFormat.format)
 
 private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat): VkImageView =
     let mutable createInfo = default: VkImageViewCreateInfo
