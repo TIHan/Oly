@@ -347,6 +347,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             arg1 = arg2 :> obj
         | (:? float as arg1), (:? float as arg2) ->
             arg1 = arg2 :> obj
+        | (:? char as arg1), (:? char as arg2) ->
+            arg1 = arg2 :> obj
         | _ ->
             obj.ReferenceEquals(arg1, arg2)
 
@@ -371,6 +373,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
         | (:? float32 as arg1), (:? float32 as arg2) ->
             arg1 <> arg2 :> obj
         | (:? float as arg1), (:? float as arg2) ->
+            arg1 <> arg2 :> obj
+        | (:? char as arg1), (:? char as arg2) ->
             arg1 <> arg2 :> obj
         | _ ->
             not(obj.ReferenceEquals(arg1, arg2))
