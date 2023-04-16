@@ -14,6 +14,7 @@ open System.Runtime.InteropServices
 open Evergreen.Window
 
 sealed class ExternalProcess =
+    implements IDisposable
 
     private p: Process
 
@@ -100,6 +101,9 @@ sealed class ExternalProcess =
 
         System.Threading.Tasks.Task.Run(work)
 
+    Dispose(): () =
+        this.p.Dispose()
+
 // **********************************************************************************************************************************
 
 private alias vk = Evergreen.Graphics.Backend.Vulkan
@@ -150,6 +154,7 @@ compileShaderByFile(path: string): ReadOnlySpan<byte> =
     let code = ReadOnlySpan(System.IO.File.ReadAllBytes(outputPath))
     try File.Delete(outputPath)
     catch (ex: Exception) => ()
+    p.Dispose()
     code
 
 main(): () =
