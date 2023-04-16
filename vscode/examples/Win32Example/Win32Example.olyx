@@ -7,9 +7,100 @@
 #reference "../Evergreen/src/Window/Evergreen.Window.olyx"
 
 open System
+open System.IO
 open System.Numerics
+open System.Diagnostics
 open System.Runtime.InteropServices
 open Evergreen.Window
+
+sealed class ExternalProcess =
+
+    private p: Process
+
+    // TODO: Runtime error, fix this.
+  //  new(filePath: string, args: string) =
+    //    ExternalProcess(filePath, args, Environment.CurrentDirectory)
+
+    new(filePath: string, args: string, workingDirectory: string) =
+        let startInfo = ProcessStartInfo()
+        startInfo.FileName <- filePath
+        startInfo.Arguments <- args
+        startInfo.RedirectStandardError <- true
+        startInfo.RedirectStandardOutput <- true
+        startInfo.WorkingDirectory <- workingDirectory
+        startInfo.UseShellExecute <- false
+        startInfo.CreateNoWindow <- true
+
+        {
+            p =
+                let p = Process()
+                p.StartInfo <- startInfo
+                p
+        }
+
+    RunAsync(ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<(output: string, errors: string)> =
+        class DataReceived =
+
+            private f: DataReceivedEventArgs -> ()
+            new(f: DataReceivedEventArgs -> ()) =
+                {
+                    f  = f
+                }
+
+            Invoke(sender: object, e: DataReceivedEventArgs): () =
+                this.f(e)
+
+        let work =
+            () ->
+                let output = System.Text.StringBuilder()
+                let error = System.Text.StringBuilder()
+                let outputWaitHandle = System.Threading.AutoResetEvent(false)
+                let errorWaitHandle = System.Threading.AutoResetEvent(false)
+
+                let outputDataReceived = 
+                    DataReceived(
+                        e ->
+                            if (e.Data === unchecked default)
+                                let result = outputWaitHandle.Set()
+                            else
+                                let result = output.AppendLine(e.Data)
+
+                    )
+                this.p.add_OutputDataReceived(
+                    DataReceivedEventHandler(outputDataReceived, UnsafeCast(&&outputDataReceived.Invoke))
+                )
+
+                let errorDataReceived = 
+                    DataReceived(
+                        e ->
+                            if (e.Data === unchecked default)
+                                let result = errorWaitHandle.Set()
+                            else
+                                let result = error.AppendLine(e.Data)
+
+                    )
+                this.p.add_ErrorDataReceived(
+                    DataReceivedEventHandler(errorDataReceived, UnsafeCast(&&errorDataReceived.Invoke))
+                )
+
+                let result = this.p.Start()
+
+                this.p.BeginOutputReadLine()
+                this.p.BeginErrorReadLine()
+
+                this.p.WaitForExit() // TODO: We should use the async version
+                let result = outputWaitHandle.WaitOne()
+                let result = errorWaitHandle.WaitOne()
+                let output = output.ToString()
+                let errors = error.ToString()
+                if (this.p.ExitCode != 0)
+                    throw Exception("Failed process")
+
+                (output, errors)
+
+        System.Threading.Tasks.Task.Run(work)
+
+// **********************************************************************************************************************************
 
 private alias vk = Evergreen.Graphics.Backend.Vulkan
 private alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
@@ -50,6 +141,17 @@ struct Globals =
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
 radians(degrees: float32): float32 = float32(radians(float64(degrees)))
 
+compileShaderByFile(path: string): ReadOnlySpan<byte> =
+    let outputPath = Path.ChangeExtension(path, ".spv")
+    let p = ExternalProcess("glslangValidator", "--target-env vulkan1.3 -o " + outputPath + " " + path, Environment.CurrentDirectory)
+    let task = p.RunAsync(System.Threading.CancellationToken.None)
+
+    let results = task.Result
+    let code = ReadOnlySpan(System.IO.File.ReadAllBytes(outputPath))
+    try File.Delete(outputPath)
+    catch (ex: Exception) => ()
+    code
+
 main(): () =
     let window = IWindow.CreateWin32("Vulkan Example")
 
@@ -69,11 +171,11 @@ main(): () =
         )
     vk.UpdateBuffer(vulkanApp, buffer, Vertices)
 
-    let vertexShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/vert.spv")
-    let fragmentShaderByteCode = System.IO.File.ReadAllBytes("Win32Example/frag.spv")
+    let vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
+    let fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
 
-    let vertexShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(vertexShaderByteCode))
-    let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, ReadOnlySpan(fragmentShaderByteCode))
+    let vertexShaderModule = vk.CreateShaderModule(vulkanApp, vertexShaderByteCode)
+    let fragmentShaderModule = vk.CreateShaderModule(vulkanApp, fragmentShaderByteCode)
 
     let globals =
         [

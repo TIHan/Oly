@@ -60,3 +60,6 @@ build
 
 # Node
 \node_modules
+
+# spir-v binary
+*.spv
