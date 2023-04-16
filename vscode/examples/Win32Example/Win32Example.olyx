@@ -316,10 +316,21 @@ main(): () =
         while (i < keyEvents.Length)
             let keyEvent = keyEvents[i]
             if (keyEvent.IsDown && !keyEvent.IsRepeat)
+
+                match (keyEvent.Key)
+                | Key.A =>
+                    printLine("Doot")
+                | Key.Esc =>
+                    window.Dispose()
+                | Key.Tilde =>
+                    window.Minimize()
+                | _ => 
+                    ()
+
                 printLine(keyEvent)
             i <- i + 1
 
-        if (window.Height != 0 && window.Width != 0)
+        if (!window.IsClosed && !window.IsHidden && window.Height != 0 && window.Width != 0)
             draw()
 
     // --- END LOOP

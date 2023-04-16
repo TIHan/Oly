@@ -8,6 +8,11 @@ struct MouseInfo =
     RelativeX: int32 set, get = 0
     RelativeY: int32 set, get = 0
 
+enum KeyEventFlags =
+    | Up     = 0b001
+    | Down   = 0b010
+    | Repeat = 0b110
+
 enum Key =
     | Unknown
     | A
@@ -37,10 +42,8 @@ enum Key =
     | Y
     | Z
 
-enum KeyEventFlags =
-    | Up     = 0b001
-    | Down   = 0b010
-    | Repeat = 0b110
+    | Esc
+    | Tilde
 
 struct KeyEvent =
     Key: Key get

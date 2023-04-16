@@ -39,36 +39,6 @@ internal module Win32 =
     IsMouseRelative(rawMouse: RAWMOUSE): bool =
         (rawMouse.usFlags & 0x01) == 0
 
-    TranslateKey(c: char): Key =
-        match (c)
-        | 'A' => Key.A
-        | 'B' => Key.B
-        | 'C' => Key.C
-        | 'D' => Key.D
-        | 'E' => Key.E
-        | 'F' => Key.F
-        | 'G' => Key.G
-        | 'H' => Key.H
-        | 'I' => Key.I
-        | 'J' => Key.J
-        | 'K' => Key.K
-        | 'L' => Key.L
-        | 'M' => Key.M
-        | 'N' => Key.N
-        | 'O' => Key.O
-        | 'P' => Key.P
-        | 'Q' => Key.Q
-        | 'R' => Key.R
-        | 'S' => Key.S
-        | 'T' => Key.T
-        | 'U' => Key.U
-        | 'V' => Key.V
-        | 'W' => Key.W
-        | 'X' => Key.X
-        | 'Y' => Key.Y
-        | 'Z' => Key.Z
-        | _ => Key.Unknown
-
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
     private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
@@ -137,6 +107,43 @@ internal module Win32 =
         let result = UpdateWindow(hwnd)
         let result = SetFocus(hwnd)
 
+    HideWindow(hwnd: HWND): () =
+        let result = ShowWindow(hwnd, SW_HIDE)
+
+    TranslateKey(c: char): Key =
+        match (c)
+        | 'A' => Key.A
+        | 'B' => Key.B
+        | 'C' => Key.C
+        | 'D' => Key.D
+        | 'E' => Key.E
+        | 'F' => Key.F
+        | 'G' => Key.G
+        | 'H' => Key.H
+        | 'I' => Key.I
+        | 'J' => Key.J
+        | 'K' => Key.K
+        | 'L' => Key.L
+        | 'M' => Key.M
+        | 'N' => Key.N
+        | 'O' => Key.O
+        | 'P' => Key.P
+        | 'Q' => Key.Q
+        | 'R' => Key.R
+        | 'S' => Key.S
+        | 'T' => Key.T
+        | 'U' => Key.U
+        | 'V' => Key.V
+        | 'W' => Key.W
+        | 'X' => Key.X
+        | 'Y' => Key.Y
+        | 'Z' => Key.Z
+        | x =>
+            match (uint16(x))
+            | 192 => Key.Esc
+            | 27 => Key.Tilde
+            | _ => Key.Unknown
+
 internal sealed class Win32Window =
     implements IWindow
 
@@ -147,11 +154,25 @@ internal sealed class Win32Window =
     private mutable mouseInfo: MouseInfo
     private mutable keyEvents: List<KeyEvent>
     private mutable keysDown: HashSet<Key>
+    private mutable isDisposed: bool
 
     Title: string get() = this.title
     HWND: nint get() = nint(this.hwnd.Value)
     HINSTANCE: nint get() = nint(this.hinstance.Value)
-    IsClosed: bool get() = IsWindow(this.hwnd) != BOOL.TRUE
+
+    IsClosed: bool 
+        get() = 
+            if (this.isDisposed)
+                true
+            else
+                IsWindow(this.hwnd) == BOOL.FALSE
+
+    IsHidden: bool 
+        get() = 
+            if (this.isDisposed)
+                true
+            else
+                IsWindowVisible(this.hwnd) == BOOL.FALSE
 
     Width: uint32 get, internal set
 
@@ -173,18 +194,27 @@ internal sealed class Win32Window =
                 hinstance = hinstance
                 Width = 0
                 Height = 0
+                isDisposed = false
             }
         | _ =>
             // TODO: Fix language to handle this kind of exhaustiveness
             fail("should not happen")
 
     Show(): () =
+        this.ThrowIfDisposed()
         Win32.ShowWindow(this.hwnd)
 
-    Close(): () =
-        let result = CloseWindow(this.hwnd)
+    Hide(): () =
+        this.ThrowIfDisposed()
+        Win32.HideWindow(this.hwnd)
+
+    Minimize(): () =
+        this.ThrowIfDisposed()
+        let result = CloseWindow(this.hwnd)        
 
     PumpEvents(): InputSnapshot =
+        this.ThrowIfDisposed()
+
         #[inline]
         let getKeyEvents(): KeyEvent[] =
             let xs = this.keyEvents.ToArray()
@@ -215,26 +245,19 @@ internal sealed class Win32Window =
 
             | WM_KEYDOWN
             | WM_SYSKEYDOWN =>
-                let mutable key = char(msg.wParam.Value)
-                let key = Win32.TranslateKey(key)
-                match (key)
-                | Key.Unknown => ()
-                | _ =>
-                    let flags =
-                        if (this.keysDown.Add(key))
-                            KeyEventFlags.Down
-                        else
-                            KeyEventFlags.Repeat
-                    let keyEvent = KeyEvent(key, flags)
-                    this.keyEvents.Add(keyEvent)
+                let key = Win32.TranslateKey(char(msg.wParam.Value))
+                let flags =
+                    if (this.keysDown.Add(key))
+                        KeyEventFlags.Down
+                    else
+                        KeyEventFlags.Repeat
+                let keyEvent = KeyEvent(key, flags)
+                this.keyEvents.Add(keyEvent)
 
             | WM_KEYUP
             | WM_SYSKEYUP =>
-                let mutable key = char(msg.wParam.Value)
-                let key = Win32.TranslateKey(key)
-                match (key)
-                | Key.Unknown => ()
-                | _ =>
+                let key = Win32.TranslateKey(char(msg.wParam.Value))
+                if (key != Key.Unknown)
                     let result = this.keysDown.Remove(key)
                     let flags = KeyEventFlags.Up
                     let keyEvent = KeyEvent(key, flags)
@@ -265,3 +288,15 @@ internal sealed class Win32Window =
                 ()
 
         InputSnapshot(getKeyEvents(), this.mouseInfo)
+
+    Dispose(): () =
+        this.ThrowIfDisposed()
+        this.keyEvents.Clear()
+        this.keysDown.Clear()
+        this.Width <- 0
+        this.Height <- 0
+        let result = DestroyWindow(this.hwnd)
+
+    private ThrowIfDisposed(): () =
+        if (this.isDisposed)
+            throw ObjectDisposedException("Window already disposed.")

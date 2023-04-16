@@ -78,6 +78,9 @@ alias base_struct_enum
 uint16(byte): uint16
 
 #[intrinsic("unsafe_cast")]
+uint16(char): uint16
+
+#[intrinsic("unsafe_cast")]
 uint32(uint16): uint32
 
 #[intrinsic("unsafe_cast")]
@@ -166,6 +169,9 @@ float64(int64): float64
 
 #[intrinsic("unsafe_cast")]
 float64(float32): float64
+
+#[intrinsic("unsafe_cast")]
+char(uint16): char
 
 #[intrinsic("unsafe_cast")]
 char(nuint): char
@@ -454,6 +460,8 @@ nullptr<T>: T*
 (==)(float64, float64): bool
 #[intrinsic("equal")]
 (==)(bool, bool): bool
+#[intrinsic("equal")]
+(==)(char, char): bool
 
 #[intrinsic("not_equal")]
 (!=)(uint8, uint8): bool
@@ -477,6 +485,8 @@ nullptr<T>: T*
 (!=)(float64, float64): bool
 #[intrinsic("not_equal")]
 (!=)(bool, bool): bool
+#[intrinsic("not_equal")]
+(!=)(char, char): bool
 
 #[intrinsic("negate")]
 (-)(int8): int8

@@ -9,17 +9,21 @@
 namespace Evergreen.Window
 
 interface IWindow =
+    inherits System.IDisposable
+
     Title: string get
     HWND: nint get
     HINSTANCE: nint get
     IsClosed: bool get
+    IsHidden: bool get
 
     Width: uint32 get
     Height: uint32 get
 
     Show(): ()
+    Hide(): ()
     PumpEvents(): InputSnapshot
-    Close(): ()
+    Minimize(): ()
 
     static CreateWin32(title: string): IWindow =
         Win32Window(title)

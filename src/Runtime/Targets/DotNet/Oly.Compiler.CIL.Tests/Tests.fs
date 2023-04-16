@@ -14631,3 +14631,103 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Regression - Should not crash for pattern matching enum``() =
+    let src =
+        """
+
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("uint16")]
+alias uint16
+
+#[intrinsic("unsafe_cast")]
+uint16(char): uint16
+
+enum Key =
+    | Unknown
+    | A
+    | B
+    | C
+    | D
+    | E
+    | F
+    | G
+    | H
+    | I
+    | J
+    | K
+    | L
+    | M
+    | N
+    | O
+    | P
+    | Q
+    | R
+    | S
+    | T
+    | U
+    | V
+    | W
+    | X
+    | Y
+    | Z
+
+    | Esc
+    | Tilde
+
+TranslateKey(c: char): Key =
+    match (c)
+    | 'A' => Key.A
+    | 'B' => Key.B
+    | 'C' => Key.C
+    | 'D' => Key.D
+    | 'E' => Key.E
+    | 'F' => Key.F
+    | 'G' => Key.G
+    | 'H' => Key.H
+    | 'I' => Key.I
+    | 'J' => Key.J
+    | 'K' => Key.K
+    | 'L' => Key.L
+    | 'M' => Key.M
+    | 'N' => Key.N
+    | 'O' => Key.O
+    | 'P' => Key.P
+    | 'Q' => Key.Q
+    | 'R' => Key.R
+    | 'S' => Key.S
+    | 'T' => Key.T
+    | 'U' => Key.U
+    | 'V' => Key.V
+    | 'W' => Key.W
+    | 'X' => Key.X
+    | 'Y' => Key.Y
+    | 'Z' => Key.Z
+    | x =>
+        match (uint16(x))
+        | 192 => Key.Esc
+        | 27 => Key.Tilde
+        | _ => Key.Unknown
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = TranslateKey('A')
+    match (x)
+    | Key.A =>
+        print("passed")
+    | Key.Esc =>
+        print("failed")
+    | Key.Tilde =>
+        print("failed")
+    | _ => 
+        print("failed")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
