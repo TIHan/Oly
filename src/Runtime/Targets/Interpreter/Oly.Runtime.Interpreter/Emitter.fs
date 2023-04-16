@@ -659,6 +659,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 uint8 arg1 :> obj
             | (:? float as arg1) ->
                 uint8 arg1 :> obj
+            | (:? char as arg1) ->
+                uint8 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
         | InterpreterType.Int8 ->
@@ -682,6 +684,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | (:? float32 as arg1) ->
                 int8 arg1 :> obj
             | (:? float as arg1) ->
+                int8 arg1 :> obj
+            | (:? char as arg1) ->
                 int8 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
@@ -707,6 +711,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 uint16 arg1 :> obj
             | (:? float as arg1) ->
                 uint16 arg1 :> obj
+            | (:? char as arg1) ->
+                uint16 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
         | InterpreterType.Int16 ->
@@ -730,6 +736,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | (:? float32 as arg1) ->
                 int16 arg1 :> obj
             | (:? float as arg1) ->
+                int16 arg1 :> obj
+            | (:? char as arg1) ->
                 int16 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
@@ -755,6 +763,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 uint32 arg1 :> obj
             | (:? float as arg1) ->
                 uint32 arg1 :> obj
+            | (:? char as arg1) ->
+                uint32 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
         | InterpreterType.Int32 ->
@@ -778,6 +788,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | (:? float32 as arg1) ->
                 int32 arg1 :> obj
             | (:? float as arg1) ->
+                int32 arg1 :> obj
+            | (:? char as arg1) ->
                 int32 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
@@ -803,6 +815,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 uint64 arg1 :> obj
             | (:? float as arg1) ->
                 uint64 arg1 :> obj
+            | (:? char as arg1) ->
+                uint64 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"
         | InterpreterType.Int64 ->
@@ -826,6 +840,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | (:? float32 as arg1) ->
                 int64 arg1 :> obj
             | (:? float as arg1) ->
+                int64 arg1 :> obj
+            | (:? char as arg1) ->
                 int64 arg1 :> obj
             | _ ->
                 failwith "Invalid 'HandleCast'"

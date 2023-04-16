@@ -647,27 +647,23 @@ type OlyCompilation private (state: CompilationState) =
     member this.Version = state.version
 
     member this.GetILAssembly(ct) : Result<OlyILAssembly, OlyDiagnostic imarray> = 
-       try
-            let importDiags = this.GetImportDiagnostics(ct)
-            if checkHasErrors importDiags then
-                Result.Error(importDiags)
+        let importDiags = this.GetImportDiagnostics(ct)
+        if checkHasErrors importDiags then
+            Result.Error(importDiags)
+        else
+            let binders4 = lazySigPhase.GetValue(ct)
+            let boundTrees = CompilationPhases.implementation state binders4 ct
+
+            let hasErrors =
+                boundTrees
+                |> ImArray.exists (fun (_, diags) -> checkHasErrors diags)
+
+            if hasErrors then
+                Result.Error(this.GetDiagnostics(ct))
             else
-                let binders4 = lazySigPhase.GetValue(ct)
-                let boundTrees = CompilationPhases.implementation state binders4 ct
-
-                let hasErrors =
-                    boundTrees
-                    |> ImArray.exists (fun (_, diags) -> checkHasErrors diags)
-
-                if hasErrors then
-                    Result.Error(this.GetDiagnostics(ct))
-                else
-                    let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
-                    CompilationPhases.generateAssembly state loweredBoundTrees ct
-                    |> Result.Ok
-        with
-        | ex ->
-            Result.Error(ImArray.createOne (OlyDiagnostic.CreateError($"Internal Compiler Error: {ex}")))        
+                let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
+                CompilationPhases.generateAssembly state loweredBoundTrees ct
+                |> Result.Ok      
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity
