@@ -1028,12 +1028,15 @@ private createGraphicsPipeline(
     colorBlending.attachmentCount <- 1
     colorBlending.pAttachments <- &&colorBlendAttachment
 
-    // TODO: What do we do about the fixed buffer here?
-    colorBlending.blendConstants.FixedElementField <- 0 // Optional
-// colorBlending.blendConstants[0] = 0.0f; // Optional
-// colorBlending.blendConstants[1] = 0.0f; // Optional
-// colorBlending.blendConstants[2] = 0.0f; // Optional
-// colorBlending.blendConstants[3] = 0.0f; // Optional
+    let clearColorValue0 = &colorBlending.blendConstants.FixedElementField
+    let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
+    let clearColorValue2 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
+    let clearColorValue3 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
+
+    clearColorValue0 <- 0 // Optional
+    clearColorValue1 <- 0 // Optional
+    clearColorValue2 <- 0 // Optional
+    clearColorValue3 <- 0 // Optional
 
     let pName = "main"
     let mutable pNameHandle = fixedCopyUTF8(pName)

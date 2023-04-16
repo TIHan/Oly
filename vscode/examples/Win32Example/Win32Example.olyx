@@ -188,7 +188,7 @@ main(): () =
                 let mutable globals = Globals()
                 globals.Projection <- Matrix4x4.CreatePerspectiveFieldOfView(radians(45), 1, 0.1, 10)
                 globals.View <- Matrix4x4.CreateLookAt(Vector3(2, 2, 2), Vector3(0, 0, 0), Vector3(0, 0, 1))
-                globals.Model <- Matrix4x4.Identity//glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)
+                globals.Model <- Matrix4x4.Identity
                 globals
             )
         ]
