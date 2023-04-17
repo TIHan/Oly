@@ -566,6 +566,12 @@ CreateImageView(app: VulkanApplication, image: VulkanImage): VkImageView =
 DestroyImageView(app: VulkanApplication, imageView: VkImageView): () =
     vkDestroyImageView(app.Device, imageView, nullptr)
 
+CreateSampler(app: VulkanApplication): VkSampler =
+    createSampler(app.Device, 1)//app.PhysicalDeviceProperties.limits.maxSamplerAnisotropy)
+
+DestroySampler(app: VulkanApplication, sampler: VkSampler): () =
+    vkDestroySampler(app.Device, sampler, nullptr)
+
 CreateDescriptorSetLayout(app: VulkanApplication, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
     createDescriptorSetLayout(app.Device, binding, descriptorType, stageFlags)
 
@@ -1653,6 +1659,31 @@ private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, ol
         0, nullptr,
         1, &&barrier
     )
+
+private createSampler(device: VkDevice, maxAnisotropy: float32): VkSampler =
+    let mutable samplerInfo = default: VkSamplerCreateInfo
+    samplerInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
+    samplerInfo.magFilter <- VkFilter.VK_FILTER_LINEAR
+    samplerInfo.minFilter <- VkFilter.VK_FILTER_LINEAR
+    samplerInfo.addressModeU <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
+    samplerInfo.addressModeV <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
+    samplerInfo.addressModeW <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
+    samplerInfo.anisotropyEnable <- if (maxAnisotropy == 1) VkBool32.FALSE else VkBool32.TRUE
+    samplerInfo.maxAnisotropy <- maxAnisotropy
+    samplerInfo.borderColor <- VkBorderColor.VK_BORDER_COLOR_INT_OPAQUE_BLACK
+    samplerInfo.unnormalizedCoordinates <- VkBool32.FALSE
+    samplerInfo.compareEnable <- VkBool32.FALSE
+    samplerInfo.compareOp <- VkCompareOp.VK_COMPARE_OP_ALWAYS
+    samplerInfo.mipmapMode <- VkSamplerMipmapMode.VK_SAMPLER_MIPMAP_MODE_LINEAR
+    samplerInfo.mipLodBias <- 0
+    samplerInfo.minLod <- 0
+    samplerInfo.maxLod <- 0
+
+    let mutable sampler = default
+    if (vkCreateSampler(device, &&samplerInfo, nullptr, &&sampler) != VkResult.VK_SUCCESS)
+        fail("Failed to create sampler.")
+
+    sampler
 // -----------------------------------------------------------------------
 
 alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint

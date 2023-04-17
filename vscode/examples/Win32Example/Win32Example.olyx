@@ -186,6 +186,7 @@ main(): () =
 
     let testImage = createImage(vulkanApp, "GameExample/Textures/flats/aqf068.png")
     let testImageView = vk.CreateImageView(vulkanApp, testImage)
+    let testSampler = vk.CreateSampler(vulkanApp)
 
     printLine(vulkanApp.GetDeviceName())
 
@@ -375,6 +376,7 @@ main(): () =
     vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
     vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
 
+    vk.DestroySampler(vulkanApp, testSampler)
     vk.DestroyImageView(vulkanApp, testImageView)
     vk.DestroyImage(vulkanApp, testImage)
 
