@@ -461,11 +461,11 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
 
-CreateImage(app: VulkanApplication, width: uint32, height: uint32, format: VkFormat, imageData: ReadOnlySpan<byte>): VulkanImage =
+CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, imageData: ReadOnlySpan<byte>): VulkanImage =
     let mutable allocInfo = default: VmaAllocationInfo
-    match (createImage(app.Allocator, width, height, format, VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, &&allocInfo))
+    match (createImage(app.Allocator, width, height, imageFormat, VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, &&allocInfo))
     | (image, allocation) =>
-        let image = VulkanImage(image, allocation, width, height)
+        let image = VulkanImage(image, allocation, width, height, imageFormat)
         UpdateImage(app, image, imageData)
         image
     | _ =>
@@ -559,6 +559,12 @@ private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageDat
 
 DestroyImage(app: VulkanApplication, image: VulkanImage): () =
     vmaDestroyImage(app.Allocator, image.Image, image.Allocation)
+
+CreateImageView(app: VulkanApplication, image: VulkanImage): VkImageView =
+    createImageView(app.Device, image.Image, image.Format)
+
+DestroyImageView(app: VulkanApplication, imageView: VkImageView): () =
+    vkDestroyImageView(app.Device, imageView, nullptr)
 
 CreateDescriptorSetLayout(app: VulkanApplication, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
     createDescriptorSetLayout(app.Device, binding, descriptorType, stageFlags)
@@ -1304,16 +1310,18 @@ private sealed class VulkanImage =
     Allocation: VmaAllocation
     Width: uint32
     Height: uint32
+    Format: VkFormat
 
-    new(image: VkImage, allocation: VmaAllocation, width: uint32, height: uint32) =
+    new(image: VkImage, allocation: VmaAllocation, width: uint32, height: uint32, format: VkFormat) =
         {
             Image = image
             Allocation = allocation
             Width = width
             Height = height
+            Format = format
         }
 
-private createImage(allocator: VmaAllocator, width: uint32, height: uint32, format: VkFormat, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkImage, VmaAllocation) =
+private createImage(allocator: VmaAllocator, width: uint32, height: uint32, imageFormat: VkFormat, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkImage, VmaAllocation) =
     let mutable imageInfo = default: VkImageCreateInfo
     imageInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
     imageInfo.imageType <- VkImageType.VK_IMAGE_TYPE_2D
@@ -1322,7 +1330,7 @@ private createImage(allocator: VmaAllocator, width: uint32, height: uint32, form
     imageInfo.extent.depth <- 1
     imageInfo.mipLevels <- 1
     imageInfo.arrayLayers <- 1
-    imageInfo.format <- format
+    imageInfo.format <- imageFormat
     imageInfo.tiling <- VkImageTiling.VK_IMAGE_TILING_OPTIMAL
     imageInfo.initialLayout <- VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
     imageInfo.usage <- VkImageUsageFlags.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VkImageUsageFlags.VK_IMAGE_USAGE_SAMPLED_BIT
