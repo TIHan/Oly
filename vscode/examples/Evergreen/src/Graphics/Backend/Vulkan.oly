@@ -535,6 +535,7 @@ private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageDat
                 1,
                 &&imageCopy
             )
+            transitionImageLayout(commandBuffer, image.Image, newLayout, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 
             if (vkEndCommandBuffer(commandBuffer) != VkResult.VK_SUCCESS)
                 fail("Failed to end command buffer.")
