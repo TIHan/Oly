@@ -727,13 +727,10 @@ and checkWitnessesFromCallExpression (expr: BoundExpression) =
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
-/// This checks the expression to verify its correctness.
-/// It does not check all expressions under the expression.
-/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
-and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
+and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverOpt, _, argExprs, value, _) when not value.IsFunctionGroup ->
-        checkWitnessesFromCallExpression expr
+    | BoundExpression.Call(syntaxInfo, receiverOpt, _, argExprs, value, _) ->
+        OlyAssert.False(value.IsFunctionGroup)
 
         let syntaxNode =
             match syntaxInfo.Syntax with
@@ -795,6 +792,17 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
 
         if receiverOpt.IsSome then
             checkReceiverOfExpression env expr
+    | _ ->
+        OlyAssert.Fail("Expected 'Call' expression.")
+
+/// This checks the expression to verify its correctness.
+/// It does not check all expressions under the expression.
+/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
+and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
+    match expr with
+    | BoundExpression.Call(value=value) when not value.IsFunctionGroup ->
+        checkArgumentsFromCallExpression env isReturnable expr 
+        checkWitnessesFromCallExpression expr  
 
     | BoundExpression.Sequential(_, expr1, _) ->
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type

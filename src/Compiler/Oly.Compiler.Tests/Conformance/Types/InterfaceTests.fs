@@ -425,7 +425,7 @@ f<T, U>(x: T) : U where T : Add<T, __oly_int16, U> = x + 1
     Oly src
     |> withErrorDiagnostics
         [
-           "Type instantiation 'T' is missing the constraint 'Add<T, __oly_int32, ?T3>'."
+           "Type instantiation 'T' is missing the constraint 'Add<T, __oly_int32, U>'."
         ]
     |> ignore
 

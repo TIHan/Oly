@@ -3241,6 +3241,7 @@ type TypeSymbol =
         | Error _ -> EnclosingSymbol.RootNamespace
         | Entity(ent) -> ent.Enclosing
 
+    /// TODO: Rename to 'IsAnyTypeVariable'
     member this.IsTypeVariable =
         match stripTypeEquations this with
         | Variable _

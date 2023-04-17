@@ -558,9 +558,9 @@ module Graphics =
 
         let hasFramebuffer() = currentFramebuffer !== unchecked default
 
-        let mutable currentTextureSet = unchecked default
+        let mutable currentTextureSet = unchecked default: ResourceSet
         let mutable currentTextureSetKind = unchecked default
-        let mutable currentInstancesSet = unchecked default
+        let mutable currentInstancesSet = unchecked default: ResourceSet
         let mutable currentInstancesSetKind = unchecked default
 
         let bindTextureSet() =

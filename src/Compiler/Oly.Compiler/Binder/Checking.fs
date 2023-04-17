@@ -633,11 +633,10 @@ let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedT
     |> lateCheckCalleeExpression cenv env
 
 let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
+    let expr = autoDereferenceExpression expr
     let recheckExpectedTy =
         match expectedTyOpt with
-        // While a type variable is technically "solved", we do not want to do this check early
-        // because the return type could be a byref.
-        | Some expectedTy when expectedTy.IsSolved && not expectedTy.IsTypeVariable && not env.isReturnable ->
+        | Some expectedTy when expectedTy.IsSolved ->
             checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
             false
         | _ ->
@@ -650,7 +649,6 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
         checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
 
     let expr = autoDereferenceExpression expr
-
     if recheckExpectedTy then
         match expectedTyOpt with
         | Some expectedTy ->
@@ -658,7 +656,7 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
         | _ ->
             ()
 
-    autoDereferenceExpression expr
+    expr
 
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: BoundExpression) =
     checkCallExpression cenv env expectedTyOpt false expr

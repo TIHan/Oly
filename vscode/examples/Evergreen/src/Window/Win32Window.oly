@@ -263,13 +263,14 @@ internal sealed class Win32Window =
             | WM_KEYDOWN
             | WM_SYSKEYDOWN =>
                 let key = Win32.TranslateKey(char(msg.wParam.Value))
-                let flags =
-                    if (this.keysDown.Add(key))
-                        KeyEventFlags.Down
-                    else
-                        KeyEventFlags.Repeat
-                let keyEvent = KeyEvent(key, flags)
-                this.keyEvents.Add(keyEvent)
+                if (key != Key.Unknown)
+                    let flags =
+                        if (this.keysDown.Add(key))
+                            KeyEventFlags.Down
+                        else
+                            KeyEventFlags.Repeat
+                    let keyEvent = KeyEvent(key, flags)
+                    this.keyEvents.Add(keyEvent)
 
             | WM_KEYUP
             | WM_SYSKEYUP =>

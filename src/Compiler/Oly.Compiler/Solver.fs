@@ -302,25 +302,17 @@ and solveWitnessesByInferenceVariable env (syntaxNode: OlySyntaxNode) (witnessAr
 
         match varTyParOpt with
         | None ->
-            if varSolution.IsTypeOfParameter then
-                // Uncommenting this would allow inference variables created from parameters of local functions to
-                // aggregate possible constraints.
-                // For this feature to be sound, we must allow solving of constraints+witnesses a second time
-                // in PostInferenceAnalysis if there are constraint errors. These errors should only be reported once.
-                (*
-                // This inference variable is for the type of parameter, so we aggregate constraints.
-                witnessArgs
-                |> ImArray.iter (fun witnessArg ->
-                    let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(witnessArg.Entity.AsType))
-                    if varSolution.Constraints |> Seq.exists (fun constr2 -> areConstraintsEqual constr constr2) |> not then
-                        varSolution.AddConstraint(constr)
-                    witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
-                )
-                true
-                *)
-                false
-            else
-                false
+            // REVEW: For this feature to be sound, we must allow solving of constraints+witnesses a second time
+            //        in PostInferenceAnalysis if there are constraint errors. These errors should only be reported once.
+            // This inference variable is for the type of parameter, so we aggregate constraints.
+            witnessArgs
+            |> ImArray.iter (fun witnessArg ->
+                let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(witnessArg.Entity.AsType))
+                if varSolution.Constraints |> Seq.exists (fun constr2 -> areConstraintsEqual constr constr2) |> not then
+                    varSolution.AddConstraint(constr)
+                witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
+            )
+            true
         | Some tyPar ->
             OlyAssert.False(varSolution.IsTypeOfParameter)
 
@@ -499,19 +491,24 @@ and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSy
         | _ -> false
 
 and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) =
-    match constr with
-    | ConstraintSymbol.Null ->
-        solveConstraintNull env syntaxNode tyArg
-    | ConstraintSymbol.Struct ->
-        solveConstraintStruct env syntaxNode tyArg
-    | ConstraintSymbol.NotStruct ->
-        solveConstraintNotStruct env syntaxNode tyArg
-    | ConstraintSymbol.Unmanaged ->
-        solveConstraintUnmanaged env syntaxNode tyArg
-    | ConstraintSymbol.ConstantType(constTy) ->
-        solveConstraintConstantType env syntaxNode constTy.Value tyArg
-    | ConstraintSymbol.SubtypeOf(target) ->
-        solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
+    // If the type argument has not been solved at this point, then the solver fails.
+    // TODO: Allow solving constraints for inference variables behind an experimental flag. 
+    if tyArg.IsSolved then
+        match constr with
+        | ConstraintSymbol.Null ->
+            solveConstraintNull env syntaxNode tyArg
+        | ConstraintSymbol.Struct ->
+            solveConstraintStruct env syntaxNode tyArg
+        | ConstraintSymbol.NotStruct ->
+            solveConstraintNotStruct env syntaxNode tyArg
+        | ConstraintSymbol.Unmanaged ->
+            solveConstraintUnmanaged env syntaxNode tyArg
+        | ConstraintSymbol.ConstantType(constTy) ->
+            solveConstraintConstantType env syntaxNode constTy.Value tyArg
+        | ConstraintSymbol.SubtypeOf(target) ->
+            solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
+    else
+        false
  
 and private solveConstraintsAux
         env 
