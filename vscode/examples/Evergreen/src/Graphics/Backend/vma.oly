@@ -176,3 +176,9 @@ vmaGetAllocationMemoryProperties(allocator: VmaAllocator, allocation: VmaAllocat
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaFlushAllocation")]
 vmaFlushAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: uint64, size: uint64): VkResult
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaCreateImage")]
+vmaCreateImage(allocator: VmaAllocator, pImageCreateInfo: VkImageCreateInfo*, pAllocationCreateInfo: VmaAllocationCreateInfo*, pImage: VkImage*, pAllocation: VmaAllocation*, pAllocateInfo: VmaAllocationInfo*): VkResult
+
+#[import("C", "VulkanMemoryAllocator.dll", "vmaDestroyImage")]
+vmaDestroyImage(allocator: VmaAllocator, image: VkImage, allocation: VmaAllocation): ()

@@ -13,6 +13,11 @@ open System.Diagnostics
 open System.Runtime.InteropServices
 open Evergreen.Window
 
+open SixLabors.ImageSharp
+open SixLabors.ImageSharp.Advanced
+open SixLabors.ImageSharp.PixelFormats
+open SixLabors.ImageSharp.Processing
+
 sealed class ExternalProcess =
     implements IDisposable
 
@@ -114,6 +119,7 @@ private alias VkShaderStageFlags = TerraFX.Interop.Vulkan.VkShaderStageFlags
 private alias VkDescriptorSet = TerraFX.Interop.Vulkan.VkDescriptorSet
 private alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
 private alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
+private alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
@@ -157,6 +163,19 @@ compileShaderByFile(path: string): ReadOnlySpan<byte> =
     p.Dispose()
     code
 
+createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
+    let image = Image.Load<Rgba32>(File.ReadAllBytes(filePath))
+    let width = uint32(image.Width)
+    let height = uint32(image.Height)
+    let format = VkFormat.VK_FORMAT_B8G8R8A8_UNORM
+
+    let imageSpan = AdvancedImageExtensions.GetPixelRowMemory(image, 0).Span
+    let imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
+    let imageSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<Rgba32, byte>(imageSpan)
+    let vulkanImage = vk.CreateImage(vulkanApp, width, height, format, imageSpan)
+    image.Dispose()
+    vulkanImage
+
 main(): () =
     let window = IWindow.CreateWin32("Vulkan Example")
 
@@ -164,6 +183,8 @@ main(): () =
     vulkanAppOptions.ValidationEnabled <- true
     vulkanAppOptions.MaxFramesInFlight <- 2
     let vulkanApp = vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
+
+    let testImage = createImage(vulkanApp, "GameExample/Textures/flats/aqf068.png")
 
     printLine(vulkanApp.GetDeviceName())
 
@@ -352,6 +373,8 @@ main(): () =
 
     vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
     vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
+
+    vk.DestroyImage(vulkanApp, testImage)
 
     vk.Destroy(vulkanApp)
 
