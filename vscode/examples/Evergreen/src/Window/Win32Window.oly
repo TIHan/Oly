@@ -1,6 +1,7 @@
 namespace Evergreen.Window
 
 open System
+open System.Diagnostics
 open System.Collections.Generic
 open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
@@ -103,12 +104,15 @@ internal module Win32 =
             (hwnd, hInstance)
 
     ShowWindow(hwnd: HWND): () =
-        let result = ShowWindow(hwnd, SW_SHOW)
+        let result = ShowWindow(hwnd, SW_SHOWNORMAL)
         let result = UpdateWindow(hwnd)
         let result = SetFocus(hwnd)
 
     HideWindow(hwnd: HWND): () =
         let result = ShowWindow(hwnd, SW_HIDE)
+
+    MinimizeWindow(hwnd: HWND): () =
+        let result = CloseWindow(hwnd) 
 
     TranslateKey(c: char): Key =
         match (c)
@@ -140,8 +144,8 @@ internal module Win32 =
         | 'Z' => Key.Z
         | x =>
             match (uint16(x))
-            | 192 => Key.Esc
-            | 27 => Key.Tilde
+            | 27 => Key.Esc
+            | 192 => Key.Tilde
             | _ => Key.Unknown
 
 internal sealed class Win32Window =
@@ -155,6 +159,7 @@ internal sealed class Win32Window =
     private mutable keyEvents: List<KeyEvent>
     private mutable keysDown: HashSet<Key>
     private mutable isDisposed: bool
+    private mutable isClosed: bool
 
     Title: string get() = this.title
     HWND: nint get() = nint(this.hwnd.Value)
@@ -164,12 +169,16 @@ internal sealed class Win32Window =
         get() = 
             if (this.isDisposed)
                 true
+            else if (this.isClosed)
+                true
             else
                 IsWindow(this.hwnd) == BOOL.FALSE
 
     IsHidden: bool 
         get() = 
             if (this.isDisposed)
+                true
+            else if (this.isClosed)
                 true
             else
                 IsWindowVisible(this.hwnd) == BOOL.FALSE
@@ -195,6 +204,7 @@ internal sealed class Win32Window =
                 Width = 0
                 Height = 0
                 isDisposed = false
+                isClosed = false
             }
         | _ =>
             // TODO: Fix language to handle this kind of exhaustiveness
@@ -203,14 +213,21 @@ internal sealed class Win32Window =
     Show(): () =
         this.ThrowIfDisposed()
         Win32.ShowWindow(this.hwnd)
+        this.isClosed <- false
 
     Hide(): () =
         this.ThrowIfDisposed()
         Win32.HideWindow(this.hwnd)
 
+    Close(): () =
+        this.ThrowIfDisposed()
+        Win32.HideWindow(this.hwnd)
+        this.isClosed <- true
+
     Minimize(): () =
         this.ThrowIfDisposed()
-        let result = CloseWindow(this.hwnd)        
+        if (!this.isClosed)
+            let result = CloseWindow(this.hwnd)        
 
     PumpEvents(): InputSnapshot =
         this.ThrowIfDisposed()
@@ -291,12 +308,15 @@ internal sealed class Win32Window =
 
     Dispose(): () =
         this.ThrowIfDisposed()
+        let result = DestroyWindow(this.hwnd)
+        this.isDisposed <- true
+        this.isClosed <- true
         this.keyEvents.Clear()
         this.keysDown.Clear()
         this.Width <- 0
         this.Height <- 0
-        let result = DestroyWindow(this.hwnd)
 
+    #[DebuggerHidden()]
     private ThrowIfDisposed(): () =
         if (this.isDisposed)
-            throw ObjectDisposedException("Window already disposed.")
+            throw ObjectDisposedException("Win32Window")

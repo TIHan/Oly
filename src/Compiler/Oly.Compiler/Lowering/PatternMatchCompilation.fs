@@ -942,6 +942,12 @@ let transformMatchPattern (cenv: cenv) (matchPatternLookup: MatchPatternLookup) 
     match matchPattern with
     | BoundMatchPattern.Cases(_, patterns) ->
         matchPatternLookup.Add(ResizeArray())
+        let contExprOpt =
+            // We must have a continuation. If we do not, then the target is our continuation.
+            if contExprOpt.IsSome then
+                contExprOpt
+            else
+                Some targetExpr
         transformPatterns cenv matchPatternLookup matchPatternIndex contExprOpt patterns
         |> combineDecisions cenv
         |> ImArray.createOne

@@ -14636,7 +14636,6 @@ main(): () =
 let ``Regression - Should not crash for pattern matching enum``() =
     let src =
         """
-
 #[intrinsic("char16")]
 alias char
 
@@ -14732,7 +14731,6 @@ main(): () =
 let ``Regression - Should not crash for pattern matching enum 2``() =
     let src =
         """
-
 #[intrinsic("char16")]
 alias char
 
@@ -14803,6 +14801,105 @@ TranslateKey(c: char): Key =
     | 'Y' => Key.Y
     | 'Z' => Key.Z
     | x =>
+        match (uint16(x))
+        | 192 => Key.Esc
+        | 27 => Key.Tilde
+        | _ => Key.Unknown
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = TranslateKey('A')
+    match (x)
+    | Key.A =>
+        print("passed")
+    | Key.Esc =>
+        print("failed")
+    | Key.Tilde =>
+        print("failed")
+    | _ => 
+        print("failed")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Regression - Should not crash for pattern matching enum 3``() =
+    let src =
+        """
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("uint16")]
+alias uint16
+
+#[intrinsic("unsafe_cast")]
+uint16(char): uint16
+
+enum Key =
+    | Unknown
+    | A
+    | B
+    | C
+    | D
+    | E
+    | F
+    | G
+    | H
+    | I
+    | J
+    | K
+    | L
+    | M
+    | N
+    | O
+    | P
+    | Q
+    | R
+    | S
+    | T
+    | U
+    | V
+    | W
+    | X
+    | Y
+    | Z
+
+    | Esc
+    | Tilde
+
+TranslateKey(c: char): Key =
+    match (c, c)
+    | 'A', _ => Key.A
+    | 'B', _ => Key.B
+    | 'C', _ => Key.C
+    | 'D', _ => Key.D
+    | 'E', _ => Key.E
+    | 'F', _ => Key.F
+    | 'G', _ => Key.G
+    | 'H', _ => Key.H
+    | 'I', 'I' => Key.I
+    | 'J', _ => Key.J
+    | 'K', _ => Key.K
+    | 'L', _ => Key.L
+    | 'M', _ => Key.M
+    | 'N', 'N' => Key.N
+    | 'O', _ => Key.O
+    | 'P', _ => Key.P
+    | 'Q', _ => Key.Q
+    | 'R', _ => Key.R
+    | 'S', _ => Key.S
+    | 'T', _ => Key.T
+    | 'U', _ => Key.U
+    | 'V', _ => Key.V
+    | 'W', _ => Key.W
+    | 'X', _ => Key.X
+    | 'Y', _ => Key.Y
+    | 'Z', _ => Key.Z
+    | x, y =>
         match (uint16(x))
         | 192 => Key.Esc
         | 27 => Key.Tilde

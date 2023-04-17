@@ -8,8 +8,10 @@
 
 namespace Evergreen.Window
 
+open System
+
 interface IWindow =
-    inherits System.IDisposable
+    inherits IDisposable
 
     Title: string get
     HWND: nint get
@@ -22,6 +24,7 @@ interface IWindow =
 
     Show(): ()
     Hide(): ()
+    Close(): ()
     PumpEvents(): InputSnapshot
     Minimize(): ()
 

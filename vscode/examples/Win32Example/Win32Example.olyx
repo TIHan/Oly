@@ -318,10 +318,8 @@ main(): () =
             if (keyEvent.IsDown && !keyEvent.IsRepeat)
 
                 match (keyEvent.Key)
-                | Key.A =>
-                    printLine("Doot")
                 | Key.Esc =>
-                    window.Dispose()
+                    window.Close()
                 | Key.Tilde =>
                     window.Minimize()
                 | _ => 
@@ -356,3 +354,5 @@ main(): () =
     vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
 
     vk.Destroy(vulkanApp)
+
+    window.Dispose()
