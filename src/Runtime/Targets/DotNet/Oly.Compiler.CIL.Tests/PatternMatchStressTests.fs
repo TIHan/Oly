@@ -1084,11 +1084,7 @@ main(): () =
     |> shouldRunWithExpectedOutput "1213"
     |> ignore
 
-#if DEBUG
-[<Fact(Skip = "Debug Build Stack Overflows")>]
-#else
 [<Fact>]
-#endif
 let ``Pattern matching - stress test 011``() =
     let src = 
         """

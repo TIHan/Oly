@@ -4,7 +4,7 @@ open Xunit
 open TestUtilities
 open Utilities
 
-[<Fact(Skip = "does not work")>]
+[<Fact(Skip = "does not work - stackoverflows compiler")>]
 let ``Component Bit Mask stress test``() =
     let src =
         """
@@ -21,10 +21,10 @@ struct int32
 print(__oly_object): ()
 
 #[intrinsic("by_ref_read_write")]
-type byref<T>
+alias byref<T>
 
 #[intrinsic("by_ref_read")]
-type inref<T>
+alias inref<T>
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>

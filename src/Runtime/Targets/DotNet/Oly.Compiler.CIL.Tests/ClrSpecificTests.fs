@@ -4167,3 +4167,52 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Generic class that handles functions that have ambiguity - Exported``() =
+    let src =
+        """
+namespace TestNamespace
+
+open System
+
+#[export]
+class A<T> =
+
+    #[export]
+    abstract default Test(x: T): () =
+        Program.print("Test_T_")
+
+    #[export]
+    abstract default Test(x: Int32): () =
+        Program.print("Test_int32_")
+
+#[export]
+class Test =
+    inherits A<String>
+
+#[export]
+class Test2 =
+    inherits A<Int32>
+
+    #[export]
+    overrides Test(x: Int32): () =
+        Program.print(x)
+
+module Program =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    main(): () =
+        let t = Test()
+        let t = t: A<String>
+        t.Test("test")
+        t.Test(456)
+
+        let t = Test2()
+        let t = t: A<Int32>
+        t.Test(123)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Test_T_Test_int32_123"

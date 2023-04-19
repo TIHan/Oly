@@ -1581,6 +1581,36 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         tryResolve enclosingTy1
 
+    let getTotalTypeVariableUseCountFromType (ty: RuntimeType) =
+        let rec loop count (ty: RuntimeType) =
+            match ty.StripAlias() with
+            | RuntimeType.Variable _ ->
+                count + 1
+            | RuntimeType.HigherVariable(tyArgs=tyArgs) ->
+                let mutable count = count + 1
+                tyArgs
+                |> ImArray.iter (fun tyArg ->
+                    count <- loop 0 tyArg
+                )
+                count
+            | _ ->
+                let mutable count = count
+                ty.TypeArguments
+                |> ImArray.iter (fun tyArg ->
+                    count <- loop 0 tyArg
+                )
+                count
+        loop 0 ty
+
+    let getTotalTypeVariableUseCountFromFunction (func: RuntimeFunction) =
+        let mutable count = 0
+        func.Parameters
+        |> ImArray.iter (fun par ->
+            count <- count + getTotalTypeVariableUseCountFromType par.Type
+        )
+        count <- count + getTotalTypeVariableUseCountFromType func.ReturnType
+        count
+
     let resolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) ilFuncTyArgs (enclosing: RuntimeEnclosing) genericContext =
         let enclosingTyParCount1 = enclosing.TypeParameters.Length
         let funcTyArgs =
@@ -1588,6 +1618,44 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount1, ilAsm1, x, genericContext))
         let funcs, funcTyArgs = 
             tryResolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) funcTyArgs enclosing.AsType genericContext
+
+        let funcs =
+            if funcs.Length > 1 then
+                // Handles use-case.
+                (*
+                    interface IA<T> =
+                
+                        Test(x: T): ()
+                        Test(x: int32): ()
+                
+                    class Test =
+                        implements IA<int32>
+                
+                        Test(x: int32): () =
+                            print(x)
+                
+                    main(): () =
+                        let t = Test()
+                        let t = t: IA<int32>
+                        t.Test(123)
+                *)
+                funcs
+                |> ImArray.filter (fun func ->
+                    OlyAssert.True(func.IsFormal)
+                    let isNotSpecific =
+                        funcs
+                        |> ImArray.exists (fun func2 ->
+                            if obj.ReferenceEquals(func, func2) then false
+                            else
+                                let funcCount = getTotalTypeVariableUseCountFromFunction func
+                                let func2Count = getTotalTypeVariableUseCountFromFunction func2
+                                funcCount > func2Count
+                        )
+                    not isNotSpecific
+                )
+            else
+                funcs
+
         if funcs.IsEmpty then
             let name = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
             failwith $"Unable to find function definition for '{name}' on '{enclosing.AsType.Name}'."
@@ -1595,6 +1663,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let name = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
             failwith $"Too many function definitions found for '{name}'."
         else
+            OlyAssert.True(funcs[0].IsFormal)
+
             let funcTyArgs =
                 // We definitly need to do this.
                 // Erase function type arguments via resolving the function.

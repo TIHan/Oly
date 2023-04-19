@@ -1451,12 +1451,42 @@ let filterMostSpecificTypes (tys: TypeSymbol imarray) =
         )
     )
 
+let private getTotalTypeVariableUseCountFromType (ty: TypeSymbol) =
+    let mutable count = 0
+
+    let rec implType ty =
+        match stripTypeEquations ty with
+        | TypeSymbol.Variable(_) ->
+            count <- count + 1
+        | TypeSymbol.HigherVariable(_, tyArgs) ->
+            count <- count + 1
+            for i = 0 to tyArgs.Length - 1 do
+                implType tyArgs.[i]
+        | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
+        | TypeSymbol.Function(inputTy, returnTy) ->
+            implType inputTy
+            implType returnTy
+        | TypeSymbol.ForAll(_, innerTy) ->
+            implType innerTy
+        | TypeSymbol.Tuple(tyArgs, _) ->
+            tyArgs |> ImArray.iter implType
+        | TypeSymbol.Entity(ent) ->
+            for i = 0 to ent.TypeArguments.Length - 1 do
+                implType ent.TypeArguments.[i]
+        | _ ->
+            let tyTyArgs = ty.TypeArguments
+            for i = 0 to tyTyArgs.Length - 1 do
+                implType tyTyArgs[i]
+
+    implType ty
+    count
+
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
     |> ImArray.filter (fun x ->
         if (x.IsConstructor || x.IsFinal || not x.IsVirtual) && not x.Enclosing.IsTypeExtension then true
         else
-            let isOverriden =
+            let isNotSpecific =
                 funcs
                 |> ImArray.exists (fun y ->
                     if x.Id = y.Id then false
@@ -1470,13 +1500,39 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
                                     else
                                         subsumesType ent1.Extends[0] ent2.Extends[0]
                                 else
-                                    subsumesEntity ent1 ent2
+                                    if areEntitiesEqual ent1 ent2 then
+                                        // Handles use-case.
+                                        (*
+                                            interface IA<T> =
+                                        
+                                                Test(x: T): ()
+                                                Test(x: int32): ()
+                                        
+                                            class Test =
+                                                implements IA<int32>
+                                        
+                                                Test(x: int32): () =
+                                                    print(x)
+                                        
+                                            main(): () =
+                                                let t = Test()
+                                                let t = t: IA<int32>
+                                                t.Test(123)
+                                        *)
+                                        let xCount = getTotalTypeVariableUseCountFromType x.Formal.AsFunction.Type
+                                        let yCount = getTotalTypeVariableUseCountFromType y.Formal.AsFunction.Type
+                                        if xCount > yCount then
+                                            true
+                                        else
+                                            false
+                                    else
+                                        subsumesEntity ent1 ent2
                             | _ -> 
                                 false
                         else
                             false
                 )
-            if isOverriden then false
+            if isNotSpecific then false
             else true
     )
 

@@ -105,34 +105,47 @@ type InterpreterType =
 
     member this.TryFindMostSpecificFunctionBySignatureKey(sigKey1: OlyIRFunctionSignatureKey) =
         let rec tryFind (ty: InterpreterType) =
-            let resultOpt =
+            let results =
                 ty.Functions
-                |> Seq.tryFind (fun func ->
+                |> Seq.filter (fun func ->
                     match func.SignatureKey with
                     | Some sigKey2 -> sigKey1 = sigKey2
                     | _ -> false
                 )
-            if resultOpt.IsNone && ty.Inherits.IsEmpty then
-                None
-            else
-                if resultOpt.IsSome then
-                    resultOpt
+                |> ImArray.ofSeq
+
+            if results.IsEmpty then
+                if ty.Inherits.IsEmpty then
+                    None
                 else
                     tryFind ty.Inherits.[0]
+            elif results.Length = 1 then
+                Some results[0]
+            else
+                OlyAssert.Fail("Ambiguous functions found.")
+                
         tryFind this
 
     member this.TryFindOverridesFunction(virtualFunc: InterpreterFunction) =
-        this.Functions
-        |> Seq.tryPick (fun func ->
-            match func.Overrides with
-            | Some overrides -> 
-                if virtualFunc = overrides then
-                    Some func
-                else
-                    None
-            | _ -> 
-                None
-        )
+        let funcs =
+            this.Functions
+            |> Seq.filter (fun func ->
+                match func.Overrides with
+                | Some overrides -> 
+                    if virtualFunc = overrides then
+                        true
+                    else
+                        false
+                | _ -> 
+                    false
+            )
+            |> ImArray.ofSeq
+        if funcs.IsEmpty then
+            None
+        elif funcs.Length = 1 then
+            Some funcs[0]
+        else
+            OlyAssert.Fail("Ambiguous functions found.")
 
     member this.TryFindOverridesFunctionByKey(virtualFunc: InterpreterFunction) =
         match virtualFunc.SignatureKey with

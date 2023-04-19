@@ -14924,3 +14924,193 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Generic interface that handles functions that have ambiguity``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA<T> =
+
+    Test(x: T): ()
+    Test(x: int32): ()
+
+class Test =
+    implements IA<int32>
+
+    Test(x: int32): () =
+        print(x)
+
+main(): () =
+    let t = Test()
+    t.Test(123)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Generic interface that handles functions that have ambiguity 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA<T> =
+
+    default Test(x: T): () =
+        print("failed_T")
+
+    default Test(x: int32): () =
+        print("failed_int32")
+
+class Test =
+    implements IA<int32>
+
+    Test(x: int32): () =
+        print(x)
+
+main(): () =
+    let t = Test()
+    let t = t: IA<int32>
+    t.Test(123)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Generic interface that handles functions that have ambiguity 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA<T> =
+
+    Test(x: T): ()
+    Test(x: int32): ()
+
+class Test =
+    implements IA<int32>
+
+    Test(x: int32): () =
+        print(x)
+
+class Test2 =
+    implements IA<string>
+
+    Test(x: int32): () = ()
+
+    Test(x: string): () = 
+        print(x)
+
+main(): () =
+    let t2 = Test2()
+    let t2 = t2: IA<string>
+    t2.Test(456)
+    t2.Test("hello")
+
+    let t = Test()
+    let t = t: IA<int32>
+    t.Test(123)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "hello123"
+    |> ignore
+
+[<Fact>]
+let ``Generic class that handles functions that have ambiguity``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A<T> =
+
+    abstract default Test(x: T): () =
+        print("failed_T")
+
+    abstract default Test(x: int32): () =
+        print("failed_int32")
+
+class Test =
+    inherits A<int32>
+
+    overrides Test(x: int32): () =
+        print(x)
+
+main(): () =
+    let t = Test()
+    let t = t: A<int32>
+    t.Test(123)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Generic class that handles functions that have ambiguity 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A<T> =
+
+    abstract default Test(x: T): () =
+        print("Test_T_")
+
+    abstract default Test(x: int32): () =
+        print("Test_int32_")
+
+class Test =
+    inherits A<string>
+
+class Test2 =
+    inherits A<int32>
+
+    overrides Test(x: int32): () =
+        print(x)
+
+main(): () =
+    let t = Test()
+    let t = t: A<string>
+    t.Test("test")
+    t.Test(456)
+
+    let t = Test2()
+    let t = t: A<int32>
+    t.Test(123)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "Test_T_Test_int32_123"
+    |> ignore

@@ -1382,3 +1382,59 @@ main(): () =
         """
     src
     |> hasSymbolSignatureTextByCursor "ptr: static blittable (int32, int32) -> int32"
+
+[<Fact>]
+let ``Generic class that handles functions that have ambiguity should error``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A<T, U> =
+
+    abstract default Test(x: T): () = ()
+
+    abstract default Test(x: U): () = ()
+
+class Test =
+    inherits A<int32, int32>
+
+    overrides Test(x: int32): () = ()
+
+main(): () =
+    let t = Test()
+    let t = t: A<int32, int32>
+    t.Test(123)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    t.Test(123)
+      ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Generic class that handles functions that have ambiguity should not error``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A<T, U> =
+
+    abstract default Test(x: T): () = ()
+
+    abstract default Test(x: U): () = ()
+
+class Test =
+    inherits A<int32, int32>
+
+    overrides Test(x: int32): () = ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
