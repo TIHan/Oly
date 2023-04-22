@@ -191,6 +191,7 @@ and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol)
         ()
 
 and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
+    OlyAssert.True(witness.HasSolution)
     checkEntity acenv aenv syntaxNode witness.Entity
     match witness.Solution with
     | Some witness -> checkWitness acenv aenv syntaxNode witness
@@ -522,8 +523,8 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
                 aenv
 
         if not value.IsFunctionGroup then
-            OlyAssert.True(witnessArgs.HasValue)
-            witnessArgs.GetValue(None, CancellationToken.None)
+            Oly.Compiler.Internal.Checker.checkWitnessesFromCallExpression acenv.cenv.diagnostics false expr 
+            witnessArgs
             |> ImArray.iter (fun x ->
                 checkWitnessSolution acenv aenv syntaxNode x
             )

@@ -284,10 +284,9 @@ let substitute
                 | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                     let subbedWitnessArgs = 
                         WitnessSolution.EmplaceSubstitute(
-                            witnessArgs.GetValue(None, System.Threading.CancellationToken.None),
+                            witnessArgs,
                             tyParLookup
                         )
-                        |> CacheValueWithArg.FromValue
 
                     match valueLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
@@ -624,7 +623,7 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
     E.Call(
         BoundSyntaxInfo.Generated(syntaxTree),
         None,
-        CacheValueWithArg.FromValue(ImArray.empty),
+        ImArray.empty,
         ctorArgExprs,
         ctor,
         false

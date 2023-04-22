@@ -18,6 +18,8 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
+open static vk
+
 sealed class ExternalProcess =
     implements IDisposable
 

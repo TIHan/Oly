@@ -157,62 +157,15 @@ let getSyntaxArgumentsAsSyntaxExpressions (cenv: cenv) (syntaxArgs: OlySyntaxArg
     | _ ->
         ImArray.empty
 
-let private createWitnessArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode (syntaxNameOpt: OlySyntaxName option) (value: IValueSymbol) =
-    CacheValueWithArg(fun (syntaxTyArgsOpt: OlySyntaxType imarray option) ct ->
-        ct.ThrowIfCancellationRequested()
+let private createWitnessArguments (cenv: cenv) (value: IValueSymbol) =
+    let witnessArgs =
+        let allTyPars = value.AllTypeParameters
+        let allTyArgs = value.AllTypeArguments 
+        allTyPars
+        |> ImArray.map (freshWitnessesWithTypeArguments cenv.asm allTyArgs)
+        |> ImArray.concat
 
-        let witnessArgs =
-            let allTyPars = value.AllTypeParameters
-            let allTyArgs = value.AllTypeArguments 
-            allTyPars
-            |> ImArray.map (freshWitnessesWithTypeArguments cenv.asm allTyArgs)
-            |> ImArray.concat
-
-        let syntaxNode: OlySyntaxNode =
-            match syntaxNameOpt with
-            | Some(syntaxName) ->
-                match syntaxName.Parent with
-                | null -> syntaxName
-                | syntaxParent -> 
-                    match syntaxParent with
-                    | :? OlySyntaxName as syntaxParentName ->
-                        syntaxParentName
-                    | _ ->
-                        syntaxName
-            | _ ->
-                syntaxNode
-
-        let enclosingTyArgs = value.Enclosing.TypeArguments
-        let funcTyArgs = value.TypeArguments
-
-        let syntaxEnclosingTyArgsOpt =
-            syntaxTyArgsOpt 
-            |> Option.bind (fun xs -> 
-                if xs.Length > enclosingTyArgs.Length then
-                    None
-                else
-                    Some(xs |> Seq.take enclosingTyArgs.Length |> ImArray.ofSeq)
-            )
-
-        let syntaxFuncTyArgsOpt =
-            syntaxTyArgsOpt
-            |> Option.bind (fun xs ->
-                if xs.Length > (enclosingTyArgs.Length + funcTyArgs.Length) then
-                    None
-                else
-                    Some(xs |> Seq.skip enclosingTyArgs.Length |> ImArray.ofSeq)
-            )
-
-        checkConstraintsForSolving 
-            (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
-            syntaxNode 
-            syntaxEnclosingTyArgsOpt
-            enclosingTyArgs
-            syntaxFuncTyArgsOpt
-            funcTyArgs
-            witnessArgs
-        witnessArgs
-    )
+    witnessArgs
 
 let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxExpr: OlySyntaxExpression) =
     match syntaxExpr with
@@ -562,7 +515,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             (value, argExprs)
 
     let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv)) argExprs syntaxInfo.Syntax value   
-    let witnessArgs = createWitnessArguments cenv env syntaxInfo.Syntax syntaxInfo.TrySyntaxName value
+    let witnessArgs = createWitnessArguments cenv value
 
     let receiverExprOpt =
         receiverExprOpt
@@ -619,7 +572,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             E.Call(
                 syntaxInfo,
                 None,
-                CacheValueWithArg.FromValue(ImArray.empty),
+                ImArray.empty,
                 argExprs,
                 bridge,
                 false
@@ -780,7 +733,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
             BoundExpression.Call(
                 syntaxInfo,
                 receiverExprOpt,
-                CacheValueWithArg(fun _ _ -> ImArray.empty),
+                ImArray.empty,
                 resInfo.argExprs,
                 func,
                 false

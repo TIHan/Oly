@@ -267,7 +267,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | Call of 
         syntaxInfo: BoundSyntaxInfo * 
         receiverOpt: BoundExpression option * 
-        witnessArgs: CacheValueWithArg<OlySyntaxType imarray option, WitnessSolution imarray> * 
+        witnessArgs: WitnessSolution imarray * 
         args: ImmutableArray<BoundExpression> *
         value: IValueSymbol * 
         isVirtualCall: bool

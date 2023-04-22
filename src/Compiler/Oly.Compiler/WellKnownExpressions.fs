@@ -12,7 +12,7 @@ let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
     let argExprs = [|expr|] |> ImArray.ofSeq
     let func = (freshenValue benv WellKnownFunctions.UnsafeCast).AsFunction
     UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, func, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, false)
 
 let ImplicitCast benv (expr: BoundExpression) castToType =
     let exprTy = expr.Type
@@ -39,13 +39,13 @@ let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.IgnoreFunction, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.IgnoreFunction, false)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(syntaxInfo, None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.equalFunc, false)
+    BoundExpression.Call(syntaxInfo, None, ImArray.empty, argExprs, WellKnownFunctions.equalFunc, false)
 
 let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
     EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
@@ -55,21 +55,21 @@ let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.notEqualFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, false)
 
 let And (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.andFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, false)
 
 let Or (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, CacheValueWithArg.FromValue(ImArray.empty), argExprs, WellKnownFunctions.orFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, false)
 
 let LogicalAnd (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
@@ -92,7 +92,7 @@ let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExp
     BoundExpression.Call(
         BoundSyntaxInfo.Generated(syntaxTree), 
         None, 
-        CacheValueWithArg.FromValue(ImArray.empty), 
+        ImArray.empty, 
         argExprs,
         WellKnownFunctions.LoadTupleElement.Apply(tyArgs), 
         false
@@ -151,7 +151,7 @@ let private createGeneratedCallExpression syntaxTree (value: IValueSymbol) (tyAr
     BoundExpression.Call(
         BoundSyntaxInfo.Generated(syntaxTree),
         None,
-        CacheValueWithArg.FromValue(witnessArgs),
+        witnessArgs,
         args,
         actualValue value.Enclosing tyArgs value.Formal,
         isVirtualCall

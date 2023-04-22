@@ -1372,7 +1372,6 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
-        let witnessArgs = witnessArgs.GetValue(None, CancellationToken.None)
         GenCallExpression cenv possiblyReturnableEnv syntaxInfo receiverOpt witnessArgs argExprs value isVirtualCall
 
     | E.EntityDefinition(_, body, ent) ->
@@ -1985,7 +1984,6 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
 
             let syntaxNode = syntaxInfo.Syntax
             let ilTextRange = emitTextRange cenv syntaxNode
-            let witnessArgs = witnessArgs.GetValue(None, CancellationToken.None)
             let ilArgExprs = GenCallArgumentExpressions cenv env value argExprs
             let _ilTyInst, _ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env value witnessArgs // TODO: Do we want indirect calls to pass witnessess and type arguments?
 

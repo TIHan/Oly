@@ -238,11 +238,10 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             true // Error recovery // TODO: We should make better error messages for constraints
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then
-                subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.FlexibleAndGeneralizable target ty |> ignore
                 witnessArgs
                 |> ImArray.iter (fun witness ->
-                    if not witness.HasSolution then
-                        // TODO: This shouldn't be generalizable. Hidden bug here...
+                    if witness.HasSolution then ()
+                    else
                         if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target witness.Entity.AsType then
                             witness.Solution <- Some(WitnessSymbol.Type(ty))
                 )
@@ -279,10 +278,12 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 | _ -> failwith "Should have found the most specific type."
 
             witnessArgs
-            |> Seq.iter (fun witness ->              
-                if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv FlexibleAndGeneralizable target mostSpecificTy then
-                    witness.Solution <- Some(WitnessSymbol.TypeExtension(tyExt, None))
-                    solveConstraintsAux env syntaxNode None tyExt.TypeArguments witnessArgs
+            |> ImArray.iter (fun witness ->      
+                if witness.HasSolution then ()
+                else
+                    if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv FlexibleAndGeneralizable target mostSpecificTy then
+                        witness.Solution <- Some(WitnessSymbol.TypeExtension(tyExt, None))
+                        solveConstraintsAux env false syntaxNode None tyExt.TypeArguments witnessArgs
             )
             true
 
@@ -512,40 +513,64 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
  
 and private solveConstraintsAux
         env 
+        (skipUnsolved: bool)
         (syntaxNode: OlySyntaxNode) 
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
         (tyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
     tyArgs
     |> ImArray.iteri (fun i tyArg ->
-        match tyArg.TryImmedateTypeParameter with
-        | ValueSome tyPar ->
-            let syntaxNode: OlySyntaxNode =
-                match syntaxTyArgsOpt with
-                | Some syntaxTyArgs ->
-                    syntaxTyArgs[i]
-                | _ ->
-                    syntaxNode
-                    
-            tyPar.Constraints
-            |> ImArray.iter (fun constr ->
-                let constr = constr.Substitute(tyArgs)
-                let solved = solveConstraint env syntaxNode tyArgs witnessArgs constr tyPar tyArg
+        if tyArg.IsSolved then
+            match tyArg.TryImmedateTypeParameter with
+            | ValueSome tyPar ->
+                let syntaxNode: OlySyntaxNode =
+                    match syntaxTyArgsOpt with
+                    | Some syntaxTyArgs ->
+                        syntaxTyArgs[i]
+                    | _ ->
+                        syntaxNode
 
-                if not solved then
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 3, syntaxNode)
-            )
-        | _ ->
-            ()
+                let witnessArgs =
+                    witnessArgs
+                    |> ImArray.filter (fun x -> x.TypeParameter.Id = tyPar.Id && not x.HasSolution)
+                    
+                tyPar.Constraints
+                |> ImArray.iter (fun constr ->
+                    let constr = constr.Substitute(tyArgs)
+                    let solved = solveConstraint env syntaxNode tyArgs witnessArgs constr tyPar tyArg
+
+                    if not solved then
+                        env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 3, syntaxNode)
+                        witnessArgs
+                        |> ImArray.filter (fun x -> not x.HasSolution)
+                        |> ImArray.iter (fun x ->
+                            x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
+                        )
+                )
+            | _ ->
+                ()
+        else
+            if not skipUnsolved then
+                env.diagnostics.Error($"'{(printType env.benv tyArg)}' has not been solved at this point.", 10, syntaxNode)
+                match tyArg.TryImmedateTypeParameter with
+                | ValueSome tyPar ->
+                    witnessArgs
+                    |> ImArray.filter (fun x -> x.TypeParameter.Id = tyPar.Id && not x.HasSolution)
+                    |> ImArray.iter (fun x ->
+                        x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
+                    )
+                | _ ->
+                    ()
     )
 
 and solveConstraints 
         env 
+        skipUnsolved
         (syntaxNode: OlySyntaxNode) 
         (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option)
         (enclosingTyArgs: TypeArgumentSymbol imarray)
         (syntaxFuncTyArgsOpt: OlySyntaxType imarray option)
         (funcTyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraintsAux env syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs witnessArgs
-    solveConstraintsAux env syntaxNode syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveConstraintsAux env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs witnessArgs
+    solveConstraintsAux env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyArgs witnessArgs

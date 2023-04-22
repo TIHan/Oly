@@ -7281,7 +7281,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Type instantiation '?T' is missing the constraint 'ITest'.",
+            ("Type instantiation 'int32' is missing the constraint 'ITest'.",
                 """
         test(x)
         ^^^^

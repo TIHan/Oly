@@ -160,7 +160,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
         E.Call(
             syntaxInfo,
             None,
-            CacheValueWithArg.FromValue ImArray.empty,
+            ImArray.empty,
             ImArray.createOne(E.Value(syntaxInfoFunc, func)),
             funcLoadFunctionPtr,
             false
@@ -191,7 +191,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         true
                 else
                     false
-            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.empty, getter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.empty, getter, isVirtualCall)
         | _ ->
             origExpr
     | E.SetProperty(syntaxInfo, receiverOpt, prop, rhs) ->
@@ -206,7 +206,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         true
                 else
                     false
-            E.Call(syntaxInfo, receiverOpt, CacheValueWithArg.FromValue(ImArray.empty), ImArray.createOne rhs, setter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.createOne rhs, setter, isVirtualCall)
         | _ ->
             origExpr
 
@@ -350,7 +350,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         E.Call(
                             BoundSyntaxInfo.Generated(syntaxTree),
                             receiverOpt,
-                            CacheValueWithArg.FromValue(ImArray.empty),
+                            ImArray.empty,
                             argExprs,
                             funcToCall,
                             isVirtualCall
@@ -433,7 +433,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                         Some(E.Call(
                                             BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree),
                                             (Some(thisExpr)),
-                                            CacheValueWithArg.FromValue(ImArray.empty),
+                                            ImArray.empty,
                                             ImArray.empty,
                                             baseDefaultInstanceCtor,
                                             false

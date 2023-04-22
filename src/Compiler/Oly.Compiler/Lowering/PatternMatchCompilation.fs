@@ -118,7 +118,7 @@ let toTargetJump(expr: E) =
         BoundExpression.Call(
             syntaxInfo,
             None,
-            CacheValueWithArg.FromValue(ImArray.empty),
+            ImArray.empty,
             ImArray.empty,
             local,
             false
@@ -177,7 +177,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
         BoundExpression.Call(
             syntaxInfo,
             None,
-            CacheValueWithArg.FromValue(ImArray.empty),
+            ImArray.empty,
             freeLocals |> ImArray.map (fun x -> E.Value(syntaxInfo, x)),
             local,
             false
@@ -321,7 +321,7 @@ let createCallExpression syntaxInfo (func: IFunctionSymbol) witnessArgs argExprs
     BoundExpression.Call(
         syntaxInfo,
         None,
-        CacheValueWithArg.FromValue(witnessArgs),
+        witnessArgs,
         argExprs,
         func,
         func.IsVirtual

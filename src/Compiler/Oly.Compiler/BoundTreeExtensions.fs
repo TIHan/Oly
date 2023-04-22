@@ -1157,8 +1157,8 @@ let areTargetExpressionsEqual (expr1: E) (expr2: E) =
             value1.IsFunction &&
             areValueSignaturesEqual value1 value2 && 
             argExprs1.Length = argExprs2.Length &&
-            (witnessArgs1.GetValue(None, CancellationToken.None).IsEmpty) &&
-            (witnessArgs2.GetValue(None, CancellationToken.None).IsEmpty) &&
+            witnessArgs1.IsEmpty &&
+            witnessArgs2.IsEmpty &&
             (argExprs1, argExprs2)
             ||> ImArray.forall2 (fun expr1 expr2 ->
                 match expr1, expr2 with

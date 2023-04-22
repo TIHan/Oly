@@ -697,33 +697,81 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
 and checkConstraintsForSolving 
         (env: SolverEnvironment) 
+        skipUnsolved
         syntaxNode 
         (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option) 
         enclosingTyArgs
         syntaxFuncTyArgsOpt
         funcTyArgs
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraints env syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
 
-and checkWitnessesFromCallExpression (expr: BoundExpression) =
+and checkWitnessesFromCallExpression diagnostics skipUnsolved (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) when not value.IsFunctionGroup ->
-        let syntaxTyArgsOpt =
-            let syntaxTyArgs =
-                match syntaxInfo.Syntax with
-                | :? OlySyntaxExpression as syntax ->
-                    syntax.GetAllTypeArguments()
-                | _ ->
-                    ImArray.empty
-            if syntaxTyArgs.IsEmpty then
-                None
-            else
-                if syntaxTyArgs.Length = value.AllTypeParameterCount then
-                    Some syntaxTyArgs
-                else
+        match syntaxInfo.TryEnvironment with
+        | Some benv ->
+            let syntaxTyArgsOpt =
+                let syntaxTyArgs =
+                    match syntaxInfo.Syntax with
+                    | :? OlySyntaxExpression as syntax ->
+                        syntax.GetAllTypeArguments()
+                    | _ ->
+                        ImArray.empty
+                if syntaxTyArgs.IsEmpty then
                     None
+                else
+                    if syntaxTyArgs.Length = value.AllTypeParameterCount then
+                        Some syntaxTyArgs
+                    else
+                        None
 
-        witnessArgs.GetValue(syntaxTyArgsOpt, System.Threading.CancellationToken.None) |> ignore
+            let syntaxNode: OlySyntaxNode =
+                match syntaxInfo.TrySyntaxName with
+                | Some(syntaxName) ->
+                    match syntaxName.Parent with
+                    | null -> syntaxName
+                    | syntaxParent -> 
+                        match syntaxParent with
+                        | :? OlySyntaxName as syntaxParentName ->
+                            syntaxParentName
+                        | _ ->
+                            syntaxName
+                | _ ->
+                    syntaxInfo.Syntax
+
+            let enclosingTyArgs = value.Enclosing.TypeArguments
+            let funcTyArgs = value.TypeArguments
+
+            let syntaxEnclosingTyArgsOpt =
+                syntaxTyArgsOpt 
+                |> Option.bind (fun xs -> 
+                    if xs.Length > enclosingTyArgs.Length then
+                        None
+                    else
+                        Some(xs |> Seq.take enclosingTyArgs.Length |> ImArray.ofSeq)
+                )
+
+            let syntaxFuncTyArgsOpt =
+                syntaxTyArgsOpt
+                |> Option.bind (fun xs ->
+                    if xs.Length > (enclosingTyArgs.Length + funcTyArgs.Length) then
+                        None
+                    else
+                        Some(xs |> Seq.skip enclosingTyArgs.Length |> ImArray.ofSeq)
+                )
+
+            checkConstraintsForSolving 
+                (SolverEnvironment.Create(diagnostics, benv)) 
+                skipUnsolved
+                syntaxNode 
+                syntaxEnclosingTyArgsOpt
+                enclosingTyArgs
+                syntaxFuncTyArgsOpt
+                funcTyArgs
+                witnessArgs
+        | _ ->
+            ()
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
@@ -801,8 +849,8 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
 and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(value=value) when not value.IsFunctionGroup ->
-        checkArgumentsFromCallExpression env isReturnable expr 
-        checkWitnessesFromCallExpression expr  
+        checkArgumentsFromCallExpression env isReturnable expr
+        checkWitnessesFromCallExpression env.diagnostics true expr 
 
     | BoundExpression.Sequential(_, expr1, _) ->
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type

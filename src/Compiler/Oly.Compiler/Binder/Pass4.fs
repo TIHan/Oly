@@ -126,24 +126,31 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
 
         // Tuple
         else
-            let env, (elementTys, casePats) =
-                let env, results =
-                    (env, syntaxPatList.ChildrenOfType)
-                    ||> ImArray.foldMap (fun env syntaxPattern ->
+            let (elementTys, syntaxPatterns) =
+                let results =
+                    syntaxPatList.ChildrenOfType
+                    |> ImArray.map (fun syntaxPattern ->
                         let elementTy = mkInferenceVariableType None
-                        let env, casePat = bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals elementTy syntaxPattern
-                        env, (elementTy, casePat)
+                        (elementTy, syntaxPattern)
                     )
-                env,
                 results
                 |> Array.ofSeq
                 |> Array.unzip
 
             let elementTys = elementTys |> ImArray.ofSeq
-            let casePats = casePats |> ImArray.ofSeq
-
+            let syntaxPatterns = syntaxPatterns |> ImArray.ofSeq
             let tupleTy = TypeSymbol.CreateTuple(elementTys)
             checkTypes solverEnv syntaxPattern tupleTy matchTy
+
+            let env, casePats =
+                let env, results =
+                    (env, elementTys, syntaxPatterns)
+                    |||> ImArray.foldMap2 (fun env elementTy syntaxPattern ->
+                        bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals elementTy syntaxPattern
+                    )
+                env,
+                results
+
             env, BoundCasePattern.Tuple(syntaxInfo, casePats)
 
     | OlySyntaxPattern.Error _ ->
@@ -244,7 +251,6 @@ let private bindPatternByResolutionItem
         match checkExpression cenv env (Some expectedTy) callExpr with
         | BoundExpression.Call(witnessArgs=witnessArgs;value=value) when value.IsFunction ->
             let func = value :?> IFunctionSymbol
-            let witnessArgs = witnessArgs.GetValue(None, cenv.ct)
             if func.IsPatternFunction then
                 OlyAssert.True(func.AssociatedFormalPattern.IsSome)
 
@@ -1678,7 +1684,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                         BoundExpression.Call(
                             BoundSyntaxInfo.Generated(cenv.syntaxTree), 
                             Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue)),
-                            CacheValueWithArg.FromValue(ImArray.empty),
+                            ImArray.empty,
                             ImArray.empty,
                             baseCtor,
                             false

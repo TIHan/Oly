@@ -640,7 +640,7 @@ extension Int32AddExtension =
 
 main () : () =
    let x = 4
-   print(f<_, _>(x))
+   print(f<_, int32>(x))
         """
 
     Oly src
@@ -3651,8 +3651,8 @@ test<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> =
     T1.add(x, y)
 
 main() : () =
-    print(test<_, _, _>(1, 2))
-    print(test<_, _, _>(1, 2.0))
+    print(test<_, _, int32>(1, 2))
+    print(test<_, _, float64>(1, 2.0))
         """
     Oly src
     |> shouldCompile
@@ -3716,8 +3716,8 @@ test<T1, T2, T3>(x: T1, y: T2): T3 where T1: Add<T1, T2, T1>; where T2: Add<T1, 
     T2.add(T1.add(x, y), y)
 
 main(): () =
-    print(test<_, _, _>(1, 2))
-    print(test<_, _, _>(1, 2.0))
+    print(test<_, _, int32>(1, 2))
+    print(test<_, _, int32>(1, 2.0))
         """
     Oly src
     |> shouldCompile

@@ -152,6 +152,12 @@ fmap<F<_>, A, B>(ab: A -> B, fa: F<A>) : F<B> where F<_> : Functor =
                                                            ^^^^^^^
 """
         )
+        ("'?F<_>' has not been solved at this point.",
+            """
+    F<_>.fmap<_, _>(ab, fa)
+    ^^^^^^^^^^^^^^^
+"""
+        )
         ("Unable to infer type at this location.",
             """
     F<_>.fmap<_, _>(ab, fa)

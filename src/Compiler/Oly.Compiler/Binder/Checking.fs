@@ -333,7 +333,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
         BoundExpression.Call(
             syntaxInfo,
             None,
-            (CacheValueWithArg.FromValue ImArray.empty),
+            ImArray.empty,
             argExprs,
             freshFunc,
             func.IsVirtual && not func.IsFinal
