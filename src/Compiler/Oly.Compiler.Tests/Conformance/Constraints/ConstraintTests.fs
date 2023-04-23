@@ -445,8 +445,7 @@ main () : () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Type instantiation '?T3' is missing the constraint 'Add<__oly_int32, __oly_int32, ?T3>'."
-            "Type instantiation '?T' is missing the constraint 'Add<T1, T2, T3>'."
+            "Type instantiation 'T' is missing the constraint 'Add<__oly_int32, __oly_int32, T>'."
             "Type parameter '?T' was unable to be inferred."
         ]
     |> ignore

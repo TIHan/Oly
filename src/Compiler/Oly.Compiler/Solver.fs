@@ -299,6 +299,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
 
 and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) =
     OlyAssert.True(tyArg.IsSolved)
+
     let ty = stripTypeEquations tyArg
     match ty with
     | TypeSymbol.HigherVariable(tyPar2, tyParTyArgs) ->
@@ -362,24 +363,21 @@ and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSy
         | _ -> false
 
 and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) =
-    // If the type argument has not been solved at this point, then the solver fails.
-    // TODO: Allow solving constraints for inference variables behind an experimental flag. 
-    if tyArg.IsSolved then
-        match constr with
-        | ConstraintSymbol.Null ->
-            solveConstraintNull env syntaxNode tyArg
-        | ConstraintSymbol.Struct ->
-            solveConstraintStruct env syntaxNode tyArg
-        | ConstraintSymbol.NotStruct ->
-            solveConstraintNotStruct env syntaxNode tyArg
-        | ConstraintSymbol.Unmanaged ->
-            solveConstraintUnmanaged env syntaxNode tyArg
-        | ConstraintSymbol.ConstantType(constTy) ->
-            solveConstraintConstantType env syntaxNode constTy.Value tyArg
-        | ConstraintSymbol.SubtypeOf(target) ->
-            solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
-    else
-        false
+    OlyAssert.True(tyArg.IsSolved)
+
+    match constr with
+    | ConstraintSymbol.Null ->
+        solveConstraintNull env syntaxNode tyArg
+    | ConstraintSymbol.Struct ->
+        solveConstraintStruct env syntaxNode tyArg
+    | ConstraintSymbol.NotStruct ->
+        solveConstraintNotStruct env syntaxNode tyArg
+    | ConstraintSymbol.Unmanaged ->
+        solveConstraintUnmanaged env syntaxNode tyArg
+    | ConstraintSymbol.ConstantType(constTy) ->
+        solveConstraintConstantType env syntaxNode constTy.Value tyArg
+    | ConstraintSymbol.SubtypeOf(target) ->
+        solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
  
 and private solveConstraintsAux
         env 
@@ -388,6 +386,9 @@ and private solveConstraintsAux
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
         (tyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
+    // For now, 'skipUnsolved' must be false.
+    OlyAssert.False(skipUnsolved)
+
     tyArgs
     |> ImArray.iteri (fun i tyArg ->
         if tyArg.IsSolved then
@@ -418,19 +419,20 @@ and private solveConstraintsAux
                         )
                 )
             | _ ->
-                ()
+                OlyAssert.Fail("Expected type parameter associated with inference variable.")
         else
             if not skipUnsolved then
-                env.diagnostics.Error($"'{(printType env.benv tyArg)}' has not been solved at this point.", 10, syntaxNode)
+                env.diagnostics.Error($"Type parameter '{(printType env.benv tyArg)}' was unable to be inferred.", 10, syntaxNode)
                 match tyArg.TryImmedateTypeParameter with
                 | ValueSome tyPar ->
                     witnessArgs
                     |> ImArray.filter (fun x -> x.TypeParameter.Id = tyPar.Id && not x.HasSolution)
                     |> ImArray.iter (fun x ->
-                        x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
+                        x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(Some tyPar, None)))
                     )
+                    UnifyTypes Flexible tyArg (TypeSymbol.Error(Some tyPar, None)) |> ignore
                 | _ ->
-                    ()
+                    OlyAssert.Fail("Expected type parameter associated with inference variable.")
     )
 
 and solveConstraints 

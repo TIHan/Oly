@@ -523,7 +523,6 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
                 aenv
 
         if not value.IsFunctionGroup then
-            Oly.Compiler.Internal.Checker.checkWitnessesFromCallExpression acenv.cenv.diagnostics false expr 
             witnessArgs
             |> ImArray.iter (fun x ->
                 checkWitnessSolution acenv aenv syntaxNode x
