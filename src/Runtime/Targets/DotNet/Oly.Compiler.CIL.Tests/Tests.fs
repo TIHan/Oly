@@ -3983,6 +3983,9 @@ alias utf16
 #[intrinsic("float32")]
 alias float32
 
+#[intrinsic("bool")]
+alias bool
+
 #[intrinsic("base_object")]
 alias object
 
@@ -4006,7 +4009,7 @@ class Test1<T> =
                 print(z)
 
 main(): () =
-    let x = Test1<int32>.Test2<float32, utf16>.Test3<_>()
+    let x = Test1<int32>.Test2<float32, utf16>.Test3<bool>()
     x.print(1, 2.3f, "Hello World!", true)
     ()
         """
@@ -9131,8 +9134,14 @@ main(): () =
 let ``let! example``() =
     let src =
         """
+#[intrinsic("int32")]
+alias int32
+
 #[intrinsic("print")]
 print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
 
 class Wrapper<T> =
 
@@ -9146,9 +9155,9 @@ class Wrapper<T> =
 (return)<A>(a: A): Wrapper<A> =
     Wrapper(a)
 
-test1(x: Wrapper<__oly_int32>): Wrapper<__oly_int32> =
+test1(x: Wrapper<int32>): Wrapper<int32> =
     let! result = x
-    return __oly_add(result, 1)
+    return result + 1
 
 main(): () =
     let x = Wrapper(567)
@@ -9165,8 +9174,14 @@ main(): () =
 let ``let! example 2``() =
     let src =
         """
+#[intrinsic("int32")]
+alias int32
+
 #[intrinsic("print")]
 print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
 
 class Wrapper<T> =
 
@@ -9180,10 +9195,10 @@ class Wrapper<T> =
 (return)<A>(a: A): Wrapper<A> =
     Wrapper(a)
 
-test1(x: Wrapper<__oly_int32>): Wrapper<__oly_int32> =
+test1(x: Wrapper<int32>): Wrapper<int32> =
     let! result = x
     let! result2 = x
-    return __oly_add(result, result2)
+    return result + result2
 
 main(): () =
     let x = Wrapper(567)
