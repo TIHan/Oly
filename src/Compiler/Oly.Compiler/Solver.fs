@@ -297,70 +297,10 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
     | _ ->
         solveSubsumption()
 
-and solveWitnessesByInferenceVariable env (syntaxNode: OlySyntaxNode) (witnessArgs: WitnessSolution imarray) ty =
-    match stripTypeEquations ty with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-
-        match varTyParOpt with
-        | None ->
-            // REVEW: For this feature to be sound, we must allow solving of constraints+witnesses a second time
-            //        in PostInferenceAnalysis if there are constraint errors. These errors should only be reported once.
-            // This inference variable is for the type of parameter, so we aggregate constraints.
-            witnessArgs
-            |> ImArray.iter (fun witnessArg ->
-                let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(witnessArg.Entity.AsType))
-                if varSolution.Constraints |> Seq.exists (fun constr2 -> areConstraintsEqual constr constr2) |> not then
-                    varSolution.AddConstraint(constr)
-                witnessArg.Solution <- WitnessSymbol.Type(ty) |> Some
-            )
-            true
-        | Some tyPar ->
-            OlyAssert.False(varSolution.IsTypeOfParameter)
-
-            witnessArgs
-            |> ImArray.forall (fun witnessArg ->
-                let witnessTy = witnessArg.Entity.AsType
-
-                let satisfiesConstr =
-                    tyPar.Constraints
-                    |> ImArray.exists (fun constr ->
-                        match constr with
-                        | ConstraintSymbol.Null
-                        | ConstraintSymbol.Struct
-                        | ConstraintSymbol.NotStruct 
-                        | ConstraintSymbol.Unmanaged 
-                        | ConstraintSymbol.ConstantType _ -> false
-                        | ConstraintSymbol.SubtypeOf(ty) ->
-                            if areTypesEqual ty.Value witnessTy then
-                                true
-                            else
-                                match witnessTy.TryImmedateTypeParameter with
-                                | ValueSome(tyPar) ->
-                                    tyPar.Constraints
-                                    |> ImArray.exists (fun constr2 ->
-                                        areConstraintsEqual constr constr2
-                                    )
-                                | _ ->
-                                    false
-                    )
-                if satisfiesConstr then
-                    witnessArg.Solution <- WitnessSymbol.TypeParameter(tyPar) |> Some
-                satisfiesConstr
-            )
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
-    | _ ->
-        false
-
 and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) =
+    OlyAssert.True(tyArg.IsSolved)
     let ty = stripTypeEquations tyArg
     match ty with
-    | TypeSymbol.InferenceVariable _
-    | TypeSymbol.HigherInferenceVariable _ ->
-        solveWitnessesByInferenceVariable env syntaxNode witnessArgs ty
     | TypeSymbol.HigherVariable(tyPar2, tyParTyArgs) ->
         solveWitnessesByTypeParameter env syntaxNode target tyPar2 tyParTyArgs witnessArgs
     | TypeSymbol.Variable(tyPar2) ->
@@ -370,20 +310,6 @@ and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol i
 
 and solveConstraintNull env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-        match varTyParOpt with
-        | None ->
-            if varSolution.Constraints |> Seq.exists (function ConstraintSymbol.Null -> true | _ -> false) |> not then
-                varSolution.AddConstraint(ConstraintSymbol.Null)
-            true
-        | Some tyPar ->
-            tyPar.Constraints 
-            |> ImArray.exists (function ConstraintSymbol.Null -> true | _ -> false)
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
@@ -394,20 +320,6 @@ and solveConstraintNull env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymb
 
 and solveConstraintStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-        match varTyParOpt with
-        | None ->
-            if varSolution.Constraints |> Seq.exists (function ConstraintSymbol.Struct -> true | _ -> false) |> not then
-                varSolution.AddConstraint(ConstraintSymbol.Struct)
-            true
-        | Some tyPar ->
-            tyPar.Constraints 
-            |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
@@ -418,20 +330,6 @@ and solveConstraintStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSy
 
 and solveConstraintNotStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-        match varTyParOpt with
-        | None ->
-            if varSolution.Constraints |> Seq.exists (function ConstraintSymbol.NotStruct -> true | _ -> false) |> not then
-                varSolution.AddConstraint(ConstraintSymbol.NotStruct)
-            true
-        | Some tyPar ->
-            tyPar.Constraints 
-            |> ImArray.exists (function ConstraintSymbol.NotStruct -> true | _ -> false)
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
@@ -442,20 +340,6 @@ and solveConstraintNotStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
 
 and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-        match varTyParOpt with
-        | None ->
-            if varSolution.Constraints |> Seq.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false) |> not then
-                varSolution.AddConstraint(ConstraintSymbol.Unmanaged)
-            true
-        | Some tyPar ->
-            tyPar.Constraints 
-            |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false)
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
@@ -467,20 +351,6 @@ and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
 
 and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSymbol) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.InferenceVariable(varTyParOpt, varSolution) ->
-        match varTyParOpt with
-        | None ->
-            if varSolution.Constraints |> Seq.exists (function ConstraintSymbol.ConstantType(constTy2) -> areTypesEqual constTy constTy2.Value | _ -> false) |> not then
-                varSolution.AddConstraint(ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(constTy)))
-            true
-        | Some tyPar ->
-            tyPar.Constraints 
-            |> ImArray.exists (function ConstraintSymbol.ConstantType(constTy2) -> areTypesEqual constTy constTy2.Value | _ -> false)
-
-    | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
-        env.diagnostics.Error("Higher inference variable not supported for inferring constraints.", 10, syntaxNode)
-        false
-
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
