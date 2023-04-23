@@ -386,9 +386,6 @@ and private solveConstraintsAux
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
         (tyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
-    // For now, 'skipUnsolved' must be false.
-    OlyAssert.False(skipUnsolved)
-
     tyArgs
     |> ImArray.iteri (fun i tyArg ->
         if tyArg.IsSolved then

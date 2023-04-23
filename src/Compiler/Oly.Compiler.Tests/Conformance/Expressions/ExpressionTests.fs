@@ -2422,6 +2422,8 @@ main(): () =
             "Member 'printTest2' does not exist on type 'Test2<?U, ?V>'."
             "Type parameter '?T' was unable to be inferred."
             "Type parameter '?U' was unable to be inferred."
+            "Type parameter '?U' was unable to be inferred."
+            "Type parameter '?V' was unable to be inferred."
         ]
     |> ignore
 
@@ -3965,10 +3967,9 @@ main(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Expected type 'byref<?T>' but is 'Test<__oly_int32>'."
-            "Type instantiation '?T' is missing the constraint '{ get_Item(__oly_int32): ?TValue }'."
-            "Type parameter '?TValue' was unable to be inferred."
+            "Expected type 'byref<?T>' but is 'Test<__oly_int32>'."          
             "Type parameter '?T' was unable to be inferred."
+            "Type parameter '?TValue' was unable to be inferred."
         ]
     |> ignore
 
@@ -6172,10 +6173,10 @@ test<T<_>>(): () where T<_>: ITest =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Unable to infer type at this location.",
+            ("Type parameter '?T' was unable to be inferred.",
                 """
     T<_>.M()
-         ^
+    ^^^^^^
 """
             )
         ]
@@ -7226,7 +7227,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Type instantiation '?T' is missing the constraint 'ITest'.",
+            ("Type instantiation 'Test' is missing the constraint 'ITest'.",
                 """
     test(x)
     ^^^^

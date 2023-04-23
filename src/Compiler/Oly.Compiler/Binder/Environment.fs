@@ -18,6 +18,7 @@ type cenv =
         asm: AssemblySymbol
         syntaxTree: OlySyntaxTree
         diagnostics: OlyDiagnosticLogger
+        dummyDiagnostics: OlyDiagnosticLogger
         ct: CancellationToken
         pass: CompilerPass
         mutable entryPoint: IFunctionSymbol option

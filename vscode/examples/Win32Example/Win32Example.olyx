@@ -179,6 +179,9 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
     vulkanImage
 
 main(): () =
+    // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
+    Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
+    
     let window = IWindow.CreateWin32("Vulkan Example")
 
     let vulkanAppOptions = vk.VulkanApplicationOptions()
