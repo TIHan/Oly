@@ -24,14 +24,12 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     match ty with
     | TypeSymbol.Error _ -> "?"
     | TypeSymbol.Unit -> "()"
-    | TypeSymbol.ObjectInferenceVariable(solution) ->
-        match solution.Solution with
-        | Some (solution) -> printTypeAux benv isDefinition isTyCtor solution
-        | _ -> "?"
+    | TypeSymbol.ObjectInferenceVariable(solution)
     | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
-        match solution.Solution with
-        | Some (solution) -> printTypeAux benv isDefinition isTyCtor solution
-        | _ -> "?"
+        if solution.HasSolution then           
+            printTypeAux benv isDefinition isTyCtor solution.Solution
+        else
+            "?"
     | TypeSymbol.Int8
     | TypeSymbol.UInt8
     | TypeSymbol.Int16
@@ -139,17 +137,17 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         "<" + (tyPars |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">" + " " + printTypeAux benv isDefinition false innerTy
 
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
-        match solution.Solution with
-        | Some(solution) when ty.IsSolved -> printTypeAux benv isDefinition isTyCtor solution
-        | _ ->
+        if solution.HasSolution && solution.Solution.IsSolved then
+            printTypeAux benv isDefinition isTyCtor solution.Solution
+        else
             match tyPar with
             | Some tyPar -> "?" + tyPar.DisplayName
             | _ -> "?"
 
-    | TypeSymbol.HigherInferenceVariable(tyPar, tyArgs, _, solutionWithTyInst) ->
-        match solutionWithTyInst.Solution with
-        | Some (solution) when ty.IsSolved -> printTypeAux benv isDefinition isTyCtor solution
-        | _ ->
+    | TypeSymbol.HigherInferenceVariable(tyPar, tyArgs, _, solution) ->
+        if solution.HasSolution && solution.Solution.IsSolved then
+            printTypeAux benv isDefinition isTyCtor solution.Solution
+        else
             // TODO: Do we need to do anything else here? What happens if we don't have a solution with tyArgs?
             match tyPar with
             | Some tyPar -> "?" + tyPar.Name + "<" + (tyArgs |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">"

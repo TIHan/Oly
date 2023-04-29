@@ -882,10 +882,10 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
     // We do this specifically for inference variables as we want to maintain the type parameter.
     match ty with
     | TypeSymbol.InferenceVariable(Some tyPar, varSolution) when varSolution.HasSolution ->
-        mkSolvedInferenceVariableType tyPar (freshen cache explicitTyArgs varSolution.Solution.Value)
+        mkSolvedInferenceVariableType tyPar (freshen cache explicitTyArgs varSolution.Solution)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, varSolution) when varSolution.HasSolution ->
         let newTyArgs = tyArgs |> ImArray.map (fun tyArg -> freshen cache explicitTyArgs tyArg)
-        mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution.Value)
+        mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
     | _ ->
         freshen cache explicitTyArgs ty
 

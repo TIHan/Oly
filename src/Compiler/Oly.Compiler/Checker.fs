@@ -74,7 +74,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                     newTyPar.AddConstraint(newConstr)
                 )
 
-                solution.Solution <- Some(TypeSymbol.Variable(newTyPar))
+                solution.Solution <- TypeSymbol.Variable(newTyPar)
                 generalizedTyPars.Add(newTyPar)
                 tyParIndex <- tyParIndex + 1
                 computeNextTyParName()

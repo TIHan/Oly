@@ -481,7 +481,7 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
         TypeSymbol.Variable(newTyPar)
 
     | TypeSymbol.InferenceVariable(_, solution) when solution.HasSolution ->
-        retargetType currentAsmIdent importer tyPars solution.Solution.Value
+        retargetType currentAsmIdent importer tyPars solution.Solution
 
     | TypeSymbol.Entity(ent) ->
         if ent.IsFormal then

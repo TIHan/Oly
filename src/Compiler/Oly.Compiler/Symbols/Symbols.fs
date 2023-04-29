@@ -26,12 +26,12 @@ let mkInferenceVariableType tyParOpt = TypeSymbol.InferenceVariable(tyParOpt, mk
 let mkHigherInferenceVariableType tyParOpt tyArgs = TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, mkVariableSolution(), mkVariableSolution())
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) = 
     let varSolution = mkVariableSolution()
-    varSolution.Solution <- Some(ty)
+    varSolution.Solution <- ty
     TypeSymbol.InferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
     let varSolution = mkVariableSolution()
-    varSolution.Solution <- Some(ty)
+    varSolution.Solution <- ty
     TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.InferenceVariable(None, VariableSolutionSymbol(true))
@@ -283,11 +283,8 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false))
     | TypeSymbol.HigherInferenceVariable(tyParOpt, _, externalSolution, _) -> 
         let solution = VariableSolutionSymbol(false)
-        match externalSolution.Solution with
-        | Some (ty) -> 
-            solution.Solution <- Some(applyType ty tyArgs)
-        | _ ->
-            ()
+        if externalSolution.HasSolution then
+            solution.Solution <- applyType externalSolution.Solution tyArgs
         TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution)
     | TypeSymbol.HigherVariable(tyPar, _) -> TypeSymbol.HigherVariable(tyPar, takeTypeArguments tyArgs tyPar.Arity)
     | TypeSymbol.ByRef(_, kind) ->
@@ -1177,8 +1174,8 @@ let tryComputeDependentType (inputValueTy: TypeSymbol) (innerTy: TypeSymbol) =
 let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
     match ty with
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
-        match solution.Solution with
-        | Some (ty2) ->
+        if solution.HasSolution then
+            let ty2 = solution.Solution
             match tyParOpt with
             | Some(tyPar) when tyPar.Arity > 0 ->
                 if ty2.IsTypeConstructor then
@@ -1188,38 +1185,39 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                     //     we must extract the type constructor out of it and reset the solution using it.
                     match stripTypeEquationsAux skipAlias skipModifiers ty2 with
                     | TypeSymbol.HigherVariable(tyPar2, _) ->
-                        solution.Solution <- Some(TypeSymbol.Variable(tyPar2))
+                        solution.Solution <- TypeSymbol.Variable(tyPar2)
                         stripTypeEquationsAux skipAlias skipModifiers ty
                     | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
-                        solution.Solution <- Some(TypeSymbol.InferenceVariable(tyParOpt, externalSolution))
+                        solution.Solution <- TypeSymbol.InferenceVariable(tyParOpt, externalSolution)
                         stripTypeEquationsAux skipAlias skipModifiers ty
                     | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                        solution.Solution <- Some(ent.Formal.AsType)
+                        solution.Solution <- ent.Formal.AsType
                         stripTypeEquationsAux skipAlias skipModifiers ty
                     | _ ->
                         TypeSymbol.Error(Some tyPar, None)
             | _ ->
                 stripTypeEquationsAux skipAlias skipModifiers ty2
-        | _ -> ty
+        else
+            ty
+
     | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
-        match solution.Solution with
-        | Some (ty) -> stripTypeEquationsAux skipAlias skipModifiers ty
-        | _ ->
-            match externalSolution.Solution with
-            | Some (ty) -> 
-                let appliedTy = applyType ty tyArgs
-                solution.Solution <- Some(appliedTy)
+        if solution.HasSolution then
+            stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+        else
+            if externalSolution.HasSolution then
+                let appliedTy = applyType externalSolution.Solution tyArgs
+                solution.Solution <- appliedTy
                 stripTypeEquationsAux skipAlias skipModifiers appliedTy
-            | _ -> 
+            else
                 ty
-    | TypeSymbol.ObjectInferenceVariable(solution) ->
-        match solution.Solution with
-        | Some (ty2) -> stripTypeEquationsAux skipAlias skipModifiers ty2
-        | _ -> ty
+
+    | TypeSymbol.ObjectInferenceVariable(solution)
     | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
-        match solution.Solution with
-        | Some (ty2) -> stripTypeEquationsAux skipAlias skipModifiers ty2
-        | _ -> ty
+        if solution.HasSolution then
+            stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+        else
+            ty
+
     | TypeSymbol.Entity(ent) when not skipAlias ->
         if ent.Kind = EntityKind.Alias then
             if ent.Extends.Length = 1 then
@@ -2712,15 +2710,17 @@ type VariableSolutionSymbol (isTyOfParameter: bool) =
     let id = newId ()
 
     let constrs = ResizeArray<ConstraintSymbol>()
-    let mutable solutionState: TypeSymbol option = None
+    let mutable solutionState: TypeSymbol = Unchecked.defaultof<_> // We are not using option for perf reasons.
 
     member this.Id = id
 
     member _.Solution
-        with get(): TypeSymbol option = solutionState
-        and set (value: TypeSymbol option) = solutionState <- value
+        with get(): TypeSymbol = solutionState
+        and set (value: TypeSymbol) = solutionState <- value
 
-    member this.HasSolution = solutionState.IsSome
+    member this.HasSolution = 
+        obj.ReferenceEquals(solutionState, null)
+        |> not
 
     member this.Constraints = 
         constrs :> _ seq
@@ -2958,16 +2958,18 @@ type TypeSymbol =
         | Variable(tyPar) -> tyPar.Name
         | HigherVariable(tyPar, _) -> tyPar.Name
         | InferenceVariable(solution=solution) ->
-            match solution.Solution with
-            | Some (solution) -> solution.Name
-            | _ -> "?"
+            if solution.HasSolution then
+                solution.Solution.Name
+            else
+                "?"
         | HigherInferenceVariable(externalSolution=externalSolution;solution=solution) ->
-            match solution.Solution with
-            | Some (solution) -> solution.Name
-            | _ ->
-                match externalSolution.Solution with
-                | Some (solution) -> solution.Name
-                | _ -> "?"
+            if solution.HasSolution then
+                solution.Solution.Name
+            else
+                if externalSolution.HasSolution then
+                    externalSolution.Solution.Name
+                else
+                    "?"
         | ConstantInt32 n -> n.ToString()
         | BaseObject -> "__oly_object"
         | BaseStruct -> "__oly_base_struct"
@@ -2979,13 +2981,15 @@ type TypeSymbol =
         | NativeFunctionPtr _ -> "__oly_native_function_ptr"
         | Array _ -> "__oly_array"
         | ObjectInferenceVariable(solution) ->
-            match solution.Solution with
-            | Some (solution) -> solution.Name
-            | _ -> "?"
+            if solution.HasSolution then
+                solution.Solution.Name
+            else
+                "?"
         | NumberInferenceVariable(solution, defaultTy, _) ->
-            match solution.Solution with
-            | Some (solution) -> solution.Name
-            | _ -> "?"
+            if solution.HasSolution then
+                solution.Solution.Name
+            else
+                "?"
         | DependentIndexer(_, formalTy) -> "!!dependent!!" + formalTy.Name // TODO:
         | Error _ -> 
             "?"
@@ -3175,9 +3179,9 @@ type TypeSymbol =
         | InferenceVariable(tyParOpt, solution)
         // TODO/REVIEW: Maybe we want to do something special for inference variable with kind?
         | HigherInferenceVariable(tyParOpt, _, solution, _) ->
-            match solution.Solution with
-            | Some (solution) -> solution.FormalId
-            | _ ->
+            if solution.HasSolution then
+                solution.Solution.FormalId
+            else
                 match tyParOpt with
                 | Some tyPar -> tyPar.AsType.FormalId
                 | _ -> 20

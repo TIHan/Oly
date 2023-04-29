@@ -141,17 +141,17 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | ty, TypeSymbol.ObjectInferenceVariable(varSolution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
-                tySolution.Solution <- Some(TypeSymbol.BaseObject)
-                varSolution.Solution <- Some(ty)
+                tySolution.Solution <- TypeSymbol.BaseObject
+                varSolution.Solution <- ty
                 true
             | TypeSymbol.HigherInferenceVariable _ ->
-                varSolution.Solution <- Some(TypeSymbol.BaseObject)
+                varSolution.Solution <- TypeSymbol.BaseObject
                 false
             | _ ->
                 if ty.IsAnyStruct || ty.IsTypeVariable (* TODO: type variable check will need to be modified when we have a null constraint *) then
                     false
                 else
-                    varSolution.Solution <- Some(ty)
+                    varSolution.Solution <- ty
                     true
 
         | TypeSymbol.ObjectInferenceVariable(_), targetTy
@@ -172,8 +172,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.NumberInferenceVariable(varSolution1, defaultTy1, _), TypeSymbol.NumberInferenceVariable(varSolution2, defaultTy2, _) ->
             if UnifyTypes rigidity defaultTy1 defaultTy2 then
                 if (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) then
-                    varSolution1.Solution <- Some(defaultTy1)
-                    varSolution2.Solution <- Some(defaultTy2)
+                    varSolution1.Solution <- defaultTy1
+                    varSolution2.Solution <- defaultTy2
                 true
             else
                 false
@@ -182,8 +182,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
-                tySolution.Solution <- Some(defaultTy)
-                varSolution.Solution <- Some(ty)
+                tySolution.Solution <- defaultTy
+                varSolution.Solution <- ty
                 UnifyTypes rigidity ty1 ty2
             | _ ->
                 if ty.IsAnyStruct then
@@ -196,17 +196,17 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                     | TypeSymbol.Int32
                     | TypeSymbol.UInt64
                     | TypeSymbol.Int64 when defaultTy.IsFixedInteger ->
-                        varSolution.Solution <- Some(ty)
+                        varSolution.Solution <- ty
                         UnifyTypes rigidity ty1 ty2
                     | TypeSymbol.Float32
                     | TypeSymbol.Float64 when defaultTy.IsReal || defaultTy.IsFixedInteger ->
-                        varSolution.Solution <- Some(ty)
+                        varSolution.Solution <- ty
                         UnifyTypes rigidity ty1 ty2
                     | _ ->
-                        varSolution.Solution <- Some(defaultTy)
+                        varSolution.Solution <- defaultTy
                         UnifyTypes rigidity ty1 ty2
                 else
-                    varSolution.Solution <- Some(defaultTy)
+                    varSolution.Solution <- defaultTy
                     UnifyTypes rigidity ty1 ty2
 
         | TypeSymbol.NumberInferenceVariable(_, defaultTy, _), targetTy
@@ -346,26 +346,26 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.InferenceVariable(tyParOpt, solution), _ when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && not solution.HasSolution ->
             match tyParOpt with
             | Some(tyPar) when tyPar.Arity > 0 ->
-                solution.Solution <- Some (ty2.Formal)
+                solution.Solution <- ty2.Formal
             | _ ->
-                solution.Solution <- Some (ty2)
+                solution.Solution <- ty2
             true
 
         | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && not solution.HasSolution ->
             match tyParOpt with
             | Some(tyPar) when tyPar.Arity > 0 ->
-                solution.Solution <- Some (ty1.Formal)
+                solution.Solution <- ty1.Formal
             | _ ->
-                solution.Solution <- Some (ty1)
+                solution.Solution <- ty1
             true
 
         | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), _ when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && (not solution.HasSolution) && tyArgs.Length = ty2.Arity ->
             let result0 =
-                match externalSolution.Solution with
-                | None ->
-                    true
-                | Some(ty1) ->
+                if externalSolution.HasSolution then
+                    let ty1 = externalSolution.Solution
                     ty1.FormalId = ty2.FormalId
+                else
+                    true
 
             if result0 then
                 let result =
@@ -376,11 +376,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
                 if result then
                     let appliedTy = applyType ty2 tyArgs
-                    let res = Some (appliedTy)
-                    solution.Solution <- res
+                    solution.Solution <- appliedTy
                     if not externalSolution.HasSolution then
                         // TODO: We should generalize the type.
-                        externalSolution.Solution <- Some(ty2)
+                        externalSolution.Solution <- ty2
                     true
                 else
                     false
@@ -389,11 +388,11 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
         | _, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && (not solution.HasSolution) && tyArgs.Length = ty1.Arity ->
             let result0 =
-                match externalSolution.Solution with
-                | None ->
+                if externalSolution.HasSolution then
+                    let ty2 = externalSolution.Solution
+                    ty2.FormalId = ty1.FormalId
+                else
                     true
-                | Some(ty2) ->
-                    ty1.FormalId = ty2.FormalId
 
             if result0 then
                 let result =
@@ -404,11 +403,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
                 if result then
                     let appliedTy = applyType ty1 tyArgs
-                    let res = Some (appliedTy)
-                    solution.Solution <- res
+                    solution.Solution <- appliedTy
                     if not externalSolution.HasSolution then
                         // TODO: We should generalize the type.
-                        externalSolution.Solution <- Some(ty1)
+                        externalSolution.Solution <- ty1
                     true
                 else
                     false
