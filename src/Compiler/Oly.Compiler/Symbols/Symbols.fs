@@ -1176,33 +1176,38 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         if solution.HasSolution then
             let ty2 = solution.Solution
-            match tyParOpt with
-            | Some(tyPar) when tyPar.Arity > 0 ->
-                if ty2.IsTypeConstructor then
+            let strippedTy2 =
+                match tyParOpt with
+                | Some(tyPar) when tyPar.Arity > 0 ->
+                    if ty2.IsTypeConstructor then
+                        stripTypeEquationsAux skipAlias skipModifiers ty2
+                    else
+                        // Because we have a second-order generic and our solution isn't a type constructor,
+                        //     we must extract the type constructor out of it and reset the solution using it.
+                        match stripTypeEquationsAux skipAlias skipModifiers ty2 with
+                        | TypeSymbol.HigherVariable(tyPar2, _) ->
+                            solution.Solution <- TypeSymbol.Variable(tyPar2)
+                            stripTypeEquationsAux skipAlias skipModifiers ty
+                        | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
+                            solution.Solution <- TypeSymbol.InferenceVariable(tyParOpt, externalSolution)
+                            stripTypeEquationsAux skipAlias skipModifiers ty
+                        | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
+                            solution.Solution <- ent.Formal.AsType
+                            stripTypeEquationsAux skipAlias skipModifiers ty
+                        | _ ->
+                            TypeSymbol.Error(Some tyPar, None)
+                | _ ->
                     stripTypeEquationsAux skipAlias skipModifiers ty2
-                else
-                    // Because we have a second-order generic and our solution isn't a type constructor,
-                    //     we must extract the type constructor out of it and reset the solution using it.
-                    match stripTypeEquationsAux skipAlias skipModifiers ty2 with
-                    | TypeSymbol.HigherVariable(tyPar2, _) ->
-                        solution.Solution <- TypeSymbol.Variable(tyPar2)
-                        stripTypeEquationsAux skipAlias skipModifiers ty
-                    | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
-                        solution.Solution <- TypeSymbol.InferenceVariable(tyParOpt, externalSolution)
-                        stripTypeEquationsAux skipAlias skipModifiers ty
-                    | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                        solution.Solution <- ent.Formal.AsType
-                        stripTypeEquationsAux skipAlias skipModifiers ty
-                    | _ ->
-                        TypeSymbol.Error(Some tyPar, None)
-            | _ ->
-                stripTypeEquationsAux skipAlias skipModifiers ty2
+            solution.Solution <- strippedTy2
+            strippedTy2
         else
             ty
 
     | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
         if solution.HasSolution then
-            stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+            let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+            solution.Solution <- strippedTy
+            strippedTy
         else
             if externalSolution.HasSolution then
                 let appliedTy = applyType externalSolution.Solution tyArgs
@@ -1214,7 +1219,9 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
     | TypeSymbol.ObjectInferenceVariable(solution)
     | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
         if solution.HasSolution then
-            stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+            let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
+            solution.Solution <- strippedTy
+            strippedTy
         else
             ty
 
