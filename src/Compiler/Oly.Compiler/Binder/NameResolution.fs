@@ -1234,7 +1234,7 @@ let bindNameAsType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeAri
         ty
     | ResolutionItem.Namespace(syntaxName, namespaceEnt) ->
         cenv.diagnostics.Error("Not a valid type.", 10, syntaxName)
-        namespaceEnt.AsNamespaceType
+        (invalidateEntity namespaceEnt).AsType
     | resItem ->
         cenv.diagnostics.Error("Not a valid type.", 10, resItem.Syntax)
         invalidType()
@@ -1543,7 +1543,17 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 ty
 
         if not env.skipCheckTypeConstructor then
-            checkTypeConstructor (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxTyArgsRoot syntaxTyArgs ty
+            // REVIEW: Should we re-check type constructors in PostInferenceAnalysis?
+            //         We already re-check constraints in PostInferenceAnalysis for function calls
+            //         due to inference variables getting solved after the call.
+            //         There may be situations where we want to do a similar thing
+            //         when checking type constructors.
+            checkTypeConstructor 
+                (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
+                syntaxTyArgsRoot 
+                (* skipUnsolved *) true
+                syntaxTyArgs 
+                ty
         if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
 

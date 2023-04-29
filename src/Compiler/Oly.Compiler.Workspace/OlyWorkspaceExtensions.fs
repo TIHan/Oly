@@ -448,6 +448,11 @@ type OlyDocument with
         let syntaxTree = this.SyntaxTree
         let boundModel = this.BoundModel
 
+        let filterLabel (label: string) =
+            ct.ThrowIfCancellationRequested()
+            not (label.StartsWith("__oly_")) &&
+            not (String.IsNullOrWhiteSpace(label))
+
         let completions = ResizeArray<OlyCompletionItem>()
 
         let context =
@@ -573,7 +578,11 @@ type OlyDocument with
                             if isInOpenDecl then
                                 OlyCompletionContext.OpenDeclaration subModel
                             // TODO: This only checks return type annotations, we need to look at others.
-                            elif subModel.SyntaxNode.IsInReturnTypeAnnotation || subModel.SyntaxNode.IsParameterMissingTypeAnnotation || subModel.SyntaxNode.IsType then
+                            elif 
+                                subModel.SyntaxNode.IsInReturnTypeAnnotation || 
+                                subModel.SyntaxNode.IsParameterMissingTypeAnnotation || 
+                                subModel.SyntaxNode.IsType ||
+                                subModel.SyntaxNode.IsTypeDeclarationExpression then
                                 OlyCompletionContext.UnqualifiedType subModel
                             else
                                 if token.IsWhitespaceTrivia then
@@ -610,11 +619,44 @@ type OlyDocument with
                         completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
                     )
                 | OlyCompletionContext.UnqualifiedType subModel ->
+                    let tyDeclNameOpt =
+                        match subModel.SyntaxNode with
+                        | :? OlySyntaxExpression as syntaxExpr ->
+                            match syntaxExpr with
+                            | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDeclName, _, _, _, _) ->
+                                match syntaxTyDeclName with
+                                | OlySyntaxTypeDeclarationName.Identifier(syntaxIdent) ->
+                                    Some(syntaxIdent.ValueText)
+                                | OlySyntaxTypeDeclarationName.Parenthesis(_, syntaxOperatorOrIdent, _) ->
+                                    Some(syntaxOperatorOrIdent.ValueText)
+                                | _ ->
+                                    None
+                            | _ ->
+                                None
+                        | _ ->
+                            None
+
+                    subModel.GetUnqualifiedNamespaceSymbols(containsText)
+                    |> Seq.iter (fun namespaceSymbol ->
+                        let label = namespaceSymbol.Name
+                        if filterLabel label then
+                            match tyDeclNameOpt with
+                            // Skip listing namespaces with the same name as the type declaration.
+                            | Some(tyDeclName) when tyDeclName = label -> ()
+                            | _ ->
+                                let kind = classifyNamespaceKind namespaceSymbol
+                                completions.Add(OlyCompletionItem(label, kind, namespaceSymbol.SignatureText))
+                    )
                     subModel.GetUnqualifiedTypeSymbols(containsText)
                     |> Seq.iter (fun ty ->
-                        ct.ThrowIfCancellationRequested()
-                        let kind = classifyTypeKind ty
-                        completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                        let label = ty.Name
+                        if filterLabel label then
+                            match tyDeclNameOpt with
+                            // Skip listing types with the same name as the type declaration.
+                            | Some(tyDeclName) when tyDeclName = label -> ()
+                            | _ ->
+                                let kind = classifyTypeKind ty
+                                completions.Add(OlyCompletionItem(label, kind, ty.SignatureText))
                     )
                 | OlyCompletionContext.Unqualified subModel ->                   
                     subModel.GetUnqualifiedSymbols(containsText)
@@ -735,8 +777,7 @@ type OlyDocument with
         let completions =
             completions
             |> Seq.filter (fun x -> 
-                ct.ThrowIfCancellationRequested()
-                not (x.Label.StartsWith("__oly_"))
+                filterLabel x.Label
             )
             |> Seq.map (fun x ->
                 ct.ThrowIfCancellationRequested()

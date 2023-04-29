@@ -9,6 +9,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTreeExtensions
+open Oly.Compiler.Internal.SemanticDiagnostics
 
 [<NoEquality;NoComparison;Struct>]
 type SolverEnvironment =
@@ -275,7 +276,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             let mostSpecificTy =
                 match mostSpecificTy with
                 | Some x -> x
-                | _ -> failwith "Should have found the most specific type."
+                | _ -> OlyAssert.Fail("Should have found the most specific type.")
 
             witnessArgs
             |> ImArray.iter (fun witness ->      
@@ -283,7 +284,6 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 else
                     if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv FlexibleAndGeneralizable target mostSpecificTy then
                         witness.Solution <- Some(WitnessSymbol.TypeExtension(tyExt, None))
-                        solveConstraintsAux env false syntaxNode None tyExt.TypeArguments witnessArgs
             )
             true
 
@@ -379,7 +379,7 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
     | ConstraintSymbol.SubtypeOf(target) ->
         solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
  
-and private solveConstraintsAux
+and solveConstraints
         env 
         (skipUnsolved: bool)
         (syntaxNode: OlySyntaxNode) 
@@ -408,7 +408,9 @@ and private solveConstraintsAux
                     let solved = solveConstraint env syntaxNode tyArgs witnessArgs constr tyPar tyArg
 
                     if not solved then
-                        env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 3, syntaxNode)
+                        Error_MissingConstraint(env.benv, syntaxNode, tyArg, constr)
+                        |> env.diagnostics.Report
+
                         witnessArgs
                         |> ImArray.filter (fun x -> not x.HasSolution)
                         |> ImArray.iter (fun x ->
@@ -432,7 +434,7 @@ and private solveConstraintsAux
                     OlyAssert.Fail("Expected type parameter associated with inference variable.")
     )
 
-and solveConstraints 
+and solveFunctionConstraints 
         env 
         skipUnsolved
         (syntaxNode: OlySyntaxNode) 
@@ -441,5 +443,5 @@ and solveConstraints
         (syntaxFuncTyArgsOpt: OlySyntaxType imarray option)
         (funcTyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraintsAux env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs witnessArgs
-    solveConstraintsAux env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyArgs witnessArgs

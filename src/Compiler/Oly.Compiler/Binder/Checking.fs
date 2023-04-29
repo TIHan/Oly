@@ -646,15 +646,15 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
     | AutoDereferenced bodyExpr ->
         checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable bodyExpr
         match bodyExpr with
-        | E.Call(value=value) when not value.IsFunctionGroup ->
-            checkWitnessesFromCallExpression cenv.dummyDiagnostics true bodyExpr
+        | E.Call _ ->
+            checkConstraintsFromCallExpression cenv.diagnostics true bodyExpr
         | _ ->
             ()
     | _ ->
         checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
         match expr with
-        | E.Call(value=value) when not value.IsFunctionGroup ->
-            checkWitnessesFromCallExpression cenv.dummyDiagnostics true expr 
+        | E.Call _ ->
+            checkConstraintsFromCallExpression cenv.diagnostics true expr 
         | _ ->
             ()
 

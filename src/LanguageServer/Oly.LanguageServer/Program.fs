@@ -63,7 +63,9 @@ module OlyViewModels =
 type OlyTypeSymbol with
 
     member symbol.TextKind =
-        if symbol.IsInterface then
+        if symbol.IsAlias then
+            "alias"
+        elif symbol.IsInterface then
             "interface"
         elif symbol.IsClass then
             "class"
@@ -1712,18 +1714,24 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             else
                                 textResult
 
-                        let header = String.Empty
-   
-                        let header, olyContent =
-                                header, textResult
-
+                        let header = String.Empty   
+                        let header, olyContent = header, textResult
                         return hoverText header olyContent
+
                     | :? OlyTypeSymbol as symbol ->
                         let textResult = sprintf "%s %s" symbol.TextKind symbol.SignatureText
+                        let textResult =
+                            match symbol.TryGetAliasedType() with
+                            | Some(aliasedSymbol) ->
+                                $"{textResult} = {aliasedSymbol.FullyQualifiedName}"
+                            | _ ->
+                                textResult                             
                         return hoverText "" textResult
+
                     | :? OlyNamespaceSymbol as symbol ->
                         let textResult = sprintf "namespace %s" symbol.SignatureText
                         return hoverText "" textResult
+
                     | :? OlyConstantSymbol as symbol ->
                         let valueText =
                             let rec f (c: OlyConstant) =

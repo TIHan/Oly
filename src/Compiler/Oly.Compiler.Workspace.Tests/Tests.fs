@@ -100,6 +100,13 @@ let doesNotContainCompletionLabelsByCursor (expectedCompletionLabels: string seq
         |> ignore
     )
 
+let containsOnlyCompletionLabelsByCursor (expectedCompletionLabels: string seq) (srcWithCursor: string) =
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(Seq.length expectedCompletionLabels, completionLabels.Count)
+    expectedCompletionLabels
+    |> Seq.forall (fun expected -> completionLabels.ContainsKey(expected))
+    |> Assert.True
+
 [<Fact>]
 let ``Simple workspace with hello world project should compile`` () =
     let src =
@@ -917,3 +924,16 @@ main(): () =
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
+
+[<Fact>]
+let ``By cursor, get completions for incomplete alias definition`` () =
+    """
+#target "i: default"
+
+testFunction(): () = ()
+
+class TestClass
+
+alias TestAlias = ~^~
+    """
+    |> containsOnlyCompletionLabelsByCursor ["TestClass"]

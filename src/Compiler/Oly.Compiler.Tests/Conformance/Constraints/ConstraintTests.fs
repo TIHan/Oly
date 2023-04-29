@@ -671,9 +671,9 @@ alias int32
     Oly src
     |> withErrorDiagnostics
         [
-            "Expected type 'X' but is 'T'."          
-            "Expected type 'T' but is 'X'."
+            "Expected type 'X' but is 'T'."
             "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
+            "Expected type 'T' but is 'X'."
         ]
     |> ignore
 
@@ -716,9 +716,9 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
-            "Expected type 'X -> T' but is 'X -> X'."
-            "Expected type 'X -> T' but is 'X -> X'."
             "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
+            "Expected type 'X -> T' but is 'X -> X'."
+            "Expected type 'X -> T' but is 'X -> X'."
         ]
     |> ignore
 

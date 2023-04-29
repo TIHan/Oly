@@ -1115,6 +1115,12 @@ main() : () =
                                     ^^^^^^
 """
         )
+        ("'op_Multiply' has ambiguous functions.",
+            """
+    let f(x, y) = multiply<_, _, _, object>(x, y)
+                                    ^^^^^^
+"""
+        )
     ]
     |> ignore
 
@@ -1149,6 +1155,12 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
+        ("'op_Multiply' has ambiguous functions.",
+            """
+    let f(x, y) = multiply<_, _, _, object>(x, y)
+                                    ^^^^^^
+"""
+        )
         ("'op_Multiply' has ambiguous functions.",
             """
     let f(x, y) = multiply<_, _, _, object>(x, y)

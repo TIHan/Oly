@@ -11,6 +11,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.BoundTreePatterns
+open Oly.Compiler.Internal.Checker
 
 type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
 type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals }
@@ -230,7 +231,9 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
 
         let cont() =
             value.TypeArguments
-            |> ImArray.iter (fun tyArg -> analyzeType acenv aenv syntaxNode tyArg)
+            |> ImArray.iter (fun tyArg -> 
+                analyzeType acenv aenv syntaxNode tyArg
+            )
             analyzeType acenv aenv syntaxNode value.Type
             match value with
             | :? FunctionGroupSymbol as funcGroup ->
@@ -522,9 +525,10 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
             else
                 aenv
 
+        // Re-check constraints
+        checkConstraintsFromCallExpression acenv.cenv.diagnostics false expr
+
         if not value.IsFunctionGroup then
-            // Re-check constraints
-            Oly.Compiler.Internal.Checker.checkWitnessesFromCallExpression acenv.cenv.diagnostics false expr
             witnessArgs
             |> ImArray.iter (fun x ->
                 checkWitnessSolution acenv aenv syntaxNode x

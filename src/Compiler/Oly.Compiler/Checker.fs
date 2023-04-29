@@ -1,19 +1,16 @@
 ﻿module internal Oly.Compiler.Internal.Checker
 
 open Oly.Core
-open Oly.Compiler
 open Oly.Compiler.Syntax
 open System.Collections.Generic
 open System.Collections.Immutable
-open Oly.Compiler.Syntax.Internal
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.PrettyPrint
-open Oly.Compiler.Internal.SemanticErrors
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
-open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SemanticDiagnostics
 
 let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
@@ -160,12 +157,8 @@ let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression
         if not valueTy.IsError_t then
             env.diagnostics.Error(sprintf "Not a function.", 3, syntaxNode)
 
-let emptyStructCycleHash = System.Collections.ObjectModel.ReadOnlyDictionary(Dictionary()) 
-
-let checkStructCycle (ent: IEntitySymbol) =
-    if not ent.IsAnyStruct then
-        true, emptyStructCycleHash
-    else
+let checkStructCycle env syntaxNode (ent: IEntitySymbol) =
+    OlyAssert.True(ent.IsAnyStruct)
 
     let hash = Dictionary()
 
@@ -190,42 +183,50 @@ let checkStructCycle (ent: IEntitySymbol) =
             hash.[formalId] <- result
             result
 
-    check ent, System.Collections.ObjectModel.ReadOnlyDictionary(hash)
-
-let rec checkStructTypeCycle (ty: TypeSymbol) =
-    match stripTypeEquations ty with
-    | TypeSymbol.Entity(ent) -> checkStructCycle ent |> fst
-    | TypeSymbol.HigherVariable(_, tyArgs) ->
-        tyArgs
-        |> Seq.forall (fun ty -> checkStructTypeCycle ty)
-    | TypeSymbol.HigherInferenceVariable(_, tyArgs, _, _) ->
-        tyArgs
-        |> Seq.forall (fun ty -> checkStructTypeCycle ty)
-    | TypeSymbol.Tuple(tyArgs, _) ->
-        tyArgs
-        |> Seq.forall (fun ty -> checkStructTypeCycle ty)
-    | TypeSymbol.ForAll(_, innerTy) ->
-        checkStructTypeCycle innerTy
-    | _ ->
-        match ty.TryFunction with
-        | ValueSome(argTys, returnTy) ->
-            seq { yield! argTys; yield returnTy }
-            |> Seq.forall (fun ty -> checkStructTypeCycle ty)
-        | _ ->
-            true
-
-let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (ent: IEntitySymbol) =
-    let result, _ = checkStructCycle ent
-
-    if not result then
+    if not (check ent) then
         if ent.IsFormal || ent.TypeArguments.IsEmpty then
             env.diagnostics.Error(sprintf "'%s' has fields that cause a cycle." (printEntity env.benv ent), 10, syntaxNode)
         else
             env.diagnostics.Error(sprintf "'%s' is causing a cycle on a struct." (printEntity env.benv ent), 10, syntaxNode)
 
-    let tyArgs = ent.TypeArguments
+        false
+    else
+        true
 
-    (ent.TypeParameters, tyArgs)
+let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
+    match stripTypeEquations ty with
+    | TypeSymbol.Entity(ent) -> 
+        if ent.IsAnyStruct then
+            checkStructCycle env syntaxNode ent
+        else
+            true
+    | TypeSymbol.HigherVariable(_, tyArgs) ->
+        tyArgs
+        |> ImArray.forall (fun ty -> checkStructTypeCycle env syntaxNode ty)
+    | TypeSymbol.HigherInferenceVariable(_, tyArgs, _, _) ->
+        tyArgs
+        |> ImArray.forall (fun ty -> checkStructTypeCycle env syntaxNode ty)
+    | TypeSymbol.Tuple(tyArgs, _) ->
+        tyArgs
+        |> ImArray.forall (fun ty -> checkStructTypeCycle env syntaxNode ty)
+    | TypeSymbol.ForAll(_, innerTy) ->
+        checkStructTypeCycle env syntaxNode innerTy
+    | _ ->
+        match ty.TryFunction with
+        | ValueSome(argTys, returnTy) ->
+            seq { yield! argTys; yield returnTy }
+            |> Seq.forall (fun ty -> checkStructTypeCycle env syntaxNode ty)
+        | _ ->
+            true
+
+let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: IEntitySymbol) =
+    if ent.IsAnyStruct then
+        checkStructCycle env syntaxNode ent
+        |> ignore
+
+    let tyArgs = ent.LogicalTypeArguments
+
+    (ent.LogicalTypeParameters, tyArgs)
     ||> Seq.iteri2 (fun i tyPar tyArg ->
         if tyPar.Arity > 0 then
             match stripTypeEquations tyArg with
@@ -234,58 +235,20 @@ let checkEntityConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) (en
                 if tyPar.Arity <> tyArg.Arity then
                     let syntaxTy = syntaxTys.[i]
                     env.diagnostics.Error(sprintf "Type instantiation '%s' has a type arity of %i, but expected %i." (printType env.benv tyArg) tyArg.Arity tyPar.Arity, 10, syntaxTy)
-
-        // TODO: Should we do this here or somewhere else? Inside type parameter? We do something similar like this iin the solver in solveWitnesses.
-        tyPar.Constraints
-        |> Seq.iter (fun constr ->
-            match constr with
-            | ConstraintSymbol.SubtypeOf(constrTy) ->
-                let constrTy = substituteType tyArgs constrTy.Value
-                let exists =
-                    if constrTy.IsShape then
-                        subsumesShape env.benv constrTy tyArg
-                    elif constrTy.IsTypeConstructor then
-                        subsumesTypeConstructor constrTy tyArg
-                    else
-                        subsumesTypeWith Indexable constrTy tyArg
-                if not exists && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printType env.benv constrTy), 10, syntaxTy)
-            | ConstraintSymbol.ConstantType(constTy) ->
-                let exists =
-                    match stripTypeEquations constTy.Value, stripTypeEquations tyArg with
-                    | TypeSymbol.Int32, TypeSymbol.ConstantInt32 _ -> true
-                    | _ -> false
-                if not exists && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
-            | ConstraintSymbol.Unmanaged ->
-                if not tyArg.IsUnmanaged && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
-            | ConstraintSymbol.NotStruct ->
-                if tyArg.IsAnyStruct && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
-            | ConstraintSymbol.Struct ->
-                if not tyArg.IsAnyStruct && not tyArg.IsError_t then
-                    match tyArg.TryTypeParameter with
-                    | ValueSome(tyPar) when tyPar.Constraints |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false) ->
-                        ()
-                    | _ ->
-                        let syntaxTy = syntaxTys.[i]
-                        env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
-            | ConstraintSymbol.Null ->
-                if not tyArg.IsNullable && not tyArg.IsError_t then
-                    let syntaxTy = syntaxTys.[i]
-                    env.diagnostics.Error(sprintf "Type instantiation '%s' is missing the constraint '%s'." (printType env.benv tyArg) (printConstraint env.benv constr), 10, syntaxTy)
-        )
     )
 
-let checkTypeConstructor env syntaxNode (syntaxTys: OlySyntaxType imarray) ty =
+    solveConstraints
+        env
+        skipUnsolved
+        syntaxNode
+        (if syntaxTys.IsEmpty then None else Some syntaxTys)
+        tyArgs
+        ImArray.empty (* type constructors do not support witnesses *)
+
+let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
-        checkEntityConstructor env syntaxNode syntaxTys ent
+        checkEntityConstructor env syntaxNode skipUnsolved syntaxTys ent
     | _ ->
         ()
 
@@ -305,7 +268,7 @@ let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: Ol
     )
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
-        checkEntityConstructor env syntaxNode syntaxTys ent
+        checkEntityConstructor env syntaxNode (* skipUnsolved *) false syntaxTys ent
     | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
         tyPar.Constraints
         |> ImArray.iter (fun constr ->
@@ -332,25 +295,6 @@ let checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
     | _ ->
         ()
 
-let checkConstraint env syntaxConstr (constr: ConstraintSymbol) =
-    match constr.TryGetSubtypeOf() with
-    | ValueSome constrTy ->
-        match syntaxConstr with
-        | OlySyntaxConstraint.Type(syntaxTy) ->       
-            match syntaxTy with
-            | OlySyntaxType.Name(syntaxName) ->
-                match syntaxName with
-                | OlySyntaxName.Generic(_, syntaxTyArgsRoot) ->
-                    checkTypeConstructor env syntaxTyArgsRoot syntaxTyArgsRoot.Values constrTy
-                | _ ->
-                    ()
-            | _ ->
-                ()
-        | _ ->
-            ()
-    | _ ->
-        ()
-
 let rec checkConstraintClauses (env: SolverEnvironment) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) (tyPars: TypeParameterSymbol imarray) =
     // Check the constraints' type constructors after we have binded everything.
     // This allows to write the constraints in any order.
@@ -359,7 +303,23 @@ let rec checkConstraintClauses (env: SolverEnvironment) (syntaxConstrClauses: Ol
         | ValueSome syntaxConstrs ->
             (syntaxConstrs, constrs)
             ||> ImArray.tryIter2 (fun syntaxConstr constr ->
-                checkConstraint env syntaxConstr constr
+                match constr.TryGetSubtypeOf() with
+                | ValueSome constrTy ->
+                    match syntaxConstr with
+                    | OlySyntaxConstraint.Type(syntaxTy) ->       
+                        match syntaxTy with
+                        | OlySyntaxType.Name(syntaxName) ->
+                            match syntaxName with
+                            | OlySyntaxName.Generic(_, syntaxTyArgsRoot) ->
+                                checkTypeConstructor env syntaxTyArgsRoot (* skipUnsolved *) false syntaxTyArgsRoot.Values constrTy
+                            | _ ->
+                                ()
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
             )
         | _ ->
             ()
@@ -695,7 +655,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | _ ->
         ()
 
-and checkConstraintsForSolving 
+and checkFunctionConstraints
         (env: SolverEnvironment) 
         skipUnsolved
         syntaxNode 
@@ -704,13 +664,24 @@ and checkConstraintsForSolving
         syntaxFuncTyArgsOpt
         funcTyArgs
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
 
-and checkWitnessesFromCallExpression diagnostics skipUnsolved (expr: BoundExpression) =
+and checkConstraintsFromCallExpression diagnostics skipUnsolved (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) when not value.IsFunctionGroup ->
+    | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
+        // We cannot check constraints and witness for function groups, so skip it.
+        if value.IsFunctionGroup then ()
+        else
+
         match syntaxInfo.TryEnvironment with
         | Some benv ->
+
+            checkStructTypeCycle 
+                (SolverEnvironment.Create(diagnostics, benv))
+                syntaxInfo.SyntaxNameOrDefault
+                value.Type
+            |> ignore
+
             let syntaxTyArgsOpt =
                 let syntaxTyArgs =
                     match syntaxInfo.Syntax with
@@ -761,7 +732,7 @@ and checkWitnessesFromCallExpression diagnostics skipUnsolved (expr: BoundExpres
                         Some(xs |> Seq.skip enclosingTyArgs.Length |> ImArray.ofSeq)
                 )
 
-            checkConstraintsForSolving 
+            checkFunctionConstraints 
                 (SolverEnvironment.Create(diagnostics, benv)) 
                 skipUnsolved
                 syntaxNode 
@@ -809,27 +780,6 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
                     ()
             | _ ->
                 ()
-        )
-
-        if not (checkStructTypeCycle valueTy) then
-            env.diagnostics.Error(sprintf "The call to '%s' will result in the type '%s' that causes a cycle on a struct." (printValueName value) (printType env.benv valueTy), 10, syntaxNode)
-
-        value.AllTypeParameters
-        |> Seq.iter (fun tyPar ->
-            tyPar.Constraints
-            |> Seq.iter (fun constr ->
-                match constr.TryGetSubtypeOf() with
-                | ValueSome constrTy ->
-                    match constrTy.TryEntity with
-                    | ValueSome ent ->
-                        let result, _ = checkStructCycle ent
-                        if not result then
-                            env.diagnostics.Error(sprintf "The call to '%s' will result in a type parameter with the constraint '%s' that causes a cycle on a struct." value.Name (printType env.benv valueTy), 10, syntaxNode)
-                    | _ ->
-                        ()
-                | _ ->
-                    ()
-            )
         )
 
         if value.Enclosing.IsAbstract && value.IsConstructor then

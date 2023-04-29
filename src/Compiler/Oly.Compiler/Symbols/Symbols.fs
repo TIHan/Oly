@@ -2988,7 +2988,7 @@ type TypeSymbol =
             | _ -> "?"
         | DependentIndexer(_, formalTy) -> "!!dependent!!" + formalTy.Name // TODO:
         | Error _ -> 
-            "?error?"
+            "?"
 
     /// Returns false for NativeInt or NativeUInt
     member this.IsFixedInteger =
@@ -4381,12 +4381,12 @@ module SymbolExtensions =
     
             member this.AsType = 
                 if this.IsNamespace && not(this.Flags.HasFlag(EntityFlags.Invalid)) then
-                    failwith "Namespace cannot turn into a type."
+                    OlyAssert.Fail("Namespace cannot turn into a type.")
                 TypeSymbol.Entity(this)
 
             member this.AsNamespaceType =
                 if not this.IsNamespace && not(this.Flags.HasFlag(EntityFlags.Invalid)) then
-                    failwith "Entity must be a namespace in order to turn into a pseudo-type."
+                    OlyAssert.Fail("Entity must be a namespace in order to turn into a pseudo-type.")
                 TypeSymbol.Entity(this)
     
             member this.AsEnclosing = EnclosingSymbol.Entity(this)

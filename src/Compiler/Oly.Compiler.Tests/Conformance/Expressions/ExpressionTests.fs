@@ -882,7 +882,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The call to 'A' will result in the type 'B<A<B>> -> A<B>' that causes a cycle on a struct."
+        "'B<A<B>>' is causing a cycle on a struct."
     ]
     |> ignore
 
@@ -897,7 +897,6 @@ id<T>(x: T) = x
         "The function declaration 'id' must have an explicit return type annotation."
     ]
     |> ignore
-
 
 [<Fact>]
 let ``Top-level function should error due to missing explicit parameter type annotation``() =
@@ -2420,10 +2419,6 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Member 'printTest2' does not exist on type 'Test2<?U, ?V>'."
-            "Type parameter '?T' was unable to be inferred."
-            "Type parameter '?U' was unable to be inferred."
-            "Type parameter '?U' was unable to be inferred."
-            "Type parameter '?V' was unable to be inferred."
         ]
     |> ignore
 
@@ -2586,7 +2581,6 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Member 'printTest2' does not exist on type '() -> Test3<?Z>'."
-            "Type parameter '?Z' was unable to be inferred."
         ]
     |> ignore
 
@@ -2710,6 +2704,39 @@ main(): () =
             ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
     let x: Test<__oly_int32> = Test()
                                ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should infer correctly but still error 3``() =
+    let src =
+        """
+open extension Int32Extension
+
+interface TraitTest
+
+class Test<T> where T: TraitTest =
+
+    new() = { }
+
+extension Int32Extension =
+    inherits __oly_int32
+    implements TraitTest
+
+main(): () =
+    let mutable x: Test<_> = Test()
+
+    x <- Test<__oly_int32>()
+
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
+    x <- Test<__oly_int32>()
+              ^^^^^^^^^^^
 """
             )
         ]
@@ -3765,7 +3792,6 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Shape member 'get_Item(TKey): TValue' does not exist on 'byref<Test<__oly_int32>>'."
-            "Type parameter '?TValue' was unable to be inferred."
         ]
     |> ignore
 
@@ -3826,7 +3852,6 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Shape member 'get_Item(TKey): TValue' does not exist on 'Test<__oly_int32>'."
-            "Type parameter '?TValue' was unable to be inferred."
         ]
     |> ignore
 
@@ -3967,9 +3992,7 @@ main(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Expected type 'byref<?T>' but is 'Test<__oly_int32>'."          
-            "Type parameter '?T' was unable to be inferred."
-            "Type parameter '?TValue' was unable to be inferred."
+            "Expected type 'byref<?T>' but is 'Test<__oly_int32>'."
         ]
     |> ignore
 
@@ -7290,3 +7313,14 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Alias to a namespace should not crash``() =
+    let src =
+        """
+namespace TestNamespace
+
+alias AliasTest = TestNamespace
+        """
+    Oly src
+    |> hasErrorDiagnostics

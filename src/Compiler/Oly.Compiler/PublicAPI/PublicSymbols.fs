@@ -133,6 +133,14 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     override _.Name = ty.Name
 
+    member _.FullyQualifiedName =
+        match ty with
+        | TypeSymbol.Entity(ent) ->
+            // TODO: Fix this. This doesn't give correct syntax.
+            ent.QualifiedName
+        | _ ->
+            ty.Name
+
     override _.SignatureText = printTypeDefinition benv ty
 
     override _.TryGetDefinitionLocation(ct) =
@@ -210,10 +218,41 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     member _.IsModule = ty.IsModule
 
-    member _.IsAlias =
-        match ty with
-        | TypeSymbol.Entity(ent) -> ent.IsAlias
-        | _ -> false
+    member _.IsAlias = ty.IsAlias
+
+    member this.TryGetAliasedType() =
+        if this.IsAlias then
+            match ty with
+            | TypeSymbol.Entity(ent) ->
+                if ent.Extends.IsEmpty then
+                    None
+                else
+                    let ty = ent.Extends[0]
+                    match benv.TryFindEntityByIntrinsicType(ty) with
+                    | ValueSome(ent) ->
+                        Some(OlyTypeSymbol(boundModel, benv, location, ent.AsType))
+                    | _ ->
+                        Some(OlyTypeSymbol(boundModel, benv, location, ty))
+            | _ ->
+                match ty.TryIntrinsicType with
+                | Some ty ->
+                    match benv.TryFindEntityByIntrinsicType(ty) with
+                    | ValueSome(ent) ->
+                        Some(OlyTypeSymbol(boundModel, benv, location, ent.AsType))
+                    | _ ->
+                        Some(OlyTypeSymbol(boundModel, benv, location, ty))
+                | _ ->
+                    None
+        else
+            None
+
+    member _.Extends =
+        ty.Inherits
+        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x))
+
+    member _.Implements =
+        ty.Implements
+        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x))
 
     member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(boundModel, benv, location, ty.Enclosing)
 
@@ -777,7 +816,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
 
     member this.GetUnqualifiedNamespaceSymbols(containsText: string) =
         if String.IsNullOrWhiteSpace containsText then
-            this.GetUnqualifiedNamespaceSymbols(containsText)
+            this.GetUnqualifiedNamespaceSymbols()
         else
             benv.senv.namespaces.Values
             |> Seq.choose (fun group ->

@@ -2058,7 +2058,7 @@ let invalidEntityWithEnclosing enclosing =
         member _.Kind = EntityKind.Class
         member this.Formal = this
         member _.Attributes = ImArray.empty
-        member _.Flags = EntityFlags.None ||| EntityFlags.Invalid
+        member _.Flags = EntityFlags.Invalid
     }
 
 let invalidNamespaceWithEnclosing enclosing =
@@ -2082,6 +2082,30 @@ let invalidNamespaceWithEnclosing enclosing =
         member this.Formal = this
         member _.Attributes = ImArray.empty
         member _.Flags = EntityFlags.Invalid
+    }
+
+let invalidateEntity (ent: IEntitySymbol) =
+    let id = newId()
+    { new IEntitySymbol with
+        member _.Enclosing = ent.Enclosing
+        member _.Id = id
+        member _.Name = ent.Name
+        member _.ContainingAssembly = ent.ContainingAssembly
+        member _.TypeParameters = ent.TypeParameters
+        member _.Extends = ent.Extends
+        member _.Functions = ent.Functions
+        member _.InstanceConstructors = ent.InstanceConstructors
+        member _.Properties = ent.Properties
+        member _.Patterns = ent.Patterns
+        member _.Fields = ent.Fields
+        member _.Implements = ent.Implements
+        member _.RuntimeType = ent.RuntimeType
+        member _.Entities = ent.Entities
+        member _.TypeArguments = ent.TypeArguments
+        member _.Kind = ent.Kind
+        member this.Formal = this
+        member _.Attributes = ent.Attributes
+        member _.Flags = ent.Flags ||| EntityFlags.Invalid
     }
 
 let invalidEntity = invalidEntityWithEnclosing EnclosingSymbol.RootNamespace

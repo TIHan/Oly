@@ -18,7 +18,6 @@ type cenv =
         asm: AssemblySymbol
         syntaxTree: OlySyntaxTree
         diagnostics: OlyDiagnosticLogger
-        dummyDiagnostics: OlyDiagnosticLogger
         ct: CancellationToken
         pass: CompilerPass
         mutable entryPoint: IFunctionSymbol option
@@ -183,8 +182,9 @@ type BinderEnvironment =
             invalidArg (nameof(arity)) "Less than zero."
 
         match ty.TryEntity with
-        | ValueSome ent when ent.IsNamespace -> failwith "Cannot add a namespace as a type."
-        | _  ->
+        | ValueSome ent when ent.IsNamespace && not(ty.IsAlias) -> 
+            OlyAssert.Fail("Cannot add a namespace as a type.")
+        | _ ->
 
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with

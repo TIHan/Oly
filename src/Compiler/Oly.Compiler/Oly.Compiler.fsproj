@@ -20,7 +20,7 @@
     <Compile Include="BoundTreeExtensions.fs" />
     <Compile Include="PrettyPrint.fs" />
     <Compile Include="Dump.fs" />
-    <Compile Include="SemanticErrors.fs" />
+    <Compile Include="SemanticDiagnostics.fs" />
     <Compile Include="ImplicitRules.fs" />
     <Compile Include="FunctionOverloading.fs" />
     <Compile Include="Solver.fs" />

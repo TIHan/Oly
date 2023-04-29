@@ -320,7 +320,6 @@ type BinderPass4(state: PassState) =
                     asm = state.asm
                     syntaxTree = state.syntaxTree
                     diagnostics = diagLogger
-                    dummyDiagnostics = OlyDiagnosticLogger.Create()
                     pass = Pass4
                     ct = ct
                     entryPoint = None
@@ -328,8 +327,15 @@ type BinderPass4(state: PassState) =
                     memberDefIndex = 0
                 }
             let boundTree = bindSyntaxTreePass4 cenv state.env state.entBuilder state.syntaxTree
-            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
-            boundTree, diagLogger.GetDiagnostics()
+
+            if diagLogger.HasAnyErrors then
+                // Suppress errors from post-inference analysis if we already have errors.
+                let diags = diagLogger.GetDiagnostics()
+                PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+                boundTree, diags
+            else
+                PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+                boundTree, diagLogger.GetDiagnostics()
         )
 
     member _.PartialDeclarationTable = state.declTable
@@ -355,7 +361,6 @@ type BinderPass3(state: PassState) =
                 asm = state.asm
                 syntaxTree = state.syntaxTree
                 diagnostics = diagLogger
-                dummyDiagnostics = OlyDiagnosticLogger.Create()
                 pass = Pass3
                 ct = ct
                 entryPoint = None
@@ -403,7 +408,6 @@ type BinderPass2(state: PassState) =
                 asm = state.asm
                 syntaxTree = state.syntaxTree
                 diagnostics = diagLogger
-                dummyDiagnostics = OlyDiagnosticLogger.Create()
                 pass = Pass2
                 ct = ct
                 entryPoint = None
@@ -447,7 +451,6 @@ type BinderPass1(state: PassState) =
                 asm = state.asm
                 syntaxTree = state.syntaxTree
                 diagnostics = diagLogger
-                dummyDiagnostics = OlyDiagnosticLogger.Create()
                 pass = Pass1
                 ct = ct
                 entryPoint = None
@@ -486,7 +489,6 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
                     asm = asm
                     syntaxTree = syntaxTree
                     diagnostics = diagLogger
-                    dummyDiagnostics = OlyDiagnosticLogger.Create()
                     pass = Pass0
                     ct = ct
                     entryPoint = None
@@ -633,7 +635,6 @@ let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =
                     asm = asm
                     syntaxTree = syntaxTree
                     diagnostics = diagLogger
-                    dummyDiagnostics = OlyDiagnosticLogger.Create()
                     pass = Pass0
                     ct = ct
                     entryPoint = None
