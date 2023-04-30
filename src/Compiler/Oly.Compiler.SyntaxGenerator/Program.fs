@@ -407,6 +407,9 @@ let computeConversionTree cenv (tree: XmlElement) =
         |> add cenv
     )
 
+    "        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode\n"
+    |> add cenv
+
     "        | Tags.Terminal -> tree.DummyNode\n"
     |> add cenv
 
@@ -414,9 +417,6 @@ let computeConversionTree cenv (tree: XmlElement) =
     |> add cenv
 
     "        match internalNode with\n"
-    |> add cenv
-
-    $"        | :? SyntaxToken as internalNode -> OlySyntaxToken(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
     // HACKY

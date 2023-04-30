@@ -3816,11 +3816,11 @@ module private Convert =
         | SyntaxConstructType.Tag -> OlySyntaxConstructType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | Tags.Terminal -> tree.DummyNode
         | _ ->
 
         match internalNode with
-        | :? SyntaxToken as internalNode -> OlySyntaxToken(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
