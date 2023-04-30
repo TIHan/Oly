@@ -157,33 +157,58 @@ let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression
         if not valueTy.IsError_t then
             env.diagnostics.Error(sprintf "Not a function.", 3, syntaxNode)
 
+// --------------------------------------------------------------------------------------------------
+
+[<Literal>]
+let private checkStructCycleDictionaryPoolMaxCount = 10
+let private checkStructCycleDictionaryPool = 
+    let stack = System.Collections.Concurrent.ConcurrentStack<Dictionary<int64, bool>>()
+    for _ = 1 to checkStructCycleDictionaryPoolMaxCount do
+        stack.Push(Dictionary())
+    stack
+
+let private tryPopCheckStructCycleDictionary(result: byref<Dictionary<_, _>>) =
+    checkStructCycleDictionaryPool.TryPop(&result)
+
+let private pushCheckStructCycleDictionary(dict: Dictionary<_, _>) =
+    dict.Clear()
+    checkStructCycleDictionaryPool.Push(dict)
+
+let rec private checkStructCycleInner (ent: IEntitySymbol) (hash: Dictionary<_, _>) =
+    let formalId = ent.Formal.Id
+    match hash.TryGetValue formalId with
+    | true, result -> result
+    | _ ->
+        hash.[formalId] <- false
+        let mutable result =
+            ent.Fields
+            |> Seq.forall (fun field ->
+                if field.IsInstance && field.Type.IsAnyStruct then
+                    match field.Type.TryEntity with
+                    | ValueSome(ent) ->
+                        checkStructCycleInner ent hash
+                    | _ ->
+                        true
+                else
+                    true
+            )
+        hash.[formalId] <- result
+        result
+
 let checkStructCycle env syntaxNode (ent: IEntitySymbol) =
     OlyAssert.True(ent.IsAnyStruct)
 
-    let hash = Dictionary()
+    let mutable hash = Unchecked.defaultof<_>
+    let usedPool = tryPopCheckStructCycleDictionary(&hash)
+    if not usedPool then
+        hash <- Dictionary()
 
-    let rec check (ent: IEntitySymbol) =
-        let formalId = ent.Formal.Id
-        match hash.TryGetValue formalId with
-        | true, result -> result
-        | _ ->
-            hash.[formalId] <- false
-            let mutable result =
-                ent.Fields
-                |> Seq.forall (fun field ->
-                    if field.IsInstance && field.Type.IsAnyStruct then
-                        match field.Type.TryEntity with
-                        | ValueSome(ent) ->
-                            check ent
-                        | _ ->
-                            true
-                    else
-                        true
-                )
-            hash.[formalId] <- result
-            result
+    let result = checkStructCycleInner ent hash
 
-    if not (check ent) then
+    if usedPool then
+        pushCheckStructCycleDictionary(hash)
+
+    if not result then
         if ent.IsFormal || ent.TypeArguments.IsEmpty then
             env.diagnostics.Error(sprintf "'%s' has fields that cause a cycle." (printEntity env.benv ent), 10, syntaxNode)
         else
@@ -214,10 +239,14 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
     | _ ->
         match ty.TryFunction with
         | ValueSome(argTys, returnTy) ->
-            seq { yield! argTys; yield returnTy }
-            |> Seq.forall (fun ty -> checkStructTypeCycle env syntaxNode ty)
+            if argTys |> ImArray.forall (fun ty -> checkStructTypeCycle env syntaxNode ty) then
+                checkStructTypeCycle env syntaxNode returnTy
+            else
+                false
         | _ ->
             true
+
+// --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: IEntitySymbol) =
     if ent.IsAnyStruct then
