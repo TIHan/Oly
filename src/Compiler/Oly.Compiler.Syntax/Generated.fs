@@ -3770,6 +3770,56 @@ module OlySyntaxExpression =
 [<RequireQualifiedAccess>]
 module private Convert =
     let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =
+        match internalNode.Tag with
+        | SyntaxAccessor.Tag -> OlySyntaxAccessor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxName.Tag -> OlySyntaxName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxBlittable.Tag -> OlySyntaxBlittable(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxBlittableOptional.Tag -> OlySyntaxBlittableOptional(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxAttribute.Tag -> OlySyntaxAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxHashAttribute.Tag -> OlySyntaxHashAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxAttributes.Tag -> OlySyntaxAttributes(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxConstraint.Tag -> OlySyntaxConstraint(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxConstraintClause.Tag -> OlySyntaxConstraintClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeParameters.Tag -> OlySyntaxTypeParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeConstructor.Tag -> OlySyntaxTypeConstructor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTupleElement.Tag -> OlySyntaxTupleElement(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxType.Tag -> OlySyntaxType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxMutability.Tag -> OlySyntaxMutability(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxParameter.Tag -> OlySyntaxParameter(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeArguments.Tag -> OlySyntaxTypeArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxParameters.Tag -> OlySyntaxParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxLambdaKind.Tag -> OlySyntaxLambdaKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxReturnTypeAnnotation.Tag -> OlySyntaxReturnTypeAnnotation(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxFunctionName.Tag -> OlySyntaxFunctionName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxBindingDeclaration.Tag -> OlySyntaxBindingDeclaration(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxPropertyBinding.Tag -> OlySyntaxPropertyBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxGuardBinding.Tag -> OlySyntaxGuardBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxBinding.Tag -> OlySyntaxBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeDeclarationKind.Tag -> OlySyntaxTypeDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxLiteral.Tag -> OlySyntaxLiteral(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxFieldPattern.Tag -> OlySyntaxFieldPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxNamedArgument.Tag -> OlySyntaxNamedArgument(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxArguments.Tag -> OlySyntaxArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxElseIfOrElseExpression.Tag -> OlySyntaxElseIfOrElseExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxCatchOrFinallyExpression.Tag -> OlySyntaxCatchOrFinallyExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxValueDeclarationPremodifier.Tag -> OlySyntaxValueDeclarationPremodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxValueDeclarationPostmodifier.Tag -> OlySyntaxValueDeclarationPostmodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxValueDeclarationKind.Tag -> OlySyntaxValueDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxExtends.Tag -> OlySyntaxExtends(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxImplements.Tag -> OlySyntaxImplements(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeDeclarationCase.Tag -> OlySyntaxTypeDeclarationCase(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeDeclarationBody.Tag -> OlySyntaxTypeDeclarationBody(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxTypeDeclarationName.Tag -> OlySyntaxTypeDeclarationName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxPattern.Tag -> OlySyntaxPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxMatchGuard.Tag -> OlySyntaxMatchGuard(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxMatchPattern.Tag -> OlySyntaxMatchPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxMatchClause.Tag -> OlySyntaxMatchClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxConstructType.Tag -> OlySyntaxConstructType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | Tags.Terminal -> tree.DummyNode
+        | _ ->
+
         match internalNode with
         | :? SyntaxToken as internalNode -> OlySyntaxToken(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
@@ -3811,50 +3861,4 @@ module private Convert =
         | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxAccessor as internalNode -> OlySyntaxAccessor(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxName as internalNode -> OlySyntaxName(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBlittable as internalNode -> OlySyntaxBlittable(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBlittableOptional as internalNode -> OlySyntaxBlittableOptional(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxAttribute as internalNode -> OlySyntaxAttribute(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxHashAttribute as internalNode -> OlySyntaxHashAttribute(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxAttributes as internalNode -> OlySyntaxAttributes(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxConstraint as internalNode -> OlySyntaxConstraint(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxConstraintClause as internalNode -> OlySyntaxConstraintClause(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeParameters as internalNode -> OlySyntaxTypeParameters(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeConstructor as internalNode -> OlySyntaxTypeConstructor(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTupleElement as internalNode -> OlySyntaxTupleElement(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxType as internalNode -> OlySyntaxType(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxMutability as internalNode -> OlySyntaxMutability(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxParameter as internalNode -> OlySyntaxParameter(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeArguments as internalNode -> OlySyntaxTypeArguments(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxParameters as internalNode -> OlySyntaxParameters(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxLambdaKind as internalNode -> OlySyntaxLambdaKind(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxReturnTypeAnnotation as internalNode -> OlySyntaxReturnTypeAnnotation(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxFunctionName as internalNode -> OlySyntaxFunctionName(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBindingDeclaration as internalNode -> OlySyntaxBindingDeclaration(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxPropertyBinding as internalNode -> OlySyntaxPropertyBinding(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxGuardBinding as internalNode -> OlySyntaxGuardBinding(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBinding as internalNode -> OlySyntaxBinding(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeDeclarationKind as internalNode -> OlySyntaxTypeDeclarationKind(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxLiteral as internalNode -> OlySyntaxLiteral(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxFieldPattern as internalNode -> OlySyntaxFieldPattern(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxNamedArgument as internalNode -> OlySyntaxNamedArgument(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxArguments as internalNode -> OlySyntaxArguments(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxElseIfOrElseExpression as internalNode -> OlySyntaxElseIfOrElseExpression(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCatchOrFinallyExpression as internalNode -> OlySyntaxCatchOrFinallyExpression(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxValueDeclarationPremodifier as internalNode -> OlySyntaxValueDeclarationPremodifier(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxValueDeclarationPostmodifier as internalNode -> OlySyntaxValueDeclarationPostmodifier(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxValueDeclarationKind as internalNode -> OlySyntaxValueDeclarationKind(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxExtends as internalNode -> OlySyntaxExtends(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxImplements as internalNode -> OlySyntaxImplements(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeDeclarationCase as internalNode -> OlySyntaxTypeDeclarationCase(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeDeclarationBody as internalNode -> OlySyntaxTypeDeclarationBody(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxTypeDeclarationName as internalNode -> OlySyntaxTypeDeclarationName(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxPattern as internalNode -> OlySyntaxPattern(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxMatchGuard as internalNode -> OlySyntaxMatchGuard(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxMatchPattern as internalNode -> OlySyntaxMatchPattern(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxMatchClause as internalNode -> OlySyntaxMatchClause(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxConstructType as internalNode -> OlySyntaxConstructType(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCompilationUnit as internalNode -> OlySyntaxCompilationUnit(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxExpression as internalNode -> OlySyntaxExpression(tree, start, parent, internalNode) :> OlySyntaxNode
-        | _ -> if obj.ReferenceEquals(syntaxTerminal, internalNode) then tree.DummyNode else failwith "Invalid Internal Syntax Node"
+        | _ -> failwith "Invalid Internal Syntax Node"

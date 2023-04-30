@@ -20,6 +20,7 @@ type cenv =
         doc: XmlDocument
         internalBuilder: StringBuilder
         publicBuilder: StringBuilder
+        tags: System.Collections.Generic.List<string>
     }
 
 let findTree cenv =
@@ -28,6 +29,10 @@ let findTree cenv =
         failwith "Expected Tree"
     element
 
+let addInternalTag cenv (name: string) =
+    cenv.tags.Add(name)
+
+let getInternalTag cenv = cenv.tags.Count
 let addInternal cenv (str: string) = cenv.internalBuilder.Append(str) |> ignore
 let add cenv (str: string) = cenv.publicBuilder.Append(str) |> ignore
 
@@ -233,6 +238,14 @@ let computeInternalNode cenv (node: XmlNode) =
     addInternal cenv $"        member this.GetSlot(index) =\n{textGetSlot}\n"
     addInternal cenv $"        member this.SlotCount =\n{textSlotCount}\n"
     addInternal cenv $"        member this.FullWidth =\n{textFullWidth}\n"
+    addInternal cenv $"        member _.Tag = {getInternalTag cenv}\n\n"
+
+    addInternal cenv "[<RequireQualifiedAccess>]\n"
+    addInternal cenv $"module {name} =\n\n"
+    addInternal cenv $"    [<Literal>]\n"
+    addInternal cenv $"    let Tag = {getInternalTag cenv}\n\n"
+
+    addInternalTag cenv name
 
 let computePublicNode cenv (node: XmlNode) =
     let name = node.Attributes.["name"].Value
@@ -378,18 +391,29 @@ let computeTree cenv (tree: XmlElement) =
             failwith "Expected Node"
         computeNode cenv node
 
-
-let computeConversionNode cenv (node: XmlNode) =
-    let name = node.Attributes.["name"].Value
-
-    $"        | :? {name} as internalNode -> Oly{name}(tree, start, parent, internalNode) :> OlySyntaxNode\n"
-    |> add cenv
-
 let computeConversionTree cenv (tree: XmlElement) =
     $"[<RequireQualifiedAccess>]\nmodule private Convert =\n"
     |> add cenv
 
-    $"    let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =\n        match internalNode with\n"
+    $"    let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =\n"
+    |> add cenv
+
+    "        match internalNode.Tag with\n"
+    |> add cenv
+
+    cenv.tags
+    |> Seq.iter (fun name ->
+        $"        | {name}.Tag -> Oly{name}(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode\n"
+        |> add cenv
+    )
+
+    "        | Tags.Terminal -> tree.DummyNode\n"
+    |> add cenv
+
+    "        | _ ->\n\n"
+    |> add cenv
+
+    "        match internalNode with\n"
     |> add cenv
 
     $"        | :? SyntaxToken as internalNode -> OlySyntaxToken(tree, start, parent, internalNode) :> OlySyntaxNode\n"
@@ -516,10 +540,7 @@ let computeConversionTree cenv (tree: XmlElement) =
 
     // END HACKY
 
-    for node in tree.ChildNodes do
-        computeConversionNode cenv node
-
-    $"        | _ -> if obj.ReferenceEquals(syntaxTerminal, internalNode) then tree.DummyNode else failwith \"Invalid Internal Syntax Node\"\n"
+    $"        | _ -> failwith \"Invalid Internal Syntax Node\"\n"
     |> add cenv
 
 let generate() =
@@ -530,11 +551,11 @@ let generate() =
             doc = doc
             internalBuilder = StringBuilder()
             publicBuilder = StringBuilder()
+            tags = System.Collections.Generic.List()
         }
 
     addInternal cenv "// Generated File Do Not Modify\n"
     addInternal cenv "[<AutoOpen>]\nmodule internal rec Oly.Compiler.Syntax.Internal.Generated\n\n"
-    addInternal cenv "open Oly.Core\n\n"
 
     add cenv "// Generated File Do Not Modify\n"
     add cenv "namespace rec Oly.Compiler.Syntax\n\n"

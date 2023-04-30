@@ -18,6 +18,46 @@ type internal ISyntaxNode =
 
     abstract FullWidth: int
 
+    abstract Tag: int
+
+[<AutoOpen>]
+module internal SyntaxHelpers =
+    let dummyToken = SyntaxToken.Token(Dummy)
+
+    [<RequireQualifiedAccess>]
+    module Tags =
+
+        [<Literal>]
+        let Terminal          = System.Int32.MaxValue
+
+        [<Literal>]
+        let Token             = 1024
+
+        [<Literal>]
+        let List              = 1025
+
+        [<Literal>]
+        let SeparatorList     = 1026
+
+        [<Literal>]
+        let Brackets          = 1027
+
+        [<Literal>]
+        let CurlyBrackets     = 1028
+
+        [<Literal>]
+        let BracketInnerPipes = 1029
+
+    let syntaxTerminal =
+        { new ISyntaxNode with
+            member _.IsTerminal = true
+            member _.IsToken = false
+            member _.IsError = false
+            member _.GetSlot _ = failwith "Internal error: Syntax node does not exist."
+            member _.SlotCount = 0
+            member _.FullWidth = 0
+            member _.Tag = Tags.Terminal
+        }
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
@@ -83,6 +123,8 @@ type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
             | List(fullWidth=fullWidth) -> fullWidth
             | _ -> 0
 
+        member _.Tag = Tags.SeparatorList
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxList<'T when 'T :> ISyntaxNode> =
     | Empty of unit
@@ -131,6 +173,8 @@ type internal SyntaxList<'T when 'T :> ISyntaxNode> =
             | List(fullWidth=fullWidth) -> fullWidth
             | _ -> 0
 
+        member _.Tag = Tags.List
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxBrackets<'T when 'T :> ISyntaxNode> =
     | Brackets
@@ -164,6 +208,8 @@ type internal SyntaxBrackets<'T when 'T :> ISyntaxNode> =
         member this.FullWidth =
             match this with
             | Brackets(fullWidth=fullWidth) -> fullWidth
+
+        member _.Tag = Tags.Brackets
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxBracketInnerPipes<'T when 'T :> ISyntaxNode> =
@@ -199,6 +245,8 @@ type internal SyntaxBracketInnerPipes<'T when 'T :> ISyntaxNode> =
             match this with
             | BracketInnerPipes(fullWidth=fullWidth) -> fullWidth
 
+        member _.Tag = Tags.BracketInnerPipes
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxCurlyBrackets<'T when 'T :> ISyntaxNode> =
     | CurlyBrackets
@@ -232,6 +280,8 @@ type internal SyntaxCurlyBrackets<'T when 'T :> ISyntaxNode> =
         member this.FullWidth =
             match this with
             | CurlyBrackets(fullWidth=fullWidth) -> fullWidth
+
+        member _.Tag = Tags.CurlyBrackets
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxToken =
@@ -271,16 +321,4 @@ type internal SyntaxToken =
             | TokenWithTrivia(fullWidth=fullWidth) -> fullWidth
             | Token(token) -> token.Width
 
-[<AutoOpen>]
-module internal SyntaxHelpers =
-    let dummyToken = SyntaxToken.Token(Dummy)
-
-    let syntaxTerminal =
-        { new ISyntaxNode with
-            member _.IsTerminal = true
-            member _.IsToken = false
-            member _.IsError = false
-            member _.GetSlot _ = failwith "Internal error: Syntax node does not exist."
-            member _.SlotCount = 0
-            member _.FullWidth = 0
-        }
+        member _.Tag = Tags.Token
