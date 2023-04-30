@@ -2,5 +2,43 @@
 
 #reference "../core/prelude.olyx"
 
+#package "OpenTelemetry,1.4.0"
+#package "OpenTelemetry.Exporter.Console,1.4.0"
+
+open OpenTelemetry
+open OpenTelemetry.Resources
+open OpenTelemetry.Trace
+open OpenTelemetry.Exporter
+open System.Diagnostics
+
 main(): () =
-    print("Hello World!")
+    let serviceName = "MyCompany.MyProduct.MyService"
+    let serviceVersion = "1.0.0"
+
+    let tracerProvider = 
+        Sdk.CreateTracerProviderBuilder()
+         .AddSource([|serviceName|])    
+
+    let tracerProvider = 
+        TracerProviderBuilderExtensions.ConfigureResource(
+            tracerProvider, 
+            resource ->
+                let resource = ResourceBuilderExtensions.AddService(resource, serviceName, unchecked default, serviceVersion, true, unchecked default)
+        )
+    let tracerProvider = ConsoleExporterHelperExtensions.AddConsoleExporter(tracerProvider)
+
+    let tracerProvider = TracerProviderBuilderExtensions.Build(tracerProvider)
+
+    let activitySource = ActivitySource(serviceName, "")
+
+    let trace = tracerProvider.GetTracer("SayHello", "")
+
+    let result = trace.StartSpan
+
+    // let activity = activitySource.StartActivity("SayHello", ActivityKind.Internal)
+
+    // let x = activity.AddEvent(ActivityEvent("doot"))
+
+    // activity.Dispose()
+
+   // print("Hello World!")
