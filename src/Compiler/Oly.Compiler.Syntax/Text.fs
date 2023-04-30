@@ -171,6 +171,20 @@ module OlySourceTextExtensions =
                 )
             this.ApplyTextChanges(textChanges)
 
+module private Helpers =
+
+    let inline tryBinaryFind ([<InlineIfLambda>] comparer: 'a -> 'b -> int) (value: 'a) (source: 'b[]) : int =
+        let rec loop lo hi =
+            if lo > hi then -1
+            else
+                let mid = lo + (hi - lo) / 2
+                match sign (comparer value source[mid]) with
+                | 0 -> mid
+                | 1 -> loop (mid + 1) hi
+                | _ -> loop lo (mid - 1)
+
+        loop 0 (source.Length - 1)
+
 [<Sealed>]
 type private StringText(str: string) as this =
 
@@ -323,11 +337,17 @@ and [<Sealed>] private StringTextLineCollection(sourceText: StringText) =
     override _.Count = lines.Length
 
     override _.GetLineFromPosition(pos: int) =
-        // TODO: Make this more efficient by doing a binary search.
-        lines
-        |> Array.find (fun x ->
-            x.TextSpan.IntersectsWith(pos)
-        )
+        let index =
+            (pos, lines)
+            ||> Helpers.tryBinaryFind (fun pos line ->
+                if line.TextSpan.IntersectsWith(pos) then
+                    0
+                elif pos < line.TextSpan.Start then
+                    -1
+                else
+                    1
+            )
+        lines[index]
 
 [<Sealed;AbstractClass>]
 type OlySourceText private () =

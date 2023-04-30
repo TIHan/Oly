@@ -1198,7 +1198,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                             TypeSymbol.Error(Some tyPar, None)
                 | _ ->
                     stripTypeEquationsAux skipAlias skipModifiers ty2
-            solution.Solution <- strippedTy2
+            solution.Solution <- strippedTy2 // cache solution
             strippedTy2
         else
             ty
@@ -1206,7 +1206,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
     | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
-            solution.Solution <- strippedTy
+            solution.Solution <- strippedTy // cache solution
             strippedTy
         else
             if externalSolution.HasSolution then
@@ -1220,7 +1220,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
     | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
-            solution.Solution <- strippedTy
+            solution.Solution <- strippedTy // cache solution
             strippedTy
         else
             ty

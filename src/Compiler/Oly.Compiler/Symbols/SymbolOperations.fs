@@ -1026,6 +1026,32 @@ type IValueSymbol with
         | _ ->
             failwith "Invalid value symbol."
 
+module private TypeSymbolStaticData =
+
+    let ImplicitBaseTypes_AnyStruct =
+        seq {
+            yield TypeSymbol.BaseStruct
+            yield TypeSymbol.BaseObject
+        }
+
+    let ImplicitBaseTypes_Enum_AnyStruct =
+        seq {
+            yield TypeSymbol.BaseStruct
+            yield TypeSymbol.BaseStructEnum
+            yield TypeSymbol.BaseObject
+        }
+
+    let ImplicitBaseTypes_Attribute =
+        seq {
+            yield TypeSymbol.BaseAttribute
+            yield TypeSymbol.BaseObject
+        }
+
+    let ImplicitBaseTypes_Object =
+        seq {
+            yield TypeSymbol.BaseObject
+        }
+
 type TypeSymbol with
 
         static member Distinct(tys: TypeSymbol seq) =
@@ -1089,16 +1115,14 @@ type TypeSymbol with
             if ty.IsError_t || ty.TryTypeParameter.IsSome || ty.IsTypeExtension || ty.IsShape || ty.IsBaseObject_t then
                 Seq.empty
             else
-                seq {
-                    // TODO: This is inefficient but works.
-                    if ty.IsAnyStruct && not(this.IsBaseStruct_t) then
-                        yield TypeSymbol.BaseStruct
-                    if ty.IsEnum && this.IsAnyStruct && not(this.IsBaseStructEnum_t) then
-                        yield TypeSymbol.BaseStructEnum
-                    if ty.IsAttribute && not(ty.IsBaseAttribute_t) then
-                        yield TypeSymbol.BaseAttribute
-                    yield TypeSymbol.BaseObject
-                }
+                if ty.IsEnum && this.IsAnyStruct && not(this.IsBaseStructEnum_t) then
+                    TypeSymbolStaticData.ImplicitBaseTypes_Enum_AnyStruct
+                elif ty.IsAnyStruct && not(this.IsBaseStruct_t) then
+                    TypeSymbolStaticData.ImplicitBaseTypes_AnyStruct
+                elif ty.IsAttribute && not(ty.IsBaseAttribute_t) then
+                    TypeSymbolStaticData.ImplicitBaseTypes_Attribute
+                else
+                    TypeSymbolStaticData.ImplicitBaseTypes_Object
 
         member this.AllLogicalInheritsAndImplements: _ imarray =
             let ty = stripTypeEquationsAndBuiltIn this
