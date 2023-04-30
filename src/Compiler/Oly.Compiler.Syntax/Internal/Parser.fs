@@ -64,6 +64,9 @@ type ParserState =
         mutable btBuffer: TokenInfo[]
         mutable btBufferCount: int
         mutable btBufferPosition: int
+
+        mutable peekedPosition: int
+        mutable peekedTokenInfo: TokenInfo
         
         buffers: System.Collections.Generic.Stack<TokenInfo[]>
     }
@@ -130,21 +133,30 @@ let scanToken (leadingTrivia: SyntaxToken) leadingTriviaWidth newLine state =
             TokenInfo(SyntaxToken.TokenWithTrivia(leadingTrivia, token, token.Width + leadingTrivia.FullWidth), start, column, newLine)
 
 let peekTokenSkipTrivia state =
-    let info =
-        if state.btBufferPosition >= state.btBufferCount then
-            for _ = 0 to state.btBufferPosition - state.btBufferCount + 1 do
-                state.btBuffer[state.btBufferCount % MaxBackTrackableTokenAmount] <- scanToken Unchecked.defaultof<_> 0 false state
-                state.btBufferCount <- state.btBufferCount + 1
-            state.btBuffer.[state.btBufferPosition % MaxBackTrackableTokenAmount]
-        else
-            state.btBuffer.[state.btBufferPosition % MaxBackTrackableTokenAmount]
-    state.start <- info.Start
-    state.column <- info.Column
-    state.newLine <- info.NewLine
+    if state.peekedPosition <> state.btBufferPosition then
+        let info =
+            if state.btBufferPosition >= state.btBufferCount then
+                for _ = 0 to state.btBufferPosition - state.btBufferCount + 1 do
+                    state.btBuffer[state.btBufferCount % MaxBackTrackableTokenAmount] <- scanToken Unchecked.defaultof<_> 0 false state
+                    state.btBufferCount <- state.btBufferCount + 1
+                state.btBuffer.[state.btBufferPosition % MaxBackTrackableTokenAmount]
+            else
+                state.btBuffer.[state.btBufferPosition % MaxBackTrackableTokenAmount]
+        state.start <- info.Start
+        state.column <- info.Column
+        state.newLine <- info.NewLine
 #if DEBUG
-    OlyAssert.True(state.column >= 0)
+        OlyAssert.True(state.column >= 0)
 #endif
-    info.Token
+        state.peekedPosition <- state.btBufferPosition
+        state.peekedTokenInfo <- info
+        info.Token
+    else
+        let info = state.peekedTokenInfo
+        state.start <- info.Start
+        state.column <- info.Column
+        state.newLine <- info.NewLine
+        info.Token
 
 let inline isNextToken ([<InlineIfLambda>] predicate: Token -> bool) state =
     let token = peekTokenSkipTrivia state
@@ -327,6 +339,7 @@ let tryTokenEpilog (token: SyntaxToken) state =
     else
         if state.willAlign then
             state.offsideFlags <- state.offsideFlags &&& ~~~OffsideFlags.WillAlign
+        state.peekedPosition <- -1
         Some(token)
 
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
@@ -337,6 +350,7 @@ let tryTokenEpilog_nil (token: SyntaxToken) state =
     else
         if state.willAlign then
             state.offsideFlags <- state.offsideFlags &&& ~~~OffsideFlags.WillAlign
+        state.peekedPosition <- -1
         token
 
 let inline tryToken ([<InlineIfLambda>] predicate: _ -> _) state =
@@ -3719,6 +3733,9 @@ let parseAux p lexer diagnostics ct =
             btBuffer = Array.zeroCreate MaxBackTrackableTokenAmount
             btBufferCount = 0
             buffers = System.Collections.Generic.Stack()
+
+            peekedPosition = -1
+            peekedTokenInfo = Unchecked.defaultof<_>
         }
     p state
 

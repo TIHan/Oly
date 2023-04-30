@@ -2,11 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7</TargetFramework>
+    <TargetFramework>net8</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="LargeSyntaxExample.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

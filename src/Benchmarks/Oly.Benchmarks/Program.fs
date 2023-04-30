@@ -12,14 +12,13 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 
 [<MemoryDiagnoser>]
-type ParsingLargeText() =
+type ParsingText() =
 
-    [<GlobalSetup>]
-    member _.Setup() = ()
+    let vulkanText =
+        OlySourceText.FromFile("../../../../../../../../../../vscode/examples/Evergreen/src/Graphics/Backend/Vulkan.oly")
 
-    [<Benchmark>]
-    member _.Run() =
-        let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), LargeSyntaxExample.Text).GetRoot(Unchecked.defaultof<_>)
+    let test (text: IOlySourceText) =
+        let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)
         if root.Tree.GetDiagnostics(System.Threading.CancellationToken.None).IsEmpty |> not then
             failwith "Errors"
         let rec loop (node: OlySyntaxNode) =
@@ -29,6 +28,14 @@ type ParsingLargeText() =
         root.FullTextSpan
         |> ignore
 
+    [<GlobalSetup>]
+    member _.Setup() = ()
+
+    [<Benchmark>]
+    member _.Run() =
+        for _ = 1 to 10 do
+            test vulkanText
+
     [<IterationCleanup>]
     member _.Cleanup() = ()
 
@@ -37,5 +44,5 @@ module Program =
     [<EntryPoint>]
     let main(argv: string[]): int =
         // System.Runtime.GCSettings.LatencyMode <- System.Runtime.GCLatencyMode.Batch
-        BenchmarkRunner.Run<ParsingLargeText>() |> ignore
+        BenchmarkRunner.Run<ParsingText>() |> ignore
         100
