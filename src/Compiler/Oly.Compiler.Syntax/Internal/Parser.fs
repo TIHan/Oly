@@ -65,8 +65,9 @@ type ParserState =
         mutable btBufferCount: int
         mutable btBufferPosition: int
 
+        // This is used for perf reasons. It only gave ~2-3% perf improvement, but still worth it.
         mutable peekedPosition: int
-        mutable peekedTokenInfo: TokenInfo
+        mutable peekedToken: SyntaxToken
         
         buffers: System.Collections.Generic.Stack<TokenInfo[]>
     }
@@ -149,14 +150,10 @@ let peekTokenSkipTrivia state =
         OlyAssert.True(state.column >= 0)
 #endif
         state.peekedPosition <- state.btBufferPosition
-        state.peekedTokenInfo <- info
+        state.peekedToken <- info.Token
         info.Token
     else
-        let info = state.peekedTokenInfo
-        state.start <- info.Start
-        state.column <- info.Column
-        state.newLine <- info.NewLine
-        info.Token
+        state.peekedToken
 
 let inline isNextToken ([<InlineIfLambda>] predicate: Token -> bool) state =
     let token = peekTokenSkipTrivia state
@@ -3735,7 +3732,7 @@ let parseAux p lexer diagnostics ct =
             buffers = System.Collections.Generic.Stack()
 
             peekedPosition = -1
-            peekedTokenInfo = Unchecked.defaultof<_>
+            peekedToken = Unchecked.defaultof<_>
         }
     p state
 
