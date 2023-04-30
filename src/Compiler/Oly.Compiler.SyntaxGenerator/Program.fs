@@ -341,7 +341,7 @@ let computePublicNode cenv (node: XmlNode) =
                     |> add
 
                     for i = 0 to fields.Count - 1 do
-                        $"node.Children.[{i}] :?> _"
+                        $"System.Runtime.CompilerServices.Unsafe.As node.Children[{i}]"
                         |> add                        
                         if i < fields.Count - 1 then
                             ", "
@@ -602,7 +602,7 @@ type OlySyntaxList<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, s
     inherit OlySyntaxNode(tree, parent, internalNode)
 
     let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable childrenOfType = ImArray.empty
+    let mutable childrenOfType: 'T imarray = ImArray.empty
 
     override this.TextSpan =
         let offset = this.GetLeadingTriviaWidth()
@@ -669,7 +669,6 @@ type OlySyntaxBracketInnerPipes<'T when 'T :> OlySyntaxNode> internal (tree: Oly
     
     let mutable children: OlySyntaxNode imarray = ImArray.empty
     let mutable element = Unchecked.defaultof<'T>
-    let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     override this.TextSpan =
         let offset = this.GetLeadingTriviaWidth()
