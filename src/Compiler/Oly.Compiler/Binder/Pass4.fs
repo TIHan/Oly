@@ -490,7 +490,7 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
             | _ ->
                 E.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
         else
-            OlyAssert.False(syntaxRhsExprOpt.IsSome)
+            OlyAssert.True(syntaxRhsExprOpt.IsNone || syntaxRhsExprOpt.Value.IsError)
             BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
 
     match expr with

@@ -1166,6 +1166,12 @@ type TypeSymbol with
             // TODO: type parameters?
             | _ -> ImArray.empty
 
+        member this.AllImplements =
+            match this.TryEntity with
+            | ValueSome ent -> ent.AllImplements
+            // TODO: type parameters?
+            | _ -> ImArray.empty
+
         /// Immediate functions directly on type. Does not include inherited/implemeted types' functions.
         member this.Functions: _ imarray =
             match stripTypeEquations this with
@@ -1315,6 +1321,16 @@ type IEntitySymbol with
                 for inheritTy in this.Extends do
                     yield inheritTy
                     yield! inheritTy.AllInherits
+            }
+
+        TypeSymbol.Distinct(results) |> ImArray.ofSeq
+
+    member this.AllImplements: TypeSymbol imarray =
+        let results =
+            seq {
+                for implementTy in this.Extends do
+                    yield implementTy
+                    yield! implementTy.AllImplements
             }
 
         TypeSymbol.Distinct(results) |> ImArray.ofSeq
@@ -2066,7 +2082,7 @@ let invalidEntityWithEnclosing enclosing =
         member _.Id = -1L
         member _.Name = ""
         member _.ContainingAssembly = None
-        member _.TypeParameters = ImArray.empty
+        member _.TypeParameters = enclosing.TypeParameters
         member _.Extends = ImArray.empty
         member _.InstanceConstructors = ImArray.empty
         member _.Functions = ImArray.empty
@@ -2076,14 +2092,15 @@ let invalidEntityWithEnclosing enclosing =
         member _.Implements = ImArray.empty
         member _.RuntimeType = None
         member _.Entities = ImArray.empty
-        member _.TypeArguments = ImArray.empty
+        member _.TypeArguments = enclosing.TypeArguments
         member _.Kind = EntityKind.Class
         member this.Formal = this
         member _.Attributes = ImArray.empty
         member _.Flags = EntityFlags.Invalid
     }
 
-let invalidNamespaceWithEnclosing enclosing =
+let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
+    OlyAssert.True(enclosing.IsNamespace)
     { new INamespaceSymbol with
         member _.Enclosing = enclosing
         member _.Id = -1L

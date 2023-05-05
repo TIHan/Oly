@@ -131,6 +131,29 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
                     true
             )
 
+        // Check recursive implements.
+        let implements =
+            implements
+            |> ImArray.filter (fun x -> 
+                match x.TryEntity with
+                | ValueSome(x) ->
+                    let notValid =
+                        x.Formal.AllImplements.Add(x.Formal.AsType)
+                        |> TypeSymbol.Distinct
+                        |> Seq.exists (fun x ->
+                            match x.TryEntity with
+                            | ValueSome(x) -> x.Formal.Id = ent.Id
+                            | _ -> false
+                        )
+                    if notValid then
+                        cenv.diagnostics.Error($"'{printEntity env.benv ent}' is recursively implementing itself.", 10, syntaxImplements)
+                        false
+                    else
+                        true
+                | _ ->
+                    true
+            )
+
         entBuilder.SetExtends(cenv.pass, extends)
         entBuilder.SetImplements(cenv.pass, implements)
 

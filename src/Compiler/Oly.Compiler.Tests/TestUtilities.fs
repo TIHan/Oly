@@ -92,14 +92,13 @@ let private stressTest origSrc (c: TestCompilation) =
 
 #if STRESS
     stressTyping c
-#endif
 
-#if STRESS
     // We do this to ensure that syntax nodes with diagnostics do not get collected.
     // Syntax nodes associated with diagnostics are kept in a ConditionalWeakTable internally.
     GC.Collect(2, GCCollectionMode.Forced, true)
     GC.WaitForPendingFinalizers()
 #endif
+
     c
 
 let withNoSyntaxDiagnostics (c: TestCompilation) =

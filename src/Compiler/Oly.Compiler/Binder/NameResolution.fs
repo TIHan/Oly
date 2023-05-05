@@ -597,11 +597,11 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 isVirtualCall
             )
 
-        match value.TryWellKnownFunction with
-        | ValueSome(WellKnownFunction.Cast) when not value.TypeParameters.IsEmpty ->
+        match expr with
+        | Cast(argExpr) ->
             let syntax = syntaxInfo.SyntaxNameOrDefault
 
-            let argTy = argExprs[0].Type
+            let argTy = argExpr.Type
             let func = value :?> IFunctionSymbol
             let tyArgs = func.TypeArguments
             if tyArgs.Length = 1 then    

@@ -708,3 +708,25 @@ extension Int32Extensions =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Recursive implements should error``() =
+    let src =
+        """
+interface Add<T1, T2, T3> =
+
+   static add(x: T1, y: T2) : T1 = x 
+
+class Add<T1, T2> =
+    implements Add<T1, T2>
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'Add<T1, T2>' is recursively implementing itself.",
+                """
+    implements Add<T1, T2>
+    ^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]

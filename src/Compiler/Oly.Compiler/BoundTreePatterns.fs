@@ -181,3 +181,15 @@ let (|SetRefCellContents|_|) (expr: E) =
 let BoundLiteralTrue = BoundLiteral.Constant(ConstantSymbol.True)
 let BoundLiteralFalse = BoundLiteral.Constant(ConstantSymbol.False)
 let BoundLiteralInt32 value = BoundLiteral.Constant(ConstantSymbol.Int32(value))
+
+/// WellKnownFunction.Cast
+let (|Cast|_|) (expr: E) =
+    match expr with
+    | E.Call(receiverOpt=None;args=argExprs;value=value) when argExprs.Length = 1 ->
+        match value.TryWellKnownFunction with
+        | ValueSome(WellKnownFunction.Cast) when value.TypeArguments.Length = 1 ->
+            Some(argExprs[0])
+        | _ ->
+            None
+    | _ ->
+        None
