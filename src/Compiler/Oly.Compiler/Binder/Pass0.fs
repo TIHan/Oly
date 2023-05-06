@@ -54,7 +54,6 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
         | OlySyntaxTypeDeclarationKind.AbstractClass _ -> EntityFlags.Abstract, EntityKind.Class
         | OlySyntaxTypeDeclarationKind.SealedClass _ -> EntityFlags.Final, EntityKind.Class
         | OlySyntaxTypeDeclarationKind.SealedInterface _ -> EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Interface
-        | OlySyntaxTypeDeclarationKind.Attribute _ -> EntityFlags.None, EntityKind.Attribute
         | OlySyntaxTypeDeclarationKind.Enum _ -> EntityFlags.Final, EntityKind.Enum
         | OlySyntaxTypeDeclarationKind.Newtype _ -> EntityFlags.Final, EntityKind.Newtype
         | _ ->

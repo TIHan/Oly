@@ -108,7 +108,6 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.BaseObject, TypeSymbol.BaseObject
         | TypeSymbol.BaseStruct, TypeSymbol.BaseStruct
         | TypeSymbol.BaseStructEnum, TypeSymbol.BaseStructEnum
-        | TypeSymbol.BaseAttribute, TypeSymbol.BaseAttribute
         | TypeSymbol.Unit, TypeSymbol.Unit
         | TypeSymbol.Void, TypeSymbol.Void
         | TypeSymbol.Int8, TypeSymbol.Int8
@@ -1041,12 +1040,6 @@ module private TypeSymbolStaticData =
             yield TypeSymbol.BaseObject
         }
 
-    let ImplicitBaseTypes_Attribute =
-        seq {
-            yield TypeSymbol.BaseAttribute
-            yield TypeSymbol.BaseObject
-        }
-
     let ImplicitBaseTypes_Object =
         seq {
             yield TypeSymbol.BaseObject
@@ -1096,17 +1089,11 @@ type TypeSymbol with
             | TypeSymbol.BaseStructEnum -> true
             | _ -> false
 
-        member this.IsBaseAttribute_t =
-            match stripTypeEquationsAndBuiltIn this with
-            | TypeSymbol.BaseAttribute -> true
-            | _ -> false
-
         member this.IsImplicitBaseType =
             match stripTypeEquationsAndBuiltIn this with
             | TypeSymbol.BaseObject
             | TypeSymbol.BaseStruct
-            | TypeSymbol.BaseStructEnum
-            | TypeSymbol.BaseAttribute -> true
+            | TypeSymbol.BaseStructEnum -> true
             | _ -> false
 
         member this.ImplicitBaseTypes =
@@ -1119,8 +1106,6 @@ type TypeSymbol with
                     TypeSymbolStaticData.ImplicitBaseTypes_Enum_AnyStruct
                 elif ty.IsAnyStruct && not(this.IsBaseStruct_t) then
                     TypeSymbolStaticData.ImplicitBaseTypes_AnyStruct
-                elif ty.IsAttribute && not(ty.IsBaseAttribute_t) then
-                    TypeSymbolStaticData.ImplicitBaseTypes_Attribute
                 else
                     TypeSymbolStaticData.ImplicitBaseTypes_Object
 
@@ -1426,7 +1411,6 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
         match stripTypeEquationsAndBuiltIn ty, stripTypeEquationsAndBuiltIn superTy with
         | _, TypeSymbol.BaseObject -> true
         | ty, TypeSymbol.BaseStruct -> ty.IsAnyStruct
-        | ty, TypeSymbol.BaseAttribute -> ty.IsAttribute
         | ty, TypeSymbol.BaseStructEnum -> ty.IsAnyStruct && ty.IsEnum
         | TypeSymbol.Variable(tyPar), superTy
         | TypeSymbol.HigherVariable(tyPar, _), superTy ->

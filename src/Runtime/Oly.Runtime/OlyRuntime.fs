@@ -2188,7 +2188,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | RuntimeType.BaseObject -> this.TypeBaseObject.Value
             | RuntimeType.BaseStruct -> this.TypeBaseStruct.Value
             | RuntimeType.BaseStructEnum -> this.TypeBaseStructEnum.Value
-            | RuntimeType.BaseAttribute -> this.TypeBaseAttribute.Value
             | RuntimeType.Tuple(tyArgs, names) ->
                 this.Emitter.EmitTypeTuple(tyArgs |> ImArray.map (emitType false), names)
             | RuntimeType.NativePtr(elementTy) ->
@@ -2571,7 +2570,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member val TypeBaseObject: _ Lazy  = lazy emitter.EmitTypeBaseObject()
     member val TypeBaseStruct: _ Lazy  = lazy emitter.EmitTypeBaseStruct()
     member val TypeBaseStructEnum: _ Lazy  = lazy emitter.EmitTypeBaseStructEnum()
-    member val TypeBaseAttribute: _ Lazy  = lazy emitter.EmitTypeBaseAttribute()
 
     member internal this.Assemblies: ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
 
@@ -3172,8 +3170,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     if extends.IsEmpty then
                         if ent.IsClass then
                             ImArray.createOne RuntimeType.BaseObject
-                        elif ent.IsAttribute then
-                            ImArray.createOne RuntimeType.BaseAttribute
                         elif ent.IsEnum then
                             if ent.IsAnyStruct then
                                 ImArray.createOne RuntimeType.BaseStructEnum
@@ -3311,7 +3307,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             | OlyILTypeBaseObject -> RuntimeType.BaseObject
             | OlyILTypeBaseStruct -> RuntimeType.BaseStruct
-            | OlyILTypeBaseAttribute -> RuntimeType.BaseAttribute
             | OlyILTypeBaseStructEnum -> RuntimeType.BaseStructEnum
             | OlyILTypeUInt8 -> RuntimeType.UInt8
             | OlyILTypeInt8 -> RuntimeType.Int8

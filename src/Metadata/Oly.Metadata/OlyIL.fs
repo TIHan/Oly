@@ -78,7 +78,6 @@ type OlyILEntityKind =
     | Struct
     | Enum
     | Closure
-    | Attribute
     | Newtype
 
 [<Flags>]
@@ -647,7 +646,6 @@ type OlyILType =
     | OlyILTypeBaseObject
     | OlyILTypeBaseStruct
     | OlyILTypeBaseStructEnum
-    | OlyILTypeBaseAttribute
 
     | OlyILTypeVoid
     | OlyILTypeUnit
@@ -714,7 +712,6 @@ type OlyILType =
         | OlyILTypeVariable _ 
         | OlyILTypeBaseObject
         | OlyILTypeBaseStruct
-        | OlyILTypeBaseAttribute
         | OlyILTypeBaseStructEnum
         | OlyILTypeNativeInt
         | OlyILTypeNativeUInt -> imarray.Empty
@@ -772,11 +769,10 @@ type OlyILType =
         | OlyILTypeNativeFunctionPtr _ -> 28
         | OlyILTypeBaseStruct _ -> 31
         | OlyILTypeBaseStructEnum _ -> 32
-        | OlyILTypeBaseAttribute _ -> 33
-        | OlyILTypeDependentIndexer _ -> 34
-        | OlyILTypeForAll _ -> 35
-        | OlyILTypeInvalid _ -> 36
-        | OlyILTypeModified _ -> 37
+        | OlyILTypeDependentIndexer _ -> 33
+        | OlyILTypeForAll _ -> 34
+        | OlyILTypeInvalid _ -> 35
+        | OlyILTypeModified _ -> 36
         | OlyILTypeEntity(ilEntInst) -> 64 + ilEntInst.DefinitionOrReferenceHandle.Index
 
     member this.IsBuiltIn =
@@ -806,8 +802,7 @@ type OlyILType =
         | OlyILTypeConstantInt32 _ 
         | OlyILTypeBaseObject
         | OlyILTypeBaseStruct
-        | OlyILTypeBaseStructEnum _ 
-        | OlyILTypeBaseAttribute
+        | OlyILTypeBaseStructEnum _
         | OlyILTypeByRef _
         | OlyILTypeNativeInt
         | OlyILTypeNativeUInt

@@ -186,14 +186,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     let gate = obj ()
 
-    let allPossibleFixupsGate = obj ()
-    let allPossibleAttrFixups = ResizeArray<OlyILAssembly * ResizeArray<OlyILEntityDefinitionHandle>>()
-    let addPossibleFixups possibleFixups =
-        lock allPossibleFixupsGate <| fun _ ->
-            allPossibleAttrFixups.Add(possibleFixups)
-
-    let allUnresolvedPossibleAttrFixups = ResizeArray<OlyILAssembly * ResizeArray<OlyILEntityDefinitionHandle>>()
-
     let assemblyVersions = ConcurrentDictionary<OlyPath, uint64>()
     let assemblyCache = ConcurrentDictionary<OlyPath, OlyPath * uint64 * OlyILAssembly * DateTime>()
     let olyAssemblys = ConcurrentDictionary<OlyILAssemblyIdentity, OlyILAssembly>()
@@ -287,87 +279,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         }
 
     override this.OnAfterReferencesImported() =
-        // TODO: We need to add a test scenario for this.
-        // Sometimes we do not know if an imported class is really an attribute class or not.
-        // We cannot determine this when the reference is imported as importing references
-        // are independent of each other.
-        // Therefore, we check to see if to we need to fixup a class to become an attribute once all references
-        // are imported.
-        let handle (allPossibleAttrFixups: ResizeArray<OlyILAssembly * ResizeArray<OlyILEntityDefinitionHandle>>) =
-            let mutable passed = true
-            for i = 0 to allPossibleAttrFixups.Count - 1 do
-                let olyAsm, possibleAttrFixups = allPossibleAttrFixups[i]
-                for j = 0 to possibleAttrFixups.Count - 1 do
-                    let olyEntDefHandle = possibleAttrFixups[j]
-
-                    let rec fixup (olyAsm: OlyILAssembly) olyEntDefHandle : OlyILEntityDefinition =
-                        let olyEntDef = olyAsm.GetEntityDefinition(olyEntDefHandle)
-                        if olyEntDef.Kind = OlyILEntityKind.Class then
-                            match olyEntDef.Extends |> Seq.tryExactlyOne with
-                            | Some(OlyILTypeEntity(OlyILEntityInstance(olyInheritsEntDefOrRefHandle, _))) ->
-                                let handleInherits (olyInheritsEntDef: OlyILEntityDefinition) =
-                                    if olyInheritsEntDef.Kind = OlyILEntityKind.Attribute then
-                                        let olyEntDefFixedUp = olyEntDef.UpdateKind(OlyILEntityKind.Attribute)
-                                        olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDefFixedUp)
-                                        olyEntDefFixedUp
-                                    else
-                                        olyEntDef
-
-                                if olyInheritsEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                                    let olyInheritsEntDef = fixup olyAsm olyInheritsEntDefOrRefHandle
-                                    handleInherits olyInheritsEntDef
-                                else                                   
-                                    let olyInheritsEntRef = olyAsm.GetEntityReference(olyInheritsEntDefOrRefHandle)
-                                    let olyInheritsEntRefEnclosing = olyInheritsEntRef.Enclosing // TODO: Check enclosings to make sure they match.
-                                    let olyInheritsEntName = olyInheritsEntRef.NameHandle |> olyAsm.GetStringOrEmpty
-                                    match olyAssemblys.TryGetValue(olyAsm.GetAssemblyIdentity(olyInheritsEntRef)) with
-                                    | true, olyInheritsAsm when String.IsNullOrWhiteSpace(olyInheritsEntName) |> not ->
-                                        let olyInheritsEntDefHandleOpt =
-                                            let olyInheritsEntDefHandles = olyInheritsAsm.FindEntityDefinitions(olyInheritsEntName)
-                                            olyInheritsEntDefHandles
-                                            |> ImArray.tryFind (fun olyInheritsEntDefHandle ->
-                                                let olyInheritsEntDef = olyInheritsAsm.GetEntityDefinition(olyInheritsEntDefHandle)
-                                                if olyInheritsEntDef.FullTypeParameterCount = olyInheritsEntRef.FullTypeParameterCount then
-                                                    let olyInheritsEntDefEnclosing = olyInheritsEntDef.Enclosing
-                                                    // TODO: Check enclosings to make sure they match.
-                                                    true
-                                                else
-                                                    false
-                                            )
-
-                                        match olyInheritsEntDefHandleOpt with
-                                        | None ->
-                                            passed <- false
-                                            // TODO: We need to un-comment this. and figure out when to handle the resolved attr fixups.
-                                            //       Perhaps we should introduce a notion to re-read assemblies instead of getting them from the cache.
-                                            //if obj.ReferenceEquals(allPossibleAttrFixups, allUnresolvedPossibleAttrFixups) |> not then
-                                            //    allUnresolvedPossibleAttrFixups.Add(olyAsm, possibleAttrFixups)
-                                            olyEntDef
-                                        | Some olyInheritsEntDefHandle ->
-                                            let olyInheritsEntDef = fixup olyInheritsAsm olyInheritsEntDefHandle
-                                            handleInherits olyInheritsEntDef
-                                    | _ ->
-                                        passed <- false
-                                        //if obj.ReferenceEquals(allPossibleAttrFixups, allUnresolvedPossibleAttrFixups) |> not then
-                                        //    allUnresolvedPossibleAttrFixups.Add(olyAsm, possibleAttrFixups)
-                                        olyEntDef
-                            | _ ->
-                                olyEntDef
-                        else
-                            olyEntDef
-
-                    fixup olyAsm olyEntDefHandle
-                    |> ignore
-            passed
-
-        let passed = handle allUnresolvedPossibleAttrFixups
-        if passed then
-            allUnresolvedPossibleAttrFixups.Clear()
-
-        handle allPossibleAttrFixups
-        |> ignore
-
-        allPossibleAttrFixups.Clear()
+        ()
 
     override _.IsValidTargetName _ = true 
 
@@ -425,9 +337,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                         let result = comp.Emit(ms, options = emitOptions, cancellationToken = ct)
                         if result.Success then
                             ms.Position <- 0L
-                            let ilAsm, possibleFixups = Importer.Import(comp.AssemblyName, ms)
-                            if possibleFixups.Count > 0 then
-                                addPossibleFixups(ilAsm, possibleFixups)
+                            let ilAsm = Importer.Import(comp.AssemblyName, ms)
                             let compRef = addAssemblyReference path ilAsm
                             addDirectoryWatcher dir ("*" + ext)
 
@@ -448,9 +358,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                         return Result.Ok(None)
                     else
                         use fs = File.OpenRead(pathStr)
-                        let ilAsm, possibleFixups = Importer.Import(name, fs)
-                        if possibleFixups.Count > 0 then
-                            addPossibleFixups(ilAsm, possibleFixups)
+                        let ilAsm = Importer.Import(name, fs)
                         let compRef = addAssemblyReference path ilAsm
                         addDirectoryWatcher dir ("*" + ext)
                         return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)

@@ -736,7 +736,6 @@ let private importEntityKind (ilEntKind: OlyILEntityKind) =
     | OlyILEntityKind.Struct -> EntityKind.Struct
     | OlyILEntityKind.Enum -> EntityKind.Enum
     | OlyILEntityKind.TypeExtension -> EntityKind.TypeExtension
-    | OlyILEntityKind.Attribute -> EntityKind.Attribute
     | OlyILEntityKind.Newtype -> EntityKind.Newtype
         
 let private importTypeParameterSymbol (asm: OlyILReadOnlyAssembly) tyParIndex tyParKind (ilTyPar: OlyILTypeParameter) =
@@ -871,7 +870,6 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeBaseObject -> TypeSymbol.BaseObject
     | OlyILType.OlyILTypeBaseStruct -> TypeSymbol.BaseStruct
     | OlyILType.OlyILTypeBaseStructEnum -> TypeSymbol.BaseStructEnum
-    | OlyILType.OlyILTypeBaseAttribute -> TypeSymbol.BaseAttribute
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadWrite) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadWrite)
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.Read) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.Read)
     | OlyILType.OlyILTypeRefCell(ilElementTy) -> TypeSymbol.RefCell(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy)

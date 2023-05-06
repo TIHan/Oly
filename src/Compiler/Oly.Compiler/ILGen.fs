@@ -335,8 +335,6 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeBaseStruct
     | TypeSymbol.BaseStructEnum ->
         OlyILTypeBaseStructEnum
-    | TypeSymbol.BaseAttribute ->
-        OlyILTypeBaseAttribute
     | TypeSymbol.Unit ->
         if canEmitVoidForUnit then
             OlyILTypeVoid
@@ -976,7 +974,6 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
         | EntityKind.Alias -> OlyILEntityKind.Alias
         | EntityKind.Closure -> OlyILEntityKind.Closure
         | EntityKind.Enum -> OlyILEntityKind.Enum
-        | EntityKind.Attribute -> OlyILEntityKind.Attribute
         | EntityKind.Newtype -> OlyILEntityKind.Newtype
 
     let ilEntFlags = OlyILEntityFlags.None

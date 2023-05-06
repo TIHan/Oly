@@ -2050,13 +2050,6 @@ module OlySyntaxTypeDeclarationKind =
         | _ ->
             Option.None
 
-    let (|Attribute|_|) (node: OlySyntaxTypeDeclarationKind) : ( OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxTypeDeclarationKind.Attribute _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
     let (|Enum|_|) (node: OlySyntaxTypeDeclarationKind) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxTypeDeclarationKind.Enum _ ->

@@ -435,9 +435,6 @@
     <Case name="Extension">
       <Field name="extensionToken">SyntaxToken</Field>
     </Case>
-	<Case name="Attribute">
-	  <Field name="attributeToken">SyntaxToken</Field>
-	</Case>
     <Case name="Enum">
       <Field name="enumToken">SyntaxToken</Field>
     </Case>

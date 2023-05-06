@@ -136,20 +136,13 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
             
             if isArg then expr
             else
-
-            let exprTy = expr.Type
-            if exprTy.IsAttribute then
                 match expr with
                 | BoundExpression.Call(value=value;args=argExprs) when value.IsInstanceConstructor && isValidAttributeArguments cenv env argExprs ->
                     expr
                 | _ ->
-                    if not exprTy.IsError_t then
+                    if not expr.Type.IsError_t then
                         errorAttribute cenv env syntaxExpr
                     expr
-            else
-                if not exprTy.IsError_t then
-                    cenv.diagnostics.Error($"'{printType env.benv exprTy}' is not an attribute.", 10, syntaxExpr)
-                expr
         | _ ->
             errorAttribute cenv env syntaxExpr
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
@@ -372,8 +365,6 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
                     Some TypeSymbol.BaseObject
                 | "base_struct" ->
                     Some TypeSymbol.BaseStruct
-                | "base_attribute" ->
-                    Some TypeSymbol.BaseAttribute
                 | "base_struct_enum" ->
                     Some TypeSymbol.BaseStructEnum
                 | "void" ->

@@ -46,7 +46,6 @@ type InterpreterType =
     | BaseObject
     | BaseStruct
     | BaseStructEnum
-    | BaseAttribute
     | LiteralInt32 of value: int32
 
     | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * tyArgs: InterpreterType imarray * funcs: InterpreterFunction ResizeArray * fields: ResizeArray<InterpreterField> * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * inherits: InterpreterType imarray * implements: InterpreterType imarray
@@ -1605,9 +1604,6 @@ type InterpreterRuntimeEmitter() =
     member this.StandardOut = env.StandardOut.ToString()
 
     interface IOlyRuntimeEmitter<InterpreterType, InterpreterFunction, InterpreterField> with
-
-        member this.EmitTypeBaseAttribute() = 
-            InterpreterType.BaseAttribute
 
         member this.EmitTypeBaseStructEnum() = 
             InterpreterType.BaseStructEnum

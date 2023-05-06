@@ -2130,11 +2130,6 @@ let tryParseTypeDeclarationKind state =
         SyntaxTypeDeclarationKind.Enum(enumToken) |> Some
     | _ ->
 
-    match bt ATTRIBUTE state with
-    | Some(attributeToken) ->
-        SyntaxTypeDeclarationKind.Attribute(attributeToken) |> Some
-    | _ ->
-
     match bt EXTENSION state with
     | Some(extensionToken) ->
         SyntaxTypeDeclarationKind.Extension(extensionToken) |> Some

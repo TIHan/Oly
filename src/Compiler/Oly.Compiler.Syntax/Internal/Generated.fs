@@ -1773,9 +1773,6 @@ type SyntaxTypeDeclarationKind =
     | Extension
         of
         extensionToken: SyntaxToken
-    | Attribute
-        of
-        attributeToken: SyntaxToken
     | Enum
         of
         enumToken: SyntaxToken
@@ -1836,10 +1833,6 @@ type SyntaxTypeDeclarationKind =
                 match index with
                 | 0 -> extensionToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Attribute(attributeToken) ->
-                match index with
-                | 0 -> attributeToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | Enum(enumToken) ->
                 match index with
                 | 0 -> enumToken :> ISyntaxNode
@@ -1861,7 +1854,6 @@ type SyntaxTypeDeclarationKind =
             | Shape _ -> 1
             | Struct _ -> 1
             | Extension _ -> 1
-            | Attribute _ -> 1
             | Enum _ -> 1
             | Newtype _ -> 1
 
@@ -1886,8 +1878,6 @@ type SyntaxTypeDeclarationKind =
             | Struct(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Extension(x) ->
-                (x :> ISyntaxNode).FullWidth
-            | Attribute(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Enum(x) ->
                 (x :> ISyntaxNode).FullWidth

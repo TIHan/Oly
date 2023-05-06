@@ -1707,9 +1707,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     interface IOlyRuntimeEmitter<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo> with
 
-        member this.EmitTypeBaseAttribute() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceAttribute, false, false)
-
         member this.EmitTypeBaseStructEnum() =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceEnum, false, false)
 
@@ -1912,7 +1909,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let isReadOnly = flags &&& OlyIRTypeFlags.ReadOnly = OlyIRTypeFlags.ReadOnly
             let isInterface = kind = OlyILEntityKind.Interface
             let isTypeExtension = kind = OlyILEntityKind.TypeExtension
-            let isAttribute = kind = OlyILEntityKind.Attribute
 
             let enumRuntimeTyOpt =
                 if isEnum then
@@ -1981,9 +1977,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 elif isInterface then
                     tyDefBuilder.BaseType <- ClrTypeHandle.Empty
                     TypeAttributes.Interface ||| TypeAttributes.Abstract
-                elif isAttribute then
-                    tyDefBuilder.BaseType <- asmBuilder.TypeReferenceAttribute
-                    TypeAttributes.Class ||| TypeAttributes.BeforeFieldInit
                 else
                     TypeAttributes.Class ||| TypeAttributes.BeforeFieldInit
 

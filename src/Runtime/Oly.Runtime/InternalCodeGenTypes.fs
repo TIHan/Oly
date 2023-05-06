@@ -305,9 +305,6 @@ type RuntimeEntity =
     member this.IsClass =
         this.ILEntityKind = OlyILEntityKind.Class
 
-    member this.IsAttribute =
-        this.ILEntityKind = OlyILEntityKind.Attribute
-
     member this.IsAlias =
         this.ILEntityKind = OlyILEntityKind.Alias
 
@@ -462,7 +459,6 @@ type RuntimeType =
     | BaseObject
     | BaseStruct
     | BaseStructEnum
-    | BaseAttribute
 
     | Void
     | Unit
@@ -673,7 +669,6 @@ type RuntimeType =
         | BaseObject -> "__oly_base_object"
         | BaseStruct -> "__oly_base_struct"
         | BaseStructEnum -> "__oly_base_struct_enum"
-        | BaseAttribute -> "__oly_base_attribute"
         | ForAll _ -> "__oly_for_all"
         | Entity(ent) -> ent.Name
         | Variable(index, ilKind) -> $"__oly_type_variable_{index}_{ilKind}"
@@ -783,7 +778,6 @@ type RuntimeType =
         | Tuple _
         | ReferenceCell _
         | Unit 
-        | BaseAttribute 
         | BaseStruct ->
             ImArray.createOne RuntimeType.BaseObject
         | BaseStructEnum ->
@@ -820,8 +814,7 @@ type RuntimeType =
         match this with
         | BaseObject
         | BaseStruct
-        | BaseStructEnum
-        | BaseAttribute -> true
+        | BaseStructEnum -> true
         | Entity(ent) -> ent.IsObjectType
         | _ -> false
 
@@ -924,7 +917,6 @@ type RuntimeType =
                 | "base_object" -> RuntimeType.BaseObject
                 | "base_struct" -> RuntimeType.BaseStruct
                 | "base_struct_enum" -> RuntimeType.BaseStructEnum
-                | "base_attribute" -> RuntimeType.BaseAttribute
                 | "utf16" -> RuntimeType.Utf16
                 | "char16" -> RuntimeType.Char16
                 | "int8" -> RuntimeType.Int8
@@ -989,7 +981,6 @@ type RuntimeType =
             | BaseObject, BaseObject -> true
             | BaseStruct, BaseStruct -> true
             | BaseStructEnum, BaseStructEnum -> true
-            | BaseAttribute, BaseAttribute -> true
             | NativeInt, NativeInt
             | NativeUInt, NativeUInt -> true
             | NativePtr(elementTy1), NativePtr(elementTy2) -> elementTy1 = elementTy2

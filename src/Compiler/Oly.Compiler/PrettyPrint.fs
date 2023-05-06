@@ -45,7 +45,6 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.BaseObject
     | TypeSymbol.BaseStruct
     | TypeSymbol.BaseStructEnum
-    | TypeSymbol.BaseAttribute
     | TypeSymbol.Utf16
     | TypeSymbol.Void
     | TypeSymbol.NativeInt

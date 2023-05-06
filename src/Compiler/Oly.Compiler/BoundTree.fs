@@ -969,8 +969,6 @@ module EntitySymbolExtensions =
                     ImArray.createOne TypeSymbol.BaseStructEnum
                 elif this.IsAnyStruct then
                     ImArray.createOne TypeSymbol.BaseStruct
-                elif this.IsAttribute then
-                    ImArray.createOne TypeSymbol.BaseAttribute
                 elif this.IsClass || this.IsInterface then
                     ImArray.createOne TypeSymbol.BaseObject
                 else

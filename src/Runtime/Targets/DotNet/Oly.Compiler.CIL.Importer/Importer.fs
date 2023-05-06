@@ -328,7 +328,6 @@ module internal rec Helpers =
             tySpecToOlyTypeCache: ConcurrentDictionary<TypeSpecificationHandle, OlyILType>
             exportedTyToOlyEntRefCache: ConcurrentDictionary<ExportedTypeHandle, OlyILEntityReferenceHandle>
             methDefToOlyFuncDefCache: ConcurrentDictionary<MethodDefinitionHandle, OlyILEntityDefinitionHandle>
-            possibleClassIsAttributeFixups: ResizeArray<OlyILEntityDefinitionHandle>
         }
 
     let unmangleName (name: string) =
@@ -1033,9 +1032,6 @@ module internal rec Helpers =
                 | "ValueType" ->
                     (OlyILAttribute.Intrinsic(olyAsm.AddString "base_struct"), OlyILTypeBaseStruct)
                     |> ValueSome
-                | "Attribute" ->
-                    (OlyILAttribute.Intrinsic(olyAsm.AddString "base_attribute"), OlyILTypeBaseAttribute)
-                    |> ValueSome
                 | "Enum" ->
                     (OlyILAttribute.Intrinsic(olyAsm.AddString "base_struct_enum"), OlyILTypeBaseStructEnum)
                     |> ValueSome
@@ -1051,8 +1047,6 @@ module internal rec Helpers =
                 OlyILEntityKind.Interface
             elif isEnum then
                 OlyILEntityKind.Enum
-            elif isAttribute then
-                OlyILEntityKind.Attribute
             else
                 OlyILEntityKind.Class // TODO:
 
@@ -1334,9 +1328,6 @@ module internal rec Helpers =
         
         olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
 
-        if olyEntKind = OlyILEntityKind.Class && not olyInherits.IsEmpty then
-            cenv.possibleClassIsAttributeFixups.Add(olyEntDefHandle)
-
         match olyIntrinsicAttrOpt with
         | ValueSome(_, olyBuiltInTy) ->
             olyAsm.AddPrimitiveType(olyBuiltInTy, olyEntDefHandle)
@@ -1364,7 +1355,6 @@ type Importer private (name: string, peReader: PEReader) =
                 tySpecToOlyTypeCache = ConcurrentDictionary()
                 exportedTyToOlyEntRefCache = ConcurrentDictionary()
                 methDefToOlyFuncDefCache = ConcurrentDictionary()
-                possibleClassIsAttributeFixups = ResizeArray()
             }
 
         reader.TypeDefinitions
@@ -1378,7 +1368,7 @@ type Importer private (name: string, peReader: PEReader) =
         for i = 0 to exportedTys.Length - 1 do
             importExportedTypeAsOlyILEntityReference cenv exportedTys.[i] |> ignore
 
-        olyAsm, cenv.possibleClassIsAttributeFixups
+        olyAsm
 
     static member Import(name, stream: Stream) =
         use peReader = new PEReader(stream, PEStreamOptions.LeaveOpen)

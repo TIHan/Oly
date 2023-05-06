@@ -1462,11 +1462,6 @@ type EnclosingSymbol =
         | Entity(ent) -> ent.IsEnum
         | _ -> false
 
-    member this.IsAttribute =
-        match this with
-        | Entity(ent) -> ent.IsAttribute
-        | _ -> false
-
     member this.IsTypeExtension =
         match this with
         | Entity(ent) when ent.Kind = EntityKind.TypeExtension -> true
@@ -1650,7 +1645,6 @@ type EntityKind =
     | Struct
     | Enum
     | Closure
-    | Attribute
     | Newtype
 
 type FunctionSemantic =
@@ -2830,7 +2824,6 @@ type TypeSymbol =
     | BaseObject
     | BaseStruct
     | BaseStructEnum
-    | BaseAttribute
 
     | Void
     | Unit
@@ -2885,7 +2878,6 @@ type TypeSymbol =
         | BaseObject
         | BaseStruct
         | BaseStructEnum
-        | BaseAttribute
         | Void
         | Unit
         | Int8
@@ -2993,7 +2985,6 @@ type TypeSymbol =
         | BaseObject -> "__oly_object"
         | BaseStruct -> "__oly_base_struct"
         | BaseStructEnum -> "__oly_base_struct_enum"
-        | BaseAttribute -> "__oly_base_attribute"
         | NativeInt -> "__oly_native_int"
         | NativeUInt -> "__oly_native_uint"
         | NativePtr _ -> "__oly_native_ptr"
@@ -3104,7 +3095,6 @@ type TypeSymbol =
         | BaseObject 
         | BaseStruct
         | BaseStructEnum
-        | BaseAttribute
         | NativeInt
         | NativeUInt 
         | ObjectInferenceVariable _ 
@@ -3148,7 +3138,6 @@ type TypeSymbol =
         | BaseObject
         | BaseStruct
         | BaseStructEnum
-        | BaseAttribute
         | NativeInt
         | NativeUInt
         | ObjectInferenceVariable _
@@ -3218,8 +3207,7 @@ type TypeSymbol =
         | NativeFunctionPtr _ -> 39
         | BaseStruct -> 40
         | BaseStructEnum -> 41
-        | BaseAttribute -> 42
-        | DependentIndexer _ -> 43
+        | DependentIndexer _ -> 42
         | Entity(ent) -> ent.Formal.Id
 
     member this.Enclosing =
@@ -3251,7 +3239,6 @@ type TypeSymbol =
         | BaseObject
         | BaseStruct
         | BaseStructEnum _
-        | BaseAttribute
         | ByRef _
         | NativeInt
         | NativeUInt
@@ -3398,11 +3385,6 @@ type TypeSymbol =
     member this.IsEnum =
         match this.TryEntity with
         | ValueSome ent -> ent.IsEnum
-        | _ -> false
-
-    member this.IsAttribute =
-        match this.TryEntity with
-        | ValueSome ent -> ent.IsAttribute
         | _ -> false
 
     member this.IsShape =
@@ -3621,7 +3603,6 @@ type TypeSymbol =
             | NativeInt
             | NativeUInt
             | BaseObject
-            | BaseAttribute
             | BaseStruct
             | BaseStructEnum
             | Unit
@@ -4383,9 +4364,6 @@ module SymbolExtensions =
             member this.IsNewtype =
                 this.Kind = EntityKind.Newtype
 
-            member this.IsAttribute =
-                this.Kind = EntityKind.Attribute
-
             member this.IsNamespace =
                 this.Kind = EntityKind.Namespace
 
@@ -4459,7 +4437,7 @@ module SymbolExtensions =
                 this.Kind = EntityKind.TypeExtension
     
             member this.IsClass =
-                this.Kind = EntityKind.Class || this.Kind = EntityKind.Attribute // TODO: Is this right? (Maybe attribute should be a flag)
+                this.Kind = EntityKind.Class
 
             member this.IsSealed =
                 this.Flags &&& EntityFlags.Final = EntityFlags.Final
@@ -4597,7 +4575,6 @@ module OtherExtensions =
             | AttributeSymbol.Intrinsic("base_object") -> TypeSymbol.BaseObject |> ValueSome
             | AttributeSymbol.Intrinsic("base_struct") -> TypeSymbol.BaseStruct |> ValueSome
             | AttributeSymbol.Intrinsic("base_struct_enum") -> TypeSymbol.BaseStructEnum |> ValueSome
-            | AttributeSymbol.Intrinsic("base_attribute") -> TypeSymbol.BaseAttribute |> ValueSome
             | _ -> ValueNone
 
     type IEntitySymbol with

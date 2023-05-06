@@ -25,7 +25,6 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeBaseObject     : unit -> 'Type
     abstract EmitTypeBaseStruct     : unit -> 'Type
     abstract EmitTypeBaseStructEnum : unit -> 'Type
-    abstract EmitTypeBaseAttribute  : unit -> 'Type
     abstract EmitTypeVoid           : unit -> 'Type
     abstract EmitTypeUnit           : unit -> 'Type
     abstract EmitTypeInt8           : unit -> 'Type
