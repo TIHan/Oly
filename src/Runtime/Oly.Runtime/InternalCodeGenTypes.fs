@@ -457,8 +457,6 @@ let emptyEnclosing = RuntimeEnclosing.Namespace(ImArray.empty)
 [<NoComparison;CustomEquality;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
 type RuntimeType =
     | BaseObject
-    | BaseStruct
-    | BaseStructEnum
 
     | Void
     | Unit
@@ -667,8 +665,6 @@ type RuntimeType =
         | Function _ -> "__oly_func"
         | Array _ -> "__oly_array"
         | BaseObject -> "__oly_base_object"
-        | BaseStruct -> "__oly_base_struct"
-        | BaseStructEnum -> "__oly_base_struct_enum"
         | ForAll _ -> "__oly_for_all"
         | Entity(ent) -> ent.Name
         | Variable(index, ilKind) -> $"__oly_type_variable_{index}_{ilKind}"
@@ -756,34 +752,7 @@ type RuntimeType =
     member this.Extends: RuntimeType imarray =
         match this with
         | Entity(ent) -> ent.Extends
-        | Int8
-        | UInt8
-        | Int16
-        | UInt16
-        | Int32
-        | UInt32
-        | Int64
-        | UInt64
-        | Float32
-        | Float64
-        | NativeInt
-        | NativeUInt 
-        | Bool
-        | Char16 
-        | NativeFunctionPtr _
-        | NativePtr _ ->
-            ImArray.createOne RuntimeType.BaseStruct
-        | Array _
-        | Utf16 
-        | Tuple _
-        | ReferenceCell _
-        | Unit 
-        | BaseStruct ->
-            ImArray.createOne RuntimeType.BaseObject
-        | BaseStructEnum ->
-            ImArray.createOne RuntimeType.BaseStruct
-        | _ -> 
-            ImArray.empty
+        | _ -> ImArray.empty
 
     member this.Implements: RuntimeType imarray =
         match this with
@@ -812,9 +781,7 @@ type RuntimeType =
 
     member this.IsObjectType: bool =
         match this with
-        | BaseObject
-        | BaseStruct
-        | BaseStructEnum -> true
+        | BaseObject -> true
         | Entity(ent) -> ent.IsObjectType
         | _ -> false
 
@@ -915,8 +882,6 @@ type RuntimeType =
             | Some name ->
                 match name with
                 | "base_object" -> RuntimeType.BaseObject
-                | "base_struct" -> RuntimeType.BaseStruct
-                | "base_struct_enum" -> RuntimeType.BaseStructEnum
                 | "utf16" -> RuntimeType.Utf16
                 | "char16" -> RuntimeType.Char16
                 | "int8" -> RuntimeType.Int8
@@ -979,8 +944,6 @@ type RuntimeType =
             | Bool, Bool -> true
             | Utf16, Utf16 -> true
             | BaseObject, BaseObject -> true
-            | BaseStruct, BaseStruct -> true
-            | BaseStructEnum, BaseStructEnum -> true
             | NativeInt, NativeInt
             | NativeUInt, NativeUInt -> true
             | NativePtr(elementTy1), NativePtr(elementTy2) -> elementTy1 = elementTy2

@@ -2822,8 +2822,6 @@ type TypeModifier =
 [<RequireQualifiedAccess;DebuggerDisplay("{DebugName}")>]
 type TypeSymbol =
     | BaseObject
-    | BaseStruct
-    | BaseStructEnum
 
     | Void
     | Unit
@@ -2876,8 +2874,6 @@ type TypeSymbol =
     member this.IsBuiltIn =
         match stripTypeEquations this with
         | BaseObject
-        | BaseStruct
-        | BaseStructEnum
         | Void
         | Unit
         | Int8
@@ -2983,8 +2979,6 @@ type TypeSymbol =
                     "?"
         | ConstantInt32 n -> n.ToString()
         | BaseObject -> "__oly_object"
-        | BaseStruct -> "__oly_base_struct"
-        | BaseStructEnum -> "__oly_base_struct_enum"
         | NativeInt -> "__oly_native_int"
         | NativeUInt -> "__oly_native_uint"
         | NativePtr _ -> "__oly_native_ptr"
@@ -3092,9 +3086,7 @@ type TypeSymbol =
         | Variable _ 
         | Error _ 
         | InferenceVariable _ 
-        | BaseObject 
-        | BaseStruct
-        | BaseStructEnum
+        | BaseObject
         | NativeInt
         | NativeUInt 
         | ObjectInferenceVariable _ 
@@ -3136,8 +3128,6 @@ type TypeSymbol =
         | Error _ 
         | InferenceVariable _ 
         | BaseObject
-        | BaseStruct
-        | BaseStructEnum
         | NativeInt
         | NativeUInt
         | ObjectInferenceVariable _
@@ -3205,9 +3195,7 @@ type TypeSymbol =
         | ObjectInferenceVariable _ -> TypeSymbol.BaseObject.FormalId
         | NumberInferenceVariable(_, defaultTy, _) -> defaultTy.FormalId
         | NativeFunctionPtr _ -> 39
-        | BaseStruct -> 40
-        | BaseStructEnum -> 41
-        | DependentIndexer _ -> 42
+        | DependentIndexer _ -> 40
         | Entity(ent) -> ent.Formal.Id
 
     member this.Enclosing =
@@ -3237,8 +3225,6 @@ type TypeSymbol =
         | RefCell _
         | ConstantInt32 _ 
         | BaseObject
-        | BaseStruct
-        | BaseStructEnum _
         | ByRef _
         | NativeInt
         | NativeUInt
@@ -3603,8 +3589,6 @@ type TypeSymbol =
             | NativeInt
             | NativeUInt
             | BaseObject
-            | BaseStruct
-            | BaseStructEnum
             | Unit
             | Int8
             | UInt8
@@ -4573,8 +4557,6 @@ module OtherExtensions =
             | AttributeSymbol.Intrinsic("by_ref_read_write") -> Types.ByRef |> ValueSome
             | AttributeSymbol.Intrinsic("by_ref_read") -> Types.InRef |> ValueSome
             | AttributeSymbol.Intrinsic("base_object") -> TypeSymbol.BaseObject |> ValueSome
-            | AttributeSymbol.Intrinsic("base_struct") -> TypeSymbol.BaseStruct |> ValueSome
-            | AttributeSymbol.Intrinsic("base_struct_enum") -> TypeSymbol.BaseStructEnum |> ValueSome
             | _ -> ValueNone
 
     type IEntitySymbol with

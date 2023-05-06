@@ -1707,12 +1707,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     interface IOlyRuntimeEmitter<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo> with
 
-        member this.EmitTypeBaseStructEnum() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceEnum, false, false)
-
-        member this.EmitTypeBaseStruct() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceValueType, false, false)
-
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
 

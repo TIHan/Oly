@@ -11,6 +11,7 @@ open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SemanticDiagnostics
+open Oly.Compiler.Internal.SymbolEnvironments
 
 let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
@@ -577,7 +578,11 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
 
 and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (boundExpr: BoundExpression) =
     let ty = boundExpr.Type
-    if expectedTy.IsSolved && ty.IsSolved && not expectedTy.IsError_t && not ty.IsError_t && subsumesType expectedTy ty then
+    if expectedTy.IsSolved && 
+       ty.IsSolved && 
+       not expectedTy.IsError_t && 
+       not ty.IsError_t && 
+       subsumesType expectedTy ty then
         let expectedTyArgs = expectedTy.TypeArguments
         let tyArgs =
             if areTypesEqual expectedTy ty then

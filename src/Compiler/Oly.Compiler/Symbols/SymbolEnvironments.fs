@@ -342,3 +342,4 @@ let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSym
         |> ValueOption.defaultValue false
     | _ ->
         false
+            

@@ -23,8 +23,6 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeArray          : elementTy: 'Type * rank: int * kind: OlyIRArrayKind -> 'Type
     abstract EmitTypeByRef          : elementTy: 'Type * kind: OlyIRByRefKind -> 'Type
     abstract EmitTypeBaseObject     : unit -> 'Type
-    abstract EmitTypeBaseStruct     : unit -> 'Type
-    abstract EmitTypeBaseStructEnum : unit -> 'Type
     abstract EmitTypeVoid           : unit -> 'Type
     abstract EmitTypeUnit           : unit -> 'Type
     abstract EmitTypeInt8           : unit -> 'Type

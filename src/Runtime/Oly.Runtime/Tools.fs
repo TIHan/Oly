@@ -51,9 +51,7 @@ type DummyEmitter(onEmitBody) =
             formalFunc
 
         member this.EmitTypeArray(elementTy, rank, kind) = DummyType("array")
-        member this.EmitTypeBaseStructEnum() = DummyType("base_struct_enum")
         member this.EmitTypeBaseObject() = DummyType("base_object")
-        member this.EmitTypeBaseStruct() = DummyType("base_struct")
         member this.EmitTypeBool() = DummyType("bool")
         member this.EmitTypeByRef(arg1, arg2) = DummyType("by_ref")
         member this.EmitTypeChar16() = DummyType("char16")

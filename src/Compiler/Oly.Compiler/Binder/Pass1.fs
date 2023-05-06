@@ -62,6 +62,22 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
+        let ent = entBuilder.Entity
+
+        //let extends =
+        //    if ent.IsAlias then
+        //        ImArray.empty
+        //    elif ent.IsClass then
+        //        // DEFAULT
+        //        ImArray.createOne TypeSymbol.BaseObject
+        //    elif ent.IsAnyStruct then
+        //        // DEFAULT
+        //        ImArray.createOne TypeSymbol.BaseObject
+        //    else
+        //        ImArray.empty
+
+        //entBuilder.SetExtends(cenv.pass, extends)
+
         env
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, _, syntaxExpr) ->
@@ -90,6 +106,12 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
                     ImArray.createOne(TypeSymbolError), implements
                 else
                     extends, implements
+            //elif ent.IsClass && extends.IsEmpty then
+            //    // DEFAULT
+            //    ImArray.createOne TypeSymbol.BaseObject, implements
+            //elif ent.IsAnyStruct && extends.IsEmpty then
+            //    // DEFAULT
+            //    ImArray.createOne TypeSymbol.BaseObject, implements
             else
                 extends, implements
 

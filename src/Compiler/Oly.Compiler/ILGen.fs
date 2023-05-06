@@ -331,10 +331,6 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeDependentIndexer(emitILType cenv env inputValueTy, emitILType cenv env innerTy)
     | TypeSymbol.BaseObject ->
         OlyILTypeBaseObject
-    | TypeSymbol.BaseStruct ->
-        OlyILTypeBaseStruct
-    | TypeSymbol.BaseStructEnum ->
-        OlyILTypeBaseStructEnum
     | TypeSymbol.Unit ->
         if canEmitVoidForUnit then
             OlyILTypeVoid

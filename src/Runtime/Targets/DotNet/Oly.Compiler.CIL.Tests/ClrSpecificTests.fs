@@ -3424,9 +3424,6 @@ alias inref<T>
 #[intrinsic("native_ptr")]
 alias (*)<T>
 
-#[intrinsic("base_struct_enum")]
-alias base_struct_enum
-
 // Cast Operations
 
 

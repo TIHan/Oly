@@ -106,8 +106,6 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
     let res =
         match ty1, ty2 with
         | TypeSymbol.BaseObject, TypeSymbol.BaseObject
-        | TypeSymbol.BaseStruct, TypeSymbol.BaseStruct
-        | TypeSymbol.BaseStructEnum, TypeSymbol.BaseStructEnum
         | TypeSymbol.Unit, TypeSymbol.Unit
         | TypeSymbol.Void, TypeSymbol.Void
         | TypeSymbol.Int8, TypeSymbol.Int8
@@ -1025,26 +1023,6 @@ type IValueSymbol with
         | _ ->
             failwith "Invalid value symbol."
 
-module private TypeSymbolStaticData =
-
-    let ImplicitBaseTypes_AnyStruct =
-        seq {
-            yield TypeSymbol.BaseStruct
-            yield TypeSymbol.BaseObject
-        }
-
-    let ImplicitBaseTypes_Enum_AnyStruct =
-        seq {
-            yield TypeSymbol.BaseStruct
-            yield TypeSymbol.BaseStructEnum
-            yield TypeSymbol.BaseObject
-        }
-
-    let ImplicitBaseTypes_Object =
-        seq {
-            yield TypeSymbol.BaseObject
-        }
-
 type TypeSymbol with
 
         static member Distinct(tys: TypeSymbol seq) =
@@ -1079,44 +1057,11 @@ type TypeSymbol with
             | TypeSymbol.BaseObject -> true
             | _ -> false
 
-        member this.IsBaseStruct_t =
-            match stripTypeEquationsAndBuiltIn this with
-            | TypeSymbol.BaseStruct -> true
-            | _ -> false
-
-        member this.IsBaseStructEnum_t =
-            match stripTypeEquationsAndBuiltIn this with
-            | TypeSymbol.BaseStructEnum -> true
-            | _ -> false
-
-        member this.IsImplicitBaseType =
-            match stripTypeEquationsAndBuiltIn this with
-            | TypeSymbol.BaseObject
-            | TypeSymbol.BaseStruct
-            | TypeSymbol.BaseStructEnum -> true
-            | _ -> false
-
-        member this.ImplicitBaseTypes =
-            let ty = stripTypeEquationsAndBuiltIn this
-            OlyAssert.False(ty.IsAlias)
-            if ty.IsError_t || ty.TryTypeParameter.IsSome || ty.IsTypeExtension || ty.IsShape || ty.IsBaseObject_t then
-                Seq.empty
-            else
-                if ty.IsEnum && this.IsAnyStruct && not(this.IsBaseStructEnum_t) then
-                    TypeSymbolStaticData.ImplicitBaseTypes_Enum_AnyStruct
-                elif ty.IsAnyStruct && not(this.IsBaseStruct_t) then
-                    TypeSymbolStaticData.ImplicitBaseTypes_AnyStruct
-                else
-                    TypeSymbolStaticData.ImplicitBaseTypes_Object
-
         member this.AllLogicalInheritsAndImplements: _ imarray =
             let ty = stripTypeEquationsAndBuiltIn this
             match ty.TryEntity with
             | ValueSome ent -> ent.AllLogicalInheritsAndImplements
             | _ ->
-                let result =
-                    ty.ImplicitBaseTypes
-                    |> ImArray.ofSeq
                 match ty.TryTypeParameter with
                 | ValueSome tyPar ->
                     tyPar.Constraints
@@ -1126,11 +1071,10 @@ type TypeSymbol with
                         | _ ->
                             None
                     )
-                    |> Seq.append result
                     |> TypeSymbol.Distinct
                     |> ImArray.ofSeq
                 | _ ->
-                    result
+                    ImArray.empty
 
         member this.AllLogicalImplements =
             match this.TryEntity with
@@ -1142,8 +1086,7 @@ type TypeSymbol with
             match this.TryEntity with
             | ValueSome ent -> ent.AllLogicalInherits
             // TODO: type parameters?
-            | _ -> this.ImplicitBaseTypes
-                   |> ImArray.ofSeq
+            | _ -> ImArray.empty
 
         member this.AllInherits =
             match this.TryEntity with
@@ -1253,11 +1196,7 @@ type IEntitySymbol with
 
     member this.ImplementsInterfaces =
         this.Implements
-        |> filterTypesAsInterfaces 
-
-    member this.ImplicitBaseTypes =
-        if this.IsNamespace then Seq.empty
-        else this.AsType.ImplicitBaseTypes
+        |> filterTypesAsInterfaces
 
     member this.AllLogicalImplements: TypeSymbol imarray =
         let results =
@@ -1295,8 +1234,6 @@ type IEntitySymbol with
                         yield inheritTy
                         yield! inheritTy.AllLogicalInherits
                 }
-
-        let results = Seq.append results this.ImplicitBaseTypes
 
         TypeSymbol.Distinct(results) |> ImArray.ofSeq
     
@@ -1350,8 +1287,6 @@ type IEntitySymbol with
             for implementTy in this.Implements do
                 builder.Add(implementTy)
                 builder.AddRange(implementTy.AllLogicalInheritsAndImplements)
-
-        builder.AddRange(this.ImplicitBaseTypes)
 
         TypeSymbol.Distinct(builder) |> ImArray.ofSeq
 
@@ -1410,8 +1345,6 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     else
         match stripTypeEquationsAndBuiltIn ty, stripTypeEquationsAndBuiltIn superTy with
         | _, TypeSymbol.BaseObject -> true
-        | ty, TypeSymbol.BaseStruct -> ty.IsAnyStruct
-        | ty, TypeSymbol.BaseStructEnum -> ty.IsAnyStruct && ty.IsEnum
         | TypeSymbol.Variable(tyPar), superTy
         | TypeSymbol.HigherVariable(tyPar, _), superTy ->
             (false, tyPar.Constraints)

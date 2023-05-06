@@ -13439,7 +13439,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Vector3
+class Vector3
 
 #[open]
 extension ObjectExt =
@@ -13549,87 +13549,6 @@ main() : () =
     Oly src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "test"
-    |> ignore
-
-[<Fact>]
-let ``Extension on object should work 5``() =
-    let src =
-        """
-#[intrinsic("base_object")]
-alias object
-
-#[intrinsic("base_struct")]
-alias Struct
-
-#[intrinsic("print")]
-print(object): ()
-
-struct Vector3
-
-struct Matrix
-
-#[open]
-extension Ops2 =
-    inherits Struct
-    
-    // This should take precedent as 'Struct' is more specific than 'object'.
-    static op_Multiply(x: Matrix, y: Vector3): Matrix = 
-        print("success")
-        default
-
-#[open]
-extension Ops =
-    inherits object
-    
-    static op_Multiply(x: Matrix, y: Vector3): Matrix = 
-        print("failed")
-        default
-
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
-    W.op_Multiply(x, y)
-
-main() : () =
-    let result = multiply<Matrix, Vector3, Matrix, Vector3>(default, default)
-        """
-    Oly src
-    |> shouldCompile
-    |> shouldRunWithExpectedOutput "success"
-    |> ignore
-
-[<Fact>]
-let ``Extension on object should work 6``() =
-    let src =
-        """
-#[intrinsic("base_object")]
-alias object
-
-#[intrinsic("base_struct")]
-alias Struct
-
-#[intrinsic("print")]
-print(object): ()
-
-struct Vector3
-
-struct Matrix
-
-#[open]
-extension Vector3Ext =
-    inherits object
-    
-    static op_Multiply(x: Matrix, y: Vector3): Matrix = default
-
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
-    W.op_Multiply(x, y)
-
-main() : () =
-    let f(x, y) = multiply<_, _, _, object>(x, y)
-    let result = f(Matrix(), Vector3())
-    print("success")
-        """
-    Oly src
-    |> shouldCompile
-    |> shouldRunWithExpectedOutput "success"
     |> ignore
 
 [<Fact>]

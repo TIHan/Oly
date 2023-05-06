@@ -868,8 +868,6 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeUnit -> TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty)
     | OlyILType.OlyILTypeVoid -> TypeSymbol.Unit
     | OlyILType.OlyILTypeBaseObject -> TypeSymbol.BaseObject
-    | OlyILType.OlyILTypeBaseStruct -> TypeSymbol.BaseStruct
-    | OlyILType.OlyILTypeBaseStructEnum -> TypeSymbol.BaseStructEnum
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadWrite) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadWrite)
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.Read) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.Read)
     | OlyILType.OlyILTypeRefCell(ilElementTy) -> TypeSymbol.RefCell(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy)

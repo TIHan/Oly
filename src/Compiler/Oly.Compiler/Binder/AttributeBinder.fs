@@ -363,10 +363,6 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
                     Some TypeSymbol.Utf16
                 | "base_object" ->
                     Some TypeSymbol.BaseObject
-                | "base_struct" ->
-                    Some TypeSymbol.BaseStruct
-                | "base_struct_enum" ->
-                    Some TypeSymbol.BaseStructEnum
                 | "void" ->
                     Some TypeSymbol.Void
                 | _ ->

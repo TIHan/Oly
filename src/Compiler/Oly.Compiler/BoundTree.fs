@@ -957,32 +957,13 @@ module EntitySymbolExtensions =
 
     type IEntitySymbol with
 
-        /// If extends is empty, it will include built-in base types.
-        /// This is mainly used for member lookups.
-        member this.ExtendsForMemberLookup =
-            let extends = this.Extends
-
-            // TODO: There are more cases to handle. What if the entity is a base struct?
-            //       Then we would need to include a base object as its extends.
-            if extends.IsEmpty && not(this.IsIntrinsic) then
-                if this.IsEnum then
-                    ImArray.createOne TypeSymbol.BaseStructEnum
-                elif this.IsAnyStruct then
-                    ImArray.createOne TypeSymbol.BaseStruct
-                elif this.IsClass || this.IsInterface then
-                    ImArray.createOne TypeSymbol.BaseObject
-                else
-                    extends
-            else
-                extends
-
         member this.ExtendsAndImplementsForMemberOverriding =
             if this.IsTypeExtension then
                 this.Implements
             elif this.IsInterface then
                 this.Extends
             else
-                this.ExtendsForMemberLookup.AddRange(this.Implements)
+                this.Extends.AddRange(this.Implements)
 
 let findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
     match benv.TryFindIntrinsicTypeByAliasType(ty) with
@@ -1134,7 +1115,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
-        let extends = ent.ExtendsForMemberLookup
+        let extends = ent.Extends
         extends
         |> Seq.map (fun x ->
             findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x         

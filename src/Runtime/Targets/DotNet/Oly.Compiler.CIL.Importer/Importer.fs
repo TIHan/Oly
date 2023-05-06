@@ -1029,12 +1029,6 @@ module internal rec Helpers =
                 | "UIntPtr" ->
                     (OlyILAttribute.Intrinsic(olyAsm.AddString "native_uint"), OlyILTypeNativeUInt)
                     |> ValueSome
-                | "ValueType" ->
-                    (OlyILAttribute.Intrinsic(olyAsm.AddString "base_struct"), OlyILTypeBaseStruct)
-                    |> ValueSome
-                | "Enum" ->
-                    (OlyILAttribute.Intrinsic(olyAsm.AddString "base_struct_enum"), OlyILTypeBaseStructEnum)
-                    |> ValueSome
                 | _ ->
                     ValueNone
             else

@@ -1605,12 +1605,6 @@ type InterpreterRuntimeEmitter() =
 
     interface IOlyRuntimeEmitter<InterpreterType, InterpreterFunction, InterpreterField> with
 
-        member this.EmitTypeBaseStructEnum() = 
-            InterpreterType.BaseStructEnum
-
-        member this.EmitTypeBaseStruct() = 
-            InterpreterType.BaseStruct
-
         member this.EmitFunctionInstance(_, func: InterpreterFunction, tyArgs: _): InterpreterFunction = 
             raise(System.NotSupportedException())
 

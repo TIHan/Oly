@@ -2186,8 +2186,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | RuntimeType.Void -> this.TypeVoid.Value
             | RuntimeType.Unit -> this.TypeUnit.Value
             | RuntimeType.BaseObject -> this.TypeBaseObject.Value
-            | RuntimeType.BaseStruct -> this.TypeBaseStruct.Value
-            | RuntimeType.BaseStructEnum -> this.TypeBaseStructEnum.Value
             | RuntimeType.Tuple(tyArgs, names) ->
                 this.Emitter.EmitTypeTuple(tyArgs |> ImArray.map (emitType false), names)
             | RuntimeType.NativePtr(elementTy) ->
@@ -2568,8 +2566,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member val TypeNativeInt: _ Lazy  =  lazy emitter.EmitTypeNativeInt()
     member val TypeNativeUInt: _ Lazy  = lazy emitter.EmitTypeNativeUInt()
     member val TypeBaseObject: _ Lazy  = lazy emitter.EmitTypeBaseObject()
-    member val TypeBaseStruct: _ Lazy  = lazy emitter.EmitTypeBaseStruct()
-    member val TypeBaseStructEnum: _ Lazy  = lazy emitter.EmitTypeBaseStructEnum()
 
     member internal this.Assemblies: ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
 
@@ -3172,11 +3168,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             ImArray.createOne RuntimeType.BaseObject
                         elif ent.IsEnum then
                             if ent.IsAnyStruct then
-                                ImArray.createOne RuntimeType.BaseStructEnum
+                                ImArray.empty
                             else
                                 raise(NotSupportedException("Enum non-struct runtime type."))
                         elif ent.IsAnyStruct then
-                            ImArray.createOne RuntimeType.BaseStruct
+                            ImArray.empty
                         else
                             extends
                     else
@@ -3306,8 +3302,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 RuntimeType.ConstantInt32(value)
 
             | OlyILTypeBaseObject -> RuntimeType.BaseObject
-            | OlyILTypeBaseStruct -> RuntimeType.BaseStruct
-            | OlyILTypeBaseStructEnum -> RuntimeType.BaseStructEnum
             | OlyILTypeUInt8 -> RuntimeType.UInt8
             | OlyILTypeInt8 -> RuntimeType.Int8
             | OlyILTypeUInt16 -> RuntimeType.UInt16

@@ -1271,14 +1271,11 @@ alias int32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("base_struct_enum")]
-alias BaseStructEnum
-
 #[intrinsic("equal")]
 (==)(int32, int32): bool
 
 #[intrinsic("equal")]
-(==)<T>(T, T): bool where T: BaseStructEnum
+(==)<T>(T, T): bool where T: struct
 
 (==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
 
