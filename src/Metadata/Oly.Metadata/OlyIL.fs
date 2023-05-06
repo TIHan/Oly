@@ -1400,34 +1400,6 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
     member this.GetAssemblyIdentity(ilEntInst: OlyILEntityInstance) =
         ilAsm.GetAssemblyIdentity(ilEntInst)
 
-                //let rec loop enclosing : string imarray =
-                //    match enclosing with
-                //    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-                //        (loop ent.Enclosing).Add(ent.Name)
-                //    | EnclosingSymbol.Entity(ent) ->
-                //        let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
-                //        let name =
-                //            if ilTyParCount = 0 then
-                //                ent.Name
-                //            else
-                //                ent.Name + "````" + ilTyParCount.ToString()                               
-                //        (loop ent.Enclosing).Add(name).Add("::")
-                //    | _ ->
-                //        ImArray.empty
-
-                //if this.IsNamespace then
-                //    (loop this.Enclosing).Add(this.Name)
-                //    |> String.concat "."
-                //else
-                //    let ilTyParCount = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length
-                //    let name =
-                //        if ilTyParCount = 0 then
-                //            this.Name
-                //        else
-                //            this.Name + "````" + ilTyParCount.ToString()  
-                //    (loop this.Enclosing).Add(name)
-                //    |> String.concat "."
-
     member private this.GetQualifiedNameForDefinition(ilEntDefHandle: OlyILEntityDefinitionHandle, builder: System.Text.StringBuilder) =
         let ilEntDef = this.GetEntityDefinition(ilEntDefHandle)
         let ilTyParCount = ilEntDef.TypeParameters.Length
