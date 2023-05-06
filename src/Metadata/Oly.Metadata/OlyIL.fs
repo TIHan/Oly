@@ -1400,6 +1400,99 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
     member this.GetAssemblyIdentity(ilEntInst: OlyILEntityInstance) =
         ilAsm.GetAssemblyIdentity(ilEntInst)
 
+                //let rec loop enclosing : string imarray =
+                //    match enclosing with
+                //    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
+                //        (loop ent.Enclosing).Add(ent.Name)
+                //    | EnclosingSymbol.Entity(ent) ->
+                //        let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
+                //        let name =
+                //            if ilTyParCount = 0 then
+                //                ent.Name
+                //            else
+                //                ent.Name + "````" + ilTyParCount.ToString()                               
+                //        (loop ent.Enclosing).Add(name).Add("::")
+                //    | _ ->
+                //        ImArray.empty
+
+                //if this.IsNamespace then
+                //    (loop this.Enclosing).Add(this.Name)
+                //    |> String.concat "."
+                //else
+                //    let ilTyParCount = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length
+                //    let name =
+                //        if ilTyParCount = 0 then
+                //            this.Name
+                //        else
+                //            this.Name + "````" + ilTyParCount.ToString()  
+                //    (loop this.Enclosing).Add(name)
+                //    |> String.concat "."
+
+    member private this.GetQualifiedNameForDefinition(ilEntDefHandle: OlyILEntityDefinitionHandle, builder: System.Text.StringBuilder) =
+        let ilEntDef = this.GetEntityDefinition(ilEntDefHandle)
+        let ilTyParCount = ilEntDef.TypeParameters.Length
+        match ilEntDef.Enclosing with
+        | OlyILEnclosing.Witness _ ->
+            OlyAssert.Fail("Invalid IL.")
+
+        | OlyILEnclosing.Namespace(path, _) ->
+            path
+            |> ImArray.iteri (fun i x ->
+                builder.Append(this.GetStringOrEmpty(x)) |> ignore
+                if i <> (path.Length - 1) then
+                    builder.Append(".") |> ignore
+            )
+            builder.Append("::") |> ignore
+
+        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
+            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
+
+        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
+            OlyAssert.Fail("Invalid IL.")
+                
+        builder.Append("::") |> ignore
+        builder.Append(this.GetStringOrEmpty(ilEntDef.NameHandle)) |> ignore
+        if ilTyParCount > 0 then
+            builder.Append("````" + ilTyParCount.ToString()) |> ignore
+
+    member private this.GetQualifiedNameForReference(ilEntRefHandle: OlyILEntityReferenceHandle, builder: System.Text.StringBuilder) =
+        let ilEntRef = this.GetEntityReference(ilEntRefHandle)
+        let ilTyParCount = ilEntRef.TypeParameterCount
+        match ilEntRef.Enclosing with
+        | OlyILEnclosing.Witness _ ->
+            OlyAssert.Fail("Invalid IL.")
+
+        | OlyILEnclosing.Namespace(path, _) ->
+            path
+            |> ImArray.iteri (fun i x ->
+                builder.Append(this.GetStringOrEmpty(x)) |> ignore
+                if i <> (path.Length - 1) then
+                    builder.Append(".") |> ignore
+            )
+            builder.Append("::") |> ignore
+
+        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
+            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
+
+        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
+            OlyAssert.Fail("Invalid IL.")
+                
+        builder.Append("::") |> ignore
+        builder.Append(this.GetStringOrEmpty(ilEntRef.NameHandle)) |> ignore
+        if ilTyParCount > 0 then
+            builder.Append("````" + ilTyParCount.ToString()) |> ignore
+
+    member private this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, builder: System.Text.StringBuilder) =
+        if ilEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
+            this.GetQualifiedNameForReference(ilEntDefOrRefHandle, builder)
+        else
+            this.GetQualifiedNameForDefinition(ilEntDefOrRefHandle, builder)
+
+    member this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
+        let builder = System.Text.StringBuilder()
+        this.GetQualifiedName(ilEntDefOrRefHandle, builder)
+        builder.ToString()
+
 type OlyILAssembly with
 
     member this.ToReadOnly() =

@@ -18,7 +18,7 @@ type EntitySymbolBuilder private (
                                  extendsHole: Ref<imarray<TypeSymbol>>,
                                  implementsHole: Ref<imarray<TypeSymbol>>,
                                  runtimeTyOptHole: Ref<option<TypeSymbol>>,
-                                 entsHole: Ref<imarray<IEntitySymbol>>) =
+                                 entsHole: ResizeArray<IEntitySymbol>) =
 
     let mutable bindings: (BindingInfoSymbol * bool) imarray = bindings
     let mutable ents: EntitySymbolBuilder imarray = ents
@@ -100,7 +100,10 @@ type EntitySymbolBuilder private (
         match pass with
         | Pass0 ->
             ents <- entsToSet 
-            entsHole.contents <- entsToSet |> ImArray.map (fun x -> x.Entity)
+            ent.ClearEntities(pass)
+            entsHole.Clear()
+            entsToSet
+            |> ImArray.iter (fun x -> entsHole.Add(x.Entity))
         | _ ->
             failwith "Invalid pass."
 
@@ -123,7 +126,7 @@ type EntitySymbolBuilder private (
 
     member _.NamespaceAddEntity(entToAdd: IEntitySymbol) =
         if ent.IsNamespace then
-            entsHole.contents <- entsHole.contents.Add(entToAdd)
+            entsHole.Add(entToAdd)
         else
             failwith "Expected namespace."
 
@@ -137,7 +140,7 @@ type EntitySymbolBuilder private (
         let tyParsHole = ref ImArray.empty
         let extendsHole = ref ImArray.empty
         let implementsHole = ref ImArray.empty
-        let entsHole = ref ImArray.empty
+        let entsHole = ResizeArray()
         let runtimeTyOptHole = ref None
 
         let ent = EntitySymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)

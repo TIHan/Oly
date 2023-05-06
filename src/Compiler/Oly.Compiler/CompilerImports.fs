@@ -696,11 +696,6 @@ type Imports =
                         | true, ent -> ent
                         | _ -> 
                             this.sharedCache.AddEntity(ent)
-                            let funcs = ent.Functions
-                            funcs
-                            |> ImArray.iter (fun x ->
-                                System.Diagnostics.Debug.WriteLine(x.Name)
-                            )
                             ent
                     | _ ->
                         this.sharedCache.AddEntity(ent)

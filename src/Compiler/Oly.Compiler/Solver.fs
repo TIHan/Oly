@@ -324,7 +324,7 @@ and solveConstraintStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSy
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
-        |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
+        |> ImArray.exists (function ConstraintSymbol.Struct | ConstraintSymbol.Unmanaged -> true | _ -> false)
 
     | tyArg ->
         tyArg.IsAnyStruct

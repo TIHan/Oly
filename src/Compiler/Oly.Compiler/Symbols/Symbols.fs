@@ -189,7 +189,7 @@ type IEntitySymbol =
     abstract Flags : EntityFlags
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: _ imarray ref) =
+type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<IEntitySymbol>) =
     
     let id = newId()
 
@@ -210,6 +210,8 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
                         EntityFlags.None
                 computedFlags ||| flags
 
+    let mutable ents = ImArray.empty
+
     member _.DebugName: string = name
 
     member _.Id = id
@@ -228,8 +230,18 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
         funcs.contents
         |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
 
+    // Mutability
+    member _.ClearEntities(pass: CompilerPass) =
+        if pass <> CompilerPass.Pass0 then
+            OlyAssert.Fail($"ClearEntities - Invalid Pass {pass}")
+        ents <- ImArray.empty
+
     interface IEntitySymbol with
-        member _.Entities = entsHole.contents
+        member _.Entities = 
+            if ents.Length <> entsHole.Count then
+                ents <- entsHole |> ImArray.ofSeq
+            ents
+
         member _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
         member _.InstanceConstructors =
             funcs.contents
