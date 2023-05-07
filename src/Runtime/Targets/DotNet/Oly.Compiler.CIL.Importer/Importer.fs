@@ -1025,11 +1025,17 @@ module internal rec Helpers =
 
         let olyEntKind =
             if isStruct then
-                OlyILEntityKind.Struct
+                if path.Length = 1 && path[0] = "System" && name = "Enum" then
+                    OlyILEntityKind.Class
+                else
+                    OlyILEntityKind.Struct
             elif isInterface then
                 OlyILEntityKind.Interface
             elif isEnum then
-                OlyILEntityKind.Enum
+                if path.Length = 1 && path[0] = "System" && name = "Enum" then
+                    OlyILEntityKind.Class
+                else
+                    OlyILEntityKind.Enum
             else
                 OlyILEntityKind.Class // TODO:
 

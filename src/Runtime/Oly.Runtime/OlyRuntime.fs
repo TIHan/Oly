@@ -1387,9 +1387,14 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                 let resultTy = cenv.EmitType(expectedArgTy)
                 E.Operation(NoRange, O.Witness(irArg, witnessUpcastedTy, resultTy))
             | _ ->
-                irArg
-                // TODO: Add this check.
-                //failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                // We could not prove the types match, but we expected a non-struct
+                // and we have a struct, then always box.
+                if argTy.IsAnyStruct && not expectedArgTy.IsAnyStruct then
+                    E.Operation(NoRange, O.Box(irArg, cenv.EmitType(expectedArgTy)))
+                else
+                    irArg
+                    // TODO: Add this check.
+                    //failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
 
 // TODO: We should try to replace 'importArgumentExpression' with just 'importExpression'.
 let importArgumentExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedArgTy: RuntimeType) (ilArg: OlyILExpression) =

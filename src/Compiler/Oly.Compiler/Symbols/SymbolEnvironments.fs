@@ -346,4 +346,16 @@ let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSym
         |> ValueOption.defaultValue false
     | _ ->
         false
+
+let subsumesTypeInEnvironment (benv: BoundEnvironment) (superTy: TypeSymbol) (ty: TypeSymbol) =
+    if subsumesType superTy ty then
+        true
+    elif ty.IsBuiltIn then
+        match benv.TryFindEntityByIntrinsicType(ty) with
+        | ValueSome(ent) ->
+            subsumesType superTy ent.AsType
+        | _ ->
+            false
+    else
+        false
             

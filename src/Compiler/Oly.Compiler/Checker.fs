@@ -578,11 +578,12 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
 
 and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (boundExpr: BoundExpression) =
     let ty = boundExpr.Type
+
     if expectedTy.IsSolved && 
        ty.IsSolved && 
        not expectedTy.IsError_t && 
        not ty.IsError_t && 
-       subsumesType expectedTy ty then
+       subsumesTypeInEnvironment env.benv expectedTy ty then
         let expectedTyArgs = expectedTy.TypeArguments
         let tyArgs =
             if areTypesEqual expectedTy ty then
