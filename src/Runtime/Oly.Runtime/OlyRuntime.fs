@@ -1304,9 +1304,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let (irExpr, actualTy) as result = 
 #if DEBUG
-       // DebugStackGuard.Do(fun () ->
+        DebugStackGuard.Do(fun () ->
             importExpressionAux cenv env expectedTyOpt ilExpr
-      //  )
+        )
 #else
         importExpressionAux cenv env expectedTyOpt ilExpr
 #endif
