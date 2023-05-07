@@ -684,7 +684,7 @@ struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
     new(item: Hash<T>) = { item = item }
 
     #[not inline]
-    overrides GetValue(x: T): int32 =
+    GetValue(x: T): int32 =
         let h: IHash<T> = this.item
         h.GetValue(x)
 
