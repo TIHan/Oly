@@ -25,6 +25,14 @@ type OlyPackageInfo =
     member TextSpan: OlyTextSpan
 
 [<Sealed>]
+type OlyCopyFileInfo =
+
+    new : path: OlyPath * textSpan: OlyTextSpan -> OlyCopyFileInfo
+
+    member Path: OlyPath
+    member TextSpan: OlyTextSpan
+
+[<Sealed>]
 type OlyReferenceResolutionInfo =
 
     new : paths: OlyPath imarray * diags: OlyDiagnostic imarray -> OlyReferenceResolutionInfo 
@@ -137,6 +145,7 @@ type OlyProject =
     member References : OlyProjectReference imarray
     member TargetInfo : OlyTargetInfo
     member SharedBuild : OlyBuild
+    member CopyFileInfos: OlyCopyFileInfo imarray
 
     member TryGetDocument : documentPath: OlyPath -> OlyDocument option
     member GetDocumentsExcept : documentPath: OlyPath -> OlyDocument imarray
@@ -161,13 +170,15 @@ type OlySolution =
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
 
     member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
-    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
 
     member UpdateDocument : projectPath: OlyPath * documentPath: OlyPath * syntaxTree: OlySyntaxTree * extraDiagnostics: OlyDiagnostic imarray -> OlySolution * OlyProject * OlyDocument
 
     member RemoveDocument : projectPath: OlyPath * documentPath: OlyPath -> OlySolution
 
     member UpdateReferences : projectPath: OlyPath * projectReferences: OlyProjectReference imarray * ct: CancellationToken -> OlySolution * OlyProject
+
+    member GetTransitiveProjectReferencesFromProject: projectPath: OlyPath * ct: CancellationToken -> OlyProject imarray
 
 type IOlyWorkspaceResourceService =
 

@@ -47,6 +47,12 @@ type OlyPackageInfo(text: string, textSpan: OlyTextSpan) =
     member _.TextSpan = textSpan
 
 [<Sealed>]
+type OlyCopyFileInfo(path: OlyPath, textSpan: OlyTextSpan) =
+
+    member _.Path = path
+    member _.TextSpan = textSpan
+
+[<Sealed>]
 type OlyReferenceResolutionInfo(paths: OlyPath imarray, diags: OlyDiagnostic imarray) = 
 
     member _.Paths = paths
@@ -185,6 +191,7 @@ type OlyProject (
     documents: ImmutableDictionary<OlyPath, OlyDocument>, 
     references: OlyProjectReference imarray,
     packages: OlyPackageInfo imarray,
+    copyFileInfos: OlyCopyFileInfo imarray,
     platformName: string, 
     targetInfo: OlyTargetInfo) =
 
@@ -207,6 +214,7 @@ type OlyProject (
     member _.Path = projPath
     member _.Configuration = projConfig
     member _.Packages = packages
+    member _.CopyFileInfos = copyFileInfos
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation))
 
@@ -237,7 +245,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -257,7 +265,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -274,7 +282,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, projectReferences, packages, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -311,6 +319,31 @@ module WorkspaceHelpers =
                         | OlyProjectReference.Compilation(r, _) ->
                             if h.Add(r.Path.ToString()) then
                                 builder.Add(r)
+                )
+            loop false references
+            builder.ToImmutable()
+        transitiveReferences
+
+    let getTransitiveProjectReferences (solution: OlySolution) references (ct: CancellationToken) =
+        let transitiveReferences =
+            let h = HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            let builder = imarray.CreateBuilder()
+            let rec loop checkTransitive (references: OlyProjectReference imarray) =
+                references
+                |> ImArray.iter (fun r ->
+                    ct.ThrowIfCancellationRequested()
+                    if not(checkTransitive) || r.IsTransitive then
+                        match r with
+                        | OlyProjectReference.Project(projectId) ->
+                            if h.Add(projectId.ToString()) then
+                                match solution.TryGetProject projectId with
+                                | Some refProj -> 
+                                    builder.Add(refProj)
+                                    loop true refProj.References
+                                | _ -> 
+                                    OlyAssert.Fail("Unable to find project.")
+                        | OlyProjectReference.Compilation _ ->
+                            ()
                 )
             loop false references
             builder.ToImmutable()
@@ -365,6 +398,7 @@ module WorkspaceHelpers =
             (documents: OlyDocument imarray) 
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
+            (copyFiles: OlyCopyFileInfo imarray)
             platformName 
             (targetInfo: OlyTargetInfo)
             ct =
@@ -378,7 +412,7 @@ module WorkspaceHelpers =
             documents
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
             |> ImmutableDictionary.CreateRange
-        OlyProject(newSolution, projectId, projectName, projectConfig, compilation, documents, projectReferences, packages, platformName, targetInfo)   
+        OlyProject(newSolution, projectId, projectName, projectConfig, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
         let mutable project = project
@@ -389,7 +423,7 @@ module WorkspaceHelpers =
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
             )
             |> ImmutableDictionary.CreateRange
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, project.Compilation, newDocuments, project.References, project.Packages, project.PlatformName, project.TargetInfo)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, project.Compilation, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -466,19 +500,19 @@ type OlySolution (state: SolutionState) =
         )
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, ct: CancellationToken) =
+    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        let newProject = createProject newSolutionLazy this projectPath projectName projectConfig ImArray.empty ImArray.empty packages platformName targetInfo ct
+        let newProject = createProject newSolutionLazy this projectPath projectName projectConfig ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo ct
         newSolution <- this.InternalSetProject(newProject)
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
 
     member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ct: CancellationToken) =
-        this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ImArray.empty, ct)
+        this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
 
     member this.UpdateDocument(projectPath: OlyPath, documentPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
         let project = this.GetProject(projectPath)
@@ -533,6 +567,10 @@ type OlySolution (state: SolutionState) =
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
+
+    member this.GetTransitiveProjectReferencesFromProject(projectPath, ct) =
+        let project = this.GetProject(projectPath)
+        getTransitiveProjectReferences this project.References ct
 
 type IOlyWorkspaceResourceService =
 
@@ -811,6 +849,12 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyPackageInfo(text, textSpan)
                 )
 
+            let copyFileInfos =
+                config.CopyFiles
+                |> ImArray.map (fun (textSpan, path) ->
+                    OlyCopyFileInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
+                )
+
             let olyxReferenceInfos =
                 referenceInfos
                 |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
@@ -882,7 +926,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             | ex ->
                 diags.Add(OlyDiagnostic.CreateError(ex.Message))
 
-            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, packageInfos, ct)
+            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, packageInfos, copyFileInfos, ct)
 
             let loads = getSortedLoadsFromConfig state.rs absoluteDir config
 
@@ -927,6 +971,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let currentLoads =  currentConfig.Loads
                 let currentRefs = currentConfig.References
                 let currentPackages = currentConfig.Packages
+                let currentCopyFiles = currentConfig.CopyFiles
                 let currentTarget = currentConfig.Target
                 let currentIsLibrary = currentConfig.IsLibrary
 
@@ -934,6 +979,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let loads = config.Loads
                 let refs = config.References
                 let packages = config.Packages
+                let copyFiles = config.CopyFiles
                 let target = config.Target
                 let isLibrary = config.IsLibrary
 
@@ -941,7 +987,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let targetName = target |> Option.map snd |> Option.defaultValue ""
 
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
-                   targetName <> currentTargetName || currentIsLibrary <> isLibrary then
+                   copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
                     let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result
                 else
@@ -955,9 +1001,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let packagesAreSame =
                         (packages, currentPackages)
-                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> path1 = path2)
+                        ||> ImArray.forall2 (fun (_, text1) (_, text2) -> text1 = text2)
 
-                    if loadsAreSame && refsAreSame && packagesAreSame then
+                    let copyFilesAreSame =
+                        (copyFiles, currentCopyFiles)
+                        ||> ImArray.forall2 (fun (_, path1) (_, path2) -> OlyPath.Equals(path1, path2))
+
+                    if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame then
                         return None
                     else
                         let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
@@ -1056,13 +1106,15 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         }
 
     member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
-        // TODO: Build referenced projects even though compilation will do it, but we need
-        //       to build the projects independently so it can execute pre and post tasks.
         let solution = this.Solution
         backgroundTask {          
             let proj = solution.GetProject(projectPath)
             let target = proj.SharedBuild
-            return! target.BuildProjectAsync(proj, ct)
+            try
+                return! target.BuildProjectAsync(proj, ct)
+            with
+            | ex ->
+                return Error(ex.Message)
         }
 
     static member CreateCore(targetPlatforms: OlyBuild seq, rs: IOlyWorkspaceResourceService) =

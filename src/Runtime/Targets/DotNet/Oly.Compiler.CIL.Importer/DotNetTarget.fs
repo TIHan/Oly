@@ -134,48 +134,52 @@ static class Program
                     Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
                     //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
 
-                try Directory.Delete(publishDir) with | _ -> ()
+                let cleanup() =
+                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.deps.json")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.dll")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.exe")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.pdb")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, "FrameworkReferences.txt")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, "__oly_placeholder.csproj")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, "Program.cs")) with | _ -> ()
+                    try Directory.Delete(Path.Combine(dir.FullName, "obj"), true) with | _ -> ()
 
-                use p = new ExternalProcess("dotnet", "build -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
-                //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
-                let! _result = p.RunAsync(ct)
-                let refs =
-                    File.ReadAllText(Path.Combine(dir.FullName, "FrameworkReferences.txt")).Split("\n")
-                    |> ImArray.ofSeq
-                    |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
-                    |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
+                try
+                    try Directory.Delete(publishDir) with | _ -> ()
 
-                let depsJson = 
-                    try
-                        File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.deps.json"))
-                    with
-                    | _ -> ""
-                let runtimeconfigJson = 
-                    if isExe then
+                    use p = new ExternalProcess("dotnet", "build -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
+                    //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
+                    let! _result = p.RunAsync(ct)
+                    let refs =
+                        File.ReadAllText(Path.Combine(dir.FullName, "FrameworkReferences.txt")).Split("\n")
+                        |> ImArray.ofSeq
+                        |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
+                        |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
+
+                    let depsJson = 
                         try
-                            File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json"))
-                            |> Some
+                            File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.deps.json"))
                         with
-                        | _ -> None
-                    else
-                        None
+                        | _ -> ""
+                    let runtimeconfigJson = 
+                        if isExe then
+                            try
+                                File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json"))
+                                |> Some
+                            with
+                            | _ -> None
+                        else
+                            None
 
-                let refNames =
-                    refs
-                    |> Seq.map (fun x -> OlyPath.GetFileName(x))
-                    |> ImmutableHashSet.CreateRange
+                    let refNames =
+                        refs
+                        |> Seq.map (fun x -> OlyPath.GetFileName(x))
+                        |> ImmutableHashSet.CreateRange
 
-                try File.Delete(Path.Combine(publishDir, "__oly_placeholder.deps.json")) with | _ -> ()
-                try File.Delete(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json")) with | _ -> ()
-                try File.Delete(Path.Combine(publishDir, "__oly_placeholder.dll")) with | _ -> ()
-                try File.Delete(Path.Combine(publishDir, "__oly_placeholder.exe")) with | _ -> ()
-                try File.Delete(Path.Combine(publishDir, "__oly_placeholder.pdb")) with | _ -> ()
-                try File.Delete(Path.Combine(dir.FullName, "FrameworkReferences.txt")) with | _ -> ()
-                try File.Delete(Path.Combine(dir.FullName, "__oly_placeholder.csproj")) with | _ -> ()
-                try File.Delete(Path.Combine(dir.FullName, "Program.cs")) with | _ -> ()
-                try Directory.Delete(Path.Combine(dir.FullName, "obj"), true) with | _ -> ()
-
-                return { StubPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
+                    return { StubPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
+                finally
+                    cleanup()
             finally
                 ()
                 //try Directory.Delete(dir.FullName, true) with | _ -> ()
@@ -515,6 +519,27 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         let dirInfo = outputPath.ToDirectoryInfo()
         dirInfo.Create()
         let outputPath = outputPath.ToString()
+
+        let copyFilesFromProject (proj: OlyProject) =
+            proj.CopyFileInfos
+            |> ImArray.iter (fun info ->
+                let file = FileInfo(info.Path.ToString())
+                let destFile = FileInfo(Path.Combine(outputPath, OlyPath.GetFileName(info.Path)))
+
+                if destFile.Exists then
+                    if file.LastWriteTime > destFile.LastWriteTime then
+                        // now you can safely overwrite it
+                        file.CopyTo(destFile.FullName, true)
+                        |> ignore
+                else
+                    file.CopyTo(destFile.FullName, true)
+                    |> ignore
+            )
+
+        let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
+        transitiveRefProjs
+        |> ImArray.iter copyFilesFromProject
+        copyFilesFromProject proj
 
         if copyReferences then
             let deps = netInfo.DepsJson.Replace("__oly_placeholder/1.0.0", comp.AssemblyName + "/0.0.0").Replace("__oly_placeholder", comp.AssemblyName)

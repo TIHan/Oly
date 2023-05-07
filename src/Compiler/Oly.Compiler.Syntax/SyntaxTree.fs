@@ -379,6 +379,7 @@ type OlyCompilationUnitConfiguration =
         loads: (OlyTextSpan * OlyPath) imarray
         references: (OlyTextSpan * OlyPath) imarray
         packages: (OlyTextSpan * string) imarray
+        copyFiles: (OlyTextSpan * OlyPath) imarray
         directiveDiagnostics: OlyDiagnostic imarray
         isLibrary: bool
     }
@@ -390,6 +391,8 @@ type OlyCompilationUnitConfiguration =
     member this.Loads = this.loads
 
     member this.Packages = this.packages
+
+    member this.CopyFiles = this.copyFiles
 
     member this.IsLibrary = this.isLibrary
 
@@ -504,70 +507,43 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                 else
                     Some targets.[0]
 
-            let loads =
+            let getDirectiveValues directive =
                 directives
                 |> ImArray.choose(fun (startPos, endPos, rawToken) ->
                     match rawToken with
                     | Directive(_, identToken, _, valueToken) ->
                         let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        match identToken.Text with
-                        | "load" -> 
-                            checkConfigDirective textSpan
-                            Some(textSpan, OlyPath.Create(valueToken.ValueText))
-                        | _ -> 
-                            None
-                    | _ ->
-                        None
-                )
-
-            let references =
-                directives
-                |> ImArray.choose(fun (startPos, endPos, rawToken) ->
-                    match rawToken with
-                    | Directive(_, identToken, _, valueToken) ->
-                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        match identToken.Text with
-                        | "reference" -> 
-                            checkConfigDirective textSpan
-                            Some(textSpan, OlyPath.Create(valueToken.ValueText))
-                        | _ -> 
-                            None
-                    | _ ->
-                        None
-                )
-
-            let packages =
-                directives
-                |> ImArray.choose(fun (startPos, endPos, rawToken) ->
-                    match rawToken with
-                    | Directive(_, identToken, _, valueToken) ->
-                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        match identToken.Text with
-                        | "package" -> 
+                        if identToken.Text = directive then
                             checkConfigDirective textSpan
                             Some(textSpan, valueToken.ValueText)
-                        | _ -> 
+                        else
                             None
                     | _ ->
                         None
                 )
 
-            let isLibrary =
+            let directiveExists directive =
                 directives
                 |> ImArray.exists(fun (startPos, endPos, rawToken) ->
                     match rawToken with
                     | DirectiveFlag(_, identToken) ->
                         let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        match identToken.Text with
-                        | "library" -> 
+                        if identToken.Text = "library" then
                             checkConfigDirective textSpan
                             true
-                        | _ -> 
+                        else
                             false
                     | _ ->
                         false
                 )
 
+            let loads = getDirectiveValues "load" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
+            let references = getDirectiveValues "reference" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
+            let packages = getDirectiveValues "package"
+            let copyFiles = getDirectiveValues "copy" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
+            let isLibrary = directiveExists "library"
+
+            // Validate directives
             directives
             |> ImArray.iter(fun (startPos, endPos, rawToken) ->
                 match rawToken with
@@ -578,13 +554,14 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     | "target"
                     | "load"
                     | "package" -> ()
+                    | "copy" -> () // TODO:
                     | _ ->
                         diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", OlySourceLocation.Create(textSpan, this)))
                 | _ ->
                     ()
             )
 
-            { target = target; references = references; loads = loads; packages = packages; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
+            { target = target; references = references; loads = loads; packages = packages; copyFiles = copyFiles; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
         )
 
     abstract WithPath : OlyPath -> OlySyntaxTree
