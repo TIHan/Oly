@@ -364,7 +364,8 @@ module WorkspaceHelpers =
 
         let syntaxTrees = getSyntaxTrees documents
         let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
-        let compilation = OlyCompilation.Create(projectName, syntaxTrees, references = transitiveReferences, options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable })
+        let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let compilation = OlyCompilation.Create(projectName, syntaxTrees, references = transitiveReferences, options = options)
         let documents =
             documents
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))

@@ -24,6 +24,8 @@ type OlyCompilationOptions =
         Debuggable: bool
         Executable: bool
         Parallel: bool
+        ImplicitExtendsForStruct: string option
+        ImplicitExtendsForEnum: string option
     }
 
     static member Default =
@@ -31,6 +33,8 @@ type OlyCompilationOptions =
             Debuggable = false
             Executable = false
             Parallel = true
+            ImplicitExtendsForStruct = None
+            ImplicitExtendsForEnum = None
         }
 
 type private CompilationSignaturePass = (BinderPass4 * OlyDiagnostic imarray) imarray
@@ -253,7 +257,7 @@ type internal InitialState =
         env: BoundEnv
     }
 
-let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
+let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
     let sharedImportCache = SharedImportCache.Create()
     let imports = CompilerImports(sharedImportCache)
     let importer = imports.Importer
@@ -292,12 +296,37 @@ let private createInitialState isApp (ilAsmIdent: OlyILAssemblyIdentity) (compRe
         computePrologEnvironment
             imports
             importDiagnostics
-            { DefaultBinderEnvironment with isExecutable = isApp }
+            { DefaultBinderEnvironment with isExecutable = options.Executable }
             (BoundDeclarationTable())
             OpenContent.All
             ct
 
     let importDiags = importDiags.ToImmutable()
+
+    let implicitExtendsForStructOpt =
+        options.ImplicitExtendsForStruct
+        |> Option.bind (fun x ->
+            match imports.Importer.TryGetEntity(x) with
+            | true, ent -> Some ent.AsType
+            | _ -> None
+        )
+
+    let implicitExtendsForEnumOpt =
+        options.ImplicitExtendsForEnum
+        |> Option.bind (fun x ->
+            match imports.Importer.TryGetEntity(x) with
+            | true, ent -> Some ent.AsType
+            | _ -> None
+        )
+
+    let env =
+        { env with 
+            benv = 
+                { env.benv with 
+                    implicitExtendsForStruct = implicitExtendsForStructOpt
+                    implicitExtendsForEnum = implicitExtendsForEnumOpt 
+                }
+        }
 
     {
         sharedImportCache = sharedImportCache
@@ -600,7 +629,7 @@ type OlyCompilation private (state: CompilationState) =
                 else
                     // This will effectively rebuild everything. 
                     // Initial state must be re-computed which is expensive, but it is lazy (will not happen immediately here).
-                    setup state.options.Executable this.AssemblyIdentity references
+                    setup state.options this.AssemblyIdentity references
                 
             let state =
                 { state with
@@ -677,7 +706,7 @@ type OlyCompilation private (state: CompilationState) =
 
         let asm = AssemblySymbol.IL(OlyILAssemblyIdentity(assemblyName, "")) // TODO: Not deterministic, but we will fix it later.
 
-        let lazyInitialState = setup options.Executable asm.Identity references
+        let lazyInitialState = setup options asm.Identity references
                 
         let state =
             {

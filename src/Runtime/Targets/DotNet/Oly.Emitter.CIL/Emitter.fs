@@ -1915,8 +1915,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 (match enumRuntimeTyOpt with Some ty -> ty.IsStruct | _ -> false)
 
             let inherits =
-                if isEnum || isNewtype then ImArray.empty
-                else extends
+                if isNewtype then ImArray.empty
+                else 
+                    // If structs or enums extend an object, just use the proper type to inherit.
+                    // Struct -> System.ValueType
+                    // Enum -> System.Enum
+                    if isStruct && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
+                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceValueType, false, false))
+                    elif isEnum && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
+                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceEnum, false, false))
+                    else
+                        extends
 
             let isExported = flags.HasFlag(OlyIRTypeFlags.Exported)
 

@@ -68,9 +68,20 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         elif ent.IsClass && extends.IsEmpty then
             // DEFAULT
             ImArray.createOne TypeSymbol.BaseObject
+        elif ent.IsEnum && extends.IsEmpty then
+            // DEFAULT
+            match env.benv.implicitExtendsForEnum with
+            | Some(extendsTy) ->
+                ImArray.createOne extendsTy
+            | _ ->
+                ImArray.createOne TypeSymbol.BaseObject
         elif ent.IsAnyStruct && extends.IsEmpty then
             // DEFAULT
-            ImArray.createOne TypeSymbol.BaseObject
+            match env.benv.implicitExtendsForStruct with
+            | Some(extendsTy) ->
+                ImArray.createOne extendsTy
+            | _ ->
+                ImArray.createOne TypeSymbol.BaseObject
         else
             extends
 

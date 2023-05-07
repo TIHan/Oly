@@ -602,6 +602,8 @@ let createInitialBoundEnvironment () =
         openDeclsLookup = ImmutableHashSet.Empty    
         openDecls = ImArray.empty
         ac = { Entity = None }
+        implicitExtendsForStruct = None
+        implicitExtendsForEnum = None
     }
 
 let DefaultBinderEnvironment =

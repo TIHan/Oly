@@ -126,6 +126,8 @@ type BoundEnvironment =
         openDeclsLookup: ImmutableHashSet<IEntitySymbol>
         openDecls: IEntitySymbol imarray
         ac: AccessorContext
+        implicitExtendsForStruct: TypeSymbol option
+        implicitExtendsForEnum: TypeSymbol option
     }
 
     static member Empty =
@@ -157,6 +159,8 @@ type BoundEnvironment =
             openDeclsLookup = ImmutableHashSet.Empty
             openDecls = ImArray.empty
             ac = { Entity = None }
+            implicitExtendsForStruct = None
+            implicitExtendsForEnum = None
         }
 
     member this.AddOpenDeclaration(ent: IEntitySymbol) =
