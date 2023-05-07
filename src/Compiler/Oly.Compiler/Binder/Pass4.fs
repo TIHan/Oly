@@ -359,38 +359,6 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
             checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super boundExpr
         )
 
-        if ent.IsTypeExtension then
-            implements
-            |> ImArray.iter (fun implementsTy ->
-                if not implementsTy.IsInterface then
-                    cenv.diagnostics.Error(sprintf "Type extensions can only implement interfaces.", 10, syntaxIdent)
-            )
-        elif ent.IsAlias then
-            if implements.IsEmpty |> not then
-                cenv.diagnostics.Error(sprintf "Aliases cannot implement interfaces.", 10, syntaxIdent)
-        elif not ent.IsEnum && not ent.IsClass && not ent.IsNewtype then // TODO: This logic is a bit weird, we should look at this closely.
-            ent.Extends
-            |> ImArray.iter (fun ty ->
-                if ty.IsSealed then
-                    cenv.diagnostics.Error(sprintf "'%s' is not inheritable." ent.Name, 10, syntaxIdent)
-            )
-
-        let inheritCount = Seq.length ent.Extends
-        if ent.IsTypeExtension || ent.IsAlias || ent.IsNewtype then 
-            if inheritCount <> 1 then
-                cenv.diagnostics.Error(sprintf "Aliases, newtypes, and type extensions must inherit from a single type that will be extended.", 10, syntaxIdent)
-            else
-                ent.Extends
-                |> Seq.iter (fun ty ->
-                    if ty.IsShape then
-                        cenv.diagnostics.Error(sprintf "'%s' is not extendable through a type extension." (printType env.benv ty), 10, syntaxIdent)
-                )
-        else
-            if not ent.IsClass && inheritCount > 0 then
-                cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." syntaxIdent.ValueText syntaxIdent.ValueText, 10, syntaxIdent)
-            elif inheritCount > 1 then
-                cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxIdent)
-
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
 /// Pass 4 - Bind all implementations.
@@ -1656,7 +1624,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let implicitBaseCtorCallExprOpt =
             match syntaxConstructTy, env.isInInstanceConstructorType with
             | OlySyntaxConstructType.Anonymous _, Some(ty) ->
-                if not ty.Inherits.IsEmpty then
+                if not ty.Inherits.IsEmpty && not(ty.Inherits.Length = 1 && ty.Inherits[0].IsBaseObject_t) then
                     let implicitParameterlessBaseInstanceCtorOpt =
                         if env.implicitThisOpt.IsNone then
                             None

@@ -34,12 +34,12 @@ let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     bindConstraintClauseList cenv envBody syntaxConstrClauseList
 
-    bindTypeDeclarationBodyPass1 cenv envBody false entBuilder entBuilder.NestedEntityBuilders syntaxTyDefBody |> ignore
+    bindTypeDeclarationBodyPass1 cenv envBody syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyDefBody |> ignore
 
     scopeInEntityAndOverride env entBuilder.Entity
 
 /// Pass 1 - Get type inherits and implements.
-let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
     let env = setSkipCheckTypeConstructor env
 
     let envWithEnclosing = env.SetEnclosing(EnclosingSymbol.Entity(entBuilder.Entity)).SetEnclosingTypeParameters(entBuilder.Entity.TypeParameters)
@@ -56,27 +56,29 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
     )
     (**)
 
-    if entBuilder.Entity.IsEnum then
+    let ent = entBuilder.Entity
+
+    if ent.IsEnum then
         // Int32 is default for enum declarations.
         entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
 
+    let defaultExtends (extends: TypeSymbol imarray) =
+        if ent.IsAlias then
+            extends
+        elif ent.IsClass && extends.IsEmpty then
+            // DEFAULT
+            ImArray.createOne TypeSymbol.BaseObject
+        elif ent.IsAnyStruct && extends.IsEmpty then
+            // DEFAULT
+            ImArray.createOne TypeSymbol.BaseObject
+        else
+            extends
+
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
-        let ent = entBuilder.Entity
-
-        //let extends =
-        //    if ent.IsAlias then
-        //        ImArray.empty
-        //    elif ent.IsClass then
-        //        // DEFAULT
-        //        ImArray.createOne TypeSymbol.BaseObject
-        //    elif ent.IsAnyStruct then
-        //        // DEFAULT
-        //        ImArray.createOne TypeSymbol.BaseObject
-        //    else
-        //        ImArray.empty
-
-        //entBuilder.SetExtends(cenv.pass, extends)
+        let extends = defaultExtends ImArray.empty
+        if not extends.IsEmpty then
+            entBuilder.SetExtends(cenv.pass, extends)
 
         env
 
@@ -84,7 +86,37 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
         let extends = bindExtends cenv envWithEnclosing syntaxExtends
         let implements = bindImplements cenv envWithEnclosing syntaxImplements
 
-        let ent = entBuilder.Entity
+        if ent.IsTypeExtension then
+            implements
+            |> ImArray.iter (fun implementsTy ->
+                if not implementsTy.IsInterface then
+                    cenv.diagnostics.Error(sprintf "Type extensions can only implement interfaces.", 10, syntaxNode)
+            )
+        elif ent.IsAlias then
+            if implements.IsEmpty |> not then
+                cenv.diagnostics.Error(sprintf "Aliases cannot implement interfaces.", 10, syntaxNode)
+        elif not ent.IsEnum && not ent.IsClass && not ent.IsNewtype then // TODO: This logic is a bit weird, we should look at this closely.
+            ent.Extends
+            |> ImArray.iter (fun ty ->
+                if ty.IsSealed then
+                    cenv.diagnostics.Error(sprintf "'%s' is not inheritable." ent.Name, 10, syntaxNode)
+            )
+
+        let inheritCount = extends.Length
+        if ent.IsTypeExtension || ent.IsAlias then 
+            if inheritCount <> 1 then
+                cenv.diagnostics.Error(sprintf "Aliases, newtypes, and type extensions must inherit from a single type that will be extended.", 10, syntaxNode)
+            else
+                ent.Extends
+                |> Seq.iter (fun ty ->
+                    if ty.IsShape then
+                        cenv.diagnostics.Error(sprintf "'%s' is not extendable through a type extension." (printType env.benv ty), 10, syntaxNode)
+                )
+        elif not ent.IsInterface && not ent.IsNewtype then
+            if not ent.IsClass && inheritCount > 0 then
+                cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." ent.Name ent.Name, 10, syntaxNode)
+            elif inheritCount > 1 then
+                cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxNode)
 
         (* BEGIN NEWTYPE LOGIC *)
         let extends, implements =
@@ -106,13 +138,8 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) canOpen (
                     ImArray.createOne(TypeSymbolError), implements
                 else
                     extends, implements
-            //elif ent.IsClass && extends.IsEmpty then
-            //    // DEFAULT
-            //    ImArray.createOne TypeSymbol.BaseObject, implements
-            //elif ent.IsAnyStruct && extends.IsEmpty then
-            //    // DEFAULT
-            //    ImArray.createOne TypeSymbol.BaseObject, implements
             else
+                let extends = defaultExtends extends
                 extends, implements
 
         let extends =

@@ -1097,7 +1097,6 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
 #if DEBUG
         if ilRuntimeTyOpt.IsSome then   
             OlyAssert.True(ilImplements.IsEmpty)
-            OlyAssert.True(ilExtends.IsEmpty)
 #endif
 
         let ilEntDef = 

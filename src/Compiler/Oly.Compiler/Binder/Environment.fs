@@ -403,7 +403,11 @@ type BinderEnvironment =
 
                 let tyExts2 = tyExts.AddRange(funcs.AddRange(props))
 
-                typeExtensionMembers.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
+                if inheritsTy.IsError_t then
+                    typeExtensionMembers
+                else
+                    OlyAssert.True(inheritsTy.IsSolved)
+                    typeExtensionMembers.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
             { this with
                 benv =
                     { this.benv with

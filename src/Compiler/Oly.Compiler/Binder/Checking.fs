@@ -162,7 +162,7 @@ let checkEntityExport cenv env syntaxNode (ent: IEntitySymbol) =
 
             ent.Extends
             |> ImArray.iter (fun x -> 
-                if not x.IsExported && not x.IsImported then
+                if not x.IsExported && not x.IsImported && not x.IsBuiltIn then
                     cenv.diagnostics.Error($"'{ent.Name}' cannot be exported as its inheritance of '{x.Name}' is not imported or exported.", 10, syntaxNode)
                 x.TypeArguments
                 |> ImArray.iter (fun tyArg ->

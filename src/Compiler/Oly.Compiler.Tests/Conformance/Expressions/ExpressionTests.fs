@@ -6761,12 +6761,6 @@ alias void<T>
   ^^^^^^^^^^^^^^^^^
 """
             )
-            ("Aliases, newtypes, and type extensions must inherit from a single type that will be extended.",
-            """
-alias void<T>
-      ^^^^
-"""
-            )
         ]
     |> ignore
 

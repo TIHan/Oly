@@ -13439,7 +13439,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-class Vector3
+struct Vector3
 
 #[open]
 extension ObjectExt =

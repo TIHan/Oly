@@ -86,7 +86,7 @@ let bindNamespaceOrModuleDefinitionPass1 (cenv: cenv) (env: BinderEnvironment) (
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
 
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass1 cenv env true entBuilder nestedEntBuilders syntaxTyDefBody
+    bindTypeDeclarationBodyPass1 cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass2 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
