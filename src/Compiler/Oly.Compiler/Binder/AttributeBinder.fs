@@ -217,12 +217,13 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                 AttributeSymbol.Blittable
                 |> Some
 
-            | OlySyntaxAttribute.Inline _ ->
-                AttributeSymbol.Inline
-                |> Some
-
-            | OlySyntaxAttribute.NotInline _ ->
-                AttributeSymbol.NotInline
+            | OlySyntaxAttribute.Inline(_, _, syntaxIdent, _) ->
+                let inlineArg =
+                    match syntaxIdent.ValueText with
+                    | "never" -> InlineArgumentSymbol.Never
+                    | "always" -> InlineArgumentSymbol.Always
+                    | _ -> InlineArgumentSymbol.None
+                AttributeSymbol.Inline(inlineArg)
                 |> Some
 
             | OlySyntaxAttribute.Export _ ->

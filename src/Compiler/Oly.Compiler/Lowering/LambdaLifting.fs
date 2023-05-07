@@ -474,10 +474,12 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
             thisPar.AddRange(invokePars), returnTy
 
     let funcFlags =
-        if lambdaFlags.HasFlag(LambdaFlags.Inline) || attributesContainInline attrs then
+        if lambdaFlags.HasFlag(LambdaFlags.Inline) then
             FunctionFlags.Inline
         else
-            FunctionFlags.None
+            match tryAttributesInlineFlags attrs with
+            | Some(inlineFlags) -> inlineFlags
+            | _ -> FunctionFlags.None
 
     let memberFlags =
         let memberFlags = MemberFlags.Public

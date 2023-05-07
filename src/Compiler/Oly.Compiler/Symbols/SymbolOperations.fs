@@ -1763,11 +1763,11 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
     let tyArgs = tyPars |> Seq.map (fun x -> x.AsType) |> ImmutableArray.CreateRange
 
     let funcFlags =
-        if attributesContainInline attrs then
-            funcFlags ||| FunctionFlags.Inline
-        elif attributesContainNotInline attrs then
-            funcFlags ||| FunctionFlags.InlineNever
-        else
+        let inlineFlagsOpt = tryAttributesInlineFlags attrs
+        match inlineFlagsOpt with
+        | Some(inlineFlags) ->
+            funcFlags ||| inlineFlags
+        | _ ->
             funcFlags
 
     let funcFlags =

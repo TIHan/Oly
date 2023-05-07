@@ -74,10 +74,9 @@
 	</Case>
     <Case name="Inline">
       <Field name="inlineToken">SyntaxToken</Field>
-    </Case>
-	<Case name="NotInline">
-	  <Field name="notToken">SyntaxToken</Field>
-      <Field name="inlineToken">SyntaxToken</Field>
+      <Field name="leftParenthesisToken">SyntaxToken</Field>
+      <Field name="ident">SyntaxToken</Field>
+      <Field name="rightParenthesisToken">SyntaxToken</Field>
     </Case>
 	<Case name="Pure">
       <Field name="pureToken">SyntaxToken</Field>

@@ -269,11 +269,10 @@ type SyntaxAttribute =
         exportToken: SyntaxToken
     | Inline
         of
-        inlineToken: SyntaxToken
-    | NotInline
-        of
-        notToken: SyntaxToken *
         inlineToken: SyntaxToken *
+        leftParenthesisToken: SyntaxToken *
+        ident: SyntaxToken *
+        rightParenthesisToken: SyntaxToken *
         fullWidth: int
     | Pure
         of
@@ -323,14 +322,12 @@ type SyntaxAttribute =
                 match index with
                 | 0 -> exportToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Inline(inlineToken) ->
+            | Inline(inlineToken, leftParenthesisToken, ident, rightParenthesisToken, _) ->
                 match index with
                 | 0 -> inlineToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | NotInline(notToken, inlineToken, _) ->
-                match index with
-                | 0 -> notToken :> ISyntaxNode
-                | 1 -> inlineToken :> ISyntaxNode
+                | 1 -> leftParenthesisToken :> ISyntaxNode
+                | 2 -> ident :> ISyntaxNode
+                | 3 -> rightParenthesisToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | Pure(pureToken) ->
                 match index with
@@ -353,8 +350,7 @@ type SyntaxAttribute =
             | Intrinsic _ -> 4
             | Import _ -> 2
             | Export _ -> 1
-            | Inline _ -> 1
-            | NotInline _ -> 2
+            | Inline _ -> 4
             | Pure _ -> 1
             | Expression _ -> 1
             | Error _ -> 1
@@ -373,9 +369,7 @@ type SyntaxAttribute =
                 fullWidth
             | Export(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | Inline(x) ->
-                (x :> ISyntaxNode).FullWidth
-            | NotInline(fullWidth=fullWidth) ->
+            | Inline(fullWidth=fullWidth) ->
                 fullWidth
             | Pure(x) ->
                 (x :> ISyntaxNode).FullWidth

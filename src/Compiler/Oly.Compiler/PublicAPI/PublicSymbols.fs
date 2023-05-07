@@ -607,8 +607,7 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
         | AttributeSymbol.Import _ -> "import"
         | AttributeSymbol.Export _ -> "export"
         | AttributeSymbol.Intrinsic _ -> "intrinsic"
-        | AttributeSymbol.Inline -> "inline"
-        | AttributeSymbol.NotInline -> "not inline"
+        | AttributeSymbol.Inline _ -> "inline"
         | AttributeSymbol.Blittable -> "blittable"
         | AttributeSymbol.Pure -> "pure"
         | AttributeSymbol.Constructor(ctor, _, _, _) -> ctor.Name
@@ -625,9 +624,13 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
             "export"
         | AttributeSymbol.Intrinsic name -> 
             $"intrinsic(\"{name}\")"
-        | AttributeSymbol.Inline -> "inline"
-        | AttributeSymbol.NotInline -> "not inline"
-        | AttributeSymbol.Constructor(ctor, _, _, _) -> OlyValueSymbol(boundModel, benv, location, ctor).SignatureText
+        | AttributeSymbol.Inline(inlineArg) -> 
+            match inlineArg with
+            | InlineArgumentSymbol.None -> "inline"
+            | InlineArgumentSymbol.Never -> "inline(never)"
+            | InlineArgumentSymbol.Always -> "inline(always)"
+        | AttributeSymbol.Constructor(ctor, _, _, _) -> 
+            OlyValueSymbol(boundModel, benv, location, ctor).SignatureText
 
     override _.IsLocal = false
 
@@ -649,7 +652,7 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
                     platform1 = platform2 && path1 = path2 && name1 = name2
                 | AttributeSymbol.Export, AttributeSymbol.Export ->
                     true
-                | AttributeSymbol.Inline, AttributeSymbol.Inline -> 
+                | AttributeSymbol.Inline _, AttributeSymbol.Inline _ -> 
                     true
                 | _ -> 
                     false

@@ -22,6 +22,17 @@ type LambdaFlags =
     /// Only used in lambda-lifting
     | Bound                 = 0x1000
 
+type InlineArgumentSymbol with
+
+    member this.ToLambdaFlags() =
+        match this with
+        | InlineArgumentSymbol.None ->
+            LambdaFlags.Inline
+        | InlineArgumentSymbol.Never ->
+            LambdaFlags.None // TODO
+        | InlineArgumentSymbol.Always ->
+            LambdaFlags.Inline // TODO
+
 type IBoundNode =
 
     abstract Syntax : OlySyntaxNode

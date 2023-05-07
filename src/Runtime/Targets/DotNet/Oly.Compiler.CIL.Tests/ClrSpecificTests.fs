@@ -568,7 +568,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: T) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         this.item.GetHashCode()
 
@@ -578,7 +578,7 @@ struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: Hash<T>) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         this.item.GetValue().GetHashCode()
 
@@ -619,7 +619,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: T) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         let x: IHash<T> = this
         x.GetValue(this.item)
@@ -630,7 +630,7 @@ struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: Hash<T>) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         this.item.GetValue().GetHashCode()
 
@@ -671,7 +671,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: T) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         let x: IHash<T> = this
         x.GetValue(this.item)
@@ -683,12 +683,12 @@ struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
     new(item: Hash<T>) = { item = item }
 
-    #[not inline]
+    #[inline(never)]
     GetValue(x: T): int32 =
         let h: IHash<T> = this.item
         h.GetValue(x)
 
-    #[not inline]
+    #[inline(never)]
     GetValue(): int32 =
         this.GetValue(this.item.item)
 
@@ -2996,7 +2996,7 @@ alias bool
 #[intrinsic("equal")]
 (==)(int32, int32): bool
 
-#[not inline]
+#[inline(never)]
 test1(x: int32): () =
     if (x == 1)
         print("")
@@ -3015,7 +3015,7 @@ test1(x: int32): () =
     else
         print("failed")
 
-#[not inline]
+#[inline(never)]
 test2(x: int32): () =
     if (x == 1)
         print("")
@@ -3206,7 +3206,7 @@ struct TestData =
 sizeof<require T>: int32 =
     Marshal.SizeOf(unchecked default: T)
 
-#[not inline]
+#[inline(never)]
 test<T>(x: T): int32 =
     sizeof<T>
 

@@ -439,9 +439,18 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
                                     ValueNone
                             match parsOpt with
                             | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
-                                if attributesContainInline pars[i].Attributes then
-                                    BoundExpression.Lambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Inline, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
-                                else
+                                let lambdaInlineFlagsOpt =
+                                    pars[i].Attributes
+                                    |> ImArray.tryPick (function
+                                        | AttributeSymbol.Inline(inlineArg) ->
+                                            inlineArg.ToLambdaFlags() |> Some
+                                        | _ ->
+                                            None
+                                    )
+                                match lambdaInlineFlagsOpt with
+                                | Some lambdaInlineFlags ->
+                                    BoundExpression.Lambda(syntaxInfo, lambdaFlags ||| lambdaInlineFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
+                                | _ ->
                                     argExpr
                             | _ ->
                                 argExpr

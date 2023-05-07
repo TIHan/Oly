@@ -534,17 +534,10 @@ module OlySyntaxAttribute =
         | _ ->
             Option.None
 
-    let (|Inline|_|) (node: OlySyntaxAttribute) : ( OlySyntaxToken ) option =
+    let (|Inline|_|) (node: OlySyntaxAttribute) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxToken * OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxAttribute.Inline _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
-    let (|NotInline|_|) (node: OlySyntaxAttribute) : ( OlySyntaxToken * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxAttribute.NotInline _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
         | _ ->
             Option.None
 

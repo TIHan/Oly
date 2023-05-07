@@ -11481,7 +11481,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11522,7 +11522,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11563,7 +11563,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11602,7 +11602,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11644,7 +11644,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11688,7 +11688,7 @@ struct Test =
 
     mutable X: __oly_int32 = 1
 
-#[not inline]
+#[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
 
 main(): () =
@@ -11839,7 +11839,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     if (__oly_equal(x, 5))
@@ -11866,7 +11866,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -11897,7 +11897,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -11927,7 +11927,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -11960,7 +11960,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -11994,7 +11994,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12029,14 +12029,14 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test2(x: int32, y: int32): int32 =
     if (__oly_equal(y, 5))
         x
     else
         __oly_add(x, 1) 
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12069,7 +12069,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12099,7 +12099,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let result = __oly_equal(y, 5)
@@ -12130,7 +12130,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12161,7 +12161,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12196,7 +12196,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test(mutable x: int32): () =
     let mutable f = () -> ()
     if (__oly_equal(x, 5))
@@ -12240,7 +12240,7 @@ alias float32
 #[intrinsic("add")]
 (-)(float32, float32): float32
 
-#[not inline]
+#[inline(never)]
 Clamp(value: float32, min: float32, max: float32): float32 =
     if (value < min)
         min
@@ -12249,7 +12249,7 @@ Clamp(value: float32, min: float32, max: float32): float32 =
     else
         value
 
-#[not inline]
+#[inline(never)]
 ClampAngle(mutable lfAngle: float32, lfMin: float32, lfMax: float32): float32 =
     if(lfAngle < -360) lfAngle <- lfAngle + 360
     if(lfAngle > 360) lfAngle <- lfAngle - 360
@@ -12274,17 +12274,17 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test2(x: int32, y: int32): int32 =
     if (__oly_equal(y, 5))
         x
     else
         __oly_add(x, 1) 
 
-#[not inline]
+#[inline(never)]
 id(x: int32): int32 = x
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12318,17 +12318,17 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[not inline]
+#[inline(never)]
 test2(x: int32, y: int32): int32 =
     if (__oly_equal(y, 5))
         x
     else
         __oly_add(x, 1) 
 
-#[not inline]
+#[inline(never)]
 id(x: int32): int32 = x
 
-#[not inline]
+#[inline(never)]
 test(x: int32): () =
     let mutable y = x
     let z =
@@ -12465,7 +12465,7 @@ newtype NewtypeTest =
 
     GetValue(): int32 = this.value
 
-#[not inline]
+#[inline(never)]
 getValue(t: NewtypeTest): int32 = t.GetValue()
 
 main(): () =
@@ -12492,7 +12492,7 @@ newtype NewtypeTest =
 
     GetValue(): string = this.value
 
-#[not inline]
+#[inline(never)]
 getValue(t: NewtypeTest): string = t.GetValue()
 
 main(): () =
@@ -12855,7 +12855,7 @@ let ``Regression - unit as type argument should work``() =
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[not inline]
+#[inline(never)]
 f<T>(): T = unchecked default
 
 main(): () =
@@ -12873,10 +12873,10 @@ let ``Regression - unit as type argument should work 2``() =
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[not inline]
+#[inline(never)]
 f<T>(): T = unchecked default
 
-#[not inline]
+#[inline(never)]
 getBool(): __oly_bool = false
 
 main(): () =
@@ -12894,10 +12894,10 @@ let ``Regression - unit as type argument should work 3``() =
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[not inline]
+#[inline(never)]
 f<T>(): T = unchecked default
 
-#[not inline]
+#[inline(never)]
 getBool(): __oly_bool = true
 
 main(): () =
@@ -13329,26 +13329,26 @@ struct Item =
     Name: string set, get = "Bar"
 
     Position: int
-        #[not inline]
+        #[inline(never)]
         get() =
             print("Get - ")
             print(this.Name)
             print(" ")
             0
-        #[not inline]
+        #[inline(never)]
         set(value) =
             print("Set - ")
             print(this.Name)
             print(" ")
 
-#[not inline]
+#[inline(never)]
 GetOffset<T>(item: byref<T>): int =
     let mutable item2 = Item()
     item2.Name <- "Bar"
     item <- unsafeCast(item2)
     0
 
-#[not inline]
+#[inline(never)]
 Shift<T>(mutable item : T): () where T: IMoveable, struct =
     item.Position <- item.Position + (GetOffset(&item))
 
@@ -14361,11 +14361,11 @@ print(__oly_object): ()
 extension VkResultExtensions =
     inherits VkResult
 
-    #[not inline]
+    #[inline(never)]
     static op_Equality(result1: VkResult, result2: VkResult): bool =
         true
 
-#[not inline]
+#[inline(never)]
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 enum VkResult =
@@ -14374,7 +14374,7 @@ enum VkResult =
 
 struct TestStruct
 
-#[not inline]
+#[inline(never)]
 update<T>(): () =
     if (VkResult.VK_SUCCESS == VkResult.VK_SUCCESS)
         print("passed")

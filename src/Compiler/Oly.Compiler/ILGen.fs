@@ -505,7 +505,14 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
                 OlyILTableIndex(OlyILTableKind.String, -1)
             else
                 GenString cenv par.Name
-        let canInlineClosure = attributesContainInline par.Attributes
+        let canInlineClosure = 
+            match tryAttributesInlineArgument par.Attributes with
+            | Some(inlineArg) ->
+                match inlineArg with
+                | InlineArgumentSymbol.Never -> false
+                | _ -> true
+            | _ ->
+                false
         let isMutable = par.IsMutable
 
         let parTy = par.Type
@@ -857,8 +864,7 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     match attr with
     | AttributeSymbol.Open 
     | AttributeSymbol.Null
-    | AttributeSymbol.Inline
-    | AttributeSymbol.NotInline 
+    | AttributeSymbol.Inline _
     | AttributeSymbol.Blittable
     | AttributeSymbol.Pure ->
         None

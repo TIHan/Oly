@@ -50,6 +50,21 @@ type AttributeNamedArgumentSymbol =
     | Field of IFieldSymbol * value: ConstantSymbol
 
 [<RequireQualifiedAccess>]
+type InlineArgumentSymbol =
+    | None
+    | Never
+    | Always
+
+    member this.ToFunctionFlags() =
+        match this with
+        | InlineArgumentSymbol.None ->
+            FunctionFlags.Inline
+        | InlineArgumentSymbol.Never ->
+            FunctionFlags.InlineNever
+        | InlineArgumentSymbol.Always ->
+            FunctionFlags.InlineAlways
+
+[<RequireQualifiedAccess>]
 type AttributeSymbol =
     | Open
     | Null
@@ -58,8 +73,7 @@ type AttributeSymbol =
     | Export
     | Blittable
     | Intrinsic of name: string
-    | Inline
-    | NotInline
+    | Inline of InlineArgumentSymbol
     | Constructor of ctor: IFunctionSymbol * args: ConstantSymbol imarray * namedArgs: AttributeNamedArgumentSymbol imarray * flags: AttributeFlags
 
     member this.Flags =
@@ -73,8 +87,7 @@ type AttributeSymbol =
         | Blittable _ 
         | Pure ->
             AttributeFlags.AllowOnFunction ||| AttributeFlags.AllowOnType
-        | Inline 
-        | NotInline ->
+        | Inline _ ->
             AttributeFlags.AllowOnFunction
         | Constructor(_, _, _, flags) ->
             flags
@@ -91,17 +104,9 @@ let attributesContainIntrinsic (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.exists (function AttributeSymbol.Intrinsic _ -> true | _ -> false)
 
-let attributesContainInline (attrs: AttributeSymbol imarray) =
-    attrs
-    |> ImArray.exists (function AttributeSymbol.Inline -> true | _ -> false)
-
 let attributesContainPure (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.exists (function AttributeSymbol.Pure -> true | _ -> false)
-
-let attributesContainNotInline (attrs: AttributeSymbol imarray) =
-    attrs
-    |> ImArray.exists (function AttributeSymbol.NotInline -> true | _ -> false)
 
 let attributesContainOpen (attrs: AttributeSymbol imarray) =
     attrs
@@ -114,6 +119,20 @@ let attributesContainBlittable (attrs: AttributeSymbol imarray) =
 let attributesContainNull (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.exists (function AttributeSymbol.Null -> true | _ -> false)
+
+let tryAttributesInlineArgument (attrs: AttributeSymbol imarray) =
+    attrs
+    |> ImArray.tryPick (fun attr ->
+        match attr with
+        | AttributeSymbol.Inline(inlineArg) ->
+            Some(inlineArg)
+        | _ ->
+            None
+    )
+
+let tryAttributesInlineFlags (attrs: AttributeSymbol imarray) =
+    tryAttributesInlineArgument attrs
+    |> Option.map (fun x -> x.ToFunctionFlags())
 
 [<System.Flags>]
 type EntityFlags =

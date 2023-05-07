@@ -2209,17 +2209,17 @@ let tryParseIntrinsicAttribute state =
 let tryParseInlineAttribute state =
     let s = sp state
 
-    match bt INLINE state with
-    | Some(inlineToken) ->
-        SyntaxAttribute.Inline(inlineToken) |> Some
-    | _ ->
-
-    match bt2 NOT INLINE state with
-    | Some(notToken), Some(inlineToken) ->
-        SyntaxAttribute.NotInline(notToken, inlineToken, ep s state) |> Some
-    | Some(notToken), _ ->
-        errorDo(ExpectedTokenAfterToken(Inline, notToken.RawToken), notToken) state
-        SyntaxAttribute.NotInline(notToken, dummyToken(), ep s state) |> Some
+    match bt2 INLINE (tryParseParenthesisOld IDENTIFIER) state with
+    | Some(inlineToken), Some(leftParenToken, identToken, rightParenToken) ->
+        match identToken.ValueText with
+        | "never"
+        | "always" ->
+            SyntaxAttribute.Inline(inlineToken, leftParenToken, identToken, rightParenToken, ep s state) |> Some
+        | _ ->
+            errorDo (InvalidSyntax("inline argument"), identToken) state
+            SyntaxAttribute.Inline(inlineToken, leftParenToken, identToken, rightParenToken, ep s state) |> Some
+    | Some(inlineToken), _ ->
+        SyntaxAttribute.Inline(inlineToken, dummyToken(), dummyToken(), dummyToken(), ep s state) |> Some
     | _ ->
         None
 
