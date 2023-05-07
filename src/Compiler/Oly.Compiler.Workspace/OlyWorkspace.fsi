@@ -40,11 +40,13 @@ type OlyOutputKind =
 [<Sealed>]
 type OlyTargetInfo =
 
-    new : name: string * outputKind: OlyOutputKind -> OlyTargetInfo
+    new : name: string * outputKind: OlyOutputKind * implicitExtendsForStructOpt: string option * implicitExtendsForEnumOpt: string option -> OlyTargetInfo
 
     member Name: string
     member OutputKind: OlyOutputKind
     member IsExecutable: bool
+    member ImplicitExtendsForStruct: string option
+    member ImplicitExtendsForEnum: string option
 
 [<Sealed>]
 type OlyImportedReference =
@@ -84,6 +86,12 @@ type OlyBuild =
     abstract OnAfterReferencesImported : unit -> unit
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, string>>
+
+    abstract GetImplicitExtendsForStruct: unit -> string option
+    default GetImplicitExtendsForStruct: unit -> string option
+
+    abstract GetImplicitExtendsForEnum: unit -> string option
+    default GetImplicitExtendsForEnum: unit -> string option
 
 [<Sealed>]
 type OlyProjectReference =

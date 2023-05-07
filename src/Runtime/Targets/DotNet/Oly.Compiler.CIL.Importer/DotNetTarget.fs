@@ -551,6 +551,10 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             return Ok dllPath
         }
 
+    override _.GetImplicitExtendsForStruct() = Some "System.ValueType"
+
+    override _.GetImplicitExtendsForEnum() = Some "System.Enum"
+
     new (?copyReferences: bool) =
         let copyReferences =
             defaultArg copyReferences true

@@ -58,11 +58,13 @@ type OlyOutputKind =
     | Executable
 
 [<Sealed>]
-type OlyTargetInfo(name: string, outputKind: OlyOutputKind) =
+type OlyTargetInfo(name: string, outputKind: OlyOutputKind, implicitExtendsForStructOpt: string option, implicitExtendsForEnumOpt: string option) =
 
     member _.Name = name
     member _.OutputKind = outputKind
     member _.IsExecutable = outputKind = OlyOutputKind.Executable
+    member _.ImplicitExtendsForStruct = implicitExtendsForStructOpt
+    member _.ImplicitExtendsForEnum = implicitExtendsForEnumOpt
 
 [<Sealed>]
 type OlyImportedReference(compRef: OlyCompilationReference, isTransitive: bool) =
@@ -107,6 +109,12 @@ type OlyBuild(platformName: string) =
     abstract OnAfterReferencesImported : unit -> unit
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, string>>
+
+    abstract GetImplicitExtendsForStruct: unit -> string option
+    default _.GetImplicitExtendsForStruct() = None
+
+    abstract GetImplicitExtendsForEnum: unit -> string option
+    default _.GetImplicitExtendsForEnum() = None
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyProjectReference =
@@ -358,13 +366,13 @@ module WorkspaceHelpers =
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
             platformName 
-            (targetInfo: OlyTargetInfo) 
+            (targetInfo: OlyTargetInfo)
             ct =
         let isDebuggable = projectConfig.Debuggable
 
         let syntaxTrees = getSyntaxTrees documents
         let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
-        let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct; ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum }
         let compilation = OlyCompilation.Create(projectName, syntaxTrees, references = transitiveReferences, options = options)
         let documents =
             documents
@@ -749,7 +757,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyOutputKind.Executable
 
             let targetInfo =
-                OlyTargetInfo(targetName, outputKind)
+                OlyTargetInfo(targetName, outputKind, targetPlatform.GetImplicitExtendsForStruct(), targetPlatform.GetImplicitExtendsForEnum())
 
             if String.IsNullOrWhiteSpace(platformName) |> not && targetPlatform.IsValidTargetName(targetInfo) |> not then
                 diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))

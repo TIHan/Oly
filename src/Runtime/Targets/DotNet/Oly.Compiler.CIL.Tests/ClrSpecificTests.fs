@@ -120,7 +120,7 @@ interface LessThanOrEqual<T1, T2, T3> =
 
 let dotnetTarget = DotNetTarget()
 let targetName = "net7"
-let targetInfo = OlyTargetInfo(targetName, OlyOutputKind.Library)
+let targetInfo = OlyTargetInfo(targetName, OlyOutputKind.Library, Some "System.ValueType", Some "System.Enum")
 let projectPath = OlyPath.Create "olytest"
 let projectPath2 = OlyPath.Create "olytest2"
 let dotnetReferences =
@@ -135,7 +135,7 @@ let workspace = OlyWorkspace.Create([dotnetTarget])
 let lazyInfo =
     lazy
         let config = OlyProjectConfiguration("olytest", ImArray.empty, false)
-        let sol, _ = workspace.Solution.CreateProject(projectPath, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Executable), System.Threading.CancellationToken.None)
+        let sol, _ = workspace.Solution.CreateProject(projectPath, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), System.Threading.CancellationToken.None)
         let sol, proj = sol.UpdateReferences(projectPath, dotnetReferences, System.Threading.CancellationToken.None)
         let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
         let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
@@ -143,7 +143,7 @@ let lazyInfo =
 let lazyInfo2 =
     lazy
         let config = OlyProjectConfiguration("olytest2", ImArray.empty, false)
-        let sol, _ = workspace.Solution.CreateProject(projectPath2, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Library), System.Threading.CancellationToken.None)
+        let sol, _ = workspace.Solution.CreateProject(projectPath2, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Library, Some "System.ValueType", Some "System.Enum"), System.Threading.CancellationToken.None)
         let sol, proj = sol.UpdateReferences(projectPath2, dotnetReferences, System.Threading.CancellationToken.None)
         let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest2", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
         let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest2", syntaxTree, ImArray.empty)

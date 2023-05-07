@@ -1236,14 +1236,12 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
     member this.EnclosingType: RuntimeType = this.Enclosing.AsType
 
     member this.IsOverridesExternal =
-        // TODO: returning false if the enclosing type is a type extension is ok for now,
-        //       but what if the target runtime supports type extensions like this?
-        // TODO: This needs some work. It is possible to have a virtual function that overrides
-        //       a function that is not external, but currently this will be marked as external.
-        not(this.EnclosingType.IsTypeExtension) &&
         this.Flags.IsVirtual &&
-        getAllDistinctInheritsAndImplements this.EnclosingType
-        |> ImArray.exists (fun x -> x.IsExternal)
+        (
+            match this.Overrides with
+            | Some(func) -> func.IsExternal
+            | _ -> false
+        )
 
     member this.CanGenericsBeErased =
         not this.IsExternal && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty)) &&

@@ -26,21 +26,21 @@ type TestCompilation =
         }     
 
     static member Create(src: string) =
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], [], options = options)
         TestCompilation.Create(c)
 
     static member CreateWithConditionalDefines(src: string, conditionalDefines) =
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], [], options = options)
         TestCompilation.Create(c)
 
     static member CreateWithReference(src: string, refSrc: string) =
-        let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { OlyCompilationOptions.Default with Parallel = false }
         let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], [], options = options)
         let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", (fun () -> refc))
 
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], [refcRef], options = options)
         TestCompilation.Create(c)
 
@@ -68,7 +68,7 @@ type TestCompilation =
                         }
                 )
             ]
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForStruct = Some "System.ValueType"; ImplicitExtendsForEnum = Some "System.Enum" }
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
         let c = OlyCompilation.Create("olytest", syntaxTrees, [], options = options)
         TestCompilation.Create(c)
 
