@@ -964,17 +964,6 @@ module internal rec Helpers =
 
         let isEnum = isKind "Enum"
 
-        let isAttribute = 
-            if isKind "Attribute" then
-                true
-            else
-                if path.Length = 1 && path.[0] = "System" then
-                    match unmangledName with
-                    | "Attribute" -> true
-                    | _ -> false
-                else
-                    false
-
         let isInterface = tyDef.Attributes &&& TypeAttributes.Interface = TypeAttributes.Interface
         let isAbstract = tyDef.Attributes &&& TypeAttributes.Abstract = TypeAttributes.Abstract
 
