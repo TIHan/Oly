@@ -1,8 +1,6 @@
 ﻿[<AutoOpen>]
 module internal rec Oly.Compiler.Syntax.Internal.Extensions
 
-open Oly.Core
-
 type SyntaxToken with
 
     member this.ValueText =
