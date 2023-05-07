@@ -2620,22 +2620,16 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         ilFuncSpec1.Parameters.Length = ilFuncSpec2.Parameters.Length &&
         ilFuncSpec1.TypeParameters.Length = ilFuncSpec2.TypeParameters.Length &&
         (
-            let name1 = ilFuncSpec1.NameHandle |> ilAsm1.GetStringOrEmpty
-            let name2 = ilFuncSpec2.NameHandle |> ilAsm2.GetStringOrEmpty
+            let name1 = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
+            let name2 = ilAsm2.GetStringOrEmpty(ilFuncSpec2.NameHandle)
             if name1 = name2 then
                 let returnTy1 = this.ResolveType(enclosingTyParCount1, ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
                 let returnTy2 = this.ResolveType(enclosingTyParCount2, ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
                 if returnTy1 = returnTy2 then
-                    let parTys1 =
-                        ilFuncSpec1.Parameters
-                        |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount1, ilAsm1, x.Type, scopeTyArgs1))
-
-                    let parTys2 =
-                        ilFuncSpec2.Parameters
-                        |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount2, ilAsm2, x.Type, scopeTyArgs2))
-
-                    (parTys1, parTys2)
-                    ||> ImArray.forall2 (=)
+                    (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
+                    ||> ImArray.forall2 (fun x1 x2 ->
+                        this.ResolveType(enclosingTyParCount1, ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(enclosingTyParCount2, ilAsm2, x2.Type, scopeTyArgs2)
+                    )
                 else
                     false
             else
