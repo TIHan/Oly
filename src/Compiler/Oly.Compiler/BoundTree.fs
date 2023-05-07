@@ -1126,13 +1126,15 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
-        let extends = ent.Extends
-        extends
-        |> Seq.map (fun x ->
-            findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x         
+        let inheritedFuncs = ImArray.builder()
+
+        ent.Extends
+        |> ImArray.iter (fun x ->
+            inheritedFuncs.AddRange(findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
         )
-        |> Seq.concat
-        |> Seq.filter (fun (x: IFunctionSymbol) -> 
+
+        inheritedFuncs.ToImmutable()
+        |> ImArray.filter (fun (x: IFunctionSymbol) -> 
             not x.IsConstructor &&
             let isOverriden =
                 overridenFuncs
@@ -1160,7 +1162,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
     funcs
     |> filterMostSpecificFunctions
 
-and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
+and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) : _ imarray =
     let ty = findIntrinsicTypeIfPossible benv ty
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
