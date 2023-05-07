@@ -71,7 +71,7 @@ and solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys
             funcs
             |> Seq.filter (fun x -> 
                 let ty = x.Type
-                match ty.TryFunction with
+                match ty.TryGetFunctionWithParameters() with
                 | ValueSome(argTys2, _) when argTys.Length = argTys2.Length ->
                     (argTys, argTys2)
                     ||> ImArray.forall2 (UnifyTypes Rigid)
@@ -140,7 +140,7 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
             | Some witnessArg ->
                 let freshAbstractFunc = freshenValue env.benv abstractFunc :?> IFunctionSymbol
 
-                match freshAbstractFunc.Type.TryFunction, func.Type.TryFunction with
+                match freshAbstractFunc.Type.TryGetFunctionWithParameters(), func.Type.TryGetFunctionWithParameters() with
                 | ValueSome(argTys1, returnTy1), ValueSome(argTys2, returnTy2) ->
                     let isInstance = freshAbstractFunc.IsInstance
                     (argTys1, argTys2)

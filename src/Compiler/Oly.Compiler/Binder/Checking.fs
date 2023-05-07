@@ -96,7 +96,7 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
         let ty = bindingInfo.Type
         let tyParOpt = match ty.TryTypeParameter with ValueSome tyPar -> Some tyPar | _ -> None
         // We do unification with the binding's type and an error type as to prevent a cascade of errors.
-        match ty.TryFunction with
+        match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             argTys
             |> ImArray.iter (fun x ->
@@ -563,7 +563,7 @@ let private lateCheckCalleeExpression cenv env expr =
     | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, argExpr) ->
         match argExpr with
         | LambdaWrappedFunctionCall(syntaxInfo, func) ->
-            match func.Type.TryFunction with
+            match func.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys, returnTy) ->
                 // TODO: This is weird, all because this is to satisfy __oly_load_function_ptr type arguments.
                 //       Perhaps we should just change __oly_load_function_ptr to simply have 1 type argument be the return type.

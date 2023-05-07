@@ -488,21 +488,18 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             
     let argExprs =
         if isLastTyParVariadic then
-            match value.LogicalType.TryFunction with
-            | ValueSome(argTys, _) ->
-                if argExprs.Length > argTys.Length then
-                    let lastArgIndex = argTys.Length - 1
-                    let headArgExprs = argExprs.RemoveRange(lastArgIndex, argExprs.Length - lastArgIndex)
-                    let tailArgExprs = argExprs.RemoveRange(0, lastArgIndex)
-                    headArgExprs.Add(
-                        BoundExpression.NewTuple(BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                            tailArgExprs,
-                            TypeSymbol.CreateTuple(tailArgExprs |> ImArray.map (fun x -> x.Type))
-                        )
+            let parCount = value.LogicalType.FunctionParameterCount
+            if argExprs.Length > parCount then
+                let lastArgIndex = parCount - 1
+                let headArgExprs = argExprs.RemoveRange(lastArgIndex, argExprs.Length - lastArgIndex)
+                let tailArgExprs = argExprs.RemoveRange(0, lastArgIndex)
+                headArgExprs.Add(
+                    BoundExpression.NewTuple(BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                        tailArgExprs,
+                        TypeSymbol.CreateTuple(tailArgExprs |> ImArray.map (fun x -> x.Type))
                     )
-                else
-                    argExprs
-            | _ ->
+                )
+            else
                 argExprs
         else
             argExprs

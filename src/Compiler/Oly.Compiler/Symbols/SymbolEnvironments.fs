@@ -79,12 +79,8 @@ type ResolutionArguments =
         match this with
         | ByType tys -> tys.Length |> ValueSome
         | ByFunctionType(ty) ->
-            match ty.TryFunction with
-            | ValueSome(argTys, _) -> 
-                argTys.Length 
-                |> ValueSome
-            | _ -> 
-                ValueNone
+            ty.FunctionParameterCount
+            |> ValueSome
         | _ -> 
             ValueNone
 

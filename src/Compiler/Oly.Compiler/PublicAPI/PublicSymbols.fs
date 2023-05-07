@@ -930,7 +930,7 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
 
     match syntaxTy with
     | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
-        match ty.TryFunction with
+        match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             // TODO: Kind of a hack using TypeSymbol.Tuple.
             let inputTy = 
@@ -947,7 +947,7 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
             ()
 
     | OlySyntaxType.FunctionPtr(_, _, syntaxInputTy, _, syntaxOutputTy) ->
-        match ty.TryFunction with
+        match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             // TODO: Kind of a hack using TypeSymbol.Tuple.
             let inputTy = 

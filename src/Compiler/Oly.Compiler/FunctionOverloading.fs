@@ -48,7 +48,7 @@ let private filterFunctionsForOverloadingByLeastGenericReturnType (funcs: IFunct
 
 let private canScore (func: IFunctionSymbol) =
     let argTys = 
-        match func.Type.TryFunction with
+        match func.Type.TryGetFunctionWithParameters() with
         | ValueSome(argTys, _)-> argTys
         | _ -> OlyAssert.Fail("Expected function type") 
 
@@ -210,19 +210,16 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
             else
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy ->
-                    match argTy.TryFunction with
+                    match argTy.TryGetFunctionWithParameters() with
                     | ValueSome(argTys, _) when par.Type.IsFunction_t -> 
-                        match par.Type.TryFunction with
+                        match par.Type.TryGetFunctionWithParameters() with
                         | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
                             // Variadic variables will always return true.
                             true
                         | _ ->
                             // This handles overloads that take a function type to only
                             // accept the same number of arguments for the function type.
-                            let argCount1 = 
-                                match par.Type.TryFunction with
-                                | ValueSome(argTys, _) -> argTys.Length
-                                | _ -> 0
+                            let argCount1 = par.Type.FunctionParameterCount
                             let argCount2 = argTys.Length
                             argCount1 = argCount2 &&
                             subsumesTypeWith Generalizable par.Type argTy

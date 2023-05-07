@@ -148,7 +148,7 @@ let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty:
         true
 
 let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression imarray) (valueTy: TypeSymbol) =
-    match valueTy.TryFunction with
+    match valueTy.TryGetFunctionWithParameters() with
     | ValueSome(expectedArgTys, _) ->        
         let argTysWithSyntax =
             argExprs
@@ -238,7 +238,7 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
     | TypeSymbol.ForAll(_, innerTy) ->
         checkStructTypeCycle env syntaxNode innerTy
     | _ ->
-        match ty.TryFunction with
+        match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             if argTys |> ImArray.forall (fun ty -> checkStructTypeCycle env syntaxNode ty) then
                 checkStructTypeCycle env syntaxNode returnTy
@@ -416,7 +416,7 @@ and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode
 and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) (ty: TypeSymbol) =
     if ty.IsError_t then ()
     else
-        match ty.TryFunction with
+        match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             let syntaxBody = body.Syntax
             let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
@@ -496,7 +496,7 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
     if checkTypeScope env syntax returnTy then
         if value.IsInstanceConstructor then
             // Ignore the return type for constructors as we know it will be the enclosing.
-            match value.Type.TryFunction, firstReturnExpression.Type.TryFunction with
+            match value.Type.TryGetFunctionWithParameters(), firstReturnExpression.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
                 let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
                 solveFunctionInput env syntax argTys1 argTys2WithSyntax
@@ -567,7 +567,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
             rhsExpr
 
     if bindingInfo2.Value.IsFunction then
-        match bindingInfo2.Type.TryFunction, rhsExpr2.Type.TryFunction with
+        match bindingInfo2.Type.TryGetFunctionWithParameters(), rhsExpr2.Type.TryGetFunctionWithParameters() with
         | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
             let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
             solveFunctionInput env syntax argTys1 argTys2WithSyntax

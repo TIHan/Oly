@@ -3624,27 +3624,50 @@ type TypeSymbol =
     /// TODO: Rename to "TryAnyFunction".
     member this.TryFunction =
         match stripTypeEquations this with
-        | TypeSymbol.Function(inputTy, returnTy)
-        | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, returnTy)) -> 
-            let argTys =
-                match inputTy with
-                | TypeSymbol.Unit -> ImArray.empty
-                | TypeSymbol.Tuple(argTys, _) -> argTys
-                | _ -> ImArray.createOne inputTy
-            ValueSome(argTys, returnTy)
+        | TypeSymbol.Function(inputTy, outputTy)
+        | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy)) -> 
+            ValueSome(inputTy, outputTy)
+        | _ -> 
+            ValueNone
+
+    member this.FunctionParameterCount =
+        match this.TryFunction with
+        | ValueSome(inputTy, _) ->
+            match inputTy with
+            | TypeSymbol.Unit -> 0
+            | TypeSymbol.Tuple(argTys, _) -> argTys.Length
+            | _ -> 1
+        | _ -> 
+            0
+
+    member this.AsParameters(): TypeSymbol imarray =
+        match this with
+        | TypeSymbol.Unit -> ImArray.empty
+        | TypeSymbol.Tuple(argTys, _) -> argTys
+        | _ -> ImArray.createOne this
+
+    member inline this.ForEachParameter ([<InlineIfLambda>] f) =
+        match this with
+        | TypeSymbol.Unit ->()
+        | TypeSymbol.Tuple(argTys, _) -> argTys |> ImArray.iter f
+        | _ -> f this
+
+    member this.TryGetFunctionWithParameters() =
+        match stripTypeEquations this with
+        | TypeSymbol.Function(inputTy, outputTy)
+        | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy)) -> 
+            ValueSome(inputTy.AsParameters(), outputTy)
         | _ -> 
             ValueNone
 
     member this.FunctionArgumentTypes: TypeSymbol imarray =
         match this.TryFunction with
-        | ValueSome(argTys, _) -> argTys
-        | _ -> ImArray.empty
-
-    member this.FunctionParameterCount =
-        match this.TryFunction with
-        | ValueSome(argTys, _) -> argTys.Length
-        | _ -> 0
+        | ValueSome(inputTy, _) ->
+            inputTy.AsParameters()
+        | _ -> 
+            ImArray.empty
 
     static member CreateTupleOrOneOrUnit(tys: ImmutableArray<TypeSymbol>) =
         if tys.Length >= 2 then
@@ -3814,11 +3837,12 @@ module SymbolExtensions =
     
             /// Returns the type of the value except it excludes the instance argument type and quantified type parameters.
             /// Useful for checking implementations for abstract functions.
+            /// TODO: Move this to IValueSymbol so we do not have to recompute this everytime we call this.
             member this.LogicalType =
                 if this.IsInstance && this.IsFunction then
                     match this.Type.TryFunction with
-                    | ValueSome(argTys, returnTy) ->
-                        TypeSymbol.CreateFunction(argTys.RemoveAt(0), returnTy)
+                    | ValueSome(inputTy, outputTy) ->
+                        TypeSymbol.CreateFunction(inputTy.AsParameters().RemoveAt(0), outputTy)
                     | _ ->
                         this.Type
                 else

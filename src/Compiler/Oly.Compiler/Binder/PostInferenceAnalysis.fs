@@ -294,7 +294,7 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
             acenv.scopes[value.Id] <- scope
 
     let checkValueTy () =
-        match value.LogicalType.TryFunction with
+        match value.LogicalType.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             argTys
             |> ImArray.iter (analyzeTypeForParameter acenv aenv syntaxNode)
