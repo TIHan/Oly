@@ -1091,7 +1091,7 @@ type TypeSymbol with
                 let mutable exists = false
                 this.Hierarchy(fun x ->
                     exists <- f x
-                    not false
+                    not exists
                 )
                 exists
 
@@ -1349,11 +1349,17 @@ type IEntitySymbol with
         let set = HashSet(SymbolComparers.TypeSymbolComparer())
         this.Hierarchy(f, set)
 
+    member inline this.HierarchyForEach([<InlineIfLambda>] f: TypeSymbol -> unit): unit =
+        this.Hierarchy(fun x ->
+            f x
+            true
+        )
+
     member this.HierarchyExists(f: TypeSymbol -> bool): bool =
         let mutable exists = false
         this.Hierarchy(fun x ->
             exists <- f x
-            not false
+            not exists
         )
         exists
 
@@ -1375,29 +1381,14 @@ type IEntitySymbol with
     ///    For example: 'x.Inherits' where 'x' is the extension type;
     ///                 this will return the single inherited type which the extension type is extending.
     member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
-        let builder = ResizeArray()
-        if this.IsTypeExtension then
-            for implementTy in this.Implements do
-                builder.Add(implementTy)
-                builder.AddRange(implementTy.AllLogicalInheritsAndImplements)
-        elif this.IsInterface then
-            for inheritTy in this.Extends do
-                builder.Add(inheritTy)
-                builder.AddRange(inheritTy.AllLogicalInheritsAndImplements)
-        else
-            for inheritTy in this.Extends do
-                builder.Add(inheritTy)
-                builder.AddRange(inheritTy.AllLogicalInheritsAndImplements)
-
-            for implementTy in this.Implements do
-                builder.Add(implementTy)
-                builder.AddRange(implementTy.AllLogicalInheritsAndImplements)
-
-        TypeSymbol.Distinct(builder) |> ImArray.ofSeq
+        this.FlattenHierarchy()
 
     member this.AllLogicallyInheritedAndImplementedFunctions =
-        this.AllLogicalInheritsAndImplements
-        |> Seq.collect (fun x -> x.Functions)
+        let builder = ImArray.builder()
+        this.HierarchyForEach(fun x ->
+            builder.AddRange(x.Functions)
+        )
+        builder.ToImmutable()
 
     member this.AllLogicalFunctions: _ seq =
         this.AllLogicallyInheritedAndImplementedFunctions
@@ -1429,8 +1420,7 @@ let subsumesEntityWith rigidity (super: IEntitySymbol) (ent: IEntitySymbol) =
         else
             false
     else
-        ent.AllLogicalInheritsAndImplements
-        |> Seq.exists (fun x ->
+        ent.HierarchyExists (fun x ->
             match x.TryEntity with
             | ValueSome x ->
                 subsumesEntityWith rigidity super x
@@ -1484,11 +1474,8 @@ let subsumesTypeConstructorWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) 
     else
         if UnifyTypes rigidity superTy ty then true
         else
-            if superTy.Arity = ty.Arity then
-                ty.AllLogicalInheritsAndImplements
-                |> Seq.exists (fun (ty: TypeSymbol) ->
-                    areTypesEqual ty.Formal superTy
-                )
+            if superTy.Arity = ty.Arity then    
+                ty.HierarchyExists(fun ty -> areTypesEqual ty.Formal superTy)
             else
                 false
 
