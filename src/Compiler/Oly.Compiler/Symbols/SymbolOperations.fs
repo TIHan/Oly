@@ -1100,24 +1100,9 @@ type TypeSymbol with
             this.Hierarchy(fun x -> builder.Add(x); true)
             builder.ToImmutable()
 
+        // TODO: Remove this.
         member this.AllLogicalInheritsAndImplements: _ imarray =
-            let ty = stripTypeEquationsAndBuiltIn this
-            match ty.TryEntity with
-            | ValueSome ent -> ent.AllLogicalInheritsAndImplements
-            | _ ->
-                match ty.TryTypeParameter with
-                | ValueSome tyPar ->
-                    tyPar.Constraints
-                    |> Seq.choose (function
-                        | ConstraintSymbol.SubtypeOf(ty) ->
-                            Some ty.Value
-                        | _ ->
-                            None
-                    )
-                    |> TypeSymbol.Distinct
-                    |> ImArray.ofSeq
-                | _ ->
-                    ImArray.empty
+            this.FlattenHierarchy()
 
         member this.AllLogicalImplements =
             match this.TryEntity with
@@ -1380,6 +1365,7 @@ type IEntitySymbol with
     ///    Where as non-'Logical' calls get access to the exact information for the type/entity.
     ///    For example: 'x.Inherits' where 'x' is the extension type;
     ///                 this will return the single inherited type which the extension type is extending.
+    // TODO: Remove this.
     member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
         this.FlattenHierarchy()
 
