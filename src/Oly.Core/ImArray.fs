@@ -537,7 +537,7 @@ module ROMem =
             f items1[i] items2[i]
             i <- i + 1
 
-    let inline tryIter2 f (items1: romem<'T1>) (items2: romem<'T2>) =
+    let inline tryIter2 ([<InlineIfLambda>] f) (items1: romem<'T1>) (items2: romem<'T2>) =
         for i = 0 to (min items1.Length items2.Length) - 1 do
             f items1.[i] items2.[i]
 
