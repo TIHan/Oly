@@ -43,6 +43,5 @@ module Program =
 
     [<EntryPoint>]
     let main(argv: string[]): int =
-        // System.Runtime.GCSettings.LatencyMode <- System.Runtime.GCLatencyMode.Batch
         BenchmarkRunner.Run<ParsingText>() |> ignore
         100
