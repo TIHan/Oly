@@ -162,7 +162,7 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
     let image = Image.Load<Rgba32>(File.ReadAllBytes(filePath))
     let width = uint32(image.Width)
     let height = uint32(image.Height)
-    let format = VkFormat.VK_FORMAT_B8G8R8A8_UNORM
+    let format = VkFormat.VK_FORMAT_B8G8R8A8_SRGB
 
     let mutable imageSpan = default
     if (!image.TryGetSinglePixelSpan(&imageSpan))

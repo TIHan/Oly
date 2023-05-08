@@ -1727,8 +1727,8 @@ private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, ol
 private createSampler(device: VkDevice, maxAnisotropy: float32): VkSampler =
     let mutable samplerInfo = default: VkSamplerCreateInfo
     samplerInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
-    samplerInfo.magFilter <- VkFilter.VK_FILTER_LINEAR
-    samplerInfo.minFilter <- VkFilter.VK_FILTER_LINEAR
+    samplerInfo.magFilter <- VkFilter.VK_FILTER_NEAREST
+    samplerInfo.minFilter <- VkFilter.VK_FILTER_NEAREST
     samplerInfo.addressModeU <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
     samplerInfo.addressModeV <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
     samplerInfo.addressModeW <- VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_REPEAT
