@@ -164,11 +164,15 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
     let height = uint32(image.Height)
     let format = VkFormat.VK_FORMAT_B8G8R8A8_UNORM
 
-    let imageSpan = AdvancedImageExtensions.GetPixelRowMemory(image, 0).Span
-    let imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
+    let mutable imageSpan = default
+    if (!image.TryGetSinglePixelSpan(&imageSpan))
+        fail("Invalid image.")
+
+    let mutable imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
     let imageSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<Rgba32, byte>(imageSpan)
     let vulkanImage = vk.CreateImage(vulkanApp, width, height, format, imageSpan)
     image.Dispose()
+
     vulkanImage
 
 createVertexBuffer(vulkanApp: vk.VulkanApplication, vertices: Vertex[||]): vk.VulkanBuffer =
