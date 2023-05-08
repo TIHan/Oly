@@ -125,10 +125,10 @@ private alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
-    Position: Vector2
+    Position: Vector3
     Color: Vector3
 
-    new(position: Vector2, color: Vector3) =
+    new(position: Vector3, color: Vector3) =
         {
             Position = position
             Color = color
@@ -136,13 +136,6 @@ struct Vertex =
 
     overrides ToString(): string = 
         "(Position = " + this.Position.ToString() + ", Color = " + this.Color.ToString() + ")"
-
-Vertices: Vertex[] =
-    [
-        Vertex(Vector2(0, -0.5), Vector3(1, 0, 0));
-        Vertex(Vector2(0.5, 0.5), Vector3(0, 1, 0));
-        Vertex(Vector2(-0.5, 0.5), Vector3(0, 0, 1))
-    ]
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Globals =
@@ -178,6 +171,30 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
     image.Dispose()
     vulkanImage
 
+createVertexBuffer(vulkanApp: vk.VulkanApplication, vertices: Vertex[||]): vk.VulkanBuffer =
+    let buffer = 
+        vk.CreateBuffer(
+            vulkanApp, 
+            65536, 
+            VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+           // VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+        )
+    vk.UpdateBuffer(vulkanApp, buffer, vertices)
+    buffer
+
+createIndexBuffer(vulkanApp: vk.VulkanApplication, indices: uint32[||]): vk.VulkanBuffer =
+    let buffer = 
+        vk.CreateBuffer(
+            vulkanApp, 
+            65536, 
+            VkBufferUsageFlags.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+            // VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+        )
+    vk.UpdateBuffer(vulkanApp, buffer, indices)
+    buffer
+
 main(): () =
     // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
     Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
@@ -195,15 +212,14 @@ main(): () =
 
     printLine(vulkanApp.GetDeviceName())
 
-    let buffer = 
-        vk.CreateBuffer(
-            vulkanApp, 
-            65536, 
-            VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
-           // VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+    let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
+    let vertices =
+        Array.Initialize(quad.Vertices.Length,
+            i -> Vertex(quad.Vertices[i], Vector3(1, 0, 0))
         )
-    vk.UpdateBuffer(vulkanApp, buffer, Vertices)
+    
+    let vertexBuffer = createVertexBuffer(vulkanApp, vertices)
+    let indexBuffer = createIndexBuffer(vulkanApp, quad.Indices)
 
     let vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
     let fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
@@ -237,14 +253,30 @@ main(): () =
         )
     let globalBuffers = UnsafeCast<vk.VulkanBuffer[]>(globalBuffers)
 
-    let setLayout = vk.CreateDescriptorSetLayout(vulkanApp, 0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT)
+    let bindingInfos =
+        [
+            vk.VulkanDescriptorBindingInfo(0, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
+            vk.VulkanDescriptorBindingInfo(1, VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
+        ]       
+    let bindingInfos =
+        ReadOnlySpan(UnsafeCast<_[||]>(bindingInfos))
 
-    let descriptorPool = vk.CreateDescriptorPool(vulkanApp, VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uint32(vulkanApp.MaxFramesInFlight))
+    let descriptorTypes =
+        [
+            VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        ]
+    let mutable descriptorTypes =
+        ReadOnlySpan(UnsafeCast<_[||]>(descriptorTypes))
+
+    let setLayout = vk.CreateDescriptorSetLayout(vulkanApp, bindingInfos)
+    let descriptorPool = vk.CreateDescriptorPool(vulkanApp, descriptorTypes, uint32(vulkanApp.MaxFramesInFlight))
     let descriptorSets = vk.CreateDescriptorSets(vulkanApp, descriptorPool, uint32(vulkanApp.MaxFramesInFlight), setLayout)
 
     let mutable i = 0
     while (i < vulkanApp.MaxFramesInFlight)
-        vk.UpdateDescriptorSet(vulkanApp, descriptorSets[i], globalBuffers[i], VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+        vk.UpdateDescriptorSet(vulkanApp, 0, descriptorSets[i], globalBuffers[i], descriptorTypes[0])
+        vk.UpdateDescriptorSet(vulkanApp, 1, descriptorSets[i], vk.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, testImageView, testSampler, VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
         i <- i + 1
 
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, [setLayout])
@@ -270,8 +302,9 @@ main(): () =
         commandBuffer.SetViewport(viewport)
         commandBuffer.SetScissor(scissor)
         commandBuffer.BindDescriptorSet(vk.VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
-        commandBuffer.BindVertexBuffer(buffer)
-        commandBuffer.Draw(3, 1)
+        commandBuffer.BindVertexBuffer(vertexBuffer)
+        commandBuffer.BindIndexBuffer(indexBuffer)
+        commandBuffer.DrawIndexed(uint32(quad.Indices.Length), 1)
 
         commandBuffer.EndRenderPass()
         commandBuffer.End()
@@ -363,7 +396,8 @@ main(): () =
 
     vk.WaitForIdle(vulkanApp)
 
-    vk.DestroyBuffer(vulkanApp, buffer)
+    vk.DestroyBuffer(vulkanApp, vertexBuffer)
+    vk.DestroyBuffer(vulkanApp, indexBuffer)
 
     let mutable i = 0
     while (i < globalBuffers.Length)

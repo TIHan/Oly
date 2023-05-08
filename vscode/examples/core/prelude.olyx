@@ -761,15 +761,19 @@ extension ArrayExtensions =
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
     x.get_Item(key)
+
 #[inline]
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
+
 #[inline]
 (`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
     x.get_Item(key)
+
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
+
 #[inline]
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)

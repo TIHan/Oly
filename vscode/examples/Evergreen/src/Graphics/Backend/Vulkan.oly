@@ -572,14 +572,26 @@ CreateSampler(app: VulkanApplication): VkSampler =
 DestroySampler(app: VulkanApplication, sampler: VkSampler): () =
     vkDestroySampler(app.Device, sampler, nullptr)
 
-CreateDescriptorSetLayout(app: VulkanApplication, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
-    createDescriptorSetLayout(app.Device, binding, descriptorType, stageFlags)
+sealed class VulkanDescriptorBindingInfo =
+    Binding: uint32 get
+    DescriptorType: VkDescriptorType get
+    StageFlags: VkShaderStageFlags get
+
+    new(binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags) =
+        {
+            Binding = binding
+            DescriptorType = descriptorType
+            StageFlags = stageFlags
+        }
+
+CreateDescriptorSetLayout(app: VulkanApplication, bindingInfos: ReadOnlySpan<VulkanDescriptorBindingInfo>): VkDescriptorSetLayout =
+    createDescriptorSetLayout(app.Device, bindingInfos)
 
 DestroyDescriptorSetLayout(app: VulkanApplication, descriptorSetLayout: VkDescriptorSetLayout): () =
     vkDestroyDescriptorSetLayout(app.Device, descriptorSetLayout, nullptr)
 
-CreateDescriptorPool(app: VulkanApplication, descriptorType: VkDescriptorType, descriptorCount: uint32): VkDescriptorPool =
-    createDescriptorPool(app.Device, descriptorType, descriptorCount)
+CreateDescriptorPool(app: VulkanApplication, descriptorTypes: ReadOnlySpan<VkDescriptorType>, descriptorCount: uint32): VkDescriptorPool =
+    createDescriptorPool(app.Device, descriptorTypes, descriptorCount)
 
 DestroyDescriptorPool(app: VulkanApplication, descriptorPool: VkDescriptorPool): () =
     vkDestroyDescriptorPool(app.Device, descriptorPool, nullptr)
@@ -587,8 +599,11 @@ DestroyDescriptorPool(app: VulkanApplication, descriptorPool: VkDescriptorPool):
 CreateDescriptorSets(app: VulkanApplication, descriptorPool: VkDescriptorPool, descriptorSetCount: uint32, setLayout: VkDescriptorSetLayout): VkDescriptorSet[] =
     createDescriptorSets(app.Device, descriptorPool, descriptorSetCount, setLayout)
 
-UpdateDescriptorSet(app: VulkanApplication, descriptorSet: VkDescriptorSet, buffer: VulkanBuffer, descriptorType: VkDescriptorType): () =
-    updateDescriptorSet(app.Device, descriptorSet, buffer.Buffer, buffer.Offset, buffer.Size, descriptorType)
+UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, buffer: VulkanBuffer, descriptorType: VkDescriptorType): () =
+    updateDescriptorSet(app.Device, binding, descriptorSet, buffer.Buffer, buffer.Offset, buffer.Size, descriptorType)
+
+UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, imageLayout: VkImageLayout, imageView: VkImageView, sampler: VkSampler, descriptorType: VkDescriptorType): () =
+    updateDescriptorSet(app.Device, binding, descriptorSet, imageLayout, imageView, sampler, descriptorType)
  
 Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (framebufferIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
     let currentFrame = app.currentFrame
@@ -1396,39 +1411,67 @@ private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInpu
         i <- i + 1
     UnsafeCast(attributeDescriptions)
 
-private createDescriptorSetLayout(device: VkDevice, binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags): VkDescriptorSetLayout =
-    let mutable layoutBinding = default: VkDescriptorSetLayoutBinding
-    layoutBinding.binding <- binding
-    layoutBinding.descriptorType <- descriptorType
-    layoutBinding.descriptorCount <- 1
-    layoutBinding.stageFlags <- stageFlags
-    layoutBinding.pImmutableSamplers <- nullptr
+private createDescriptorSetLayout(device: VkDevice, mutable bindingInfos: ReadOnlySpan<VulkanDescriptorBindingInfo>): VkDescriptorSetLayout =
+
+    let layoutBindings = Array.ZeroCreate(bindingInfos.Length)
+
+    let mutable i = 0
+    while (i < layoutBindings.Length)
+        let info = bindingInfos[i]
+
+        let mutable layoutBinding = default: VkDescriptorSetLayoutBinding
+        layoutBinding.binding <- info.Binding
+        layoutBinding.descriptorType <- info.DescriptorType
+        layoutBinding.descriptorCount <- 1
+        layoutBinding.stageFlags <- info.StageFlags
+        layoutBinding.pImmutableSamplers <- nullptr
+
+        layoutBindings[i] <- layoutBinding
+        i <- i + 1
+
+    let mutable layoutBindingsHandle = fixed(layoutBindings)
 
     let mutable layoutInfo = default: VkDescriptorSetLayoutCreateInfo
     layoutInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
-    layoutInfo.bindingCount <- 1
-    layoutInfo.pBindings <- &&layoutBinding
+    layoutInfo.bindingCount <- uint32(layoutBindings.Length)
+    layoutInfo.pBindings <- UnsafeCast(layoutBindingsHandle.AddrOfPinnedObject())
 
     let mutable descriptorSetLayout = default: VkDescriptorSetLayout
     if (vkCreateDescriptorSetLayout(device, &&layoutInfo, nullptr, &&descriptorSetLayout) != VkResult.VK_SUCCESS)
         fail("Failed to create descriptor set layout.")
 
+    layoutBindingsHandle.Free()
+
     descriptorSetLayout
 
-private createDescriptorPool(device: VkDevice, descriptorType: VkDescriptorType, descriptorCount: uint32): VkDescriptorPool =
-    let mutable poolSize = default: VkDescriptorPoolSize
-    poolSize.`type` <- descriptorType
-    poolSize.descriptorCount <- descriptorCount
+private createDescriptorPool(device: VkDevice, mutable descriptorTypes: ReadOnlySpan<VkDescriptorType>, descriptorCount: uint32): VkDescriptorPool =
+
+    let poolSizes = Array.ZeroCreate(descriptorTypes.Length)
+
+    let mutable i = 0
+    while (i < poolSizes.Length)
+        let descriptorType = descriptorTypes[i]
+
+        let mutable poolSize = default: VkDescriptorPoolSize
+        poolSize.`type` <- descriptorType
+        poolSize.descriptorCount <- descriptorCount
+
+        poolSizes[i] <- poolSize
+        i <- i + 1
+
+    let mutable poolSizesHandle = fixed(poolSizes)
 
     let mutable poolInfo = default: VkDescriptorPoolCreateInfo
     poolInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
-    poolInfo.poolSizeCount <- 1
-    poolInfo.pPoolSizes <- &&poolSize
+    poolInfo.poolSizeCount <- uint32(poolSizes.Length)
+    poolInfo.pPoolSizes <- UnsafeCast(poolSizesHandle.AddrOfPinnedObject())
     poolInfo.maxSets <- descriptorCount
 
     let mutable descriptorPool = default: VkDescriptorPool
     if (vkCreateDescriptorPool(device, &&poolInfo, nullptr, &&descriptorPool) != VkResult.VK_SUCCESS)
         fail("Failed to create descriptor pool.")
+
+    poolSizesHandle.Free()
 
     descriptorPool
 
@@ -1453,7 +1496,7 @@ private createDescriptorSets(device: VkDevice, descriptorPool: VkDescriptorPool,
 
     UnsafeCast(descriptorSets)
 
-private updateDescriptorSet(device: VkDevice, descriptorSet: VkDescriptorSet, buffer: VkBuffer, offset: uint64, size: uint64, descriptorType: VkDescriptorType): () =
+private updateDescriptorSet(device: VkDevice, binding: uint32, descriptorSet: VkDescriptorSet, buffer: VkBuffer, offset: uint64, size: uint64, descriptorType: VkDescriptorType): () =
     let mutable bufferInfo = default: VkDescriptorBufferInfo
     bufferInfo.offset <- offset
     bufferInfo.buffer <- buffer
@@ -1462,7 +1505,7 @@ private updateDescriptorSet(device: VkDevice, descriptorSet: VkDescriptorSet, bu
     let mutable descriptorWrite = default: VkWriteDescriptorSet
     descriptorWrite.sType <- VkStructureType.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
     descriptorWrite.dstSet <- descriptorSet
-    descriptorWrite.dstBinding <- 0
+    descriptorWrite.dstBinding <- binding
     descriptorWrite.dstArrayElement <- 0
 
     descriptorWrite.descriptorType <- descriptorType
@@ -1471,6 +1514,27 @@ private updateDescriptorSet(device: VkDevice, descriptorSet: VkDescriptorSet, bu
     descriptorWrite.pBufferInfo <- &&bufferInfo
     descriptorWrite.pImageInfo <- nullptr // Optional
     descriptorWrite.pTexelBufferView <- nullptr // Optional
+
+    vkUpdateDescriptorSets(device, 1, &&descriptorWrite, 0, nullptr)
+
+private updateDescriptorSet(device: VkDevice, binding: uint32, descriptorSet: VkDescriptorSet, imageLayout: VkImageLayout, imageView: VkImageView, sampler: VkSampler, descriptorType: VkDescriptorType): () =
+    let mutable imageInfo = default: VkDescriptorImageInfo
+    imageInfo.imageLayout <- imageLayout
+    imageInfo.imageView <- imageView
+    imageInfo.sampler <- sampler
+
+    let mutable descriptorWrite = default: VkWriteDescriptorSet
+    descriptorWrite.sType <- VkStructureType.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET
+    descriptorWrite.dstSet <- descriptorSet
+    descriptorWrite.dstBinding <- binding
+    descriptorWrite.dstArrayElement <- 0
+
+    descriptorWrite.descriptorType <- descriptorType
+    descriptorWrite.descriptorCount <- 1
+
+    descriptorWrite.pBufferInfo <- nullptr
+    descriptorWrite.pImageInfo <- &&imageInfo
+    descriptorWrite.pTexelBufferView <- nullptr
 
     vkUpdateDescriptorSets(device, 1, &&descriptorWrite, 0, nullptr)
 
@@ -1687,6 +1751,7 @@ private createSampler(device: VkDevice, maxAnisotropy: float32): VkSampler =
 // -----------------------------------------------------------------------
 
 alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint
+alias VkImageLayout = TerraFX.Interop.Vulkan.VkImageLayout
 
 /// Runtime alias for 'VkCommandBuffer'.
 newtype VulkanCommandBuffer =
@@ -1743,6 +1808,9 @@ newtype VulkanCommandBuffer =
     Draw(vertexCount: uint32, instanceCount: uint32): () =
         vkCmdDraw(this.CommandBuffer, vertexCount, instanceCount, 0, 0)
 
+    DrawIndexed(indexCount: uint32, instanceCount: uint32): () =
+        vkCmdDrawIndexed(this.CommandBuffer, indexCount, instanceCount, 0, 0, 0)
+
     BindVertexBuffers(mutable rosVertexBuffers: ReadOnlySpan<VulkanBuffer>): () =
         let vertexBuffers = Array.ZeroCreate<VkBuffer>(rosVertexBuffers.Length)
         let mutable i = 0
@@ -1772,6 +1840,9 @@ newtype VulkanCommandBuffer =
 
     BindVertexBuffer(vertexBuffer: VulkanBuffer): () =
         this.BindVertexBuffers([vertexBuffer])
+
+    BindIndexBuffer(indexBuffer: VulkanBuffer): () =
+        vkCmdBindIndexBuffer(this.CommandBuffer, indexBuffer.Buffer, 0, VkIndexType.VK_INDEX_TYPE_UINT32)
 
     BindDescriptorSet(pipelineBindPoint: VkPipelineBindPoint, layout: VkPipelineLayout, mutable descriptorSet: VkDescriptorSet): () =
         vkCmdBindDescriptorSets(this.CommandBuffer, pipelineBindPoint, layout, 0, 1, &&descriptorSet, 0, nullptr)
