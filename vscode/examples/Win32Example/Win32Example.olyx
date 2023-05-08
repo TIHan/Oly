@@ -126,16 +126,16 @@ private alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 #[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
     Position: Vector3
-    Color: Vector3
+    TexCoord: Vector2
 
-    new(position: Vector3, color: Vector3) =
+    new(position: Vector3, texCoord: Vector2) =
         {
             Position = position
-            Color = color
+            TexCoord = texCoord
         }
 
     overrides ToString(): string = 
-        "(Position = " + this.Position.ToString() + ", Color = " + this.Color.ToString() + ")"
+        "(Position = " + this.Position.ToString() + ")"
 
 #[StructLayout(LayoutKind.Sequential)]
 struct Globals =
@@ -215,7 +215,7 @@ main(): () =
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
     let vertices =
         Array.Initialize(quad.Vertices.Length,
-            i -> Vertex(quad.Vertices[i], Vector3(1, 0, 0))
+            i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
         )
     
     let vertexBuffer = createVertexBuffer(vulkanApp, vertices)
@@ -276,7 +276,7 @@ main(): () =
     let mutable i = 0
     while (i < vulkanApp.MaxFramesInFlight)
         vk.UpdateDescriptorSet(vulkanApp, 0, descriptorSets[i], globalBuffers[i], descriptorTypes[0])
-        vk.UpdateDescriptorSet(vulkanApp, 1, descriptorSets[i], vk.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, testImageView, testSampler, VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        vk.UpdateDescriptorSet(vulkanApp, 1, descriptorSets[i], vk.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, testImageView, testSampler, descriptorTypes[1])
         i <- i + 1
 
     let pipelineLayout = vk.CreatePipelineLayout(vulkanApp, [setLayout])
