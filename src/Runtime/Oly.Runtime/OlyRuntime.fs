@@ -806,8 +806,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                             if par.IsMutable <> env.Function.IsArgumentMutable(argIndex) then
                                 OlyAssert.Fail("Invalid argument mutability for stack-emplaced function.")
 
+                        | E.Operation(op=O.LoadField(field=field)) ->
+                            if par.IsMutable <> field.IsMutable then
+                                OlyAssert.Fail("Invalid field mutability for stack-emplaced function.")
+
                         | _ ->
-                            OlyAssert.Fail("Invalid stack-emplaced function call.")
+                            OlyAssert.Fail($"Invalid argument for stack-emplaced function call. Argument:\n{irArg}\n")
                     )
 
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>

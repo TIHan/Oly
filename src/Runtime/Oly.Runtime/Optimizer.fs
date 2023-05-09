@@ -357,6 +357,9 @@ type SubValue<'Type, 'Function, 'Field> =
     | Argument of argIndex: int
     | Constant of C<'Type, 'Function>
 
+    /// Only used for stack-emplaced inlining.
+    | Field of field: OlyIRField<'Type, 'Function, 'Field> * receiverExpr: OlyIRExpression<'Type, 'Function, 'Field>
+
 [<Literal>]
 let RecursiveInlineLimit = 3
 
@@ -398,6 +401,13 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                     E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
                 | SubValue.Argument(argIndex) ->
                     E.Operation(irTextRange, O.StoreArgument(argIndex, irRhsExpr, resultTy))
+
+                | SubValue.Field(field, irReceiverExpr) as sub ->
+                    if isEmplaced then
+                        E.Operation(irTextRange, O.StoreField(field, irReceiverExpr, irRhsExpr, resultTy))
+                    else
+                        OlyAssert.Fail($"Argument: bad forwardsub {sub}")
+
                 | sub ->
                     OlyAssert.Fail($"StoreArgument: bad forwardsub {sub}")
 
@@ -519,6 +529,12 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | SubValue.Constant(irConstant) ->
                     E.Value(irTextRange, V.Constant(irConstant, resultTy))
 
+                | SubValue.Field(field, irReceiverExpr) as sub ->
+                    if isEmplaced then
+                        E.Operation(irTextRange, O.LoadField(field, irReceiverExpr, resultTy))
+                    else
+                        OlyAssert.Fail($"Argument: bad forwardsub {sub}")
+
             | V.ArgumentAddress(argIndex, kind, resultTy) ->
                 match argMap[argIndex] with
                 | SubValue.Local(localIndex, _) ->
@@ -529,6 +545,13 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                         E.Value(irTextRange, V.ArgumentAddress(argIndex, kind, resultTy))
                     else
                         E.Value(irTextRange, V.Argument(argIndex, resultTy))
+
+                | SubValue.Field(field, irReceiverExpr) as sub ->
+                    if isEmplaced then
+                        E.Operation(irTextRange, O.LoadFieldAddress(field, irReceiverExpr, kind, resultTy))
+                    else
+                        OlyAssert.Fail($"ArgumentAddress: bad forwardsub {sub}")
+
                 | sub ->
                     OlyAssert.Fail($"ArgumentAddress: bad forwardsub {sub}")
 
@@ -586,7 +609,9 @@ let tryInlineFunction optenv irExpr =
 
             let irFuncBodyExpr = irFuncBody.Expression
 
-            if isPassthroughExpression irArgExprs.Length irFuncBodyExpr then
+            let isEmplaced = func.Flags.IsStackEmplace
+
+            if not isEmplaced && isPassthroughExpression irArgExprs.Length irFuncBodyExpr then
                 match irFuncBodyExpr with
                 | E.Operation(irTextRange, irOp) ->
                     let irInlinedExpr =
@@ -604,7 +629,7 @@ let tryInlineFunction optenv irExpr =
                     let isArgAddressExposed = irFuncBody.ArgumentFlags[i].HasFlag(OlyIRLocalFlags.AddressExposed)
 
                     let isForwardSub =
-                        if func.Flags.IsStackEmplace then
+                        if isEmplaced then
                             true
                         elif isMutable || isArgAddressExposed then 
                             false
@@ -640,6 +665,13 @@ let tryInlineFunction optenv irExpr =
                             | V.Constant(constant, _) -> SubValue.Constant(constant)
                             | _ -> 
                                 OlyAssert.Fail($"bad forwardsub {irValue}")
+
+                        | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) as irExpr ->
+                            if hasSideEffectForEmplace optenv irReceiverExpr then
+                                OlyAssert.Fail($"bad forwardsub due to side-effect: {irExpr}")
+
+                            SubValue.Field(field, irReceiverExpr)
+
                         | expr ->
                             OlyAssert.Fail($"bad forwardsub {expr}")
                     else                       
@@ -653,7 +685,7 @@ let tryInlineFunction optenv irExpr =
                 |> ignore
 
             let irFinalExpr =
-                inlineFunction optenv func localOffset argMap irFuncBodyExpr func.Flags.IsStackEmplace
+                inlineFunction optenv func localOffset argMap irFuncBodyExpr isEmplaced
 
             let irInlinedExpr =
                 (irFinalExpr, argMap)
@@ -764,8 +796,8 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
 [<Literal>]
 let SideEffectDepthLimit = 10
 
-let hasSideEffectAux (optenv: optenv<_, _, _>) checkAddressExposed depth (irExpr: E<_, _, _>) =
-    if depth >= SideEffectDepthLimit then true
+let hasSideEffectAux (optenv: optenv<_, _, _>) limit checkAddressExposed depth (irExpr: E<_, _, _>) =
+    if depth >= limit then true
     else
 
     match irExpr with
@@ -795,7 +827,7 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) checkAddressExposed depth (irExpr
                 let mutable anyArgsHaveSideEffects = false
                 irOp.ForEachArgument(fun _ irArgExpr -> 
                     if not anyArgsHaveSideEffects then
-                        anyArgsHaveSideEffects <- hasSideEffectAux optenv checkAddressExposed (depth + 1) irArgExpr
+                        anyArgsHaveSideEffects <- hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irArgExpr
                 )
                 anyArgsHaveSideEffects
             else
@@ -817,27 +849,36 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) checkAddressExposed depth (irExpr
             let mutable anyArgsHaveSideEffects = false
             irOp.ForEachArgument(fun _ irArgExpr -> 
                 if not anyArgsHaveSideEffects then
-                    anyArgsHaveSideEffects <- hasSideEffectAux optenv checkAddressExposed (depth + 1) irArgExpr
+                    anyArgsHaveSideEffects <- hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irArgExpr
             )
             anyArgsHaveSideEffects
 
     | E.Let(_, _, irRhsExpr, irBodyExpr) ->
-        hasSideEffectAux optenv checkAddressExposed (depth + 1) irRhsExpr ||
-        hasSideEffectAux optenv checkAddressExposed (depth + 1) irBodyExpr
+        hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
+        hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
 
     | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, _) ->
-        hasSideEffectAux optenv checkAddressExposed (depth + 1) irConditionExpr ||
-        hasSideEffectAux optenv checkAddressExposed (depth + 1) irTrueTargetExpr ||
-        hasSideEffectAux optenv checkAddressExposed (depth + 1) irFalseTargetExpr
+        hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irConditionExpr ||
+        hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irTrueTargetExpr ||
+        hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irFalseTargetExpr
 
     | _ -> 
         true
 
 let hasSideEffect optenv (irExpr: E<_, _, _>) =
-    hasSideEffectAux optenv false 0 irExpr
+    hasSideEffectAux optenv SideEffectDepthLimit false 0 irExpr
+
+let hasSideEffectForEmplace optenv irExpr =
+    match irExpr with
+    | E.Value(value=V.Local(index, _)) ->
+        optenv.localManager.IsMutable(index)
+    | E.Value(value=V.Argument(index, _)) ->
+        optenv.func.IsArgumentMutable(index)
+    | _ ->
+        true
 
 let isInvariant optenv (irExpr: E<_, _, _>) =
-    hasSideEffectAux optenv true 0 irExpr
+    hasSideEffectAux optenv SideEffectDepthLimit true 0 irExpr
     |> not
 
 let And arg1 arg2 resultTy =

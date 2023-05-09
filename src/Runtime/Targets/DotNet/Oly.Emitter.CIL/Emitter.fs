@@ -1953,9 +1953,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     inherits
 
-            let isStructLayoutSequential =
+            let layoutKind =
                 irAttrs
-                |> ImArray.exists (fun x ->
+                |> ImArray.tryPick (fun x ->
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) 
                             when irArgs.Length = 1 && 
@@ -1964,19 +1964,33 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                  ctor.enclosingTyHandle.FullyQualifiedName.StartsWith("System.Runtime.InteropServices.StructLayoutAttribute") ->
                         let irArg = irArgs[0]
                         match irArg with
-                        | C.Int16(0s)
-                        | C.Int32(0) -> true
-                        | _ -> false
+                        | C.Int16(0s) -> Some System.Runtime.InteropServices.LayoutKind.Sequential
+                        | C.Int32(x) ->
+                            match x with
+                            | 3 -> Some System.Runtime.InteropServices.LayoutKind.Auto
+                            | 2 -> Some System.Runtime.InteropServices.LayoutKind.Explicit
+                            | _ -> Some System.Runtime.InteropServices.LayoutKind.Sequential
+                        | _ -> None
                     | _ ->
-                        false
+                        None
                 )
+                |> Option.defaultValue System.Runtime.InteropServices.LayoutKind.Sequential
 
             let tyAttrs = 
                 if isAnyStruct then
-                    if isStructLayoutSequential then
-                        TypeAttributes.SequentialLayout ||| TypeAttributes.Sealed ||| TypeAttributes.BeforeFieldInit
-                    else
-                        TypeAttributes.AutoLayout ||| TypeAttributes.Sealed ||| TypeAttributes.BeforeFieldInit
+                    let layout =
+                        if isEnum then
+                            TypeAttributes.AutoLayout
+                        else
+                            match layoutKind with
+                            | System.Runtime.InteropServices.LayoutKind.Auto ->
+                                TypeAttributes.AutoLayout
+                            | System.Runtime.InteropServices.LayoutKind.Explicit ->
+                                TypeAttributes.ExplicitLayout
+                            | _ ->
+                                TypeAttributes.SequentialLayout
+
+                    layout ||| TypeAttributes.Sealed ||| TypeAttributes.BeforeFieldInit
                 elif isInterface then
                     tyDefBuilder.BaseType <- ClrTypeHandle.Empty
                     TypeAttributes.Interface ||| TypeAttributes.Abstract

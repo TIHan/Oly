@@ -109,20 +109,26 @@ sealed class VulkanSwapChain =
     SwapChain: VkSwapchainKHR
     Images: VkImage[]
     ImageViews: VkImageView[]
+    DepthImages: VulkanImage[]
+    DepthImageViews: VkImageView[]
     Extent: VkExtent2D
     Viewport: VkViewport
     Scissor: VkRect2D
     ImageFormat: VkFormat
+    DepthFormat: VkFormat
 
-    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat) =
+    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat) =
         {
             SwapChain = swapChain
             Images = images
             ImageViews = imageViews
+            DepthImages = depthImages
+            DepthImageViews = depthImageViews
             Extent = extent
             Viewport = viewport
             Scissor = scissor
             ImageFormat = imageFormat
+            DepthFormat = depthFormat
         }
 
 private sealed class PtrPtrHandle =
@@ -268,12 +274,20 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
     VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), allocator)
 
 CreateSwapChain(app: VulkanApplication): VulkanSwapChain =
-    createSwapChain(app.PhysicalDevice, app.Device, app.Surface, app.GraphicsQueueFamilyIndex, app.PresentQueueFamilyIndex, uint32(app.MaxFramesInFlight))
+    createSwapChain(app)
 
 DestroySwapChain(app: VulkanApplication, swapChain: VulkanSwapChain): () =
     let mutable i = 0
     while (i < swapChain.ImageViews.Length)
         vkDestroyImageView(app.Device, swapChain.ImageViews[i], nullptr)
+        i <- i + 1
+    let mutable i = 0
+    while (i < swapChain.DepthImageViews.Length)
+        vkDestroyImageView(app.Device, swapChain.DepthImageViews[i], nullptr)
+        i <- i + 1
+    let mutable i = 0
+    while (i < swapChain.DepthImages.Length)
+        DestroyImage(app, swapChain.DepthImages[i])
         i <- i + 1
     vkDestroySwapchainKHR(app.Device, swapChain.SwapChain, nullptr)
 
@@ -313,7 +327,7 @@ DestroyPipelineLayout(app: VulkanApplication, pipelineLayout: VkPipelineLayout):
     vkDestroyPipelineLayout(app.Device, pipelineLayout, nullptr)
 
 CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPass =
-    createRenderPass(app.Device, swapChain.ImageFormat)
+    createRenderPass(app.Device, swapChain.ImageFormat, swapChain.DepthFormat)
 
 DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
     vkDestroyRenderPass(app.Device, renderPass, nullptr)
@@ -330,7 +344,9 @@ DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
     vkDestroyPipeline(app.Device, pipeline, nullptr)
 
 CreateSwapChainFramebuffers(app: VulkanApplication, swapChain: VulkanSwapChain, renderPass: VkRenderPass): VkFramebuffer[] =
-    Array.Map(swapChain.ImageViews, x -> createFramebuffer(app.Device, renderPass, x, swapChain.Extent.width, swapChain.Extent.height))
+    Array.MapIndex(swapChain.ImageViews, 
+        (i, x) -> createFramebuffer(app.Device, renderPass, x, swapChain.DepthImageViews[i], swapChain.Extent.width, swapChain.Extent.height)
+    )
 
 DestroyFramebuffer(app: VulkanApplication, framebuffer: VkFramebuffer): () =
     vkDestroyFramebuffer(app.Device, framebuffer, nullptr)
@@ -461,15 +477,24 @@ UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): 
 DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
     vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
 
-CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, imageData: ReadOnlySpan<byte>): VulkanImage =
+CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, usageFlags: VkImageUsageFlags): VulkanImage =
     let mutable allocInfo = default: VmaAllocationInfo
-    match (createImage(app.Allocator, width, height, imageFormat, VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, &&allocInfo))
+    match (createImage(app.Allocator, width, height, imageFormat, usageFlags, VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, &&allocInfo))
     | (image, allocation) =>
-        let image = VulkanImage(image, allocation, width, height, imageFormat)
-        UpdateImage(app, image, imageData)
-        image
+        VulkanImage(image, allocation, width, height, imageFormat)
     | _ =>
         fail("Should not happen")
+
+CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat): VulkanImage =
+    CreateImage(app, width, height, imageFormat, default: VkImageUsageFlags)
+
+CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, usageFlags: VkImageUsageFlags, imageData: ReadOnlySpan<byte>): VulkanImage =
+    let image = CreateImage(app, width, height, imageFormat, usageFlags)
+    UpdateImage(app, image, imageData)
+    image
+
+CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, imageData: ReadOnlySpan<byte>): VulkanImage =
+    CreateImage(app, width, height, imageFormat, default, imageData)
 
 private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageData: ReadOnlySpan<byte>): () =
     let mutable memPropFlags = default: VkMemoryPropertyFlags
@@ -526,7 +551,7 @@ private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageDat
             let oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
             let newLayout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
-            transitionImageLayout(commandBuffer, image.Image, oldLayout, newLayout)
+            transitionImageLayout(commandBuffer, image.Image, image.Format, oldLayout, newLayout)
             vkCmdCopyBufferToImage(
                 commandBuffer,
                 stagingBuffer,
@@ -535,7 +560,7 @@ private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageDat
                 1,
                 &&imageCopy
             )
-            transitionImageLayout(commandBuffer, image.Image, newLayout, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            transitionImageLayout(commandBuffer, image.Image, image.Format, newLayout, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 
             if (vkEndCommandBuffer(commandBuffer) != VkResult.VK_SUCCESS)
                 fail("Failed to end command buffer.")
@@ -560,8 +585,8 @@ private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageDat
 DestroyImage(app: VulkanApplication, image: VulkanImage): () =
     vmaDestroyImage(app.Allocator, image.Image, image.Allocation)
 
-CreateImageView(app: VulkanApplication, image: VulkanImage): VkImageView =
-    createImageView(app.Device, image.Image, image.Format)
+CreateImageView(app: VulkanApplication, image: VulkanImage, aspectMask: VkImageAspectFlags): VkImageView =
+    createImageView(app.Device, image.Image, image.Format, aspectMask)
 
 DestroyImageView(app: VulkanApplication, imageView: VkImageView): () =
     vkDestroyImageView(app.Device, imageView, nullptr)
@@ -896,6 +921,24 @@ private createSwapChainSupportDetails(device: VkPhysicalDevice, surface: VkSurfa
 private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[]): VkSurfaceFormatKHR =
     Array.Find(formats, (x: VkSurfaceFormatKHR) -> x.format == VkFormat.VK_FORMAT_B8G8R8A8_SRGB && x.colorSpace == VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 
+private findSupportedFormat(physicalDevice: VkPhysicalDevice, formats: VkFormat[], tiling: VkImageTiling, features: VkFormatFeatureFlags): VkFormat =
+    Array.Find(formats, 
+        (x: VkFormat) -> 
+            let mutable props = default: VkFormatProperties
+            vkGetPhysicalDeviceFormatProperties(physicalDevice, x, &&props)
+
+            match (tiling)
+            | VkImageTiling.VK_IMAGE_TILING_LINEAR when ((props.linearTilingFeatures & features) == features) =>
+                true
+            | VkImageTiling.VK_IMAGE_TILING_OPTIMAL when ((props.optimalTilingFeatures & features) == features) =>
+                true
+            | _ =>
+                false
+    )
+
+private hasStencilComponent(format: VkFormat): bool =
+    format == VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT || format == VkFormat.VK_FORMAT_D24_UNORM_S8_UINT
+
 private findSwapPresentMode(presentModes: VkPresentModeKHR[]): VkPresentModeKHR =
     Array.Find(presentModes,
         (x: VkPresentModeKHR) ->
@@ -926,7 +969,14 @@ private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2
 //     }
 // }
 
-private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surface: VkSurfaceKHR, graphicsFamilyIndex: uint32, presentFamilyIndex: uint32, maxFramesInFlight: uint32): VulkanSwapChain =
+private createSwapChain(app: VulkanApplication): VulkanSwapChain =
+    let physicalDevice = app.PhysicalDevice
+    let device = app.Device
+    let surface = app.Surface
+    let graphicsFamilyIndex = app.GraphicsQueueFamilyIndex
+    let presentFamilyIndex = app.PresentQueueFamilyIndex
+    let maxFramesInFlight = uint32(app.MaxFramesInFlight)
+
     let details = createSwapChainSupportDetails(physicalDevice, surface)
 
     let swapChainAdequate =
@@ -987,7 +1037,24 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
 
     // Getting images
     let images = getSwapChainImages(device, swapChain)
-    let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format))
+    let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT))
+
+    let depthFormat =
+        findSupportedFormat(
+            physicalDevice,
+            [VkFormat.VK_FORMAT_D32_SFLOAT;VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT;VkFormat.VK_FORMAT_D24_UNORM_S8_UINT],
+            VkImageTiling.VK_IMAGE_TILING_OPTIMAL,
+            VkFormatFeatureFlags.VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        )
+
+    let depthImages = 
+        Array.Initialize(images.Length, 
+            i -> CreateImage(app, extent.width, extent.height, depthFormat, VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        )
+    let depthImageViews = 
+        Array.Map(depthImages, 
+            (x: VulkanImage) -> createImageView(device, x.Image, x.Format, VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT)
+        )
 
     let mutable viewport = default: VkViewport
     viewport.x <- 0
@@ -1001,9 +1068,9 @@ private createSwapChain(physicalDevice: VkPhysicalDevice, device: VkDevice, surf
     scissor.offset <- default
     scissor.extent <- extent
 
-    VulkanSwapChain(swapChain, images, imageViews, extent, viewport, scissor, surfaceFormat.format)
+    VulkanSwapChain(swapChain, images, imageViews, depthImages, depthImageViews, extent, viewport, scissor, surfaceFormat.format, depthFormat)
 
-private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat): VkImageView =
+private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat, aspectMask: VkImageAspectFlags): VkImageView =
     let mutable createInfo = default: VkImageViewCreateInfo
     createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
     createInfo.image <- image
@@ -1014,7 +1081,7 @@ private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat)
     createInfo.components.b <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
     createInfo.components.a <- VkComponentSwizzle.VK_COMPONENT_SWIZZLE_IDENTITY
 
-    createInfo.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT
+    createInfo.subresourceRange.aspectMask <- aspectMask
     createInfo.subresourceRange.baseMipLevel <- 0
     createInfo.subresourceRange.levelCount <- 1
     createInfo.subresourceRange.baseArrayLayer <- 0
@@ -1173,6 +1240,18 @@ private createGraphicsPipeline(
     colorBlendingValue2 <- 0 // Optional
     colorBlendingValue3 <- 0 // Optional
 
+    let mutable depthStencil = default: VkPipelineDepthStencilStateCreateInfo
+    depthStencil.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO
+    depthStencil.depthTestEnable <- VkBool32.TRUE
+    depthStencil.depthWriteEnable <- VkBool32.TRUE
+    depthStencil.depthCompareOp <- VkCompareOp.VK_COMPARE_OP_LESS
+    depthStencil.depthBoundsTestEnable <- VkBool32.FALSE
+    depthStencil.minDepthBounds <- 0 // Optional
+    depthStencil.maxDepthBounds <- 1 // Optional
+    depthStencil.stencilTestEnable <- VkBool32.FALSE
+    depthStencil.front <- default // Optional
+    depthStencil.back <- default // Optional
+
     let pName = "main"
     let mutable pNameHandle = fixedCopyUTF8(pName)
     let stageCount = stages.Length
@@ -1191,7 +1270,7 @@ private createGraphicsPipeline(
     pipelineInfo.pViewportState <- &&viewportState
     pipelineInfo.pRasterizationState <- &&rasterizer
     pipelineInfo.pMultisampleState <- &&multisampling
-    pipelineInfo.pDepthStencilState <- nullptr // Optional
+    pipelineInfo.pDepthStencilState <- &&depthStencil
     pipelineInfo.pColorBlendState <- &&colorBlending
     pipelineInfo.pDynamicState <- &&dynamicState
     pipelineInfo.layout <- pipelineLayout
@@ -1211,7 +1290,7 @@ private createGraphicsPipeline(
     
     graphicsPipeline
 
-private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRenderPass =
+private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat, depthFormat: VkFormat): VkRenderPass =
     let mutable colorAttachment = default: VkAttachmentDescription
     colorAttachment.format <- swapChainImageFormat
     colorAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
@@ -1226,23 +1305,42 @@ private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRe
     colorAttachmentRef.attachment <- 0
     colorAttachmentRef.layout <- VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 
+    let mutable depthAttachment = default: VkAttachmentDescription
+    depthAttachment.format <- depthFormat
+    depthAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
+    depthAttachment.loadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_CLEAR
+    depthAttachment.storeOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE
+    depthAttachment.stencilLoadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_DONT_CARE
+    depthAttachment.stencilStoreOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE
+    depthAttachment.initialLayout <- VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
+    depthAttachment.finalLayout <- VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+
+    let mutable depthAttachmentRef = default: VkAttachmentReference
+    depthAttachmentRef.attachment <- 1
+    depthAttachmentRef.layout <- VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+
     let mutable subpass = default: VkSubpassDescription
     subpass.pipelineBindPoint <- VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS
     subpass.colorAttachmentCount <- 1
     subpass.pColorAttachments <- &&colorAttachmentRef
+    subpass.pDepthStencilAttachment <- &&depthAttachmentRef
 
     let mutable dependency = default: VkSubpassDependency
     dependency.srcSubpass <- VK_SUBPASS_EXTERNAL
     dependency.dstSubpass <- 0
-    dependency.srcStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    dependency.srcStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
     dependency.srcAccessMask <- default
-    dependency.dstStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-    dependency.dstAccessMask <- VkAccessFlags.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    dependency.dstStageMask <- VkPipelineStageFlags.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VkPipelineStageFlags.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+    dependency.dstAccessMask <- VkAccessFlags.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VkAccessFlags.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+
+    let attachments = [colorAttachment;depthAttachment]
+
+    let mutable attachmentsHandle = fixed(attachments)
 
     let mutable renderPassInfo = default: VkRenderPassCreateInfo
     renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
-    renderPassInfo.attachmentCount <- 1
-    renderPassInfo.pAttachments <- &&colorAttachment
+    renderPassInfo.attachmentCount <- uint32(attachments.Length)
+    renderPassInfo.pAttachments <- UnsafeCast(attachmentsHandle.AddrOfPinnedObject())
     renderPassInfo.subpassCount <- 1
     renderPassInfo.pSubpasses <- &&subpass
     renderPassInfo.dependencyCount <- 1
@@ -1251,15 +1349,21 @@ private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat): VkRe
     let mutable renderPass = default
     if (vkCreateRenderPass(device, &&renderPassInfo, nullptr, &&renderPass) != VkResult.VK_SUCCESS)
         fail("Failed to create render pass.")
+
+    attachmentsHandle.Free()
     
     renderPass
 
-private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView: VkImageView, width: uint32, height: uint32): VkFramebuffer =
+private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView: VkImageView, depthImageView: VkImageView, width: uint32, height: uint32): VkFramebuffer =
+    let attachments = [imageView;depthImageView]
+
+    let mutable attachmentsHandle = fixed(attachments)
+
     let mutable framebufferInfo = default: VkFramebufferCreateInfo
     framebufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
     framebufferInfo.renderPass <- renderPass
-    framebufferInfo.attachmentCount <- 1
-    framebufferInfo.pAttachments <- &&imageView
+    framebufferInfo.attachmentCount <- uint32(attachments.Length)
+    framebufferInfo.pAttachments <- UnsafeCast(attachmentsHandle.AddrOfPinnedObject())
     framebufferInfo.width <- width
     framebufferInfo.height <- height
     framebufferInfo.layers <- 1
@@ -1267,6 +1371,8 @@ private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView:
     let mutable framebuffer = default
     if (vkCreateFramebuffer(device, &&framebufferInfo, nullptr, &&framebuffer) != VkResult.VK_SUCCESS)
         fail("Failed to create framebuffer.")
+
+    attachmentsHandle.Free()
     
     framebuffer
 
@@ -1342,7 +1448,7 @@ private sealed class VulkanImage =
             Format = format
         }
 
-private createImage(allocator: VmaAllocator, width: uint32, height: uint32, imageFormat: VkFormat, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkImage, VmaAllocation) =
+private createImage(allocator: VmaAllocator, width: uint32, height: uint32, imageFormat: VkFormat, usageFlags: VkImageUsageFlags, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkImage, VmaAllocation) =
     let mutable imageInfo = default: VkImageCreateInfo
     imageInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
     imageInfo.imageType <- VkImageType.VK_IMAGE_TYPE_2D
@@ -1354,7 +1460,7 @@ private createImage(allocator: VmaAllocator, width: uint32, height: uint32, imag
     imageInfo.format <- imageFormat
     imageInfo.tiling <- VkImageTiling.VK_IMAGE_TILING_OPTIMAL
     imageInfo.initialLayout <- VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
-    imageInfo.usage <- VkImageUsageFlags.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VkImageUsageFlags.VK_IMAGE_USAGE_SAMPLED_BIT
+    imageInfo.usage <- VkImageUsageFlags.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VkImageUsageFlags.VK_IMAGE_USAGE_SAMPLED_BIT | usageFlags
     imageInfo.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
     imageInfo.sharingMode <- VkSharingMode.VK_SHARING_MODE_EXCLUSIVE
 
@@ -1683,7 +1789,7 @@ private checkExtensionsSupport(device: VkPhysicalDevice, deviceExtensions: strin
 
         found
 
-private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, oldLayout: VkImageLayout, newLayout: VkImageLayout): () =
+private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, format: VkFormat, oldLayout: VkImageLayout, newLayout: VkImageLayout): () =
     let mutable barrier = default: VkImageMemoryBarrier
     barrier.sType <- VkStructureType.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER
     barrier.oldLayout <- oldLayout
@@ -1697,7 +1803,6 @@ private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, ol
     barrier.subresourceRange.baseArrayLayer <- 0
     barrier.subresourceRange.layerCount <- 1
 
-    // UNDEFINED => TRANSFER_DST_OPTIMAL
     // Default transition
     barrier.srcAccessMask <- default
     barrier.dstAccessMask <- VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT
@@ -1706,12 +1811,23 @@ private transitionImageLayout(commandBuffer: VkCommandBuffer, image: VkImage, ol
 
     match (oldLayout, newLayout)
     | VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => ()
+
+    | VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL =>
+        barrier.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
+
+        if (hasStencilComponent(format))
+            barrier.subresourceRange.aspectMask <- barrier.subresourceRange.aspectMask | VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
+
+        barrier.dstAccessMask <- VkAccessFlags.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VkAccessFlags.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+        sourceStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
+        destinationStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+
     | VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL =>
-        // TRANSFER_DST_OPTIMAL => SHADER_READ_ONLY_OPTIMAL
         barrier.srcAccessMask <- VkAccessFlags.VK_ACCESS_TRANSFER_WRITE_BIT
         barrier.dstAccessMask <- VkAccessFlags.VK_ACCESS_SHADER_READ_BIT
         sourceStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT
         destinationStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+
     | _ =>
         fail("Invalid image layout transition.")
 
@@ -1777,7 +1893,6 @@ newtype VulkanCommandBuffer =
 
         let mutable clearValue = default: VkClearValue
         let mutable clearColorValue = default: VkClearColorValue
-        let mutable clearDepthStencilValue = default: VkClearDepthStencilValue
 
         let clearColorValue0 = &clearColorValue.float32.FixedElementField
         let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
@@ -1790,11 +1905,26 @@ newtype VulkanCommandBuffer =
         clearColorValue3 <- 1
 
         clearValue.color <- clearColorValue
-        clearValue.depthStencil <- clearDepthStencilValue
-        renderPassInfo.clearValueCount <- 1
-        renderPassInfo.pClearValues <- &&clearValue
+
+        let mutable clearDepthValue = default: VkClearValue
+        let mutable clearDepthStencilValue = default: VkClearDepthStencilValue
+
+        clearDepthStencilValue.depth <- 1
+        clearDepthStencilValue.stencil <- 0
+
+        clearDepthValue.depthStencil <- clearDepthStencilValue
+
+        // TODO: Fix GC allocation.
+        let clearValues = [clearValue;clearDepthValue]
+
+        let mutable clearValuesHandle = fixed(clearValues)
+
+        renderPassInfo.clearValueCount <- uint32(clearValues.Length)
+        renderPassInfo.pClearValues <- UnsafeCast(clearValuesHandle.AddrOfPinnedObject())
 
         vkCmdBeginRenderPass(this.CommandBuffer, &&renderPassInfo, VkSubpassContents.VK_SUBPASS_CONTENTS_INLINE)
+
+        clearValuesHandle.Free()
 
     BindPipeline(pipeline: VkPipeline, pipelineBindPoint: VkPipelineBindPoint): () =
         vkCmdBindPipeline(this.CommandBuffer, pipelineBindPoint, pipeline)

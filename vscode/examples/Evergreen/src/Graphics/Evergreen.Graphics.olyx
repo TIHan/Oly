@@ -180,7 +180,6 @@ module Graphics =
 
         window
 
-    #[StructLayout(LayoutKind.Sequential)]
     private struct VertexDatum =
         mutable Vertex: Vector3 = default
         mutable TexCoord: Vector2 = default
@@ -393,34 +392,6 @@ module Graphics =
         let image = Veldrid.ImageSharp.ImageSharpTexture(filePath)
         let texture = image.CreateDeviceTexture(graphicsDevice, factory)
         Texture2D(texture)
-        // let image = Image.Load<Rgba32>(System.IO.File.ReadAllBytes(filePath))
-        // let width = uint32(image.Width)
-        // let height = uint32(image.Height)
-
-        // let mutable pixels = unchecked default: Memory<Rgba32>
-        // let mutable result = AdvancedImageExtensions.GetPixelRowMemory(image, 0)
-        // let sizeInBytes = width * height * 4
-
-        // let mutable desc = default: TextureDescription
-        // desc.Width <- width
-        // desc.Height <- height
-        // desc.Depth <- 1
-        // desc.SampleCount <- TextureSampleCount.Count1
-        // desc.Format <- PixelFormat.R8_G8_B8_A8_UNorm
-        // desc.Type <- TextureType.Texture2D
-        // desc.Usage <- TextureUsage.Sampled
-        // desc.MipLevels <- 1
-        // desc.ArrayLayers <- 1
-
-        // let texture = factory.CreateTexture(desc)
-
-        // let mutable sourceHandle = result.Pin()
-        // let source = nint(sourceHandle.Pointer)
-
-        // graphicsDevice.UpdateTexture(texture, source, sizeInBytes, 0, 0, 0, width, height, 1, 0, 0)
-        // sourceHandle.Dispose()
-
-        // Texture2D(texture)
 
     CreateBuffer<T>(buffer: T[||], mutable count: uint32): Buffer<T> where T: unmanaged =
         let size = uint32(sizeof<T>) * uint32(buffer.Length)

@@ -912,7 +912,8 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 match expr with
                                 | E.Call(syntaxInfo, None, witnessArgs, argExprs, value, false) when value.Formal.Id = func.Id ->
                                     let newFunc = newFunc.Apply(freeTyVars.Values |> Seq.map (fun x -> x.AsType) |> ImArray.ofSeq)
-                                    E.Call(syntaxInfo, None, witnessArgs, argExprs.AddRange(newArgExprs), newFunc, false)
+                                    let argExprs = argExprs.AddRange(newArgExprs)
+                                    E.Call(syntaxInfo, None, witnessArgs, argExprs, newFunc, false)
                                 | _ ->
                                     expr
                             )

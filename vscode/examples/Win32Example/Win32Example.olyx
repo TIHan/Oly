@@ -18,8 +18,6 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
-open static vk
-
 sealed class ExternalProcess =
     implements IDisposable
 
@@ -122,8 +120,8 @@ private alias VkDescriptorSet = TerraFX.Interop.Vulkan.VkDescriptorSet
 private alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
 private alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 private alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
+private alias VkImageAspectFlags = TerraFX.Interop.Vulkan.VkImageAspectFlags
 
-#[StructLayout(LayoutKind.Sequential)]
 struct Vertex =
     Position: Vector3
     TexCoord: Vector2
@@ -137,7 +135,6 @@ struct Vertex =
     overrides ToString(): string = 
         "(Position = " + this.Position.ToString() + ")"
 
-#[StructLayout(LayoutKind.Sequential)]
 struct Globals =
     mutable Model: Matrix4x4 = Matrix4x4.Identity
     mutable View: Matrix4x4 = Matrix4x4.Identity
@@ -211,14 +208,14 @@ main(): () =
     let vulkanApp = vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
     let testImage = createImage(vulkanApp, "GameExample/Textures/flats/aqf068.png")
-    let testImageView = vk.CreateImageView(vulkanApp, testImage)
+    let testImageView = vk.CreateImageView(vulkanApp, testImage, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT)
     let testSampler = vk.CreateSampler(vulkanApp)
 
     printLine(vulkanApp.GetDeviceName())
 
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
     let vertices =
-        Array.Initialize(quad.Vertices.Length,
+        Array.InitializeMutable(quad.Vertices.Length,
             i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
         )
     

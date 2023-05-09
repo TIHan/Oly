@@ -218,13 +218,11 @@ clamp(min: float32, max: float32, value: float32): float32 =
     else
         value
 
-#[StructLayout(LayoutKind.Sequential)]
 struct PointLight =
     mutable Position: Vector3 = Vector3.Zero
     Padding: float32 = 0
     mutable Color: Vector4 = Vector4.Zero
 
-#[StructLayout(LayoutKind.Sequential)]
 struct DirectionalLight =
     mutable Direction: Vector3 = Vector3.Zero
     Padding: float32 = 0
@@ -271,7 +269,6 @@ extension Vector3Extensions =
 
 (*)(v: Vector3, s: float32): Vector3 = Vector3.Multiply(v, s)
 
-#[StructLayout(LayoutKind.Sequential)]
 struct Transform =
     mutable Matrix: Matrix4x4
 
@@ -318,7 +315,6 @@ struct Transform =
         scaleMatrix.Translation <- position
         Transform(rotationMatrix * scaleMatrix)
 
-#[StructLayout(LayoutKind.Sequential)]
 struct EntityId =
     mutable Index: int32 = 0
     mutable Version: uint32 = 0

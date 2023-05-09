@@ -9,15 +9,12 @@ open System.Runtime.CompilerServices
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaAllocator =
     private Value: nuint = default
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaAllocation =
     private Value: nuint = default
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaPool =
     private Value: nuint = default
 
@@ -75,7 +72,6 @@ enum VmaMemoryUsage =
     | VMA_MEMORY_USAGE_AUTO_PREFER_HOST = 9
     | VMA_MEMORY_USAGE_MAX_ENUM = 0x7FFFFFFF
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaDeviceMemoryCallbacks =
     mutable pfnAllocate: nuint = default // TODO: instead of 'nint' use 'PFN_vmaAllocateDeviceMemoryFunction'
     mutable pfnFree: nuint = default // TODO: instead of 'nint' use 'PFN_vmaFreeDeviceMemoryFunction'
@@ -112,7 +108,6 @@ struct VmaVulkanFunctions =
     mutable vkGetDeviceBufferMemoryRequirements: nuint = default // PFN_vkGetDeviceBufferMemoryRequirements
     mutable vkGetDeviceImageMemoryRequirements: nuint = default // PFN_vkGetDeviceImageMemoryRequirements
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaAllocatorCreateInfo =
     mutable flags: VmaAllocatorCreateFlags = default
     mutable physicalDevice: VkPhysicalDevice = default
@@ -126,7 +121,6 @@ struct VmaAllocatorCreateInfo =
     mutable vulkanApiVersion: uint32 = default
     mutable pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags* = default
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaAllocationCreateInfo =
     mutable flags: VmaAllocationCreateFlags = default
     mutable usage: VmaMemoryUsage = default
@@ -137,7 +131,6 @@ struct VmaAllocationCreateInfo =
     mutable pUserData: void* = default
     mutable priority: float32 = default
 
-#[StructLayout(LayoutKind.Sequential)]
 struct VmaAllocationInfo =
     mutable memoryType: uint32 = default
     mutable devicememory: VkDeviceMemory = default

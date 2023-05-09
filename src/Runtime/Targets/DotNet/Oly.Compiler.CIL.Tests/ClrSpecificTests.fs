@@ -2119,7 +2119,6 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[StructLayout(LayoutKind.Sequential)]
 struct Test =
     X: int32 = 123
     Y: int32 = 456
@@ -3198,7 +3197,6 @@ alias bool
 #[intrinsic("print")]
 print(__oly_object): ()
 
-#[StructLayout(LayoutKind.Sequential)]
 struct TestData =
     X: int32 = 1
     Y: int32 = 2
