@@ -273,8 +273,8 @@ Initialize(hwnd: nint, hinstance: nint, options: VulkanApplicationOptions): Vulk
 
     VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), allocator)
 
-CreateSwapChain(app: VulkanApplication): VulkanSwapChain =
-    createSwapChain(app)
+CreateSwapChain(app: VulkanApplication, format: VkFormat): VulkanSwapChain =
+    createSwapChain(app, format)
 
 DestroySwapChain(app: VulkanApplication, swapChain: VulkanSwapChain): () =
     let mutable i = 0
@@ -488,15 +488,7 @@ CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: 
 CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat): VulkanImage =
     CreateImage(app, width, height, imageFormat, default: VkImageUsageFlags)
 
-CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, usageFlags: VkImageUsageFlags, imageData: ReadOnlySpan<byte>): VulkanImage =
-    let image = CreateImage(app, width, height, imageFormat, usageFlags)
-    UpdateImage(app, image, imageData)
-    image
-
-CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat, imageData: ReadOnlySpan<byte>): VulkanImage =
-    CreateImage(app, width, height, imageFormat, default, imageData)
-
-private UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageData: ReadOnlySpan<byte>): () =
+UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageData: ReadOnlySpan<byte>): () =
     let mutable memPropFlags = default: VkMemoryPropertyFlags
     vmaGetAllocationMemoryProperties(app.Allocator, image.Allocation, &&memPropFlags)
 
@@ -918,8 +910,20 @@ private createSwapChainSupportDetails(device: VkPhysicalDevice, surface: VkSurfa
 
     VulkanSwapChainSupportDetails(capabilities, UnsafeCast(formats), UnsafeCast(presentModes))
 
-private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[]): VkSurfaceFormatKHR =
-    Array.Find(formats, (x: VkSurfaceFormatKHR) -> x.format == VkFormat.VK_FORMAT_B8G8R8A8_SRGB && x.colorSpace == VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[], format: VkFormat): VkSurfaceFormatKHR =
+    Array.Find(formats, 
+        (x: VkSurfaceFormatKHR) -> 
+            if (x.format == format)
+                match (format)
+                | VkFormat.VK_FORMAT_B8G8R8A8_SRGB =>
+                    x.colorSpace == VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+                | VkFormat.VK_FORMAT_B8G8R8A8_UNORM =>
+                    x.colorSpace == VkColorSpaceKHR.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+                | _ =>
+                    false
+            else
+                false
+    )
 
 private findSupportedFormat(physicalDevice: VkPhysicalDevice, formats: VkFormat[], tiling: VkImageTiling, features: VkFormatFeatureFlags): VkFormat =
     Array.Find(formats, 
@@ -969,7 +973,7 @@ private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2
 //     }
 // }
 
-private createSwapChain(app: VulkanApplication): VulkanSwapChain =
+private createSwapChain(app: VulkanApplication, format: VkFormat): VulkanSwapChain =
     let physicalDevice = app.PhysicalDevice
     let device = app.Device
     let surface = app.Surface
@@ -985,7 +989,7 @@ private createSwapChain(app: VulkanApplication): VulkanSwapChain =
     if (!swapChainAdequate)
         fail("Swap chain is not adequate.")
 
-    let surfaceFormat = findSwapSurfaceFormat(details.Formats)
+    let surfaceFormat = findSwapSurfaceFormat(details.Formats, format)
     let presentMode = findSwapPresentMode(details.PresentModes)
     let extent = findSwapExtent(&details.Capabilities)
 

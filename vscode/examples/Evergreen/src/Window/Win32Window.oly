@@ -43,25 +43,28 @@ internal module Win32 =
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
     private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
-        match (int32(msg))
-        | WM_DESTROY =>
-            let mutable window = unchecked default
-            let result = Win32.WindowLookup.TryRemove(hWnd, &window)
-            PostQuitMessage(0)
-            default
-        | WM_SIZE =>
-            let mutable window = unchecked default
-            if (Win32.WindowLookup.TryGetValue(hWnd, &window))
-                let mutable rect = default: RECT
-                if (GetClientRect(hWnd, &&rect) == BOOL.TRUE)
-                    window.Width <- uint32(rect.right - rect.left)
-                    window.Height <- uint32(rect.bottom - rect.top)
-                else
-                    window.Width <- 0
-                    window.Height <- 0
-            DefWindowProc(hWnd, msg, wParam, lParam)
-        | _ =>
-            DefWindowProc(hWnd, msg, wParam, lParam)
+        if (Evergreen.ImGui.Win32ProcHandler(hWnd, msg, wParam, lParam))
+            LRESULT(nint(1))
+        else
+            match (int32(msg))
+            | WM_DESTROY =>
+                let mutable window = unchecked default
+                let result = Win32.WindowLookup.TryRemove(hWnd, &window)
+                PostQuitMessage(0)
+                default
+            | WM_SIZE =>
+                let mutable window = unchecked default
+                if (Win32.WindowLookup.TryGetValue(hWnd, &window))
+                    let mutable rect = default: RECT
+                    if (GetClientRect(hWnd, &&rect) == BOOL.TRUE)
+                        window.Width <- uint32(rect.right - rect.left)
+                        window.Height <- uint32(rect.bottom - rect.top)
+                    else
+                        window.Width <- 0
+                        window.Height <- 0
+                DefWindowProc(hWnd, msg, wParam, lParam)
+            | _ =>
+                DefWindowProc(hWnd, msg, wParam, lParam)
 
     CreateWindow(title: string): (HWND, HINSTANCE) =
         Win32.RegisterRawMouseInput()

@@ -4,7 +4,10 @@
 #load "*.oly"
 
 #reference "../../../core/prelude.olyx"
+#reference "../Graphics/Evergreen.Graphics.olyx"
 #package "TerraFX.Interop.Windows,10.0.22621.1"
+
+#copy "imgui.dll"
 
 namespace Evergreen.Window
 

@@ -11,6 +11,7 @@ open System.IO
 open System.Numerics
 open System.Diagnostics
 open System.Runtime.InteropServices
+open Evergreen
 open Evergreen.Window
 
 open SixLabors.ImageSharp
@@ -159,7 +160,7 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
     let image = Image.Load<Rgba32>(File.ReadAllBytes(filePath))
     let width = uint32(image.Width)
     let height = uint32(image.Height)
-    let format = VkFormat.VK_FORMAT_R8G8B8A8_SRGB
+    let format = VkFormat.VK_FORMAT_R8G8B8A8_UNORM
 
     let mutable imageSpan = default
     if (!image.TryGetSinglePixelSpan(&imageSpan))
@@ -167,7 +168,8 @@ createImage(vulkanApp: vk.VulkanApplication, filePath: string): vk.VulkanImage =
 
     let mutable imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
     let imageSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<Rgba32, byte>(imageSpan)
-    let vulkanImage = vk.CreateImage(vulkanApp, width, height, format, imageSpan)
+    let vulkanImage = vk.CreateImage(vulkanApp, width, height, format)
+    vk.UpdateImage(vulkanApp, vulkanImage, imageSpan)
     image.Dispose()
 
     vulkanImage
@@ -204,7 +206,7 @@ main(): () =
 
     let vulkanAppOptions = vk.VulkanApplicationOptions()
     vulkanAppOptions.ValidationEnabled <- true
-    vulkanAppOptions.MaxFramesInFlight <- 2
+    vulkanAppOptions.MaxFramesInFlight <- 1
     let vulkanApp = vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
     let testImage = createImage(vulkanApp, "GameExample/Textures/flats/aqf068.png")
@@ -290,6 +292,8 @@ main(): () =
             i <- i + 1
         commandBuffers
 
+    let mutable imguiContext = unchecked default
+
     let recordCommands(frame: int32, graphicsPipeline, renderPass, framebuffer, extent, viewport, scissor) =
         let commandBuffer = commandBuffers[frame]
         let descriptorSet = descriptorSets[frame]
@@ -307,6 +311,8 @@ main(): () =
         commandBuffer.BindIndexBuffer(indexBuffer)
         commandBuffer.DrawIndexed(uint32(quad.Indices.Length), 1)
 
+        ImGui.Draw(imguiContext, commandBuffer, TerraFX.Interop.Vulkan.VkPipeline.NULL)
+
         commandBuffer.EndRenderPass()
         commandBuffer.End()
 
@@ -316,11 +322,18 @@ main(): () =
     let mutable graphicsPipeline = unchecked default
     let mutable renderPass = unchecked default
     let mutable swapChainFramebuffers = unchecked default
+    
     let recreateSwapChain() =
         vk.ResetCurrentFrame(vulkanApp)
-        swapChain <- vk.CreateSwapChain(vulkanApp)
+        swapChain <- vk.CreateSwapChain(vulkanApp, VkFormat.VK_FORMAT_B8G8R8A8_UNORM)
         renderPass <- vk.CreateRenderPass(vulkanApp, swapChain)
         swapChainFramebuffers <- vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
+        imguiContext <- ImGui.CreateContext(window, vulkanApp, swapChain, renderPass)
+
+        ImGui.SetDarkMode(imguiContext)
+
+        // Must do this first before NewFrame!
+        ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [vk.CreateVertexBindingDescription<Vertex>(0, false)]
         let attrDescs = vk.CreateVertexAttributeDescriptions<Vertex>(0)
@@ -340,6 +353,7 @@ main(): () =
 
     let cleanupSwapChain() =
         if (swapChain !== unchecked default)
+            ImGui.DestroyContext(imguiContext)
             vk.DestroyPipeline(vulkanApp, graphicsPipeline)
             vk.DestroyFramebuffers(vulkanApp, swapChainFramebuffers)   
             vk.DestroyRenderPass(vulkanApp, renderPass)
@@ -352,6 +366,9 @@ main(): () =
     let mutable forceQuit = false
     let draw() =
         try
+            ImGui.NewFrame(imguiContext)
+            ImGui.ShowDemoWindow(imguiContext)
+
             vk.Draw(vulkanApp, swapChain, 
                 (framebufferIndex, frame) -> 
                     let framebuffer = swapChainFramebuffers[framebufferIndex]
@@ -389,6 +406,8 @@ main(): () =
 
                 printLine(keyEvent)
             i <- i + 1
+
+      //  ImGui.Update(imguiContext, Vector2(128, 128))
 
         if (!window.IsClosed && !window.IsHidden && window.Height != 0 && window.Width != 0)
             draw()
