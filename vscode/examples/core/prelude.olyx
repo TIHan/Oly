@@ -70,6 +70,11 @@ alias (*)<T>
 
 // Cast Operations
 
+#[intrinsic("unsafe_cast")]
+uint8(bool): uint8
+
+#[intrinsic("unsafe_cast")]
+byte(bool): uint8
 
 #[intrinsic("unsafe_cast")]
 uint16(byte): uint16

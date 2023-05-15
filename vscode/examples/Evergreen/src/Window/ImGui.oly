@@ -1,5 +1,6 @@
 module Evergreen.ImGui
 
+open System
 open Evergreen.Window
 open System.Numerics
 open Evergreen.Graphics.Backend.Vulkan
@@ -8,6 +9,8 @@ open System.Runtime.CompilerServices
 open TerraFX.Interop.Windows
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
+
+alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> int32
 
 // enum ImGuiWindowFlags_
 // {
@@ -46,14 +49,82 @@ open static TerraFX.Interop.Vulkan.Vulkan
 //     ImGuiWindowFlags_Modal                  = 1 << 27,  // Don't use! For internal use by BeginPopupModal()
 //     ImGuiWindowFlags_ChildMenu              = 1 << 28,  // Don't use! For internal use by BeginMenu()
 //     ImGuiWindowFlags_DockNodeHost           = 1 << 29,  // Don't use! For internal use by Begin()/NewFrame()
+
+// TODO:
 enum ImGuiWindowFlags =
     | None = 0
+
+// TODO:
+enum ImGuiInputTextFlags =
+    | None = 0
+
+struct ImFontConfig =
+    mutable FontData: void* = default
+    mutable FontDataSize: int32 = default
+    mutable FontDataOwnedByAtlas: ImGuiBool = ImGuiBool(1)
+    mutable FontNo: int32 = 0
+    mutable SizePixels: float32 = default
+    mutable OversampleH: int32 = 3
+    mutable OversampleV: int32 = 1
+    mutable PixelSnapH: ImGuiBool = ImGuiBool(2)
+    mutable GlyphExtraSpacing: Vector2 = Vector2.Zero
+    mutable GlyphOffset: Vector2 = Vector2.Zero
+    mutable GlyphRanges: int16* = nullptr
+    mutable GlyphMinAdvanceX: float32 = 0
+    mutable GlyphMaxAdvanceX: float32 = float32.MaxValue
+    mutable MergeMode: ImGuiBool = ImGuiBool(0)
+    mutable FontBuilderFlags: uint32 = 0
+    mutable RasterizerMultiply: float32 = 1
+    mutable EllipsisChar: int16 = -1
+
+newtype ImGuiBool =
+    Value: byte
+
+    static op_Equality(value1: ImGuiBool, value2: ImGuiBool): bool =
+        value1.Value == value2.Value
+
+    static op_Equality(value1: ImGuiBool, value2: bool): bool =
+        value1.Value == byte(value2)
+
+    static op_Inequality(value1: ImGuiBool, value2: bool): bool =
+        value1.Value != byte(value2)
+
+alias ImGuiKey = int32
+
+struct ImGuiInputTextCallbackData =
+    mutable Ctx: nint = default
+    EventFlag: ImGuiInputTextFlags = default
+    Flags: ImGuiInputTextFlags = default
+    UserData: void* = default
+
+    // -------------------------------------
+    mutable EventChar: int16 = default
+    EventKey: ImGuiKey = default
+    mutable Buf: int8* = default
+    mutable BufTextLen: int32 = default
+    mutable BufSize: int32 = default
+    mutable CursorPos: int32 = default
+    mutable SelectionStart: int32 = default
+    mutable SelectionEnd: int32 = default
 
 private struct ImGuiIO =
     mutable ConfigFlags: int32 = 0
     mutable BackendFlags: int32 = 0
     mutable DisplaySize: Vector2 = Vector2.Zero
     mutable DeltaTime: float32 = 0
+    mutable IniSavingRate: float32 = default
+    mutable IniFilename: byte* = default
+    mutable Logfilename: byte* = default
+    mutable MouseDoubleClickTime: float32 = default
+    mutable MouseDoubleClickMaxDist: float32 = default
+    mutable MouseDragThreshold: float32 = default
+    mutable KeyRepeatDelay: float32 = default
+    mutable KeyRepeatRate: float32 = default
+    mutable HoverDelayNormal: float32 = default
+    mutable HoverDelayShort: float32 = default
+    mutable UserData: void* = default
+
+    mutable Fonts: nint = default
     // TODO: Add the rest of the fields
 // {
 //     //------------------------------------------------------------------
@@ -80,6 +151,8 @@ private struct ImGui_ImplVulkan_InitInfo =
     mutable Allocator: VkAllocationCallbacks* = default
     mutable CheckVnResultVn: static blittable VkResult -> () = default
 
+
+
 #[import("C", "imgui.dll", "igCreateContext")]
 private igCreateContext(shared_font_atlas: void*): nint
 
@@ -102,7 +175,7 @@ private igGetIO(): byref<ImGuiIO>
 private igGetCurrentContext(): nint
 
 #[import("C", "imgui.dll", "igShowDemoWindow")]
-private igShowDemoWindow(p_open: bool*): ()
+private igShowDemoWindow(p_open: ImGuiBool*): ()
 
 #[import("C", "imgui.dll", "igStyleColorsDark")]
 private igStyleColorsDark(dst: void*): ()
@@ -111,13 +184,25 @@ private igStyleColorsDark(dst: void*): ()
 private igStyleColorsClassic(dst: void*): ()
 
 #[import("C", "imgui.dll", "igBegin")]
-private igBegin(name: char*, p_open: bool*, flags: ImGuiWindowFlags): bool
+private igBegin(name: int8*, p_open: ImGuiBool*, flags: ImGuiWindowFlags): ImGuiBool
 
 #[import("C", "imgui.dll", "igEnd")]
 private igEnd(): ()
 
+#[import("C", "imgui.dll", "igBeginDisabled")]
+private igBeginDisabled(disabled: ImGuiBool): ()
+
+#[import("C", "imgui.dll", "igEndDisabled")]
+private igEndDisabled(): ()
+
+#[import("C", "imgui.dll", "igInputText")]
+private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
+
+#[import("C", "imgui.dll", "ImFontAtlas_AddFontFromFileTTF")]
+private ImFontAtlas_AddFontFromFileTTF(self: nint, filename: byte*, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): nint
+
 #[import("C", "imgui.dll", "ImGui_ImplVulkan_Init")]
-private ImGui_ImplVulkan_Init(info: ImGui_ImplVulkan_InitInfo*, render_pass: VkRenderPass): bool
+private ImGui_ImplVulkan_Init(info: ImGui_ImplVulkan_InitInfo*, render_pass: VkRenderPass): ImGuiBool
 
 #[import("C", "imgui.dll", "ImGui_ImplVulkan_Shutdown")]
 private ImGui_ImplVulkan_Shutdown(): ()
@@ -135,7 +220,7 @@ private ImGui_ImplVulkan_CreateFontsTexture(command_buffer: VkCommandBuffer): ()
 private ImGui_ImplVulkan_DestroyFontUploadObjects(): ()
 
 #[import("C", "imgui.dll", "ImGui_ImplWin32_Init")]
-private ImGui_ImplWin32_Init(hwnd: nint): bool
+private ImGui_ImplWin32_Init(hwnd: nint): ImGuiBool
 
 #[import("C", "imgui.dll", "ImGui_ImplWin32_Shutdown")]
 private ImGui_ImplWin32_Shutdown(): ()
@@ -226,10 +311,10 @@ CreateContext(window: IWindow, app: VulkanApplication, swapChain: VulkanSwapChai
 
     let hwnd = window.HWND
 
-    if (!ImGui_ImplWin32_Init(hwnd))
+    if (ImGui_ImplWin32_Init(hwnd) != true)
         fail("Failed to initialize ImGui for Win32.")
     
-    if (!ImGui_ImplVulkan_Init(&&info, renderPass))
+    if (ImGui_ImplVulkan_Init(&&info, renderPass) != true)
         fail("Failed to initialize ImGui for Vulkan.")
 
     ImGuiContext(context, hwnd, info)
@@ -239,6 +324,14 @@ DestroyContext(context: ImGuiContext): () =
     ImGui_ImplWin32_Shutdown()
     vkDestroyDescriptorPool(context.VulkanInfo.Device, context.VulkanInfo.DescriptorPool, nullptr)
     igDestroyContext(context.Context)
+
+AddFont(context: ImGuiContext, filePath: string): () =
+    let mutable filePathHandle = fixedCopyUTF8(filePath)
+
+    let mutable io = igGetIO()
+    let font = ImFontAtlas_AddFontFromFileTTF(io.Fonts, UnsafeCast(filePathHandle.AddrOfPinnedObject()), 16, nullptr, nullptr)
+
+    filePathHandle.Free()
 
 UploadFonts(context: ImGuiContext, commandPool: VkCommandPool, commandBuffer: VkCommandBuffer): () =
     if (vkResetCommandPool(context.VulkanInfo.Device, commandPool, default) != VkResult.VK_SUCCESS)
@@ -291,18 +384,40 @@ internal Win32ProcHandler(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARA
 //
 
 ShowDemoWindow(context: ImGuiContext): () =
-    let mutable p_open = true
+    let mutable p_open = ImGuiBool(1)
     igShowDemoWindow(&&p_open)
 
 Begin(context: ImGuiContext, title: string): bool =
     let mutable titleHandle = fixedCopyUTF8(title)
 
-    let mutable p_open = true
+    let mutable p_open = ImGuiBool(1)
     let result = igBegin(UnsafeCast(titleHandle.AddrOfPinnedObject()), &&p_open, ImGuiWindowFlags.None)
 
     titleHandle.Free()
 
-    result
+    result == true
 
 End(context: ImGuiContext): () =
     igEnd()
+
+#[blittable]
+callback(callbackData: ImGuiInputTextCallbackData*): int32 =
+    0
+
+InputText(context: ImGuiContext, label: string, mutable buffer: Span<byte>): bool =
+    let mutable labelHandle = fixedCopyUTF8(label)
+
+    let mutable bufferPtr = UnsafeCast(Unsafe.AsPointer(&buffer.GetPinnableReference()))
+
+    let result =
+        igInputText(
+            UnsafeCast(labelHandle.AddrOfPinnedObject()),
+            bufferPtr,
+            nuint(buffer.Length),
+            ImGuiInputTextFlags.None,
+            &&callback,
+            nullptr
+        )
+
+    result == true
+

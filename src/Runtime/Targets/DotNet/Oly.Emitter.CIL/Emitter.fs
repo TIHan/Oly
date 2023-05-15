@@ -1633,7 +1633,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         if flags.IsExported || flags.IsExternal then
             OlyAssert.False(flags.AreGenericsErased)
         
-            if flags.SignatureUsesNewType then
+            if flags.IsExported && flags.SignatureUsesNewType then
                 OlyAssert.Fail($"Method '{name}' cannot be exported as it uses newtypes in its signature.")
 
             match externalInfoOpt with

@@ -355,13 +355,17 @@ main(): () =
     recreateSwapChain()
     window.Show()
 
+    let textBuffer = Array.ZeroCreate<byte>(1024)
+
     let mutable forceQuit = false
     let draw() =
         try
             ImGui.NewFrame(imguiContext)
             if (ImGui.Begin(imguiContext, "Oly Window"))
+                if (ImGui.InputText(imguiContext, "Oly Label Λλ", Span(textBuffer)))
+                    ()
                 ImGui.End(imguiContext)
-          //  ImGui.ShowDemoWindow(imguiContext)
+            ImGui.ShowDemoWindow(imguiContext)
 
             Vk.Draw(vulkanApp, swapChain, 
                 (framebufferIndex, frame) -> 

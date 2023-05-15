@@ -8,6 +8,7 @@
 #package "TerraFX.Interop.Windows,10.0.22621.1"
 
 #copy "imgui.dll"
+#copy "OpenFontIcons.ttf"
 
 namespace Evergreen.Window
 
