@@ -359,7 +359,9 @@ main(): () =
     let draw() =
         try
             ImGui.NewFrame(imguiContext)
-            ImGui.ShowDemoWindow(imguiContext)
+            if (ImGui.Begin(imguiContext, "Oly Window"))
+                ImGui.End(imguiContext)
+          //  ImGui.ShowDemoWindow(imguiContext)
 
             Vk.Draw(vulkanApp, swapChain, 
                 (framebufferIndex, frame) -> 
@@ -398,8 +400,6 @@ main(): () =
 
                 printLine(keyEvent)
             i <- i + 1
-
-      //  ImGui.Update(imguiContext, Vector2(128, 128))
 
         if (!window.IsClosed && !window.IsHidden && window.Height != 0 && window.Width != 0)
             draw()
