@@ -516,7 +516,7 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
 
 //*************************************************************************************************
 
-let createInitialBoundEnvironment () =
+let createInitialBoundEnvironment asmIdent =
     let funcs =
         seq {
             WellKnownFunctions.addFunc
@@ -601,14 +601,14 @@ let createInitialBoundEnvironment () =
         partialOpenDeclsLookup = ImmutableHashSet.Empty
         openDeclsLookup = ImmutableHashSet.Empty    
         openDecls = ImArray.empty
-        ac = { Entity = None }
+        ac = { Entity = None; AssemblyIdentity = asmIdent }
         implicitExtendsForStruct = None
         implicitExtendsForEnum = None
     }
 
-let DefaultBinderEnvironment =
+let CreateDefaultBinderEnvironment asmIdent =
     {
-        benv = createInitialBoundEnvironment()
+        benv = createInitialBoundEnvironment asmIdent
         isIntrinsic = false
         isInInstanceConstructorType = None
         isInEntityDefinitionTypeParameters = false

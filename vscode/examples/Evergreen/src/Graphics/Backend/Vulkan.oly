@@ -1,4 +1,4 @@
-module Evergreen.Graphics.Backend.Vulkan
+module Evergreen.Graphics.Backend.Vulkan.Vulkan
 
 open System
 open System.Text
@@ -9,127 +9,9 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 open System.Diagnostics
 open TerraFX.Interop.Vulkan
+open Evergreen.Graphics.Backend.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 open static Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
-
-sealed class VulkanSwapChainOutOfDateException =
-    inherits Exception
-
-    internal new() = base()
-
-sealed class VulkanSwapChainCreationFailedException =
-    inherits Exception
-
-    internal new() = base()
-
-sealed class VulkanValidationException =
-    inherits Exception
-
-    internal new(msg: string) = base(msg)
-
-sealed class VulkanApplication =
-    ValidationLayersEnabled: bool
-    Instance: VkInstance
-    Surface: VkSurfaceKHR
-    PhysicalDevice: VkPhysicalDevice
-    PhysicalDeviceProperties: VkPhysicalDeviceProperties
-    Device: VkDevice
-    GraphicsQueue: VkQueue
-    GraphicsQueueFamilyIndex: uint32
-    GraphicsCommandPool: VkCommandPool
-    ComputeQueue: VkQueue
-    ComputeQueueFamilyIndex: uint32
-    ComputeCommandPool: VkCommandPool
-    TransferQueue: VkQueue
-    TransferQueueFamilyIndex: uint32
-    TransferCommandPool: VkCommandPool
-    PresentQueue: VkQueue
-    PresentQueueFamilyIndex: uint32
-    DebugMessenger: VkDebugUtilsMessengerEXT
-    ImageAvailableSemaphores: VkSemaphore[]
-    RenderFinishedSemaphores: VkSemaphore[]
-    InFlightFences: VkFence[]
-    Allocator: VmaAllocator
-
-    internal mutable currentFrame: int32
-    internal mutable framebufferResized: bool
-
-    MaxFramesInFlight: int32 get() = this.InFlightFences.Length
-    CurrentFrame: int32 get() = this.currentFrame
-
-    GetDeviceName(): string =
-        let mutable deviceProperties = default
-        vkGetPhysicalDeviceProperties(this.PhysicalDevice, &&deviceProperties)
-        String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
-
-    new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], allocator: VmaAllocator) =
-        let graphicsCommandPool = createCommandPool(device, graphicsQueueFamilyIndex)
-        let computeCommandPool = createCommandPool(device, computeQueueFamilyIndex)
-        let transferCommandPool = createCommandPool(device, transferQueueFamilyIndex)
-        {
-            ValidationLayersEnabled = validationLayersEnabled
-            Instance = instance
-            Surface = surface
-            PhysicalDevice = physicalDevice
-            PhysicalDeviceProperties = getPhysicalDeviceProperties(physicalDevice)
-            Device = device
-            GraphicsQueue = graphicsQueue
-            GraphicsQueueFamilyIndex = graphicsQueueFamilyIndex
-            GraphicsCommandPool = graphicsCommandPool
-            ComputeQueue = computeQueue
-            ComputeQueueFamilyIndex = computeQueueFamilyIndex
-            ComputeCommandPool = computeCommandPool
-            TransferQueue = transferQueue
-            TransferQueueFamilyIndex = transferQueueFamilyIndex
-            TransferCommandPool = transferCommandPool
-            PresentQueue = presentQueue
-            PresentQueueFamilyIndex = presentQueueFamilyIndex
-            DebugMessenger = debugMessenger
-            ImageAvailableSemaphores = imageAvailableSemaphores
-            RenderFinishedSemaphores = renderFinishedSemaphores
-            InFlightFences = inFlightFences
-            currentFrame = 0
-            framebufferResized = false
-            Allocator = allocator
-        }
-
-sealed class VulkanSwapChainSupportDetails =
-    Capabilities: VkSurfaceCapabilitiesKHR
-    Formats: VkSurfaceFormatKHR[]
-    PresentModes: VkPresentModeKHR[]
-
-    new(capabilities: VkSurfaceCapabilitiesKHR, formats: VkSurfaceFormatKHR[], presentModes: VkPresentModeKHR[]) =
-        {
-            Capabilities = capabilities
-            Formats = formats
-            PresentModes = presentModes
-        }
-
-sealed class VulkanSwapChain =
-    SwapChain: VkSwapchainKHR
-    Images: VkImage[]
-    ImageViews: VkImageView[]
-    DepthImages: VulkanImage[]
-    DepthImageViews: VkImageView[]
-    Extent: VkExtent2D
-    Viewport: VkViewport
-    Scissor: VkRect2D
-    ImageFormat: VkFormat
-    DepthFormat: VkFormat
-
-    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat) =
-        {
-            SwapChain = swapChain
-            Images = images
-            ImageViews = imageViews
-            DepthImages = depthImages
-            DepthImageViews = depthImageViews
-            Extent = extent
-            Viewport = viewport
-            Scissor = scissor
-            ImageFormat = imageFormat
-            DepthFormat = depthFormat
-        }
 
 private sealed class PtrPtrHandle =
     implements IDisposable
@@ -153,7 +35,7 @@ private sealed class PtrPtrHandle =
             i <- i + 1
         this.ptrPtr.Free()
 
-private fixed(o: object): GCHandle =
+internal fixed(o: object): GCHandle =
     GCHandle.Alloc(o, GCHandleType.Pinned)
 
 private fixedCopyUTF8(str: string): GCHandle =
@@ -174,10 +56,6 @@ private fixedCopy(strs: string[]): PtrPtrHandle =
     PtrPtrHandle(handles, gcHandle)
 
 // ---------------------------------------------------------------------
-
-sealed class VulkanApplicationOptions =
-    MaxFramesInFlight: int32 set, get = 2
-    ValidationEnabled: bool set, get = false
 
 private validateOptions(options: VulkanApplicationOptions): () =
     if (options.MaxFramesInFlight <= 0)
@@ -588,18 +466,6 @@ CreateSampler(app: VulkanApplication): VkSampler =
 
 DestroySampler(app: VulkanApplication, sampler: VkSampler): () =
     vkDestroySampler(app.Device, sampler, nullptr)
-
-sealed class VulkanDescriptorBindingInfo =
-    Binding: uint32 get
-    DescriptorType: VkDescriptorType get
-    StageFlags: VkShaderStageFlags get
-
-    new(binding: uint32, descriptorType: VkDescriptorType, stageFlags: VkShaderStageFlags) =
-        {
-            Binding = binding
-            DescriptorType = descriptorType
-            StageFlags = stageFlags
-        }
 
 CreateDescriptorSetLayout(app: VulkanApplication, bindingInfos: ReadOnlySpan<VulkanDescriptorBindingInfo>): VkDescriptorSetLayout =
     createDescriptorSetLayout(app.Device, bindingInfos)
@@ -1380,7 +1246,7 @@ private createFramebuffer(device: VkDevice, renderPass: VkRenderPass, imageView:
     
     framebuffer
 
-private createCommandPool(device: VkDevice, queueFamilyIndex: uint32): VkCommandPool =
+internal createCommandPool(device: VkDevice, queueFamilyIndex: uint32): VkCommandPool =
     let mutable poolInfo = default: VkCommandPoolCreateInfo
     poolInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
     poolInfo.flags <- VkCommandPoolCreateFlags.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
@@ -1405,20 +1271,6 @@ private createCommandBuffer(device: VkDevice, commandPool: VkCommandPool): VkCom
 
     commandBuffer
 
-private sealed class VulkanBuffer =
-    Buffer: VkBuffer
-    Allocation: VmaAllocation
-    Offset: uint64
-    Size: uint64
-
-    new(buffer: VkBuffer, allocation: VmaAllocation, offset: uint64, size: uint64) =
-        {
-            Buffer = buffer
-            Allocation = allocation
-            Offset = offset
-            Size = size
-        }
-
 private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsageFlags, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkBuffer, VmaAllocation) =
     let mutable bufferInfo = default: VkBufferCreateInfo
     bufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
@@ -1435,22 +1287,6 @@ private createBuffer(allocator: VmaAllocator, size: uint64, usage: VkBufferUsage
         fail("Failed to create buffer.")
 
     (buffer, allocation)
-
-private sealed class VulkanImage =
-    Image: VkImage
-    Allocation: VmaAllocation
-    Width: uint32
-    Height: uint32
-    Format: VkFormat
-
-    new(image: VkImage, allocation: VmaAllocation, width: uint32, height: uint32, format: VkFormat) =
-        {
-            Image = image
-            Allocation = allocation
-            Width = width
-            Height = height
-            Format = format
-        }
 
 private createImage(allocator: VmaAllocator, width: uint32, height: uint32, imageFormat: VkFormat, usageFlags: VkImageUsageFlags, flags: VmaAllocationCreateFlags, pAllocationInfo: VmaAllocationInfo*): (VkImage, VmaAllocation) =
     let mutable imageInfo = default: VkImageCreateInfo
@@ -1734,7 +1570,7 @@ private getDeviceSuitableScore(device: VkPhysicalDevice): uint32 =
 
     score
 
-private getPhysicalDeviceProperties(device: VkPhysicalDevice): VkPhysicalDeviceProperties =
+internal getPhysicalDeviceProperties(device: VkPhysicalDevice): VkPhysicalDeviceProperties =
     let mutable deviceProperties = default: VkPhysicalDeviceProperties
     vkGetPhysicalDeviceProperties(device, &&deviceProperties)
     deviceProperties
@@ -1869,124 +1705,6 @@ private createSampler(device: VkDevice, maxAnisotropy: float32): VkSampler =
 
     sampler
 // -----------------------------------------------------------------------
-
-alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint
-alias VkImageLayout = TerraFX.Interop.Vulkan.VkImageLayout
-
-/// Runtime alias for 'VkCommandBuffer'.
-newtype VulkanCommandBuffer =
-    CommandBuffer: VkCommandBuffer
-
-    Begin(): () =
-        let mutable beginInfo = default: VkCommandBufferBeginInfo
-        beginInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-        beginInfo.flags <- default // Optional
-        beginInfo.pInheritanceInfo <- nullptr // Optional
-
-        if (vkBeginCommandBuffer(this.CommandBuffer, &&beginInfo) != VkResult.VK_SUCCESS)
-            fail("Failed to begin recording command buffer.")
-
-    BeginRenderPass(renderPass: VkRenderPass, framebuffer: VkFramebuffer, extent: VkExtent2D): () =
-        let mutable renderPassInfo = default: VkRenderPassBeginInfo
-        renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-        renderPassInfo.renderPass <- renderPass
-        renderPassInfo.framebuffer <- framebuffer
-        renderPassInfo.renderArea.offset.x <- 0
-        renderPassInfo.renderArea.offset.y <- 0
-        renderPassInfo.renderArea.extent <- extent
-
-        let mutable clearValue = default: VkClearValue
-        let mutable clearColorValue = default: VkClearColorValue
-
-        let clearColorValue0 = &clearColorValue.float32.FixedElementField
-        let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
-        let clearColorValue2 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
-        let clearColorValue3 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
-
-        clearColorValue0 <- 0
-        clearColorValue1 <- 0
-        clearColorValue2 <- 0
-        clearColorValue3 <- 1
-
-        clearValue.color <- clearColorValue
-
-        let mutable clearDepthValue = default: VkClearValue
-        let mutable clearDepthStencilValue = default: VkClearDepthStencilValue
-
-        clearDepthStencilValue.depth <- 1
-        clearDepthStencilValue.stencil <- 0
-
-        clearDepthValue.depthStencil <- clearDepthStencilValue
-
-        // TODO: Fix GC allocation.
-        let clearValues = [clearValue;clearDepthValue]
-
-        let mutable clearValuesHandle = fixed(clearValues)
-
-        renderPassInfo.clearValueCount <- uint32(clearValues.Length)
-        renderPassInfo.pClearValues <- UnsafeCast(clearValuesHandle.AddrOfPinnedObject())
-
-        vkCmdBeginRenderPass(this.CommandBuffer, &&renderPassInfo, VkSubpassContents.VK_SUBPASS_CONTENTS_INLINE)
-
-        clearValuesHandle.Free()
-
-    BindPipeline(pipeline: VkPipeline, pipelineBindPoint: VkPipelineBindPoint): () =
-        vkCmdBindPipeline(this.CommandBuffer, pipelineBindPoint, pipeline)
-
-    SetViewport(mutable viewport: VkViewport): () =
-        vkCmdSetViewport(this.CommandBuffer, 0, 1, &&viewport)
-
-    SetScissor(mutable scissor: VkRect2D): () =
-        vkCmdSetScissor(this.CommandBuffer, 0, 1, &&scissor)
-
-    Draw(vertexCount: uint32, instanceCount: uint32): () =
-        vkCmdDraw(this.CommandBuffer, vertexCount, instanceCount, 0, 0)
-
-    DrawIndexed(indexCount: uint32, instanceCount: uint32): () =
-        vkCmdDrawIndexed(this.CommandBuffer, indexCount, instanceCount, 0, 0, 0)
-
-    BindVertexBuffers(mutable rosVertexBuffers: ReadOnlySpan<VulkanBuffer>): () =
-        let vertexBuffers = Array.ZeroCreate<VkBuffer>(rosVertexBuffers.Length)
-        let mutable i = 0
-        while (i < vertexBuffers.Length)
-            vertexBuffers[i] <- rosVertexBuffers[i].Buffer
-            i <- i + 1
-        let mutable vertexBuffersHandle = fixed(vertexBuffers)
-
-        let offsets = Array.ZeroCreate<uint64>(rosVertexBuffers.Length)
-        let mutable i = 0
-        while (i < offsets.Length)
-            offsets[i] <- 0
-            i <- i + 1
-        let mutable offsetsHandle = fixed(offsets)
-
-        vkCmdBindVertexBuffers(this.CommandBuffer, 0, 1, UnsafeCast(vertexBuffersHandle.AddrOfPinnedObject()), UnsafeCast(offsetsHandle.AddrOfPinnedObject()))
-
-        // Cleanup
-        offsetsHandle.Free()
-        vertexBuffersHandle.Free()
-
-    BindVertexBuffers(vertexBuffers: VulkanBuffer[||]): () =
-        this.BindVertexBuffers(ReadOnlySpan(vertexBuffers))
-
-    BindVertexBuffers(vertexBuffers: VulkanBuffer[]): () =
-        this.BindVertexBuffers(ReadOnlySpan(UnsafeCast<VulkanBuffer[||]>(vertexBuffers)))
-
-    BindVertexBuffer(vertexBuffer: VulkanBuffer): () =
-        this.BindVertexBuffers([vertexBuffer])
-
-    BindIndexBuffer(indexBuffer: VulkanBuffer): () =
-        vkCmdBindIndexBuffer(this.CommandBuffer, indexBuffer.Buffer, 0, VkIndexType.VK_INDEX_TYPE_UINT32)
-
-    BindDescriptorSet(pipelineBindPoint: VkPipelineBindPoint, layout: VkPipelineLayout, mutable descriptorSet: VkDescriptorSet): () =
-        vkCmdBindDescriptorSets(this.CommandBuffer, pipelineBindPoint, layout, 0, 1, &&descriptorSet, 0, nullptr)
-
-    EndRenderPass(): () =
-        vkCmdEndRenderPass(this.CommandBuffer)
-
-    End(): () =
-        if (vkEndCommandBuffer(this.CommandBuffer) != VkResult.VK_SUCCESS)
-            fail("Failed to record command buffer.")
 
 private draw(mutable swapChain: VkSwapchainKHR, graphicsQueue: VkQueue, presentQueue: VkQueue, commandBuffer: VkCommandBuffer, mutable imageIndex: uint32, imageAvailableSemaphore: VkSemaphore, renderFinishedSemaphore: VkSemaphore, inFlightFence: VkFence): VkResult =
     let mutable submitInfo = default: VkSubmitInfo

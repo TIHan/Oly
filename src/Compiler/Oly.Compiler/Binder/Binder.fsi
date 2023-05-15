@@ -55,7 +55,7 @@ type BinderPass0 =
 
     member Bind : CancellationToken -> BinderPass1
 
-val DefaultBinderEnvironment: BinderEnvironment
+val CreateDefaultBinderEnvironment: OlyILAssemblyIdentity -> BinderEnvironment
 
 val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment * IEntitySymbol imarray
 

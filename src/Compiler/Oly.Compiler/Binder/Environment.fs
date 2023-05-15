@@ -347,7 +347,7 @@ type BinderEnvironment =
             }
 
     member this.SetAccessorContext(ent: IEntitySymbol) =
-        { this with benv = { this.benv with ac = { Entity = Some ent }} }
+        { this with benv = { this.benv with ac = { this.benv.ac with Entity = Some ent }} }
 
     member this.SetEnclosingTypeParameters(tyPars: TypeParameterSymbol imarray) =
         if tyPars.IsEmpty && this.benv.senv.typeParameters.IsEmpty then this

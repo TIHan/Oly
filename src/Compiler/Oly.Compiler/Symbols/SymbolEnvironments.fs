@@ -111,6 +111,7 @@ type ScopeEnvironment =
 [<NoEquality;NoComparison>]
 type AccessorContext =
     {
+        AssemblyIdentity: Oly.Metadata.OlyILAssemblyIdentity
         Entity: IEntitySymbol option
     }
 
@@ -154,7 +155,7 @@ type BoundEnvironment =
             partialOpenDeclsLookup = ImmutableHashSet.Empty
             openDeclsLookup = ImmutableHashSet.Empty
             openDecls = ImArray.empty
-            ac = { Entity = None }
+            ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity> }
             implicitExtendsForStruct = None
             implicitExtendsForEnum = None
         }

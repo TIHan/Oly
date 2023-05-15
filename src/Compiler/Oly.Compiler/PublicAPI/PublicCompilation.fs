@@ -296,7 +296,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
         computePrologEnvironment
             imports
             importDiagnostics
-            { DefaultBinderEnvironment with isExecutable = options.Executable }
+            { CreateDefaultBinderEnvironment ilAsmIdent with isExecutable = options.Executable }
             (BoundDeclarationTable())
             OpenContent.All
             ct
