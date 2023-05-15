@@ -322,9 +322,12 @@ main(): () =
         swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
         imguiContext <- ImGui.CreateContext(window, vulkanApp, swapChain, renderPass)
 
+        let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
+
         ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
+        let fontHandle = ImGui.AddFont(imguiContext, fullPath, 15)
         ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
@@ -363,7 +366,7 @@ main(): () =
             ImGui.NewFrame(imguiContext)
             if (ImGui.Begin(imguiContext, "Oly Window"))
                 if (ImGui.InputText(imguiContext, "Oly Label Λλ", Span(textBuffer)))
-                    ()
+                    print("doot\n")
                 ImGui.End(imguiContext)
             ImGui.ShowDemoWindow(imguiContext)
 

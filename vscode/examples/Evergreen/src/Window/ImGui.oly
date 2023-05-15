@@ -198,8 +198,14 @@ private igEndDisabled(): ()
 #[import("C", "imgui.dll", "igInputText")]
 private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
 
-#[import("C", "imgui.dll", "ImFontAtlas_AddFontFromFileTTF")]
-private ImFontAtlas_AddFontFromFileTTF(self: nint, filename: byte*, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): nint
+#[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
+private ImFontConfig_ImFontConfig(): ImFontConfig*
+
+#[import("C", "imgui.dll", "ImFontAtlas_AddFontFromMemoryTTF")]
+private ImFontAtlas_AddFontFromMemoryTTF(self: nint, font_data: void*, font_size: int32, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): nint
+
+#[import("C", "imgui.dll", "ImFontAtlas_GetGlyphRangesGreek")]
+private ImFontAtlas_GetGlyphRangesGreek(self: nint): int16*
 
 #[import("C", "imgui.dll", "ImGui_ImplVulkan_Init")]
 private ImGui_ImplVulkan_Init(info: ImGui_ImplVulkan_InitInfo*, render_pass: VkRenderPass): ImGuiBool
@@ -325,13 +331,24 @@ DestroyContext(context: ImGuiContext): () =
     vkDestroyDescriptorPool(context.VulkanInfo.Device, context.VulkanInfo.DescriptorPool, nullptr)
     igDestroyContext(context.Context)
 
-AddFont(context: ImGuiContext, filePath: string): () =
-    let mutable filePathHandle = fixedCopyUTF8(filePath)
+AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): nint =
+    let fontData = System.IO.File.ReadAllBytes(filePath)
+    let fontSize = fontData.Length
+
+    let mutable fontConfigHandle = ImFontConfig_ImFontConfig()
+    let mutable fontConfig = &*fontConfigHandle
+    fontConfig.OversampleH <- fontConfig.OversampleH * 2
+    fontConfig.OversampleV <- fontConfig.OversampleV * 2
+
+    let mutable fontDataHandle = fixed(fontData)
 
     let mutable io = igGetIO()
-    let font = ImFontAtlas_AddFontFromFileTTF(io.Fonts, UnsafeCast(filePathHandle.AddrOfPinnedObject()), 16, nullptr, nullptr)
+    let glyphRanges = ImFontAtlas_GetGlyphRangesGreek(io.Fonts)
 
-    filePathHandle.Free()
+    let font = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, fontConfigHandle, nullptr)
+
+    fontDataHandle.Free()
+    font
 
 UploadFonts(context: ImGuiContext, commandPool: VkCommandPool, commandBuffer: VkCommandBuffer): () =
     if (vkResetCommandPool(context.VulkanInfo.Device, commandPool, default) != VkResult.VK_SUCCESS)
