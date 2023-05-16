@@ -335,17 +335,12 @@ AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): nint =
     let fontData = System.IO.File.ReadAllBytes(filePath)
     let fontSize = fontData.Length
 
-    let mutable fontConfigHandle = ImFontConfig_ImFontConfig()
-    let mutable fontConfig = &*fontConfigHandle
-    fontConfig.OversampleH <- fontConfig.OversampleH * 2
-    fontConfig.OversampleV <- fontConfig.OversampleV * 2
-
     let mutable fontDataHandle = fixed(fontData)
 
     let mutable io = igGetIO()
     let glyphRanges = ImFontAtlas_GetGlyphRangesGreek(io.Fonts)
 
-    let font = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, fontConfigHandle, nullptr)
+    let font = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, nullptr, glyphRanges)
 
     fontDataHandle.Free()
     font

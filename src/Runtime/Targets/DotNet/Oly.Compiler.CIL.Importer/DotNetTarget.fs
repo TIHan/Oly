@@ -527,7 +527,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                 let destFile = FileInfo(Path.Combine(outputPath, OlyPath.GetFileName(info.Path)))
 
                 if destFile.Exists then
-                    if file.LastWriteTime > destFile.LastWriteTime then
+                    if file.LastWriteTimeUtc <> destFile.LastWriteTimeUtc then
                         // now you can safely overwrite it
                         file.CopyTo(destFile.FullName, true)
                         |> ignore

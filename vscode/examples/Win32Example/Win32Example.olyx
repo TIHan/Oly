@@ -327,7 +327,7 @@ main(): () =
         ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
-        let fontHandle = ImGui.AddFont(imguiContext, fullPath, 15)
+        let fontHandle = ImGui.AddFont(imguiContext, fullPath, 24)
         ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
