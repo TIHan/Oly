@@ -198,11 +198,14 @@ private igEndDisabled(): ()
 #[import("C", "imgui.dll", "igInputText")]
 private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
 
-#[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
-private ImFontConfig_ImFontConfig(): ImFontConfig*
+// #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
+// private ImFontConfig_ImFontConfig(): ImFontConfig*
 
 #[import("C", "imgui.dll", "ImFontAtlas_AddFontFromMemoryTTF")]
 private ImFontAtlas_AddFontFromMemoryTTF(self: nint, font_data: void*, font_size: int32, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): nint
+
+#[import("C", "imgui.dll", "ImFont_destroy")]
+private ImFont_destroy(self: nint): ()
 
 #[import("C", "imgui.dll", "ImFontAtlas_GetGlyphRangesGreek")]
 private ImFontAtlas_GetGlyphRangesGreek(self: nint): int16*
@@ -344,6 +347,9 @@ AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): nint =
 
     fontDataHandle.Free()
     font
+
+DestroyFont(context: ImGuiContext, fontHandle: nint): () =
+    ImFont_destroy(fontHandle)
 
 UploadFonts(context: ImGuiContext, commandPool: VkCommandPool, commandBuffer: VkCommandBuffer): () =
     if (vkResetCommandPool(context.VulkanInfo.Device, commandPool, default) != VkResult.VK_SUCCESS)
