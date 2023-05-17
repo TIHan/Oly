@@ -10,6 +10,8 @@ open TerraFX.Interop.Windows
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
+private alias VkDescriptorType = Evergreen.Graphics.Backend.Vulkan.VkDescriptorType
+
 alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> int32
 
 // enum ImGuiWindowFlags_

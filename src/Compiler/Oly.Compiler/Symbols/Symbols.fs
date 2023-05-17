@@ -3313,6 +3313,11 @@ type TypeSymbol =
         | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
 
+    member this.AsEntityNoAlias: IEntitySymbol =
+        match stripTypeEquations this with
+        | Entity(ent) -> ent
+        | _ -> OlyAssert.Fail("Expected type to be an entity.")
+
     member this.TryTypeParameter =
         match stripTypeEquations this with
         | Variable(tyPar)
