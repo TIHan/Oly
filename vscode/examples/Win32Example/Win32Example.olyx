@@ -192,7 +192,7 @@ main(): () =
     // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
     Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
     
-    let window = IWindow.CreateWin32("Vulkan Example")
+    let window = IWindow.CreateWin32("Vulkan Example", Vector2(0, 0), Vector2(1280, 720))
 
     let vulkanAppOptions = VulkanApplicationOptions()
     vulkanAppOptions.ValidationEnabled <- true
@@ -326,7 +326,7 @@ main(): () =
         ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
-        fontHandle <- ImGui.AddFont(imguiContext, fullPath, 24)
+        fontHandle <- ImGui.AddFont(imguiContext, fullPath, 32)
         ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
@@ -365,7 +365,11 @@ main(): () =
             ImGui.NewFrame(imguiContext)
             if (ImGui.Begin(imguiContext, "Oly Window"))
                 if (ImGui.InputText(imguiContext, "Oly Label Λλ", Span(textBuffer)))
-                    print("doot\n")
+                    ()
+                let size = window.Size
+                ImGui.LabelText(imguiContext, "Size", size.ToString())
+                let pos = window.Position
+                ImGui.LabelText(imguiContext, "Position", pos.ToString())
                 ImGui.End(imguiContext)
             ImGui.ShowDemoWindow(imguiContext)
 
@@ -375,7 +379,8 @@ main(): () =
                     recordCommands(frame, graphicsPipeline, renderPass, framebuffer, swapChain.Extent, swapChain.Viewport, swapChain.Scissor)
             )
         catch (ex: VulkanSwapChainOutOfDateException) =>
-            if (!window.IsClosed && window.Height != 0 && window.Width != 0)
+            let size = window.Size
+            if (!window.IsClosed && size.X != 0 && size.Y != 0)
                 Vk.WaitForIdle(vulkanApp)
                 cleanupSwapChain()
                 try
@@ -407,7 +412,8 @@ main(): () =
                 printLine(keyEvent)
             i <- i + 1
 
-        if (!window.IsClosed && !window.IsHidden && window.Height != 0 && window.Width != 0)
+        let size = window.Size
+        if (!window.IsClosed && !window.IsHidden && size.X != 0 && size.Y != 0)
             draw()
 
     // --- END LOOP

@@ -13,6 +13,7 @@
 namespace Evergreen.Window
 
 open System
+open System.Numerics
 
 interface IWindow =
     inherits IDisposable
@@ -22,9 +23,8 @@ interface IWindow =
     HINSTANCE: nint get
     IsClosed: bool get
     IsHidden: bool get
-
-    Width: uint32 get
-    Height: uint32 get
+    Position: Vector2 get, set
+    Size: Vector2 get, set
 
     Show(): ()
     Hide(): ()
@@ -32,5 +32,8 @@ interface IWindow =
     PumpEvents(): InputSnapshot
     Minimize(): ()
 
-    static CreateWin32(title: string): IWindow =
-        Win32Window(title)
+    static CreateWin32(title: string, position: Vector2, size: Vector2): IWindow =
+        let window: IWindow = Win32Window(title)
+        window.Position <- position
+        window.Size <- size
+        window

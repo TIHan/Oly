@@ -188,6 +188,40 @@ let rec handleExpression irExpr : E<_, _, _> =
             else
                 E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
 
+    | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+        let irNewBodyExpr = handleExpression irBodyExpr
+
+        let mutable didChange = false
+        let irNewCatchCases =
+            irCatchCases
+            |> ImArray.map (fun irCatchCase ->
+                match irCatchCase with
+                | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                    let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                    if irNewCaseBodyExpr = irCaseBodyExpr then
+                        irCatchCase
+                    else
+                        didChange <- true
+                        OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+            )
+
+        let irNewFinallyBodyExprOpt =
+            irFinallyBodyExprOpt
+            |> Option.map (fun irExpr ->
+                let irNewExpr = handleExpression irExpr
+                if irNewExpr = irExpr then
+                    irExpr
+                else
+                    didChange <- true
+                    irNewExpr
+            )
+
+        if irNewBodyExpr = irBodyExpr && not didChange then
+            irExpr
+        else
+            E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+
     | E.Sequential(irExpr1, irExpr2) ->
         let irNewExpr1 = handleExpression irExpr1
         let irNewExpr2 = handleExpression irExpr2
@@ -465,6 +499,40 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                     irExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression irExpr1
@@ -760,6 +828,40 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
 
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression irExpr1
             let irNewExpr2 = handleExpression irExpr2
@@ -1045,6 +1147,40 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
                     irExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = optimizeExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let irNewCaseBodyExpr = optimizeExpression irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = optimizeExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = optimizeExpression irExpr1
@@ -1485,6 +1621,40 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
 
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression irExpr1
             let irNewExpr2 = handleExpression irExpr2
@@ -1668,6 +1838,40 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                     irExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression env irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let irNewCaseBodyExpr = handleExpression env irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression env irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
     
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression env irExpr1
@@ -1718,6 +1922,22 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
         | E.While(irConditionExpr, irBodyExpr, _) ->
             analyzeExpression inCandidate irConditionExpr
             analyzeExpression inCandidate irBodyExpr
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, _) ->
+            analyzeExpression inCandidate irBodyExpr
+
+            irCatchCases
+            |> ImArray.iter (fun irCatchCase ->
+                match irCatchCase with
+                | OlyIRCatchCase.CatchCase(_, localIndex, irCaseBodyExpr, _) ->
+                    doNotRemove.Add(localIndex) |> ignore
+                    analyzeExpression inCandidate irCaseBodyExpr
+            )
+
+            irFinallyBodyExprOpt
+            |> Option.iter (fun irExpr ->
+                analyzeExpression inCandidate irExpr
+            )
     
         | E.Sequential(irExpr1, irExpr2) ->
             analyzeExpression inCandidate irExpr1
@@ -1792,6 +2012,42 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
                     irExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        OlyAssert.True(doNotRemove.Contains(localIndex))
+
+                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression irExpr1
@@ -1879,6 +2135,41 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
                     irExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let mutable didChange = false
+            let irNewCatchCases =
+                irCatchCases
+                |> ImArray.map (fun irCatchCase ->
+                    match irCatchCase with
+                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let newLocalIndex = addLocal localIndex
+                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+
+                        if newLocalIndex = localIndex && irNewCaseBodyExpr = irCaseBodyExpr then
+                            irCatchCase
+                        else
+                            didChange <- true
+                            OlyIRCatchCase.CatchCase(localName, newLocalIndex, irNewCaseBodyExpr, catchTy)
+                )
+
+            let irNewFinallyBodyExprOpt =
+                irFinallyBodyExprOpt
+                |> Option.map (fun irExpr ->
+                    let irNewExpr = handleExpression irExpr
+                    if irNewExpr = irExpr then
+                        irExpr
+                    else
+                        didChange <- true
+                        irNewExpr
+                )
+
+            if irNewBodyExpr = irBodyExpr && not didChange then
+                irExpr
+            else
+                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Sequential(irExpr1, irExpr2) ->
             let irNewExpr1 = handleExpression irExpr1

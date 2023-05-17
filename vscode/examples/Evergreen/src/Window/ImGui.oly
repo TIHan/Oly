@@ -205,6 +205,9 @@ private igBeginDisabled(disabled: ImGuiBool): ()
 #[import("C", "imgui.dll", "igEndDisabled")]
 private igEndDisabled(): ()
 
+#[import("C", "imgui.dll", "igLabelText")]
+private igLabelText(label: int8*, fmt: int8*): ()
+
 #[import("C", "imgui.dll", "igInputText")]
 private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
 
@@ -440,6 +443,15 @@ End(context: ImGuiContext): () =
 #[blittable]
 callback(callbackData: ImGuiInputTextCallbackData*): int32 =
     0
+
+LabelText(context: ImGuiContext, label: string, text: string): () =
+    let mutable labelHandle = fixedCopyUTF8(label)
+    let mutable textHandle = fixedCopyUTF8(text)
+
+    igLabelText(
+        UnsafeCast(labelHandle.AddrOfPinnedObject()),
+        UnsafeCast(textHandle.AddrOfPinnedObject())
+    )
 
 InputText(context: ImGuiContext, label: string, mutable buffer: Span<byte>): bool =
     let mutable labelHandle = fixedCopyUTF8(label)

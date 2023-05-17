@@ -1,6 +1,7 @@
 namespace Evergreen.Window
 
 open System
+open System.Numerics
 open System.Diagnostics
 open System.Collections.Generic
 open System.Runtime.InteropServices
@@ -52,17 +53,6 @@ internal module Win32 =
                 let result = Win32.WindowLookup.TryRemove(hWnd, &window)
                 PostQuitMessage(0)
                 default
-            | WM_SIZE =>
-                let mutable window = unchecked default
-                if (Win32.WindowLookup.TryGetValue(hWnd, &window))
-                    let mutable rect = default: RECT
-                    if (GetClientRect(hWnd, &&rect) == BOOL.TRUE)
-                        window.Width <- uint32(rect.right - rect.left)
-                        window.Height <- uint32(rect.bottom - rect.top)
-                    else
-                        window.Width <- 0
-                        window.Height <- 0
-                DefWindowProc(hWnd, msg, wParam, lParam)
             | _ =>
                 DefWindowProc(hWnd, msg, wParam, lParam)
 
@@ -186,9 +176,46 @@ internal sealed class Win32Window =
             else
                 IsWindowVisible(this.hwnd) == BOOL.FALSE
 
-    Width: uint32 get, internal set
+    Size: Vector2
+        get() =
+            let mutable rect = default: RECT
+            if (GetClientRect(this.hwnd, &&rect) == BOOL.TRUE)
+                let width = rect.right - rect.left
+                let height = rect.bottom - rect.top
+                Vector2(float32(width), float32(height))
+            else
+                Vector2.Zero
+        
+        set(value) =
+            let width = int32(value.X)
+            let height = int32(value.Y)
 
-    Height: uint32 get, internal set
+            let mutable rect = default: RECT
+            rect.top <- 0
+            rect.bottom <- height
+            rect.left <- 0
+            rect.right <- width
+            let result = AdjustWindowRect(&&rect, uint32(WS_OVERLAPPEDWINDOW), BOOL.FALSE)
+            let width = rect.right - rect.left
+            let height = rect.bottom - rect.top
+
+            let result = SetWindowPos(this.hwnd, HWND.NULL, 0, 0, width, height, uint32(SWP.SWP_NOMOVE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+
+
+    Position: Vector2
+        get() =
+            let mutable rect = default: RECT
+            if (GetWindowRect(this.hwnd, &&rect) == BOOL.TRUE)
+                let x = rect.left
+                let y = rect.top
+                Vector2(float32(x), float32(y))
+            else
+                Vector2.Zero
+
+        set(value) =
+            let x = int32(value.X)
+            let y = int32(value.Y)
+            let result = SetWindowPos(this.hwnd, HWND.NULL, x, y, 0, 0, uint32(SWP.SWP_NOSIZE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
 
     new(title: string) =
         match (Win32.CreateWindow(title))
@@ -204,8 +231,6 @@ internal sealed class Win32Window =
                 isCursorHidden = false
                 hwnd = hwnd
                 hinstance = hinstance
-                Width = 0
-                Height = 0
                 isDisposed = false
                 isClosed = false
             }
@@ -317,8 +342,6 @@ internal sealed class Win32Window =
         this.isClosed <- true
         this.keyEvents.Clear()
         this.keysDown.Clear()
-        this.Width <- 0
-        this.Height <- 0
 
     #[DebuggerHidden()]
     private ThrowIfDisposed(): () =
