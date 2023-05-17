@@ -326,7 +326,11 @@ main(): () =
         ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
-        fontHandle <- ImGui.AddFont(imguiContext, fullPath, 32)
+        let fontSize =
+            let size = window.Size
+            let ratio = (size.Y / 720)
+            ratio * 16
+        fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
         ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
