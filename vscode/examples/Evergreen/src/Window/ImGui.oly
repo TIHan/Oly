@@ -61,24 +61,32 @@ enum ImGuiInputTextFlags =
 struct ImFontConfig =
     mutable FontData: void* = default
     mutable FontDataSize: int32 = default
-    mutable FontDataOwnedByAtlas: ImGuiBool = ImGuiBool(1)
-    mutable FontNo: int32 = 0
+    mutable FontDataOwnedByAtlas: ImGuiBool = default
+    mutable FontNo: int32 = default
     mutable SizePixels: float32 = default
-    mutable OversampleH: int32 = 3
-    mutable OversampleV: int32 = 1
-    mutable PixelSnapH: ImGuiBool = ImGuiBool(2)
-    mutable GlyphExtraSpacing: Vector2 = Vector2.Zero
-    mutable GlyphOffset: Vector2 = Vector2.Zero
-    mutable GlyphRanges: int16* = nullptr
-    mutable GlyphMinAdvanceX: float32 = 0
-    mutable GlyphMaxAdvanceX: float32 = float32.MaxValue
-    mutable MergeMode: ImGuiBool = ImGuiBool(0)
-    mutable FontBuilderFlags: uint32 = 0
-    mutable RasterizerMultiply: float32 = 1
-    mutable EllipsisChar: int16 = -1
+    mutable OversampleH: int32 = default
+    mutable OversampleV: int32 = default
+    mutable PixelSnapH: ImGuiBool = default
+    mutable GlyphExtraSpacing: Vector2 = default
+    mutable GlyphOffset: Vector2 = default
+    mutable GlyphRanges: int16* = default
+    mutable GlyphMinAdvanceX: float32 = default
+    mutable GlyphMaxAdvanceX: float32 = default
+    mutable MergeMode: ImGuiBool = default
+    mutable FontBuilderFlags: uint32 = default
+    mutable RasterizerMultiply: float32 = default
+    mutable EllipsisChar: int16 = default
+
+// TODO: Add fields
+private struct ImFontAtlas
+
+struct ImFont
 
 newtype ImGuiBool =
     Value: byte
+
+    static False: ImGuiBool get() = ImGuiBool(0)
+    static True: ImGuiBool get() = ImGuiBool(1)
 
     static op_Equality(value1: ImGuiBool, value2: ImGuiBool): bool =
         value1.Value == value2.Value
@@ -124,7 +132,7 @@ private struct ImGuiIO =
     mutable HoverDelayShort: float32 = default
     mutable UserData: void* = default
 
-    mutable Fonts: nint = default
+    mutable Fonts: ImFontAtlas* = default
     // TODO: Add the rest of the fields
 // {
 //     //------------------------------------------------------------------
@@ -198,17 +206,20 @@ private igEndDisabled(): ()
 #[import("C", "imgui.dll", "igInputText")]
 private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
 
-// #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
-// private ImFontConfig_ImFontConfig(): ImFontConfig*
+#[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
+private ImFontConfig_ImFontConfig(): ImFontConfig*
+
+#[import("C", "imgui.dll", "ImFontConfig_destroy")]
+private ImFontConfig_destroy(self: ImFontConfig*): ()
+
+#[import("C", "imgui.dll", "ImFontAtlas_AddFontDefault")]
+private ImFontAtlas_AddFontDefault(self: ImFontAtlas*, font_cfg: ImFontConfig*): ImFont*
 
 #[import("C", "imgui.dll", "ImFontAtlas_AddFontFromMemoryTTF")]
-private ImFontAtlas_AddFontFromMemoryTTF(self: nint, font_data: void*, font_size: int32, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): nint
-
-#[import("C", "imgui.dll", "ImFont_destroy")]
-private ImFont_destroy(self: nint): ()
+private ImFontAtlas_AddFontFromMemoryTTF(self: ImFontAtlas*, font_data: void*, font_size: int32, size_pixels: float32, font_cfg: ImFontConfig*, glyph_ranges: int16*): ImFont*
 
 #[import("C", "imgui.dll", "ImFontAtlas_GetGlyphRangesGreek")]
-private ImFontAtlas_GetGlyphRangesGreek(self: nint): int16*
+private ImFontAtlas_GetGlyphRangesGreek(self: ImFontAtlas*): int16*
 
 #[import("C", "imgui.dll", "ImGui_ImplVulkan_Init")]
 private ImGui_ImplVulkan_Init(info: ImGui_ImplVulkan_InitInfo*, render_pass: VkRenderPass): ImGuiBool
@@ -334,22 +345,28 @@ DestroyContext(context: ImGuiContext): () =
     vkDestroyDescriptorPool(context.VulkanInfo.Device, context.VulkanInfo.DescriptorPool, nullptr)
     igDestroyContext(context.Context)
 
-AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): nint =
+AddFontDefault(context: ImGuiContext): ImFont* =
+    let mutable io = igGetIO()
+    ImFontAtlas_AddFontDefault(io.Fonts, nullptr)
+
+AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): ImFont* =
     let fontData = System.IO.File.ReadAllBytes(filePath)
     let fontSize = fontData.Length
-
     let mutable fontDataHandle = fixed(fontData)
+
+    let fontConfigPtr = ImFontConfig_ImFontConfig()
+    let mutable fontConfig = &Unsafe.AsRef<ImFontConfig>(UnsafeCast<void*>(fontConfigPtr))
+    // Do this to avoid memory corruption when destroying the context.
+    fontConfig.FontDataOwnedByAtlas <- ImGuiBool.False
 
     let mutable io = igGetIO()
     let glyphRanges = ImFontAtlas_GetGlyphRangesGreek(io.Fonts)
 
-    let font = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, nullptr, glyphRanges)
+    let fontPtr = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, &&fontConfig, glyphRanges)
 
+    ImFontConfig_destroy(fontConfigPtr)
     fontDataHandle.Free()
-    font
-
-DestroyFont(context: ImGuiContext, fontHandle: nint): () =
-    ImFont_destroy(fontHandle)
+    fontPtr
 
 UploadFonts(context: ImGuiContext, commandPool: VkCommandPool, commandBuffer: VkCommandBuffer): () =
     if (vkResetCommandPool(context.VulkanInfo.Device, commandPool, default) != VkResult.VK_SUCCESS)

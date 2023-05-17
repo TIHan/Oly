@@ -314,7 +314,7 @@ main(): () =
     let mutable graphicsPipeline = unchecked default
     let mutable renderPass = unchecked default
     let mutable swapChainFramebuffers = unchecked default
- //   let mutable fontHandle = default
+    let mutable fontHandle = default
     
     let recreateSwapChain() =
         Vk.ResetCurrentFrame(vulkanApp)
@@ -323,12 +323,12 @@ main(): () =
         swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, swapChain, renderPass)
         imguiContext <- ImGui.CreateContext(window, vulkanApp, swapChain, renderPass)
 
-      //  let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
+        let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
 
         ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
-        //fontHandle <- ImGui.AddFont(imguiContext, fullPath, 24)
+        fontHandle <- ImGui.AddFont(imguiContext, fullPath, 24)
         ImGui.UploadFonts(imguiContext, vulkanApp.GraphicsCommandPool, commandBuffers[0])
 
         let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
@@ -349,7 +349,6 @@ main(): () =
 
     let cleanupSwapChain() =
         if (swapChain !== unchecked default)
-           // ImGui.DestroyFont(imguiContext, fontHandle)
             ImGui.DestroyContext(imguiContext)
             Vk.DestroyPipeline(vulkanApp, graphicsPipeline)
             Vk.DestroyFramebuffers(vulkanApp, swapChainFramebuffers)   
