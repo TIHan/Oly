@@ -110,7 +110,7 @@ struct ImGuiInputTextCallbackData =
     // -------------------------------------
     mutable EventChar: int16 = default
     EventKey: ImGuiKey = default
-    mutable Buf: int8* = default
+    mutable Buf: byte* = default
     mutable BufTextLen: int32 = default
     mutable BufSize: int32 = default
     mutable CursorPos: int32 = default
@@ -194,7 +194,7 @@ private igStyleColorsDark(dst: void*): ()
 private igStyleColorsClassic(dst: void*): ()
 
 #[import("C", "imgui.dll", "igBegin")]
-private igBegin(name: int8*, p_open: ImGuiBool*, flags: ImGuiWindowFlags): ImGuiBool
+private igBegin(name: byte*, p_open: ImGuiBool*, flags: ImGuiWindowFlags): ImGuiBool
 
 #[import("C", "imgui.dll", "igEnd")]
 private igEnd(): ()
@@ -206,10 +206,10 @@ private igBeginDisabled(disabled: ImGuiBool): ()
 private igEndDisabled(): ()
 
 #[import("C", "imgui.dll", "igLabelText")]
-private igLabelText(label: int8*, fmt: int8*): ()
+private igLabelText(label: byte*, fmt: byte*): ()
 
 #[import("C", "imgui.dll", "igInputText")]
-private igInputText(label: int8*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
+private igInputText(label: byte*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
 
 #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
 private ImFontConfig_ImFontConfig(): ImFontConfig*
@@ -427,40 +427,41 @@ ShowDemoWindow(context: ImGuiContext): () =
     let mutable p_open = ImGuiBool(1)
     igShowDemoWindow(&&p_open)
 
-Begin(context: ImGuiContext, title: string): bool =
-    let mutable titleHandle = fixedCopyUTF8(title)
+Begin(context: ImGuiContext, mutable title: ReadOnlySpan<byte>): bool =
+    let mutable titlePtr = &&title.GetPinnableReference()
 
     let mutable p_open = ImGuiBool(1)
-    let result = igBegin(UnsafeCast(titleHandle.AddrOfPinnedObject()), &&p_open, ImGuiWindowFlags.None)
-
-    titleHandle.Free()
+    let result = igBegin(titlePtr, &&p_open, ImGuiWindowFlags.None)
 
     result == true
 
 End(context: ImGuiContext): () =
     igEnd()
 
+BeginDisabled(context: ImGuiContext, isDisabled: bool): () =
+    igBeginDisabled(if (isDisabled) ImGuiBool(1) else ImGuiBool(0))
+
+EndDisabled(context: ImGuiContext): () =
+    igEndDisabled()
+
 #[blittable]
 callback(callbackData: ImGuiInputTextCallbackData*): int32 =
     0
 
-LabelText(context: ImGuiContext, label: string, text: string): () =
-    let mutable labelHandle = fixedCopyUTF8(label)
-    let mutable textHandle = fixedCopyUTF8(text)
+LabelText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable text: ReadOnlySpan<byte>): () =
+    let mutable labelPtr = &&label.GetPinnableReference()
+    let mutable textPtr = &&text.GetPinnableReference()
 
-    igLabelText(
-        UnsafeCast(labelHandle.AddrOfPinnedObject()),
-        UnsafeCast(textHandle.AddrOfPinnedObject())
-    )
+    igLabelText(labelPtr, textPtr)
 
-InputText(context: ImGuiContext, label: string, mutable buffer: Span<byte>): bool =
-    let mutable labelHandle = fixedCopyUTF8(label)
+InputText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable buffer: Span<byte>): bool =
+    let mutable labelPtr = &&label.GetPinnableReference()
 
     let mutable bufferPtr = UnsafeCast(Unsafe.AsPointer(&buffer.GetPinnableReference()))
 
     let result =
         igInputText(
-            UnsafeCast(labelHandle.AddrOfPinnedObject()),
+            labelPtr,
             bufferPtr,
             nuint(buffer.Length),
             ImGuiInputTextFlags.None,
