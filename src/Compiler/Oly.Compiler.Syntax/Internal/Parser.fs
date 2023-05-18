@@ -755,6 +755,7 @@ let inline THROW state = tryToken (function Throw -> true | _ -> false) state
 let inline TRY state = tryToken (function Try -> true | _ -> false) state
 let inline CATCH state = tryToken (function Catch -> true | _ -> false) state
 let inline FINALLY state = tryToken (function Finally -> true | _ -> false) state
+let inline FIELD state = tryToken (function Field -> true | _ -> false) state
 
 //
 // These functions return 'nil' as to avoid Option allocations

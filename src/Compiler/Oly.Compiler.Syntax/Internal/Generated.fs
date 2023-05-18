@@ -2533,6 +2533,9 @@ type SyntaxValueDeclarationKind =
     | Pattern
         of
         patternToken: SyntaxToken
+    | Field
+        of
+        fieldToken: SyntaxToken
     | None
         of unit
     | Error
@@ -2565,6 +2568,10 @@ type SyntaxValueDeclarationKind =
                 match index with
                 | 0 -> patternToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Field(fieldToken) ->
+                match index with
+                | 0 -> fieldToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | None _ ->
                 failwith "invalid slot"
             | Error(token) ->
@@ -2578,6 +2585,7 @@ type SyntaxValueDeclarationKind =
             | LetBind _ -> 1
             | Constant _ -> 1
             | Pattern _ -> 1
+            | Field _ -> 1
             | None _ -> 0
             | Error _ -> 1
 
@@ -2590,6 +2598,8 @@ type SyntaxValueDeclarationKind =
             | Constant(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Pattern(x) ->
+                (x :> ISyntaxNode).FullWidth
+            | Field(x) ->
                 (x :> ISyntaxNode).FullWidth
             | None _ ->
                 0

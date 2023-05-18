@@ -2765,6 +2765,13 @@ module OlySyntaxValueDeclarationKind =
         | _ ->
             Option.None
 
+    let (|Field|_|) (node: OlySyntaxValueDeclarationKind) : ( OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxValueDeclarationKind.Field _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
+        | _ ->
+            Option.None
+
     let (|None|_|) (node: OlySyntaxValueDeclarationKind) : unit option =
         match node.Internal with
         | SyntaxValueDeclarationKind.None _ ->

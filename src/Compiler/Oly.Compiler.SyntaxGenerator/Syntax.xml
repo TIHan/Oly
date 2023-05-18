@@ -607,6 +607,9 @@
 	<Case name="Pattern">
 	    <Field name="patternToken">SyntaxToken</Field>
 	</Case>
+	<Case name="Field">
+	    <Field name="fieldToken">SyntaxToken</Field>
+	</Case>
     <Case name="None" />
     <Case name="Error">
         <Field name="token">SyntaxToken</Field>

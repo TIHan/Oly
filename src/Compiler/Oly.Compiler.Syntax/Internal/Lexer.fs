@@ -507,6 +507,7 @@ module Lexer =
         | "blittable" -> Blittable
         | "scoped" -> Scoped
         | "require" -> Require
+        | "field" -> Field
         | _ ->
             ident
 

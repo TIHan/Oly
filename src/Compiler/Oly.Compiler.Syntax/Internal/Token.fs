@@ -83,6 +83,7 @@ type internal Token =
     | Blittable
     | Scoped
     | Require
+    | Field
 
     // Literals
     | Int8Literal of text: string
@@ -274,6 +275,7 @@ type internal Token =
         | Blittable -> "blittable"
         | Scoped -> "scoped"
         | Require -> "require"
+        | Field -> "field"
 
         // Literals
         | Int8Literal text
@@ -501,7 +503,8 @@ type internal Token =
         | Managed
         | Blittable 
         | Scoped
-        | Require -> true
+        | Require 
+        | Field -> true
         | _ -> false
 
     member this.IsLiteral =
