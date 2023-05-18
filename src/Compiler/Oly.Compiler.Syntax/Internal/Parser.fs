@@ -2014,6 +2014,11 @@ let tryParseValueDeclarationKind state =
         SyntaxValueDeclarationKind.Pattern(patternToken) |> Some
     | _ ->
 
+    match bt FIELD state with
+    | Some(fieldToken) ->
+        SyntaxValueDeclarationKind.Field(fieldToken) |> Some
+    | _ ->
+
     None
 
 let parseValueDeclarationKind state =
