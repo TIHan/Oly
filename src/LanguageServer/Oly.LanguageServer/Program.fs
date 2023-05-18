@@ -1034,6 +1034,12 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 workspace.UpdateDocument(x, OlySourceText.FromFile(x.ToString()), ct) 
         )
 
+    let autoOpenProjectsByDocumentIfNecessary (documentPath: OlyPath) ct =
+        backgroundTask {
+            if workspace.Solution.HasDocument(documentPath) |> not then
+                autoOpenProjectsByDocument documentPath ct
+        }
+
     let refreshWorkspaceByDocument (documentPath: OlyPath) version ct =
         backgroundTask {
             autoOpenProjectsByDocument documentPath ct
@@ -1062,6 +1068,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         backgroundTask {
             let cts = cancelAndGetCts documentPath
             let ct = cts.Token
+
+            do! autoOpenProjectsByDocumentIfNecessary documentPath ct
 
             let origSolution = workspace.Solution
 
@@ -1653,122 +1661,127 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
-            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
-                let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
+            backgroundTask {
+                let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
+                do! autoOpenProjectsByDocumentIfNecessary documentPath ct
+
+                return! request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+                    let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                     
-                match symbolOpt with
-                | Some symbol ->
-                    match symbol with
-                    | :? OlyFunctionGroupSymbol as symbol ->
-                        let strBuilder = StringBuilder()
-                        symbol.Functions
-                        |> ImArray.iter (fun func -> strBuilder.Append("    " + func.SignatureText + "\n") |> ignore)
-                        return hoverText "Possible overloads:\n" (strBuilder.ToString())
-                    | :? OlyValueSymbol as symbol ->
-                        let textResult = symbol.SignatureText
+                    match symbolOpt with
+                    | Some symbol ->
+                        match symbol with
+                        | :? OlyFunctionGroupSymbol as symbol ->
+                            let strBuilder = StringBuilder()
+                            symbol.Functions
+                            |> ImArray.iter (fun func -> strBuilder.Append("    " + func.SignatureText + "\n") |> ignore)
+                            return hoverText "Possible overloads:\n" (strBuilder.ToString())
+                        | :? OlyValueSymbol as symbol ->
+                            let textResult = symbol.SignatureText
 
-                        let textResult =
-                            if symbol.IsAbstract then
-                                sprintf "abstract %s" textResult
-                            else
-                                textResult
-
-                        let textResult =
-                            if symbol.IsField then
-                                if symbol.IsStatic then
-                                    match symbol.TryFieldConstant with
-                                    | ValueSome(constant) ->
-                                        let valueText =
-                                            match constant.Value with
-                                            | OlyConstant.UInt8(value) -> string value
-                                            | OlyConstant.Int8(value) -> string value
-                                            | OlyConstant.UInt16(value) -> string value
-                                            | OlyConstant.Int16(value) -> string value
-                                            | OlyConstant.UInt32(value) -> string value
-                                            | OlyConstant.Int32(value) -> string value
-                                            | OlyConstant.UInt64(value) -> string value
-                                            | OlyConstant.Int64(value) -> string value
-                                            | OlyConstant.Float32(value) -> string value
-                                            | OlyConstant.Float64(value) -> string value
-                                            | OlyConstant.True -> "true"
-                                            | OlyConstant.False -> "false"
-                                            | OlyConstant.Char16(value) -> $"'{value}'"
-                                            | OlyConstant.Utf16(value) -> $"\"{value}\""
-                                            | OlyConstant.Null -> "null"
-                                            | OlyConstant.Default -> "default"
-                                            | OlyConstant.Array _ -> "OlyConstant.Array (implement this)"
-                                            | OlyConstant.External(value) -> value.SignatureText
-                                            | OlyConstant.Variable(ty) -> ty.SignatureText
-                                            | OlyConstant.Error -> "?"
-                                        sprintf "constant %s: %s = %s" symbol.Name symbol.Type.SignatureText valueText
-                                    | _ ->
-                                        sprintf "(field) %s" textResult
+                            let textResult =
+                                if symbol.IsAbstract then
+                                    sprintf "abstract %s" textResult
                                 else
-                                    sprintf "(field) %s" textResult
-                            elif symbol.IsProperty then
-                                textResult
-                            elif symbol.IsParameter then
-                                sprintf "(parameter) %s" textResult
-                            elif symbol.IsLocal then
-                                sprintf "(local) %s" textResult
-                            else
-                                textResult
+                                    textResult
 
-                        let header = String.Empty   
-                        let header, olyContent = header, textResult
-                        return hoverText header olyContent
+                            let textResult =
+                                if symbol.IsField then
+                                    if symbol.IsStatic then
+                                        match symbol.TryFieldConstant with
+                                        | ValueSome(constant) ->
+                                            let valueText =
+                                                match constant.Value with
+                                                | OlyConstant.UInt8(value) -> string value
+                                                | OlyConstant.Int8(value) -> string value
+                                                | OlyConstant.UInt16(value) -> string value
+                                                | OlyConstant.Int16(value) -> string value
+                                                | OlyConstant.UInt32(value) -> string value
+                                                | OlyConstant.Int32(value) -> string value
+                                                | OlyConstant.UInt64(value) -> string value
+                                                | OlyConstant.Int64(value) -> string value
+                                                | OlyConstant.Float32(value) -> string value
+                                                | OlyConstant.Float64(value) -> string value
+                                                | OlyConstant.True -> "true"
+                                                | OlyConstant.False -> "false"
+                                                | OlyConstant.Char16(value) -> $"'{value}'"
+                                                | OlyConstant.Utf16(value) -> $"\"{value}\""
+                                                | OlyConstant.Null -> "null"
+                                                | OlyConstant.Default -> "default"
+                                                | OlyConstant.Array _ -> "OlyConstant.Array (implement this)"
+                                                | OlyConstant.External(value) -> value.SignatureText
+                                                | OlyConstant.Variable(ty) -> ty.SignatureText
+                                                | OlyConstant.Error -> "?"
+                                            sprintf "constant %s: %s = %s" symbol.Name symbol.Type.SignatureText valueText
+                                        | _ ->
+                                            sprintf "(field) %s" textResult
+                                    else
+                                        sprintf "(field) %s" textResult
+                                elif symbol.IsProperty then
+                                    textResult
+                                elif symbol.IsParameter then
+                                    sprintf "(parameter) %s" textResult
+                                elif symbol.IsLocal then
+                                    sprintf "(local) %s" textResult
+                                else
+                                    textResult
 
-                    | :? OlyTypeSymbol as symbol ->
-                        let textResult = sprintf "%s %s" symbol.TextKind symbol.SignatureText
-                        let textResult =
-                            match symbol.TryGetAliasedType() with
-                            | Some(aliasedSymbol) ->
-                                $"{textResult} = {aliasedSymbol.FullyQualifiedName}"
-                            | _ ->
-                                textResult                             
-                        return hoverText "" textResult
+                            let header = String.Empty   
+                            let header, olyContent = header, textResult
+                            return hoverText header olyContent
 
-                    | :? OlyNamespaceSymbol as symbol ->
-                        let textResult = sprintf "namespace %s" symbol.SignatureText
-                        return hoverText "" textResult
+                        | :? OlyTypeSymbol as symbol ->
+                            let textResult = sprintf "%s %s" symbol.TextKind symbol.SignatureText
+                            let textResult =
+                                match symbol.TryGetAliasedType() with
+                                | Some(aliasedSymbol) ->
+                                    $"{textResult} = {aliasedSymbol.FullyQualifiedName}"
+                                | _ ->
+                                    textResult                             
+                            return hoverText "" textResult
 
-                    | :? OlyConstantSymbol as symbol ->
-                        let valueText =
-                            let rec f (c: OlyConstant) =
-                                match c with
-                                | OlyConstant.UInt8(value) -> string value
-                                | OlyConstant.Int8(value) -> string value
-                                | OlyConstant.UInt16(value) -> string value
-                                | OlyConstant.Int16(value) -> string value
-                                | OlyConstant.UInt32(value) -> string value
-                                | OlyConstant.Int32(value) -> string value
-                                | OlyConstant.UInt64(value) -> string value
-                                | OlyConstant.Int64(value) -> string value
-                                | OlyConstant.Float32(value) -> string value
-                                | OlyConstant.Float64(value) -> string value
-                                | OlyConstant.True -> "true"
-                                | OlyConstant.False -> "false"
-                                | OlyConstant.Char16(value) -> $"'{value}'"
-                                | OlyConstant.Utf16(value) -> $"\"{value}\""
-                                | OlyConstant.Null -> "null"
-                                | OlyConstant.Default -> "default"
-                                | OlyConstant.Array(_, values) ->
-                                    let innerText =
-                                        values
-                                        |> ImArray.map f
-                                        |> String.concat ";"
-                                    $"[{innerText}]"
-                                | OlyConstant.Variable(ty) -> ty.SignatureText
-                                | OlyConstant.External(func) -> func.SignatureText
-                                | OlyConstant.Error -> "?"
-                            f symbol.Value
-                        let textResult = $"{valueText}: {symbol.Type.SignatureText}"
-                        return hoverText "" textResult
+                        | :? OlyNamespaceSymbol as symbol ->
+                            let textResult = sprintf "namespace %s" symbol.SignatureText
+                            return hoverText "" textResult
+
+                        | :? OlyConstantSymbol as symbol ->
+                            let valueText =
+                                let rec f (c: OlyConstant) =
+                                    match c with
+                                    | OlyConstant.UInt8(value) -> string value
+                                    | OlyConstant.Int8(value) -> string value
+                                    | OlyConstant.UInt16(value) -> string value
+                                    | OlyConstant.Int16(value) -> string value
+                                    | OlyConstant.UInt32(value) -> string value
+                                    | OlyConstant.Int32(value) -> string value
+                                    | OlyConstant.UInt64(value) -> string value
+                                    | OlyConstant.Int64(value) -> string value
+                                    | OlyConstant.Float32(value) -> string value
+                                    | OlyConstant.Float64(value) -> string value
+                                    | OlyConstant.True -> "true"
+                                    | OlyConstant.False -> "false"
+                                    | OlyConstant.Char16(value) -> $"'{value}'"
+                                    | OlyConstant.Utf16(value) -> $"\"{value}\""
+                                    | OlyConstant.Null -> "null"
+                                    | OlyConstant.Default -> "default"
+                                    | OlyConstant.Array(_, values) ->
+                                        let innerText =
+                                            values
+                                            |> ImArray.map f
+                                            |> String.concat ";"
+                                        $"[{innerText}]"
+                                    | OlyConstant.Variable(ty) -> ty.SignatureText
+                                    | OlyConstant.External(func) -> func.SignatureText
+                                    | OlyConstant.Error -> "?"
+                                f symbol.Value
+                            let textResult = $"{valueText}: {symbol.Type.SignatureText}"
+                            return hoverText "" textResult
+                        | _ ->
+                            return hoverText "" symbol.SignatureText
                     | _ ->
-                        return hoverText "" symbol.SignatureText
-                | _ ->
-                    return null
-            })
+                        return null
+                })
+            }
 
     interface ICompletionHandler with
         member this.GetRegistrationOptions(c: CompletionCapability, client: ClientCapabilities) =
