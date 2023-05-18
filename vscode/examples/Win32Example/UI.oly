@@ -11,9 +11,9 @@ interface IViewModel
 sealed class WindowViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Size: Vector2 = Vector2.Zero
-    mutable RelativePosition: Vector2 = Vector2.Zero
+    IsEnabled: bool get, set = true
+    Size: Vector2 get, set = Vector2.Zero
+    RelativePosition: Vector2 get, set = Vector2.Zero
 
     private titleBuffer: byte[||] = Array.ZeroCreate(256)
     private mutable titleBufferLength: int32 = 0
@@ -28,13 +28,23 @@ sealed class WindowViewModel =
 sealed class ButtonViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
+    IsEnabled: bool get, set = true
+    Size: Vector2 get, set = Vector2.Zero
+
+    private labelBuffer: byte[||] = Array.ZeroCreate(256)
+    private mutable labelBufferLength: int32 = 0
+    private mutable label: string = string.Empty
+    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
+    Label: string
+        get() = this.label
+        set(value) =
+            this.label <- value
+            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
 sealed class TextInputViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
+    IsEnabled: bool get, set = true
 
     private labelBuffer: byte[||] = Array.ZeroCreate(256)
     private mutable labelBufferLength: int32 = 0
@@ -58,25 +68,25 @@ sealed class TextInputViewModel =
 sealed class Int32InputViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable Value: int32 = 0
+    IsEnabled: bool get, set = true
+    Label: string get, set = string.Empty
+    Value: int32 get, set = 0
 
 sealed class CheckboxViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable IsChecked: bool = false
+    IsEnabled: bool get, set = true
+    Label: string get, set = string.Empty
+    IsChecked: bool get, set = false
 
 sealed class ComboBoxViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable SelectedItemIndex: int32 = 0
-    mutable Items: string[||] = [||]
-    mutable ItemCount: int32 = 0
+    IsEnabled: bool get, set = true
+    Label: string get, set = string.Empty
+    SelectedItemIndex: int32 get, set = 0
+    Items: string[||] get, set = [||]
+    ItemCount: int32 get, set = 0
 
 class UINode =
 
@@ -86,8 +96,8 @@ class UINode =
     internal sealed class Window =
         inherits UINode
 
-        State: WindowViewModel
-        Children: UINode[]
+        State: WindowViewModel get
+        Children: UINode[] get
 
         new(state: WindowViewModel, children: UINode[]) =
             base(0) with {
@@ -102,8 +112,8 @@ class UINode =
     internal sealed class Button =
         inherits UINode
 
-        State: ButtonViewModel
-        OnClick: ButtonViewModel -> ()
+        State: ButtonViewModel get
+        OnClick: ButtonViewModel -> () get
 
         new(state: ButtonViewModel, onClick: ButtonViewModel -> ()) =
             base(1) with {
@@ -118,8 +128,8 @@ class UINode =
     internal sealed class TextInput =
         inherits UINode
 
-        State: TextInputViewModel
-        OnChanged: TextInputViewModel -> ()
+        State: TextInputViewModel get
+        OnChanged: TextInputViewModel -> () get
 
         new(state: TextInputViewModel, onChanged: TextInputViewModel -> ()) =
             base(2) with {
@@ -134,8 +144,8 @@ class UINode =
     internal sealed class Int32Input =
         inherits UINode
 
-        State: Int32InputViewModel
-        OnChanged: Int32InputViewModel -> ()
+        State: Int32InputViewModel get
+        OnChanged: Int32InputViewModel -> () get
 
         new(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) =
             base(3) with {
@@ -150,8 +160,8 @@ class UINode =
     internal sealed class Checkbox =
         inherits UINode
 
-        State: CheckboxViewModel
-        OnChanged: CheckboxViewModel -> ()
+        State: CheckboxViewModel get
+        OnChanged: CheckboxViewModel -> () get
 
         new(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) =
             base (10) with {
@@ -166,8 +176,8 @@ class UINode =
     internal sealed class ComboBox =
         inherits UINode
 
-        State: ComboBoxViewModel
-        OnChanged: ComboBoxViewModel -> ()
+        State: ComboBoxViewModel get
+        OnChanged: ComboBoxViewModel -> () get
 
         new(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) =
             base (11) with {
@@ -191,8 +201,8 @@ module UI =
             MakeWindow(context, state.TitleSpan, children)
             ImGui.EndDisabled(context)
         
-        // | UINode.Button(state, onClick) =>
-        //     MakeButton(state, onClick)
+        | UINode.Button(state, onClick) =>
+            MakeButton(context, state, onClick)
 
         | UINode.TextInput(state, onChanged) =>
             MakeTextInput(context, state, onChanged)
@@ -217,11 +227,11 @@ module UI =
                 i <- i + 1
             ImGui.End(context)
 
-    // private MakeButton(state: ButtonViewModel, onClick: ButtonViewModel -> ()): () =
-    //     ImGui.BeginDisabled(!state.IsEnabled)
-    //     if (ImGui.Button(state.Label))
-    //         onClick(state)
-    //     ImGui.EndDisabled()
+    private MakeButton(context: ImGui.ImGuiContext, state: ButtonViewModel, onClick: ButtonViewModel -> ()): () =
+        ImGui.BeginDisabled(context, !state.IsEnabled)
+        if (ImGui.Button(context, state.LabelSpan, state.Size))
+            onClick(state)
+        ImGui.EndDisabled(context)
 
     private MakeTextInput(context: ImGui.ImGuiContext, state: TextInputViewModel, onChanged: TextInputViewModel -> ()): () =
         ImGui.BeginDisabled(context, !state.IsEnabled)
@@ -261,10 +271,14 @@ module UI =
     Button(state: ButtonViewModel, onClick: ButtonViewModel -> ()): UINode =
         UINode.Button(state, onClick)
 
-    ButtonModel(label: string): ButtonViewModel =
+    ButtonModel(label: string, size: Vector2): ButtonViewModel =
         let vm = ButtonViewModel()
         vm.Label <- label
+        vm.Size <- size
         vm
+
+    ButtonModel(label: string): ButtonViewModel =
+        ButtonModel(label, Vector2.Zero)
 
     TextInput(state: TextInputViewModel, onChanged: TextInputViewModel -> ()): UINode =
         UINode.TextInput(state, onChanged)

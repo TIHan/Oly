@@ -370,10 +370,12 @@ main(): () =
 
     let windowViewModel = UI.WindowModel("Oly Window", Vector2.Zero, Vector2.Zero)
     let inputTextViewModel = UI.TextInputModel("Oly Input Text", "")
+    let buttonViewModel = UI.ButtonModel("Oly Button")
     let windowView = 
         UI.Window(windowViewModel, 
             [
-                UI.TextInput(inputTextViewModel, x -> printLine(x.Text))
+                UI.TextInput(inputTextViewModel, vm -> printLine(vm.Text));
+                UI.Button(buttonViewModel, vm -> printLine("Clicked!"))
             ]
         )
 
