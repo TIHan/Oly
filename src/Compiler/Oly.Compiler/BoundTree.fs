@@ -1425,4 +1425,5 @@ type ValueExplicitness =
         IsExplicitSet: bool
         IsExplicitPattern: bool
         IsExplicitNew: bool
+        IsExplicitField: bool
     }

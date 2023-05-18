@@ -61,8 +61,6 @@ let private bindTopLevelBindingDeclarationSignature cenv env (syntaxAttrs, attrs
     binding
 
 let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) attrs memberFlags valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration, syntaxPropBindings: OlySyntaxPropertyBinding imarray) =
-    let enclosingEnt = enclosing.AsEntity
-
     let propName, propTy =
         match syntaxBindingDecl with
         | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot) ->
@@ -180,45 +178,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
 
     let prop =
         if isAutoProp then
-            let associatedFormalPropId = ref None
-            let backingFieldOpt =
-                if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
-                    let backingFieldName = propName // Same name as the property, but it's private.
-                    let backingFieldMemberFlags =
-                        if memberFlags.HasFlag(MemberFlags.Instance) then
-                            MemberFlags.Instance ||| MemberFlags.Private
-                        else
-                            MemberFlags.None ||| MemberFlags.Private
-                    let backingFieldValueFlags =
-                        if hasAutoPropSet then
-                            ValueFlags.Mutable
-                        else
-                            ValueFlags.None
-                    createFieldValue
-                        enclosing
-                        ImArray.empty
-                        backingFieldName
-                        propTy
-                        backingFieldMemberFlags
-                        backingFieldValueFlags
-                        associatedFormalPropId
-                    |> Some
-                else
-                    None
-
-            let prop =
-                createPropertyValue
-                    enclosing
-                    attrs
-                    propName
-                    propTy
-                    (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
-                    getterOpt
-                    setterOpt
-                    backingFieldOpt
-
-            associatedFormalPropId.contents <- Some prop.Id
-            prop
+            createAutoPropertyValue enclosing attrs propName propTy memberFlags hasAutoPropSet getterOpt setterOpt
         else
             createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
 

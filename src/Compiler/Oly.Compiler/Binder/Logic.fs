@@ -17,6 +17,95 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 
+let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
+    let tryAddrTy (ty: TypeSymbol) =
+        if checkMutable && valueExplicitness.IsExplicitMutable then
+            if not ty.IsAnyStruct && not ty.IsShape then
+                cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be a struct." name, 10, syntaxNode)
+            if ty.IsAnyStruct && enclosing.IsReadOnly then
+                cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxNode)
+
+        if ty.IsAnyStruct then
+            let kind = 
+                if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
+                    ByRefKind.ReadWrite
+                else
+                    ByRefKind.Read
+            TypeSymbol.CreateByRef(ty, kind)
+        else
+            ty
+    match enclosing with
+    | EnclosingSymbol.Entity(ent) ->
+        let ty =
+            if ent.IsTypeExtension then
+                if ent.Extends.Length = 1 then
+                    ent.Extends.[0]
+                else
+                    TypeSymbolError
+            else
+                ent.AsType
+        let attrs = ImArray.empty
+        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy ty, false)) pars
+    | EnclosingSymbol.Witness(witnessTy, _) ->
+        let attrs = ImArray.empty
+        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy witnessTy, false)) pars
+    | _ ->
+        pars
+
+let createAutoPropertyValue (enclosing: EnclosingSymbol) attrs propName propTy (memberFlags: MemberFlags) hasAutoPropSet getterOpt setterOpt =
+    let enclosingEnt = enclosing.AsEntity
+
+    let associatedFormalPropId = ref None
+    let backingFieldOpt =
+        if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
+            let backingFieldName = propName // Same name as the property, but it's private.
+            let backingFieldMemberFlags =
+                if memberFlags.HasFlag(MemberFlags.Instance) then
+                    MemberFlags.Instance ||| MemberFlags.Private
+                else
+                    MemberFlags.None ||| MemberFlags.Private
+            let backingFieldValueFlags =
+                if hasAutoPropSet then
+                    ValueFlags.Mutable
+                else
+                    ValueFlags.None
+            createFieldValue
+                enclosing
+                ImArray.empty
+                backingFieldName
+                propTy
+                backingFieldMemberFlags
+                backingFieldValueFlags
+                associatedFormalPropId
+            |> Some
+        else
+            None
+
+    let prop =
+        createPropertyValue
+            enclosing
+            attrs
+            propName
+            propTy
+            (memberFlags &&& ~~~(MemberFlags.Abstract ||| MemberFlags.Virtual ||| MemberFlags.Sealed))
+            getterOpt
+            setterOpt
+            backingFieldOpt
+
+    associatedFormalPropId.contents <- Some prop.Id
+    prop
+
+let createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing name propTy memberFlags isMutable =
+    let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
+    let getterName = "get_" + name
+    let getterPars =
+        if isInstance then
+            createInstancePars cenv syntaxNode valueExplicitness enclosing false getterName ImArray.empty
+        else
+            ImArray.empty
+    let getter = createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
+    Some getter
+
 /// A function is an entry point if the following is true:
 ///     1. Function's name is "main" with exact case.
 ///     2. Function is static.
@@ -56,41 +145,6 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
             else FunctionFlags.None
         | _ ->
             FunctionFlags.None
-
-    let createInstancePars checkMutable name syntaxIdent pars =
-        let tryAddrTy (ty: TypeSymbol) =
-            if checkMutable && valueExplicitness.IsExplicitMutable then
-                if not ty.IsAnyStruct && not ty.IsShape then
-                    cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be a struct." name, 10, syntaxIdent)
-                if ty.IsAnyStruct && enclosing.IsReadOnly then
-                    cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxIdent)
-
-            if ty.IsAnyStruct then
-                let kind = 
-                    if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
-                        ByRefKind.ReadWrite
-                    else
-                        ByRefKind.Read
-                TypeSymbol.CreateByRef(ty, kind)
-            else
-                ty
-        match enclosing with
-        | EnclosingSymbol.Entity(ent) ->
-            let ty =
-                if ent.IsTypeExtension then
-                    if ent.Extends.Length = 1 then
-                        ent.Extends.[0]
-                    else
-                        TypeSymbolError
-                else
-                    ent.AsType
-            let attrs = ImArray.empty
-            ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy ty, false)) pars
-        | EnclosingSymbol.Witness(witnessTy, _) ->
-            let attrs = ImArray.empty
-            ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy witnessTy, false)) pars
-        | _ ->
-            pars
 
     let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
     let isMutable =
@@ -161,7 +215,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
 
         let parsWithInstance =
             if isInstance then
-                createInstancePars true funcName syntaxNode pars
+                createInstancePars cenv syntaxNode valueExplicitness enclosing true funcName pars
             else
                 if valueExplicitness.IsExplicitMutable then
                     cenv.diagnostics.Error("Static functions cannot be marked with mutable.", 10, syntaxNode)
@@ -239,28 +293,16 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                 // If we have a 'get or 'set' - this is an auto property for a class, struct, or module.
                 // Or it can be for the signature of standard properties with basic getters and setters on shapes and interfaces.
                 if valueExplicitness.IsExplicitGet || valueExplicitness.IsExplicitSet then
-                    let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
-                    let getterOpt =
-                        if valueExplicitness.IsExplicitGet then
-                            let getterName = "get_" + name
-                            let getterPars =
-                                if isInstance then
-                                    createInstancePars false getterName syntaxNode ImArray.empty
-                                else
-                                    ImArray.empty
-                            let getter = createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
-                            Some getter
-                        else
-                            None
-
+                    let getterOpt = createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing name propTy memberFlags isMutable
                     let setterOpt =
+                        let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
                         if valueExplicitness.IsExplicitSet then
                             let setterName = "set_" + name
                             let parValue = createLocalParameterValue(ImArray.empty, "", propTy, false)
                             let pars = ImArray.createOne parValue
                             let setterPars =
                                 if isInstance then
-                                    createInstancePars false setterName syntaxNode pars
+                                    createInstancePars cenv syntaxNode valueExplicitness enclosing false setterName pars
                                 else
                                     pars
                             let isMutable = 
@@ -299,17 +341,24 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
         let value = 
             match enclosing with
             | EnclosingSymbol.Entity(enclosingEnt) ->
-                let name = syntaxIdent.ValueText             
-                let valueFlags =
-                    if valueExplicitness.IsExplicitMutable then
-                        ValueFlags.Mutable
-                    else
-                        ValueFlags.None
+                let name = syntaxIdent.ValueText      
+                
+                if valueExplicitness.IsExplicitField then
+                    let valueFlags =
+                        if valueExplicitness.IsExplicitMutable then
+                            ValueFlags.Mutable
+                        else
+                            ValueFlags.None
 
-                if not enclosingEnt.IsClass && not enclosingEnt.IsStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
-                    cenv.diagnostics.Error("Fields are not allowed here.", 10, syntaxIdent)
+                    if not enclosingEnt.IsClass && not enclosingEnt.IsStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
+                        cenv.diagnostics.Error("Fields are not allowed here.", 10, syntaxIdent)
                         
-                createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
+                    createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
+                else
+                    if valueExplicitness.IsExplicitMutable then
+                        cenv.diagnostics.Error("'mutable' is not allowed like this on a property.")
+                    let getterOpt = createAutoPropertyGetterFunction cenv syntaxIdent valueExplicitness enclosing name ty memberFlags false
+                    createAutoPropertyValue enclosing attrs name ty memberFlags false getterOpt None
             | _ ->
                 if valueExplicitness.IsExplicitMutable then
                     createMutableLocalValue syntaxIdent.ValueText ty
