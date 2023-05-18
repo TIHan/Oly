@@ -208,8 +208,20 @@ private igEndDisabled(): ()
 #[import("C", "imgui.dll", "igLabelText")]
 private igLabelText(label: byte*, fmt: byte*): ()
 
+#[import("C", "imgui.dll", "igButton")]
+private igButton(label: byte*, size: Vector2): ImGuiBool
+
+#[import("C", "imgui.dll", "igCheckbox")]
+private igCheckbox(label: byte*, v: ImGuiBool*): ImGuiBool
+
 #[import("C", "imgui.dll", "igInputText")]
 private igInputText(label: byte*, buf: byte*, buf_size: nuint, flags: ImGuiInputTextFlags, callback: ImGuiInputTextCallback, user_data: void*): ImGuiBool
+
+#[import("C", "imgui.dll", "igInputInt")]
+private igInputInt(label: byte*, v: int32*, step: int32, step_fast: int32, flags: ImGuiInputTextFlags): ImGuiBool
+
+#[import("C", "imgui.dll", "igCombo_Str_arr")]
+private igCombo_Str_arr(label: byte*, current_item: int32*, items: (byte*)*, items_count: int32, popup_max_height_in_items: int32): ImGuiBool
 
 #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
 private ImFontConfig_ImFontConfig(): ImFontConfig*
@@ -424,13 +436,13 @@ internal Win32ProcHandler(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARA
 //
 
 ShowDemoWindow(context: ImGuiContext): () =
-    let mutable p_open = ImGuiBool(1)
+    let mutable p_open = ImGuiBool.True
     igShowDemoWindow(&&p_open)
 
 Begin(context: ImGuiContext, mutable title: ReadOnlySpan<byte>): bool =
-    let mutable titlePtr = &&title.GetPinnableReference()
+    let titlePtr = &&title.GetPinnableReference()
 
-    let mutable p_open = ImGuiBool(1)
+    let mutable p_open = ImGuiBool.True
     let result = igBegin(titlePtr, &&p_open, ImGuiWindowFlags.None)
 
     result == true
@@ -439,25 +451,20 @@ End(context: ImGuiContext): () =
     igEnd()
 
 BeginDisabled(context: ImGuiContext, isDisabled: bool): () =
-    igBeginDisabled(if (isDisabled) ImGuiBool(1) else ImGuiBool(0))
+    igBeginDisabled(if (isDisabled) ImGuiBool.True else ImGuiBool.False)
 
 EndDisabled(context: ImGuiContext): () =
     igEndDisabled()
 
-#[blittable]
-callback(callbackData: ImGuiInputTextCallbackData*): int32 =
-    0
-
 LabelText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable text: ReadOnlySpan<byte>): () =
-    let mutable labelPtr = &&label.GetPinnableReference()
-    let mutable textPtr = &&text.GetPinnableReference()
+    let labelPtr = &&label.GetPinnableReference()
+    let textPtr = &&text.GetPinnableReference()
 
     igLabelText(labelPtr, textPtr)
 
 InputText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable buffer: Span<byte>): bool =
-    let mutable labelPtr = &&label.GetPinnableReference()
-
-    let mutable bufferPtr = UnsafeCast(Unsafe.AsPointer(&buffer.GetPinnableReference()))
+    let labelPtr = &&label.GetPinnableReference()
+    let bufferPtr = UnsafeCast(Unsafe.AsPointer(&buffer.GetPinnableReference()))
 
     let result =
         igInputText(
@@ -465,9 +472,55 @@ InputText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable buff
             bufferPtr,
             nuint(buffer.Length),
             ImGuiInputTextFlags.None,
-            &&callback,
+            default,
             nullptr
         )
 
     result == true
 
+InputInt(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, value: byref<int32>): bool =
+    let labelPtr = &&label.GetPinnableReference()
+
+    let result =
+        igInputInt(
+            labelPtr,
+            &&value,
+            1,
+            0,
+            ImGuiInputTextFlags.None
+        )
+
+    result == true
+
+Checkbox(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, value: byref<bool>): bool =
+    let labelPtr = &&label.GetPinnableReference()
+
+    let mutable imValue = default: ImGuiBool
+    let result = igCheckbox(labelPtr, &&imValue)
+
+    if (imValue == true)
+        value <- true
+    else
+        value <- false
+
+    result == true
+
+Button(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, size: Vector2): bool =
+    let labelPtr = &&label.GetPinnableReference()
+
+    igButton(labelPtr, size) == true
+
+Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemIndex: byref<int32>, mutable items: ReadOnlySpan<byte*>, popupMaxHeight: int32): bool =
+    let labelPtr = &&label.GetPinnableReference()
+    let itemsPtr = &&items.GetPinnableReference()
+
+    let result =
+        igCombo_Str_arr(
+            labelPtr,
+            &&selectedItemIndex,
+            itemsPtr,
+            items.Length,
+            popupMaxHeight
+        )
+
+    result == true
