@@ -9,7 +9,7 @@ let ``Newtype should pass``() =
     let src =
         """
 newtype A =
-    Value: __oly_int32
+    field Value: __oly_int32
         """
     Oly src
     |> shouldCompile

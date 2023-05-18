@@ -49,7 +49,7 @@
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(is|as|to|of|from|throw|for|do|on|in|out|namespace|open|new|let|get|set|pattern|with|mutable|inline|pure|inherits|implements|refine|constant|intrinsic|implicit|explicit|where|checked|unchecked|unmanaged|managed|blittable|require|ignore)\\b"
+					"match": "\\b(is|as|to|of|from|throw|for|do|on|in|out|namespace|open|new|let|get|set|pattern|with|mutable|inline|pure|inherits|implements|refine|constant|intrinsic|implicit|explicit|where|checked|unchecked|unmanaged|managed|blittable|require|ignore|field)\\b"
 				},
 				{
 					"name": "variable.language",

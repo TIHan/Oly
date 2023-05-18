@@ -34,7 +34,7 @@ let ``Hello World from instance function``() =
 class Test =
     test() : () =
         print("Hello World")
-    x: int32
+    field x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -401,7 +401,7 @@ extension AddInt32Extension =
 (+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> = T1.add(x, y)
 
 class Hoot<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -478,7 +478,7 @@ interface Monad<M<_>> =
    static abstract Return<A>(a: A): M<A>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -534,12 +534,12 @@ interface Monad<M<_>, M2<_>> =
     static abstract bind<A, B>(ma: M<A>, f: A -> M2<B>): M2<B>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
 class Maybe2<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -982,7 +982,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    x: int32
+    field x: int32
 
     get_x(): int32 = this.x
     test() : int32 = 123
@@ -1012,7 +1012,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    x: int32
+    field x: int32
 
     test<T>() : int32 = 123
 
@@ -1042,7 +1042,7 @@ interface ITest<T1, T2> =
 class Test =
     implements ITest<int16, float64>
 
-    x: int32
+    field x: int32
 
     test<T>(x: int16) : int32 = 123
     test<T>(x: float64) : int32 = 456
@@ -1073,7 +1073,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    x: int32
+    field x: int32
 
     new(x: int32) = { x = x }
 
@@ -1100,7 +1100,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    x: int32
+    field x: int32
 
     test() : int32 = 123
 
@@ -1124,7 +1124,7 @@ let ``Hello World with generic erasure``() =
         """
 class Test<T> =
 
-    x: int32
+    field x: int32
 
     new(x: int32) = { x = x }
 
@@ -1162,7 +1162,7 @@ let ``Generic type example``() =
         """
 class Test<T> =
 
-    x: T
+    public field x: T
 
     new(x: T) = { x = x }
 
@@ -1181,7 +1181,7 @@ let ``Generic type example 2``() =
         """
 class Test<T> =
 
-    x: T
+    public field x: T
 
     new(x: T) = { x = x }
 
@@ -1217,7 +1217,7 @@ class Test =
     test(y: int32) : () =
         print(this.x)
         print(y)
-    x: int32
+    field x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1249,7 +1249,7 @@ let ``Mutate field``() =
     let src =
         """
 class Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1267,7 +1267,7 @@ let ``Mutate field 2``() =
     let src =
         """
 class Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1287,11 +1287,11 @@ let ``Mutate field 3``() =
     let src =
         """
 class Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 class Test2 =
-    y: Test
+    public field y: Test
     new(y: Test) = { y = y }
 
 main() : () =
@@ -1310,11 +1310,11 @@ let ``Mutate field value on nested struct``() =
     let src =
         """
 class Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1333,11 +1333,11 @@ let ``Mutate field value on nested struct on type with chained call``() =
     let src =
         """
 class Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 test(x: Test2) : Test2 = 
@@ -1359,11 +1359,11 @@ let ``Mutate field value on nested struct on struct with chained call``() =
     let src =
         """
 struct Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: int32
+    public mutable field x: int32
     new(x: int32) = { x = x }
 
 test(x: Test2) : Test2 = 
@@ -1385,10 +1385,10 @@ let ``Nested class instantiation``() =
     let src =
         """
 class Test =
-    x: int32
+    public field x: int32
 
     class Test2 =
-        y: float64
+        public field y: float64
         new(y: float64) = { y = y }
     new(x: int32) = { x = x }
 
@@ -1421,7 +1421,7 @@ print(object): ()
 
 class Test =
 
-    x: int32
+    public field x: int32
     new(x: int32) = { x = x }
 
     add(x: int32, y: int32) : int32 = y
@@ -1455,8 +1455,8 @@ let ``Able to use simple struct``() =
         """
 struct Test =
 
-    x: int32
-    y: int32
+    public field x: int32
+    public field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 main() : () =
@@ -1475,8 +1475,8 @@ let ``Able to use simple struct 2``() =
         """
 struct Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 main() : () =
@@ -1496,8 +1496,8 @@ let ``Able to use simple struct 3``() =
         """
 struct Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 test(mutable t: Test) : () =
@@ -1522,8 +1522,8 @@ let ``Able to use simple struct 4``() =
         """
 struct Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 test(mutable t: Test) : () =
@@ -1548,12 +1548,12 @@ let ``Able to use simple struct 5``() =
         """
 struct Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -1578,8 +1578,8 @@ let ``Able to use simple struct 6``() =
         """
 struct Test =
 
-    mutable x: int32
-    y: int32
+    public mutable field x: int32
+    public field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
     test() : int32 = this.x
@@ -1600,8 +1600,8 @@ let ``Able to use simple struct 7``() =
         """
 struct Test =
 
-    x: int32
-    y: int32
+    public field x: int32
+    public field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
     test() : int32 = this.x
@@ -1622,12 +1622,12 @@ let ``Able to use simple struct 8``() =
         """
 struct Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -1650,8 +1650,8 @@ let ``Able to use simple mutable type``() =
         """
 class Test =
 
-    mutable x: int32
-    mutable y: int32
+    public mutable field x: int32
+    public mutable field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 main() : () =
@@ -1938,7 +1938,7 @@ let ``Simple lambda expression 11``() =
     let src =
         """
 class Test =
-    x: int32
+    public field x: int32
     new(x: int32) = { x = x }
 
 test(f: Test -> ()) : () =
@@ -1995,7 +1995,7 @@ let ``Simple lambda expression 14``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2015,7 +2015,7 @@ let ``Simple lambda expression 15``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2055,7 +2055,7 @@ let ``Simple lambda expression 17``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2078,7 +2078,7 @@ let ``Simple lambda expression 18``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2155,7 +2155,7 @@ let ``Simple lambda expression 22``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2175,7 +2175,7 @@ let ``Simple lambda expression 23``() =
         """
 class Test =
 
-    x: int32
+    field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2366,7 +2366,7 @@ let ``Simple partial application of a function that takes a tuple``() =
         """
 class Test =
 
-    x: int32
+    field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2387,7 +2387,7 @@ let ``Simple partial application of a function that takes a tuple 2``() =
         """
 class Test =
 
-    x: int32
+    field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2937,7 +2937,7 @@ let ``Closure test 2``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -2957,7 +2957,7 @@ let ``Closure test 3``() =
         """
 class Test =
 
-    x: int32
+    public field x: int32
 
     new(x: int32) = { x = x }
 
@@ -3371,7 +3371,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable x: int32
+    mutable field x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3407,7 +3407,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable x: int32
+    mutable field x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3457,7 +3457,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable x: int32
+    mutable field x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3509,7 +3509,7 @@ struct Test =
 
     new(x: int32) = { x = x }
 
-    mutable x: int32
+    mutable field x: int32
     get_x(): int32 = this.x
     mutable set_x(value: int32): () = this.x <- value
 
@@ -3566,7 +3566,7 @@ struct Test =
 
     new(x: int32) = { x = x }
 
-    mutable x: int32
+    public mutable field x: int32
     get_x(): int32 = this.x
     mutable set_x(value: int32): () = this.x <- value
 
@@ -3575,7 +3575,7 @@ struct Test2 =
     
     new(t: ITest) = { t = t }
 
-    mutable t: ITest
+    public mutable field t: ITest
     get_t(): ITest = this.t
     mutable set_t(value: ITest): () = this.t <- value
 
@@ -4507,8 +4507,8 @@ class Test1 =
 class Test =
     inherits Test1
 
-    x: int32
-    y: int32
+    field x: int32
+    field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 shape TestShape =
@@ -7087,7 +7087,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7131,7 +7131,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7178,7 +7178,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7225,7 +7225,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7272,7 +7272,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7320,7 +7320,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7368,7 +7368,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7416,7 +7416,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7463,7 +7463,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7510,7 +7510,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7559,7 +7559,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7609,7 +7609,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7659,7 +7659,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7709,7 +7709,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7757,7 +7757,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7807,7 +7807,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7866,7 +7866,7 @@ alias byref<T>
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7928,7 +7928,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -7981,7 +7981,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -8034,7 +8034,7 @@ print(__oly_object): ()
 
 #[null]
 newtype Option<T> =
-    Value: T
+    public field Value: T
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -8084,7 +8084,7 @@ print(__oly_object): ()
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -8630,7 +8630,7 @@ print(__oly_object): ()
 
 class A =
 
-    x: int32
+    field x: int32
 
     new() = { x = 1 }
 
@@ -8666,7 +8666,7 @@ print(__oly_object): ()
 
 class A =
 
-    x: int32
+    field x: int32
 
     new() = { x = 1 }
 
@@ -9012,7 +9012,7 @@ print(__oly_object): ()
 
 class Test =
 
-    X: __oly_int32 = 123
+    public field X: __oly_int32 = 123
 
 main(): () =
     let x = Test()
@@ -9050,7 +9050,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    X: __oly_int32 = 123
+    public field X: __oly_int32 = 123
 
 main(): () =
     let x = Test()
@@ -9145,7 +9145,7 @@ print(__oly_object): ()
 
 class Wrapper<T> =
 
-    Value: T
+    public field Value: T
 
     new(value: T) = { Value = value }
 
@@ -9185,7 +9185,7 @@ print(__oly_object): ()
 
 class Wrapper<T> =
 
-    Value: T
+    public field Value: T
 
     new(value: T) = { Value = value }
 
@@ -9221,8 +9221,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct; where B: struct =
     struct Test =
 
-        mutable a: A = default
-        mutable b: B = default
+        public mutable field a: A = default
+        public mutable field b: B = default
 
     let mutable s: Test = default
     s.a <- a
@@ -9248,8 +9248,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test =
 
-        mutable a: A = default
-        mutable b: B = unchecked default
+        public mutable field a: A = default
+        public mutable field b: B = unchecked default
 
     let mutable s: Test = default
     s.a <- a
@@ -9275,8 +9275,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test<T> =
 
-        mutable a: A = default
-        mutable b: B = unchecked default
+        public mutable field a: A = default
+        public mutable field b: B = unchecked default
 
     let mutable s: Test<__oly_int32> = default
     s.a <- a
@@ -9358,7 +9358,7 @@ struct Test<T> where T: struct =
 
 struct Test2 =
 
-    mutable s: Test<__oly_int32> = default
+    public mutable field s: Test<__oly_int32> = default
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 
@@ -9389,7 +9389,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -9422,7 +9422,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -9455,7 +9455,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -9526,7 +9526,7 @@ print(__oly_object): ()
 
 class Test =
 
-    Value: int32
+    public field Value: int32
     new(value: int32) = { Value = value }
 
     static Default: Test get = Test(123)
@@ -9596,17 +9596,17 @@ print(__oly_object): ()
 
 module Test2 =
 
-    X: int32 =
+    public field X: int32 =
         print("X")
         Test.Y
 
 module Test =
 
-    Y: int32 =
+    public field Y: int32 =
         print("Y")
         789
 
-    Default: int32 
+    public field Default: int32 
         get =
             print("_DEFAULT_")
             Test2.X
@@ -9631,7 +9631,7 @@ print(__oly_object): ()
 
 module Test2 =
 
-    X: int32 =
+    public field X: int32 =
         print("_X_")
         let y = Test.Y
         print(y)
@@ -9640,11 +9640,11 @@ module Test2 =
 
 module Test =
 
-    Y: int32 =
+    public field Y: int32 =
         print("_Y_")
         789
 
-    Default: int32 
+    public field Default: int32 
         get =
             print("_DEFAULT_")
             Test2.X
@@ -9669,7 +9669,7 @@ print(__oly_object): ()
 
 module Test2 =
 
-    X: int32 =
+    public field X: int32 =
         print("_X_")
         let y = Test.Y
         print("_MID_")
@@ -9677,11 +9677,11 @@ module Test2 =
 
 module Test =
 
-    Y: int32 =
+    public field Y: int32 =
         print("_Y_")
         789
 
-    Default: int32 
+    public field Default: int32 
         get =
             print("_DEFAULT_")
             Test2.X
@@ -9706,7 +9706,7 @@ print(__oly_object): ()
 
 module Test2 =
 
-    X: int32 =
+    public field X: int32 =
         print("_X_")
         let y = Test.Y
         print("_MID_")
@@ -9714,11 +9714,11 @@ module Test2 =
 
 module Test =
 
-    Y: int32 =
+    public field Y: int32 =
         print("_Y_")
         789
 
-    Default: int32
+    public field Default: int32
         get =
             print("_DEFAULT_")
             let w = Test2.X
@@ -9747,7 +9747,7 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    public field A: int32 =
         print("abc")
         123
 
@@ -9771,7 +9771,7 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    field A: int32 =
         print("abc")
         123
 
@@ -9797,11 +9797,11 @@ print(__oly_object): ()
 
 module Test =
 
-    B: int32 =
+    field B: int32 =
         print("def")
         456
 
-    A: int32 =
+    public field A: int32 =
         print("abc")
         123
 
@@ -9825,11 +9825,11 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    public field A: int32 =
         print("abc")
         123
 
-    B: int32 =
+    public field B: int32 =
         print("def")
         456
 
@@ -9853,11 +9853,11 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    public field A: int32 =
         print("abc")
         123
 
-    B: int32 =
+    field B: int32 =
         print("def")
         456
 
@@ -9882,7 +9882,7 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    field A: int32 =
         print("abc")
         123
 
@@ -9910,7 +9910,7 @@ print(__oly_object): ()
 
 module Test =
 
-    A: int32 =
+    field A: int32 =
         print("abc")
         123
 
@@ -10112,7 +10112,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private Buffer: T[||]
+    private field Buffer: T[||]
 
     private new(buffer: T[||]) =
         {
@@ -10138,8 +10138,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    mutable Indices: TMemory<int32>
-    mutable Count: int32
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -10577,7 +10577,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private Buffer: T[||]
+    private field Buffer: T[||]
 
     private new(buffer: T[||]) =
         {
@@ -10606,9 +10606,9 @@ struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory>
     =  
 
-        mutable Indices: TMemory<int32>
-        mutable Count: int32
-        mutable Offset: int32
+        public mutable field Indices: TMemory<int32>
+        public mutable field Count: int32
+        public mutable field Offset: int32
 
         new() =
             {
@@ -10681,7 +10681,7 @@ alias byref<T>
 
 struct Test<T> where T: struct =
     
-    mutable Data1: T[||] = [|default;default|]
+    public mutable field Data1: T[||] = [|default;default|]
 
     mutable A(f: T -> ()): () =
         let data1 = this.Data1
@@ -10716,7 +10716,7 @@ alias byref<T>
 
 struct Test<T> where T: struct =
     
-    mutable Data1: T[||] = [|default;default|]
+    public mutable field Data1: T[||] = [|default;default|]
 
     mutable A(f: byref<T> -> ()): () =
         f(&this.Data1[0])
@@ -10742,7 +10742,7 @@ print(__oly_object): ()
 
 class Test =
 
-    F: int32 -> ()
+    public field F: int32 -> ()
 
     new(f: int32 -> ()) =
         {
@@ -10770,7 +10770,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    F: int32 -> ()
+    public field F: int32 -> ()
 
     new(f: int32 -> ()) =
         {
@@ -10898,14 +10898,14 @@ alias inref<T>
 (!=)(uint64, uint64): bool
 
 struct ComponentBitMask =
-    private mutable Page0: uint64 = 0
-    private mutable Page1: uint64 = 0
-    private mutable Page2: uint64 = 0
-    private mutable Page3: uint64 = 0
-    private mutable Page4: uint64 = 0
-    private mutable Page5: uint64 = 0
-    private mutable Page6: uint64 = 0
-    private mutable Page7: uint64 = 0
+    mutable field Page0: uint64 = 0
+    mutable field Page1: uint64 = 0
+    mutable field Page2: uint64 = 0
+    mutable field Page3: uint64 = 0
+    mutable field Page4: uint64 = 0
+    mutable field Page5: uint64 = 0
+    mutable field Page6: uint64 = 0
+    mutable field Page7: uint64 = 0
 
     #[inline]
     mutable get_Item(index: int32): byref<uint64> =
@@ -10989,7 +10989,7 @@ alias byref<T>
 (&)(uint64, uint64): uint64
 
 struct TestStruct =
-    private mutable A: uint64 = 0
+    mutable field A: uint64 = 0
 
     #[inline]
     mutable Set(index: int32, value: bool): () =
@@ -11042,7 +11042,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-X: int32 = 123
+field X: int32 = 123
 
 main(): () =
     print(X)
@@ -11069,7 +11069,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    mutable A: int32
+    public mutable field A: int32
 
     new(a: int32) = { A = a }
 
@@ -11103,7 +11103,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    mutable A: int32 = 0
+    public mutable field A: int32 = 0
 
     mutable GetByRefOfA(): byref<int32> = &this.A
 
@@ -11137,7 +11137,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    mutable A: int32 = 0
+    public mutable field A: int32 = 0
 
     mutable GetByRefOfA(): byref<int32> = &this.A
 
@@ -11145,7 +11145,7 @@ struct TestStruct =
         this.GetByRefOfA() <- 1    
         
 struct TestStruct2 =
-    mutable S: TestStruct = default
+    public mutable field S: TestStruct = default
 
     mutable SetA(): () =
         this.S.SetA()
@@ -11177,13 +11177,13 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    mutable A: int32 = 0
+    public mutable field A: int32 = 0
 
     mutable SetA(): () =
         this.A <- 5    
         
 struct TestStruct2 =
-    mutable S: TestStruct = default
+    public mutable field S: TestStruct = default
 
     mutable SetA(): () =
         this.S.SetA()
@@ -11236,7 +11236,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable Value: int32 = 123
+    mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
         this.Value
@@ -11308,7 +11308,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable Value: int32 = 123
+    mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
         this.Value
@@ -11384,7 +11384,7 @@ interface ITest<T> =
 class TestClass =
     implements ITest<int32>
 
-    mutable Value: int32 = 123
+    mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
         this.Value
@@ -11435,7 +11435,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -11479,7 +11479,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11520,7 +11520,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11561,7 +11561,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11600,7 +11600,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11642,7 +11642,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11686,7 +11686,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    public mutable field X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11730,7 +11730,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    mutable X: __oly_int32 = 123
+    public mutable field X: __oly_int32 = 123
 
 #[inline]
 test(x: byref<Test>): byref<__oly_int32> =
@@ -12393,7 +12393,7 @@ print(__oly_object): ()
 alias int32
 
 newtype NewtypeTest =
-    Value: int32
+    public field Value: int32
 
 main(): () =
     let t = NewtypeTest(123)
@@ -12415,7 +12415,7 @@ print(__oly_object): ()
 alias string
 
 newtype NewtypeTest =
-    Value: string
+    public field Value: string
 
 main(): () =
     let t = NewtypeTest("hello")
@@ -12437,7 +12437,7 @@ print(__oly_object): ()
 alias int32
 
 newtype NewtypeTest =
-    private value: int32
+    field value: int32
 
     GetValue(): int32 = this.value
 
@@ -12461,7 +12461,7 @@ print(__oly_object): ()
 alias int32
 
 newtype NewtypeTest =
-    private value: int32
+    field value: int32
 
     GetValue(): int32 = this.value
 
@@ -12488,7 +12488,7 @@ print(__oly_object): ()
 alias string
 
 newtype NewtypeTest =
-    private value: string
+    field value: string
 
     GetValue(): string = this.value
 
@@ -12515,7 +12515,7 @@ print(__oly_object): ()
 alias string
 
 newtype NewtypeTest =
-    private value: string
+    field value: string
 
     #[inline]
     GetValue(): string = this.value
@@ -12732,7 +12732,7 @@ let ``Regression - slow option type pattern matching``() =
 print(__oly_object): ()
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern Some<T>(option: Option<T>): T =
@@ -12759,7 +12759,7 @@ module TestModule
 print(__oly_object): ()
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 #[open]
@@ -12792,7 +12792,7 @@ module TestModule
 print(__oly_object): ()
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 #[open]
@@ -12825,7 +12825,7 @@ module TestModule
 print(__oly_object): ()
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 #[open]
@@ -13647,9 +13647,9 @@ print(object): ()
 
 struct Vector3 =
 
-    mutable X: float32 = 0
-    mutable Y: float32 = 0
-    mutable Z: float32 = 0
+    public mutable field X: float32 = 0
+    public mutable field Y: float32 = 0
+    public mutable field Z: float32 = 0
 
     static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
         let mutable v3 = Vector3()
@@ -13703,9 +13703,9 @@ print(object): ()
 
 struct Vector3 =
 
-    mutable X: float32 = 0
-    mutable Y: float32 = 0
-    mutable Z: float32 = 0
+    public mutable field X: float32 = 0
+    public mutable field Y: float32 = 0
+    public mutable field Z: float32 = 0
 
     static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
         let mutable v3 = Vector3()
@@ -13920,7 +13920,7 @@ alias int32
 print(__oly_object): ()
 
 newtype NewInt32 =
-    Value: int32
+    field Value: int32
 
 test(x: int32): () =
     print(x)
@@ -13961,7 +13961,7 @@ alias int32
 print(__oly_object): ()
 
 newtype NewInt32 =
-    Value: int32
+    field Value: int32
 
 interface ITest =
     test(x: int32): ()
@@ -14159,7 +14159,7 @@ alias int32
 print(__oly_object): ()
 
 struct TestStruct =
-    mutable X: int32 = 0
+    public mutable field X: int32 = 0
 
     mutable MutateX(): () =
         this.X <- 123
@@ -14257,7 +14257,7 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    mutable X: int32 = 0
+    public mutable field X: int32 = 0
 
 main(): () =
     let mutable xs = [|S1()|]
@@ -14290,10 +14290,10 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    mutable X: int32 = 0
+    public mutable field X: int32 = 0
 
 class C1 =
-    XS: S1[||] = [|S1()|]
+    public field XS: S1[||] = [|S1()|]
 
 main(): () =
     let c1 = C1()
@@ -14326,13 +14326,13 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    mutable X: int32 = 0
+    public mutable field X: int32 = 0
 
 class C1 =
-    XS: S1[||] = [|S1()|]
+    public field XS: S1[||] = [|S1()|]
 
 class C2 =
-    C: C1 = C1()
+    public field C: C1 = C1()
 
 main(): () =
     let c2 = C2()
@@ -14406,7 +14406,7 @@ module Test2 =
     struct N<T>
 
     struct M =
-        mutable E: N<M> = default
+        mutable field E: N<M> = default
         """
     Oly src
     |> shouldCompile
@@ -14419,7 +14419,7 @@ let ``Newtype with a static function``() =
         """
 #[open]
 newtype Option<T> =
-    private value: T
+    field value: T
 
     static Some(value: T): Option<T> = Option(value)
 
@@ -14451,7 +14451,7 @@ alias bool
 
 #[open]
 newtype Option<T> where T: not struct =
-    private value: T
+    field value: T
 
     pattern Some(option: Option<T>): T when (option.value !== unchecked default) =>
         option.value
@@ -14494,7 +14494,7 @@ alias bool
 
 #[open]
 newtype Option<T> where T: not struct =
-    private value: T
+    field value: T
 
     static Some(value: T): Option<T> = Option(value)
 
@@ -14537,7 +14537,7 @@ alias bool
 
 #[open]
 newtype Option<T> where T: not struct =
-    private value: T
+    field value: T
 
     pattern Some(option: Option<T>): T when (option.value !== unchecked default) =>
         option.value

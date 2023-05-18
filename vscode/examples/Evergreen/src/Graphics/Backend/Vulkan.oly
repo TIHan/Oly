@@ -64,31 +64,31 @@ sealed class VulkanValidationException =
     internal new(msg: string) = base(msg)
 
 sealed class VulkanApplication =
-    ValidationLayersEnabled: bool
-    Instance: VkInstance
-    Surface: VkSurfaceKHR
-    PhysicalDevice: VkPhysicalDevice
-    PhysicalDeviceProperties: VkPhysicalDeviceProperties
-    Device: VkDevice
-    GraphicsQueue: VkQueue
-    GraphicsQueueFamilyIndex: uint32
-    GraphicsCommandPool: VkCommandPool
-    ComputeQueue: VkQueue
-    ComputeQueueFamilyIndex: uint32
-    ComputeCommandPool: VkCommandPool
-    TransferQueue: VkQueue
-    TransferQueueFamilyIndex: uint32
-    TransferCommandPool: VkCommandPool
-    PresentQueue: VkQueue
-    PresentQueueFamilyIndex: uint32
-    DebugMessenger: VkDebugUtilsMessengerEXT
-    ImageAvailableSemaphores: VkSemaphore[]
-    RenderFinishedSemaphores: VkSemaphore[]
-    InFlightFences: VkFence[]
-    Allocator: VmaAllocator
+    ValidationLayersEnabled: bool get
+    Instance: VkInstance get
+    Surface: VkSurfaceKHR get
+    PhysicalDevice: VkPhysicalDevice get
+    PhysicalDeviceProperties: VkPhysicalDeviceProperties get
+    Device: VkDevice get
+    GraphicsQueue: VkQueue get
+    GraphicsQueueFamilyIndex: uint32 get
+    GraphicsCommandPool: VkCommandPool get
+    ComputeQueue: VkQueue get
+    ComputeQueueFamilyIndex: uint32 get
+    ComputeCommandPool: VkCommandPool get
+    TransferQueue: VkQueue get
+    TransferQueueFamilyIndex: uint32 get
+    TransferCommandPool: VkCommandPool get
+    PresentQueue: VkQueue get
+    PresentQueueFamilyIndex: uint32 get
+    DebugMessenger: VkDebugUtilsMessengerEXT get
+    ImageAvailableSemaphores: VkSemaphore[] get
+    RenderFinishedSemaphores: VkSemaphore[] get
+    InFlightFences: VkFence[] get
+    Allocator: VmaAllocator get
 
-    internal mutable currentFrame: int32
-    internal mutable framebufferResized: bool
+    internal mutable field currentFrame: int32
+    internal mutable field framebufferResized: bool
 
     MaxFramesInFlight: int32 get() = this.InFlightFences.Length
     CurrentFrame: int32 get() = this.currentFrame
@@ -130,9 +130,9 @@ sealed class VulkanApplication =
         }
 
 sealed class VulkanSwapChainSupportDetails =
-    Capabilities: VkSurfaceCapabilitiesKHR
-    Formats: VkSurfaceFormatKHR[]
-    PresentModes: VkPresentModeKHR[]
+    public field Capabilities: VkSurfaceCapabilitiesKHR
+    Formats: VkSurfaceFormatKHR[] get
+    PresentModes: VkPresentModeKHR[] get
 
     new(capabilities: VkSurfaceCapabilitiesKHR, formats: VkSurfaceFormatKHR[], presentModes: VkPresentModeKHR[]) =
         {
@@ -142,16 +142,16 @@ sealed class VulkanSwapChainSupportDetails =
         }
 
 sealed class VulkanSwapChain =
-    SwapChain: VkSwapchainKHR
-    Images: VkImage[]
-    ImageViews: VkImageView[]
-    DepthImages: VulkanImage[]
-    DepthImageViews: VkImageView[]
-    Extent: VkExtent2D
-    Viewport: VkViewport
-    Scissor: VkRect2D
-    ImageFormat: VkFormat
-    DepthFormat: VkFormat
+    SwapChain: VkSwapchainKHR get
+    Images: VkImage[] get
+    ImageViews: VkImageView[] get
+    DepthImages: VulkanImage[] get
+    DepthImageViews: VkImageView[] get
+    Extent: VkExtent2D get
+    Viewport: VkViewport get
+    Scissor: VkRect2D get
+    ImageFormat: VkFormat get
+    DepthFormat: VkFormat get
 
     new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat) =
         {
@@ -196,10 +196,10 @@ sealed class VulkanDescriptorBindingInfo =
         }
 
 private sealed class VulkanBuffer =
-    Buffer: VkBuffer
-    Allocation: VmaAllocation
-    Offset: uint64
-    Size: uint64
+    Buffer: VkBuffer get
+    Allocation: VmaAllocation get
+    Offset: uint64 get
+    Size: uint64 get
 
     new(buffer: VkBuffer, allocation: VmaAllocation, offset: uint64, size: uint64) =
         {
@@ -210,11 +210,11 @@ private sealed class VulkanBuffer =
         }
 
 private sealed class VulkanImage =
-    Image: VkImage
-    Allocation: VmaAllocation
-    Width: uint32
-    Height: uint32
-    Format: VkFormat
+    Image: VkImage get
+    Allocation: VmaAllocation get
+    Width: uint32 get
+    Height: uint32 get
+    Format: VkFormat get
 
     new(image: VkImage, allocation: VmaAllocation, width: uint32, height: uint32, format: VkFormat) =
         {
@@ -227,7 +227,7 @@ private sealed class VulkanImage =
 
 /// Runtime alias for 'VkCommandBuffer'.
 newtype VulkanCommandBuffer =
-    CommandBuffer: VkCommandBuffer
+    internal field CommandBuffer: VkCommandBuffer
 
     Begin(): () =
         let mutable beginInfo = default: VkCommandBufferBeginInfo
@@ -345,8 +345,8 @@ newtype VulkanCommandBuffer =
 private sealed class PtrPtrHandle =
     implements IDisposable
 
-    private mutable handles: GCHandle[||]
-    private mutable ptrPtr: GCHandle
+    private mutable field handles: GCHandle[||]
+    private mutable field ptrPtr: GCHandle
 
     new(handles: GCHandle[||], ptrPtr: GCHandle) =
         {
@@ -1640,20 +1640,20 @@ module Vk =
         let fields = UnsafeCast<System.Reflection.FieldInfo[]>(ty.GetFields())
         let fields = Array.Filter(fields, x -> !x.IsStatic)
 
-        let create(location, offset, field: System.Reflection.FieldInfo) =
+        let create(location, offset, fld: System.Reflection.FieldInfo) =
             let mutable attributeDescription = default: VkVertexInputAttributeDescription
             attributeDescription.binding <- binding
             attributeDescription.location <- location
             attributeDescription.offset <- offset
 
-            if (field.FieldType === typeof<Vector2>)
+            if (fld.FieldType === typeof<Vector2>)
                 attributeDescription.format <- VkFormat.VK_FORMAT_R32G32_SFLOAT
                 (attributeDescription, uint32(sizeof<Vector2>))
-            else if (field.FieldType === typeof<Vector3>)
+            else if (fld.FieldType === typeof<Vector3>)
                 attributeDescription.format <- VkFormat.VK_FORMAT_R32G32B32_SFLOAT
                 (attributeDescription, uint32(sizeof<Vector3>))
             else
-                throw NotSupportedException(field.FieldType.ToString())
+                throw NotSupportedException(fld.FieldType.ToString())
 
         let attributeDescriptions = Array.ZeroCreate(fields.Length)
         let mutable i = 0

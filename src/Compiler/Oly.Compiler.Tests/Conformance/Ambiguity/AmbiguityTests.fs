@@ -45,7 +45,7 @@ let ``Should compile 3``() =
     let src =
         """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
@@ -95,17 +95,17 @@ let ``Should not compile 1``() =
     let src =
         """
 class Test =
-    x: __oly_int32
-    x: __oly_int32
+    field x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'x: __oly_int32' has duplicate member definitions.",
+        ("'field x: __oly_int32' has duplicate member definitions.",
             """
-    x: __oly_int32
-    ^
+    field x: __oly_int32
+          ^
 """
         )
     ]
@@ -116,7 +116,7 @@ let ``Should not compile 2``() =
     let src =
         """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
     
     x() : ()
 
@@ -241,7 +241,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -263,7 +263,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -285,7 +285,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -308,7 +308,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -331,7 +331,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -354,7 +354,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -377,7 +377,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -400,7 +400,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -422,7 +422,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -445,7 +445,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -467,7 +467,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -490,7 +490,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -512,7 +512,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -535,7 +535,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -560,7 +560,7 @@ alias int32
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =
@@ -684,7 +684,7 @@ module TestModule
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 Some<T>(value: T): Option<T> =

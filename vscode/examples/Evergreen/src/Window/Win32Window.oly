@@ -20,7 +20,7 @@ internal class Marker
 
 internal module Win32 =
 
-    WindowLookup: System.Collections.Concurrent.ConcurrentDictionary<HWND, Win32Window> = System.Collections.Concurrent.ConcurrentDictionary()
+    WindowLookup: System.Collections.Concurrent.ConcurrentDictionary<HWND, Win32Window> get = System.Collections.Concurrent.ConcurrentDictionary()
 
     RegisterRawMouseInput(): () =
         let mutable rawMouse = default: RAWINPUTDEVICE
@@ -144,15 +144,15 @@ internal module Win32 =
 internal sealed class Win32Window =
     implements IWindow
 
-    private mutable title: string
-    private mutable hwnd: HWND
-    private mutable hinstance: HINSTANCE
-    private mutable isCursorHidden: bool
-    private mutable mouseInfo: MouseInfo
-    private mutable keyEvents: List<KeyEvent>
-    private mutable keysDown: HashSet<Key>
-    private mutable isDisposed: bool
-    private mutable isClosed: bool
+    mutable field title: string
+    mutable field hwnd: HWND
+    mutable field hinstance: HINSTANCE
+    mutable field isCursorHidden: bool
+    mutable field mouseInfo: MouseInfo
+    mutable field keyEvents: List<KeyEvent>
+    mutable field keysDown: HashSet<Key>
+    mutable field isDisposed: bool
+    mutable field isClosed: bool
 
     Title: string get() = this.title
     HWND: nint get() = nint(this.hwnd.Value)

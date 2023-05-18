@@ -309,7 +309,14 @@ let private bindTopLevelValueDeclaration
         | OlySyntaxAccessor.Private _ -> memberFlags ||| MemberFlags.Private
         | OlySyntaxAccessor.Internal _ -> memberFlags ||| MemberFlags.Internal
         | OlySyntaxAccessor.Protected _ -> memberFlags ||| MemberFlags.Protected
-        | _ -> memberFlags ||| MemberFlags.Public
+        | OlySyntaxAccessor.Public _ -> memberFlags ||| MemberFlags.Public
+        | _ ->
+            if valueExplicitness.IsExplicitField then
+                // Fields, by default, are private.
+                memberFlags ||| MemberFlags.Private
+            else
+                // Everything else, by default, is public.
+                memberFlags ||| MemberFlags.Public
 
     let attrs = bindAttributes cenv env false syntaxAttrs
 

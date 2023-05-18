@@ -70,7 +70,7 @@ module Entities<T1> =
         where T2: struct
         =
 
-        mutable X: __oly_int32 = 1
+        mutable field X: __oly_int32 = 1
         """
     Oly src
     |> shouldCompile
@@ -136,7 +136,7 @@ let ``Module with private members cannot be accessed 3``() =
         """
 module Test1 =
 
-    private M: __oly_int32 = 1
+    field M: __oly_int32 = 1
 
 module Test2 =
 
@@ -162,7 +162,7 @@ let ``Module with private members cannot be accessed 4``() =
 #[open]
 module Test1 =
 
-    private M: __oly_int32 = 1
+    private field M: __oly_int32 = 1
 
 module Test2 =
 

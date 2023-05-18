@@ -187,7 +187,7 @@ let ``Use of pattern should error due to type arguments``() =
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern Some<T>(option: Option<T>): T when (option !== null) =>
@@ -217,7 +217,7 @@ let ``Use of pattern should error due to type arguments 2``() =
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern Some<T>(option: Option<T>): T when (option !== null) =>
@@ -256,7 +256,7 @@ alias bool
 
 #[null]
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern Some<T>(value: Option<T>): T when (value !== null) => value.Value

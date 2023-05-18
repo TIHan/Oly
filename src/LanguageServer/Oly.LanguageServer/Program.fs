@@ -1714,9 +1714,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                                 | OlyConstant.Error -> "?"
                                             sprintf "constant %s: %s = %s" symbol.Name symbol.Type.SignatureText valueText
                                         | _ ->
-                                            sprintf "(field) %s" textResult
+                                            sprintf "%s" textResult
                                     else
-                                        sprintf "(field) %s" textResult
+                                        sprintf "%s" textResult
                                 elif symbol.IsProperty then
                                     textResult
                                 elif symbol.IsParameter then

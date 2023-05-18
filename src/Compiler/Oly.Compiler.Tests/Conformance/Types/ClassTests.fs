@@ -9,7 +9,7 @@ let ``Class 1``() =
     let src =
         """
 class A =
-    value: __oly_int32 = 0
+    field value: __oly_int32 = 0
         """
     Oly src
     |> shouldCompile
@@ -20,11 +20,11 @@ let ``Class 2``() =
     let src =
         """
 class A =
-    value: __oly_int32 = 0
+    field value: __oly_int32 = 0
 
 class B =
     inherits A
-    value2: __oly_int32 = 0
+    field value2: __oly_int32 = 0
         """
     Oly src
     |> shouldCompile
@@ -86,15 +86,15 @@ class B =
 let ``Class has correct field symbol``() =
     """
 class Test =
-    ~^~x: __oly_int32 = 0
+    field ~^~x: __oly_int32 = 0
     """
-    |> hasSymbolSignatureTextByCursor "x: __oly_int32"
+    |> hasSymbolSignatureTextByCursor "field x: __oly_int32"
 
 [<Fact>]
 let ``Class has correct type symbol``() =
     """
 class ~^~Test =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
     """
     |> hasSymbolSignatureTextByCursor "Test"
 
@@ -102,7 +102,7 @@ class ~^~Test =
 let ``Class has correct generic type symbol``() =
     """
 class ~^~Test<T> =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
     """
     |> hasSymbolSignatureTextByCursor "Test<T>"
 
@@ -110,7 +110,7 @@ class ~^~Test<T> =
 let ``Class has correct generic type parameter symbol``() =
     """
 class Test<~^~T> =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
     """
     |> hasSymbolSignatureTextByCursor "T"
 
@@ -118,7 +118,7 @@ class Test<~^~T> =
 let ``Class has correct parameter type on method``() =
     """
 class Test =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
     test(x: ~^~__oly_int32) : __oly_int32 = 1
     """
@@ -128,7 +128,7 @@ class Test =
 let ``Class has correct parameter on constructor``() =
     """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     new(~^~x: __oly_int32) = { x = x }
     """
@@ -138,7 +138,7 @@ class Test =
 let ``Class has correct parameter type on constructor``() =
     """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     new(x: ~^~__oly_int32) = { x = x }
     """
@@ -148,7 +148,7 @@ class Test =
 let ``Correct symbol on identifier followed by a qualified function name``() =
     """
 class Test =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
     static test(x: __oly_int32) : __oly_int32 = x
 
@@ -161,20 +161,20 @@ f() : () =
 let ``Correct symbol on identifier followed by a qualified field name``() =
     """
 class Test =
-    x: __oly_int32 = 0
+    public field x: __oly_int32 = 0
 
     static test(x: __oly_int32) : __oly_int32 = x
 
 f(testValue: Test) : () =
     let y = testValue.~^~x
     """
-    |> hasSymbolSignatureTextByCursor "x: __oly_int32"
+    |> hasSymbolSignatureTextByCursor "field x: __oly_int32"
 
 [<Fact>]
 let ``Correct symbol on identifier followed by a qualified field name 2``() =
     """
 class Test =
-    x: __oly_int32 = 0
+    public field x: __oly_int32 = 0
 
     static test(x: __oly_int32) : __oly_int32 = x
 
@@ -188,14 +188,14 @@ let ``Source with class has the correct symbols``() =
     let src =
         """
 class Test<T> =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
         """
     let symbols = getAllSymbols src
     
     Assert.Equal(5, symbols.Length)
     Assert.Equal("Test<T>", symbols.[0].SignatureText)
     Assert.Equal("T", symbols.[1].SignatureText)
-    Assert.Equal("x: __oly_int32", symbols.[2].SignatureText)
+    Assert.Equal("field x: __oly_int32", symbols.[2].SignatureText)
     Assert.Equal("__oly_int32", symbols.[3].SignatureText)
     Assert.Equal("", symbols.[4].SignatureText)
 
@@ -221,7 +221,7 @@ let ``Expected error for a member function``() =
         """
 class Test<T> =
 
-    x: T
+    field x: T
 
     new(x: T) = { x = x }
 
@@ -353,7 +353,7 @@ f() : () =
     let ~^~x = Test(1)
 
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     new(x: __oly_int32) = { x = x }
     """
@@ -363,22 +363,22 @@ class Test =
 let ``Nested class``() =
     """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     class Test2 =
-        ~^~y: __oly_float32 = 0
+        field ~^~y: __oly_float32 = 0
     new(x: __oly_int32) = { x = x }
     """
-    |> hasSymbolSignatureTextByCursor "y: __oly_float32"
+    |> hasSymbolSignatureTextByCursor "field y: __oly_float32"
 
 [<Fact>]
 let ``Nested class instantiation``() =
     """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     class Test2 =
-        y: __oly_float32
+        field y: __oly_float32
         new(y: __oly_float32) = { y = y }
     new(x: __oly_int32) = { x = x }
 
@@ -433,7 +433,7 @@ interface TestTrait =
     test() : ()
 
 class Test<T> =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
 f<T>() : () =
     extension TestImpl<T> =
@@ -483,7 +483,7 @@ let ``Class inherits class``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
@@ -505,7 +505,7 @@ let ``Class inherits class - base ctor should pass``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
@@ -529,14 +529,14 @@ let ``Class inherits class - base ctor should pass 2``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
 class Class2 =
     inherits Class1
 
-    y: __oly_int32
+    field y: __oly_int32
 
     new() = base() with { y = 1 }
 
@@ -553,14 +553,14 @@ let ``Class inherits class - should as forgot to assign field y ``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
 class Class2 =
     inherits Class1
 
-    y: __oly_int32
+    field y: __oly_int32
 
     new() = base()
 
@@ -579,7 +579,7 @@ let ``Class inherits class - base ctor should fail if not the last thing called`
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
@@ -605,7 +605,7 @@ let ``Class inherits class should fail and must call super``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new(x: __oly_int32) = { x = x }
 
@@ -629,7 +629,7 @@ let ``Abstract class should compile``() =
         """
 abstract class Class1 =
 
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
         """
     Oly src
     |> shouldCompile
@@ -641,7 +641,7 @@ let ``Abstract class should not compile due constructor call``() =
         """
 abstract class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     new() = { x = 1 }
 
@@ -660,7 +660,7 @@ let ``Class inherits class with virtual function``() =
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     abstract default VirtualTest() : () = ()
 
@@ -684,7 +684,7 @@ let ``Class inherits class with function should error as function is non-virtual
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     Test() : () = ()
 
@@ -710,7 +710,7 @@ let ``Class inherits class with function should error as function has same name 
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     Test() : () = ()
 
@@ -736,7 +736,7 @@ let ``Class inherits class with function should compile as function has same nam
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     Test() : () = ()
 
@@ -760,7 +760,7 @@ let ``Class inherits class with virtual function should compile as function has 
         """
 class Class1 =
 
-    x: __oly_int32
+    field x: __oly_int32
 
     abstract default Test() : () = ()
 

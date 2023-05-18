@@ -103,8 +103,7 @@ let createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing
             createInstancePars cenv syntaxNode valueExplicitness enclosing false getterName ImArray.empty
         else
             ImArray.empty
-    let getter = createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
-    Some getter
+    createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
 
 /// A function is an entry point if the following is true:
 ///     1. Function's name is "main" with exact case.
@@ -293,7 +292,12 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                 // If we have a 'get or 'set' - this is an auto property for a class, struct, or module.
                 // Or it can be for the signature of standard properties with basic getters and setters on shapes and interfaces.
                 if valueExplicitness.IsExplicitGet || valueExplicitness.IsExplicitSet then
-                    let getterOpt = createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing name propTy memberFlags isMutable
+                    let getterOpt = 
+                        if valueExplicitness.IsExplicitGet then
+                            createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing name propTy memberFlags isMutable
+                            |> Some
+                        else
+                            None
                     let setterOpt =
                         let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
                         if valueExplicitness.IsExplicitSet then
@@ -355,9 +359,10 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                         
                     createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
                 else
+                    cenv.diagnostics.Error("Short-hand property getters not implemented (yet).", 10, syntaxIdent)
                     if valueExplicitness.IsExplicitMutable then
-                        cenv.diagnostics.Error("'mutable' is not allowed like this on a property.")
-                    let getterOpt = createAutoPropertyGetterFunction cenv syntaxIdent valueExplicitness enclosing name ty memberFlags false
+                        cenv.diagnostics.Error("'mutable' is not allowed short-hand property declarations.", 10, syntaxIdent)
+                    let getterOpt = createAutoPropertyGetterFunction cenv syntaxIdent valueExplicitness enclosing name ty memberFlags false |> Some
                     createAutoPropertyValue enclosing attrs name ty memberFlags false getterOpt None
             | _ ->
                 if valueExplicitness.IsExplicitMutable then

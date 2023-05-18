@@ -10,13 +10,13 @@ open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
 struct VmaAllocator =
-    private Value: nuint = default
+    private field Value: nuint = default
 
 struct VmaAllocation =
-    private Value: nuint = default
+    private field Value: nuint = default
 
 struct VmaPool =
-    private Value: nuint = default
+    private field Value: nuint = default
 
 #[Flags()]
 enum VmaAllocatorCreateFlags =
@@ -73,72 +73,72 @@ enum VmaMemoryUsage =
     | VMA_MEMORY_USAGE_MAX_ENUM = 0x7FFFFFFF
 
 struct VmaDeviceMemoryCallbacks =
-    mutable pfnAllocate: nuint = default // TODO: instead of 'nint' use 'PFN_vmaAllocateDeviceMemoryFunction'
-    mutable pfnFree: nuint = default // TODO: instead of 'nint' use 'PFN_vmaFreeDeviceMemoryFunction'
-    mutable pUserData: void* = default
+    public mutable field pfnAllocate: nuint = default // TODO: instead of 'nint' use 'PFN_vmaAllocateDeviceMemoryFunction'
+    public mutable field pfnFree: nuint = default // TODO: instead of 'nint' use 'PFN_vmaFreeDeviceMemoryFunction'
+    public mutable field pUserData: void* = default
 
 alias PFN_vkGetInstanceProcAddr = static (instance: VkInstance, pName: int8*) -> static blittable () -> ()
 alias PFN_vkGetDeviceProcAddr = static (device: VkDevice, pName: int8*) -> static blittable () -> ()
 
 struct VmaVulkanFunctions =
-    mutable vkGetInstanceProcAddr: PFN_vkGetInstanceProcAddr = default
-    mutable vkGetDeviceProcAddr: PFN_vkGetDeviceProcAddr = default
-    mutable vkGetPhysicalDeviceProperties: nuint = default // PFN_vkGetPhysicalDeviceProperties
-    mutable vkGetPhysicalDeviceMemoryProperties: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties
-    mutable vkAllocateMemory: nuint = default // PFN_vkAllocateMemory
-    mutable vkFreeMemory: nuint = default // PFN_vkFreeMemory
-    mutable vkMapMemory: nuint = default // PFN_vkMapMemory
-    mutable vkUnmapMemory: nuint = default // PFN_vkUnmapMemory
-    mutable vkFlushMappedMemoryRanges: nuint = default // PFN_vkFlushMappedMemoryRanges
-    mutable vkInvalidateMappedMemoryRanges: nuint = default // PFN_vkInvalidateMappedMemoryRanges
-    mutable vkBindBufferMemory: nuint = default // PFN_vkBindBufferMemory
-    mutable vkBindImageMemory: nuint = default // PFN_vkBindImageMemory
-    mutable vkGetBufferMemoryRequirements: nuint = default // PFN_vkGetBufferMemoryRequirements
-    mutable vkGetImageMemoryRequirements: nuint = default // PFN_vkGetImageMemoryRequirements
-    mutable vkCreateBuffer: nuint = default // PFN_vkCreateBuffer
-    mutable vkDestroyBuffer: nuint = default // PFN_vkDestroyBuffer
-    mutable vkCreateImage: nuint = default // PFN_vkCreateImage
-    mutable vkDestroyImage: nuint = default // PFN_vkDestroyImage
-    mutable vkCmdCopyBuffer: nuint = default // PFN_vkCmdCopyBuffer
-    mutable vkGetBufferMemoryRequirements2KHR: nuint = default // PFN_vkGetBufferMemoryRequirements2KHR
-    mutable vkGetImageMemoryRequirements2KHR: nuint = default // PFN_vkGetImageMemoryRequirements2KHR
-    mutable vkBindBufferMemory2KHR: nuint = default // PFN_vkBindBufferMemory2KHR
-    mutable vkBindImageMemory2KHR: nuint = default // PFN_vkBindImageMemory2KHR
-    mutable vkGetPhysicalDeviceMemoryProperties2KHR: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties2KHR
-    mutable vkGetDeviceBufferMemoryRequirements: nuint = default // PFN_vkGetDeviceBufferMemoryRequirements
-    mutable vkGetDeviceImageMemoryRequirements: nuint = default // PFN_vkGetDeviceImageMemoryRequirements
+    public mutable field vkGetInstanceProcAddr: PFN_vkGetInstanceProcAddr = default
+    public mutable field vkGetDeviceProcAddr: PFN_vkGetDeviceProcAddr = default
+    public mutable field vkGetPhysicalDeviceProperties: nuint = default // PFN_vkGetPhysicalDeviceProperties
+    public mutable field vkGetPhysicalDeviceMemoryProperties: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties
+    public mutable field vkAllocateMemory: nuint = default // PFN_vkAllocateMemory
+    public mutable field vkFreeMemory: nuint = default // PFN_vkFreeMemory
+    public mutable field vkMapMemory: nuint = default // PFN_vkMapMemory
+    public mutable field vkUnmapMemory: nuint = default // PFN_vkUnmapMemory
+    public mutable field vkFlushMappedMemoryRanges: nuint = default // PFN_vkFlushMappedMemoryRanges
+    public mutable field vkInvalidateMappedMemoryRanges: nuint = default // PFN_vkInvalidateMappedMemoryRanges
+    public mutable field vkBindBufferMemory: nuint = default // PFN_vkBindBufferMemory
+    public mutable field vkBindImageMemory: nuint = default // PFN_vkBindImageMemory
+    public mutable field vkGetBufferMemoryRequirements: nuint = default // PFN_vkGetBufferMemoryRequirements
+    public mutable field vkGetImageMemoryRequirements: nuint = default // PFN_vkGetImageMemoryRequirements
+    public mutable field vkCreateBuffer: nuint = default // PFN_vkCreateBuffer
+    public mutable field vkDestroyBuffer: nuint = default // PFN_vkDestroyBuffer
+    public mutable field vkCreateImage: nuint = default // PFN_vkCreateImage
+    public mutable field vkDestroyImage: nuint = default // PFN_vkDestroyImage
+    public mutable field vkCmdCopyBuffer: nuint = default // PFN_vkCmdCopyBuffer
+    public mutable field vkGetBufferMemoryRequirements2KHR: nuint = default // PFN_vkGetBufferMemoryRequirements2KHR
+    public mutable field vkGetImageMemoryRequirements2KHR: nuint = default // PFN_vkGetImageMemoryRequirements2KHR
+    public mutable field vkBindBufferMemory2KHR: nuint = default // PFN_vkBindBufferMemory2KHR
+    public mutable field vkBindImageMemory2KHR: nuint = default // PFN_vkBindImageMemory2KHR
+    public mutable field vkGetPhysicalDeviceMemoryProperties2KHR: nuint = default // PFN_vkGetPhysicalDeviceMemoryProperties2KHR
+    public mutable field vkGetDeviceBufferMemoryRequirements: nuint = default // PFN_vkGetDeviceBufferMemoryRequirements
+    public mutable field vkGetDeviceImageMemoryRequirements: nuint = default // PFN_vkGetDeviceImageMemoryRequirements
 
 struct VmaAllocatorCreateInfo =
-    mutable flags: VmaAllocatorCreateFlags = default
-    mutable physicalDevice: VkPhysicalDevice = default
-    mutable device: VkDevice = default
-    mutable preferredLargeHeapBlockSize: uint64 = default // VkDeviceSize
-    mutable pAllocationCallbacks: VkAllocationCallbacks* = default
-    mutable pDeviceMemoryCallbacks: VmaDeviceMemoryCallbacks* = default
-    mutable pHeapSizeLimit: uint64* = default // VkDeviceSize*
-    mutable pVulkanFunctions: VmaVulkanFunctions* = default
-    mutable instance: VkInstance = default
-    mutable vulkanApiVersion: uint32 = default
-    mutable pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags* = default
+    public mutable field flags: VmaAllocatorCreateFlags = default
+    public mutable field physicalDevice: VkPhysicalDevice = default
+    public mutable field device: VkDevice = default
+    public mutable field preferredLargeHeapBlockSize: uint64 = default // VkDeviceSize
+    public mutable field pAllocationCallbacks: VkAllocationCallbacks* = default
+    public mutable field pDeviceMemoryCallbacks: VmaDeviceMemoryCallbacks* = default
+    public mutable field pHeapSizeLimit: uint64* = default // VkDeviceSize*
+    public mutable field pVulkanFunctions: VmaVulkanFunctions* = default
+    public mutable field instance: VkInstance = default
+    public mutable field vulkanApiVersion: uint32 = default
+    public mutable field pTypeExternalMemoryHandleTypes: VkExternalMemoryHandleTypeFlags* = default
 
 struct VmaAllocationCreateInfo =
-    mutable flags: VmaAllocationCreateFlags = default
-    mutable usage: VmaMemoryUsage = default
-    mutable requiredFlags: VkMemoryPropertyFlags = default
-    mutable preferredFlags: VkMemoryPropertyFlags = default
-    mutable memoryTypeBits: uint32 = default
-    mutable vmaPool: VmaPool = default
-    mutable pUserData: void* = default
-    mutable priority: float32 = default
+    public mutable field flags: VmaAllocationCreateFlags = default
+    public mutable field usage: VmaMemoryUsage = default
+    public mutable field requiredFlags: VkMemoryPropertyFlags = default
+    public mutable field preferredFlags: VkMemoryPropertyFlags = default
+    public mutable field memoryTypeBits: uint32 = default
+    public mutable field vmaPool: VmaPool = default
+    public mutable field pUserData: void* = default
+    public mutable field priority: float32 = default
 
 struct VmaAllocationInfo =
-    mutable memoryType: uint32 = default
-    mutable devicememory: VkDeviceMemory = default
-    mutable offset: uint64 = default // VkDeviceSize
-    mutable size: uint64 = default // VkDeviceSize
-    mutable pMappedData: void* = default
-    mutable pUserData: void* = default
-    mutable pName: int8* = default
+    public mutable field memoryType: uint32 = default
+    public mutable field devicememory: VkDeviceMemory = default
+    public mutable field offset: uint64 = default // VkDeviceSize
+    public mutable field size: uint64 = default // VkDeviceSize
+    public mutable field pMappedData: void* = default
+    public mutable field pUserData: void* = default
+    public mutable field pName: int8* = default
 
 #[import("C", "VulkanMemoryAllocator.dll", "vmaCreateAllocator")]
 vmaCreateAllocator(pCreateInfo: VmaAllocatorCreateInfo*, pAllocator: VmaAllocator*): VkResult

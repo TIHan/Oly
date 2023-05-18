@@ -134,7 +134,7 @@ class Console =
     static Write(value: int32) : ()
 
 struct TestData =
-    str: utf16
+    field str: utf16
 
     new(str: utf16) = { str = str }
 
@@ -230,12 +230,12 @@ let ``Expected correct symbol on nested structs``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -245,7 +245,7 @@ main() : () =
     let mutable t = Test2(Test(7, 9))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable x: Test"
+    src |> hasSymbolSignatureTextByCursor "mutable field x: Test"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 2``() =
@@ -253,12 +253,12 @@ let ``Expected correct symbol on nested structs 2``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -268,7 +268,7 @@ main() : () =
     let mutable t = Test2(Test(7, 9))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 3``() =
@@ -276,12 +276,12 @@ let ``Expected correct symbol on nested structs 3``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -299,16 +299,16 @@ let ``Expected correct symbol on nested structs 4``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    mutable y: Test2
+    public mutable field y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -318,7 +318,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable y: Test2"
+    src |> hasSymbolSignatureTextByCursor "mutable field y: Test2"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 5``() =
@@ -326,16 +326,16 @@ let ``Expected correct symbol on nested structs 5``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    mutable y: Test2
+    public mutable field y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -345,7 +345,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable x: Test"
+    src |> hasSymbolSignatureTextByCursor "mutable field x: Test"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 6``() =
@@ -353,16 +353,16 @@ let ``Expected correct symbol on nested structs 6``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    mutable y: Test2
+    public mutable field y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -372,7 +372,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 7``() =
@@ -380,16 +380,16 @@ let ``Expected correct symbol on nested structs 7``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    public mutable field orange: __oly_int32
+    public mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    mutable x: Test
+    public mutable field x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    mutable y: Test2
+    public mutable field y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -407,11 +407,11 @@ let ``Expected correct symbol on constructor construct``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    mutable field orange: __oly_int32
+    mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { ~^~orange = x; apple = y }
         """
-    src |> hasSymbolSignatureTextByCursor "mutable orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on constructor construct 2``() =
@@ -419,8 +419,8 @@ let ``Expected correct symbol on constructor construct 2``() =
         """
 struct Test =
 
-    mutable orange: __oly_int32
-    mutable apple: __oly_int32
+    mutable field orange: __oly_int32
+    mutable field apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = ~^~x; apple = y }
         """
     src |> hasSymbolSignatureTextByCursor "x: __oly_int32"
@@ -430,7 +430,7 @@ let ``Cannot mutate field value on type``() =
     let src =
         """
 class Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -448,7 +448,7 @@ let ``Cannot mutate field value on struct``() =
     let src =
         """
 struct Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -466,7 +466,7 @@ let ``Cannot mutate field value on struct 2``() =
     let src =
         """
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -484,7 +484,7 @@ let ``Cannot mutate field value on struct 3``() =
     let src =
         """
 struct Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(t: __oly_read_by_ref<Test>): () =
@@ -500,7 +500,7 @@ let ``Cannot mutate field value on struct 4``() =
     let src =
         """
 struct Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(t: __oly_read_write_by_ref<Test>): () =
@@ -516,7 +516,7 @@ let ``Cannot mutate field value on struct 5``() =
     let src =
         """
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(t: __oly_read_by_ref<Test>): () =
@@ -532,7 +532,7 @@ let ``Cannot mutate field value on struct 6``() =
     let src =
         """
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(mutable t: __oly_read_by_ref<Test>): () =
@@ -548,11 +548,11 @@ let ``Cannot mutate field value on nested struct``() =
     let src =
         """
 class Test2 =
-    test: Test
+    public field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -570,11 +570,11 @@ let ``Cannot mutate field value on nested struct 2``() =
     let src =
         """
 class Test2 =
-    test: Test
+    public field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -592,11 +592,11 @@ let ``Cannot mutate field value on nested struct 3``() =
     let src =
         """
 class Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -614,11 +614,11 @@ let ``Cannot mutate field value on nested struct with chained call``() =
     let src =
         """
 class Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    x: __oly_int32
+    public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test() : Test2 =
@@ -638,11 +638,11 @@ let ``Can mutate field value on nested struct with chained call``() =
     let src =
         """
 class Test2 =
-    mutable test: Test
+    public mutable field test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    mutable x: __oly_int32
+    public mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test() : Test2 =
@@ -660,7 +660,7 @@ let ``Struct cycle should not compile``() =
     let src =
         """
 struct Test =
-    x: Test = default
+    field x: Test = default
         """
     Oly src
     |> withErrorDiagnostics [
@@ -673,10 +673,10 @@ let ``Struct cycle should not compile 2``() =
     let src =
         """
 struct Test2 =
-    y: Test = default
+    field y: Test = default
 
 struct Test =
-    x: Test2 = default
+    field x: Test2 = default
         """
     Oly src
     |> withErrorDiagnostics [
@@ -690,13 +690,13 @@ let ``Struct cycle should not compile 3``() =
     let src =
         """
 struct Test3 =
-    z: Test = default
+    field z: Test = default
 
 struct Test2 =
-    y: Test3 = default
+    field y: Test3 = default
 
 struct Test =
-    x: Test2 = default
+    field x: Test2 = default
         """
     Oly src
     |> withErrorDiagnostics [
@@ -711,13 +711,13 @@ let ``Struct cycle should not compile 4``() =
     let src =
         """
 struct Test3 =
-    z: Test = default
+    field z: Test = default
 
 struct Test2 =
-    y: Test = default
+    field y: Test = default
 
 struct Test =
-    x: Test2 = default
+    field x: Test2 = default
         """
     Oly src
     |> withErrorDiagnostics [
@@ -732,12 +732,12 @@ let ``Generic struct cycle should not compile``() =
     let src =
         """
 struct C<T> =
-    y: T
+    field y: T
 
     new(y: T) = { y = y }
 
 struct B =
-    x: C<B>
+    field x: C<B>
 
     new(x: C<B>) = { x = x }
         """
@@ -753,12 +753,12 @@ let ``Second-order generic struct cycle should not compile``() =
     let src =
         """
 struct A<T<_>> =
-    y: T<__oly_int32>
+    field y: T<__oly_int32>
 
     new(y: T<__oly_int32>) = { y = y }
 
 struct B<T> =
-    x: A<B>
+    field x: A<B>
 
     new(x: A<B>) = { x = x }
         """
@@ -774,11 +774,11 @@ let ``Second-order generic``() =
     let src =
         """
 class A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 class B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test(z: B<A<B>>) : () =
@@ -794,11 +794,11 @@ let ``Second-order generic inference``() =
     let src =
         """
 class A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 class B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test() : () =
@@ -812,11 +812,11 @@ let ``Second-order generic inference 2``() =
     let src =
         """
 class ~^~A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 class B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test() : () =
@@ -830,11 +830,11 @@ let ``Second-order generic inference 3``() =
     let src =
         """
 class A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 class B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test() : () =
@@ -848,11 +848,11 @@ let ``Second-order generic struct should fail``() =
     let src =
         """
 struct A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 struct B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test(x: B<A<B>>) : () = ()
@@ -869,11 +869,11 @@ let ``Second-order generic struct should fail 2``() =
     let src =
         """
 struct A<T<_>> =
-    y: T<A<T>>
+    field y: T<A<T>>
     new(y: T<A<T>>) = { y = y }
 
 struct B<T> =
-    x: T
+    field x: T
     new(x: T) = { x = x }
 
 test() : () =
@@ -929,7 +929,7 @@ let ``Closure test 2``() =
         """
 class Test =
 
-    x: __oly_int32
+    public field x: __oly_int32
 
     new(x: __oly_int32) = { x = x }
 
@@ -1131,6 +1131,7 @@ static let x = 1
     |> withErrorDiagnostics [
         "Module members are always implicitly static. Remove 'static'."
         "Modules can never have let-bound members (yet)."
+        "Short-hand property getters not implemented (yet)."
     ]
     |> ignore
 
@@ -1217,8 +1218,8 @@ let ``Should error on struct return instance function``() =
         """
 struct Test =
 
-    mutable x: __oly_int32
-    y: __oly_int32
+    mutable field x: __oly_int32
+    field y: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { x = x; y = y }
 
     test() : __oly_int32 = this
@@ -1235,7 +1236,7 @@ let ``Should error when trying to set the receiver``() =
         """
 struct Test =
 
-    mutable x: __oly_int32
+    mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     test() : () =
@@ -1253,7 +1254,7 @@ let ``Should error when trying to set the receiver 2 - NOW PASSES``() =
         """
 struct Test =
 
-    mutable x: __oly_int32
+    mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     mutable test() : () =
@@ -1307,7 +1308,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct Test =
-    mutable X: int32 = 1
+    public mutable field X: int32 = 1
 
 test(): () =
     let x =
@@ -1371,7 +1372,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct Test =
-    mutable X: int32 = 1
+    public mutable field X: int32 = 1
 
 test(): () =
     let x =
@@ -1635,7 +1636,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable x: __oly_int32
+    mutable field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1666,7 +1667,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable x: int32
+    mutable field x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1701,7 +1702,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable x: int32
+    mutable field x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1739,7 +1740,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable x: int32
+    mutable field x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1988,7 +1989,7 @@ test(y)
 let ``Should error with right diagnostics 2``() =
     let src =
         """
-test
+field test
         """
     Oly src
     |> withErrorDiagnostics [
@@ -2001,7 +2002,7 @@ test
 let ``Should error with right diagnostics 3``() =
     let src =
         """
-test : __oly_int32
+field test : __oly_int32
         """
     Oly src
     |> withErrorDiagnostics [
@@ -2013,7 +2014,7 @@ test : __oly_int32
 let ``Should error with right diagnostics 4 - NOW PASSES``() =
     let src =
         """
-test : __oly_int32 = 1
+field test : __oly_int32 = 1
         """
     Oly src
     |> shouldCompile
@@ -2023,7 +2024,7 @@ test : __oly_int32 = 1
 let ``Should error with right diagnostics 5``() =
     let src =
         """
-test : __oly_int32 =
+field test : __oly_int32 =
         """
     Oly src
     |> withErrorDiagnostics [
@@ -2224,7 +2225,7 @@ let ``Should not error on a field with default value assignment``() =
         """
 class TestData =
 
-    x: __oly_int32 = 1
+    field x: __oly_int32 = 1
         """
     Oly src
     |> shouldCompile
@@ -2874,7 +2875,7 @@ let ``Class has a generic field``() =
         """
 class Test<T> =
 
-    x: T
+    field x: T
 
     new(x: T) = { x = x }
         """
@@ -2889,7 +2890,7 @@ let ``Class has a generic field with default``() =
         """
 class Test<T> where T: struct =
 
-    x: T = default
+    field x: T = default
         """
 
     Oly src
@@ -2960,7 +2961,7 @@ let ``Struct type that is instantiated as immutable cannot call a mutable functi
     let src =
         """
 struct TestStruct =
-    mutable x: __oly_int32
+    mutable field x: __oly_int32
 
     mutable Change(): () =
         this.x <- 100
@@ -3111,12 +3112,12 @@ alias string
 
 module TestModule =
 
-    TestField: string = "test"
+    field TestField: string = "test"
 
     main(): () =
         let result = ~^~TestField
     """
-    |> hasSymbolSignatureTextByCursor "static TestField: string"
+    |> hasSymbolSignatureTextByCursor "static field TestField: string"
     |> ignore
 
 [<Fact>]
@@ -3128,16 +3129,16 @@ namespace TestNamespace
 alias string
 
 struct TestStruct =
-    TestStructField: string = "test"
+    public field TestStructField: string = "test"
 
 module TestModule =
 
-    TestModuleField: TestStruct = TestStruct()
+    field TestModuleField: TestStruct = TestStruct()
 
     main(): () =
         let result = ~^~TestModuleField.TestStructField
     """
-    |> hasSymbolSignatureTextByCursor "static TestModuleField: TestStruct"
+    |> hasSymbolSignatureTextByCursor "static field TestModuleField: TestStruct"
     |> ignore
 
 [<Fact>]
@@ -3613,7 +3614,7 @@ module Test
 #[null]
 class Wrapper<T> =
 
-    Value: T
+    field Value: T
 
     new(value: T) = { Value = value }
 
@@ -3637,7 +3638,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    public field Value: T
 
     new(value: T) = { Value = value }
 
@@ -3663,7 +3664,7 @@ module Test
 
 class Wrapper<T> =
 
-    Value: T
+    public field Value: T
 
     new(value: T) = { Value = value }
 
@@ -3751,7 +3752,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable X: __oly_int32 = 1
+    mutable field X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -3924,7 +3925,7 @@ alias byref<T>
 
 class Test<T> where T: struct =
 
-    mutable X: T = default
+    mutable field X: T = default
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
@@ -3957,7 +3958,7 @@ alias byref<T>
 
 class Test<T> where T: struct =
 
-    mutable X: T = default
+    mutable field X: T = default
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
@@ -4013,7 +4014,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4042,7 +4043,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4071,7 +4072,7 @@ interface IA =
 struct Test =
     implements IA
     
-    mutable X: __oly_int32 = 3
+    public mutable field X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4336,7 +4337,7 @@ struct Memory<T> =
 
 struct Chunk<TMemory<_>> where TMemory<_>: IMemory =
 
-    X: int32
+    field X: int32
     new() =
         let m = TMemory<int32>.Allocate()
         {
@@ -4394,7 +4395,7 @@ interface IMemory<T> where T: struct =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private Buffer: T[||]
+    private field Buffer: T[||]
 
     private new(buffer: T[||]) =
         {
@@ -4414,8 +4415,8 @@ private struct Chunk1<TMemory<_>, TComponent1>
     where TComponent1: IComponent, struct 
     =
 
-    Lookup: TMemory<int32>
-    Data1: TMemory<TComponent1>
+    public field Lookup: TMemory<int32>
+    public field Data1: TMemory<TComponent1>
 
     new(lookup: TMemory<int32>, data1: TMemory<TComponent1>) =
         {
@@ -4429,9 +4430,9 @@ private struct Chunk2<TMemory<_>, TComponent1, TComponent2>
     where TComponent2: IComponent, struct
     =
 
-    Lookup: TMemory<int32>
-    Data1: TMemory<TComponent1>
-    Data2: TMemory<TComponent2>
+    public field Lookup: TMemory<int32>
+    public field Data1: TMemory<TComponent1>
+    public field Data2: TMemory<TComponent2>
 
     new(lookup: TMemory<int32>, data1: TMemory<TComponent1>, data2: TMemory<TComponent2>) =
         {
@@ -4442,8 +4443,8 @@ private struct Chunk2<TMemory<_>, TComponent1, TComponent2>
 
 private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Indices: TMemory<int32>
-    mutable Count: int32
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -4524,7 +4525,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private Buffer: T[||]
+    private field Buffer: T[||]
 
     private new(buffer: T[||]) =
         {
@@ -4550,8 +4551,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    mutable Indices: TMemory<int32>
-    mutable Count: int32
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -4640,7 +4641,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private Buffer: T[||]
+    private field Buffer: T[||]
 
     private new(buffer: T[||]) =
         {
@@ -4662,8 +4663,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    mutable Indices: TMemory<int32>
-    mutable Count: int32
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
 
     new() =
         {
@@ -4721,7 +4722,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable Buffer: int32[||] = unchecked default
+    mutable field Buffer: int32[||] = unchecked default
 
     mutable A(): () =
         let z: byref<_> = &this.Buffer
@@ -4771,7 +4772,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Buffer: TMemory<int32>
+    mutable field Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4824,7 +4825,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Buffer: TMemory<int32>
+    mutable field Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4869,7 +4870,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Buffer: TMemory<int32>
+    mutable field Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4914,7 +4915,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Buffer: TMemory<int32>
+    mutable field Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -5106,7 +5107,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable Value: int32 = 0
+    mutable field Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5166,7 +5167,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable Value: int32 = 0
+    mutable field Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5221,7 +5222,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable Value: int32 = 0
+    mutable field Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5287,7 +5288,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable Buffer: TMemory<int32>
+    public mutable field Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -5350,8 +5351,8 @@ module Entities =
 
     struct EntityId =
 
-        Index: __oly_int32
-        Version: __oly_uint32
+        field Index: __oly_int32
+        field Version: __oly_uint32
 
         new(index: __oly_int32, version: __oly_uint32) =
             {
@@ -5375,8 +5376,8 @@ module Entities =
 
     struct EntityId =
 
-        Index: __oly_int32
-        Version: __oly_uint32
+        field Index: __oly_int32
+        field Version: __oly_uint32
 
         new(index: __oly_int32, version: __oly_uint32) =
             {
@@ -5479,7 +5480,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable X: __oly_int32 = 0
+    mutable field X: __oly_int32 = 0
 
     get_Item(): inref<__oly_int32> =
         let ~^~w = &this.X
@@ -5510,7 +5511,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable X: int32 = 0
+    mutable field X: int32 = 0
 
     mutable get_Item(): byref<int32> =
         let ~^~w = &this.X
@@ -5538,7 +5539,7 @@ alias inref<T>
 
 struct Test =
 
-    X: __oly_int32 = 0
+    field X: __oly_int32 = 0
 
     mutable get_Item(): inref<__oly_int32> =
         let ~^~w = &this.X
@@ -5566,7 +5567,7 @@ alias inref<T>
 
 struct Test =
 
-    X: __oly_int32 = 0
+    field X: __oly_int32 = 0
 
     get_Item(): inref<__oly_int32> =
         &this.X
@@ -5597,7 +5598,7 @@ alias inref<T>
 
 struct Test =
 
-    X: __oly_int32 = 0
+    public field X: __oly_int32 = 0
 
 test(): () =
     let mutable t = Test()
@@ -5625,7 +5626,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable X: __oly_int32 = 0
+    public mutable field X: __oly_int32 = 0
 
 test(): () =
     let mutable t = Test()
@@ -5653,7 +5654,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable X: __oly_int32 = 0
+    public mutable field X: __oly_int32 = 0
 
 test(): () =
     let t = Test()
@@ -5681,7 +5682,7 @@ alias inref<T>
 
 class Test =
 
-    X: __oly_int32 = 0
+    public field X: __oly_int32 = 0
 
 test(): () =
     let t = Test()
@@ -5713,7 +5714,7 @@ alias inref<T>
 
 class Test =
 
-    mutable X: __oly_int32 = 0
+    public mutable field X: __oly_int32 = 0
         """
     src |> hasSymbolSignatureTextByCursor "x: byref<__oly_int32>"
 
@@ -5982,7 +5983,7 @@ alias float64
 
 class Test =
 
-    mutable X: float32 = 5
+    public mutable field X: float32 = 5
 
 test(x1: float32, x2: float32, x3: float32): () = ()
 test(x1: int32, x2: int32, x3: int32): () = ()
@@ -6143,8 +6144,8 @@ test<A, B>(a: A, b: B): () =
     let test2<Z>() =
         struct Test<T> =
 
-            mutable a: A = default
-            mutable b: B = unchecked default
+            mutable field a: A = default
+            mutable field b: B = unchecked default
         ()
     test2<A>()
 
@@ -6210,7 +6211,7 @@ let ``Should error about expected return type``() =
     let src =
         """
 struct TStruct =
-    mutable X: __oly_int32 = 0
+    public mutable field X: __oly_int32 = 0
 
 Test(): TStruct =
     let mutable s = TStruct()
@@ -6250,7 +6251,7 @@ let ``Parameter-less function should pass 2``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 None<T>: Option<T> where T: not struct = unchecked default: Option<T>
@@ -6269,7 +6270,7 @@ let ``Parameter-less function should pass 3``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern None<T>(value: Option<T>): () =
@@ -6291,7 +6292,7 @@ let ``Parameter-less function should pass 4``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 module Test2Module =
@@ -6314,7 +6315,7 @@ let ``Parameter-less pattern function should pass``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 module Test2Module =
@@ -6339,7 +6340,7 @@ let ``Parameter-less pattern function should pass 2``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 pattern None<T>(value: Option<T>): () =
@@ -6361,7 +6362,7 @@ let ``Pattern function should pass if it was in a parameterized module``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 #[open]
@@ -6433,7 +6434,7 @@ let ``Parameter-less pattern function should error``() =
 module TestModule
 
 class Option<T> =
-    Value: T
+    public field Value: T
     new(value: T) = { Value = value }
 
 module Test2Module =
@@ -7014,7 +7015,7 @@ let ``Field function ptr should pass``() =
         """
 module TestModule =
 
-    X: static __oly_int32 -> () = unchecked default
+    public field X: static __oly_int32 -> () = unchecked default
 
 main(): () =
     TestModule.X(123)
@@ -7029,7 +7030,7 @@ let ``Field function ptr should pass 2``() =
         """
 class TestClass =
 
-    X: static __oly_int32 -> () = unchecked default
+    public field X: static __oly_int32 -> () = unchecked default
 
 main(): () =
     let t = TestClass()
@@ -7133,7 +7134,7 @@ let ``Should get right signature for alias member property setter``() =
         """
 class CoolClass =
 
-    static Test: __oly_int32 get, set = 0
+    public static field Test: __oly_int32 get, set = 0
 
 alias CoolClassAlias = CoolClass
 
@@ -7148,7 +7149,7 @@ let ``Should get right signature for alias member field``() =
         """
 class CoolClass =
 
-    static Test: __oly_int32 = 1
+    public static field Test: __oly_int32 = 1
 
 alias CoolClassAlias = CoolClass
 
@@ -7163,7 +7164,7 @@ let ``Should get right signature for alias member field 2``() =
         """
 class CoolClass =
 
-    static mutable Test: __oly_int32 = 1
+    public static mutable field Test: __oly_int32 = 1
 
 alias CoolClassAlias = CoolClass
 

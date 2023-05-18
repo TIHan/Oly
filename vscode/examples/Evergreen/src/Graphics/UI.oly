@@ -12,65 +12,65 @@ interface IViewModel
 sealed class WindowViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Title: string = string.Empty
-    mutable Size: Vector2 = Vector2.Zero
-    mutable RelativePosition: Vector2 = Vector2.Zero
+    public mutable field IsEnabled: bool = true
+    public mutable field Title: string = string.Empty
+    public mutable field Size: Vector2 = Vector2.Zero
+    public mutable field RelativePosition: Vector2 = Vector2.Zero
 
 sealed class ButtonViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
+    public mutable field IsEnabled: bool = true
+    public mutable field Label: string = string.Empty
 
 sealed class TextInputViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
+    public mutable field IsEnabled: bool = true
+    public mutable field Label: string = string.Empty
 
-    private mutable text: string = string.Empty
+    mutable field text: string = string.Empty
     Text: string
         get() = this.text
         set(value) = 
             this.text <- value
             let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.TextBuffer, 0)
 
-    internal TextBuffer: byte[||] = Array.ZeroCreate(256)
+    internal field TextBuffer: byte[||] = Array.ZeroCreate(256)
 
 sealed class Int32InputViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable Value: int32 = 0
+    public mutable field IsEnabled: bool = true
+    public mutable field Label: string = string.Empty
+    public mutable field Value: int32 = 0
 
 sealed class CheckboxViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable IsChecked: bool = false
+    public mutable field IsEnabled: bool = true
+    public mutable field Label: string = string.Empty
+    public mutable field IsChecked: bool = false
 
 sealed class ComboBoxViewModel =
     implements IViewModel
 
-    mutable IsEnabled: bool = true
-    mutable Label: string = string.Empty
-    mutable SelectedItemIndex: int32 = 0
-    mutable Items: string[||] = [||]
-    mutable ItemCount: int32 = 0
+    public mutable field IsEnabled: bool = true
+    public mutable field Label: string = string.Empty
+    public mutable field SelectedItemIndex: int32 = 0
+    public mutable field Items: string[||] = [||]
+    public mutable field ItemCount: int32 = 0
 
 class UINode =
 
-    private Tag: int32
+    field Tag: int32
     private new(tag: int32) = { Tag = tag }
 
     internal sealed class Window =
         inherits UINode
 
-        State: WindowViewModel
-        Children: UINode[]
+        public field State: WindowViewModel
+        public field Children: UINode[]
 
         new(state: WindowViewModel, children: UINode[]) =
             base(0) with {
@@ -85,8 +85,8 @@ class UINode =
     internal sealed class Button =
         inherits UINode
 
-        State: ButtonViewModel
-        OnClick: ButtonViewModel -> ()
+        public field State: ButtonViewModel
+        public field OnClick: ButtonViewModel -> ()
 
         new(state: ButtonViewModel, onClick: ButtonViewModel -> ()) =
             base(1) with {
@@ -101,8 +101,8 @@ class UINode =
     internal sealed class TextInput =
         inherits UINode
 
-        State: TextInputViewModel
-        OnChanged: TextInputViewModel -> ()
+        public field State: TextInputViewModel
+        public field OnChanged: TextInputViewModel -> ()
 
         new(state: TextInputViewModel, onChanged: TextInputViewModel -> ()) =
             base(2) with {
@@ -117,8 +117,8 @@ class UINode =
     internal sealed class Int32Input =
         inherits UINode
 
-        State: Int32InputViewModel
-        OnChanged: Int32InputViewModel -> ()
+        public field State: Int32InputViewModel
+        public field OnChanged: Int32InputViewModel -> ()
 
         new(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) =
             base(3) with {
@@ -133,8 +133,8 @@ class UINode =
     internal sealed class Checkbox =
         inherits UINode
 
-        State: CheckboxViewModel
-        OnChanged: CheckboxViewModel -> ()
+        public field State: CheckboxViewModel
+        public field OnChanged: CheckboxViewModel -> ()
 
         new(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) =
             base (10) with {
@@ -149,8 +149,8 @@ class UINode =
     internal sealed class ComboBox =
         inherits UINode
 
-        State: ComboBoxViewModel
-        OnChanged: ComboBoxViewModel -> ()
+        public field State: ComboBoxViewModel
+        public field OnChanged: ComboBoxViewModel -> ()
 
         new(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) =
             base (11) with {

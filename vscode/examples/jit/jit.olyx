@@ -278,8 +278,8 @@ create_jit_loop_int16(): static blittable (int16, int64) -> int64 =
 
     UnsafeCast(asm)
 
-add_loop_uint32: static blittable (uint32, uint32) -> uint32 = create_jit_loop_uint32()
-add_loop_int16: static blittable (int16, int64) -> int64 = create_jit_loop_int16()
+add_loop_uint32: static blittable (uint32, uint32) -> uint32 get = create_jit_loop_uint32()
+add_loop_int16: static blittable (int16, int64) -> int64 get = create_jit_loop_int16()
 
 benchmark1(s: System.Diagnostics.Stopwatch, result1: byref<float64>): () =
     s.Start()

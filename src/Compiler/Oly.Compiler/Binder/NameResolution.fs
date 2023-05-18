@@ -1931,7 +1931,6 @@ let bindValueModifiersAndKindAsMemberFlags
     match syntaxValueDeclKind with
     | OlySyntaxValueDeclarationKind.Constant _ ->
         isExplicitConstant <- true
-        isExplicitField <- true
     | OlySyntaxValueDeclarationKind.Let _
     | OlySyntaxValueDeclarationKind.LetBind _ ->
         isExplicitLet <- true
@@ -1951,19 +1950,19 @@ let bindValueModifiersAndKindAsMemberFlags
     syntaxValueDeclPremodifiers
     |> ImArray.iter (function
         | OlySyntaxValueDeclarationPremodifier.Static(syntaxToken) ->
-            if isExplicitStatic || isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew then
+            if isExplicitStatic || isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'static' premodifier.", 10, syntaxToken)
             isExplicitStatic <- true
         | OlySyntaxValueDeclarationPremodifier.Abstract(syntaxToken) ->
-            if isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField then
+            if isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'abstract' premodifier.", 10, syntaxToken)
             isExplicitAbstract <- true
         | OlySyntaxValueDeclarationPremodifier.Overrides(syntaxToken) ->
-            if isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField then
+            if isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'overrides' premodifier.", 10, syntaxToken)
             isExplicitOverrides <- true
         | OlySyntaxValueDeclarationPremodifier.Default(syntaxToken) ->
-            if isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField then
+            if isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'default' premodifier.", 10, syntaxToken)
             isExplicitDefault <- true
         | OlySyntaxValueDeclarationPremodifier.Mutable(syntaxToken) ->
@@ -1973,7 +1972,7 @@ let bindValueModifiersAndKindAsMemberFlags
                 cenv.diagnostics.Error("'mutable' premodifers cannot be used on 'let' declarations. Use 'mutable' as a postmodifier instead.", 10, syntaxToken)
             isExplicitMutable <- true
         | OlySyntaxValueDeclarationPremodifier.New(syntaxToken) ->
-            if isExplicitNew || isExplicitField then
+            if isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'new' premodifier.", 10, syntaxToken)
             if isExplicitLet then
                 cenv.diagnostics.Error("'new' premodifers cannot be used on 'let' declarations.", 10, syntaxToken)

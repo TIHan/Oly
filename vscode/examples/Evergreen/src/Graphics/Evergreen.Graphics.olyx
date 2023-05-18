@@ -37,28 +37,28 @@ open SixLabors.ImageSharp.Processing
 
 module Graphics =
 
-    private mutable window: Window = unchecked default
-    internal mutable graphicsDevice: GraphicsDevice = null
-    internal mutable imGuiRenderer: ImGuiRenderer = null
-    private mutable factory: ResourceFactory = null
-    private mutable commandList: CommandList = null
+    private mutable field window: Window = unchecked default
+    internal mutable field graphicsDevice: GraphicsDevice = null
+    internal mutable field imGuiRenderer: ImGuiRenderer = null
+    private mutable field factory: ResourceFactory = null
+    private mutable field commandList: CommandList = null
 
-    private mutable globalUniformBuffer: DeviceBuffer = null
-    private mutable globalResourceLayout: ResourceLayout = null
-    private mutable globalResourceSet: ResourceSet = null
+    private mutable field globalUniformBuffer: DeviceBuffer = null
+    private mutable field globalResourceLayout: ResourceLayout = null
+    private mutable field globalResourceSet: ResourceSet = null
     
-    private mutable bufferResourceLayout: ResourceLayout = null
-    private mutable instanceResourceLayout: ResourceLayout = null
+    private mutable field bufferResourceLayout: ResourceLayout = null
+    private mutable field instanceResourceLayout: ResourceLayout = null
 
-    private mutable defaultResourceLayoutFragment: ResourceLayout = null
-    private mutable depthResourceLayoutFragment: ResourceLayout = null
+    private mutable field defaultResourceLayoutFragment: ResourceLayout = null
+    private mutable field depthResourceLayoutFragment: ResourceLayout = null
 
-    private mutable pixelSampler: Sampler = null
+    private mutable field pixelSampler: Sampler = null
 
-    private mutable mainWindowRenderTarget: RenderTarget = unchecked default
-    private mutable mainWindowRenderTargetCmds: DrawCommand[] = unchecked default
-    private mutable mainWindowOutputs: OutputDescription = default
-    private mutable mainWindowTextureSet: ShaderTextureSet = unchecked default
+    private mutable field mainWindowRenderTarget: RenderTarget = unchecked default
+    private mutable field mainWindowRenderTargetCmds: DrawCommand[] = unchecked default
+    private mutable field mainWindowOutputs: OutputDescription = default
+    private mutable field mainWindowTextureSet: ShaderTextureSet = unchecked default
 
     DeviceName: string get() = graphicsDevice.DeviceName
 
@@ -181,9 +181,9 @@ module Graphics =
         window
 
     private struct VertexDatum =
-        mutable Vertex: Vector3 = default
-        mutable TexCoord: Vector2 = default
-        mutable Normal: Vector3 = default
+        public mutable field Vertex: Vector3 = default
+        public mutable field TexCoord: Vector2 = default
+        public mutable field Normal: Vector3 = default
 
     CreateMesh(meshDesc: MeshDescription): Mesh =
         let vertices  = meshDesc.Vertices
@@ -496,7 +496,7 @@ module Graphics =
     UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
-    private bindBufferSetCmds: Queue<DrawCommand> = Queue()
+    field bindBufferSetCmds: Queue<DrawCommand> = Queue()
     private processBufferSetCmds(commandList: CommandList): () =
         let mutable cmd = unchecked default
         while (bindBufferSetCmds.TryDequeue(&cmd))
@@ -514,7 +514,7 @@ module Graphics =
             | _ =>
                ()
 
-    internal DisposeQueue: ConcurrentQueue<IDisposable> = ConcurrentQueue()
+    internal field DisposeQueue: ConcurrentQueue<IDisposable> = ConcurrentQueue()
     private processDisposables(): () =
         let mutable disposable = default
         while (DisposeQueue.TryDequeue(&disposable))

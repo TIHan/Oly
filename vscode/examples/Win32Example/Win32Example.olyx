@@ -24,7 +24,7 @@ open SixLabors.ImageSharp.Processing
 sealed class ExternalProcess =
     implements IDisposable
 
-    private p: Process
+    field p: Process
 
     // TODO: Runtime error, fix this.
   //  new(filePath: string, args: string) =
@@ -50,7 +50,7 @@ sealed class ExternalProcess =
     RunAsync(ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<(output: string, errors: string)> =
         class DataReceived =
 
-            private f: DataReceivedEventArgs -> ()
+            field f: DataReceivedEventArgs -> ()
             new(f: DataReceivedEventArgs -> ()) =
                 {
                     f  = f
@@ -115,8 +115,8 @@ sealed class ExternalProcess =
 // **********************************************************************************************************************************
 
 struct Vertex =
-    Position: Vector3
-    TexCoord: Vector2
+    public field Position: Vector3
+    public field TexCoord: Vector2
 
     new(position: Vector3, texCoord: Vector2) =
         {
@@ -128,9 +128,9 @@ struct Vertex =
         "(Position = " + this.Position.ToString() + ")"
 
 struct Globals =
-    mutable Model: Matrix4x4 = Matrix4x4.Identity
-    mutable View: Matrix4x4 = Matrix4x4.Identity
-    mutable Projection: Matrix4x4 = Matrix4x4.Identity
+    public mutable field Model: Matrix4x4 = Matrix4x4.Identity
+    public mutable field View: Matrix4x4 = Matrix4x4.Identity
+    public mutable field Projection: Matrix4x4 = Matrix4x4.Identity
 
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
 radians(degrees: float32): float32 = float32(radians(float64(degrees)))

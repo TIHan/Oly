@@ -238,7 +238,7 @@ interface Monad<M<_>> =
    static abstract Return<A>(a: A) : M<A>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -359,7 +359,7 @@ interface TTrait<T> =
 
 class Test<T> =
 
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
 extension TestExtension<W> =
     inherits Test<W>
@@ -380,7 +380,7 @@ interface TTrait<T> =
 
 class Test<T> =
 
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
 extension TestExtension<W> =
     inherits Test<W>
@@ -401,7 +401,7 @@ interface TTrait<T<_>> =
 
 class Test<T> =
 
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
 
 extension TestExtension<W> =
     inherits Test<W>
@@ -550,7 +550,7 @@ interface Add<T1, T2, T3> =
 
 class Test<T> where T : Add<T, T, T> =
 
-    x: T
+    field x: T
 
     new(x: T) = { x = x }
 

@@ -15,15 +15,15 @@ sealed class WindowViewModel =
     Size: Vector2 get, set = Vector2.Zero
     RelativePosition: Vector2 get, set = Vector2.Zero
 
-    private titleBuffer: byte[||] = Array.ZeroCreate(256)
-    private mutable titleBufferLength: int32 = 0
-    private mutable title: string = string.Empty
+    field titleBuffer: byte[||] = Array.ZeroCreate(256)
+    mutable field titleBufferLength: int32 = 0
+    mutable field title: string = string.Empty
+    internal TitleSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.titleBuffer, 0, this.titleBufferLength)
     Title: string
         get() = this.title
         set(value) =
             this.title <- value
             this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
-    internal TitleSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.titleBuffer, 0, this.titleBufferLength)
 
 sealed class ButtonViewModel =
     implements IViewModel
@@ -31,9 +31,9 @@ sealed class ButtonViewModel =
     IsEnabled: bool get, set = true
     Size: Vector2 get, set = Vector2.Zero
 
-    private labelBuffer: byte[||] = Array.ZeroCreate(256)
-    private mutable labelBufferLength: int32 = 0
-    private mutable label: string = string.Empty
+    field labelBuffer: byte[||] = Array.ZeroCreate(256)
+    mutable field labelBufferLength: int32 = 0
+    mutable field label: string = string.Empty
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
     Label: string
         get() = this.label
@@ -46,9 +46,9 @@ sealed class TextInputViewModel =
 
     IsEnabled: bool get, set = true
 
-    private labelBuffer: byte[||] = Array.ZeroCreate(256)
-    private mutable labelBufferLength: int32 = 0
-    private mutable label: string = string.Empty
+    field labelBuffer: byte[||] = Array.ZeroCreate(256)
+    mutable field labelBufferLength: int32 = 0
+    mutable field label: string = string.Empty
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
     Label: string
         get() = this.label
@@ -56,8 +56,8 @@ sealed class TextInputViewModel =
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
-    private textBuffer: byte[||] = Array.ZeroCreate(256)
-    private mutable text: string = string.Empty
+    field textBuffer: byte[||] = Array.ZeroCreate(256)
+    mutable field text: string = string.Empty
     internal TextSpan: Span<byte> get() = Span(this.textBuffer, 0, this.textBuffer.Length)
     Text: string
         get() = this.text
@@ -90,7 +90,7 @@ sealed class ComboBoxViewModel =
 
 class UINode =
 
-    private Tag: int32
+    field Tag: int32
     private new(tag: int32) = { Tag = tag }
 
     internal sealed class Window =

@@ -21,10 +21,10 @@ private alias VeldridShaderDescription = Veldrid.ShaderDescription
 private alias VeldridShader = Veldrid.Shader
 
 sealed class MeshDescription =
-    mutable Vertices:   Vector3[||]
-    mutable Indices:    uint32[||]
-    mutable Normals:    Vector3[||]
-    mutable TexCoords:  Vector2[||]
+    Vertices:   Vector3[||] get, set
+    Indices:    uint32[||] get, set
+    Normals:    Vector3[||] get, set
+    TexCoords:  Vector2[||] get, set
 
     new(vertices: Vector3[||], indices: uint32[||], normals: Vector3[||], texCoords: Vector2[||]) =
         {
@@ -241,9 +241,9 @@ sealed class MeshDescription =
         )
 
 sealed class ShaderDescription =
-    internal mutable VertexLayouts:  VertexLayoutDescription[||]
-    internal mutable VertexShader:   VeldridShaderDescription
-    internal mutable FragmentShader: VeldridShaderDescription
+    internal VertexLayouts:  VertexLayoutDescription[||] get, set
+    internal VertexShader:   VeldridShaderDescription get, set
+    internal FragmentShader: VeldridShaderDescription get, set
 
     private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
         {
@@ -279,7 +279,7 @@ sealed class ShaderDescription =
         ShaderDescription([|vertexLayout|], vertexShader, fragmentShader)
 
 sealed class ComputeShaderDescription =
-    internal mutable ComputeShader: VeldridShaderDescription
+    internal ComputeShader: VeldridShaderDescription get, set
 
     private new(computeShader: VeldridShaderDescription) =
         {
@@ -299,9 +299,9 @@ sealed class ComputeShaderDescription =
 sealed class Mesh =
     implements IDisposable
 
-    internal VertexBuffer:   DeviceBuffer
-    internal IndexBuffer:    DeviceBuffer
-    internal IndexCount:     uint32
+    internal VertexBuffer:   DeviceBuffer get
+    internal IndexBuffer:    DeviceBuffer get
+    internal IndexCount:     uint32 get
 
     internal new(vertexBuffer: DeviceBuffer, indexBuffer: DeviceBuffer, indexCount: uint32) =
         {
@@ -317,8 +317,8 @@ sealed class Mesh =
 sealed class Buffer<T> =
     implements IDisposable
 
-    internal DeviceBuffer: DeviceBuffer
-    internal DeviceBufferCount: DeviceBuffer
+    internal DeviceBuffer: DeviceBuffer get
+    internal DeviceBufferCount: DeviceBuffer get
 
     internal new(deviceBuffer: DeviceBuffer, deviceBufferCount: DeviceBuffer) =
         {
@@ -334,7 +334,7 @@ sealed class Buffer<T> =
 sealed class Texture2D =
     implements IDisposable
 
-    internal Texture: Texture
+    internal Texture: Texture get
 
     internal new(texture: Texture) =
         {
@@ -347,11 +347,11 @@ sealed class Texture2D =
 private sealed class RenderTargetState =
     implements IDisposable
 
-    Framebuffer: Framebuffer
-    Texture: Texture2D
+    Framebuffer: Framebuffer get
+    Texture: Texture2D get
 
     /// This can be null.
-    DepthTexture: Texture2D
+    DepthTexture: Texture2D get
 
     internal new(framebuffer: Framebuffer, texture: Texture2D, depthTexture: Texture2D) =
         {
@@ -367,7 +367,7 @@ private sealed class RenderTargetState =
 sealed class RenderTarget =
     implements IDisposable
 
-    internal mutable State: RenderTargetState
+    internal State: RenderTargetState get, set
 
     internal new(state: RenderTargetState) =
         {
@@ -380,8 +380,8 @@ sealed class RenderTarget =
 sealed class Instances =
     implements IDisposable
 
-    mutable Count: int32
-    internal mutable InstanceBuffer: DeviceBuffer
+    Count: int32 get, set
+    internal InstanceBuffer: DeviceBuffer get, set
 
     internal new(instanceBuffer: DeviceBuffer) =
         {
@@ -393,9 +393,9 @@ sealed class Instances =
         this.InstanceBuffer.Dispose()
 
 private sealed class ShaderState =
-    internal VertexShader:   VeldridShader
-    internal FragmentShader: VeldridShader
-    internal Pipeline:       Pipeline
+    internal field VertexShader:   VeldridShader
+    internal field FragmentShader: VeldridShader
+    internal field Pipeline:       Pipeline
 
     internal new(vertexShader: VeldridShader, fragmentShader: VeldridShader, pipeline: Pipeline) =
         {
@@ -405,8 +405,8 @@ private sealed class ShaderState =
         }
 
 private sealed class ComputeShaderState =
-    internal ComputeShader: VeldridShader
-    internal Pipeline:      Pipeline
+    internal field ComputeShader: VeldridShader
+    internal field Pipeline:      Pipeline
 
     internal new(computeShader: VeldridShader, pipeline: Pipeline) =
         {
@@ -417,7 +417,7 @@ private sealed class ComputeShaderState =
 sealed class Shader =
     implements IDisposable
 
-    internal mutable State: ShaderState
+    internal mutable field State: ShaderState
 
     internal new(state: ShaderState) =
         {
@@ -432,7 +432,7 @@ sealed class Shader =
 sealed class ShaderTextureSet =
     implements IDisposable
 
-    internal mutable ResourceSet: ResourceSet
+    internal mutable field ResourceSet: ResourceSet
 
     internal new(resourceSet: ResourceSet) =
         {
@@ -445,7 +445,7 @@ sealed class ShaderTextureSet =
 sealed class ShaderInstancesSet =
     implements IDisposable
 
-    internal mutable ResourceSet: ResourceSet
+    internal mutable field ResourceSet: ResourceSet
 
     internal new(resourceSet: ResourceSet) =
         {
@@ -458,7 +458,7 @@ sealed class ShaderInstancesSet =
 sealed class BufferSet =
     implements IDisposable
 
-    internal mutable ResourceSet: ResourceSet
+    internal mutable field ResourceSet: ResourceSet
 
     internal new(resourceSet: ResourceSet) =
         {
@@ -471,7 +471,7 @@ sealed class BufferSet =
 sealed class ComputeShader =
     implements IDisposable
 
-    internal mutable State: ComputeShaderState
+    internal mutable field State: ComputeShaderState
 
     internal new(state: ComputeShaderState) =
         {
@@ -495,7 +495,7 @@ enum BindResourceSetKind =
     | Compute
 
 class DrawCommand =
-    Kind: DrawCommandKind
+    Kind: DrawCommandKind get
 
     new(kind: DrawCommandKind) =
         {
@@ -520,7 +520,7 @@ class DrawCommand =
     private sealed class SetRenderTarget =
         inherits DrawCommand
 
-        RenderTarget: RenderTarget
+        RenderTarget: RenderTarget get
 
         new(renderTarget: RenderTarget) =
             base(DrawCommandKind.SetRenderTarget) with
@@ -538,9 +538,9 @@ class DrawCommand =
     private sealed class DrawMesh =
         inherits DrawCommand
 
-        Mesh:      Mesh
-        Shader:    Shader
-        Instances: Instances
+        Mesh:      Mesh get
+        Shader:    Shader get
+        Instances: Instances get
 
         new(mesh: Mesh, shader: Shader, instances: Instances) =
             base(DrawCommandKind.DrawMesh) with
@@ -560,8 +560,8 @@ class DrawCommand =
     private sealed class RunComputeShader =
         inherits DrawCommand
 
-        ComputeShader: ComputeShader
-        Instances: Instances
+        ComputeShader: ComputeShader get
+        Instances: Instances get
 
         new(computeShader: ComputeShader, instances: Instances) =
             base(DrawCommandKind.RunComputeShader) with
@@ -580,8 +580,8 @@ class DrawCommand =
     private sealed class BindTextureSet =
         inherits DrawCommand
 
-        TextureSet: ShaderTextureSet
-        SetKind: BindResourceSetKind
+        TextureSet: ShaderTextureSet get
+        SetKind: BindResourceSetKind get
 
         new(textureSet: ShaderTextureSet, kind: BindResourceSetKind) =
             base(DrawCommandKind.BindTextureSet) with
@@ -600,8 +600,8 @@ class DrawCommand =
     private sealed class BindInstancesSet =
         inherits DrawCommand
 
-        InstancesSet: ShaderInstancesSet
-        SetKind: BindResourceSetKind
+        InstancesSet: ShaderInstancesSet get
+        SetKind: BindResourceSetKind get
 
         new(instancesSet: ShaderInstancesSet, kind: BindResourceSetKind) =
             base(DrawCommandKind.BindInstancesSet) with
@@ -620,9 +620,9 @@ class DrawCommand =
     private sealed class BindBufferSet =
         inherits DrawCommand
 
-        BufferSet: BufferSet
-        SetKind: BindResourceSetKind
-        Slot: uint32
+        BufferSet: BufferSet get
+        SetKind: BindResourceSetKind get
+        Slot: uint32 get
 
         new(BufferSet: BufferSet, kind: BindResourceSetKind, slot: uint32) =
             base(DrawCommandKind.BindBufferSet) with
@@ -649,11 +649,11 @@ alias Key = Veldrid.Key
 alias MouseEvent = Veldrid.MouseEvent
 
 sealed class InputState =
-    KeyEvents: KeyEvent[||]
-    MouseEvents: MouseEvent[||]
-    mutable MousePosition: Vector2
-    mutable MouseDelta: Vector2
-    internal snapshot: InputSnapshot
+    KeyEvents: KeyEvent[||] get
+    MouseEvents: MouseEvent[||] get
+    MousePosition: Vector2 get, set
+    MouseDelta: Vector2 get, set
+    internal field snapshot: InputSnapshot
 
     internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||], snapshot: InputSnapshot) =
         {
@@ -665,7 +665,7 @@ sealed class InputState =
         }
 
 sealed class Window =
-    internal window: Sdl2Window
+    internal field window: Sdl2Window
 
     internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
         let windowCreateInfo = WindowCreateInfo(x, y, width, height, WindowState.Normal, title)
@@ -721,9 +721,9 @@ sealed class Window =
         get() = this.window.Exists
 
 sealed class DisplayMode =
-    Width: uint32
-    Height: uint32
-    RefreshRate: uint32
+    Width: uint32 get
+    Height: uint32 get
+    RefreshRate: uint32 get
 
     new(width: uint32, height: uint32, refreshRate: uint32) =
         {

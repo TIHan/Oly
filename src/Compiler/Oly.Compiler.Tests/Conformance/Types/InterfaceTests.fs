@@ -135,12 +135,12 @@ interface Monad<M<_>, M2<_>> =
     static abstract bind<A, B>(ma: M<A>, f: A -> M2<B>) : M2<B>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
 class Maybe2<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -168,12 +168,12 @@ interface Monad<M<_>, M2<_>> =
     static abstract bind<A, B>(ma: M<A>, f: A -> M2<B>) : M2<B>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
 class Maybe2<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -318,7 +318,7 @@ interface Test2<T<_>> where T<_> : Test =
     static abstract test2<A, B>(x: T<A>, y: B) : T<B>
 
 class TestType<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -348,7 +348,7 @@ extension Int32Extension =
         TestType<_>(y)
 
 class TestType<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -382,7 +382,7 @@ interface Test2<T<_>> where T<_> : Test =
     static abstract test2<A, B>(x: T<A>, y: A -> B) : T<B>
 
 class TestType<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -661,7 +661,7 @@ open extension TestAddExtension
 
 class Test =
 
-    x: __oly_int32
+    field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     add(x: __oly_int32, y: __oly_int32) : __oly_int32 = y

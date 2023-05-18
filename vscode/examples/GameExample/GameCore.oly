@@ -194,15 +194,15 @@ void main()
 }"
     src.Replace("{0}", colorCalcCode)
 
-DefaultVertexCode: string = System.IO.File.ReadAllText("GameExample/default.vert")
+DefaultVertexCode: string get = System.IO.File.ReadAllText("GameExample/default.vert")
 
-DefaultFragmentCode: string =
+DefaultFragmentCode: string get =
     CreatePhongFragmentCode(true)
 
-DefaultColorFragmentCode: string =
+DefaultColorFragmentCode: string get =
     CreatePhongFragmentCode(false)
 
-DefaultComputeCode: string = System.IO.File.ReadAllText("GameExample/transform_rotation.comp")
+DefaultComputeCode: string get = System.IO.File.ReadAllText("GameExample/transform_rotation.comp")
 
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
 radians(degrees: float32): float32 = float32(radians(float64(degrees)))
@@ -219,21 +219,21 @@ clamp(min: float32, max: float32, value: float32): float32 =
         value
 
 struct PointLight =
-    mutable Position: Vector3 = Vector3.Zero
-    Padding: float32 = 0
-    mutable Color: Vector4 = Vector4.Zero
+    public mutable field Position: Vector3 = Vector3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: Vector4 = Vector4.Zero
 
 struct DirectionalLight =
-    mutable Direction: Vector3 = Vector3.Zero
-    Padding: float32 = 0
-    mutable Color: Vector4 = Vector4.Zero
+    public mutable field Direction: Vector3 = Vector3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: Vector4 = Vector4.Zero
 
 struct Camera =
-    mutable Transform: Transform
-    mutable Projection: Matrix4x4
+    public mutable field Transform: Transform
+    public mutable field Projection: Matrix4x4
 
-    private mutable yaw: float32
-    private mutable pitch: float32
+    mutable field yaw: float32
+    mutable field pitch: float32
 
     private static DefaultRotation: Quaternion get = Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians(90))
 
@@ -270,7 +270,7 @@ extension Vector3Extensions =
 (*)(v: Vector3, s: float32): Vector3 = Vector3.Multiply(v, s)
 
 struct Transform =
-    mutable Matrix: Matrix4x4
+    public mutable field Matrix: Matrix4x4
 
     new(matrix: Matrix4x4) = { Matrix = matrix }
 
@@ -316,17 +316,17 @@ struct Transform =
         Transform(rotationMatrix * scaleMatrix)
 
 struct EntityId =
-    mutable Index: int32 = 0
-    mutable Version: uint32 = 0
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
 
     IsNil: bool get() = this.Version == 0
 
 sealed class Archetype<T0> where T0: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||]
-    EntityIds: EntityId[||]
-    Buffer0: T0[||]
+    Lookup: int32[||] get
+    EntityIds: EntityId[||] get
+    Buffer0: T0[||] get
 
     new(size: int32) =
         {
@@ -348,10 +348,10 @@ sealed class Archetype<T0, T1> where T0: unmanaged
                                where T1: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||]
-    EntityIds: EntityId[||]
-    Buffer0: T0[||]
-    Buffer1: T1[||]
+    Lookup: int32[||] get
+    EntityIds: EntityId[||] get
+    Buffer0: T0[||] get
+    Buffer1: T1[||] get
 
     new(size: int32) =
         {
@@ -376,11 +376,11 @@ sealed class Archetype<T0, T1, T2> where T0: unmanaged
                                    where T2: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||]
-    EntityIds: EntityId[||]
-    Buffer0: T0[||]
-    Buffer1: T1[||]
-    Buffer2: T2[||]
+    Lookup: int32[||] get
+    EntityIds: EntityId[||] get
+    Buffer0: T0[||] get
+    Buffer1: T1[||] get
+    Buffer2: T2[||] get
 
     new(size: int32) =
         {
@@ -408,12 +408,12 @@ sealed class Archetype<T0, T1, T2, T3> where T0: unmanaged
                                        where T3: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||]
-    EntityIds: EntityId[||]
-    Buffer0: T0[||]
-    Buffer1: T1[||]
-    Buffer2: T2[||]
-    Buffer3: T3[||]
+    Lookup: int32[||] get
+    EntityIds: EntityId[||] get
+    Buffer0: T0[||] get
+    Buffer1: T1[||] get
+    Buffer2: T2[||] get
+    Buffer3: T3[||] get
 
     new(size: int32) =
         {
@@ -441,16 +441,16 @@ alias Color = Vector4
 
 sealed class World =
 
-    private mutable nextIndex: int32 = 0
-    private mutable indexQueue: Queue<int32> = Queue()
-    private mutable entityCount: int32 = 0
-    private entityVersions: uint32[||] = Array.ZeroCreate<uint32>(1024)
+    mutable field nextIndex: int32 = 0
+    mutable field indexQueue: Queue<int32> = Queue()
+    mutable field entityCount: int32 = 0
+    field entityVersions: uint32[||] = Array.ZeroCreate<uint32>(1024)
 
-    Archetype_StaticBox:  Archetype<Transform, Color, StaticObjectId>              = Archetype(1024)
-    Archetype_Box:        Archetype<Transform, Color, DynamicObjectId>             = Archetype(1024)
-    Archetype_PointLight:      Archetype<Transform, Color, DynamicObjectId, PointLight> = Archetype(1024)
+    Archetype_StaticBox:  Archetype<Transform, Color, StaticObjectId> get             = Archetype(1024)
+    Archetype_Box:        Archetype<Transform, Color, DynamicObjectId> get           = Archetype(1024)
+    Archetype_PointLight:      Archetype<Transform, Color, DynamicObjectId, PointLight> get = Archetype(1024)
 
-    Archetype_DirectionalLight: Archetype<DirectionalLight> = Archetype(1024)
+    Archetype_DirectionalLight: Archetype<DirectionalLight> get = Archetype(1024)
 
     private NewEntityId(): EntityId =
         let index =

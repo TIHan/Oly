@@ -373,9 +373,9 @@ let private printField (benv: BoundEnvironment) (field: IFieldSymbol) =
         $"{field.Name}: {printType benv field.Type} = {printConstant benv field.Constant.Value}"
     else
         if field.IsMutable then
-            $"mutable {field.Name}: {printType benv field.Type}"
+            $"mutable field {field.Name}: {printType benv field.Type}"
         else
-            $"{field.Name}: {printType benv field.Type}"
+            $"field {field.Name}: {printType benv field.Type}"
 
 let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbol) =
     let prefixText =

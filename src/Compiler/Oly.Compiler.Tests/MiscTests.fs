@@ -82,7 +82,7 @@ let ``Basic new type`` () =
 alias int32
 
 class Test =
-    value: int32 = 0
+    field value: int32 = 0
 
 test(x: __oly_int32) : () = ()
 test2(x: int32) : () =
@@ -96,7 +96,7 @@ test2(x: int32) : () =
 let ``Generic new type`` () =
     let src = """
 class Test<T> =
-    value: T
+    field value: T
 
     new(x: T) = { value = x }
 
@@ -163,7 +163,7 @@ let ``Type implements interfaces compiles`` () =
 IntrinsicPrint<T>(value: T) : ()
 
 class Test =
-    value: __oly_int32
+    field value: __oly_int32
 
     new(value: __oly_int32) = { value = value }
 
@@ -227,8 +227,8 @@ extension Int32AddExtension =
         __oly_add(x, value2)
 
 class Doot =
-    x: __oly_int32 = 0
-    y: __oly_int32 = 0
+    field x: __oly_int32 = 0
+    field y: __oly_int32 = 0
 
 f() : () =
     IntrinsicPrint<_>(2)
@@ -272,8 +272,8 @@ extension Int32AddFloat64Extension =
 
 f<T>(x: T, y: T): T where T: Add<T> = 
    class X<U> =
-       x: T
-       y: U
+       public field x: T
+       field y: U
 
        new(x: T, y: U) = { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
@@ -338,7 +338,7 @@ interface Monad<M<_>> =
    static abstract Return<A>(a: A): M<A>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -365,7 +365,7 @@ example(): () =
    Console.WriteLine<_>(res.value)
 
 class Hoot<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -383,8 +383,8 @@ f(x: __oly_int32): __oly_int32 = x + 1
 
 g<T>(x: T, y: T): T where T: Add<T> = 
    class X<U> =
-    x: T
-    y: U
+    public field x: T
+    field y: U
 
     new(x: T, y: U) = { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
@@ -518,7 +518,7 @@ let ``HigherTypeArgument example 1``() =
     let src =
         """
 class Hoot<T> =
-    value: T
+    field value: T
 
     new(value: T) = { value = value }
 
@@ -578,7 +578,7 @@ interface Monad<M<_>> =
    static abstract Return<A>(a: A): M<A>
 
 class Maybe<T> =
-    value: T
+    public field value: T
 
     new(value: T) = { value = value }
 
@@ -686,7 +686,7 @@ let ``Simple type with constructor``() =
     let src =
         """
 class Test =
-    x: __oly_int32
+    field x: __oly_int32
 
     new(x: __oly_int32) = { x = x }
         """
@@ -700,8 +700,8 @@ let ``Generic type that is nested within a function``() =
         """
 test<T>(x: T) : () =
     class X<U> =
-      x: T
-      y: U
+      field x: T
+      field y: U
 
       new(x: T, y: U) = { x = x; y = y }
 
@@ -747,7 +747,7 @@ let ``Namespaces are valid``() =
 namespace Test1.Test2
 
 class Test =
-    x: __oly_int32 = 0
+    field x: __oly_int32 = 0
         """
     Oly src
     |> shouldCompile

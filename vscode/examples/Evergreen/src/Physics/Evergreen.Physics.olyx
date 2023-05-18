@@ -139,7 +139,7 @@ private struct PoseIntegratorCallbacks =
     /// Most use cases should set this to false.
     IntegrateVelocityForKinematics: bool get() = false
 
-    mutable Gravity: Vector3
+    Gravity: Vector3 get, set
 
     new(gravity: Vector3) =
         {
@@ -149,7 +149,7 @@ private struct PoseIntegratorCallbacks =
 
     //Note that velocity integration uses "wide" types. These are array-of-struct-of-arrays types that use SIMD accelerated types underneath.
     //Rather than handling a single body at a time, the callback handles up to Vector<float>.Count bodies simultaneously.
-    private mutable gravityWideDt: Vector3Wide
+    mutable field gravityWideDt: Vector3Wide
 
     /// <summary>
     /// Callback invoked ahead of dispatches that may call into <see cref="IntegrateVelocity"/>.
@@ -179,15 +179,15 @@ private struct PoseIntegratorCallbacks =
         velocity.Linear <- velocity.Linear + this.gravityWideDt
 
 newtype StaticObjectId =
-    Value: int32
+    public field Value: int32
 
 newtype DynamicObjectId =
-    Value: int32
+    public field Value: int32
     
 #[open]
 struct PhysicsObject =
-    private mutable tag: int32
-    private mutable objId: int32
+    mutable field tag: int32
+    mutable field objId: int32
 
     internal HasInvalidTag: bool get() = this.tag == -1
 
@@ -205,8 +205,8 @@ struct PhysicsObject =
 
 sealed class Physics =
 
-    private ThreadDispatcher: ThreadDispatcher
-    private Simulation: Simulation
+    field ThreadDispatcher: ThreadDispatcher
+    field Simulation: Simulation
 
     internal new(sim: Simulation) =
         //Any IThreadDispatcher implementation can be used for multithreading. Here, we use the BepuUtilities.ThreadDispatcher implementation.
@@ -315,8 +315,8 @@ sealed class Physics =
     private struct RayHitHandler =
         implements IRayHitHandler
 
-        mutable obj: PhysicsObject = PhysicsObject(-1, -1)
-        mutable closestDistance: float32 = float32.MaxValue
+        internal mutable field obj: PhysicsObject = PhysicsObject(-1, -1)
+        mutable field closestDistance: float32 = float32.MaxValue
 
         AllowTest(mutable collidable: CollidableReference): bool = collidable.BodyHandle.Value >= 0 || collidable.StaticHandle.Value > 0
 

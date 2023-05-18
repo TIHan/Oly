@@ -178,9 +178,9 @@ let ``Defining and using Vector3``() =
 #[import("CLR:System.Numerics", "System.Numerics", "Vector3")]
 struct Vector3 =
 
-    mutable X: float32
-    mutable Y: float32
-    mutable Z: float32
+    public mutable field X: float32
+    public mutable field Y: float32
+    public mutable field Z: float32
 
     new(x: float32, y: float32, z: float32)
 
@@ -498,7 +498,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private item: T
+    private field item: T
 
     new(item: T) = { item = item }
 
@@ -531,7 +531,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private item: T
+    private field item: T
 
     new(item: T) = { item = item }
 
@@ -564,7 +564,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private item: T
+    private field item: T
 
     new(item: T) = { item = item }
 
@@ -574,7 +574,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private item: Hash<T>
+    private field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -615,7 +615,7 @@ interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    private item: T
+    private field item: T
 
     new(item: T) = { item = item }
 
@@ -626,7 +626,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private item: Hash<T>
+    private field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -667,7 +667,7 @@ interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    item: T
+    public field item: T
 
     new(item: T) = { item = item }
 
@@ -679,7 +679,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
 
-    private item: Hash<T>
+    public field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -1532,7 +1532,7 @@ open System
 
 class Test =
 
-   mutable X: Int32 =
+   public mutable field X: Int32 =
       let x = 123
       x
 
@@ -1785,15 +1785,15 @@ alias inref<T>
 struct StateMachine<A, B> =
     implements IAsyncStateMachine
 
-    mutable f: A -> Task<B> = unchecked default
+    public mutable field f: A -> Task<B> = unchecked default
 
-    mutable state: B = unchecked default
+    public mutable field state: B = unchecked default
 
-    mutable builder: AsyncTaskMethodBuilder<B> = unchecked default
+    public mutable field builder: AsyncTaskMethodBuilder<B> = unchecked default
 
-    mutable t: Task<A> = unchecked default
+    public mutable field t: Task<A> = unchecked default
 
-    private mutable u: TaskAwaiter<A> = unchecked default
+    mutable field u: TaskAwaiter<A> = unchecked default
 
     mutable MoveNext(): () =
         let mutable value = this.state
@@ -1899,7 +1899,7 @@ struct Test<T> where T: struct =
 
 struct Test2 =
 
-    mutable s: Test<__oly_int32> = default
+    public mutable field s: Test<__oly_int32> = default
 
 module Test =
     #[intrinsic("print")]
@@ -2120,8 +2120,8 @@ alias int32
 print(__oly_object): ()
 
 struct Test =
-    X: int32 = 123
-    Y: int32 = 456
+    public field X: int32 = 123
+    public field Y: int32 = 456
 
 main(): () =
     let t = Test()
@@ -3198,8 +3198,8 @@ alias bool
 print(__oly_object): ()
 
 struct TestData =
-    X: int32 = 1
-    Y: int32 = 2
+    public field X: int32 = 1
+    public field Y: int32 = 2
 
 sizeof<require T>: int32 =
     Marshal.SizeOf(unchecked default: T)
@@ -3231,7 +3231,7 @@ alias uint64
 print(__oly_object): ()
 
 class TestData =
-    X: uint64 = 123456789
+    public field X: uint64 = 123456789
 
 main(): () =
     let mutable xs = ReadOnlySpan([|TestData()|])
