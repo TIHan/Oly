@@ -569,7 +569,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "Field 'y' not assigned."
+        "'y' is not initialized."
     ]
     |> ignore
 

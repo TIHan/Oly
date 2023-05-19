@@ -476,7 +476,7 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (syntaxNode: OlySy
         expectedFieldSet
         |> Seq.sort
         |> Seq.iter (fun fieldName ->
-            env.diagnostics.Error($"Field '{fieldName}' not assigned.", 10, syntaxNode)
+            env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, syntaxNode)
         )
 
 and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression) (value: IValueSymbol) =
