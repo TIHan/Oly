@@ -20,7 +20,7 @@ open SixLabors.ImageSharp.Processing
 private alias VeldridShaderDescription = Veldrid.ShaderDescription
 private alias VeldridShader = Veldrid.Shader
 
-sealed class MeshDescription =
+class MeshDescription =
     Vertices:   Vector3[||] get, set
     Indices:    uint32[||] get, set
     Normals:    Vector3[||] get, set
@@ -240,7 +240,7 @@ sealed class MeshDescription =
             texCoords
         )
 
-sealed class ShaderDescription =
+class ShaderDescription =
     internal VertexLayouts:  VertexLayoutDescription[||] get, set
     internal VertexShader:   VeldridShaderDescription get, set
     internal FragmentShader: VeldridShaderDescription get, set
@@ -278,7 +278,7 @@ sealed class ShaderDescription =
 
         ShaderDescription([|vertexLayout|], vertexShader, fragmentShader)
 
-sealed class ComputeShaderDescription =
+class ComputeShaderDescription =
     internal ComputeShader: VeldridShaderDescription get, set
 
     private new(computeShader: VeldridShaderDescription) =
@@ -296,7 +296,7 @@ sealed class ComputeShaderDescription =
 
         ComputeShaderDescription(computeShader)
 
-sealed class Mesh =
+class Mesh =
     implements IDisposable
 
     internal VertexBuffer:   DeviceBuffer get
@@ -314,7 +314,7 @@ sealed class Mesh =
         this.VertexBuffer.Dispose()
         this.IndexBuffer.Dispose()
 
-sealed class Buffer<T> =
+class Buffer<T> =
     implements IDisposable
 
     internal DeviceBuffer: DeviceBuffer get
@@ -331,7 +331,7 @@ sealed class Buffer<T> =
         Graphics.DisposeQueue.Enqueue(this.DeviceBufferCount)
 
 #[null]
-sealed class Texture2D =
+class Texture2D =
     implements IDisposable
 
     internal Texture: Texture get
@@ -344,7 +344,7 @@ sealed class Texture2D =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.Texture)
 
-private sealed class RenderTargetState =
+private class RenderTargetState =
     implements IDisposable
 
     Framebuffer: Framebuffer get
@@ -364,7 +364,7 @@ private sealed class RenderTargetState =
         Graphics.DisposeQueue.Enqueue(this.Texture)
         Graphics.DisposeQueue.Enqueue(this.Framebuffer)
 
-sealed class RenderTarget =
+class RenderTarget =
     implements IDisposable
 
     internal State: RenderTargetState get, set
@@ -377,7 +377,7 @@ sealed class RenderTarget =
     Dispose(): () =
         this.State.Dispose()
 
-sealed class Instances =
+class Instances =
     implements IDisposable
 
     Count: int32 get, set
@@ -392,7 +392,7 @@ sealed class Instances =
     Dispose(): () =
         this.InstanceBuffer.Dispose()
 
-private sealed class ShaderState =
+private class ShaderState =
     internal field VertexShader:   VeldridShader
     internal field FragmentShader: VeldridShader
     internal field Pipeline:       Pipeline
@@ -404,7 +404,7 @@ private sealed class ShaderState =
             Pipeline = pipeline
         }
 
-private sealed class ComputeShaderState =
+private class ComputeShaderState =
     internal field ComputeShader: VeldridShader
     internal field Pipeline:      Pipeline
 
@@ -414,7 +414,7 @@ private sealed class ComputeShaderState =
             Pipeline = pipeline
         }
 
-sealed class Shader =
+class Shader =
     implements IDisposable
 
     internal mutable field State: ShaderState
@@ -429,7 +429,7 @@ sealed class Shader =
         Graphics.DisposeQueue.Enqueue(this.State.FragmentShader)
         Graphics.DisposeQueue.Enqueue(this.State.VertexShader)
 
-sealed class ShaderTextureSet =
+class ShaderTextureSet =
     implements IDisposable
 
     internal mutable field ResourceSet: ResourceSet
@@ -442,7 +442,7 @@ sealed class ShaderTextureSet =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.ResourceSet)
 
-sealed class ShaderInstancesSet =
+class ShaderInstancesSet =
     implements IDisposable
 
     internal mutable field ResourceSet: ResourceSet
@@ -455,7 +455,7 @@ sealed class ShaderInstancesSet =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.ResourceSet)
 
-sealed class BufferSet =
+class BufferSet =
     implements IDisposable
 
     internal mutable field ResourceSet: ResourceSet
@@ -468,7 +468,7 @@ sealed class BufferSet =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.ResourceSet)
 
-sealed class ComputeShader =
+class ComputeShader =
     implements IDisposable
 
     internal mutable field State: ComputeShaderState
@@ -502,7 +502,7 @@ class DrawCommand =
             Kind = kind
         }
 
-    private sealed class SetWindowTarget =
+    private class SetWindowTarget =
         inherits DrawCommand
 
         new() =
@@ -517,7 +517,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.SetWindowTarget>(cmd)
         ()
 
-    private sealed class SetRenderTarget =
+    private class SetRenderTarget =
         inherits DrawCommand
 
         RenderTarget: RenderTarget get
@@ -535,7 +535,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.SetRenderTarget>(cmd)
         impl.RenderTarget
 
-    private sealed class DrawMesh =
+    private class DrawMesh =
         inherits DrawCommand
 
         Mesh:      Mesh get
@@ -557,7 +557,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
-    private sealed class RunComputeShader =
+    private class RunComputeShader =
         inherits DrawCommand
 
         ComputeShader: ComputeShader get
@@ -577,7 +577,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
         (impl.ComputeShader, impl.Instances)
 
-    private sealed class BindTextureSet =
+    private class BindTextureSet =
         inherits DrawCommand
 
         TextureSet: ShaderTextureSet get
@@ -597,7 +597,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.BindTextureSet>(cmd)
         (impl.TextureSet, impl.SetKind)
 
-    private sealed class BindInstancesSet =
+    private class BindInstancesSet =
         inherits DrawCommand
 
         InstancesSet: ShaderInstancesSet get
@@ -617,7 +617,7 @@ class DrawCommand =
         let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
         (impl.InstancesSet, impl.SetKind)
 
-    private sealed class BindBufferSet =
+    private class BindBufferSet =
         inherits DrawCommand
 
         BufferSet: BufferSet get
@@ -648,7 +648,7 @@ alias Key = Veldrid.Key
 
 alias MouseEvent = Veldrid.MouseEvent
 
-sealed class InputState =
+class InputState =
     KeyEvents: KeyEvent[||] get
     MouseEvents: MouseEvent[||] get
     MousePosition: Vector2 get, set
@@ -664,7 +664,7 @@ sealed class InputState =
             snapshot = snapshot
         }
 
-sealed class Window =
+class Window =
     internal field window: Sdl2Window
 
     internal new(x: int32, y: int32, width: int32, height: int32, title: string) =
@@ -720,7 +720,7 @@ sealed class Window =
     Exists: bool
         get() = this.window.Exists
 
-sealed class DisplayMode =
+class DisplayMode =
     Width: uint32 get
     Height: uint32 get
     RefreshRate: uint32 get

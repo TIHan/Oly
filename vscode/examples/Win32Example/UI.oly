@@ -8,7 +8,7 @@ open Evergreen.Graphics
 
 interface IViewModel
 
-sealed class WindowViewModel =
+class WindowViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
@@ -25,7 +25,7 @@ sealed class WindowViewModel =
             this.title <- value
             this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
 
-sealed class ButtonViewModel =
+class ButtonViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
@@ -41,7 +41,7 @@ sealed class ButtonViewModel =
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
-sealed class TextInputViewModel =
+class TextInputViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
@@ -65,21 +65,21 @@ sealed class TextInputViewModel =
             this.text <- value
             let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
 
-sealed class Int32InputViewModel =
+class Int32InputViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     Value: int32 get, set = 0
 
-sealed class CheckboxViewModel =
+class CheckboxViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     IsChecked: bool get, set = false
 
-sealed class ComboBoxViewModel =
+class ComboBoxViewModel =
     implements IViewModel
 
     IsEnabled: bool get, set = true
@@ -93,7 +93,7 @@ class UINode =
     field Tag: int32
     private new(tag: int32) = { Tag = tag }
 
-    internal sealed class Window =
+    internal class Window =
         inherits UINode
 
         State: WindowViewModel get
@@ -109,7 +109,7 @@ class UINode =
         let node = UnsafeCast<UINode.Window>(node)
         (node.State, node.Children)
 
-    internal sealed class Button =
+    internal class Button =
         inherits UINode
 
         State: ButtonViewModel get
@@ -125,7 +125,7 @@ class UINode =
         let node = UnsafeCast<UINode.Button>(node)
         (node.State, node.OnClick)
 
-    internal sealed class TextInput =
+    internal class TextInput =
         inherits UINode
 
         State: TextInputViewModel get
@@ -141,7 +141,7 @@ class UINode =
         let node = UnsafeCast<UINode.TextInput>(node)
         (node.State, node.OnChanged)
 
-    internal sealed class Int32Input =
+    internal class Int32Input =
         inherits UINode
 
         State: Int32InputViewModel get
@@ -157,7 +157,7 @@ class UINode =
         let node = UnsafeCast<UINode.Int32Input>(node)
         (node.State, node.OnChanged)
 
-    internal sealed class Checkbox =
+    internal class Checkbox =
         inherits UINode
 
         State: CheckboxViewModel get
@@ -173,7 +173,7 @@ class UINode =
         let node = UnsafeCast<UINode.Checkbox>(node)
         (node.State, node.OnChanged)
 
-    internal sealed class ComboBox =
+    internal class ComboBox =
         inherits UINode
 
         State: ComboBoxViewModel get

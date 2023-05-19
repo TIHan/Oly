@@ -62,7 +62,7 @@ struct KeyEvent =
     overrides ToString(): string =
         string.Format("(Key = {0}, Flags = {1})", [|this.Key: object;this.Flags|])
 
-sealed class InputSnapshot =
+class InputSnapshot =
     KeyEvents: KeyEvent[] get
     MouseInfo: MouseInfo get
 

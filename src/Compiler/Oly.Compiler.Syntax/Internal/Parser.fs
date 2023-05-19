@@ -2095,29 +2095,31 @@ let tryParseTypeDeclarationKind state =
         SyntaxTypeDeclarationKind.Interface(interfaceToken) |> Some
     | _ ->
 
-    match bt2 ABSTRACT CLASS state with
-    | Some(abstractToken), Some(classToken) ->
-        SyntaxTypeDeclarationKind.AbstractClass(abstractToken, classToken, ep s state) |> Some
-    | Some _, _ ->
-        // We immediately return None as 'abstract' will be picked up when parsing members.
-        // This will back-track.
-        None
+    match bt ABSTRACT state with
+    | Some(abstractToken) ->
+        match bt CLASS state with
+        | Some(classToken) ->
+            SyntaxTypeDeclarationKind.AbstractClass(abstractToken, classToken, ep s state) |> Some
+        | _ ->
+
+        match bt2 DEFAULT CLASS state with
+        | Some(defaultToken), Some(classToken) ->
+            SyntaxTypeDeclarationKind.AbstractDefaultClass(abstractToken, defaultToken, classToken, ep s state) |> Some
+        | _ ->
+            // We immediately return None as 'abstract' and 'abstract default' will be picked up when parsing members.
+            // This will back-track.
+            None
     | _ ->
 
     match bt SEALED state with
     | Some(sealedToken) ->
-        match bt CLASS state with
-        | Some(classToken) ->
-            SyntaxTypeDeclarationKind.SealedClass(sealedToken, classToken, ep s state) |> Some
-        | _ ->
-
         match bt INTERFACE state with
         | Some(interfaceToken) ->
             SyntaxTypeDeclarationKind.SealedInterface(sealedToken, interfaceToken, ep s state) |> Some
         | _ ->
 
-        errorDo(InvalidSyntax("Expected 'class' or 'interface' after 'sealed'."), sealedToken) state
-        SyntaxTypeDeclarationKind.SealedClass(sealedToken, dummyToken(), ep s state) |> Some
+        errorDo(ExpectedTokenAfterToken(Interface, sealedToken.RawToken), sealedToken) state
+        SyntaxTypeDeclarationKind.SealedInterface(sealedToken, dummyToken(), ep s state) |> Some
     | _ ->
 
     match bt MODULE state with

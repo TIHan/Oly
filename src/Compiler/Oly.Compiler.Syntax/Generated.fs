@@ -1994,10 +1994,10 @@ module OlySyntaxTypeDeclarationKind =
         | _ ->
             Option.None
 
-    let (|SealedClass|_|) (node: OlySyntaxTypeDeclarationKind) : ( OlySyntaxToken * OlySyntaxToken ) option =
+    let (|AbstractDefaultClass|_|) (node: OlySyntaxTypeDeclarationKind) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxToken ) option =
         match node.Internal with
-        | SyntaxTypeDeclarationKind.SealedClass _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+        | SyntaxTypeDeclarationKind.AbstractDefaultClass _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
         | _ ->
             Option.None
 

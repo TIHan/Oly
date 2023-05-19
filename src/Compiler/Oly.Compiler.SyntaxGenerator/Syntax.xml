@@ -411,8 +411,9 @@
 		<Field name="abstractToken">SyntaxToken</Field>
 		<Field name="classToken">SyntaxToken</Field>
 	</Case>
-	<Case name="SealedClass">
-		<Field name="sealedToken">SyntaxToken</Field>
+	<Case name="AbstractDefaultClass">
+		<Field name="abstractToken">SyntaxToken</Field>
+		<Field name="defaultToken">SyntaxToken</Field>
 		<Field name="classToken">SyntaxToken</Field>
 	</Case>
     <Case name="Interface">

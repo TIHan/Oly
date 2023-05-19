@@ -3577,13 +3577,13 @@ namespace Test
 
 sealed
 
-sealed class Test1
+sealed interface Test1
         """
     Oly src
     |> withErrorDiagnostics
         [
             "Expected 'type declaration name' after 'type declaration kind'."
-            "Expected 'class' or 'interface' after 'sealed'."
+            "Expected 'interface' after 'sealed'."
         ]
     |> ignore
 
@@ -3595,7 +3595,7 @@ namespace Test
 
 seale
 
-sealed class Test1
+sealed interface Test1
         """
     Oly src
     |> withErrorDiagnostics
@@ -5766,7 +5766,7 @@ let ``Incomplete branch should error 3``() =
         """
 module TestModule<T> =
 
-    sealed class TestClass<U> =
+    class TestClass<U> =
 
         test(): __oly_bool =
             if(true)

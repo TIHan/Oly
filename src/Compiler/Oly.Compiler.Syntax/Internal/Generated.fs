@@ -1742,9 +1742,10 @@ type SyntaxTypeDeclarationKind =
         abstractToken: SyntaxToken *
         classToken: SyntaxToken *
         fullWidth: int
-    | SealedClass
+    | AbstractDefaultClass
         of
-        sealedToken: SyntaxToken *
+        abstractToken: SyntaxToken *
+        defaultToken: SyntaxToken *
         classToken: SyntaxToken *
         fullWidth: int
     | Interface
@@ -1797,10 +1798,11 @@ type SyntaxTypeDeclarationKind =
                 | 0 -> abstractToken :> ISyntaxNode
                 | 1 -> classToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | SealedClass(sealedToken, classToken, _) ->
+            | AbstractDefaultClass(abstractToken, defaultToken, classToken, _) ->
                 match index with
-                | 0 -> sealedToken :> ISyntaxNode
-                | 1 -> classToken :> ISyntaxNode
+                | 0 -> abstractToken :> ISyntaxNode
+                | 1 -> defaultToken :> ISyntaxNode
+                | 2 -> classToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | Interface(interfaceToken) ->
                 match index with
@@ -1841,7 +1843,7 @@ type SyntaxTypeDeclarationKind =
             | Alias _ -> 1
             | Class _ -> 1
             | AbstractClass _ -> 2
-            | SealedClass _ -> 2
+            | AbstractDefaultClass _ -> 3
             | Interface _ -> 1
             | SealedInterface _ -> 2
             | Module _ -> 1
@@ -1859,7 +1861,7 @@ type SyntaxTypeDeclarationKind =
                 (x :> ISyntaxNode).FullWidth
             | AbstractClass(fullWidth=fullWidth) ->
                 fullWidth
-            | SealedClass(fullWidth=fullWidth) ->
+            | AbstractDefaultClass(fullWidth=fullWidth) ->
                 fullWidth
             | Interface(x) ->
                 (x :> ISyntaxNode).FullWidth

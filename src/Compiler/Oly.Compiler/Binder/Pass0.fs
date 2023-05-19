@@ -45,14 +45,14 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
     let flags, kind =
         match syntaxTyKind with
         | OlySyntaxTypeDeclarationKind.Alias _ -> EntityFlags.None, EntityKind.Alias
-        | OlySyntaxTypeDeclarationKind.Class _ -> EntityFlags.None, EntityKind.Class
+        | OlySyntaxTypeDeclarationKind.Class _ -> EntityFlags.Final, EntityKind.Class
         | OlySyntaxTypeDeclarationKind.Interface _ -> EntityFlags.Abstract, EntityKind.Interface
         | OlySyntaxTypeDeclarationKind.Module _ -> EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module
         | OlySyntaxTypeDeclarationKind.Shape _ -> EntityFlags.Abstract, EntityKind.Shape
         | OlySyntaxTypeDeclarationKind.Struct _ -> EntityFlags.Final, EntityKind.Struct
         | OlySyntaxTypeDeclarationKind.Extension _ -> EntityFlags.Final, EntityKind.TypeExtension
         | OlySyntaxTypeDeclarationKind.AbstractClass _ -> EntityFlags.Abstract, EntityKind.Class
-        | OlySyntaxTypeDeclarationKind.SealedClass _ -> EntityFlags.Final, EntityKind.Class
+        | OlySyntaxTypeDeclarationKind.AbstractDefaultClass _ -> EntityFlags.None, EntityKind.Class
         | OlySyntaxTypeDeclarationKind.SealedInterface _ -> EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Interface
         | OlySyntaxTypeDeclarationKind.Enum _ -> EntityFlags.Final, EntityKind.Enum
         | OlySyntaxTypeDeclarationKind.Newtype _ -> EntityFlags.Final, EntityKind.Newtype

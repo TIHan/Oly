@@ -21,7 +21,7 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
-sealed class ExternalProcess =
+class ExternalProcess =
     implements IDisposable
 
     field p: Process
@@ -323,8 +323,6 @@ main(): () =
         imguiContext <- ImGui.CreateContext(window, vulkanApp, swapChain, renderPass)
 
         let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
-
-        ImGui.SetDarkMode(imguiContext)
 
         // Must do this first before NewFrame!
         let fontSize =

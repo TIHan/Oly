@@ -203,7 +203,7 @@ struct PhysicsObject =
     pattern StaticObject(obj: PhysicsObject): StaticObjectId when (obj.tag == 1) =>
         StaticObjectId(obj.objId)
 
-sealed class Physics =
+class Physics =
 
     field ThreadDispatcher: ThreadDispatcher
     field Simulation: Simulation

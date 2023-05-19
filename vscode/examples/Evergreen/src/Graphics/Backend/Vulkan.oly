@@ -48,22 +48,22 @@ alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 alias VkImageAspectFlags = TerraFX.Interop.Vulkan.VkImageAspectFlags
 
-sealed class VulkanSwapChainOutOfDateException =
+class VulkanSwapChainOutOfDateException =
     inherits Exception
 
     internal new() = base()
 
-sealed class VulkanSwapChainCreationFailedException =
+class VulkanSwapChainCreationFailedException =
     inherits Exception
 
     internal new() = base()
 
-sealed class VulkanValidationException =
+class VulkanValidationException =
     inherits Exception
 
     internal new(msg: string) = base(msg)
 
-sealed class VulkanApplication =
+class VulkanApplication =
     ValidationLayersEnabled: bool get
     Instance: VkInstance get
     Surface: VkSurfaceKHR get
@@ -129,7 +129,7 @@ sealed class VulkanApplication =
             Allocator = allocator
         }
 
-sealed class VulkanSwapChainSupportDetails =
+class VulkanSwapChainSupportDetails =
     public field Capabilities: VkSurfaceCapabilitiesKHR
     Formats: VkSurfaceFormatKHR[] get
     PresentModes: VkPresentModeKHR[] get
@@ -141,7 +141,7 @@ sealed class VulkanSwapChainSupportDetails =
             PresentModes = presentModes
         }
 
-sealed class VulkanSwapChain =
+class VulkanSwapChain =
     SwapChain: VkSwapchainKHR get
     Images: VkImage[] get
     ImageViews: VkImageView[] get
@@ -167,11 +167,11 @@ sealed class VulkanSwapChain =
             DepthFormat = depthFormat
         }
 
-sealed class VulkanApplicationOptions =
+class VulkanApplicationOptions =
     MaxFramesInFlight: int32 set, get = 2
     ValidationEnabled: bool set, get = false
 
-    sealed class VulkanDescriptorBindingInfo =
+    class VulkanDescriptorBindingInfo =
         Binding: uint32 get
         DescriptorType: VkDescriptorType get
         StageFlags: VkShaderStageFlags get
@@ -183,7 +183,7 @@ sealed class VulkanApplicationOptions =
                 StageFlags = stageFlags
             }
 
-sealed class VulkanDescriptorBindingInfo =
+class VulkanDescriptorBindingInfo =
     Binding: uint32 get
     DescriptorType: VkDescriptorType get
     StageFlags: VkShaderStageFlags get
@@ -195,7 +195,7 @@ sealed class VulkanDescriptorBindingInfo =
             StageFlags = stageFlags
         }
 
-private sealed class VulkanBuffer =
+private class VulkanBuffer =
     Buffer: VkBuffer get
     Allocation: VmaAllocation get
     Offset: uint64 get
@@ -209,7 +209,7 @@ private sealed class VulkanBuffer =
             Size = size
         }
 
-private sealed class VulkanImage =
+private class VulkanImage =
     Image: VkImage get
     Allocation: VmaAllocation get
     Width: uint32 get
@@ -342,7 +342,7 @@ newtype VulkanCommandBuffer =
 
 //
 
-private sealed class PtrPtrHandle =
+private class PtrPtrHandle =
     implements IDisposable
 
     private mutable field handles: GCHandle[||]

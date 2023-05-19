@@ -141,7 +141,7 @@ internal module Win32 =
             | 192 => Key.Tilde
             | _ => Key.Unknown
 
-internal sealed class Win32Window =
+internal class Win32Window =
     implements IWindow
 
     mutable field title: string

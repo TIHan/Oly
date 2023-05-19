@@ -321,7 +321,7 @@ struct EntityId =
 
     IsNil: bool get() = this.Version == 0
 
-sealed class Archetype<T0> where T0: unmanaged =
+class Archetype<T0> where T0: unmanaged =
     Count: int32 get, set
 
     Lookup: int32[||] get
@@ -344,7 +344,7 @@ sealed class Archetype<T0> where T0: unmanaged =
         this.EntityIds[index] <- entId
         this.Buffer0[index] <- item0
 
-sealed class Archetype<T0, T1> where T0: unmanaged 
+class Archetype<T0, T1> where T0: unmanaged 
                                where T1: unmanaged =
     Count: int32 get, set
 
@@ -371,7 +371,7 @@ sealed class Archetype<T0, T1> where T0: unmanaged
         this.Buffer0[index] <- item0
         this.Buffer1[index] <- item1
 
-sealed class Archetype<T0, T1, T2> where T0: unmanaged 
+class Archetype<T0, T1, T2> where T0: unmanaged 
                                    where T1: unmanaged 
                                    where T2: unmanaged =
     Count: int32 get, set
@@ -402,7 +402,7 @@ sealed class Archetype<T0, T1, T2> where T0: unmanaged
         this.Buffer1[index] <- item1
         this.Buffer2[index] <- item2
 
-sealed class Archetype<T0, T1, T2, T3> where T0: unmanaged 
+class Archetype<T0, T1, T2, T3> where T0: unmanaged 
                                        where T1: unmanaged 
                                        where T2: unmanaged 
                                        where T3: unmanaged =
@@ -439,7 +439,7 @@ sealed class Archetype<T0, T1, T2, T3> where T0: unmanaged
 
 alias Color = Vector4
 
-sealed class World =
+class World =
 
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()

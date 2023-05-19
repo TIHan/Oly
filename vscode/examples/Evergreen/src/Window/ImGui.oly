@@ -280,7 +280,7 @@ private CheckIntializeVulkan(result: VkResult): () =
     if (result != VkResult.VK_SUCCESS)
         fail("Failed to intialize ImGui.")
 
-sealed class ImGuiContext =
+class ImGuiContext =
     internal Context: nint get
     internal Win32Handle: nint get
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
