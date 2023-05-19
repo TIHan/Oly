@@ -56,11 +56,14 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
 
     let mustHaveImpl =
         if mustHaveImpl then
-            if bindingInfo.Value.IsFunction then
+            let mustHaveImpl = 
+                (not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract)) ||
+                (memberFlags &&& MemberFlags.Sealed = MemberFlags.Sealed)
+
+            if mustHaveImpl && bindingInfo.Value.IsFunction then
                 match enclosing with
                 | EnclosingSymbol.Entity(ent) ->
-                    not ent.IsShape && 
-                    not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract) && 
+                    (not ent.IsShape && (ent.IsInterface || (not ent.IsAbstract || ent.IsSealed))) &&
                     not (attributesContainImport attrs) && 
                     not (attributesContainIntrinsic attrs)
                 | _ ->

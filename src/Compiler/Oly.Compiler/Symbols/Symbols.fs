@@ -1597,6 +1597,7 @@ type MemberFlags =
     | NewSlot =             0x00001010
 
     /// A member that cannot be overriden.
+    /// TODO: Rename to 'Final'.
     | Sealed =              0x00010000
 
     /// Instance (not static) member
@@ -4471,6 +4472,7 @@ module SymbolExtensions =
             member this.IsClass =
                 this.Kind = EntityKind.Class
 
+            /// TODO: Rename to IsFinal.
             member this.IsSealed =
                 this.Flags &&& EntityFlags.Final = EntityFlags.Final
                 

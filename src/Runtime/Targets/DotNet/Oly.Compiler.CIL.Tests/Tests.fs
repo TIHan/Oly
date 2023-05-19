@@ -15048,3 +15048,33 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "Test_T_Test_int32_123"
     |> ignore
+
+[<Fact>]
+let ``Abstract class should work``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class C1 =
+
+   abstract default M(): () = ()
+
+   abstract M2(): ()
+
+class C2 =
+   inherits C1
+
+   overrides M2(): () = print("M")
+
+test(x: C1): () =
+   x.M2()
+
+main(): () =
+   let c2 = C2()
+   test(c2)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "M"
+    |> ignore

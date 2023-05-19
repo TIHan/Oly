@@ -2153,7 +2153,7 @@ let bindValueModifiersAndKindAsMemberFlags
                     else
                         MemberFlags.Virtual ||| MemberFlags.NewSlot ||| MemberFlags.Instance
                 else
-                    if isExplicitAbstract then
+                    if isExplicitAbstract && (not enclosing.IsAbstract || enclosing.IsFinal) then
                         cenv.diagnostics.Error("Members cannot be abstract without a default implemenation. Remove 'abstract' or add 'default'.", 10, syntaxValueDeclKind)
 
                     if isExplicitDefault then
@@ -2162,11 +2162,15 @@ let bindValueModifiersAndKindAsMemberFlags
                     if isExplicitStatic then
                         if isExplicitOverrides then
                             MemberFlags.Sealed ||| MemberFlags.Virtual ||| MemberFlags.ExplicitOverrides
+                        elif isExplicitAbstract then
+                            MemberFlags.Abstract
                         else
                             MemberFlags.None
                     else
                         if isExplicitOverrides then
                             MemberFlags.Virtual ||| MemberFlags.Instance ||| MemberFlags.ExplicitOverrides
+                        elif isExplicitAbstract then
+                            MemberFlags.Abstract ||| MemberFlags.NewSlot ||| MemberFlags.Instance
                         else
                             MemberFlags.Instance
 
