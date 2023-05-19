@@ -1811,7 +1811,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
         // Check constructor to ensure fields are set.
         match env.isInInstanceConstructorType with
         | Some(enclosingTy) ->
-            checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) enclosingTy expr
+            checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture enclosingTy expr
         | _ ->
             ()
 

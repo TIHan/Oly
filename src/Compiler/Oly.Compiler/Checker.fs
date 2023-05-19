@@ -458,7 +458,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
         let bindingInfo = BindingLocalFunction(func)
         bindingInfo
 
-and checkConstructorFieldAssignments (env: SolverEnvironment) (enclosingTy: TypeSymbol) (setFieldsExpr: BoundExpression) =
+and checkConstructorFieldAssignments (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (enclosingTy: TypeSymbol) (setFieldsExpr: BoundExpression) =
     let canCheck =
         match setFieldsExpr with
         | BoundExpression.Call(value=value) when value.IsBase && value.IsFunction -> true
@@ -476,7 +476,7 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (enclosingTy: Type
         expectedFieldSet
         |> Seq.sort
         |> Seq.iter (fun fieldName ->
-            env.diagnostics.Error($"Field '{fieldName}' not assigned.", 10, setFieldsExpr.Syntax)
+            env.diagnostics.Error($"Field '{fieldName}' not assigned.", 10, syntaxNode)
         )
 
 and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression) (value: IValueSymbol) =
