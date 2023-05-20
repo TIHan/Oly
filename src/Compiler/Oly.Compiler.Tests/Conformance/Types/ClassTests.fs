@@ -19,7 +19,7 @@ class A =
 let ``Class 2``() =
     let src =
         """
-class A =
+abstract class A =
     field value: __oly_int32 = 0
 
 class B =
@@ -69,7 +69,7 @@ let ``Class 5 - should fail``() =
 interface IA =
     value(): __oly_int32
 
-class A =
+abstract class A =
     value(): __oly_int32 = 1
 
 class B =
@@ -481,7 +481,7 @@ test() : () =
 let ``Class inherits class``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -503,7 +503,7 @@ test() : () =
 let ``Class inherits class - base ctor should pass``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -527,7 +527,7 @@ test() : () =
 let ``Class inherits class - base ctor should pass 2``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -551,7 +551,7 @@ test() : () =
 let ``Class inherits class - should as forgot to assign field y ``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -577,7 +577,7 @@ test() : () =
 let ``Class inherits class - base ctor should fail if not the last thing called``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -603,7 +603,7 @@ test() : () =
 let ``Class inherits class should fail and must call super``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -658,7 +658,7 @@ test() : () =
 let ``Class inherits class with virtual function``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -682,7 +682,7 @@ test() : () =
 let ``Class inherits class with function should error as function is non-virtual by default``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -708,7 +708,7 @@ test() : () =
 let ``Class inherits class with function should error as function has same name as one of its super class' function``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -734,7 +734,7 @@ test() : () =
 let ``Class inherits class with function should compile as function has same name as one of its super class' function will hide using the 'new' keyword``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 
@@ -758,7 +758,7 @@ test() : () =
 let ``Class inherits class with virtual function should compile as function has same name as one of its super class' function will hide using the 'new' keyword``() =
     let src =
         """
-class Class1 =
+abstract class Class1 =
 
     field x: __oly_int32
 

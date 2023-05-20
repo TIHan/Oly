@@ -1841,7 +1841,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, name, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum
-            let isReadOnly = flags &&& OlyIRTypeFlags.ReadOnly = OlyIRTypeFlags.ReadOnly
+            let isReadOnly = flags.IsReadOnly
 
             let isNestedInExternalType =
                 match enclosing with
@@ -1891,7 +1891,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitTypeDefinition(enclosing, kind, flags, name, irTyPars, extends, implements, irAttrs, runtimeTyOpt) =
             let name =
-                if flags &&& OlyIRTypeFlags.GenericsErased = OlyIRTypeFlags.GenericsErased then
+                if flags.IsGenericsErased then
                     name + newUniquePrivateTypeName()
                 else
                     name
@@ -1900,9 +1900,11 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let isStruct = kind = OlyILEntityKind.Struct
             let isEnum = kind = OlyILEntityKind.Enum
             let isNewtype = kind = OlyILEntityKind.Newtype
-            let isReadOnly = flags &&& OlyIRTypeFlags.ReadOnly = OlyIRTypeFlags.ReadOnly
+            let isReadOnly = flags.IsReadOnly 
             let isInterface = kind = OlyILEntityKind.Interface
             let isTypeExtension = kind = OlyILEntityKind.TypeExtension
+            let isAbstract = flags.IsAbstract
+            let isFinal = flags.IsFinal
 
             let enumRuntimeTyOpt =
                 if isEnum then
@@ -1927,7 +1929,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     else
                         extends
 
-            let isExported = flags.HasFlag(OlyIRTypeFlags.Exported)
+            let isExported = flags.IsExported
 
             let enclosingTyHandle, namespac = getEnclosingInfo enclosing
 
@@ -1990,12 +1992,24 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                             | _ ->
                                 TypeAttributes.SequentialLayout
 
-                    layout ||| TypeAttributes.Sealed ||| TypeAttributes.BeforeFieldInit
+                    layout ||| TypeAttributes.BeforeFieldInit
                 elif isInterface then
                     tyDefBuilder.BaseType <- ClrTypeHandle.Empty
-                    TypeAttributes.Interface ||| TypeAttributes.Abstract
+                    TypeAttributes.Interface
                 else
                     TypeAttributes.Class ||| TypeAttributes.BeforeFieldInit
+
+            let tyAttrs =
+                if isAbstract then
+                    tyAttrs ||| TypeAttributes.Abstract
+                else
+                    tyAttrs
+
+            let tyAttrs =
+                if isFinal then
+                    tyAttrs ||| TypeAttributes.Sealed
+                else
+                    tyAttrs
 
             let tyAttrs =
                 match enclosing with

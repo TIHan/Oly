@@ -1952,17 +1952,17 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         this.EmitType(x)
                     )
 
-                let flags =
+                let tyFlags =
                     if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
-                        OlyIRTypeFlags.GenericsErased
+                        RuntimeTypeFlags.GenericsErased
                     else
-                        OlyIRTypeFlags.None
+                        RuntimeTypeFlags.None
 
-                let flags =
+                let tyFlags =
                     if tyDef.IsExported then
-                        flags ||| OlyIRTypeFlags.Exported
+                        tyFlags ||| RuntimeTypeFlags.Exported
                     else
-                        flags
+                        tyFlags
 
                 match emitted.TryGetValue tyDef.TypeArguments with
                 | ValueSome res -> res
@@ -1976,6 +1976,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         emitAttributes ilAsm ent.Attributes
                     | _ ->
                         ImArray.empty
+
+                let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
 
                 let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
                 emitted.[tyDef.TypeArguments] <- res
@@ -2132,7 +2134,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let tyParCount = ty.TypeParameters.Length
 
                 // TODO: Read-only?
-                let flags = OlyIRTypeFlags.None
+                let tyFlags = RuntimeTypeFlags.None
+                let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
 
                 let res = this.Emitter.EmitExternalType(externalPlatform, externalPath, externalName, enclosingChoice, ilEntDef.Kind, flags, ty.Name, tyParCount)
                 emitted.[ImArray.empty] <- res

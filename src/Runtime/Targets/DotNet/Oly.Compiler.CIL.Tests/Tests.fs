@@ -4498,7 +4498,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class Test1 =
+abstract class Test1 =
 
     new() = {}
 
@@ -4542,7 +4542,7 @@ alias float32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class Test1 =
+abstract class Test1 =
 
     new() = {}
 
@@ -4582,7 +4582,7 @@ alias float32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class Test1 =
+abstract class Test1 =
 
     new() = {}
 
@@ -8628,7 +8628,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A =
+abstract class A =
 
     field x: int32
 
@@ -8664,7 +8664,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A =
+abstract class A =
 
     field x: int32
 
@@ -8698,13 +8698,13 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A =
+abstract class A =
 
     new() = { }
 
     abstract default test(): int32 = 1
 
-class B =
+abstract class B =
     inherits A
 
     new() = 
@@ -8741,13 +8741,13 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A =
+abstract class A =
 
     new() = { }
 
     abstract default test(): int32 = 1
 
-class B =
+abstract class B =
     inherits A
 
     new() = 
@@ -8906,7 +8906,7 @@ interface ITest =
 
     x(): int32
 
-class Test1 =
+abstract class Test1 =
     abstract default x(): int32 = 123
 
     new() = { }
@@ -14980,7 +14980,7 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A<T> =
+abstract class A<T> =
 
     abstract default Test(x: T): () =
         print("failed_T")
@@ -15017,7 +15017,7 @@ alias string
 #[intrinsic("print")]
 print(__oly_object): ()
 
-class A<T> =
+abstract class A<T> =
 
     abstract default Test(x: T): () =
         print("Test_T_")

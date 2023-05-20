@@ -189,7 +189,7 @@ Test<T>(): () = ()
 let ``Should not compile 5``() =
     let src =
         """
-class A =
+abstract class A =
 
     a(): () = ()
 
@@ -218,7 +218,7 @@ class B =
 
     a(): () = ()
 
-class A =
+abstract class A =
 
     a(): () = ()
         """
@@ -1405,7 +1405,7 @@ let ``Generic class that handles functions that have ambiguity should error``() 
 #[intrinsic("int32")]
 alias int32
 
-class A<T, U> =
+abstract default class A<T, U> =
 
     abstract default Test(x: T): () = ()
 
@@ -1439,7 +1439,7 @@ let ``Generic class that handles functions that have ambiguity should not error`
 #[intrinsic("int32")]
 alias int32
 
-class A<T, U> =
+abstract default class A<T, U> =
 
     abstract default Test(x: T): () = ()
 

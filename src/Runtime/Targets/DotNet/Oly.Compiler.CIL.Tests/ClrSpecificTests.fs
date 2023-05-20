@@ -1530,7 +1530,7 @@ let ``Implicit default ctors should output correctly``() =
         """
 open System
 
-class Test =
+abstract class Test =
 
    public mutable field X: Int32 =
       let x = 123
@@ -4172,7 +4172,7 @@ namespace TestNamespace
 open System
 
 #[export]
-class A<T> =
+abstract class A<T> =
 
     #[export]
     abstract default Test(x: T): () =

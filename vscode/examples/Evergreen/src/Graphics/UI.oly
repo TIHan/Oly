@@ -61,7 +61,7 @@ class ComboBoxViewModel =
     public mutable field Items: string[||] = [||]
     public mutable field ItemCount: int32 = 0
 
-class UINode =
+abstract class UINode =
 
     field Tag: int32
     private new(tag: int32) = { Tag = tag }

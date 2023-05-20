@@ -128,6 +128,8 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                 cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." ent.Name ent.Name, 10, syntaxNode)
             elif inheritCount > 1 then
                 cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxNode)
+            elif inheritCount = 1 && extends[0].IsSealed then
+                cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is sealed and cannot be inherited.", 10, syntaxNode)
 
         (* BEGIN NEWTYPE LOGIC *)
         let extends, implements =

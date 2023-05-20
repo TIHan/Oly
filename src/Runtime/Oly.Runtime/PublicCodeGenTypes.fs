@@ -71,7 +71,7 @@ type OlyIRArrayKind =
     | Mutable
 
 // TODO: Rename this to RuntimeTypeFlags?
-type OlyIRTypeFlags =
+type internal RuntimeTypeFlags =
     | None =           0x000000000
     | ReadOnly =       0x000000001
     | GenericsErased = 0x000000010
@@ -95,6 +95,18 @@ type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray,
     member _.Path = path
 
     member _.Name = name
+
+type OlyIRTypeFlags internal (ilEntFlags: OlyILEntityFlags, tyFlags: RuntimeTypeFlags) =
+
+    member _.IsGenericsErased = tyFlags &&& RuntimeTypeFlags.GenericsErased = RuntimeTypeFlags.GenericsErased
+
+    member _.IsReadOnly = tyFlags &&& RuntimeTypeFlags.ReadOnly = RuntimeTypeFlags.ReadOnly
+
+    member _.IsExported = tyFlags &&& RuntimeTypeFlags.Exported = RuntimeTypeFlags.Exported
+
+    member _.IsAbstract = ilEntFlags &&& OlyILEntityFlags.Abstract = OlyILEntityFlags.Abstract
+
+    member _.IsFinal = ilEntFlags &&& OlyILEntityFlags.Final = OlyILEntityFlags.Final
 
 [<Struct>]
 type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, funcFlags: RuntimeFunctionFlags) =

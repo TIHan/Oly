@@ -817,7 +817,7 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
                 ()
         )
 
-        if value.Enclosing.IsAbstract && value.IsConstructor then
+        if value.Enclosing.IsAbstract && value.IsConstructor && not value.IsBase then
             env.diagnostics.Error(sprintf "The constructor call is not allowed as the enclosing type '%s' is abstract." (printEnclosing env.benv value.Enclosing), 10, syntaxNode)
 
         if not isReturnable && value.IsInstanceConstructor && value.IsBase then

@@ -6049,7 +6049,7 @@ class Test2 =
 let ``Regression - should get right symbol signature when inheriting 2``() =
     let src =
         """
-class Test
+abstract class Test
 
 class Test2 =
     inherits Test
@@ -6066,7 +6066,7 @@ let ``Regression - should get error due to inheriting itself``() =
         """
 class Test
 
-class Test2 =
+abstract class Test2 =
     inherits Test2
         """
     Oly src
@@ -6082,10 +6082,10 @@ let ``Regression - should get error due to inheriting itself 2``() =
         """
 class Test
 
-class Test2 =
+abstract class Test2 =
     inherits Test3
 
-class Test3 =
+abstract class Test3 =
     inherits Test2
         """
     Oly src

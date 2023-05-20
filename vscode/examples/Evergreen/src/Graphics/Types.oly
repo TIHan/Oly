@@ -494,7 +494,7 @@ enum BindResourceSetKind =
     | Graphics
     | Compute
 
-class DrawCommand =
+abstract class DrawCommand =
     Kind: DrawCommandKind get
 
     new(kind: DrawCommandKind) =
