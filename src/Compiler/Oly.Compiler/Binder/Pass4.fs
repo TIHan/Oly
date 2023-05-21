@@ -349,13 +349,13 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
         // At the moment they do because the builder adds them in order.
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
     else
-        // TODO: Add checks for inherited types
-        ent.AllLogicalInheritsAndImplements
-        |> filterTypesAsAbstract
-        |> filterMostSpecificTypes
-        |> ImArray.iter (fun super ->
-            checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super boundExpr
-        )
+        if not ent.IsAlias && not ent.IsShape then
+            ent.AllLogicalInheritsAndImplements
+            |> filterTypesAsAbstract
+            |> filterMostSpecificTypes
+            |> ImArray.iter (fun super ->
+                checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super boundExpr
+            )
 
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
