@@ -1472,6 +1472,10 @@ let filterTypesAsInterfaces (tys: TypeSymbol imarray) =
     tys
     |> ImArray.filter (fun x -> x.IsInterface)
 
+let filterTypesAsAbstract (tys: TypeSymbol imarray) =
+    tys
+    |> ImArray.filter (fun x -> x.IsAbstract)
+
 let filterMostSpecificTypes (tys: TypeSymbol imarray) =
     tys
     |> ImArray.filter (fun ty1 ->

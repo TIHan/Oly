@@ -341,8 +341,6 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
 
     let boundExpr = bindTypeDeclarationBodyPass4 cenv envBody entBuilder entBuilder.NestedEntityBuilders bindingInfos syntaxTyDeclBody
 
-    let implements = ent.Implements
-
     // Interfaces
     if ent.IsInterface then
         checkInterfaceDefinition (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent
@@ -353,7 +351,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
     else
         // TODO: Add checks for inherited types
         ent.AllLogicalInheritsAndImplements
-        |> filterTypesAsInterfaces
+        |> filterTypesAsAbstract
         |> filterMostSpecificTypes
         |> ImArray.iter (fun super ->
             checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super boundExpr

@@ -371,10 +371,13 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
         let possibleFuncs = 
             ty.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None, func.Name)
             |> Seq.filter (fun x ->
-                if x.IsVirtual then
-                    match x.FunctionOverrides with
-                    | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
-                    | _ -> areLogicalFunctionSignaturesEqual x func
+                if x.Id <> func.Id then
+                    if x.IsVirtual then
+                        match x.FunctionOverrides with
+                        | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
+                        | _ -> areLogicalFunctionSignaturesEqual x func
+                    else
+                        false
                 else
                     false
             )

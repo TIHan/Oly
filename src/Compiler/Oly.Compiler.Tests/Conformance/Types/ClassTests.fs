@@ -863,3 +863,38 @@ class A =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Abstract class should error with missing override``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class C1 =
+
+   abstract default M(): () = ()
+
+   abstract M2(): ()
+
+class C2 =
+   inherits C1
+
+test(x: C1): () =
+   x.M2()
+
+main(): () =
+   let c2 = C2()
+   test(c2)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'M2(): ()' is not implemented for 'C1' on 'C2'.",
+                """
+class C2 =
+      ^^
+"""
+            )
+        ]
+    |> ignore

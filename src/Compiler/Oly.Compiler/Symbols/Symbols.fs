@@ -3418,6 +3418,11 @@ type TypeSymbol =
         | ValueSome ent -> ent.IsInterface
         | _ -> false
 
+    member this.IsAbstract =
+        match this.TryEntity with
+        | ValueSome ent -> ent.IsAbstract
+        | _ -> false
+
     /// Returns true if the type is a class type.
     member this.IsClass =
         match stripTypeEquations this with
