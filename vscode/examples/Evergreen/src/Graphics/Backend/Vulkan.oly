@@ -47,6 +47,9 @@ alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
 alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 alias VkImageAspectFlags = TerraFX.Interop.Vulkan.VkImageAspectFlags
+alias VkFramebuffer = TerraFX.Interop.Vulkan.VkFramebuffer
+alias VkPipeline = TerraFX.Interop.Vulkan.VkPipeline
+alias VkRenderPass = TerraFX.Interop.Vulkan.VkRenderPass
 
 class VulkanSwapChainOutOfDateException =
     inherits Exception
@@ -88,10 +91,12 @@ class VulkanApplication =
     Allocator: VmaAllocator get
 
     internal mutable field currentFrame: int32
+    internal mutable field previousFrame: int32
     internal mutable field framebufferResized: bool
 
     MaxFramesInFlight: int32 get() = this.InFlightFences.Length
     CurrentFrame: int32 get() = this.currentFrame
+    PreviousFrame: int32 get() = this.previousFrame
 
     GetDeviceName(): string =
         let mutable deviceProperties = default
@@ -125,6 +130,7 @@ class VulkanApplication =
             RenderFinishedSemaphores = renderFinishedSemaphores
             InFlightFences = inFlightFences
             currentFrame = 0
+            previousFrame = 0
             framebufferResized = false
             Allocator = allocator
         }
@@ -830,6 +836,7 @@ module Vk =
             else if (result != VkResult.VK_SUCCESS)
                 fail("Failed to present.")
 
+            app.previousFrame <- currentFrame
             app.currentFrame <- (app.currentFrame + 1) % app.InFlightFences.Length
 
     WaitForIdle(app: VulkanApplication): () =

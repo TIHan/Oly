@@ -197,7 +197,7 @@ main(): () =
 
     let vulkanAppOptions = VulkanApplicationOptions()
     vulkanAppOptions.ValidationEnabled <- true
-    vulkanAppOptions.MaxFramesInFlight <- 1
+    vulkanAppOptions.MaxFramesInFlight <- 2
     let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
     let testImage = createImage(vulkanApp, "GameExample/Textures/flats/aqf068.png")

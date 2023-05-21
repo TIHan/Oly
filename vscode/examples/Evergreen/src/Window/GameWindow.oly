@@ -1,0 +1,320 @@
+namespace Evergreen.Window.Game
+
+open System
+open System.IO
+open System.Numerics
+open System.Diagnostics
+open System.Runtime.InteropServices
+open System.Collections.Generic
+open System.Collections.Concurrent
+open Evergreen
+open Evergreen.Window
+open Evergreen.Graphics.Backend.Vulkan
+open Evergreen.UI
+
+enum GpuShaderStage =
+    | Vertex
+    | Fragment
+    | Compute
+
+enum GpuArrayKind =
+    | Uniform
+    | Vertex
+    | Index
+
+interface IGpuArray =
+
+    internal Buffers: VulkanBuffer[||] get, set
+    DataSize: uint64 get
+    IsDirty: bool get
+    Stage: GpuShaderStage get
+    Kind: GpuArrayKind get
+    Length: int32 get
+
+    internal Update(vk: VulkanApplication, frame: int32): ()
+
+class GpuSharedArray<T> where T: unmanaged =
+    implements IGpuArray
+
+    internal Buffers: VulkanBuffer[||] get, set  
+    DataSize: uint64 get
+    IsDirty: bool get, private set
+    Stage: GpuShaderStage get
+    Kind: GpuArrayKind get
+    Length: int32 get() = this.bufferData.Length
+
+    private Update(vk: VulkanApplication, frame: int32): () =
+        let buffer = this.Buffers[frame]
+        Vk.UpdateBuffer(vk, buffer, this.bufferData)
+
+    field bufferData: T[||]  
+
+    internal new(stage: GpuShaderStage, kind: GpuArrayKind, bufferData: T[||]) =
+        {
+            Stage = stage
+            DataSize = uint64(sizeof<T>)
+            Kind = kind
+            bufferData = bufferData
+            Buffers = [||]
+            IsDirty = true
+        }
+
+    get_Item(index: int32): T =
+        this.bufferData[index]
+
+    set_Item(index: int32, value: T): () =
+        this.IsDirty <- true
+        this.bufferData[index] <- value
+
+    AsSpan(): Span<T> =
+        this.IsDirty <- true
+        Span(this.bufferData)
+
+    AsReadOnlySpan(): ReadOnlySpan<T> =
+        ReadOnlySpan(this.bufferData)
+
+    static Initialize(stage: GpuShaderStage, kind: GpuArrayKind, size: int32, f: int32 -> T): GpuSharedArray<T> =
+        let bufferData = Array.InitializeMutable(size, f)
+        GpuSharedArray(stage, kind, bufferData)
+
+class Gpu =
+    implements IDisposable
+
+    private struct DelayedArrayUploadInfo =
+        Frame: int32 get
+        GpuArray: IGpuArray get
+
+        new(frame: int32, gpuArray: IGpuArray) =
+            {
+                Frame = frame
+                GpuArray = gpuArray
+            }
+
+    field window: IWindow
+    field vk: VulkanApplication
+    field vkCmdBuffers: VulkanCommandBuffer[||]
+    field delayedArrayUpload: ConcurrentQueue<Gpu.DelayedArrayUploadInfo>
+
+    mutable field imguiContext: ImGui.ImGuiContext // can be null
+    mutable field swapChain: VulkanSwapChain
+    mutable field swapChainFramebuffers: VkFramebuffer[]
+    mutable field graphicsPipeline: VkPipeline
+    mutable field renderPass: VkRenderPass
+
+    new(window: IWindow, vk: VulkanApplication) =
+        let vkCmdBuffers =
+            let vkCmdBuffers = Array.ZeroCreate(vk.MaxFramesInFlight)
+            let mutable i = 0
+            while (i < vkCmdBuffers.Length)
+                vkCmdBuffers[i] <- Vk.CreateGraphicsCommandBuffer(vk)
+                i <- i + 1
+            vkCmdBuffers
+        {
+            window = window       
+            vk = vk
+            vkCmdBuffers = vkCmdBuffers
+            delayedArrayUpload = ConcurrentQueue()
+
+            imguiContext = unchecked default
+            swapChain = unchecked default
+            swapChainFramebuffers = unchecked default
+            graphicsPipeline = unchecked default
+            renderPass = unchecked default
+        }
+
+    Upload(gpuArray: IGpuArray): () =
+        if (gpuArray.IsDirty)
+            if (gpuArray.Buffers.Length == 0)
+                let usageFlags =
+                    match (gpuArray.Kind)
+                    | GpuArrayKind.Uniform => 
+                        VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+                    | GpuArrayKind.Vertex =>
+                        VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+                    | GpuArrayKind.Index =>
+                        VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+                    | _ =>
+                        fail("Invalid 'GpuArrayKind'.")
+
+                let usageFlags = usageFlags | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT
+
+                gpuArray.Buffers <-
+                    Array.InitializeMutable(this.vk.MaxFramesInFlight, 
+                        i ->
+                            Vk.CreateBuffer(
+                                this.vk,
+                                gpuArray.DataSize,
+                                usageFlags,
+                                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+                            )
+                    )
+
+                let mutable i = 0
+                while (i < this.vk.MaxFramesInFlight)
+                    gpuArray.Update(this.vk, i)
+                    i <- i + 1
+            else
+                let mutable i = 0
+                while (i < this.vk.MaxFramesInFlight)
+                    if (this.vk.PreviousFrame == i)
+                        this.delayedArrayUpload.Enqueue(Gpu.DelayedArrayUploadInfo(i, gpuArray))
+                    else
+                        gpuArray.Update(this.vk, i)
+                    i <- i + 1
+
+    Draw(uiNode: UINode): () =
+        if (this.swapChain === unchecked default)
+            this.RecreateSwapChain()
+            this.window.Show()
+
+        let draw(swapChain: VulkanSwapChain) =
+            try
+                UI.Update(this.imguiContext, uiNode)
+
+                Vk.Draw(this.vk, swapChain, 
+                    (framebufferIndex, frame) -> 
+                        let framebuffer = this.swapChainFramebuffers[framebufferIndex]
+                        let extent = swapChain.Extent
+                        let viewport = swapChain.Viewport
+                        let scissor = swapChain.Scissor
+
+                        //
+                        let commandBuffer = this.vkCmdBuffers[frame]
+
+                        Vk.ResetCommandBuffer(this.vk, commandBuffer)
+
+                        commandBuffer.Begin()
+                        commandBuffer.BeginRenderPass(this.renderPass, framebuffer, extent)
+
+                        ImGui.Draw(this.imguiContext, commandBuffer, TerraFX.Interop.Vulkan.VkPipeline.NULL)
+
+                        commandBuffer.EndRenderPass()
+                        commandBuffer.End()
+
+                        commandBuffer
+                )
+            catch (ex: VulkanSwapChainOutOfDateException) =>
+                let size = this.window.Size
+                if (!this.window.IsClosed && size.X != 0 && size.Y != 0)
+                    Vk.WaitForIdle(this.vk)
+                    this.CleanupSwapChain()
+                    try
+                        this.RecreateSwapChain()
+                    catch (ex: VulkanSwapChainCreationFailedException) =>
+                        // swap-chain failed to create, bail out of application
+                        ()
+
+        let mutable info = default
+        while (this.delayedArrayUpload.TryDequeue(&info))
+            info.GpuArray.Update(this.vk, info.Frame)
+            
+    private RecreateSwapChain(): () =
+        let vulkanApp = this.vk
+        Vk.ResetCurrentFrame(vulkanApp)
+        this.swapChain <- Vk.CreateSwapChain(vulkanApp, VkFormat.VK_FORMAT_B8G8R8A8_UNORM)
+        this.renderPass <- Vk.CreateRenderPass(vulkanApp, this.swapChain)
+        this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.renderPass)
+        this.imguiContext <- ImGui.CreateContext(this.window, vulkanApp, this.swapChain, this.renderPass)
+
+        let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
+
+        // Must do this first before NewFrame!
+        let fontSize =
+            let size = this.window.Size
+            let ratio = (size.Y / 720)
+            ratio * 16
+        //fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
+        ImGui.UploadFonts(this.imguiContext, vulkanApp.GraphicsCommandPool, this.vkCmdBuffers[0])
+
+        // let bindingDescs = [Vk.CreateVertexBindingDescription<Vertex>(0, false)]
+        // let attrDescs = Vk.CreateVertexAttributeDescriptions<Vertex>(0)
+        // graphicsPipeline <- 
+        //     Vk.CreateGraphicsPipeline(
+        //         vulkanApp, 
+        //         swapChain, 
+        //         bindingDescs, 
+        //         attrDescs, 
+        //         pipelineLayout, 
+        //         renderPass, 
+        //         VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
+        //         VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
+        //         vertexShaderModule, 
+        //         fragmentShaderModule
+        //     )
+
+        GC.Collect(2, GCCollectionMode.Forced, true)
+
+    private CleanupSwapChain(): () =
+        if (this.swapChain !== unchecked default)
+            ImGui.DestroyContext(this.imguiContext)
+            Vk.DestroyPipeline(this.vk, this.graphicsPipeline)
+            Vk.DestroyFramebuffers(this.vk, this.swapChainFramebuffers)   
+            Vk.DestroyRenderPass(this.vk, this.renderPass)
+            Vk.DestroySwapChain(this.vk, this.swapChain)
+            this.swapChain <- unchecked default
+
+    Dispose(): () =
+        Vk.WaitForIdle(this.vk)
+
+        // TODO: Cleanup buffers
+        // Vk.DestroyBuffer(vulkanApp, vertexBuffer)
+        // Vk.DestroyBuffer(vulkanApp, indexBuffer)
+
+        this.CleanupSwapChain()
+
+        // TODO: Cleanup descriptors
+        // TODO: Cleanup shader modules
+        // TODO: Cleanup samplers
+        // TODO: Cleanup image views
+        // TODO: Cleanup image
+      //  Vk.DestroyDescriptorSetLayout(vulkanApp, setLayout)
+        
+      //  Vk.DestroyPipelineLayout(vulkanApp, pipelineLayout)
+
+      //  Vk.DestroyDescriptorPool(vulkanApp, descriptorPool)
+
+      //  Vk.DestroyShaderModule(vulkanApp, vertexShaderModule)
+      //  Vk.DestroyShaderModule(vulkanApp, fragmentShaderModule)
+
+      //  Vk.DestroySampler(vulkanApp, testSampler)
+      //  Vk.DestroyImageView(vulkanApp, testImageView)
+      //  Vk.DestroyImage(vulkanApp, testImage)
+
+        Vk.Destroy(this.vk)
+
+class GameWindowOptions =
+    Title: string get, set = "Game Window"
+    InitialSize: Vector2 get, set = Vector2(1280, 720)
+
+class GameWindow =
+    implements IDisposable
+
+    field window: IWindow
+    field gpu: Gpu
+
+    private new(window: IWindow, gpu: Gpu) =
+        {
+            window = window
+            gpu = gpu
+        }
+
+    static Create(options: GameWindowOptions): GameWindow =
+        // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
+        Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
+        
+        let window = IWindow.CreateWin32(options.Title, Vector2(0, 0), options.InitialSize)
+
+        let vulkanAppOptions = VulkanApplicationOptions()
+        vulkanAppOptions.ValidationEnabled <- true
+        vulkanAppOptions.MaxFramesInFlight <- 2
+        let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
+
+        let gpu = Gpu(window, vulkanApp)
+        GameWindow(window, gpu)
+
+    Draw(uiNode: UINode): () =
+        this.gpu.Draw(uiNode)
+
+    Dispose(): () =
+        this.gpu.Dispose()
+        this.window.Dispose()

@@ -3,14 +3,11 @@ module Evergreen.ImGui
 open System
 open Evergreen.Window
 open System.Numerics
-open Evergreen.Graphics.Backend.Vulkan
 open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 open TerraFX.Interop.Windows
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
-
-private alias VkDescriptorType = Evergreen.Graphics.Backend.Vulkan.VkDescriptorType
 
 alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> int32
 
@@ -292,7 +289,7 @@ class ImGuiContext =
             VulkanInfo = info
         }
 
-CreateContext(window: IWindow, app: VulkanApplication, swapChain: VulkanSwapChain, renderPass: VkRenderPass): ImGuiContext =
+CreateContext(window: IWindow, app: Evergreen.Graphics.Backend.Vulkan.VulkanApplication, swapChain: Evergreen.Graphics.Backend.Vulkan.VulkanSwapChain, renderPass: VkRenderPass): ImGuiContext =
     let context = igCreateContext(nullptr)
 
     let io = &igGetIO()
