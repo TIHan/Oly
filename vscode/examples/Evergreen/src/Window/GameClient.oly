@@ -91,7 +91,19 @@ class GpuImage =
             IsDirty = true
             VulkanImage = unchecked default
             VkImageView = default
-        }  
+        }
+
+class GpuProgram =
+    IsDirty: bool get, internal set
+    internal VkShaderModules: VkShaderModule[||] get
+    internal VkPipeline: VkPipeline get
+
+    new() =
+        {
+            IsDirty = true
+            VkShaderModules = [||]
+            VkPipeline = default
+        }
 
 class Gpu =
     implements IDisposable
@@ -119,7 +131,7 @@ class Gpu =
     mutable field graphicsPipeline: VkPipeline
     mutable field renderPass: VkRenderPass
 
-    new(window: IWindow, vk: VulkanApplication) =
+    internal new(window: IWindow, vk: VulkanApplication) =
         let vkCmdBuffers =
             let vkCmdBuffers = Array.ZeroCreate(vk.MaxFramesInFlight)
             let mutable i = 0
@@ -212,6 +224,10 @@ class Gpu =
 
             this.gpuImages[gpuImage] <- ()
 
+    Upload(gpuProgram: GpuProgram): () =
+        if (gpuProgram.IsDirty)
+            gpuProgram.IsDirty <- false    
+
     Destroy(gpuArray: IGpuArray): () =
         if (gpuArray.Buffers.Length != 0)
             let mutable i = 0
@@ -236,7 +252,6 @@ class Gpu =
     Draw(uiNode: UINode): () =
         if (this.swapChain === unchecked default)
             this.RecreateSwapChain()
-            this.window.Show()
 
         try
             UI.Update(this.imguiContext, uiNode)

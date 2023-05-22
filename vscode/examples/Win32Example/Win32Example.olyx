@@ -235,6 +235,7 @@ main(): () =
     game.Gpu.Upload(image)
 
     game.Gpu.Draw(uiNode)
+    game.Window.Show()
     while (!game.Window.IsClosed)
         let inputSnapshot = game.Window.PumpEvents()
         game.Gpu.Draw(uiNode)
