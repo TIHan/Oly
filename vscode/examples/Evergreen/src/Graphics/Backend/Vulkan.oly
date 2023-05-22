@@ -51,6 +51,8 @@ alias VkFramebuffer = TerraFX.Interop.Vulkan.VkFramebuffer
 alias VkPipeline = TerraFX.Interop.Vulkan.VkPipeline
 alias VkRenderPass = TerraFX.Interop.Vulkan.VkRenderPass
 alias VkShaderModule = TerraFX.Interop.Vulkan.VkShaderModule
+alias VkImage = TerraFX.Interop.Vulkan.VkImage
+alias VkImageView = TerraFX.Interop.Vulkan.VkImageView
 
 class VulkanSwapChainOutOfDateException =
     inherits Exception

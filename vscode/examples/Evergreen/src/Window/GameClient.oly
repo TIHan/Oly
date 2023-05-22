@@ -12,6 +12,11 @@ open Evergreen.Window
 open Evergreen.Graphics.Backend.Vulkan
 open Evergreen.UI
 
+open SixLabors.ImageSharp
+open SixLabors.ImageSharp.Advanced
+open SixLabors.ImageSharp.PixelFormats
+open SixLabors.ImageSharp.Processing
+
 enum GpuShaderStageFlags =
     | Vertex    = 0b00001
     | Fragment  = 0b00010
@@ -26,7 +31,7 @@ interface IGpuArray =
 
     internal Buffers: VulkanBuffer[||] get, set
     DataSize: int32 get
-    IsDirty: bool get
+    IsDirty: bool get, internal set
     Kind: GpuArrayKind get
     Length: int32 get
 
@@ -37,7 +42,7 @@ class GpuSharedArray<T> where T: unmanaged =
 
     internal Buffers: VulkanBuffer[||] get, set  
     DataSize: int32 get
-    IsDirty: bool get, private set
+    IsDirty: bool get, internal set
     Kind: GpuArrayKind get
     Length: int32 get() = this.bufferData.Length
 
@@ -74,6 +79,20 @@ class GpuSharedArray<T> where T: unmanaged =
         let bufferData = Array.InitializeMutable(size, f)
         GpuSharedArray(kind, bufferData)
 
+class GpuImage =
+    FilePath: string get
+    IsDirty: bool get, internal set
+    internal VulkanImage: VulkanImage get, set
+    internal VkImageView: VkImageView get, set
+
+    new(filePath: string) =
+        {
+            FilePath = filePath
+            IsDirty = true
+            VulkanImage = unchecked default
+            VkImageView = default
+        }  
+
 class Gpu =
     implements IDisposable
 
@@ -92,6 +111,7 @@ class Gpu =
     field vkCmdBuffers: VulkanCommandBuffer[||]
     field delayedArrayUpload: ConcurrentQueue<Gpu.DelayedArrayUploadInfo>
     field gpuArrays: ConcurrentDictionary<IGpuArray, ()>
+    field gpuImages: ConcurrentDictionary<GpuImage, ()>
 
     mutable field imguiContext: ImGui.ImGuiContext // can be null
     mutable field swapChain: VulkanSwapChain
@@ -113,6 +133,7 @@ class Gpu =
             vkCmdBuffers = vkCmdBuffers
             delayedArrayUpload = ConcurrentQueue()
             gpuArrays = ConcurrentDictionary()
+            gpuImages = ConcurrentDictionary()
 
             imguiContext = unchecked default
             swapChain = unchecked default
@@ -123,6 +144,7 @@ class Gpu =
 
     Upload(gpuArray: IGpuArray): () =
         if (gpuArray.IsDirty)
+            gpuArray.IsDirty <- false
             if (gpuArray.Buffers.Length == 0)
                 let usageFlags =
                     match (gpuArray.Kind)
@@ -166,6 +188,30 @@ class Gpu =
                         gpuArray.Update(this.vk, i)
                     i <- i + 1
 
+    Upload(gpuImage: GpuImage): () =
+        if (gpuImage.IsDirty)
+            gpuImage.IsDirty <- false
+
+            let image = Image.Load<Rgba32>(File.ReadAllBytes(gpuImage.FilePath))
+            let width = uint32(image.Width)
+            let height = uint32(image.Height)
+            let format = VkFormat.VK_FORMAT_R8G8B8A8_UNORM
+
+            let mutable imageSpan = default
+            if (!image.TryGetSinglePixelSpan(&imageSpan))
+                fail("Invalid image.")
+
+            let mutable imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
+            let imageSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<Rgba32, byte>(imageSpan)
+            let vulkanImage = Vk.CreateImage(this.vk, width, height, format)
+            Vk.UpdateImage(this.vk, vulkanImage, imageSpan)
+            image.Dispose()
+
+            gpuImage.VulkanImage <- vulkanImage
+            gpuImage.VkImageView <- Vk.CreateImageView(this.vk, vulkanImage, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT)
+
+            this.gpuImages[gpuImage] <- ()
+
     Destroy(gpuArray: IGpuArray): () =
         if (gpuArray.Buffers.Length != 0)
             let mutable i = 0
@@ -176,6 +222,16 @@ class Gpu =
 
             let mutable value = unchecked default
             let result = this.gpuArrays.TryRemove(gpuArray, &value)
+            gpuArray.IsDirty <- true
+
+    Destroy(gpuImage: GpuImage): () =
+        if (gpuImage.VulkanImage !== unchecked default)
+            Vk.DestroyImageView(this.vk, gpuImage.VkImageView)
+            Vk.DestroyImage(this.vk, gpuImage.VulkanImage)
+
+            let mutable value = unchecked default
+            let result = this.gpuImages.TryRemove(gpuImage, &value)
+            gpuImage.IsDirty <- true
 
     Draw(uiNode: UINode): () =
         if (this.swapChain === unchecked default)
@@ -229,6 +285,12 @@ class Gpu =
         let mutable i = 0
         while (i < gpuArrays.Length)
             this.Destroy(gpuArrays[i].Key)
+            i <- i + 1
+
+        let gpuImages = this.gpuImages.ToArray()
+        let mutable i = 0
+        while (i < gpuImages.Length)
+            this.Destroy(gpuImages[i].Key)
             i <- i + 1
 
         this.CleanupSwapChain()

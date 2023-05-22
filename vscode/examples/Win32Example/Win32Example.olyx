@@ -207,6 +207,17 @@ main(): () =
 
     let uiNode = createUI()
 
+    let globals =
+        GpuSharedArray<_>.Initialize(GpuArrayKind.Uniform, 1,
+            i ->
+                let mutable globals = Globals()
+                globals.Projection <- Matrix4x4.CreatePerspectiveFieldOfView(radians(45), 1, 0.1, 10)
+                globals.View <- Matrix4x4.CreateLookAt(Vector3(2, 2, 2), Vector3(0, 0, 0), Vector3(0, 0, 1))
+                globals.Model <- Matrix4x4.Identity
+                globals
+        )
+    game.Gpu.Upload(globals)
+
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
     let vertices = 
         GpuSharedArray<_>.Initialize(GpuArrayKind.Vertex, quad.Vertices.Length,
@@ -219,6 +230,9 @@ main(): () =
             i -> quad.Indices[i]
         )
     game.Gpu.Upload(indices)
+
+    let image = GpuImage("GameExample/Textures/flats/aqf068.png")
+    game.Gpu.Upload(image)
 
     game.Gpu.Draw(uiNode)
     while (!game.Window.IsClosed)
