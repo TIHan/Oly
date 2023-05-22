@@ -15,6 +15,7 @@ open Evergreen
 open Evergreen.Window
 open Evergreen.Graphics.Backend.Vulkan
 open Evergreen.UI
+open Evergreen.Game
 
 open SixLabors.ImageSharp
 open SixLabors.ImageSharp.Advanced
@@ -189,7 +190,44 @@ createIndexBuffer(vulkanApp: VulkanApplication, indices: uint32[||]): VulkanBuff
     Vk.UpdateBuffer(vulkanApp, buffer, indices)
     buffer
 
+createUI(): UINode =
+    let windowViewModel = UI.WindowModel("Oly Window", Vector2.Zero, Vector2.Zero)
+    let inputTextViewModel = UI.TextInputModel("Oly Input Text", "")
+    let buttonViewModel = UI.ButtonModel("Oly Button")
+    UI.Window(windowViewModel, 
+        [
+            UI.TextInput(inputTextViewModel, vm -> printLine(vm.Text));
+            UI.Button(buttonViewModel, vm -> printLine("Clicked!"))
+        ]
+    )
+
 main(): () =
+    let options = GameClientOptions()
+    let game = GameClient.Create(options)
+
+    let uiNode = createUI()
+
+    let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
+    let vertices = 
+        GpuSharedArray<_>.Initialize(GpuArrayKind.Vertex, quad.Vertices.Length,
+            i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
+        )
+    game.Gpu.Upload(vertices)
+
+    let indices =
+        GpuSharedArray<_>.Initialize(GpuArrayKind.Index, quad.Indices.Length,
+            i -> quad.Indices[i]
+        )
+    game.Gpu.Upload(indices)
+
+    game.Gpu.Draw(uiNode)
+    while (!game.Window.IsClosed)
+        let inputSnapshot = game.Window.PumpEvents()
+        game.Gpu.Draw(uiNode)
+
+    game.Dispose()
+
+defaultMain(): () =
     // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
     Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
     
@@ -379,7 +417,7 @@ main(): () =
 
     let draw() =
         try
-            Evergreen.UI.UI.Update(imguiContext, windowView)
+            UI.Update(imguiContext, windowView)
             // ImGui.NewFrame(imguiContext)
             // if (ImGui.Begin(imguiContext, "Oly Window"))
             //     if (ImGui.InputText(imguiContext, "Oly Label Λλ", Span(textBuffer)))
