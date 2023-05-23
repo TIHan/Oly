@@ -425,7 +425,6 @@ and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalP
             let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
 
             solveFunctionInput env syntaxBody argTys argTysWithSyntax
-            solveTypes env body.FirstReturnExpression.Syntax returnTy body.Type
 
         | _ ->
             OlyAssert.Fail("Expected a function type.")
@@ -508,8 +507,7 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
         else
             match firstReturnExpression with
             | BoundExpression.Lambda(body=body) ->
-                if not body.HasExpression then
-                    body.Run()            
+                OlyAssert.True(body.HasExpression)         
             | _ ->
                 ()
 
@@ -806,12 +804,10 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
         ||> ImArray.tryIter2 (fun argExpr expectedTy ->
             match argExpr with
             | BoundExpression.Lambda(body=body) ->
-                if not body.HasExpression then
-                    body.Run()
+                OlyAssert.True(body.HasExpression)
                 match expectedTy.TryFunction with
                 | ValueSome(_, expectedTy) ->
-                    body.Expression.GetReturningTargetExpressions()
-                    |> ImArray.iter (fun expr ->
+                    body.Expression.ForEachReturningTargetExpression(fun expr ->
                         checkExpressionType env expectedTy expr
                     )
                 | _ ->
@@ -842,12 +838,7 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
     | BoundExpression.Sequential(_, expr1, _) ->
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
 
-    | BoundExpression.GetField(receiver=receiver) ->
-        checkImmediateExpression env false receiver
-
-    | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
-        receiverOpt
-        |> Option.iter (checkImmediateExpression env false)
+    | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
         // We can have a GetProperty expression even if the property does not have a getter.
         // The reason is because we initially bind to a GetProperty before potentially turning it into a SetProperty.
         if prop.Getter.IsSome then

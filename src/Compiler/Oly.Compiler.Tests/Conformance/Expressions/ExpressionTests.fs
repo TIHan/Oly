@@ -7319,3 +7319,92 @@ alias AliasTest = TestNamespace
         """
     Oly src
     |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Lambda expression should infer its parameters correctly``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+struct TestStruct =
+
+    static op_Equality(x: TestStruct, y: TestStruct): bool = true
+
+struct TestStruct2 =
+    
+    public field S: TestStruct = default
+
+Find<T>(arr: T[], predicate: T -> bool): T = unchecked default
+
+main(): () =
+    let s = TestStruct()
+    let xs: TestStruct2[] = []
+    let result = Find(xs, x -> if (x.S == s) true else false)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Lambda expression should infer its parameters correctly 2``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+struct TestStruct =
+
+    static op_Equality(x: TestStruct, y: TestStruct): bool = true
+
+struct TestStruct2 =
+    
+    public field S: TestStruct = default
+
+Find<T>(arr: T[], predicate: T -> bool): T = unchecked default
+
+main(): () =
+    let s = TestStruct()
+    let xs: TestStruct2[] = []
+    let result = 
+        Find(xs, 
+                 let s = s
+                 x -> if (x.S == s) true else false
+        )
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Lambda expression should infer its parameters correctly with overloads``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+struct TestStruct =
+
+    static op_Equality(x: TestStruct, y: TestStruct): bool = true
+
+struct TestStruct2 =
+    
+    public field S: TestStruct = default
+
+Find<T>(arr: T[], predicate: T -> bool): T = unchecked default
+Find<T>(arr: T[||], predicate: T -> bool): T = unchecked default
+
+main(): () =
+    let s = TestStruct()
+    let xs: TestStruct2[] = []
+    let result = Find(xs, x -> if (x.S == s) true else false)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

@@ -673,7 +673,7 @@ alias int32
         [
             "Expected type 'X' but is 'T'."
             "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
-            "Expected type 'T' but is 'X'."
+            "Expected type 'X -> T' but is 'X -> X'."
         ]
     |> ignore
 
@@ -709,16 +709,11 @@ interface Add<T1, T2, T3> =
 alias int32
         """
 
-    // TODO: There are some duplicate error messages here.
-    //       Generally this is fine, but it may indicate some weird type checking logic.
-    //       We should try to figure it out at some point.
     Oly src
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
             "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
-            "Expected type 'X -> T' but is 'X -> X'."
-            "Expected type 'X -> T' but is 'X -> X'."
         ]
     |> ignore
 

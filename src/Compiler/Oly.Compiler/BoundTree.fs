@@ -311,10 +311,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     member this.GetValidUserSyntax(): OlySyntaxNode =
         match this with
         | Witness(expr, _, _) -> expr.GetValidUserSyntax()
-        | Lambda(body=body) -> 
-            if not body.HasExpression then
-                body.Run()
-            body.Expression.GetValidUserSyntax()
+        | Lambda _ -> this.Syntax
         | Sequential(_, e1, e2) ->
             let r1 = e1.GetValidUserSyntax()
             if r1.IsDummy then
@@ -531,10 +528,11 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         // TODO: Optimize this as we really do not want to create a list then turn it into an array
         this.FlattenSequentialExpressionsImpl() |> ImArray.ofSeq
 
-    member this.GetReturningTargetExpressions() =
-        let exprs = ImArray.builder()
+    member this.ForEachReturningTargetExpression(action) =
         let rec f (expr: BoundExpression) =
             match expr with
+            | BoundExpression.Let(bodyExpr=bodyExpr) ->
+                f bodyExpr
             | BoundExpression.Sequential(_, _, nextExpr) ->
                 f nextExpr
             | BoundExpression.Match(_, _, _, matchClauses, _) ->
@@ -548,8 +546,12 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 f targetExpr1
                 f targetExpr2
             | _ ->
-                exprs.Add(expr)
+                action expr
         f this
+
+    member this.GetReturningTargetExpressions() =
+        let exprs = ImArray.builder()
+        this.ForEachReturningTargetExpression(exprs.Add)
         exprs.ToImmutable()
 
     /// Get a list of instance fields from the expression.

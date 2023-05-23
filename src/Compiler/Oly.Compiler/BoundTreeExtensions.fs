@@ -190,8 +190,7 @@ module private Helpers =
                             failwith "Local already added"
                     
                 let iterator = Iterator(predicate, canCache, checkInnerLambdas, freeLocals, locals)
-                if not bodyExpr.HasExpression then
-                    bodyExpr.Run()
+                OlyAssert.True(bodyExpr.HasExpression)
                 iterator.VisitExpression(bodyExpr.Expression) |> ignore
 
             | _ ->
@@ -388,7 +387,7 @@ module private Helpers =
                 implType value.Type
 
             | BoundExpression.Lambda(body=bodyExpr;cachedLambdaTy=cachedLambdaTy) ->
-                if not bodyExpr.HasExpression then bodyExpr.Run()
+                OlyAssert.True(bodyExpr.HasExpression)
                 handleExpression bodyExpr.Expression
                 implType cachedLambdaTy.Type
 

@@ -265,13 +265,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
 
     if funcs2.Length = 1 then funcs2
     else
-        let funcs3 = filterFunctionsForOverloadingByWeight resArgs None funcs2
-
-        if returnTyOpt.IsSome then
-            filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
-            |> filterFunctionsForOverloadingFinalPhase
-        else
-            funcs3
+        funcs2
 
 let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray): _ imarray =
     if funcs.Length <= 1 then funcs
@@ -396,3 +390,14 @@ let filterFunctionsForOverloadingPart1 (benv: BoundEnvironment) resTyArity (argC
 let filterFunctionsForOverloadingPart2 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray): _ imarray =
     let phase2Results = filterFunctionsForOverloadingPhase2 returnTyOpt candidates
     filterFunctionsForOverloadingPhase3 resArgs returnTyOpt phase2Results
+
+/// Overloading Part 3:
+///     Handles ambiguity for generics by using scores.
+let filterFunctionsForOverloadingPart3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
+    let funcs3 = filterFunctionsForOverloadingByWeight resArgs None candidates
+
+    if returnTyOpt.IsSome then
+        filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
+        |> filterFunctionsForOverloadingFinalPhase
+    else
+        funcs3

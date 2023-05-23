@@ -399,12 +399,12 @@ module Vk =
         let physicalDevice = findSuitableDevice(physicalDevices)
 
         let queueFamilyProperties = getPhysicalDeviceQueueFamilyProperties(physicalDevice)
-        let graphicsFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
-        let computeFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
-        let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, (x: VkQueueFamilyProperties) -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
+        let graphicsFamilyIndex = Array.FindIndex(queueFamilyProperties, x -> (x.queueFlags & VkQueueFlags.VK_QUEUE_GRAPHICS_BIT) == VkQueueFlags.VK_QUEUE_GRAPHICS_BIT)
+        let computeFamilyIndex = Array.FindIndex(queueFamilyProperties, x -> (x.queueFlags & VkQueueFlags.VK_QUEUE_COMPUTE_BIT) == VkQueueFlags.VK_QUEUE_COMPUTE_BIT)
+        let transferFamilyIndex = Array.FindIndex(queueFamilyProperties, x -> (x.queueFlags & VkQueueFlags.VK_QUEUE_TRANSFER_BIT) == VkQueueFlags.VK_QUEUE_TRANSFER_BIT)
         let presentFamilyIndex = 
             Array.FindIndex(queueFamilyProperties, 
-                (i: int32, x: VkQueueFamilyProperties) ->
+                (i, x) ->
                     let mutable isPresentSupported = VkBool32.FALSE
                     if (vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, uint32(i), surface, &&isPresentSupported) != VkResult.VK_SUCCESS)
                         fail("Failed to get physical device surface support.")
@@ -1099,7 +1099,7 @@ module Vk =
 
     private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[], format: VkFormat): VkSurfaceFormatKHR =
         Array.Find(formats, 
-            (x: VkSurfaceFormatKHR) -> 
+            x ->
                 if (x.format == format)
                     match (format)
                     | VkFormat.VK_FORMAT_B8G8R8A8_SRGB =>
@@ -1114,7 +1114,7 @@ module Vk =
 
     private findSupportedFormat(physicalDevice: VkPhysicalDevice, formats: VkFormat[], tiling: VkImageTiling, features: VkFormatFeatureFlags): VkFormat =
         Array.Find(formats, 
-            (x: VkFormat) -> 
+            x -> 
                 let mutable props = default: VkFormatProperties
                 vkGetPhysicalDeviceFormatProperties(physicalDevice, x, &&props)
 
@@ -1131,10 +1131,7 @@ module Vk =
         format == VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT || format == VkFormat.VK_FORMAT_D24_UNORM_S8_UINT
 
     private findSwapPresentMode(presentModes: VkPresentModeKHR[]): VkPresentModeKHR =
-        Array.Find(presentModes,
-            (x: VkPresentModeKHR) ->
-                x == VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR
-        )
+        Array.Find(presentModes, x -> x == VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR)
 
     private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2D =
         if (capabilities.currentExtent.width != uint32.MaxValue)
@@ -1244,7 +1241,7 @@ module Vk =
             )
         let depthImageViews = 
             Array.Map(depthImages, 
-                (x: VulkanImage) -> createImageView(device, x.Image, x.Format, VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT)
+                x -> createImageView(device, x.Image, x.Format, VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT)
             )
 
         let mutable viewport = default: VkViewport

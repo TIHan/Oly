@@ -623,6 +623,7 @@ let CreateDefaultBinderEnvironment asmIdent =
         implicitThisOpt = None
         isReturnable = false
         isExecutable = false
+        isPassedAsArgument = false
     }
 
 let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =

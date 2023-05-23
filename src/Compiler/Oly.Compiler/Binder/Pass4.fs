@@ -589,7 +589,8 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindArguments (cenv: cenv) env (syntaxArgs: OlySyntaxExpression imarray) =
+let bindArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySyntaxExpression imarray) =
+    let env = env.SetPassedAsArgument(true)
     syntaxArgs
     |> ImArray.map (fun x ->
         let _, expr = bindLocalExpression cenv env None x x
@@ -765,7 +766,6 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
         bindLocalExpression cenv (env1.SetReturnable(env.isReturnable)) expectedTyOpt syntaxExpr2 syntaxExpr2
 
     let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2)
-    checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env2.benv)) env2.isReturnable boundExpression
     env2, boundExpression
 
 let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) implicitBaseOpt (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
@@ -1388,7 +1388,8 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                 // REVIEW: We need force the lambda body expression evaluation.
                 //         Could we make this better?
                 match rhs with
-                | BoundExpression.Lambda(body=lazyBodyExpr) when not lazyBodyExpr.HasExpression -> lazyBodyExpr.Run()
+                | BoundExpression.Lambda(body=lazyBodyExpr) when not lazyBodyExpr.HasExpression ->
+                    OlyAssert.Fail("Lambda expression needs evaluation.")
                 | _ -> ()
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
@@ -1812,6 +1813,14 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture enclosingTy expr
         | _ ->
             ()
+
+    if env.isInInstanceConstructorType.IsNone || (env.isInInstanceConstructorType.IsSome && not env.isReturnable) then
+        match expr with
+        | E.Lambda _ ->
+            if not env.isPassedAsArgument then
+                checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
+        | _ ->
+            checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
 
     env, expr
 

@@ -154,7 +154,7 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
 
             | BoundExpression.None _ -> ()
             | BoundExpression.Lambda(_, _, _, _, body, _, _, _) ->
-                if not body.HasExpression then body.Run()
+                OlyAssert.True(body.HasExpression)
                 this.VisitExpression(body.Expression) |> ignore
 
             | BoundExpression.MemberDefinition(_, binding) ->

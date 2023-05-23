@@ -54,6 +54,7 @@ type BinderEnvironment =
        contextTypeOrTypeConstructor: TypeSymbol option
 
        isReturnable: bool
+       isPassedAsArgument: bool
 
        // TODO: Get rid of this...
        implicitThisOpt: ILocalParameterSymbol option
@@ -68,7 +69,17 @@ type BinderEnvironment =
         { this with contextTypeOrTypeConstructor = Some ty.Formal }
 
     member this.SetReturnable(isReturnable: bool) =
-        { this with isReturnable = isReturnable }
+        if this.isReturnable = isReturnable then this
+        else
+            if isReturnable then
+                { this with isReturnable = true }
+            else
+                { this with isReturnable = false; isPassedAsArgument = false }
+
+    member this.SetPassedAsArgument(isPassedAsArgument: bool) =
+        if this.isPassedAsArgument = isPassedAsArgument then this
+        else
+            { this with isPassedAsArgument = isPassedAsArgument }
 
     member this.EnclosingTypeParameters =
         this.benv.EnclosingTypeParameters

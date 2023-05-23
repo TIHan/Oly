@@ -297,27 +297,40 @@ let private tryOverloadedCallExpression
 
     let resArgs = 
         argExprs
-        |> ImArray.map (fun x ->
-            match x with
-            | BoundExpression.Lambda(body=body) ->
-                // We must evaluate the lambda at this point.
-                if not body.HasExpression then
-                    body.Run()
-            | _ ->
-                ()
-            x.Type
-        )
+        |> ImArray.map (fun x -> x.Type)
         |> ResolutionArguments.ByType
     match tryOverloadResolution expectedTyOpt resArgs isArgForAddrOf funcs with
     | None -> None
     | Some funcs ->
-        let funcs = filterByRefReturnTypes argExprs funcs
-        if funcs.IsEmpty then
-            None
+        let checkLambdaArguments() =
+            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
+            argExprs
+            |> ImArray.iter (fun x ->
+                x.ForEachReturningTargetExpression(fun x ->
+                    match x with
+                    | BoundExpression.Lambda _ ->
+                        // We must evaluate the lambda at this point.
+                        checkImmediateExpression solverEnv false x
+                    | _ ->
+                        ()
+                )
+            )
+        if funcs.Length = 1 then
+            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (funcs[0], syntaxInfo.TrySyntaxName)
+            checkLambdaArguments()
+            Some expr
         else
-            let func = FunctionGroupSymbol.CreateIfPossible(funcs)
-            bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
-            |> Some
+            checkLambdaArguments()
+            let funcs2 = filterFunctionsForOverloadingPart3 resArgs expectedTyOpt funcs
+            let funcs = if funcs2.IsEmpty then funcs else funcs2
+
+            let funcs = filterByRefReturnTypes argExprs funcs
+            if funcs.IsEmpty then
+                None
+            else       
+                let func = FunctionGroupSymbol.CreateIfPossible(funcs)
+                bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
+                |> Some
 
 let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
@@ -350,8 +363,6 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
             lambdaPars,
             (LazyExpression(None, fun _ -> callExpr))
         )
-    
-    checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable lambdaExpr
     
     lambdaExpr
 
@@ -500,6 +511,21 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
 let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
     | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, _) ->
+
+        let checkLambdaArguments() =
+            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
+            argExprs
+            |> ImArray.iter (fun x ->
+                x.ForEachReturningTargetExpression(fun x ->
+                    match x with
+                    | BoundExpression.Lambda _ ->
+                        // We must evaluate the lambda at this point.
+                        checkImmediateExpression solverEnv false x
+                    | _ ->
+                        ()
+                )
+            )
+
         match value with
         | :? FunctionGroupSymbol as funcGroup ->
             if funcGroup.IsAddressOf then
@@ -518,6 +544,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (exp
             | Some expr -> expr
             | _ -> expr
         | _ ->
+            checkLambdaArguments()
             expr
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
@@ -656,14 +683,12 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
 
     match expr with
     | AutoDereferenced bodyExpr ->
-        checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable bodyExpr
         match bodyExpr with
         | E.Call _ ->
             checkConstraintsFromCallExpression cenv.diagnostics true bodyExpr
         | _ ->
             ()
     | _ ->
-        checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
         match expr with
         | E.Call _ ->
             checkConstraintsFromCallExpression cenv.diagnostics true expr 
