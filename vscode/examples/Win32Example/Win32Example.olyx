@@ -136,13 +136,13 @@ struct Globals =
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
 radians(degrees: float32): float32 = float32(radians(float64(degrees)))
 
-compileShaderByFile(path: string): ReadOnlySpan<byte> =
+compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     let outputPath = Path.ChangeExtension(path, ".spv")
     let p = ExternalProcess("glslangValidator", "--target-env vulkan1.3 -o " + outputPath + " " + path, Environment.CurrentDirectory)
     let task = p.RunAsync(System.Threading.CancellationToken.None)
 
     let results = task.Result
-    let code = ReadOnlySpan(System.IO.File.ReadAllBytes(outputPath))
+    let code = ReadOnlyMemory(System.IO.File.ReadAllBytes(outputPath))
     try File.Delete(outputPath)
     catch (ex: Exception) => ()
     p.Dispose()
@@ -206,6 +206,7 @@ main(): () =
     let game = GameClient.Create(options)
 
     let uiNode = createUI()
+    game.Gpu.Draw(uiNode, [])
 
     let globals =
         GpuSharedArray<_>.Initialize(GpuArrayKind.Uniform, 1,
@@ -216,25 +217,44 @@ main(): () =
                 globals.Model <- Matrix4x4.Identity
                 globals
         )
-    game.Gpu.Upload(globals)
 
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
     let vertices = 
         GpuSharedArray<_>.Initialize(GpuArrayKind.Vertex, quad.Vertices.Length,
             i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
         )
-    game.Gpu.Upload(vertices)
 
     let indices =
         GpuSharedArray<_>.Initialize(GpuArrayKind.Index, quad.Indices.Length,
             i -> quad.Indices[i]
         )
-    game.Gpu.Upload(indices)
 
     let image = GpuImage("GameExample/Textures/flats/aqf068.png")
-    game.Gpu.Upload(image)
 
-    game.Gpu.Draw(uiNode)
+    let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
+    let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
+    let gpuProgram = GpuProgram()
+    gpuProgram.AddGlobalInput(GpuProgramInputKind.Array, GpuProgramStageFlags.Vertex)
+    gpuProgram.AddGlobalInput(GpuProgramInputKind.Image, GpuProgramStageFlags.Fragment)
+    gpuProgram.VertexCode <- vertexShaderByteCode
+    gpuProgram.FragmentCode <- fragmentShaderByteCode
+
+    let gpuProgramGlobalInputs = GpuProgramGlobalInputs(gpuProgram)
+    gpuProgramGlobalInputs.Add(GpuProgramInput.CreateArray(globals))
+    gpuProgramGlobalInputs.Add(GpuProgramInput.CreateImage(image))
+
+    let executions =
+        Array.Initialize(1000,
+            i ->
+                let gpuProgramExecution = GpuProgramExecution(gpuProgramGlobalInputs)
+                gpuProgramExecution.SetVertexInput<Vertex>(vertices)
+                gpuProgramExecution.SetIndexInput(indices)
+                gpuProgramExecution.DrawIndexCount <- quad.Indices.Length
+                gpuProgramExecution
+        )
+
+    let mutable pos = Vector3(2, 2, 2)
+
     game.Window.Show()
     while (!game.Window.IsClosed)
         let inputSnapshot = game.Window.PumpEvents()
@@ -243,7 +263,13 @@ main(): () =
 
         let size = game.Window.Size
         if (!game.Window.IsClosed && !game.Window.IsHidden && size.X != 0 && size.Y != 0)
-            game.Gpu.Draw(uiNode)
+            let mutable result = globals.AsSpan()
+            let mutable x = &result[0]
+            pos <- Vector3(2, 2, pos.Z + 0.01)
+
+            x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
+            gpuProgram.FragmentCode <- fragmentShaderByteCode
+            game.Gpu.Draw(uiNode, executions)
 
     game.Dispose()
 
@@ -273,11 +299,11 @@ defaultMain(): () =
     let vertexBuffer = createVertexBuffer(vulkanApp, vertices)
     let indexBuffer = createIndexBuffer(vulkanApp, quad.Indices)
 
-    let vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
-    let fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
+    let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
+    let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
 
-    let vertexShaderModule = Vk.CreateShaderModule(vulkanApp, vertexShaderByteCode)
-    let fragmentShaderModule = Vk.CreateShaderModule(vulkanApp, fragmentShaderByteCode)
+    let vertexShaderModule = Vk.CreateShaderModule(vulkanApp, vertexShaderByteCode.Span)
+    let fragmentShaderModule = Vk.CreateShaderModule(vulkanApp, fragmentShaderByteCode.Span)
 
     let globals =
         [

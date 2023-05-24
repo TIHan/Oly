@@ -42,17 +42,23 @@ alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
 alias VmaAllocationCreateFlags = Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator.VmaAllocationCreateFlags
 alias VkDescriptorType = TerraFX.Interop.Vulkan.VkDescriptorType
 alias VkShaderStageFlags = TerraFX.Interop.Vulkan.VkShaderStageFlags
+alias VkDescriptorSetLayout = TerraFX.Interop.Vulkan.VkDescriptorSetLayout
 alias VkDescriptorSet = TerraFX.Interop.Vulkan.VkDescriptorSet
+alias VkDescriptorPool = TerraFX.Interop.Vulkan.VkDescriptorPool
 alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
 alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
 alias VkImageAspectFlags = TerraFX.Interop.Vulkan.VkImageAspectFlags
 alias VkFramebuffer = TerraFX.Interop.Vulkan.VkFramebuffer
 alias VkPipeline = TerraFX.Interop.Vulkan.VkPipeline
+alias VkPipelineLayout = TerraFX.Interop.Vulkan.VkPipelineLayout
 alias VkRenderPass = TerraFX.Interop.Vulkan.VkRenderPass
 alias VkShaderModule = TerraFX.Interop.Vulkan.VkShaderModule
 alias VkImage = TerraFX.Interop.Vulkan.VkImage
 alias VkImageView = TerraFX.Interop.Vulkan.VkImageView
+alias VkSampler = TerraFX.Interop.Vulkan.VkSampler
+alias VkVertexInputBindingDescription = TerraFX.Interop.Vulkan.VkVertexInputBindingDescription
+alias VkVertexInputAttributeDescription = TerraFX.Interop.Vulkan.VkVertexInputAttributeDescription
 
 class VulkanSwapChainOutOfDateException =
     inherits Exception
@@ -388,6 +394,7 @@ module Vk =
         let enableValidationLayers = options.ValidationEnabled
         
         let validationLayers = if (enableValidationLayers) ["VK_LAYER_KHRONOS_validation"] else []
+
         let instance = createInstance(enableValidationLayers, validationLayers)
 
         let mutable debugMessenger = default
@@ -946,10 +953,23 @@ module Vk =
         appInfo.pEngineName <- UnsafeCast(engineNameHandle.AddrOfPinnedObject())
         appInfo.engineVersion <- VK_MAKE_VERSION(1, 0, 0)
         appInfo.apiVersion <- VK_API_VERSION_1_3
+        
+      //  if (enableValidationLayers)
+     //      Environment.SetEnvironmentVariable("VK_LAYER_ENABLES", "VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT")
+
+        let mutable enables = VkValidationFeatureEnableEXT.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT
+        let mutable features = default: VkValidationFeaturesEXT
+        if (enableValidationLayers)           
+            features.sType <- VkStructureType.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT
+            features.enabledValidationFeatureCount <- 1
+            features.pEnabledValidationFeatures <- &&enables
 
         let mutable createInfo = default: VkInstanceCreateInfo
         createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
         createInfo.pApplicationInfo <- &&appInfo
+
+        if (enableValidationLayers)
+            createInfo.pNext <- UnsafeCast(&&features)
 
         let extensions = getRequiredExtensions(enableValidationLayers)
         let extensionsHandle = fixedCopy(extensions)
@@ -1296,6 +1316,9 @@ module Vk =
         shaderModule
 
     private createShaderStageInfo(shaderModule: VkShaderModule, stage: VkShaderStageFlags): VkPipelineShaderStageCreateInfo =
+        if (shaderModule == VkShaderModule.NULL)
+            fail("VkShaderModule is null.")
+            
         let mutable shaderStageInfo = default: VkPipelineShaderStageCreateInfo
         shaderStageInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
         shaderStageInfo.stage <- stage
