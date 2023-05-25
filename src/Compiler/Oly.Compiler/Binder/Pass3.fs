@@ -41,16 +41,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
         | _ ->
             ()
 
-    let envBody =
-        if ent.IsModule then
-            if ent.IsAutoOpenable then
-                openContentsOfEntityAndOverride envBody OpenContent.Values ent
-            else
-                openContentsOfEntityAndOverride envBody OpenContent.All ent
-        else
-            envBody
-
-    let _env: BinderEnvironment = bindTypeDeclarationBodyPass3 cenv envBody entBuilder.NestedEntityBuilders entBuilder syntaxTyDefBody
+    let _env: BinderEnvironment = bindTypeDeclarationBodyPass3 cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
     if ent.IsNewtype then
         if ent.GetInstanceFields().Length <> 1 then
@@ -58,10 +49,11 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     env
 
-let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) syntaxTyDeclBody =
-    let env = unsetSkipCheckTypeConstructor env
-
+let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
     let ent = entBuilder.Entity
+
+    let env = unsetSkipCheckTypeConstructor env
+    let env = openContentsOfEntityAndOverride env OpenContent.All ent
 
     let funcs = 
         ent.FindMostSpecificIntrinsicFunctions(env.benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
@@ -163,7 +155,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | _ ->
                 ()
 
-            bindTopLevelExpressionPass3 cenv env entities syntaxBodyExpr
+            bindTopLevelExpressionPass3 cenv env isRoot entities syntaxBodyExpr
+            |> fst
         | _ ->
             env
 
@@ -436,30 +429,30 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
 
     env
 
-let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment =
+let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment * bool =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
     | OlySyntaxExpression.OpenDeclaration _ 
     | OlySyntaxExpression.OpenStaticDeclaration _
     | OlySyntaxExpression.OpenExtensionDeclaration _ ->
+        // We re-bind to check constraints and to open contents again.
         let enclosing = currentEnclosing env
-        // We re-bind to check constraints, but no contents will be opened.
-        if enclosing.IsNamespaceOrModule then
-            bindOpenDeclaration cenv env true OpenContent.None syntaxExpr
+        if canOpen && enclosing.IsNamespaceOrModule then
+            bindOpenDeclaration cenv env canOpen OpenContent.Values syntaxExpr, canOpen
         else
-            env
+            env, canOpen
 
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1 = bindTopLevelExpressionPass3 cenv env entities syntaxExpr1
-        bindTopLevelExpressionPass3 cenv env1 entities syntaxExpr2
+        let env1, canOpen = bindTopLevelExpressionPass3 cenv env canOpen entities syntaxExpr1
+        bindTopLevelExpressionPass3 cenv env1 canOpen entities syntaxExpr2
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
         let env = bindTypeDeclarationPass3 cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
-        env
+        env, false
 
     | _ ->
-        env
+        env, false
 

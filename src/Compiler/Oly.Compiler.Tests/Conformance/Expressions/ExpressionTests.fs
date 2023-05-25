@@ -3334,12 +3334,6 @@ open static A<_, __oly_int32, _>
              ^^^^^^^^^^^^^^^^^^^
 """
             )
-            ("Open declarations using one or more wild cards, '_', requires using wild cards for all type arguments.",
-                """
-open static A<_, __oly_int32, _>
-             ^^^^^^^^^^^^^^^^^^^
-"""
-            )
         ]
     |> ignore
 
@@ -3358,12 +3352,6 @@ class A<T1, T2, T3> =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Inferring types are not allowed in this context, be explicit.",
-                """
-open static A<__oly_int32, __oly_int32, B<_>>
-                                          ^
-"""
-            )
             ("Inferring types are not allowed in this context, be explicit.",
                 """
 open static A<__oly_int32, __oly_int32, B<_>>
@@ -7404,6 +7392,135 @@ main(): () =
     let s = TestStruct()
     let xs: TestStruct2[] = []
     let result = Find(xs, x -> if (x.S == s) true else false)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Nested class with constructor is chosen correctly with potential ambiguous scopes with auto-open``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C1
+
+#[open]
+class C2 =
+    field C: C1
+
+    new() = { C = C1(123) }
+
+    class C1 =
+
+        new(x: int32) = { }
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Nested class with constructor is chosen correctly with potential ambiguous scopes with auto-open 2``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("int32")]
+alias int32
+
+class C1
+
+#[open]
+class C2 =
+    field C: C1
+
+    new() = { C = C1(123) }
+
+    class C1 =
+
+        new(x: int32) = { }
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Nested class with constructor is chosen correctly with potential ambiguous scopes with auto-open 3``() =
+    let src =
+        """
+namespace N
+
+open N
+
+#[intrinsic("int32")]
+alias int32
+
+class C1
+
+#[open]
+class C2 =
+    field C: C1
+
+    new() = { C = C1(123) }
+
+    class C1 =
+
+        new(x: int32) = { }
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Nested class with constructor is chosen correctly with potential ambiguous scopes with auto-open 4``() =
+    let src =
+        """
+module M
+
+open static M
+
+#[intrinsic("int32")]
+alias int32
+
+class C1
+
+#[open]
+class C2 =
+    field C: C1
+
+    new() = { C = C1(123) }
+
+    class C1 =
+
+        new(x: int32) = { }
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Nested class with constructor is chosen correctly with potential ambiguous scopes with auto-open 5``() =
+    let src =
+        """
+namespace N.N2
+
+open N.N2
+
+#[intrinsic("int32")]
+alias int32
+
+class C1
+
+#[open]
+class C2 =
+    field C: C1
+
+    new() = { C = C1(123) }
+
+    class C1 =
+
+        new(x: int32) = { }
         """
     Oly src
     |> shouldCompile

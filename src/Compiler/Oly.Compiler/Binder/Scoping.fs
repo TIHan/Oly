@@ -86,19 +86,15 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
             env
     else
 
-    if env.benv.openDeclsLookup.Contains(ent) then
-        env
-    else
-
-    if openContent = OpenContent.Entities && env.benv.partialOpenDeclsLookup.Contains(ent) then
+    if env.HasOpenedEntity(ent) then
         env
     else
 
     let env =
-        if openContent = OpenContent.Values || openContent = OpenContent.All then
-            { env with benv = { env.benv with openDeclsLookup = env.benv.openDeclsLookup.Add(ent) } }
+        if (openContent = OpenContent.Values || openContent = OpenContent.All) then
+            env.AddOpenedEntity(ent)
         else
-            { env with benv = { env.benv with partialOpenDeclsLookup = env.benv.partialOpenDeclsLookup.Add(ent) } }
+            env
 
     if ent.IsTypeExtension then
         match openContent with

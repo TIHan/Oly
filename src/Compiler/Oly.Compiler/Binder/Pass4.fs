@@ -312,6 +312,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
     let ent = entBuilder.Entity
     cenv.entityDefIndex <- 0
 
+    // TODO: 'envBody' isn't used, why? Should we use it or remove it?
     let envBody = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters).SetAccessorContext(ent)
 
     let envBody = 
@@ -327,19 +328,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
         ||> ImArray.map2 (fun (_, syntaxBindingDecl) (binding, _) -> KeyValuePair(syntaxBindingDecl, binding))
         |> ImmutableDictionary.CreateRange
 
-    let envBody = envBody.SetAccessorContext(ent)
-    let envBody =
-        if ent.IsModule then
-            if ent.IsAutoOpenable then
-                envBody
-            else
-                openContentsOfEntityAndOverride envBody OpenContent.All ent
-        else
-            envBody
-
-    let envBody = envBody.SetEnclosingTypeArguments(ent.Id, envBody.GetEnclosingTypeParametersAsTypes())
-
-    let boundExpr = bindTypeDeclarationBodyPass4 cenv envBody entBuilder entBuilder.NestedEntityBuilders bindingInfos syntaxTyDeclBody
+    let boundExpr = bindTypeDeclarationBodyPass4 cenv envBody entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
 
     // Interfaces
     if ent.IsInterface then
@@ -360,10 +349,14 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
 /// Pass 4 - Bind all implementations.
-let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos syntaxEntDefBody =
+let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos isRoot syntaxEntDefBody =
+    let ent = entBuilder.Entity
+
     let env = unsetSkipCheckTypeConstructor env
 
-    let ent = entBuilder.Entity
+    let env = env.SetAccessorContext(ent)
+    let env = openContentsOfEntityAndOverride env OpenContent.All ent
+    let env = env.SetEnclosingTypeArguments(ent.Id, env.GetEnclosingTypeParametersAsTypes())
 
     let envWithEnclosing = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters)
 
@@ -1785,7 +1778,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let syntaxIdent = syntaxTyDefName.Identifier
         let env1, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } env syntaxAttrs syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty
         let env1 = scopeInEntity env1 entBuilder.Entity
-        let env1 = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } env1 entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let env1 = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } env1 entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         bindTypeDeclarationPass2 { cenv with pass = Pass2; entityDefIndex = 0 } env1 entities syntaxIdent syntaxTyPars syntaxTyDefBody
         let env1 = scopeInInstanceConstructors env1 entBuilder.Entity
         let env1 = bindTypeDeclarationPass3 { cenv with pass = Pass3; entityDefIndex = 0 } env1 entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody

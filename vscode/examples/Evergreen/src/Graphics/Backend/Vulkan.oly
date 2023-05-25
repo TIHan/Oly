@@ -213,15 +213,17 @@ class VulkanDescriptorBindingInfo =
 private class VulkanBuffer =
     Buffer: VkBuffer get
     Allocation: VmaAllocation get
-    Offset: uint64 get
+    AllocationInfo: VmaAllocationInfo get
     Size: uint64 get
+    Flags: VkMemoryPropertyFlags get
 
-    new(buffer: VkBuffer, allocation: VmaAllocation, offset: uint64, size: uint64) =
+    new(buffer: VkBuffer, allocation: VmaAllocation, allocInfo: VmaAllocationInfo, size: uint64, flags: VkMemoryPropertyFlags) =
         {
             Buffer = buffer
             Allocation = allocation
-            Offset = offset
+            AllocationInfo = allocInfo
             Size = size
+            Flags = flags
         }
 
 private class VulkanImage =
@@ -603,22 +605,27 @@ module Vk =
         let mutable allocInfo = default: VmaAllocationInfo
         match (createBuffer(app.Allocator, size, usage, flags, &&allocInfo))
         | (buffer, allocation) =>
-            VulkanBuffer(buffer, allocation, allocInfo.offset, size)
+            let mutable memPropFlags = default: VkMemoryPropertyFlags
+            vmaGetAllocationMemoryProperties(app.Allocator, allocation, &&memPropFlags)
+            VulkanBuffer(buffer, allocation, allocInfo, size, memPropFlags)
         | _ =>
             fail("Should not happen")
 
     UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, mutable bufferData: ReadOnlySpan<T>): () where T: unmanaged =
-        let mutable memPropFlags = default: VkMemoryPropertyFlags
-        vmaGetAllocationMemoryProperties(app.Allocator, buffer.Allocation, &&memPropFlags)
-
+        let memPropFlags = buffer.Flags
+        
         if ((memPropFlags & VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            let mutable pData = default: void*
-            if (vmaMapMemory(app.Allocator, buffer.Allocation, &&pData) != VkResult.VK_SUCCESS)
-                fail("Failed to map memory.")
+            let mutable pData = buffer.AllocationInfo.pMappedData
+            let notMapped = UnsafeCast<nint>(pData) == nint(0)
+
+            if (notMapped)
+                if (vmaMapMemory(app.Allocator, buffer.Allocation, &&pData) != VkResult.VK_SUCCESS)
+                    fail("Failed to map memory.")
 
             bufferData.CopyTo(Span(pData, bufferData.Length))
         
-            vmaUnmapMemory(app.Allocator, buffer.Allocation)
+            if (notMapped)
+                vmaUnmapMemory(app.Allocator, buffer.Allocation)
         else
             let mutable allocationInfo = default
             let stagingBuffer = 
@@ -810,7 +817,7 @@ module Vk =
         createDescriptorSets(app.Device, descriptorPool, descriptorSetCount, setLayout)
 
     UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, buffer: VulkanBuffer, descriptorType: VkDescriptorType): () =
-        updateDescriptorSet(app.Device, binding, descriptorSet, buffer.Buffer, buffer.Offset, buffer.Size, descriptorType)
+        updateDescriptorSet(app.Device, binding, descriptorSet, buffer.Buffer, 0, buffer.Size, descriptorType)
 
     UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, imageLayout: VkImageLayout, imageView: VkImageView, sampler: VkSampler, descriptorType: VkDescriptorType): () =
         updateDescriptorSet(app.Device, binding, descriptorSet, imageLayout, imageView, sampler, descriptorType)

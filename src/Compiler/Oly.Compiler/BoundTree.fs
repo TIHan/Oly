@@ -1107,8 +1107,20 @@ let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
         | _ -> false
 
 let filterValuesByAccessibility<'T when 'T :> IValueSymbol> (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
+    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
+    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
+    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
+    let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
+
+    let values =
+        values
+        |> Seq.filter (fun value ->
+            (if isStatic = isInstance then true else value.IsInstance = isInstance) &&
+            (if isOverridable then value.IsOverridable = true else true)
+        )
+
     // We are querying for functions that override, we must include private functions in this case.
-    if queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides then 
+    if canCheckOverrides then 
         values
     else
         values

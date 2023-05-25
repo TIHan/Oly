@@ -1392,7 +1392,8 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
         | OlySyntaxType.WildCard _ ->
             if env.resolutionMustSolveTypes then
-                cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
+                if not env.skipCheckTypeConstructor then
+                    cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
                 TypeSymbolError
             else
                 mkInferenceVariableType None
@@ -1486,7 +1487,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                     | OlySyntaxType.WildCard _ -> true
                     | _ -> false
                 )
-            if not isValid then
+            if not isValid && not env.skipCheckTypeConstructor then
                 cenv.diagnostics.Error("Open declarations using one or more wild cards, '_', requires using wild cards for all type arguments.", 10, syntaxTyArgsRoot)
 
         let partialTyInst: TypeSymbol imarray = 
@@ -1891,11 +1892,8 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
     | _ ->
         raise(InternalCompilerException())
 
-let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstrClauseList: OlySyntaxSeparatorList<OlySyntaxConstraintClause>) =
+let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) =
     let hash = HashSet()
-
-    let syntaxConstrClauses =
-        syntaxConstrClauseList.ChildrenOfType
 
     syntaxConstrClauses
     |> ImArray.iter (fun syntaxConstrClause ->

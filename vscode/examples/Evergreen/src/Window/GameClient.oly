@@ -148,6 +148,10 @@ class GpuProgram =
     internal VkComputeShaderModule: VkShaderModule get, set
     internal VkPipelineLayout: VkPipelineLayout get, set
 
+    internal VkVertexInputBindingDescriptions: VkVertexInputBindingDescription[] get, set
+    internal VkVertexInputAttributeDescriptions: VkVertexInputAttributeDescription[] get, set
+    internal VkPipeline: VkPipeline get, set
+
     internal Version: Guid get, set
 
     new() =
@@ -165,6 +169,10 @@ class GpuProgram =
             VkFragmentShaderModule = VkShaderModule.NULL
             VkComputeShaderModule = VkShaderModule.NULL
             VkPipelineLayout = VkPipelineLayout.NULL
+
+            VkVertexInputBindingDescriptions = []
+            VkVertexInputAttributeDescriptions = []
+            VkPipeline = VkPipeline.NULL
         }
 
     AddGlobalInput(kind: GpuProgramInputKind, stageFlags: GpuProgramStageFlags): () =
@@ -201,6 +209,12 @@ class GpuProgram =
         let bindingInfo = VulkanDescriptorBindingInfo(binding, descriptorType, shaderStageFlags)
         this.VulkanDescriptorBindingInfos.Add(bindingInfo)
 
+    SetVertexInput<T>(): () where T: unmanaged =
+        this.IsDirty <- true
+
+        this.VkVertexInputBindingDescriptions <- [Vk.CreateVertexBindingDescription<T>(0, false)]
+        this.VkVertexInputAttributeDescriptions <- Vk.CreateVertexAttributeDescriptions<T>(0)
+
 class GpuProgramGlobalInputs =
     IsDirty: bool get, internal set
     Program: GpuProgram get
@@ -228,7 +242,6 @@ class GpuProgramGlobalInputs =
         this.Inputs.Add(input)
 
 class GpuProgramExecution =
-    IsDirty: bool get, internal set
     GlobalInputs: GpuProgramGlobalInputs get
     DrawIndexCount: int32 get, set
 
@@ -237,37 +250,21 @@ class GpuProgramExecution =
     internal VertexInput: IGpuArray get, set
     internal IndexInput: IGpuArray get, set
 
-    internal VkVertexInputBindingDescriptions: VkVertexInputBindingDescription[] get, set
-    internal VkVertexInputAttributeDescriptions: VkVertexInputAttributeDescription[] get, set
-    internal VkPipeline: VkPipeline get, set
-
-    internal Version: Guid get, set
-
     new(gpuProgramGlobalInputs: GpuProgramGlobalInputs) =
         {
             DrawIndexCount = 0
             VertexInput = unchecked default
             IndexInput = unchecked default
-            IsDirty = true
             GlobalInputs = gpuProgramGlobalInputs
-            VkVertexInputBindingDescriptions = []
-            VkVertexInputAttributeDescriptions = []
-            VkPipeline = VkPipeline.NULL
-            Version = default
         }
 
-    SetVertexInput<T>(gpuArray: IGpuArray): () where T: unmanaged =
-        this.IsDirty <- true
-
-        this.VkVertexInputBindingDescriptions <- [Vk.CreateVertexBindingDescription<T>(0, false)]
-        this.VkVertexInputAttributeDescriptions <- Vk.CreateVertexAttributeDescriptions<T>(0)
+    SetVertexInput(gpuArray: IGpuArray): () =
         this.VertexInput <- gpuArray
 
     SetIndexInput(gpuArray: IGpuArray): () =
-        this.IsDirty <- true
-
         this.IndexInput <- gpuArray
 
+#[open]
 class Gpu =
     implements IDisposable
 
@@ -283,12 +280,11 @@ class Gpu =
 
     field window: IWindow
     field delayedArrayUploadSet: ConcurrentDictionary<IGpuArray, ()>
-    field delayedArrayUpload: ConcurrentQueue<Gpu.DelayedArrayUploadInfo>
+    field delayedArrayUpload: ConcurrentQueue<DelayedArrayUploadInfo>
     field gpuArrays: ConcurrentDictionary<IGpuArray, ()>
     field gpuImages: ConcurrentDictionary<GpuImage, ()>
     field gpuPrograms: ConcurrentDictionary<GpuProgram, ()>
     field gpuProgramGlobalInputsSet: ConcurrentDictionary<GpuProgramGlobalInputs, ()>
-    field gpuProgramExecutions: ConcurrentDictionary<GpuProgramExecution, ()>
 
     field vk: VulkanApplication
     field vkCmdBuffers: VulkanCommandBuffer[||]
@@ -314,7 +310,6 @@ class Gpu =
             gpuArrays = ConcurrentDictionary()
             gpuImages = ConcurrentDictionary()
             gpuPrograms = ConcurrentDictionary()
-            gpuProgramExecutions = ConcurrentDictionary()
             gpuProgramGlobalInputsSet = ConcurrentDictionary()
 
             vk = vk
@@ -343,7 +338,7 @@ class Gpu =
                     | _ =>
                         fail("Invalid 'GpuArrayKind'.")
 
-                let usageFlags = usageFlags | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT
+           //     let usageFlags = usageFlags | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT
 
                 let bufferSize = gpuArray.DataSize * gpuArray.Length
                 let bufferSize = uint64(Math.Min(256, bufferSize))
@@ -355,7 +350,8 @@ class Gpu =
                                 this.vk,
                                 bufferSize,
                                 usageFlags,
-                                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+                                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+                              //  VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
                             )
                     )
 
@@ -370,7 +366,7 @@ class Gpu =
                 while (i < this.vk.MaxFramesInFlight)
                     if (this.vk.PreviousFrame == i)
                         if (this.delayedArrayUploadSet.TryAdd(gpuArray, ()))
-                            this.delayedArrayUpload.Enqueue(Gpu.DelayedArrayUploadInfo(i, gpuArray))
+                            this.delayedArrayUpload.Enqueue(DelayedArrayUploadInfo(i, gpuArray))
                     else
                         gpuArray.Update(this.vk, i)
                     i <- i + 1
@@ -427,6 +423,27 @@ class Gpu =
             gpuProgram.Version <- Guid.NewGuid()
 
             this.gpuPrograms[gpuProgram] <- ()
+
+        if (gpuProgram.VkPipeline == VkPipeline.NULL)
+            let vertexShader = gpuProgram.VkVertexShaderModule
+            let fragmentShader = gpuProgram.VkFragmentShaderModule
+            let computeShader = gpuProgram.VkComputeShaderModule
+            if (vertexShader != VkShaderModule.NULL && fragmentShader != VkShaderModule.NULL)
+                gpuProgram.VkPipeline <-
+                    Vk.CreateGraphicsPipeline(
+                        this.vk, 
+                        this.swapChain, 
+                        gpuProgram.VkVertexInputBindingDescriptions, 
+                        gpuProgram.VkVertexInputAttributeDescriptions, 
+                        gpuProgram.VkPipelineLayout, 
+                        this.renderPass, 
+                        VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
+                        VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
+                        vertexShader, 
+                        fragmentShader
+                    )
+            else
+                fail("Invalid gpu program.")
 
     Upload(gpuProgramGlobalInputs: GpuProgramGlobalInputs): () =
         this.Upload(gpuProgramGlobalInputs.Program)
@@ -489,42 +506,6 @@ class Gpu =
 
             this.gpuProgramGlobalInputsSet[gpuProgramGlobalInputs] <- ()
 
-    Upload(gpuProgramExecution: GpuProgramExecution): () =
-        this.Upload(gpuProgramExecution.GlobalInputs)
-        this.Upload(gpuProgramExecution.VertexInput)
-        this.Upload(gpuProgramExecution.IndexInput)
-
-        if (gpuProgramExecution.Version != Guid.Empty && gpuProgramExecution.Version != gpuProgramExecution.Program.Version)
-            gpuProgramExecution.IsDirty <- true
-            
-        if (gpuProgramExecution.IsDirty)
-            this.Destroy(gpuProgramExecution)
-            gpuProgramExecution.IsDirty <- false
-
-            let vertexShader = gpuProgramExecution.Program.VkVertexShaderModule
-            let fragmentShader = gpuProgramExecution.Program.VkFragmentShaderModule
-            let computeShader = gpuProgramExecution.Program.VkComputeShaderModule
-            if (vertexShader != VkShaderModule.NULL && fragmentShader != VkShaderModule.NULL)
-                gpuProgramExecution.VkPipeline <-
-                    Vk.CreateGraphicsPipeline(
-                        this.vk, 
-                        this.swapChain, 
-                        gpuProgramExecution.VkVertexInputBindingDescriptions, 
-                        gpuProgramExecution.VkVertexInputAttributeDescriptions, 
-                        gpuProgramExecution.Program.VkPipelineLayout, 
-                        this.renderPass, 
-                        VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
-                        VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
-                        vertexShader, 
-                        fragmentShader
-                    )
-            else
-                fail("Invalid gpu program.")
-
-            gpuProgramExecution.Version <- gpuProgramExecution.Program.Version
-
-            this.gpuProgramExecutions[gpuProgramExecution] <- ()
-
     Destroy(gpuArray: IGpuArray): () =
         if (gpuArray.Buffers.Length != 0)
             let mutable i = 0
@@ -549,6 +530,9 @@ class Gpu =
 
     Destroy(gpuProgram: GpuProgram): () =
         if (gpuProgram.VkPipelineLayout != VkPipelineLayout.NULL)
+            Vk.WaitForIdle(this.vk)
+
+            Vk.DestroyPipeline(this.vk, gpuProgram.VkPipeline)
             Vk.DestroyDescriptorSetLayout(this.vk, gpuProgram.VkDescriptorSetLayout)
             Vk.DestroyPipelineLayout(this.vk, gpuProgram.VkPipelineLayout)
 
@@ -561,6 +545,7 @@ class Gpu =
             if (gpuProgram.VkComputeShaderModule != VkShaderModule.NULL)
                 Vk.DestroyShaderModule(this.vk, gpuProgram.VkComputeShaderModule)
 
+            gpuProgram.VkPipeline <- VkPipeline.NULL
             gpuProgram.VkDescriptorSetLayout <- VkDescriptorSetLayout.NULL
             gpuProgram.VkPipelineLayout <- VkPipelineLayout.NULL
             gpuProgram.VkVertexShaderModule <- VkShaderModule.NULL
@@ -579,15 +564,6 @@ class Gpu =
             let mutable value = unchecked default
             let result = this.gpuProgramGlobalInputsSet.TryRemove(gpuProgramGlobalInputs, &value)
             gpuProgramGlobalInputs.IsDirty <- true
-
-    Destroy(gpuProgramExecution: GpuProgramExecution): () =
-        if (gpuProgramExecution.VkPipeline != VkPipeline.NULL)
-            Vk.DestroyPipeline(this.vk, gpuProgramExecution.VkPipeline)
-            gpuProgramExecution.VkPipeline <- VkPipeline.NULL
-
-            let mutable value = unchecked default
-            let result = this.gpuProgramExecutions.TryRemove(gpuProgramExecution, &value)
-            gpuProgramExecution.IsDirty <- true
 
     Draw(uiNode: UINode, gpuProgramExecutions: GpuProgramExecution[]): () =
         if (this.swapChain === unchecked default)
@@ -617,12 +593,16 @@ class Gpu =
                     let mutable i = 0
                     while (i < gpuProgramExecutions.Length)
                         let gpuProgramExecution = gpuProgramExecutions[i]
-                        this.Upload(gpuProgramExecution)
+                        this.Upload(gpuProgramExecution.GlobalInputs)
+                        this.Upload(gpuProgramExecution.VertexInput)
+                        this.Upload(gpuProgramExecution.IndexInput)
+
+                        let gpuProgram = gpuProgramExecution.Program
 
                         let descriptorSets = gpuProgramExecution.GlobalInputs.VkDescriptorSets
 
-                        if (currentPipeline != gpuProgramExecution.VkPipeline)
-                            currentPipeline <- gpuProgramExecution.VkPipeline
+                        if (currentPipeline != gpuProgram.VkPipeline)
+                            currentPipeline <- gpuProgram.VkPipeline
 
                             commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
                             commandBuffer.SetViewport(viewport)
@@ -672,12 +652,6 @@ class Gpu =
     Dispose(): () =
         Vk.WaitForIdle(this.vk)
 
-        let gpuProgramExecutions = this.gpuProgramExecutions.ToArray()
-        let mutable i = 0
-        while (i < gpuProgramExecutions.Length)
-            this.Destroy(gpuProgramExecutions[i].Key)
-            i <- i + 1
-
         let gpuProgramGlobalInputsLookup = this.gpuProgramGlobalInputsSet.ToArray()
         let mutable i = 0
         while (i < gpuProgramGlobalInputsLookup.Length)
@@ -707,13 +681,16 @@ class Gpu =
         Vk.Destroy(this.vk)
             
     private RecreateSwapChain(): () =
+        Vk.WaitForIdle(this.vk)
+        
         let vulkanApp = this.vk
 
-        let gpuProgramExecutions = this.gpuProgramExecutions.ToArray()
-
+        let gpuPrograms = this.gpuPrograms.ToArray()
         let mutable i = 0
-        while (i < gpuProgramExecutions.Length)
-            this.Destroy(gpuProgramExecutions[i].Key)
+        while (i < gpuPrograms.Length)
+            let gpuProgram = gpuPrograms[i].Key
+            Vk.DestroyPipeline(this.vk, gpuProgram.VkPipeline)
+            gpuProgram.VkPipeline <- VkPipeline.NULL
             i <- i + 1
 
         this.swapChain <- Vk.CreateSwapChain(vulkanApp, VkFormat.VK_FORMAT_B8G8R8A8_UNORM)
@@ -730,11 +707,6 @@ class Gpu =
             ratio * 16
         //fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
         ImGui.UploadFonts(this.imguiContext, vulkanApp.GraphicsCommandPool, this.vkCmdBuffers[0])
-
-        let mutable i = 0
-        while (i < gpuProgramExecutions.Length)
-            this.Upload(gpuProgramExecutions[i].Key)
-            i <- i + 1
 
         GC.Collect(2, GCCollectionMode.Forced, true)
 

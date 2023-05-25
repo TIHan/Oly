@@ -362,7 +362,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                 createFunctionValue 
                     enclosing
                     ImArray.empty 
-                    "__oly_static_ctor"
+                    "__oly_ctor"
                     ImArray.empty
                     parsWithInstance
                     enclosingTy
@@ -459,18 +459,7 @@ let bindTypeDeclarationPass2 (cenv: cenv) (env: BinderEnvironment) (entities: En
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
-    let envBody =
-        if entBuilder.Entity.IsModule then
-            if entBuilder.Entity.IsAutoOpenable then
-                envBody
-            else
-                openContentsOfEntityAndOverride envBody OpenContent.Entities entBuilder.Entity
-        else
-            envBody
-
-    let envBody = addTypeParametersFromEntity cenv envBody syntaxTyPars.Values entBuilder.Entity
-
-    bindTypeDeclarationBodyPass2 cenv envBody entBuilder.NestedEntityBuilders entBuilder syntaxTyDefBody
+    bindTypeDeclarationBodyPass2 cenv envBody entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
 
     // TODO: We need to do this in the very top-level ModuleDefinition.
     checkEntityExport cenv env syntaxIdent entBuilder.Entity
@@ -538,8 +527,11 @@ let private bindBodyExpressionPass2 cenv env supers entities (entBuilder: Entity
     addBindingDeclarationsToEntityPass2 cenv env fieldsAndFuncs entBuilder
 
 /// Pass 2 - Gather all entity definitions.
-let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) (syntaxTyPars: OlySyntaxType imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
     let env = setSkipCheckTypeConstructor env
+
+    let env = openContentsOfEntityAndOverride env OpenContent.Entities entBuilder.Entity
+    let env = addTypeParametersFromEntity cenv env syntaxTyPars entBuilder.Entity
 
     let envWithEnclosing = 
         env.SetEnclosing(EnclosingSymbol.Entity(entBuilder.Entity)).SetEnclosingTypeParameters(entBuilder.Entity.TypeParameters)

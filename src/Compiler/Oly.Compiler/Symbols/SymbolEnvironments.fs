@@ -119,8 +119,7 @@ type AccessorContext =
 type BoundEnvironment =
     {
         senv: ScopeEnvironment
-        partialOpenDeclsLookup: ImmutableHashSet<IEntitySymbol>
-        openDeclsLookup: ImmutableHashSet<IEntitySymbol>
+        openedEnts: ImmutableHashSet<IEntitySymbol>
         openDecls: IEntitySymbol imarray
         ac: AccessorContext
         implicitExtendsForStruct: TypeSymbol option
@@ -152,8 +151,7 @@ type BoundEnvironment =
 
         {
             senv = senv
-            partialOpenDeclsLookup = ImmutableHashSet.Empty
-            openDeclsLookup = ImmutableHashSet.Empty
+            openedEnts = ImmutableHashSet.Empty
             openDecls = ImArray.empty
             ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity> }
             implicitExtendsForStruct = None

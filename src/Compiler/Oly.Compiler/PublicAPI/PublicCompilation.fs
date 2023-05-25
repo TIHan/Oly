@@ -253,7 +253,6 @@ type internal InitialState =
     {
         sharedImportCache: SharedImportCache
         importDiags: OlyDiagnostic imarray
-        autoOpens: IEntitySymbol imarray
         env: BoundEnv
     }
 
@@ -292,7 +291,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
         )
 
     let importDiagnostics = OlyDiagnosticLogger.Create()
-    let env, autoOpens1 = 
+    let env = 
         computePrologEnvironment
             imports
             importDiagnostics
@@ -331,7 +330,6 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
     {
         sharedImportCache = sharedImportCache
         importDiags = importDiags.AddRange(importDiagnostics.GetDiagnostics())
-        autoOpens = autoOpens1
         env = env
     }
 
@@ -379,7 +377,7 @@ module private CompilationPhases =
         let binders2 =
             binders1
             |> map (fun x ->
-                x.Bind(imports, initialState.autoOpens, ct)
+                x.Bind(imports, ct)
             )
 
         let binders3 =

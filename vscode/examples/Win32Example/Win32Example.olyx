@@ -236,6 +236,7 @@ main(): () =
     let gpuProgram = GpuProgram()
     gpuProgram.AddGlobalInput(GpuProgramInputKind.Array, GpuProgramStageFlags.Vertex)
     gpuProgram.AddGlobalInput(GpuProgramInputKind.Image, GpuProgramStageFlags.Fragment)
+    gpuProgram.SetVertexInput<Vertex>()
     gpuProgram.VertexCode <- vertexShaderByteCode
     gpuProgram.FragmentCode <- fragmentShaderByteCode
 
@@ -247,7 +248,7 @@ main(): () =
         Array.Initialize(1000,
             i ->
                 let gpuProgramExecution = GpuProgramExecution(gpuProgramGlobalInputs)
-                gpuProgramExecution.SetVertexInput<Vertex>(vertices)
+                gpuProgramExecution.SetVertexInput(vertices)
                 gpuProgramExecution.SetIndexInput(indices)
                 gpuProgramExecution.DrawIndexCount <- quad.Indices.Length
                 gpuProgramExecution

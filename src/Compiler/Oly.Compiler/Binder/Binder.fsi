@@ -44,7 +44,7 @@ type BinderPass1 =
 
     member Entity : EntitySymbol
 
-    member Bind : CompilerImports * autoOpens: IEntitySymbol imarray * CancellationToken -> BinderPass2
+    member Bind : CompilerImports * CancellationToken -> BinderPass2
 
 /// Pass0 - Gather type definitions. 
 ///         Open declarations are partially processed but will scope in everything(entities/values) - results are stored in the pre-pass environment.
@@ -57,7 +57,7 @@ type BinderPass0 =
 
 val CreateDefaultBinderEnvironment: OlyILAssemblyIdentity -> BinderEnvironment
 
-val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment * IEntitySymbol imarray
+val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment
 
 val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> syntaxTree: OlySyntaxTree -> BinderPass0
 

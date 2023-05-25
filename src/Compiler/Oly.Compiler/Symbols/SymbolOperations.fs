@@ -618,6 +618,21 @@ let areEntitiesEqual (ent1: IEntitySymbol) (ent2: IEntitySymbol) =
                 false
         )
 
+let areNamespacesEqual (nmspace1: INamespaceSymbol) (nmspace2: INamespaceSymbol) =
+    OlyAssert.True(nmspace1.IsNamespace)
+    OlyAssert.True(nmspace2.IsNamespace)
+
+    if nmspace1.Name = nmspace2.Name then
+        match nmspace1.Enclosing, nmspace2.Enclosing with
+        | EnclosingSymbol.RootNamespace, EnclosingSymbol.RootNamespace ->
+            true
+        | EnclosingSymbol.Entity(ent1), EnclosingSymbol.Entity(ent2) ->
+            areNamespacesEqual ent1 ent2
+        | _ ->
+            false
+    else
+        false
+
 let areGeneralizedEntitiesEqual (ent1: IEntitySymbol) (ent2: IEntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else

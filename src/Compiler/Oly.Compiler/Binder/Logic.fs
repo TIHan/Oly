@@ -395,7 +395,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
         let syntaxIdent = syntaxFuncName.Identifier
 
         let env1, tyPars = bindTypeParameters cenv env true syntaxTyPars.Values
-        bindConstraintClauseList cenv env1 syntaxConstrClauseList
+        bindConstraintClauseList cenv env1 syntaxConstrClauseList.ChildrenOfType
         let returnTy = bindReturnTypeAnnotation cenv env1 syntaxReturnTyAnnot
 
         let func = bindFunction env1 syntaxIdent.ValueText (syntaxTyPars.HasRequire, tyPars) returnTy syntaxIdent syntaxPars
@@ -504,7 +504,6 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
         | None ->
             cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
             None
-
         | Some(propName, propTy, _) ->
             bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propName propTy
 
@@ -554,12 +553,19 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
         let env1 =
             if canOpen then
                 let namespaceEnt = bindNameAsNamespace cenv (env.SetIsInOpenDeclaration()) syntaxName
-                let env = 
-                    if openContent = OpenContent.Entities then
-                        { env with benv = env.benv.AddOpenDeclaration(namespaceEnt) }
-                    else
-                        env
-                openContentsOfEntity env openContent namespaceEnt
+
+                match env.benv.senv.enclosing with
+                | EnclosingSymbol.Entity(enclosingEnt) 
+                        // Do not re-open the same namespace.
+                        when enclosingEnt.IsNamespace && areNamespacesEqual enclosingEnt namespaceEnt ->
+                    env
+                | _ ->
+                    let env = 
+                        if openContent = OpenContent.Entities then
+                            { env with benv = env.benv.AddOpenDeclaration(namespaceEnt) }
+                        else
+                            env
+                    openContentsOfEntity env openContent namespaceEnt
             else
                 env
         env1
@@ -585,7 +591,11 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                             cenv.diagnostics.Error($"'{printEntity env.benv ent}' is a shape and cannot be opened.", 10, syntaxName)
                             env
                         else
-                            openContentsOfEntity env openContent ent
+                            match env.benv.senv.enclosing with
+                            | EnclosingSymbol.Entity(enclosingEnt) when enclosingEnt.Id = ent.Id ->
+                                env
+                            | _ ->
+                                openContentsOfEntity env openContent ent
                     | _ ->
                         cenv.diagnostics.Error($"Not a named type.", 10, syntaxName)
                         env

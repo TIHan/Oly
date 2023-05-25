@@ -496,6 +496,17 @@ type BinderEnvironment =
         | _ ->
             false
 
+    member this.HasOpenedEntity(ent: IEntitySymbol) =
+        this.benv.openedEnts.Contains(ent)
+
+    member this.AddOpenedEntity(ent: IEntitySymbol) =
+        { this with
+            benv = 
+                { this.benv with
+                    openedEnts = this.benv.openedEnts.Add(ent)
+                }
+        }
+
 let checkSyntaxHigherTypeArguments cenv (syntaxTyArgs: OlySyntaxType imarray) =
     syntaxTyArgs
     |> ImArray.iter (fun syntaxTy ->

@@ -39,8 +39,6 @@ let importReferences (importer: Importer) (env: BinderEnvironment) (ct: Cancella
     env, diagnostics.ToImmutableArray()
 
 let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnosticLogger) env (declTable: BoundDeclarationTable) openContent ct =
-    let autoOpens = ResizeArray<IEntitySymbol>()
-
     let env, importDiags = 
         importReferences imports.Importer env ct
             (fun env ent ->
@@ -56,7 +54,6 @@ let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnos
                     else
                         let env = scopeInEntity env ent
                         if ent.IsAutoOpenable then
-                            autoOpens.Add(ent)
                             openContentsOfEntity env openContent ent
                         else
                             env
@@ -67,7 +64,7 @@ let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnos
     importDiags
     |> ImArray.iter diagnostics.AddDiagnostic
 
-    env, autoOpens |> ImArray.ofSeq
+    env
 
 let bindNamespaceOrModuleDefinitionPass0 (cenv: cenv) (env: BinderEnvironment) syntaxNode (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
@@ -82,19 +79,19 @@ let bindNamespaceOrModuleDefinitionPass0 (cenv: cenv) (env: BinderEnvironment) s
     entBuilder.SetEntities(cenv.pass, nestedEntBuilders)
     env1
 
-let bindNamespaceOrModuleDefinitionPass1 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
+let bindNamespaceOrModuleDefinitionPass1 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyPars syntaxConstrClauses syntaxTyDefBody =
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
 
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass1 cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyDefBody
+    bindTypeDeclarationBodyPass1 cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyPars syntaxConstrClauses syntaxTyDefBody
 
-let bindNamespaceOrModuleDefinitionPass2 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
+let bindNamespaceOrModuleDefinitionPass2 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyPars syntaxTyDefBody =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass2 cenv env nestedEntBuilders entBuilder syntaxTyDefBody
+    bindTypeDeclarationBodyPass2 cenv env nestedEntBuilders entBuilder syntaxTyPars syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass3 cenv env nestedEntBuilders entBuilder syntaxTyDefBody
+    bindTypeDeclarationBodyPass3 cenv env nestedEntBuilders entBuilder true syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entBuilder: EntitySymbolBuilder) (syntaxTyDefBody: OlySyntaxTypeDeclarationBody) =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
@@ -102,7 +99,7 @@ let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) s
         (syntaxTyDefBody.GetMemberDeclarations(), entBuilder.Bindings)
         ||> ImArray.map2 (fun (_, syntaxBinding) (binding, _) -> KeyValuePair(syntaxBinding, binding))
         |> ImmutableDictionary.CreateRange
-    let expr = bindTypeDeclarationBodyPass4 cenv env entBuilder nestedEntBuilders bindingInfos syntaxTyDefBody
+    let expr = bindTypeDeclarationBodyPass4 cenv env entBuilder nestedEntBuilders bindingInfos true syntaxTyDefBody
     if entBuilder.Entity.IsNamespace then
         env, BoundRoot.Namespace(syntaxToCapture, env.benv, entBuilder.Entity, expr)
     else
@@ -192,59 +189,44 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
 
 let bindRootPass1 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (syntaxRoot: OlySyntaxCompilationUnit) =
     let env = env.SetEnclosing(entBuilder.Entity.AsEnclosing).SetAccessorContext(entBuilder.Entity)
-    let env = 
-        // Do not open this twice.
-        if entBuilder.Entity.IsAutoOpenable then
-            env
-        else
-            openContentsOfEntityAndOverride env OpenContent.Entities entBuilder.Entity
     match syntaxRoot with
     | OlySyntaxCompilationUnit.Namespace(_, _, syntaxTyDefBody, _) ->
-        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder syntaxTyDefBody
+        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder ImArray.empty ImArray.empty syntaxTyDefBody
 
     | OlySyntaxCompilationUnit.AnonymousModule(syntaxTyDefBody, _) ->
-        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder syntaxTyDefBody
+        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder ImArray.empty ImArray.empty syntaxTyDefBody
 
-    | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, syntaxName, syntaxConstrClauseList, syntaxTyDefBody, _) ->
-        let env = addTypeParametersFromEntity cenv env (syntaxName.GetAllTypeArguments()) entBuilder.Entity
-        bindConstraintClauseList cenv (setSkipCheckTypeConstructor env) syntaxConstrClauseList
-        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder syntaxTyDefBody
+    | OlySyntaxCompilationUnit.Module(_, _, _, syntaxName, syntaxConstrClauseList, syntaxTyDefBody, _) ->
+        bindNamespaceOrModuleDefinitionPass1 cenv env entBuilder (syntaxName.GetAllTypeArguments()) syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
 
     | _ ->
         raise(InternalCompilerException())
 
 let bindRootPass2 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (syntaxRoot: OlySyntaxCompilationUnit) =
     match syntaxRoot with
-    | OlySyntaxCompilationUnit.Namespace(_, syntaxName, syntaxTyDefBody, _) ->
-        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder syntaxTyDefBody
+    | OlySyntaxCompilationUnit.Namespace(_, _, syntaxTyDefBody, _) ->
+        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder ImArray.empty syntaxTyDefBody
 
     | OlySyntaxCompilationUnit.AnonymousModule(syntaxTyDefBody, _) ->
-        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder syntaxTyDefBody
+        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder ImArray.empty syntaxTyDefBody
 
-    | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, syntaxName, _, syntaxTyDefBody, _) ->
-        // REVIEW: Do we actually need to do 'addTypeParametersFromEntity'? We do this in Pass2 for other type declarations.
-        let env = addTypeParametersFromEntity cenv env (syntaxName.GetAllTypeArguments()) entBuilder.Entity
-        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder syntaxTyDefBody
+    | OlySyntaxCompilationUnit.Module(_, _, _, syntaxName, _, syntaxTyDefBody, _) ->
+        bindNamespaceOrModuleDefinitionPass2 cenv env entBuilder (syntaxName.GetAllTypeArguments()) syntaxTyDefBody
 
     | _ ->
         raise(InternalCompilerException())
 
 let bindRootPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (syntaxRoot: OlySyntaxCompilationUnit) =
     let env = env.SetEnclosing(entBuilder.Entity.AsEnclosing).SetAccessorContext(entBuilder.Entity)
-    let env = 
-        // Do not open this twice.
-        if entBuilder.Entity.IsAutoOpenable then
-            env
-        else
-            openContentsOfEntityAndOverride env OpenContent.Values entBuilder.Entity
+
     match syntaxRoot with
-    | OlySyntaxCompilationUnit.Namespace(_, syntaxName, syntaxTyDefBody, _) ->
+    | OlySyntaxCompilationUnit.Namespace(_, _, syntaxTyDefBody, _) ->
         bindNamespaceOrModuleDefinitionPass3 cenv env entBuilder syntaxTyDefBody
 
     | OlySyntaxCompilationUnit.AnonymousModule(syntaxTyDefBody, _) ->
         bindNamespaceOrModuleDefinitionPass3 cenv env entBuilder syntaxTyDefBody
 
-    | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, _, syntaxConstrClauseList, syntaxTyDefBody, _) ->
+    | OlySyntaxCompilationUnit.Module(syntaxAttrs, _, _, _, syntaxConstrClauseList, syntaxTyDefBody, _) ->
         checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxConstrClauseList.ChildrenOfType entBuilder.Entity.TypeParameters
 
         let attrs = bindAttributes cenv env true syntaxAttrs
@@ -257,13 +239,13 @@ let bindRootPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbo
 
 let bindRootPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (syntaxRoot: OlySyntaxCompilationUnit) =
     match syntaxRoot with
-    | OlySyntaxCompilationUnit.Namespace(_, syntaxName, syntaxTyDefBody, _) ->
+    | OlySyntaxCompilationUnit.Namespace(_, _, syntaxTyDefBody, _) ->
         bindNamespaceOrModuleDefinitionPass4 cenv env syntaxRoot entBuilder syntaxTyDefBody
 
     | OlySyntaxCompilationUnit.AnonymousModule(syntaxTyDefBody, _) ->
         bindNamespaceOrModuleDefinitionPass4 cenv env syntaxRoot entBuilder syntaxTyDefBody
 
-    | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, _, _, syntaxTyDefBody, _) ->
+    | OlySyntaxCompilationUnit.Module(_, _, _, _, _, syntaxTyDefBody, _) ->
         bindNamespaceOrModuleDefinitionPass4 cenv env syntaxRoot entBuilder syntaxTyDefBody
 
     | _ ->
@@ -303,7 +285,6 @@ type PassState =
         env: BinderEnvironment
         entBuilder: EntitySymbolBuilder
         syntaxTree: OlySyntaxTree
-        autoOpens: IEntitySymbol imarray
     }
 
 [<Sealed>]
@@ -368,18 +349,7 @@ type BinderPass3(state: PassState) =
                 memberDefIndex = 0
             }
 
-        let env =
-            let mutable env = state.env
-            for i = 0 to state.autoOpens.Length - 1 do
-                let ent = state.autoOpens[i]
-                env <- openContentsOfEntity env OpenContent.Values ent
-            env
-
-        let env =
-            (env, env.benv.openDecls)
-            ||> ImArray.fold (fun env ent ->
-                openContentsOfEntity env OpenContent.Values ent
-            )
+        let env = state.env
 
         let env1 = bindSyntaxTreePass3 cenv env state.entBuilder state.syntaxTree
         let diags = state.diags.AddRange(diagLogger.GetDiagnostics())
@@ -430,10 +400,10 @@ type BinderPass2(state: PassState) =
 [<Sealed>]
 type BinderPass1(state: PassState) =
 
-    let cachedValue = CacheValueWithArg<CompilerImports * IEntitySymbol imarray, _>(fun (imports, autoOpens) ct ->
+    let cachedValue = CacheValueWithArg<CompilerImports, _>(fun imports ct ->
         let diagLogger = OlyDiagnosticLogger.Create()
 
-        let env2, autoOpens2 = 
+        let env2 = 
             computePrologEnvironment
                 imports
                 diagLogger
@@ -441,8 +411,6 @@ type BinderPass1(state: PassState) =
                 state.declTable
                 OpenContent.Entities
                 ct
-
-        let autoOpens = autoOpens.AddRange(autoOpens2)
 
         let cenv =
             {
@@ -464,15 +432,14 @@ type BinderPass1(state: PassState) =
                 declTable = cenv.declTable.contents
                 env = env3
                 diags = state.diags.AddRange(diagLogger.GetDiagnostics())
-                autoOpens = autoOpens
             }
         )
     )
 
     member _.Entity = state.entBuilder.Entity
     
-    member _.Bind(env, autoOpens, ct) = 
-        cachedValue.GetValue((env, autoOpens), ct)
+    member _.Bind(env, ct) = 
+        cachedValue.GetValue(env, ct)
 
 [<Sealed>]
 type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>, syntaxTree: OlySyntaxTree) =
@@ -504,7 +471,6 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
                     declTable = cenv.declTable.contents
                     entBuilder = entBuilder
                     syntaxTree = syntaxTree
-                    autoOpens = ImArray.empty
                 }
             )
         )
@@ -598,8 +564,7 @@ let createInitialBoundEnvironment asmIdent =
 
     {
         senv = senv
-        partialOpenDeclsLookup = ImmutableHashSet.Empty
-        openDeclsLookup = ImmutableHashSet.Empty    
+        openedEnts = ImmutableHashSet.Empty    
         openDecls = ImArray.empty
         ac = { Entity = None; AssemblyIdentity = asmIdent }
         implicitExtendsForStruct = None

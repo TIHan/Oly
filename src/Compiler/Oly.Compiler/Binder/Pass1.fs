@@ -15,32 +15,21 @@ open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 
 /// Pass 1 - Get type definition inherits and implements.
-let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxConstrClauseList syntaxTyDefBody =
-    let envBody = setSkipCheckTypeConstructor env
-
+let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
-    let envBody =
-        if entBuilder.Entity.IsModule then
-            if entBuilder.Entity.IsAutoOpenable then
-                envBody
-            else
-                openContentsOfEntityAndOverride envBody OpenContent.Entities entBuilder.Entity
-        else
-            envBody
-
-    let envBody = addTypeParametersFromEntity cenv envBody syntaxTyPars.Values entBuilder.Entity
-
-    bindConstraintClauseList cenv envBody syntaxConstrClauseList
-
-    bindTypeDeclarationBodyPass1 cenv envBody syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyDefBody |> ignore
+    bindTypeDeclarationBodyPass1 cenv env syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyPars.Values syntaxConstrClauses syntaxTyDefBody |> ignore
 
     scopeInEntityAndOverride env entBuilder.Entity
 
 /// Pass 1 - Get type inherits and implements.
-let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxTyPars: OlySyntaxType imarray) syntaxConstrClauses (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
     let env = setSkipCheckTypeConstructor env
+
+    let env = openContentsOfEntityAndOverride env OpenContent.Entities entBuilder.Entity
+    let env = addTypeParametersFromEntity cenv env syntaxTyPars entBuilder.Entity
+    bindConstraintClauseList cenv env syntaxConstrClauses
 
     let envWithEnclosing = env.SetEnclosing(EnclosingSymbol.Entity(entBuilder.Entity)).SetEnclosingTypeParameters(entBuilder.Entity.TypeParameters)
 
@@ -247,7 +236,7 @@ let bindTopLevelExpressionPass1 (cenv: cenv) (env: BinderEnvironment) (canOpen: 
 
     | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclarationPass1 cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let env = bindTypeDeclarationPass1 cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 
