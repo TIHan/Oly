@@ -167,7 +167,7 @@ main(): () =
     game.Gpu.Draw([])
 
     let globals =
-        GpuSharedArray<_>.Initialize(GpuArrayKind.Uniform, 1,
+        GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,
             i ->
                 let mutable globals = Globals()
                 globals.Projection <- Matrix4x4.CreatePerspectiveFieldOfView(radians(45), 1, 0.1, 10)
@@ -178,12 +178,12 @@ main(): () =
 
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
     let vertices = 
-        GpuSharedArray<_>.Initialize(GpuArrayKind.Vertex, quad.Vertices.Length,
+        GpuMutableArray.Initialize(GpuArrayKind.Vertex, GpuMemoryKind.Local, quad.Vertices.Length,
             i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
         )
 
     let indices =
-        GpuSharedArray<_>.Initialize(GpuArrayKind.Index, quad.Indices.Length,
+        GpuMutableArray.Initialize(GpuArrayKind.Index, GpuMemoryKind.Local, quad.Indices.Length,
             i -> quad.Indices[i]
         )
 
@@ -199,8 +199,8 @@ main(): () =
     gpuProgram.FragmentCode <- fragmentShaderByteCode
 
     let gpuProgramGlobalInputs = GpuProgramGlobalInputs(gpuProgram)
-    gpuProgramGlobalInputs.Add(GpuProgramInput.CreateArray(globals))
-    gpuProgramGlobalInputs.Add(GpuProgramInput.CreateImage(image))
+    gpuProgramGlobalInputs.Add(globals)
+    gpuProgramGlobalInputs.Add(image)
 
     let gpuCommands =
         Array.Initialize(1000,

@@ -22,8 +22,12 @@ enum GpuProgramStageFlags =
     | Fragment  = 0b00010
     | Compute   = 0b00100
 
+enum GpuMemoryKind =
+    | Local
+    | Shared
+
 enum GpuArrayKind =
-    | Uniform
+    | Global
     | Vertex
     | Index
 
@@ -33,17 +37,19 @@ interface IGpuArray =
     DataSize: int32 get
     IsDirty: bool get, internal set
     Kind: GpuArrayKind get
+    MemoryKind: GpuMemoryKind get
     Length: int32 get
 
     internal Update(vk: VulkanApplication, frame: int32): ()
 
-class GpuSharedArray<T> where T: unmanaged =
+class GpuMutableArray<T> where T: unmanaged =
     implements IGpuArray
 
     internal Buffers: VulkanBuffer[||] get, set  
     DataSize: int32 get
     IsDirty: bool get, internal set
     Kind: GpuArrayKind get
+    MemoryKind: GpuMemoryKind get
     Length: int32 get() = this.bufferData.Length
 
     private Update(vk: VulkanApplication, frame: int32): () =
@@ -52,10 +58,11 @@ class GpuSharedArray<T> where T: unmanaged =
 
     field bufferData: T[||]  
 
-    internal new(kind: GpuArrayKind, bufferData: T[||]) =
+    internal new(kind: GpuArrayKind, memoryKind: GpuMemoryKind, bufferData: T[||]) =
         {
             DataSize = sizeof<T>
             Kind = kind
+            MemoryKind = memoryKind
             bufferData = bufferData
             Buffers = [||]
             IsDirty = true
@@ -75,9 +82,11 @@ class GpuSharedArray<T> where T: unmanaged =
     AsReadOnlySpan(): ReadOnlySpan<T> =
         ReadOnlySpan(this.bufferData)
 
-    static Initialize(kind: GpuArrayKind, size: int32, f: int32 -> T): GpuSharedArray<T> =
+class GpuMutableArray =
+
+    static Initialize<T>(kind: GpuArrayKind, memoryKind: GpuMemoryKind, size: int32, f: int32 -> T): GpuMutableArray<T> where T: unmanaged =
         let bufferData = Array.InitializeMutable(size, f)
-        GpuSharedArray(kind, bufferData)
+        GpuMutableArray<T>(kind, memoryKind, bufferData)
 
 class GpuImage =
     FilePath: string get
@@ -99,10 +108,10 @@ enum GpuProgramInputKind =
     | Array
     | Image
 
-struct GpuProgramInput =
+private struct GpuProgramInput =
     Kind: GpuProgramInputKind get
-    internal Image: GpuImage get
-    internal Array: IGpuArray get
+    Image: GpuImage get
+    Array: IGpuArray get
 
     private new(kind: GpuProgramInputKind, gpuImage: GpuImage, gpuArray: IGpuArray) =
         {
@@ -236,10 +245,15 @@ class GpuProgramGlobalInputs =
             Version = default
         }
 
-    Add(input: GpuProgramInput): () =
+    Add(gpuArray: IGpuArray): () =
         this.IsDirty <- true
 
-        this.Inputs.Add(input)
+        this.Inputs.Add(GpuProgramInput(GpuProgramInputKind.Array, unchecked default, gpuArray))
+
+    Add(gpuImage: GpuImage): () =
+        this.IsDirty <- true
+
+        this.Inputs.Add(GpuProgramInput(GpuProgramInputKind.Image, gpuImage, unchecked default))
 
 abstract class GpuCommand =
     internal Tag: int32 get, set
@@ -345,7 +359,7 @@ class Gpu =
             if (gpuArray.Buffers.Length == 0)
                 let usageFlags =
                     match (gpuArray.Kind)
-                    | GpuArrayKind.Uniform => 
+                    | GpuArrayKind.Global => 
                         VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
                     | GpuArrayKind.Vertex =>
                         VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
@@ -354,21 +368,28 @@ class Gpu =
                     | _ =>
                         fail("Invalid 'GpuArrayKind'.")
 
-           //     let usageFlags = usageFlags | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                let usageFlags =
+                    match (gpuArray.MemoryKind)
+                    | GpuMemoryKind.Local =>
+                        usageFlags | VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                    | _ =>
+                        usageFlags
 
                 let bufferSize = gpuArray.DataSize * gpuArray.Length
                 let bufferSize = uint64(Math.Min(256, bufferSize))
 
+                let createFlags =
+                    match (gpuArray.MemoryKind)
+                    | GpuMemoryKind.Local =>
+                        VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+                    | GpuMemoryKind.Shared =>
+                        VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+                    | _ =>
+                        fail("Invalid gpu memory kind.")
+
                 gpuArray.Buffers <-
                     Array.InitializeMutable(this.vk.MaxFramesInFlight, 
-                        i ->
-                            Vk.CreateBuffer(
-                                this.vk,
-                                bufferSize,
-                                usageFlags,
-                                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
-                              //  VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
-                            )
+                        i -> Vk.CreateBuffer(this.vk, bufferSize, usageFlags, createFlags)
                     )
 
                 let mutable i = 0
