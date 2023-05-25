@@ -1,4 +1,4 @@
-namespace Evergreen.Game
+namespace Evergreen.Game.Rendering
 
 open System
 open System.IO
@@ -294,7 +294,6 @@ abstract class GpuCommand =
         cmd.Node <- uiNode
         cmd
 
-#[open]
 class Gpu =
     implements IDisposable
 
@@ -736,7 +735,7 @@ class Gpu =
 
         this.swapChain <- Vk.CreateSwapChain(vulkanApp, VkFormat.VK_FORMAT_B8G8R8A8_UNORM)
         this.renderPass <- Vk.CreateRenderPass(vulkanApp, this.swapChain)
-        this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.renderPass)
+        this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.renderPass)    
         this.imguiContext <- ImGui.CreateContext(this.window, vulkanApp, this.swapChain, this.renderPass)
 
       //  let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
@@ -760,11 +759,11 @@ class Gpu =
             Vk.DestroySwapChain(this.vk, this.swapChain)
             this.swapChain <- unchecked default
 
-class GameClientOptions =
-    WindowTitle: string get, set = "Game Client"
+class GameRenderingOptions =
+    WindowTitle: string get, set = "Evergreen Engine"
     InitialWindowSize: Vector2 get, set = Vector2(1280, 720)
 
-class GameClient =
+class GameRendering =
     implements IDisposable
 
     private new(window: IWindow, gpu: Gpu) =
@@ -776,7 +775,7 @@ class GameClient =
     Window: IWindow get
     Gpu: Gpu get
 
-    static Create(options: GameClientOptions): GameClient =
+    static Create(options: GameRenderingOptions): GameRendering =
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
         Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
         
@@ -788,7 +787,7 @@ class GameClient =
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
         let gpu = Gpu(window, vulkanApp)
-        GameClient(window, gpu)
+        GameRendering(window, gpu)
 
     Dispose(): () =
         this.Gpu.Dispose()

@@ -167,8 +167,9 @@ class VulkanSwapChain =
     Scissor: VkRect2D get
     ImageFormat: VkFormat get
     DepthFormat: VkFormat get
+    SupportDetails: VulkanSwapChainSupportDetails get
 
-    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat) =
+    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat, supportDetails: VulkanSwapChainSupportDetails) =
         {
             SwapChain = swapChain
             Images = images
@@ -180,6 +181,7 @@ class VulkanSwapChain =
             Scissor = scissor
             ImageFormat = imageFormat
             DepthFormat = depthFormat
+            SupportDetails = supportDetails
         }
 
 class VulkanApplicationOptions =
@@ -1283,7 +1285,7 @@ module Vk =
         scissor.offset <- default
         scissor.extent <- extent
 
-        VulkanSwapChain(swapChain, images, imageViews, depthImages, depthImageViews, extent, viewport, scissor, surfaceFormat.format, depthFormat)
+        VulkanSwapChain(swapChain, images, imageViews, depthImages, depthImageViews, extent, viewport, scissor, surfaceFormat.format, depthFormat, details)
 
     private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat, aspectMask: VkImageAspectFlags): VkImageView =
         let mutable createInfo = default: VkImageViewCreateInfo
