@@ -241,28 +241,44 @@ class GpuProgramGlobalInputs =
 
         this.Inputs.Add(input)
 
-class GpuProgramExecution =
-    GlobalInputs: GpuProgramGlobalInputs get
-    DrawIndexCount: int32 get, set
+abstract class GpuCommand =
+    internal Tag: int32 get, set
+    
+    private class _DrawIndexed =
+        inherits GpuCommand
 
-    Program: GpuProgram get() = this.GlobalInputs.Program
+        GlobalInputs: GpuProgramGlobalInputs get, set
+        Vertices: IGpuArray get, set = unchecked default
+        Indices: IGpuArray get, set = unchecked default
+        IndexCount: int32 get, set = 0
 
-    internal VertexInput: IGpuArray get, set
-    internal IndexInput: IGpuArray get, set
+    pattern DrawIndexed(cmd: GpuCommand): (globalInputs: GpuProgramGlobalInputs, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
+        let cmd = UnsafeCast<_DrawIndexed>(cmd)
+        (cmd.GlobalInputs, cmd.Vertices, cmd.Indices, cmd.IndexCount)
 
-    new(gpuProgramGlobalInputs: GpuProgramGlobalInputs) =
-        {
-            DrawIndexCount = 0
-            VertexInput = unchecked default
-            IndexInput = unchecked default
-            GlobalInputs = gpuProgramGlobalInputs
-        }
+    static DrawIndexed(globalInputs: GpuProgramGlobalInputs, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
+        let cmd = _DrawIndexed()
+        cmd.Tag <- 0
+        cmd.GlobalInputs <- globalInputs
+        cmd.Vertices <- vertices
+        cmd.Indices <- indices
+        cmd.IndexCount <- indexCount
+        cmd
 
-    SetVertexInput(gpuArray: IGpuArray): () =
-        this.VertexInput <- gpuArray
+    private class _DrawUI =
+        inherits GpuCommand
 
-    SetIndexInput(gpuArray: IGpuArray): () =
-        this.IndexInput <- gpuArray
+        Node: UINode get, set = unchecked default
+
+    pattern DrawUI(cmd: GpuCommand): UINode when (cmd.Tag == 1) =>
+        let cmd = UnsafeCast<_DrawUI>(cmd)
+        cmd.Node
+
+    static DrawUI(uiNode: UINode): GpuCommand =
+        let cmd = _DrawUI()
+        cmd.Tag <- 1
+        cmd.Node <- uiNode
+        cmd
 
 #[open]
 class Gpu =
@@ -565,13 +581,13 @@ class Gpu =
             let result = this.gpuProgramGlobalInputsSet.TryRemove(gpuProgramGlobalInputs, &value)
             gpuProgramGlobalInputs.IsDirty <- true
 
-    Draw(uiNode: UINode, gpuProgramExecutions: GpuProgramExecution[]): () =
+    Draw(gpuCommands: GpuCommand[]): () =
         if (this.swapChain === unchecked default)
             this.RecreateSwapChain()
 
-        try
-            UI.Update(this.imguiContext, uiNode)
+        UI.NewFrame(this.imguiContext)
 
+        try
             Vk.Draw(this.vk, this.swapChain, 
                 (framebufferIndex, frame) -> 
                     let framebuffer = this.swapChainFramebuffers[framebufferIndex]
@@ -591,41 +607,45 @@ class Gpu =
                     let mutable currentGlobalInputs = unchecked default
 
                     let mutable i = 0
-                    while (i < gpuProgramExecutions.Length)
-                        let gpuProgramExecution = gpuProgramExecutions[i]
-                        this.Upload(gpuProgramExecution.GlobalInputs)
-                        this.Upload(gpuProgramExecution.VertexInput)
-                        this.Upload(gpuProgramExecution.IndexInput)
+                    while (i < gpuCommands.Length)
+                        let gpuCommand = gpuCommands[i]
 
-                        let gpuProgram = gpuProgramExecution.Program
+                        match (gpuCommand)
+                        | GpuCommand.DrawIndexed(globalInputs, vertices, indices, indexCount) =>
+                            this.Upload(globalInputs)
+                            this.Upload(vertices)
+                            this.Upload(indices)
 
-                        let descriptorSets = gpuProgramExecution.GlobalInputs.VkDescriptorSets
+                            let gpuProgram = globalInputs.Program
+                            let descriptorSets = globalInputs.VkDescriptorSets
 
-                        if (currentPipeline != gpuProgram.VkPipeline)
-                            currentPipeline <- gpuProgram.VkPipeline
+                            if (currentPipeline != gpuProgram.VkPipeline)
+                                currentPipeline <- gpuProgram.VkPipeline
 
-                            commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
-                            commandBuffer.SetViewport(viewport)
-                            commandBuffer.SetScissor(scissor)
+                                commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
+                                commandBuffer.SetViewport(viewport)
+                                commandBuffer.SetScissor(scissor)
 
-                        if (currentGlobalInputs !== gpuProgramExecution.GlobalInputs)
-                            currentGlobalInputs <- gpuProgramExecution.GlobalInputs
+                            if (currentGlobalInputs !== globalInputs)
+                                currentGlobalInputs <- globalInputs
 
-                            let pipelineLayout = gpuProgramExecution.Program.VkPipelineLayout
-                            let descriptorSet = descriptorSets[frame]
-                            commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
+                                let pipelineLayout = gpuProgram.VkPipelineLayout
+                                let descriptorSet = descriptorSets[frame]
+                                commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
+                                
+                            commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
+                            commandBuffer.BindIndexBuffer(indices.Buffers[frame])
+                            commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
-                        let vertexBuffer = gpuProgramExecution.VertexInput.Buffers[frame]
-                        let indexBuffer = gpuProgramExecution.IndexInput.Buffers[frame]
-                        let drawIndexCount = gpuProgramExecution.DrawIndexCount
-                            
-                        commandBuffer.BindVertexBuffer(vertexBuffer)
-                        commandBuffer.BindIndexBuffer(indexBuffer)
-                        commandBuffer.DrawIndexed(uint32(drawIndexCount), 1)
+                        | GpuCommand.DrawUI(uiNode) =>
+                            UI.ShowWindow(this.imguiContext, uiNode)
+                            UI.ShowDemoWindow(this.imguiContext)
+                            UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
+
+                        | _ =>
+                            ()
 
                         i <- i + 1
-
-                    ImGui.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
 
                     commandBuffer.EndRenderPass()
                     commandBuffer.End()

@@ -318,6 +318,14 @@ module UI =
         vm.ItemCount <- itemCount
         vm
 
-    Update(context: ImGui.ImGuiContext, node: UINode): () =
+    NewFrame(context: ImGui.ImGuiContext): () =
         ImGui.NewFrame(context)
+
+    ShowWindow(context: ImGui.ImGuiContext, node: UINode): () =
         MakeNode(context, node)
+
+    ShowDemoWindow(context: ImGui.ImGuiContext): () =
+        ImGui.ShowDemoWindow(context)
+
+    Draw(context: ImGui.ImGuiContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
+        ImGui.Draw(context, commandBuffer, pipeline)

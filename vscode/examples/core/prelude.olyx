@@ -759,6 +759,15 @@ extension ArrayExtensions =
         else
             fail("Unable to find item index.")
 
+    static Add<T>(arr: T[], item: T): T[] =
+        let newArr = System.Array.ZeroCreate<T>(arr.Length + 1)
+        let mutable i = 0
+        while (i < arr.Length)
+            newArr[i] <- arr[i]
+            i <- i + 1
+        newArr[arr.Length] <- item
+        UnsafeCast(newArr)
+
     static Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0
