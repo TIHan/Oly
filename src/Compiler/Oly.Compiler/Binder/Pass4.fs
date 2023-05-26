@@ -312,14 +312,6 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
     let ent = entBuilder.Entity
     cenv.entityDefIndex <- 0
 
-    // TODO: 'envBody' isn't used, why? Should we use it or remove it?
-    let envBody = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters).SetAccessorContext(ent)
-
-    let envBody = 
-        env
-        |> unsetSkipCheckTypeConstructor
-        |> unsetIsInLocalLambda
-
     OlyAssert.True(ent.IsFormal)
 
     let bindingInfos =
@@ -328,7 +320,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
         ||> ImArray.map2 (fun (_, syntaxBindingDecl) (binding, _) -> KeyValuePair(syntaxBindingDecl, binding))
         |> ImmutableDictionary.CreateRange
 
-    let boundExpr = bindTypeDeclarationBodyPass4 cenv envBody entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
+    let boundExpr = bindTypeDeclarationBodyPass4 cenv env entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
 
     // Interfaces
     if ent.IsInterface then
@@ -352,29 +344,30 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
 let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos isRoot syntaxEntDefBody =
     let ent = entBuilder.Entity
 
-    let env = unsetSkipCheckTypeConstructor env
+    let env = 
+        unsetSkipCheckTypeConstructor env
+        |> unsetIsInLocalLambda
 
     let env = env.SetAccessorContext(ent)
     let env = openContentsOfEntityAndOverride env OpenContent.All ent
     let env = env.SetEnclosingTypeArguments(ent.Id, env.GetEnclosingTypeParametersAsTypes())
+    let env = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters)
 
-    let envWithEnclosing = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters)
-
-    let envWithEnclosing =
+    let env =
         // Add intrinsic keyword identifiers to scope
         // If the entity can declare a constructor, it most likely can have a super.
         if not ent.Extends.IsEmpty && ent.CanDeclareConstructor then
             // TODO: Implement
-            envWithEnclosing
+            env
         else
-            envWithEnclosing       
+            env       
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
         BoundExpression.None(BoundSyntaxInfo.User(syntaxEntDefBody, env.benv))
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxCastList, syntaxInherits, syntaxImplements, syntaxExpr) ->
-        let _, boundExpr = bindTopLevelExpressionPass4 cenv envWithEnclosing entities bindingInfos syntaxExpr
+        let _, boundExpr = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr
         boundExpr
 
     | _ ->
@@ -1776,7 +1769,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyDefKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let syntaxIdent = syntaxTyDefName.Identifier
-        let env1, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } env syntaxAttrs syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty
+        let env1, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } env syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty
         let env1 = scopeInEntity env1 entBuilder.Entity
         let env1 = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } env1 entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         bindTypeDeclarationPass2 { cenv with pass = Pass2; entityDefIndex = 0 } env1 entities syntaxIdent syntaxTyPars syntaxTyDefBody

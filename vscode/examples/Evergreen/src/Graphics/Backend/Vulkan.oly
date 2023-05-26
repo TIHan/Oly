@@ -212,7 +212,7 @@ class VulkanDescriptorBindingInfo =
             StageFlags = stageFlags
         }
 
-private class VulkanBuffer =
+internal class VulkanBuffer =
     Buffer: VkBuffer get
     Allocation: VmaAllocation get
     AllocationInfo: VmaAllocationInfo get
@@ -228,7 +228,7 @@ private class VulkanBuffer =
             Flags = flags
         }
 
-private class VulkanImage =
+internal class VulkanImage =
     Image: VkImage get
     Allocation: VmaAllocation get
     Width: uint32 get
@@ -361,7 +361,7 @@ newtype VulkanCommandBuffer =
 
 //
 
-private class PtrPtrHandle =
+internal class PtrPtrHandle =
     implements IDisposable
 
     private mutable field handles: GCHandle[||]

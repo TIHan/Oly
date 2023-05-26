@@ -108,7 +108,7 @@ enum GpuProgramInputKind =
     | Array
     | Image
 
-private struct GpuProgramInput =
+internal struct GpuProgramInput =
     Kind: GpuProgramInputKind get
     Image: GpuImage get
     Array: IGpuArray get

@@ -17,8 +17,8 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
-private alias VeldridShaderDescription = Veldrid.ShaderDescription
-private alias VeldridShader = Veldrid.Shader
+internal alias VeldridShaderDescription = Veldrid.ShaderDescription
+internal alias VeldridShader = Veldrid.Shader
 
 class MeshDescription =
     Vertices:   Vector3[||] get, set
@@ -344,7 +344,7 @@ class Texture2D =
     Dispose(): () =
         Graphics.DisposeQueue.Enqueue(this.Texture)
 
-private class RenderTargetState =
+internal class RenderTargetState =
     implements IDisposable
 
     Framebuffer: Framebuffer get
@@ -392,7 +392,7 @@ class Instances =
     Dispose(): () =
         this.InstanceBuffer.Dispose()
 
-private class ShaderState =
+internal class ShaderState =
     internal field VertexShader:   VeldridShader
     internal field FragmentShader: VeldridShader
     internal field Pipeline:       Pipeline
@@ -404,7 +404,7 @@ private class ShaderState =
             Pipeline = pipeline
         }
 
-private class ComputeShaderState =
+internal class ComputeShaderState =
     internal field ComputeShader: VeldridShader
     internal field Pipeline:      Pipeline
 

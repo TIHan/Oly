@@ -36,7 +36,7 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
     flags
 
 /// Pass 0 - Type definition with type parameters.
-let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) =
+let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) =
     let env = setSkipCheckTypeConstructor env
 
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
@@ -58,6 +58,8 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
         | OlySyntaxTypeDeclarationKind.Newtype _ -> EntityFlags.Final, EntityKind.Newtype
         | _ ->
             raise(InternalCompilerException())
+
+    let flags = flags ||| (bindAccessorAsEntityFlags cenv env syntaxAccessor)
 
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
@@ -106,7 +108,7 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
         | _ ->
             ()
             
-        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)      
+        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)    
 
     let _, (nestedEnts: EntitySymbolBuilder imarray) = bindTypeDeclarationBodyPass0 cenv envWithEnclosing syntaxIdent entBuilder ImArray.empty syntaxTyDefBody
 
@@ -118,20 +120,21 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
 
 /// Pass 0 - Gather all type definitions.
 let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let ent = entBuilder.Entity
+
     let env = setSkipCheckTypeConstructor env
+    let env = env.SetAccessorContext(ent)  
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
 
-        if entBuilder.Entity.IsEnum then
+        if ent.IsEnum then
             cenv.diagnostics.Error("Enum declaration must specify one or more cases.", 10, syntaxNode)
 
         env, entities
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->
         let syntaxCases = syntaxCaseList.ChildrenOfType
-
-        let ent = entBuilder.Entity
 
         if not syntaxCases.IsEmpty && not ent.IsEnum then
             cenv.diagnostics.Error("Only 'enum' types can define cases.", 10, syntaxNode)
@@ -170,8 +173,8 @@ let bindTopLevelExpressionPass0 (cenv: cenv) (env: BinderEnvironment) (entities:
         let env1, entities = bindTopLevelExpressionPass0 cenv env entities syntaxExpr1
         bindTopLevelExpressionPass0 cenv env1 entities syntaxExpr2
 
-    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, syntaxTyKind, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
-        let env1, entities, _ = bindTypeDeclarationPass0 cenv env syntaxAttrs syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities
+    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyKind, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
+        let env1, entities, _ = bindTypeDeclarationPass0 cenv env syntaxAttrs syntaxAccessor syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities
         env1, entities
 
     | OlySyntaxExpression.OpenDeclaration _ 

@@ -163,15 +163,6 @@ module private Helpers =
         Seq.append intrinsicProps extrinsicProps
         |> filterValuesByAccessibility benv queryMemberFlags
 
-    let findNestedEntitiesOfType (benv: BoundEnvironment) ty =
-        let ty = findIntrinsicTypeIfPossible benv ty
-        match stripTypeEquations ty with
-        | TypeSymbol.Entity(ent) ->
-            // TODO: Handle accessibility
-            ent.Entities
-        | _ ->
-            ImArray.empty
-
     type Locals = System.Collections.Generic.HashSet<int64>
 
     type Iterator(predicate, canCache, checkInnerLambdas, freeLocals: FreeLocals, locals: Locals) =
@@ -606,24 +597,21 @@ type IEntitySymbol with
     member this.FindIntrinsicProperties(benv, queryMemberFlags) =
         findIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
 
-    member this.FindNestedEntities(benv: BoundEnvironment) =
+    member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
         this.Entities
-        // TODO: Handle accessibility
-
-    member this.TryFindNestedEntity(benv, name, tyArity: ResolutionTypeArity) =
-        let nestedEntOpt =
-            this.FindNestedEntities(benv)
-            |> ImArray.tryFind (fun x -> 
-                match tyArity.TryArity with
-                | ValueSome n -> x.LogicalTypeParameterCount = n
+        |> filterEntitiesByAccessibility benv
+        |> Seq.filter (fun x ->
+            match tyArity.TryArity with
+            | ValueSome n -> x.LogicalTypeParameterCount = n
+            | _ -> true
+            &&
+            (
+                match nameOpt with
+                | Some name -> x.Name = name
                 | _ -> true
-                && x.Name = name
             )
-        match nestedEntOpt with
-        | Some nestedEnt ->         
-            Some nestedEnt
-        | _ ->
-            None
+        )
+        |> ImArray.ofSeq
 
 type TypeSymbol with
 
@@ -689,13 +677,13 @@ type TypeSymbol with
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
         findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
 
-    member this.FindNestedEntities(benv) =
-        findNestedEntitiesOfType benv this
-
-    member this.TryFindNestedEntity(benv: BoundEnvironment, name, tyArity) =
-        match benv.TryGetEntity this with
-        | ValueSome ent -> ent.TryFindNestedEntity(benv, name, tyArity)
-        | _ -> None
+    member this.FindNestedEntities(benv, nameOpt, resTyArity) =
+        let ty = findIntrinsicTypeIfPossible benv this
+        match stripTypeEquations ty with
+        | TypeSymbol.Entity(ent) ->
+            ent.FindNestedEntities(benv, nameOpt, resTyArity)
+        | _ ->
+            ImArray.empty
         
 type IValueSymbol with
 

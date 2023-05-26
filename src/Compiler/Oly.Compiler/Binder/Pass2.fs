@@ -304,19 +304,7 @@ let private bindTopLevelValueDeclaration
         | _ ->
             valueExplicitness
 
-    let memberFlags =
-        match syntaxAccessor with
-        | OlySyntaxAccessor.Private _ -> memberFlags ||| MemberFlags.Private
-        | OlySyntaxAccessor.Internal _ -> memberFlags ||| MemberFlags.Internal
-        | OlySyntaxAccessor.Protected _ -> memberFlags ||| MemberFlags.Protected
-        | OlySyntaxAccessor.Public _ -> memberFlags ||| MemberFlags.Public
-        | _ ->
-            if valueExplicitness.IsExplicitField then
-                // Fields, by default, are private.
-                memberFlags ||| MemberFlags.Private
-            else
-                // Everything else, by default, is public.
-                memberFlags ||| MemberFlags.Public
+    let memberFlags = memberFlags ||| (bindAccessorAsMemberFlags valueExplicitness.IsExplicitField syntaxAccessor)
 
     let attrs = bindAttributes cenv env false syntaxAttrs
 
@@ -528,13 +516,17 @@ let private bindBodyExpressionPass2 cenv env supers entities (entBuilder: Entity
 
 /// Pass 2 - Gather all entity definitions.
 let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) (syntaxTyPars: OlySyntaxType imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let ent = entBuilder.Entity
+
     let env = setSkipCheckTypeConstructor env
 
-    let env = openContentsOfEntityAndOverride env OpenContent.Entities entBuilder.Entity
-    let env = addTypeParametersFromEntity cenv env syntaxTyPars entBuilder.Entity
+    let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
+    let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
 
     let envWithEnclosing = 
-        env.SetEnclosing(EnclosingSymbol.Entity(entBuilder.Entity)).SetEnclosingTypeParameters(entBuilder.Entity.TypeParameters)
+        env.SetEnclosing(EnclosingSymbol.Entity(ent))
+           .SetEnclosingTypeParameters(ent.TypeParameters)
+           .SetAccessorContext(ent) 
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
@@ -542,7 +534,7 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->
         let supers =
-            filterTypesAsInterfaces (entBuilder.Entity.AllLogicalInheritsAndImplements)
+            filterTypesAsInterfaces (ent.AllLogicalInheritsAndImplements)
             |> ImmutableArray.CreateRange
 
         bindTypeDeclarationCases cenv env entBuilder syntaxCaseList.ChildrenOfType

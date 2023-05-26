@@ -7525,3 +7525,96 @@ class C2 =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Trying to access nested class should error since it is private``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+main(): () =
+    let x = C1.PC1()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Member 'PC1' does not exist on type 'C1'.",
+            """
+    let x = C1.PC1()
+               ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Trying to access nested class should NOT error since it is internal``() =
+    let src =
+        """
+class C1 =
+    internal class PC1
+
+main(): () =
+    let x = C1.PC1()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Trying to declared nested class as protected should error``() =
+    let src =
+        """
+class C1 =
+    protected class PC1
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types cannot be declared as 'protected'.",
+            """
+    protected class PC1
+    ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Trying to declared nested class as private should error in namespace``() =
+    let src =
+        """
+namespace Test
+
+private class C1
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types cannot be declared as 'private' in namespaces.",
+            """
+private class C1
+^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Internal function should allowed to be accessed``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+internal module Helpers =
+
+    internal fixed(): () = ()
+
+    internal M(): () =
+        fixed()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

@@ -23,7 +23,7 @@ open BepuUtilities.Memory
 //If you're wondering why the callbacks are interface implementing structs rather than classes or events, it's because 
 //the compiler can specialize the implementation using the compile time type information. That avoids dispatch overhead associated
 //with delegates or virtual dispatch and allows inlining, which is valuable for extremely high frequency logic like contact callbacks.
-private struct NarrowPhaseCallbacks =
+internal struct NarrowPhaseCallbacks =
     implements INarrowPhaseCallbacks
 
     /// <summary>
@@ -115,7 +115,7 @@ private struct NarrowPhaseCallbacks =
         ()
 
 //Note that the engine does not require any particular form of gravity- it, like all the contact callbacks, is managed by a callback.
-private struct PoseIntegratorCallbacks =
+internal struct PoseIntegratorCallbacks =
     implements IPoseIntegratorCallbacks
 
     // Performs any required initialization logic after the Simulation instance has been constructed.

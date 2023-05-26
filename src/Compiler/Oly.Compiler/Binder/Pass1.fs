@@ -25,13 +25,18 @@ let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
 /// Pass 1 - Get type inherits and implements.
 let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxTyPars: OlySyntaxType imarray) syntaxConstrClauses (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let ent = entBuilder.Entity
+
     let env = setSkipCheckTypeConstructor env
 
-    let env = openContentsOfEntityAndOverride env OpenContent.Entities entBuilder.Entity
-    let env = addTypeParametersFromEntity cenv env syntaxTyPars entBuilder.Entity
+    let env = env.SetAccessorContext(ent)
+    let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
+    let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
     bindConstraintClauseList cenv env syntaxConstrClauses
 
-    let envWithEnclosing = env.SetEnclosing(EnclosingSymbol.Entity(entBuilder.Entity)).SetEnclosingTypeParameters(entBuilder.Entity.TypeParameters)
+    let env = 
+        env.SetEnclosing(EnclosingSymbol.Entity(ent))
+           .SetEnclosingTypeParameters(ent.TypeParameters)
 
     (* CHECK FOR DUPLICATE NESTED ENTITIES *)
     let duplicateEnts = HashSet()
@@ -45,7 +50,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     )
     (**)
 
-    let ent = entBuilder.Entity
+    let ent = ent
 
     if ent.IsEnum then
         // Int32 is default for enum declarations.
@@ -83,8 +88,8 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         env
 
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, _, syntaxExpr) ->
-        let extends = bindExtends cenv envWithEnclosing syntaxExtends
-        let implements = bindImplements cenv envWithEnclosing syntaxImplements
+        let extends = bindExtends cenv env syntaxExtends
+        let implements = bindImplements cenv env syntaxImplements
 
         if ent.IsTypeExtension then
             implements

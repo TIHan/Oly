@@ -25,7 +25,6 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
     cenv.entityDefIndex <- 0
 
     let ent = entBuilder.Entity
-    let envBody = envBody.SetAccessorContext(ent)
 
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv)) syntaxConstrClauses ent.TypeParameters
 
@@ -34,7 +33,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     if not ent.Extends.IsEmpty then
         let superTy = ent.Extends.[0]
-        match superTy.TryEntity, entBuilder.Entity.TryFindDefaultInstanceConstructor() with
+        match superTy.TryEntity, ent.TryFindDefaultInstanceConstructor() with
         | ValueSome(superEnt), Some(ctor) when ctor.FunctionFlags &&& FunctionFlags.ImplicitDefaultConstructor = FunctionFlags.ImplicitDefaultConstructor ->
             if not superEnt.HasDefaultInstanceConstructor then
                 cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxIdent)
@@ -53,6 +52,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     let ent = entBuilder.Entity
 
     let env = unsetSkipCheckTypeConstructor env
+    let env = env.SetAccessorContext(ent)
     let env = openContentsOfEntityAndOverride env OpenContent.All ent
 
     let funcs = 

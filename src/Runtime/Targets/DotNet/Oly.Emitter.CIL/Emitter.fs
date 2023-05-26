@@ -1420,10 +1420,12 @@ let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodNa
         elif flags.IsProtected then
             MethodAttributes.Family
         else
-            if flags.IsExported then
-                MethodAttributes.Private
-            else
+            if flags.IsInternal || (not flags.IsExported) then
+                // We always emit "internal" due to inlining.
+                // Exported functions will never be inlined by Oly.
                 MethodAttributes.Assembly
+            else
+                MethodAttributes.Private
 
     let methAttrs = methAttrs ||| MethodAttributes.HideBySig
 
@@ -2019,10 +2021,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     else
                         tyAttrs
                 | _ ->
-                    if isExported then
+                    if flags.IsPublic then
                         tyAttrs ||| TypeAttributes.NestedPublic
                     else
-                        tyAttrs ||| TypeAttributes.NestedFamORAssem
+                        // We always emit "internal" due to erasing generics on functions and types.
+                        //     This means those functions and types must be able to be accessed.
+                        tyAttrs ||| TypeAttributes.NestedAssembly
 
             tyDefBuilder.Attributes <- tyAttrs
 
@@ -2131,10 +2135,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     elif flags.IsProtected then
                         FieldAttributes.Family
                     else
-                        if flags.IsExported then
-                            FieldAttributes.Private
-                        else    
+                        if flags.IsInternal || (not flags.IsExported) then
+                            // We always emit "internal" due to inlining.
+                            // Exported functions will never be inlined by Oly.
                             FieldAttributes.Assembly
+                        else    
+                            FieldAttributes.Private
                 let attrs =
                     if isStatic then
                         attrs ||| FieldAttributes.Static

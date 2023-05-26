@@ -108,6 +108,12 @@ type OlyIRTypeFlags internal (ilEntFlags: OlyILEntityFlags, tyFlags: RuntimeType
 
     member _.IsFinal = ilEntFlags &&& OlyILEntityFlags.Final = OlyILEntityFlags.Final
 
+    member _.IsPublic = ilEntFlags &&& OlyILEntityFlags.AccessorMask = OlyILEntityFlags.Public
+
+    member _.IsInternal = ilEntFlags &&& OlyILEntityFlags.AccessorMask = OlyILEntityFlags.Internal
+
+    member _.IsPrivate = ilEntFlags &&& OlyILEntityFlags.AccessorMask = OlyILEntityFlags.Private
+
 [<Struct>]
 type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, funcFlags: RuntimeFunctionFlags) =
 

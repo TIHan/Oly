@@ -14,7 +14,7 @@ open Oly.Compiler.Internal.BoundTreePatterns
 open Oly.Compiler.Internal.Checker
 
 type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
-type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals }
+type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals; enclosingEntOpt: IEntitySymbol option }
 
 let notReturnableAddress aenv = 
     if aenv.isReturnableAddress then
@@ -648,7 +648,7 @@ let analyzeRoot acenv aenv (root: BoundRoot) =
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
     let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
-    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) }
+    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()); enclosingEntOpt = tree.RootEnvironment.ac.Entity }
     analyzeRoot acenv aenv tree.Root
 
 

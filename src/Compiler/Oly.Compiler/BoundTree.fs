@@ -1082,17 +1082,51 @@ type QueryField =
     | Intrinsic
     | IntrinsicAndExtrinsic
 
+let canAccessEntity (benv: BoundEnvironment) (ent: IEntitySymbol) =
+    if ent.IsPublic then true
+    elif ent.IsInternal then
+        // TODO: There a way to make this a faster check?
+        match benv.ac.Entity with
+        | Some ent1 ->
+            match ent1.ContainingAssembly, ent.ContainingAssembly with
+            | Some asm1, Some asm2 ->
+                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
+            | _ ->
+                false
+        | _ -> 
+            true
+    else
+        match benv.ac.Entity, ent.Enclosing.TryEntity with
+        | Some ent1, Some ent2 -> 
+            if ent1.IsNamespace = ent2.IsNamespace then
+                if ent1.IsNamespace then
+                    ent1.Id = ent2.Id
+                else                 
+                    areEntitiesEqual ent1 ent2
+            else
+                false
+        | _ -> 
+            false
+
+let filterEntitiesByAccessibility (benv: BoundEnvironment) (ents: IEntitySymbol seq) =
+    ents
+    |> Seq.filter (canAccessEntity benv)
+
 let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
     if value.IsPublic then true
     elif value.IsInternal then
         // TODO: There a way to make this a faster check?
         match benv.ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 ->
+        | Some ent1, Some ent2 when not ent2.IsNamespace ->
             match ent1.ContainingAssembly, ent2.ContainingAssembly with
             | Some asm1, Some asm2 ->
                 (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
-            | None, Some asm2 when ent1.IsNamespace ->
-                (benv.ac.AssemblyIdentity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
+            | _ ->
+                false
+        | _, Some ent1 ->
+            match ent1.ContainingAssembly with
+            | Some asm1 ->
+                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(benv.ac.AssemblyIdentity)
             | _ ->
                 false
         | _ -> 

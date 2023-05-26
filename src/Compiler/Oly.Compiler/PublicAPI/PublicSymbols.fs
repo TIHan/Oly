@@ -201,7 +201,7 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         )
 
     member _.Types =
-        ty.FindNestedEntities(benv)
+        ty.FindNestedEntities(benv, None, ResolutionTypeArity.Any)
         |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x.AsType))
 
     member _.IsInterface = ty.IsInterface

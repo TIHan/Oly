@@ -708,3 +708,35 @@ let bindParameters (cenv: cenv) env onlyBindAsType syntaxPars : BinderEnvironmen
 
     | _ ->
         raise(InternalCompilerException())
+
+let bindAccessorAsMemberFlags isExplicitField (syntaxAccessor: OlySyntaxAccessor) =
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Private _ -> MemberFlags.Private
+    | OlySyntaxAccessor.Internal _ -> MemberFlags.Internal
+    | OlySyntaxAccessor.Protected _ -> MemberFlags.Protected
+    | OlySyntaxAccessor.Public _ -> MemberFlags.Public
+    | _ ->
+        if isExplicitField then
+            // Fields, by default, are private.
+            MemberFlags.Private
+        else
+            // Everything else, by default, is public.
+            MemberFlags.Public
+
+let bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syntaxAccessor: OlySyntaxAccessor) =
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Internal _ -> EntityFlags.Internal
+    | OlySyntaxAccessor.Public _ -> EntityFlags.Public
+    | OlySyntaxAccessor.Private _ ->
+        match env.benv.ac.Entity with
+        | Some(ent) when not ent.IsNamespace ->
+            EntityFlags.Private
+        | _ ->
+            cenv.diagnostics.Error("Types cannot be declared as 'private' in namespaces.", 10, syntaxAccessor)
+            EntityFlags.None
+    | OlySyntaxAccessor.Protected _ -> 
+        cenv.diagnostics.Error("Types cannot be declared as 'protected'.", 10, syntaxAccessor)
+        EntityFlags.None
+    | _ ->
+        // Default is public.
+        EntityFlags.Public

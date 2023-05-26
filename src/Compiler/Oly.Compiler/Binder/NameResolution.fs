@@ -288,13 +288,20 @@ let private determineConstructorOrTypeAsFormalItem (cenv: cenv) (env: BinderEnvi
             FunctionGroupSymbol.CreateIfPossible(ctors)
         )
 
+let private tryFindNestedEntity cenv env syntaxNode ident resTyArity (ty: TypeSymbol) =
+    let ents = ty.FindNestedEntities(env.benv, Some ident, resTyArity)
+    if ents.IsEmpty || ents.Length > 1 then
+        None
+    else
+        Some ents[0]
+
 let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) isPatternContext (ident: string) =
     if isPatternContext then
         let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) true) ident
         ResolutionFormalItem.Value(Some receiverTy, value)
     else
         // Nested entities of receiverTy take precedence over its member values.
-        receiverTy.TryFindNestedEntity(env.benv, ident, resTyArity)
+        tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy
         |> Option.map (fun nestedEnt ->
             determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
         )
@@ -309,7 +316,7 @@ let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: B
             cenv.diagnostics.Error("Empty identifiers are not allowed.", 10, syntaxNode)
         ResolutionFormalItem.None
     else
-        match receiverNamespaceEnt.TryFindNestedEntity(env.benv, ident, resTyArity) with
+        match tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType with
         | Some nestedEnt ->
             if nestedEnt.IsNamespace then
                 ResolutionFormalItem.Namespace(nestedEnt)
@@ -324,7 +331,7 @@ let private bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv)
             cenv.diagnostics.Error("Empty identifiers are not allowed.", 10, syntaxNode)
         ResolutionFormalItem.Error
     else
-        match receiverNamespaceEnt.TryFindNestedEntity(env.benv, ident, resTyArity) with
+        match tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType with
         | Some nestedEnt ->
             if nestedEnt.IsNamespace then
                 ResolutionFormalItem.Namespace(nestedEnt)
@@ -347,7 +354,7 @@ let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env
             cenv.diagnostics.Error("Empty identifiers are not allowed.", 10, syntaxNode)
         ResolutionFormalItem.Error
     else
-        match receiverTy.TryFindNestedEntity(env.benv, ident, resTyArity) with
+        match tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy with
         | Some nestedEnt ->
             ResolutionFormalItem.Type(nestedEnt.AsType)
         | _ ->
