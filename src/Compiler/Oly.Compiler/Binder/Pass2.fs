@@ -173,8 +173,26 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
         else
             false
 
-    let memberFlags =
-        (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| (getOrSet1.Value.MemberFlags &&& MemberFlags.AccessorMask)
+    let memberAccesorFlags =
+        let principalFlags = memberFlags &&& MemberFlags.AccessorMask
+        let flags1 = getOrSet1.Value.MemberFlags &&& MemberFlags.AccessorMask
+        let flags2 =
+            match getOrSetOpt2 with
+            | Some getOrSet2 ->
+                getOrSet2.Value.MemberFlags &&& MemberFlags.AccessorMask
+            | _ ->
+                MemberFlags.Public
+
+        match principalFlags, flags1, flags2 with
+        | MemberFlags.Public, _, _ -> 
+            if LanguagePrimitives.EnumToValue(flags1) > LanguagePrimitives.EnumToValue(flags2) then
+                flags1
+            else
+                flags2
+        | _ ->
+            principalFlags
+
+    let memberFlags = (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| memberAccesorFlags
 
     let prop =
         if isAutoProp then

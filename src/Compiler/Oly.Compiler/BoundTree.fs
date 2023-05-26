@@ -1082,11 +1082,11 @@ type QueryField =
     | Intrinsic
     | IntrinsicAndExtrinsic
 
-let canAccessEntity (benv: BoundEnvironment) (ent: IEntitySymbol) =
+let canAccessEntity (ac: AccessorContext) (ent: IEntitySymbol) =
     if ent.IsPublic then true
     elif ent.IsInternal then
         // TODO: There a way to make this a faster check?
-        match benv.ac.Entity with
+        match ac.Entity with
         | Some ent1 ->
             match ent1.ContainingAssembly, ent.ContainingAssembly with
             | Some asm1, Some asm2 ->
@@ -1096,27 +1096,21 @@ let canAccessEntity (benv: BoundEnvironment) (ent: IEntitySymbol) =
         | _ -> 
             true
     else
-        match benv.ac.Entity, ent.Enclosing.TryEntity with
+        match ac.Entity, ent.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> 
-            if ent1.IsNamespace = ent2.IsNamespace then
-                if ent1.IsNamespace then
-                    ent1.Id = ent2.Id
-                else                 
-                    areEntitiesEqual ent1 ent2
-            else
-                false
+            areEntitiesEqual ent1 ent2
         | _ -> 
             false
 
-let filterEntitiesByAccessibility (benv: BoundEnvironment) (ents: IEntitySymbol seq) =
+let filterEntitiesByAccessibility ac (ents: IEntitySymbol seq) =
     ents
-    |> Seq.filter (canAccessEntity benv)
+    |> Seq.filter (canAccessEntity ac)
 
-let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
+let canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
     if value.IsPublic then true
     elif value.IsInternal then
         // TODO: There a way to make this a faster check?
-        match benv.ac.Entity, value.Enclosing.TryEntity with
+        match ac.Entity, value.Enclosing.TryEntity with
         | Some ent1, Some ent2 when not ent2.IsNamespace ->
             match ent1.ContainingAssembly, ent2.ContainingAssembly with
             | Some asm1, Some asm2 ->
@@ -1126,21 +1120,21 @@ let canAccessValue (benv: BoundEnvironment) (value: IValueSymbol) =
         | _, Some ent1 ->
             match ent1.ContainingAssembly with
             | Some asm1 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(benv.ac.AssemblyIdentity)
+                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
             | _ ->
                 false
         | _ -> 
             false
     elif value.IsProtected then
-        match benv.ac.Entity, value.Enclosing.TryEntity with
+        match ac.Entity, value.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> subsumesEntity ent1 ent2 || subsumesEntity ent2 ent1
         | _ -> false
     else
-        match benv.ac.Entity, value.Enclosing.TryEntity with
+        match ac.Entity, value.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> areEntitiesEqual ent1 ent2
         | _ -> false
 
-let filterValuesByAccessibility<'T when 'T :> IValueSymbol> (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
+let filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
     let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
     let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
     let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
@@ -1158,11 +1152,11 @@ let filterValuesByAccessibility<'T when 'T :> IValueSymbol> (benv: BoundEnvironm
         values
     else
         values
-        |> Seq.filter (canAccessValue benv)
+        |> Seq.filter (canAccessValue ac)
 
 let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: IEntitySymbol) =
     filterFunctions queryMemberFlags funcFlags nameOpt ent.Functions
-    |> filterValuesByAccessibility benv queryMemberFlags
+    |> filterValuesByAccessibility benv.ac queryMemberFlags
 
 // Finds the most specific functions of an entity
 let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: IEntitySymbol) : IFunctionSymbol imarray =
@@ -1190,7 +1184,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
                 )
             not isOverriden
         )
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
 
     let nestedCtors =
         if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then
@@ -1198,7 +1192,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
             |> Seq.map (fun ent -> 
                 findMostSpecificIntrinsicFunctionsOfEntity benv (queryMemberFlags ||| QueryMemberFlags.Instance) (funcFlags ||| FunctionFlags.Constructor) nameOpt ent)
             |> Seq.concat
-            |> filterValuesByAccessibility benv queryMemberFlags
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
         else
             Seq.empty
 
@@ -1218,13 +1212,13 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     | TypeSymbol.InferenceVariable(Some tyPar, _) ->
         findMostSpecificIntrinsicFunctionsOfTypeParameter false tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> ImArray.ofSeq
     | TypeSymbol.HigherVariable(tyPar, tyArgs)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
         findMostSpecificIntrinsicFunctionsOfTypeParameter true tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> Seq.map (fun func ->
             let enclosing = 
                 func.Enclosing
@@ -1258,7 +1252,7 @@ let findExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFla
                     None
             )
             |> filterFunctions queryMemberFlags funcFlags nameOpt
-            |> filterValuesByAccessibility benv queryMemberFlags
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
         | _ ->
             Seq.empty
 
@@ -1281,7 +1275,7 @@ let findInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
         |> Seq.collect (fun ext ->
             ext.Functions
             |> filterFunctions queryMemberFlags funcFlags nameOpt
-            |> filterValuesByAccessibility benv queryMemberFlags
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
         )
     | _ ->
         Seq.empty

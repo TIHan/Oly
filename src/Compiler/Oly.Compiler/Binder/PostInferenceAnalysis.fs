@@ -14,7 +14,7 @@ open Oly.Compiler.Internal.BoundTreePatterns
 open Oly.Compiler.Internal.Checker
 
 type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
-type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals; enclosingEntOpt: IEntitySymbol option }
+type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals; benv: BoundEnvironment; isMemberSig: bool; memberFlags: MemberFlags }
 
 let notReturnableAddress aenv = 
     if aenv.isReturnableAddress then
@@ -132,7 +132,45 @@ and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElemen
                 analyzeType acenv aenv syntaxTupleElement tyArg
         )
 
-and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =
+and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =   
+            
+    let isAccessible =
+        if aenv.isMemberSig then
+            let flags = ent.Flags &&& EntityFlags.AccessorMask
+            let memberFlags = aenv.memberFlags &&& MemberFlags.AccessorMask
+
+            match flags, memberFlags with
+            | EntityFlags.Private, MemberFlags.Internal
+            | EntityFlags.Private, MemberFlags.Protected
+            | EntityFlags.Private, MemberFlags.Public -> 
+                match aenv.benv.ac.Entity with
+                | Some ent1 -> 
+                    if ent1.IsPrivate then
+                        true
+                    else
+                        areEntitiesEqual ent1 ent
+                | _ -> 
+                    false
+
+            | EntityFlags.Internal, MemberFlags.Protected
+            | EntityFlags.Internal, MemberFlags.Public ->
+                match aenv.benv.ac.Entity with
+                | Some ent1 -> 
+                    if ent1.IsInternal || ent1.IsPrivate then
+                        true
+                    else
+                        areEntitiesEqual ent1 ent
+                | _ ->
+                    false
+
+            | _, _ ->
+                true
+        else
+            true
+        
+    if not isAccessible then
+        acenv.cenv.diagnostics.Error($"'{printEntity aenv.benv ent}' is less accessible that the signature its used in.", 10, syntaxNode)
+
     match acenv.scopes.TryGetValue(ent.Formal.Id) with
     | true, scope ->
         () // TODO: We will need scopes at some point right?
@@ -280,6 +318,12 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
     | _ ->
         ()
 
+    let aenv = 
+        if value.Enclosing.IsLocalEnclosing then
+            aenv
+        else
+            { aenv with isMemberSig = true }
+
     if value.IsLocal && not(value.IsFunction) then
         let scope =
             if value.Type.IsByRef_t then
@@ -305,32 +349,37 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
     match value with
     | :? IFunctionSymbol as func ->
         func.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
+
         match syntaxNode with
-        | :? OlySyntaxBinding as syntaxBinding ->
-            match syntaxBinding with
-            | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
-            | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
-                match syntaxBindingDecl with
-                | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, syntaxReturnTyAnnot, _) ->
-                    let syntaxReturnTy =
-                        match syntaxReturnTyAnnot with
-                        | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy) -> syntaxTy :> OlySyntaxNode
-                        | _ -> syntaxNode
-                    match syntaxPars with
-                    | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
-                        (syntaxParList.ChildrenOfType.AsMemory(), func.LogicalParameters)
-                        ||> ROMem.tryIter2 (fun syntaxPar par ->
-                            par.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
-                            match syntaxPar with
-                            | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy)
-                            | OlySyntaxParameter.Type(_, syntaxTy) ->
-                                analyzeTypeForParameter acenv aenv syntaxTy par.Type
-                            | _ ->
-                                analyzeTypeForParameter acenv aenv syntaxPar par.Type
-                        )
-                        analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
-                    | OlySyntaxParameters.Empty _ ->
-                        analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
+        | :? OlySyntaxExpression as syntaxExpr ->
+            match syntaxExpr with
+            | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                match syntaxBinding with
+                | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                    match syntaxBindingDecl with
+                    | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, syntaxReturnTyAnnot, _) ->
+                        let syntaxReturnTy =
+                            match syntaxReturnTyAnnot with
+                            | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy) -> syntaxTy :> OlySyntaxNode
+                            | _ -> syntaxNode
+                        match syntaxPars with
+                        | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
+                            (syntaxParList.ChildrenOfType.AsMemory(), func.LogicalParameters)
+                            ||> ROMem.tryIter2 (fun syntaxPar par ->
+                                par.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
+                                match syntaxPar with
+                                | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy)
+                                | OlySyntaxParameter.Type(_, syntaxTy) ->
+                                    analyzeTypeForParameter acenv aenv syntaxTy par.Type
+                                | _ ->
+                                    analyzeTypeForParameter acenv aenv syntaxPar par.Type
+                            )
+                            analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
+                        | OlySyntaxParameters.Empty _ ->
+                            analyzeTypeForParameter acenv aenv syntaxReturnTy func.ReturnType
+                        | _ ->
+                            checkValueTy()
                     | _ ->
                         checkValueTy()
                 | _ ->
@@ -341,12 +390,62 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
             checkValueTy()
 
     | :? IFieldSymbol as field ->
-        field.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
-        checkValueTy()
+
+        let defaultCheck() =
+            field.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
+            checkValueTy()
+
+        match syntaxNode with
+        | :? OlySyntaxExpression as syntaxExpr ->
+            match syntaxExpr with
+            | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                match syntaxBinding with             
+                | OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(_, OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy)))
+                | OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Value(_, OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy)), _, _) ->
+                    let syntaxAttrs = syntaxAttrs.Values
+                    for i = 0 to field.Attributes.Length - 1 do
+                        let syntaxNode =
+                            if i < syntaxAttrs.Length then
+                                syntaxAttrs[i] :> OlySyntaxNode
+                            else
+                                syntaxBinding :> OlySyntaxNode
+                        analyzeAttribute acenv aenv syntaxNode field.Attributes[i]
+                    analyzeType acenv aenv syntaxTy field.Type
+                | _ ->
+                    defaultCheck()
+            | _ ->
+                defaultCheck()
+        | _ ->
+            defaultCheck()
 
     | :? IPropertySymbol as prop ->
-        prop.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
-        checkValueTy()
+
+        let defaultCheck() =
+            prop.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
+            checkValueTy()
+
+        match syntaxNode with
+        | :? OlySyntaxExpression as syntaxExpr ->
+            match syntaxExpr with
+            | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                match syntaxBinding with             
+                | OlySyntaxBinding.Property(OlySyntaxBindingDeclaration.Value(_, OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy)), _)
+                | OlySyntaxBinding.PropertyWithDefault(OlySyntaxBindingDeclaration.Value(_, OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy)), _, _, _) ->
+                    let syntaxAttrs = syntaxAttrs.Values
+                    for i = 0 to prop.Attributes.Length - 1 do
+                        let syntaxNode =
+                            if i < syntaxAttrs.Length then
+                                syntaxAttrs[i] :> OlySyntaxNode
+                            else
+                                syntaxBinding :> OlySyntaxNode
+                        analyzeAttribute acenv aenv syntaxNode prop.Attributes[i]
+                    analyzeType acenv aenv syntaxTy prop.Type
+                | _ ->
+                    defaultCheck()
+            | _ ->
+                defaultCheck()
+        | _ ->
+            defaultCheck()
 
     | :? IPatternSymbol as pat ->
         pat.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
@@ -355,8 +454,8 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
     | _ ->
         checkValueTy()
 
-and analyzeBinding acenv aenv (binding: BoundBinding) =
-    analyzeBindingInfo acenv aenv binding.SyntaxInfo.Syntax binding.TryExpression binding.Info.Value
+and analyzeBinding acenv aenv syntaxNode (binding: BoundBinding) =
+    analyzeBindingInfo acenv aenv syntaxNode binding.TryExpression binding.Info.Value
 
 and analyzePattern acenv aenv (pat: BoundCasePattern) =
     let syntaxNode = pat.Syntax
@@ -614,8 +713,10 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = isReturnableAddress; freeLocals = freeLocals } lazyBodyExpr.Expression
 
     | BoundExpression.MemberDefinition(_, binding) ->
+        let aenv = (notReturnableAddress aenv)
+        let aenv = { aenv with memberFlags = binding.Info.Value.MemberFlags }
         Assert.ThrowIf(binding.Info.Value.IsLocal)
-        analyzeBinding acenv (notReturnableAddress aenv) binding
+        analyzeBinding acenv aenv expr.Syntax binding
 
     | BoundExpression.Sequential(_, e1, e2) ->
         analyzeExpression acenv (notReturnableAddress aenv) e1
@@ -631,7 +732,13 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.Literal(_, literal) ->
         analyzeLiteral acenv aenv syntaxNode literal
 
-    | BoundExpression.EntityDefinition(body=bodyExpr;ent=ent) ->
+    | BoundExpression.EntityDefinition(syntaxInfo=syntaxInfo;body=bodyExpr;ent=ent) ->
+        let aenv = 
+            match syntaxInfo.TryEnvironment with
+            | Some benv ->
+                { aenv with benv = { benv with ac = { benv.ac with Entity = Some ent } } }
+            | _ ->
+                { aenv with benv = { aenv.benv with ac = { aenv.benv.ac with Entity = Some ent } } }
         ent.Attributes
         |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
         analyzeExpression acenv aenv bodyExpr
@@ -648,7 +755,7 @@ let analyzeRoot acenv aenv (root: BoundRoot) =
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
     let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
-    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()); enclosingEntOpt = tree.RootEnvironment.ac.Entity }
+    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()); benv = env.benv; isMemberSig = false; memberFlags = MemberFlags.None }
     analyzeRoot acenv aenv tree.Root
 
 

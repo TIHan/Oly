@@ -23,7 +23,7 @@ module private Helpers =
 
     let findImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
         filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     let findIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
         let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
@@ -38,13 +38,13 @@ module private Helpers =
                     Seq.empty
             )
             |> Seq.concat
-            |> filterValuesByAccessibility benv queryMemberFlags
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
     
         Seq.append inheritedFields fields
     
     let findImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
         filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
         let fields = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
@@ -59,7 +59,7 @@ module private Helpers =
                     Seq.empty
             )
             |> Seq.concat
-            |> filterValuesByAccessibility benv queryMemberFlags
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
     
         Seq.append inheritedProperties fields
     
@@ -161,7 +161,7 @@ module private Helpers =
                 Seq.empty
     
         Seq.append intrinsicProps extrinsicProps
-        |> filterValuesByAccessibility benv queryMemberFlags
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
 
     type Locals = System.Collections.Generic.HashSet<int64>
 
@@ -599,7 +599,7 @@ type IEntitySymbol with
 
     member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
         this.Entities
-        |> filterEntitiesByAccessibility benv
+        |> filterEntitiesByAccessibility benv.ac
         |> Seq.filter (fun x ->
             match tyArity.TryArity with
             | ValueSome n -> x.LogicalTypeParameterCount = n

@@ -4447,10 +4447,10 @@ private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
         true
 
         
-test(): IndexQueue<DefaultMemory> =
+test(): () =
     let m = DefaultMemory<int32>([||])
     let x = IndexQueue<DefaultMemory>(m, 0)
-    x
+    ()
         """
     Oly src
     |> shouldCompile
@@ -4534,7 +4534,7 @@ struct DefaultMemoryAllocator =
 
 interface IComponent
 
-private struct IndexQueue<TMemory<_>, TMemoryAllocator> 
+internal struct IndexQueue<TMemory<_>, TMemoryAllocator> 
     where TMemory<_>: IMemory; 
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
@@ -4563,7 +4563,7 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     GetFirst(): int32 = this.Indices.get_Item(0)
 
         
-test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
+internal test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
     let x = IndexQueue<DefaultMemory, DefaultMemoryAllocator>()
     print(x.GetFirst())
     x
@@ -7546,6 +7546,142 @@ main(): () =
 """
             )
         ]
+    |> ignore
+
+[<Fact>]
+let ``Public signature contains private type should error``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    static ShouldError(x: PC1): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'PC1' is less accessible that the signature its used in.",
+            """
+    static ShouldError(x: PC1): () = ()
+                          ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Public signature contains private type should error 2``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    static ShouldError: PC1 get = unchecked default
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'PC1' is less accessible that the signature its used in.",
+            """
+    static ShouldError: PC1 get = unchecked default
+                        ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Private signature contains private type should NOT error``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    private static ShouldNotError(x: PC1): () = ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Private signature contains private type should NOT error 2``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    private static ShouldNotError: PC1 get = unchecked default
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Private signature contains private type should NOT error 3``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    private class PC2 =
+
+        public mutable field ShouldNotError: PC1 = unchecked default
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Internal signature contains internal type should NOT error``() =
+    let src =
+        """
+class C1 =
+    internal class PC1
+
+    internal class PC2 =
+
+        public mutable field ShouldNotError: PC1 = unchecked default
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Private signature contains internal type should NOT error``() =
+    let src =
+        """
+class C1 =
+    internal class PC1
+
+    private class PC2 =
+
+        public mutable field ShouldNotError: PC1 = unchecked default
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Internal signature contains private type should error``() =
+    let src =
+        """
+class C1 =
+    private class PC1
+
+    internal class PC2 =
+
+        public mutable field ShouldNotError: PC1 = unchecked default
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'PC1' is less accessible that the signature its used in.",
+            """
+        public mutable field ShouldNotError: PC1 = unchecked default
+                                             ^^^
+"""
+        )
+    ]
     |> ignore
 
 [<Fact>]

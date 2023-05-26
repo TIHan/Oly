@@ -140,7 +140,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                 let env2 =
                     let funcGroups = 
                         ent.Functions
-                        |> filterValuesByAccessibility env.benv QueryMemberFlags.Static
+                        |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static
                         |> Seq.filter (fun func -> not func.IsConstructor)
                         |> Seq.groupBy (fun func -> func.Name)
                         |> Seq.map (fun (name, funcs) ->
@@ -158,12 +158,12 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                     )
 
                 let env3 =
-                    (env2, ent.Properties |> filterValuesByAccessibility env.benv QueryMemberFlags.Static |> ImArray.ofSeq)
+                    (env2, ent.Properties |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
                     ||> ImArray.fold (fun env prop ->
                         env.SetUnqualifiedValue(prop)
                     )
 
-                (env3, ent.Fields |> filterValuesByAccessibility env.benv QueryMemberFlags.Static |> ImArray.ofSeq)
+                (env3, ent.Fields |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
                 ||> ImArray.fold (fun env field ->
                     env.SetUnqualifiedValue(field)
                 )

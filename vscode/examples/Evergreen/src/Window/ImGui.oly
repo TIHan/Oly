@@ -143,7 +143,7 @@ private struct ImGuiIO =
 //     ImVec2      DisplaySize;                    // <unset>          // Main display size, in pixels (generally == GetMainViewport()->Size). May change every frame.
 //     float       DeltaTime;                      // = 1.0f/60.0f     // Time elapsed since last frame, in seconds. May change every frame.
 
-private struct ImGui_ImplVulkan_InitInfo =
+internal struct ImGui_ImplVulkan_InitInfo =
     public mutable field Instance: VkInstance = default
     public mutable field PhysicalDevice: VkPhysicalDevice = default
     public mutable field Device: VkDevice = default
@@ -282,7 +282,7 @@ class ImGuiContext =
     internal Win32Handle: nint get
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
 
-    new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
+    internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
         {
             Context = context
             Win32Handle = hwnd
