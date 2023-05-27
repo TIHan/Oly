@@ -601,6 +601,83 @@ extension ArrayExtensions<T> =
         #[inline]
         get() = getLength(this)
 
+#[open]
+extension ArrayEnumerableExtension<T> =
+    inherits T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    GetEnumerator(): System.Collections.IEnumerator =
+        class Impl1 =
+            implements System.Collections.IEnumerator
+
+            mutable field arr: T[]
+            mutable field currentIndex: int32
+            mutable field current: object
+
+            new(arr: T[]) =
+                {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                }
+
+            Current: object get() = this.current
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+
+        Impl1(this)
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl2 =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            mutable field arr: T[]
+            mutable field currentIndex: int32
+            mutable field current: object
+            mutable field currentTyped: T
+
+            new(arr: T[]) =
+                {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl2(this)
+
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]
@@ -848,3 +925,12 @@ printLine<T>(value: T): () where T: { mutable ToString(): string } =
 #[System.Diagnostics.DebuggerHiddenAttribute()]
 fail<TResult>(msg: string): TResult =
     throw System.Exception(msg)
+
+// ----------------------------------------
+
+#[inline(always)]
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    if (xse.MoveNext())
+        f(xse.Current)
+

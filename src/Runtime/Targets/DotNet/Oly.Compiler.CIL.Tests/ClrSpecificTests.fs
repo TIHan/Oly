@@ -4211,3 +4211,30 @@ module Program =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "Test_T_Test_int32_123"
+
+[<Fact>]
+let ``Should get correct GetEnumerator``() =
+    let src =
+        """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    if (xse.MoveNext())
+        f(xse.Current)
+
+main(): () =
+    let xs = List<int32>()
+    xs.Add(123)
+
+    ForEach(xs, x -> print(x))
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "123"

@@ -604,7 +604,7 @@ class Gpu =
             let result = this.gpuProgramGlobalInputsSet.TryRemove(gpuProgramGlobalInputs, &value)
             gpuProgramGlobalInputs.IsDirty <- true
 
-    Draw(gpuCommands: GpuCommand[]): () =
+    Draw<T>(gpuCommands: T): () where T: IEnumerable<GpuCommand> =
         if (this.swapChain === unchecked default)
             this.RecreateSwapChain()
 
@@ -629,46 +629,43 @@ class Gpu =
                     let mutable currentPipeline = VkPipeline.NULL
                     let mutable currentGlobalInputs = unchecked default
 
-                    let mutable i = 0
-                    while (i < gpuCommands.Length)
-                        let gpuCommand = gpuCommands[i]
+                    ForEach(gpuCommands,
+                        gpuCommand ->
+                            match (gpuCommand)
+                            | GpuCommand.DrawIndexed(globalInputs, vertices, indices, indexCount) =>
+                                this.Upload(globalInputs)
+                                this.Upload(vertices)
+                                this.Upload(indices)
 
-                        match (gpuCommand)
-                        | GpuCommand.DrawIndexed(globalInputs, vertices, indices, indexCount) =>
-                            this.Upload(globalInputs)
-                            this.Upload(vertices)
-                            this.Upload(indices)
+                                let gpuProgram = globalInputs.Program
+                                let descriptorSets = globalInputs.VkDescriptorSets
 
-                            let gpuProgram = globalInputs.Program
-                            let descriptorSets = globalInputs.VkDescriptorSets
+                                if (currentPipeline != gpuProgram.VkPipeline)
+                                    currentPipeline <- gpuProgram.VkPipeline
 
-                            if (currentPipeline != gpuProgram.VkPipeline)
-                                currentPipeline <- gpuProgram.VkPipeline
+                                    commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
+                                    commandBuffer.SetViewport(viewport)
+                                    commandBuffer.SetScissor(scissor)
 
-                                commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
-                                commandBuffer.SetViewport(viewport)
-                                commandBuffer.SetScissor(scissor)
+                                if (currentGlobalInputs !== globalInputs)
+                                    currentGlobalInputs <- globalInputs
 
-                            if (currentGlobalInputs !== globalInputs)
-                                currentGlobalInputs <- globalInputs
+                                    let pipelineLayout = gpuProgram.VkPipelineLayout
+                                    let descriptorSet = descriptorSets[frame]
+                                    commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
+                                    
+                                commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
+                                commandBuffer.BindIndexBuffer(indices.Buffers[frame])
+                                commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
-                                let pipelineLayout = gpuProgram.VkPipelineLayout
-                                let descriptorSet = descriptorSets[frame]
-                                commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
-                                
-                            commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
-                            commandBuffer.BindIndexBuffer(indices.Buffers[frame])
-                            commandBuffer.DrawIndexed(uint32(indexCount), 1)
+                            | GpuCommand.DrawUI(uiNode) =>
+                                UI.Show(this.imguiContext, uiNode)
+                                UI.ShowDemoWindow(this.imguiContext)
+                                UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
 
-                        | GpuCommand.DrawUI(uiNode) =>
-                            UI.Show(this.imguiContext, uiNode)
-                            UI.ShowDemoWindow(this.imguiContext)
-                            UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
-
-                        | _ =>
-                            ()
-
-                        i <- i + 1
+                            | _ =>
+                                ()
+                    )
 
                     commandBuffer.EndRenderPass()
                     commandBuffer.End()

@@ -1196,7 +1196,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
         else
             Seq.empty
 
-    let funcs = Seq.append inheritedFuncs funcs
+    let funcs = Seq.append funcs inheritedFuncs
     let funcs = Seq.append funcs nestedCtors |> ImArray.ofSeq
 
     // Most specific functions

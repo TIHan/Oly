@@ -8114,6 +8114,62 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Complicated lambda with generic should work``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+#[open]
+extension ArrayExtensions<T> =
+    inherits T[]
+
+    Length: int32
+        #[inline]
+        get() = getLength(this)
+
+#[inline(always)]
+ForEach<T>(xs: T[], #[inline(always)] f: T -> ()): () =
+    let mutable i = 0
+    while (i < xs.Length)
+        f(xs[i])
+        i <- i + 1
+
+class C1 =
+    Do(x: int32, y: int32, f: (int32, int32) -> ()): () =
+        f(x, y)
+
+    Run<T>(xs: T): () where T: int32[] =
+        this.Do(1, 2, (a, b) -> ForEach(xs, x -> print(x)))
+
+main(): () =
+    let c = C1()
+    c.Run([123]: int32[])
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
 let ``Active pattern match should give expected output``() =
     let src = 
         """

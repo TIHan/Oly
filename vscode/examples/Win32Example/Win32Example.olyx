@@ -170,9 +170,8 @@ createUI(): UINode =
 main(): () =
     let options = GameRenderingOptions()
     let game = GameRendering.Create(options)
-
     let uiNode = createUI()
-    game.Gpu.Draw([])
+    game.Gpu.Draw([]: GpuCommand[])
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,

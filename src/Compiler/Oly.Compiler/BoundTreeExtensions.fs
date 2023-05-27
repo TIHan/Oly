@@ -47,9 +47,9 @@ module private Helpers =
         |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
-        let fields = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
-    
-        let inheritedProperties =
+        let props = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
+        
+        let inheritedProps =
             ent.Extends
             |> Seq.map (fun x ->
                 match x.TryEntity with
@@ -61,7 +61,7 @@ module private Helpers =
             |> Seq.concat
             |> filterValuesByAccessibility benv.ac queryMemberFlags
     
-        Seq.append inheritedProperties fields
+        Seq.append props inheritedProps
     
     let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
