@@ -23,6 +23,8 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
+private alias Array = OlyPrelude.Array
+
 class ExternalProcess =
     implements IDisposable
 
@@ -78,7 +80,7 @@ class ExternalProcess =
 
                     )
                 this.p.add_OutputDataReceived(
-                    DataReceivedEventHandler(outputDataReceived, UnsafeCast(&&outputDataReceived.Invoke))
+                    DataReceivedEventHandler(outputDataReceived, nint(&&outputDataReceived.Invoke))
                 )
 
                 let errorDataReceived = 
@@ -91,7 +93,7 @@ class ExternalProcess =
 
                     )
                 this.p.add_ErrorDataReceived(
-                    DataReceivedEventHandler(errorDataReceived, UnsafeCast(&&errorDataReceived.Invoke))
+                    DataReceivedEventHandler(errorDataReceived, nint(&&errorDataReceived.Invoke))
                 )
 
                 let result = this.p.Start()
@@ -151,12 +153,17 @@ compileShaderByFile(path: string): ReadOnlyMemory<byte> =
 
 createUI(): UINode =
     let windowViewModel = UI.WindowModel("Oly Window", Vector2.Zero, Vector2.Zero)
+        
     let inputTextViewModel = UI.TextInputModel("Oly Input Text", "")
     let buttonViewModel = UI.ButtonModel("Oly Button")
     UI.Window(windowViewModel, 
         [
             UI.TextInput(inputTextViewModel, vm -> printLine(vm.Text));
-            UI.Button(buttonViewModel, vm -> printLine("Clicked!"))
+            UI.Button(buttonViewModel,
+                vm ->
+                    printLine("Clicked!")
+                    inputTextViewModel.Text <- inputTextViewModel.Text + "doot"
+            )
         ]
     )
 

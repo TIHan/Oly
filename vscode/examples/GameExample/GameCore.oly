@@ -9,6 +9,8 @@ open Evergreen.Graphics.UI
 open Evergreen.Physics
 open System.Runtime.InteropServices
 
+private alias Array = OlyPrelude.Array
+
 private CreatePhongFragmentCode(usesTexture: bool): string =
     let colorCalcCode = 
         if (usesTexture)

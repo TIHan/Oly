@@ -17,6 +17,9 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
+private alias Array = OlyPrelude.Array
+private alias Unsafe = OlyPrelude.Unsafe
+
 enum GpuProgramStageFlags =
     | Vertex    = 0b00001
     | Fragment  = 0b00010
@@ -267,7 +270,7 @@ abstract class GpuCommand =
         IndexCount: int32 get, set = 0
 
     pattern DrawIndexed(cmd: GpuCommand): (globalInputs: GpuProgramGlobalInputs, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
-        let cmd = UnsafeCast<_DrawIndexed>(cmd)
+        let cmd = Unsafe.Cast<_DrawIndexed>(cmd)
         (cmd.GlobalInputs, cmd.Vertices, cmd.Indices, cmd.IndexCount)
 
     static DrawIndexed(globalInputs: GpuProgramGlobalInputs, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
@@ -285,7 +288,7 @@ abstract class GpuCommand =
         Node: UINode get, set = unchecked default
 
     pattern DrawUI(cmd: GpuCommand): UINode when (cmd.Tag == 1) =>
-        let cmd = UnsafeCast<_DrawUI>(cmd)
+        let cmd = Unsafe.Cast<_DrawUI>(cmd)
         cmd.Node
 
     static DrawUI(uiNode: UINode): GpuCommand =
@@ -658,7 +661,7 @@ class Gpu =
                             commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
                         | GpuCommand.DrawUI(uiNode) =>
-                            UI.ShowWindow(this.imguiContext, uiNode)
+                            UI.Show(this.imguiContext, uiNode)
                             UI.ShowDemoWindow(this.imguiContext)
                             UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
 

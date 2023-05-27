@@ -7560,7 +7560,7 @@ class C1 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("'PC1' is less accessible that the signature its used in.",
+            ("'PC1' is less accessible than the member its used in.",
             """
     static ShouldError(x: PC1): () = ()
                           ^^^
@@ -7581,7 +7581,7 @@ class C1 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("'PC1' is less accessible that the signature its used in.",
+            ("'PC1' is less accessible than the member its used in.",
             """
     static ShouldError: PC1 get = unchecked default
                         ^^^
@@ -7589,6 +7589,28 @@ class C1 =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Public signature contains private type should error 3``() =
+    let src =
+        """
+class C1 =
+    private interface PI1
+
+    static ShouldError<T>(): () where T: PI1 = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'PI1' is less accessible than the member its used in.",
+            """
+    static ShouldError<T>(): () where T: PI1 = ()
+                                         ^^^
+"""
+            )
+        ]
+    |> ignore
+
 
 [<Fact>]
 let ``Private signature contains private type should NOT error``() =
@@ -7675,7 +7697,7 @@ class C1 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("'PC1' is less accessible that the signature its used in.",
+            ("'PC1' is less accessible than the member its used in.",
             """
         public mutable field ShouldNotError: PC1 = unchecked default
                                              ^^^
@@ -7718,7 +7740,7 @@ class C1 =
     |> ignore
 
 [<Fact>]
-let ``Trying to declared nested class as private should error in namespace``() =
+let ``Trying to declared nested class as private should NOT error in namespace``() =
     let src =
         """
 namespace Test
@@ -7726,15 +7748,7 @@ namespace Test
 private class C1
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Types cannot be declared as 'private' in namespaces.",
-            """
-private class C1
-^^^^^^^
-"""
-            )
-        ]
+    |> shouldCompile
     |> ignore
 
 [<Fact>]

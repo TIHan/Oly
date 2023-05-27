@@ -6,6 +6,8 @@ open System.Collections.Generic
 open Evergreen
 open Evergreen.Graphics
 
+private alias Array = OlyPrelude.Array
+
 interface IViewModel
 
 class WindowViewModel =
@@ -106,87 +108,87 @@ abstract class UINode =
             }
 
     pattern Window(node: UINode): (state: WindowViewModel, children: UINode[]) when (node.Tag == 0) =>
-        let node = UnsafeCast<UINode.Window>(node)
+        let node = Unsafe.Cast<UINode.Window>(node)
         (node.State, node.Children)
 
     internal class Button =
         inherits UINode
 
         State: ButtonViewModel get
-        OnClick: ButtonViewModel -> () get
+        OnClick: () -> () get
 
-        new(state: ButtonViewModel, onClick: ButtonViewModel -> ()) =
+        new(state: ButtonViewModel, onClick: () -> ()) =
             base(1) with {
                 State = state
                 OnClick = onClick
             }
 
-    pattern Button(node: UINode): (state: ButtonViewModel, onClick: ButtonViewModel -> ()) when (node.Tag == 1) =>
-        let node = UnsafeCast<UINode.Button>(node)
+    pattern Button(node: UINode): (state: ButtonViewModel, onClick: () -> ()) when (node.Tag == 1) =>
+        let node = Unsafe.Cast<UINode.Button>(node)
         (node.State, node.OnClick)
 
     internal class TextInput =
         inherits UINode
 
         State: TextInputViewModel get
-        OnChanged: TextInputViewModel -> () get
+        OnChanged: () -> () get
 
-        new(state: TextInputViewModel, onChanged: TextInputViewModel -> ()) =
+        new(state: TextInputViewModel, onChanged: () -> ()) =
             base(2) with {
                 State = state
                 OnChanged = onChanged
             }
 
-    pattern TextInput(node: UINode): (state: TextInputViewModel, onChanged: TextInputViewModel -> ()) when (node.Tag == 2) =>
-        let node = UnsafeCast<UINode.TextInput>(node)
+    pattern TextInput(node: UINode): (state: TextInputViewModel, onChanged: () -> ()) when (node.Tag == 2) =>
+        let node = Unsafe.Cast<UINode.TextInput>(node)
         (node.State, node.OnChanged)
 
     internal class Int32Input =
         inherits UINode
 
         State: Int32InputViewModel get
-        OnChanged: Int32InputViewModel -> () get
+        OnChanged: () -> () get
 
-        new(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) =
+        new(state: Int32InputViewModel, onChanged: () -> ()) =
             base(3) with {
                 State = state
                 OnChanged = onChanged
             }
 
-    pattern Int32Input(node: UINode): (state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) when (node.Tag == 3) =>
-        let node = UnsafeCast<UINode.Int32Input>(node)
+    pattern Int32Input(node: UINode): (state: Int32InputViewModel, onChanged: () -> ()) when (node.Tag == 3) =>
+        let node = Unsafe.Cast<UINode.Int32Input>(node)
         (node.State, node.OnChanged)
 
     internal class Checkbox =
         inherits UINode
 
         State: CheckboxViewModel get
-        OnChanged: CheckboxViewModel -> () get
+        OnChanged: () -> () get
 
-        new(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) =
+        new(state: CheckboxViewModel, onChanged: () -> ()) =
             base (10) with {
                 State = state
                 OnChanged = onChanged
             }
 
-    pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) when (node.Tag == 10) =>
-        let node = UnsafeCast<UINode.Checkbox>(node)
+    pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: () -> ()) when (node.Tag == 10) =>
+        let node = Unsafe.Cast<UINode.Checkbox>(node)
         (node.State, node.OnChanged)
 
     internal class ComboBox =
         inherits UINode
 
         State: ComboBoxViewModel get
-        OnChanged: ComboBoxViewModel -> () get
+        OnChanged: () -> () get
 
-        new(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) =
+        new(state: ComboBoxViewModel, onChanged: () -> ()) =
             base (11) with {
                 State = state
                 OnChanged = onChanged
             }
 
-    pattern ComboBox(node: UINode): (state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) when (node.Tag == 11) =>
-        let node = UnsafeCast<UINode.ComboBox>(node)
+    pattern ComboBox(node: UINode): (state: ComboBoxViewModel, onChanged: () -> ()) when (node.Tag == 11) =>
+        let node = Unsafe.Cast<UINode.ComboBox>(node)
         (node.State, node.OnChanged)
 
 
@@ -227,17 +229,22 @@ module UI =
                 i <- i + 1
             ImGui.End(context)
 
-    private MakeButton(context: ImGui.ImGuiContext, state: ButtonViewModel, onClick: ButtonViewModel -> ()): () =
+    private MakeButton(context: ImGui.ImGuiContext, state: ButtonViewModel, onClick: () -> ()): () =
         ImGui.BeginDisabled(context, !state.IsEnabled)
         if (ImGui.Button(context, state.LabelSpan, state.Size))
-            onClick(state)
+            context.Callbacks.Enqueue(onClick)
         ImGui.EndDisabled(context)
 
-    private MakeTextInput(context: ImGui.ImGuiContext, state: TextInputViewModel, onChanged: TextInputViewModel -> ()): () =
+    private MakeTextInput(context: ImGui.ImGuiContext, state: TextInputViewModel, onChanged: () -> ()): () =
         ImGui.BeginDisabled(context, !state.IsEnabled)
         if (ImGui.InputText(context, state.LabelSpan, state.TextSpan))
-            state.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(state.TextSpan)).Trim('\0')
-            onChanged(state)
+            let mutable textSpan = state.TextSpan
+            if (textSpan[0] == 0)
+                textSpan.Clear()
+                state.Text <- String.Empty
+            else
+                state.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(state.TextSpan)).Trim('\0')
+            context.Callbacks.Enqueue(onChanged)
         ImGui.EndDisabled(context)
 
     // private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
@@ -269,7 +276,7 @@ module UI =
         vm
 
     Button(state: ButtonViewModel, onClick: ButtonViewModel -> ()): UINode =
-        UINode.Button(state, onClick)
+        UINode.Button(state, () -> onClick(state))
 
     ButtonModel(label: string, size: Vector2): ButtonViewModel =
         let vm = ButtonViewModel()
@@ -281,7 +288,7 @@ module UI =
         ButtonModel(label, Vector2.Zero)
 
     TextInput(state: TextInputViewModel, onChanged: TextInputViewModel -> ()): UINode =
-        UINode.TextInput(state, onChanged)
+        UINode.TextInput(state, () -> onChanged(state))
 
     TextInputModel(label: string, text: string): TextInputViewModel =
         let vm = TextInputViewModel()
@@ -290,7 +297,7 @@ module UI =
         vm
 
     Int32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): UINode =
-        UINode.Int32Input(state, onChanged)
+        UINode.Int32Input(state, () -> onChanged(state))
 
     Int32InputModel(label: string, value: int32): Int32InputViewModel =
         let vm = Int32InputViewModel()
@@ -299,7 +306,7 @@ module UI =
         vm
 
     Checkbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): UINode =
-        UINode.Checkbox(state, onChanged)
+        UINode.Checkbox(state, () -> onChanged(state))
 
     CheckboxModel(label: string, isChecked: bool): CheckboxViewModel =
         let vm = CheckboxViewModel()
@@ -308,7 +315,7 @@ module UI =
         vm
 
     ComboBox(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()): UINode =
-        UINode.ComboBox(state, onChanged)
+        UINode.ComboBox(state, () -> onChanged(state))
 
     ComboBoxModel(label: string, selectedItemIndex: int32, items: string[||], itemCount: int32): ComboBoxViewModel =
         let vm = ComboBoxViewModel()
@@ -321,8 +328,11 @@ module UI =
     NewFrame(context: ImGui.ImGuiContext): () =
         ImGui.NewFrame(context)
 
-    ShowWindow(context: ImGui.ImGuiContext, node: UINode): () =
+    Show(context: ImGui.ImGuiContext, node: UINode): () =
         MakeNode(context, node)
+        let mutable callback = unchecked default
+        while (context.Callbacks.TryDequeue(&callback))
+            callback()
 
     ShowDemoWindow(context: ImGui.ImGuiContext): () =
         ImGui.ShowDemoWindow(context)

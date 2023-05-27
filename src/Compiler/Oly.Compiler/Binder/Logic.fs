@@ -727,13 +727,7 @@ let bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syntaxAcces
     match syntaxAccessor with
     | OlySyntaxAccessor.Internal _ -> EntityFlags.Internal
     | OlySyntaxAccessor.Public _ -> EntityFlags.Public
-    | OlySyntaxAccessor.Private _ ->
-        match env.benv.ac.Entity with
-        | Some(ent) when not ent.IsNamespace ->
-            EntityFlags.Private
-        | _ ->
-            cenv.diagnostics.Error("Types cannot be declared as 'private' in namespaces.", 10, syntaxAccessor)
-            EntityFlags.None
+    | OlySyntaxAccessor.Private _ -> EntityFlags.Private
     | OlySyntaxAccessor.Protected _ -> 
         cenv.diagnostics.Error("Types cannot be declared as 'protected'.", 10, syntaxAccessor)
         EntityFlags.None

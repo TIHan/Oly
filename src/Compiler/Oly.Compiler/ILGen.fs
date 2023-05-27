@@ -983,8 +983,13 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
     let ilEntFlags = if ent.IsSealed then ilEntFlags ||| OlyILEntityFlags.Final else ilEntFlags
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
     let ilEntFlags = 
-        if ent.IsPrivate then             
-            ilEntFlags ||| OlyILEntityFlags.Private
+        if ent.IsPrivate then
+            if ent.Enclosing.IsNamespace then
+                // Types that are marked 'private' but exist within a namespace,
+                // we have to emit them as 'internal'.
+                ilEntFlags ||| OlyILEntityFlags.Internal
+            else
+                ilEntFlags ||| OlyILEntityFlags.Private
         elif ent.IsInternal then
             ilEntFlags ||| OlyILEntityFlags.Internal
         else

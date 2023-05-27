@@ -24,7 +24,7 @@
         ["'", "'"]
     ],
     "indentationRules": {
-        "increaseIndentPattern": "(\\=\\s?($|\\n))|((if|when|else).*($|\\n))",
+        "increaseIndentPattern": "(\\=|->\\s?($|\\n))|((if|when|else).*($|\\n))",
         "decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*/)?\\s*[\\)\\}\\]].*$"
     }
 }

@@ -3,6 +3,8 @@ module GameLoop
 open System
 open System.Diagnostics
 
+private alias Array = OlyPrelude.Array
+
 private ConvertSecondsToTicks(seconds: float64): int64 = TimeSpan.FromSeconds(seconds).Ticks
 private ConvertTicksToSeconds(ticks: int64): float64 = TimeSpan.FromTicks(ticks).TotalSeconds
 private ConvertFramesPerSecondToSeconds(fps: float64): float64 = (1000 / fps) * 0.001

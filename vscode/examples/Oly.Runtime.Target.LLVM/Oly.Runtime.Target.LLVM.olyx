@@ -17,6 +17,8 @@ open Oly.Core
 
 open Microsoft.FSharp.Core
 
+private alias Unsafe = OlyPrelude.Unsafe
+
 Some<T>(value: T): FSharpOption<T> =
     FSharpOption(value)
 
@@ -48,6 +50,6 @@ main(): () =
 
     let str = "my cool jit"
     let mutable strPtr = GCHandle.Alloc(str, GCHandleType.Pinned)
-    let mod = LLVM.ModuleCreateWithName(ToPtr(strPtr.AddrOfPinnedObject()))
+    let mod = LLVM.ModuleCreateWithName(Unsafe.AsPointer(strPtr.AddrOfPinnedObject()))
     let builder = LLVM.CreateBuilder()
     print("testttttt")

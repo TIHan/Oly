@@ -14,6 +14,8 @@ open Evergreen.Physics
 open System.Runtime.InteropServices
 open static Game.Core
 
+private alias Array = OlyPrelude.Array
+
 main(): () =
     let world = World()
     let physics = Physics.Init()
@@ -277,7 +279,7 @@ main(): () =
                 allCmds.Add(renderQuadCmds[i])
                 i <- i + 1
             
-            UnsafeCast<_[]>(allCmds.ToArray())
+            Unsafe.AsImmutable(allCmds.ToArray())
         | _ =>
             fail("Unexpected")
 

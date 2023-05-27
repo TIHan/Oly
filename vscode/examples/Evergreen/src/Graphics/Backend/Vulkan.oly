@@ -13,6 +13,9 @@ open Evergreen.Graphics.Backend.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 open static Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
 
+private alias Array = OlyPrelude.Array
+private alias Unsafe = OlyPrelude.Unsafe
+
 #[open]
 internal module Helpers =
 
@@ -30,7 +33,7 @@ internal module Helpers =
         while (i < handles.Length)
             let mutable gcHandle = fixedCopyUTF8(strs[i])
             handles[i] <- gcHandle
-            bytePtrs[i] <- UnsafeCast(gcHandle.AddrOfPinnedObject())
+            bytePtrs[i] <- Unsafe.AsPointer(gcHandle.AddrOfPinnedObject())
             i <- i + 1
 
         let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
@@ -110,7 +113,9 @@ class VulkanApplication =
     GetDeviceName(): string =
         let mutable deviceProperties = default
         vkGetPhysicalDeviceProperties(this.PhysicalDevice, &&deviceProperties)
-        String(UnsafeCast<int8*>(&&deviceProperties.deviceName))
+        String(Unsafe.AsPointer(&&deviceProperties.deviceName): int8*)
+        // TODO: This should work: "String(Unsafe.AsPointer(&&deviceProperties.deviceName))"
+        // Fix language bug.
 
     new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], allocator: VmaAllocator) =
         let graphicsCommandPool = Vk.createCommandPool(device, graphicsQueueFamilyIndex)
@@ -270,9 +275,9 @@ newtype VulkanCommandBuffer =
         let mutable clearColorValue = default: VkClearColorValue
 
         let clearColorValue0 = &clearColorValue.float32.FixedElementField
-        let clearColorValue1 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
-        let clearColorValue2 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
-        let clearColorValue3 = &Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
+        let clearColorValue1 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
+        let clearColorValue2 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
+        let clearColorValue3 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
 
         clearColorValue0 <- 0
         clearColorValue1 <- 0
@@ -295,7 +300,7 @@ newtype VulkanCommandBuffer =
         let mutable clearValuesHandle = fixed(clearValues)
 
         renderPassInfo.clearValueCount <- uint32(clearValues.Length)
-        renderPassInfo.pClearValues <- UnsafeCast(clearValuesHandle.AddrOfPinnedObject())
+        renderPassInfo.pClearValues <- Unsafe.AsPointer(clearValuesHandle.AddrOfPinnedObject())
 
         vkCmdBeginRenderPass(this.CommandBuffer, &&renderPassInfo, VkSubpassContents.VK_SUBPASS_CONTENTS_INLINE)
 
@@ -331,7 +336,7 @@ newtype VulkanCommandBuffer =
             i <- i + 1
         let mutable offsetsHandle = fixed(offsets)
 
-        vkCmdBindVertexBuffers(this.CommandBuffer, 0, 1, UnsafeCast(vertexBuffersHandle.AddrOfPinnedObject()), UnsafeCast(offsetsHandle.AddrOfPinnedObject()))
+        vkCmdBindVertexBuffers(this.CommandBuffer, 0, 1, Unsafe.AsPointer(vertexBuffersHandle.AddrOfPinnedObject()), Unsafe.AsPointer(offsetsHandle.AddrOfPinnedObject()))
 
         // Cleanup
         offsetsHandle.Free()
@@ -341,7 +346,7 @@ newtype VulkanCommandBuffer =
         this.BindVertexBuffers(ReadOnlySpan(vertexBuffers))
 
     BindVertexBuffers(vertexBuffers: VulkanBuffer[]): () =
-        this.BindVertexBuffers(ReadOnlySpan(UnsafeCast<VulkanBuffer[||]>(vertexBuffers)))
+        this.BindVertexBuffers(ReadOnlySpan(Unsafe.AsMutable(vertexBuffers)))
 
     BindVertexBuffer(vertexBuffer: VulkanBuffer): () =
         this.BindVertexBuffers([vertexBuffer])
@@ -373,7 +378,7 @@ internal class PtrPtrHandle =
             ptrPtr = ptrPtr
         }
 
-    Pointer: void* get() = UnsafeCast(this.ptrPtr.AddrOfPinnedObject())
+    Pointer: void* get() = Unsafe.AsPointer(this.ptrPtr.AddrOfPinnedObject())
 
     Dispose(): () =
         let mutable i = 0
@@ -480,7 +485,7 @@ module Vk =
         if (vmaCreateAllocator(&&allocatorCreateInfo, &&allocator) != VkResult.VK_SUCCESS)
             fail("Failed to create allocator.")
 
-        VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, UnsafeCast(imageAvailableSemaphores), UnsafeCast(renderFinishedSemaphores), UnsafeCast(inFlightFences), allocator)
+        VulkanApplication(enableValidationLayers, instance, surface, physicalDevice, device, graphicsQueue, uint32(graphicsFamilyIndex), computeQueue, uint32(computeFamilyIndex), transferQueue, uint32(transferFamilyIndex), presentQueue, uint32(presentFamilyIndex), debugMessenger, Unsafe.AsImmutable(imageAvailableSemaphores), Unsafe.AsImmutable(renderFinishedSemaphores), Unsafe.AsImmutable(inFlightFences), allocator)
 
     CreateSwapChain(app: VulkanApplication, format: VkFormat): VulkanSwapChain =
         createSwapChain(app, format)
@@ -570,7 +575,7 @@ module Vk =
         DestroyFramebuffers(app, ReadOnlySpan(framebuffers))
 
     DestroyFramebuffers(app: VulkanApplication, framebuffers: VkFramebuffer[]): () =
-        DestroyFramebuffers(app, UnsafeCast<VkFramebuffer[||]>(framebuffers))
+        DestroyFramebuffers(app, Unsafe.AsMutable(framebuffers))
 
     CreateGraphicsCommandBuffer(app: VulkanApplication): VulkanCommandBuffer =
         VulkanCommandBuffer(createCommandBuffer(app.Device, app.GraphicsCommandPool))
@@ -618,7 +623,7 @@ module Vk =
         
         if ((memPropFlags & VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == VkMemoryPropertyFlags.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
             let mutable pData = buffer.AllocationInfo.pMappedData
-            let notMapped = UnsafeCast<nint>(pData) == nint(0)
+            let notMapped = nint(pData) == nint(0)
 
             if (notMapped)
                 if (vmaMapMemory(app.Allocator, buffer.Allocation, &&pData) != VkResult.VK_SUCCESS)
@@ -686,7 +691,7 @@ module Vk =
         UpdateBuffer<T>(app, buffer, ReadOnlySpan(bufferData))
 
     UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): () where T: unmanaged =
-        UpdateBuffer<T>(app, buffer, ReadOnlySpan<T>(UnsafeCast<T[||]>(bufferData)))
+        UpdateBuffer<T>(app, buffer, ReadOnlySpan<T>(Unsafe.AsMutable(bufferData)))
 
     DestroyBuffer(app: VulkanApplication, buffer: VulkanBuffer): () =
         vmaDestroyBuffer(app.Allocator, buffer.Buffer, buffer.Allocation)
@@ -879,10 +884,10 @@ module Vk =
 
         let pName = "vkCreateDebugUtilsMessengerEXT"
         let mutable pNameHandle = fixedCopyUTF8(pName)
-        let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+        let func = nint(vkGetInstanceProcAddr(instance, Unsafe.AsPointer(pNameHandle.AddrOfPinnedObject())))
         pNameHandle.Free()
         if (func != nint(0))
-            let func = UnsafeCast<PFN_vkCreateDebugUtilsMessengerEXT>(func)
+            let func: PFN_vkCreateDebugUtilsMessengerEXT = Unsafe.AsFunctionPointer(func)
             func(instance, pCreateInfo, pAllocator, pDebugMessenger)
         else
             VkResult.VK_ERROR_EXTENSION_NOT_PRESENT
@@ -890,10 +895,10 @@ module Vk =
     private destroyDebugUtilsMessengerEXT(instance: VkInstance, debugMessenger: VkDebugUtilsMessengerEXT, pAllocator: VkAllocationCallbacks*): () =
         let pName = "vkDestroyDebugUtilsMessengerEXT"
         let mutable pNameHandle = fixedCopyUTF8(pName)
-        let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+        let func = nint(vkGetInstanceProcAddr(instance, Unsafe.AsPointer(pNameHandle.AddrOfPinnedObject())))
         pNameHandle.Free()
         if (func != nint(0))
-            let func = UnsafeCast<PFN_vkDestroyDebugUtilsMessengerEXT>(func)
+            let func: PFN_vkDestroyDebugUtilsMessengerEXT = Unsafe.AsFunctionPointer(func)
             func(instance, debugMessenger, pAllocator)
 
     private getRequiredExtensions(enableValidationLayers: bool): string[] =
@@ -921,12 +926,12 @@ module Vk =
     private debugCallback(messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT, messageType: VkDebugUtilsMessageTypeFlagsEXT, pCallbackData: VkDebugUtilsMessengerCallbackDataEXT*, pUserData: void*): VkBool32 =
         if ((messageSeverity & VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) == VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
             let callback = *pCallbackData
-            let str = String(UnsafeCast<int8*>(callback.pMessage))
+            let str = String(callback.pMessage)
             throw VulkanValidationException(str)
 
         print("validation layer: ")
         let callback = *pCallbackData
-        let str = String(UnsafeCast<int8*>(callback.pMessage))
+        let str = String(callback.pMessage)
         printLine(str)
         VkBool32.FALSE
 
@@ -957,9 +962,9 @@ module Vk =
 
         let mutable appInfo = default: VkApplicationInfo
         appInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO
-        appInfo.pApplicationName <- UnsafeCast(appNameHandle.AddrOfPinnedObject())
+        appInfo.pApplicationName <- Unsafe.AsPointer(appNameHandle.AddrOfPinnedObject())
         appInfo.applicationVersion <- VK_MAKE_VERSION(1, 0, 0)
-        appInfo.pEngineName <- UnsafeCast(engineNameHandle.AddrOfPinnedObject())
+        appInfo.pEngineName <- Unsafe.AsPointer(engineNameHandle.AddrOfPinnedObject())
         appInfo.engineVersion <- VK_MAKE_VERSION(1, 0, 0)
         appInfo.apiVersion <- VK_API_VERSION_1_3
         
@@ -978,22 +983,22 @@ module Vk =
         createInfo.pApplicationInfo <- &&appInfo
 
         if (enableValidationLayers)
-            createInfo.pNext <- UnsafeCast(&&features)
+            createInfo.pNext <- Unsafe.AsPointer(&&features)
 
         let extensions = getRequiredExtensions(enableValidationLayers)
         let extensionsHandle = fixedCopy(extensions)
         let validationLayersHandle = fixedCopy(validationLayers)
 
         createInfo.enabledExtensionCount <- uint32(extensions.Length)
-        createInfo.ppEnabledExtensionNames <- UnsafeCast(extensionsHandle.Pointer)
+        createInfo.ppEnabledExtensionNames <- Unsafe.AsPointer(extensionsHandle.Pointer)
 
         if (enableValidationLayers)
             createInfo.enabledLayerCount <- uint32(validationLayers.Length)
-            createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersHandle.Pointer)
+            createInfo.ppEnabledLayerNames <- Unsafe.AsPointer(validationLayersHandle.Pointer)
 
             let mutable debugCreateInfo = default: VkDebugUtilsMessengerCreateInfoEXT
             populateDebugMessengerCreateInfo(&debugCreateInfo)
-            createInfo.pNext <- UnsafeCast(&&debugCreateInfo)
+            createInfo.pNext <- Unsafe.AsPointer(&&debugCreateInfo)
         else
             createInfo.enabledLayerCount <- 0
             createInfo.pNext <- nullptr
@@ -1022,11 +1027,11 @@ module Vk =
         let mutable instanceImports = default: VkInstanceManualImports
         let pName = "vkCreateWin32SurfaceKHR"
         let mutable pNameHandle = fixedCopyUTF8(pName)
-        let func: nint = UnsafeCast(vkGetInstanceProcAddr(instance, UnsafeCast(pNameHandle.AddrOfPinnedObject())))
+        let func = nint(vkGetInstanceProcAddr(instance, Unsafe.AsPointer(pNameHandle.AddrOfPinnedObject())))
         pNameHandle.Free()
         if (func == nint(0))
             fail("Failed to query instance function.")
-        instanceImports.vkCreateWin32SurfaceKHR <- UnsafeCast(func)
+        instanceImports.vkCreateWin32SurfaceKHR <- Unsafe.AsFunctionPointer(func)
         if (instanceImports.vkCreateWin32SurfaceKHR(instance, &&createInfo, nullptr, &&surface) != VkResult.VK_SUCCESS)
             fail("Failed to create window surface.")
         surface
@@ -1074,13 +1079,13 @@ module Vk =
         let queueCreateInfos = Array.DistinctBy(queueCreateInfos, x -> x.queueFamilyIndex)
         let mutable queueCreateInfosHandle = fixed(queueCreateInfos)
         createInfo.queueCreateInfoCount <- uint32(queueCreateInfos.Length)
-        createInfo.pQueueCreateInfos <- UnsafeCast(queueCreateInfosHandle.AddrOfPinnedObject())
+        createInfo.pQueueCreateInfos <- Unsafe.AsPointer(queueCreateInfosHandle.AddrOfPinnedObject())
         createInfo.pEnabledFeatures <- &&deviceFeatures
 
         let validationLayersHandle = fixedCopy(validationLayers)
         if (enableValidationLayers)
             createInfo.enabledLayerCount <- uint32(validationLayers.Length)
-            createInfo.ppEnabledLayerNames <- UnsafeCast(validationLayersHandle.Pointer)
+            createInfo.ppEnabledLayerNames <- Unsafe.AsPointer(validationLayersHandle.Pointer)
         else
             createInfo.enabledLayerCount <- 0
 
@@ -1090,7 +1095,7 @@ module Vk =
         
         createInfo.enabledExtensionCount <- uint32(deviceExtensions.Length)
         let requiredDeviceExtensionsHandle = fixedCopy(deviceExtensions)
-        createInfo.ppEnabledExtensionNames <- UnsafeCast(requiredDeviceExtensionsHandle.Pointer)  
+        createInfo.ppEnabledExtensionNames <- Unsafe.AsPointer(requiredDeviceExtensionsHandle.Pointer)  
 
         let mutable device = default
         if (vkCreateDevice(physicalDevice, &&createInfo, nullptr, &&device) != VkResult.VK_SUCCESS)
@@ -1112,7 +1117,7 @@ module Vk =
 
         let formats = Array.ZeroCreate<VkSurfaceFormatKHR>(int32(formatCount))
         let mutable formatsHandle = fixed(formats)
-        let throwAwayResult = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &&formatCount, UnsafeCast(formatsHandle.AddrOfPinnedObject()))
+        let throwAwayResult = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &&formatCount, Unsafe.AsPointer(formatsHandle.AddrOfPinnedObject()))
         formatsHandle.Free()
 
         let mutable presentModeCount = 0: uint32
@@ -1121,10 +1126,10 @@ module Vk =
 
         let presentModes = Array.ZeroCreate<VkPresentModeKHR>(int32(presentModeCount))
         let mutable presentModesHandle = fixed(presentModes)
-        let throwAwayResult = vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &&presentModeCount, UnsafeCast(presentModesHandle.AddrOfPinnedObject()))
+        let throwAwayResult = vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &&presentModeCount, Unsafe.AsPointer(presentModesHandle.AddrOfPinnedObject()))
         presentModesHandle.Free()
 
-        VulkanSwapChainSupportDetails(capabilities, UnsafeCast(formats), UnsafeCast(presentModes))
+        VulkanSwapChainSupportDetails(capabilities, Unsafe.AsImmutable(formats), Unsafe.AsImmutable(presentModes))
 
     private findSwapSurfaceFormat(formats: VkSurfaceFormatKHR[], format: VkFormat): VkSurfaceFormatKHR =
         Array.Find(formats, 
@@ -1232,7 +1237,7 @@ module Vk =
         if (graphicsFamilyIndex != presentFamilyIndex)
             createInfo.imageSharingMode <- VkSharingMode.VK_SHARING_MODE_CONCURRENT
             createInfo.queueFamilyIndexCount <- 2
-            createInfo.pQueueFamilyIndices <- UnsafeCast(queueFamilyIndicesHandle.AddrOfPinnedObject())
+            createInfo.pQueueFamilyIndices <- Unsafe.AsPointer(queueFamilyIndicesHandle.AddrOfPinnedObject())
         else
             createInfo.imageSharingMode <- VkSharingMode.VK_SHARING_MODE_EXCLUSIVE
             createInfo.queueFamilyIndexCount <- 0 // Optional
@@ -1316,7 +1321,7 @@ module Vk =
         let mutable createInfo = default: VkShaderModuleCreateInfo
         createInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
         createInfo.codeSize <- nuint(byteCode.Length)
-        createInfo.pCode <- UnsafeCast(&&byteCodeRef)
+        createInfo.pCode <- Unsafe.AsPointer(&&byteCodeRef)
 
         let mutable shaderModule = default: VkShaderModule
         if (vkCreateShaderModule(device, &&createInfo, nullptr, &&shaderModule) != VkResult.VK_SUCCESS)
@@ -1340,7 +1345,7 @@ module Vk =
         let mutable pipelineLayoutInfo = default: VkPipelineLayoutCreateInfo
         pipelineLayoutInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
         pipelineLayoutInfo.setLayoutCount <- uint32(setLayouts.Length)
-        pipelineLayoutInfo.pSetLayouts <- UnsafeCast(setLayoutsHandle.AddrOfPinnedObject())
+        pipelineLayoutInfo.pSetLayouts <- Unsafe.AsPointer(setLayoutsHandle.AddrOfPinnedObject())
         pipelineLayoutInfo.pushConstantRangeCount <- 0 // Optional
         pipelineLayoutInfo.pPushConstantRanges <- nullptr // Optional
 
@@ -1373,7 +1378,7 @@ module Vk =
         let mutable dynamicState = default: VkPipelineDynamicStateCreateInfo
         dynamicState.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO
         dynamicState.dynamicStateCount <- uint32(dynamicStates.Length)
-        dynamicState.pDynamicStates <- UnsafeCast(dynamicStatesHandle.AddrOfPinnedObject())
+        dynamicState.pDynamicStates <- Unsafe.AsPointer(dynamicStatesHandle.AddrOfPinnedObject())
 
         let mutable vertexBindingDescriptionsHandle = fixed(vertexBindingDescriptions)
         let mutable vertexAttributeDescriptionsHandle = fixed(vertexAttributeDescriptions)
@@ -1381,9 +1386,9 @@ module Vk =
         let mutable vertexInputInfo = default: VkPipelineVertexInputStateCreateInfo
         vertexInputInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
         vertexInputInfo.vertexBindingDescriptionCount <- uint32(vertexBindingDescriptions.Length)
-        vertexInputInfo.pVertexBindingDescriptions <- UnsafeCast(vertexBindingDescriptionsHandle.AddrOfPinnedObject())
+        vertexInputInfo.pVertexBindingDescriptions <- Unsafe.AsPointer(vertexBindingDescriptionsHandle.AddrOfPinnedObject())
         vertexInputInfo.vertexAttributeDescriptionCount <- uint32(vertexAttributeDescriptions.Length)
-        vertexInputInfo.pVertexAttributeDescriptions <- UnsafeCast(vertexAttributeDescriptionsHandle.AddrOfPinnedObject())
+        vertexInputInfo.pVertexAttributeDescriptions <- Unsafe.AsPointer(vertexAttributeDescriptionsHandle.AddrOfPinnedObject())
 
         let mutable inputAssembly = default: VkPipelineInputAssemblyStateCreateInfo
         inputAssembly.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
@@ -1451,9 +1456,9 @@ module Vk =
         colorBlending.pAttachments <- &&colorBlendAttachment
 
         let colorBlendingValue0 = &colorBlending.blendConstants.FixedElementField
-        let colorBlendingValue1 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(4))
-        let colorBlendingValue2 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(8))
-        let colorBlendingValue3 = &Unsafe.AddByteOffset(&colorBlendingValue0, nuint(12))
+        let colorBlendingValue1 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&colorBlendingValue0, nuint(4))
+        let colorBlendingValue2 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&colorBlendingValue0, nuint(8))
+        let colorBlendingValue3 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&colorBlendingValue0, nuint(12))
 
         colorBlendingValue0 <- 0 // Optional
         colorBlendingValue1 <- 0 // Optional
@@ -1477,14 +1482,14 @@ module Vk =
         let stageCount = stages.Length
         let mutable i = 0
         while (i < stageCount)
-            stages[i].pName <- UnsafeCast(pNameHandle.AddrOfPinnedObject())
+            stages[i].pName <- Unsafe.AsPointer(pNameHandle.AddrOfPinnedObject())
             i <- i + 1
         let mutable stagesHandle = fixed(stages)
 
         let mutable pipelineInfo = default: VkGraphicsPipelineCreateInfo
         pipelineInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
         pipelineInfo.stageCount <- uint32(stageCount)
-        pipelineInfo.pStages <- UnsafeCast(stagesHandle.AddrOfPinnedObject())
+        pipelineInfo.pStages <- Unsafe.AsPointer(stagesHandle.AddrOfPinnedObject())
         pipelineInfo.pVertexInputState <- &&vertexInputInfo
         pipelineInfo.pInputAssemblyState <- &&inputAssembly
         pipelineInfo.pViewportState <- &&viewportState
@@ -1560,7 +1565,7 @@ module Vk =
         let mutable renderPassInfo = default: VkRenderPassCreateInfo
         renderPassInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
         renderPassInfo.attachmentCount <- uint32(attachments.Length)
-        renderPassInfo.pAttachments <- UnsafeCast(attachmentsHandle.AddrOfPinnedObject())
+        renderPassInfo.pAttachments <- Unsafe.AsPointer(attachmentsHandle.AddrOfPinnedObject())
         renderPassInfo.subpassCount <- 1
         renderPassInfo.pSubpasses <- &&subpass
         renderPassInfo.dependencyCount <- 1
@@ -1583,7 +1588,7 @@ module Vk =
         framebufferInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
         framebufferInfo.renderPass <- renderPass
         framebufferInfo.attachmentCount <- uint32(attachments.Length)
-        framebufferInfo.pAttachments <- UnsafeCast(attachmentsHandle.AddrOfPinnedObject())
+        framebufferInfo.pAttachments <- Unsafe.AsPointer(attachmentsHandle.AddrOfPinnedObject())
         framebufferInfo.width <- width
         framebufferInfo.height <- height
         framebufferInfo.layers <- 1
@@ -1676,7 +1681,7 @@ module Vk =
     private createVertexInputAttributeDescriptions<T>(binding: uint32): VkVertexInputAttributeDescription[] where T: unmanaged =
         let ty = typeof<T>
         let size = sizeof<T>
-        let fields = UnsafeCast<System.Reflection.FieldInfo[]>(ty.GetFields())
+        let fields = Unsafe.AsImmutable(ty.GetFields())
         let fields = Array.Filter(fields, x -> !x.IsStatic)
 
         let create(location, offset, fld: System.Reflection.FieldInfo) =
@@ -1705,7 +1710,7 @@ module Vk =
             | _ =>
                 fail("should not happen")
             i <- i + 1
-        UnsafeCast(attributeDescriptions)
+        Unsafe.AsImmutable(attributeDescriptions)
 
     private createDescriptorSetLayout(device: VkDevice, mutable bindingInfos: ReadOnlySpan<VulkanDescriptorBindingInfo>): VkDescriptorSetLayout =
 
@@ -1730,7 +1735,7 @@ module Vk =
         let mutable layoutInfo = default: VkDescriptorSetLayoutCreateInfo
         layoutInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
         layoutInfo.bindingCount <- uint32(layoutBindings.Length)
-        layoutInfo.pBindings <- UnsafeCast(layoutBindingsHandle.AddrOfPinnedObject())
+        layoutInfo.pBindings <- Unsafe.AsPointer(layoutBindingsHandle.AddrOfPinnedObject())
 
         let mutable descriptorSetLayout = default: VkDescriptorSetLayout
         if (vkCreateDescriptorSetLayout(device, &&layoutInfo, nullptr, &&descriptorSetLayout) != VkResult.VK_SUCCESS)
@@ -1760,7 +1765,7 @@ module Vk =
         let mutable poolInfo = default: VkDescriptorPoolCreateInfo
         poolInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
         poolInfo.poolSizeCount <- uint32(poolSizes.Length)
-        poolInfo.pPoolSizes <- UnsafeCast(poolSizesHandle.AddrOfPinnedObject())
+        poolInfo.pPoolSizes <- Unsafe.AsPointer(poolSizesHandle.AddrOfPinnedObject())
         poolInfo.maxSets <- descriptorCount
 
         let mutable descriptorPool = default: VkDescriptorPool
@@ -1779,18 +1784,18 @@ module Vk =
         allocInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
         allocInfo.descriptorPool <- descriptorPool
         allocInfo.descriptorSetCount <- descriptorSetCount
-        allocInfo.pSetLayouts <- UnsafeCast(setLayoutsHandle.AddrOfPinnedObject())
+        allocInfo.pSetLayouts <- Unsafe.AsPointer(setLayoutsHandle.AddrOfPinnedObject())
 
         let mutable descriptorSets = Array.ZeroCreate<VkDescriptorSet>(int32(descriptorSetCount))
         let mutable descriptorSetsHandle = fixed(descriptorSets)
-        let descriptorSetsPtr = UnsafeCast(descriptorSetsHandle.AddrOfPinnedObject())
+        let descriptorSetsPtr = Unsafe.AsPointer(descriptorSetsHandle.AddrOfPinnedObject())
         if (vkAllocateDescriptorSets(device, &&allocInfo, descriptorSetsPtr) != VkResult.VK_SUCCESS)
             fail("Failed to allocate descriptor sets.")
 
         setLayoutsHandle.Free()
         descriptorSetsHandle.Free()
 
-        UnsafeCast(descriptorSets)
+        Unsafe.AsImmutable(descriptorSets)
 
     private updateDescriptorSet(device: VkDevice, binding: uint32, descriptorSet: VkDescriptorSet, buffer: VkBuffer, offset: uint64, size: uint64, descriptorType: VkDescriptorType): () =
         let mutable bufferInfo = default: VkDescriptorBufferInfo
@@ -1844,11 +1849,11 @@ module Vk =
 
         let availableLayers = Array.ZeroCreate<VkLayerProperties>(int32(layerCount))
         let mutable availableLayersHandle = fixed(availableLayers)
-        if (vkEnumerateInstanceLayerProperties(&&layerCount, UnsafeCast(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
+        if (vkEnumerateInstanceLayerProperties(&&layerCount, Unsafe.AsPointer(availableLayersHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
             fail("Failed to enumerate instance layer properties.")
         availableLayersHandle.Free()
 
-        UnsafeCast<VkLayerProperties[]>(availableLayers)
+        Unsafe.AsImmutable(availableLayers)
 
     private getPhysicalDevices(instance: VkInstance): VkPhysicalDevice[] =
         let mutable deviceCount = 0: uint32
@@ -1858,11 +1863,11 @@ module Vk =
 
         let availableDevices = Array.ZeroCreate<VkPhysicalDevice>(int32(deviceCount))
         let mutable availableDevicesHandle = fixed(availableDevices)
-        if (vkEnumeratePhysicalDevices(instance, &&deviceCount, UnsafeCast(availableDevicesHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
+        if (vkEnumeratePhysicalDevices(instance, &&deviceCount, Unsafe.AsPointer(availableDevicesHandle.AddrOfPinnedObject())) != VkResult.VK_SUCCESS)
             fail("Failed to enumerate physical devices.")
         availableDevicesHandle.Free()
 
-        UnsafeCast<VkPhysicalDevice[]>(availableDevices)
+        Unsafe.AsImmutable(availableDevices)
 
     private getPhysicalDeviceQueueFamilyProperties(device: VkPhysicalDevice): VkQueueFamilyProperties[] =
         let mutable queueFamilyCount = 0: uint32
@@ -1871,10 +1876,10 @@ module Vk =
 
         let queueFamilies = Array.ZeroCreate<VkQueueFamilyProperties>(int32(queueFamilyCount))
         let mutable queueFamiliesHandle = fixed(queueFamilies)
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &&queueFamilyCount, UnsafeCast(queueFamiliesHandle.AddrOfPinnedObject()))
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &&queueFamilyCount, Unsafe.AsPointer(queueFamiliesHandle.AddrOfPinnedObject()))
         queueFamiliesHandle.Free()
 
-        UnsafeCast<VkQueueFamilyProperties[]>(queueFamilies)
+        Unsafe.AsImmutable(queueFamilies)
 
     private getDeviceExtensionProperties(device: VkPhysicalDevice): VkExtensionProperties[] =
         let mutable extensionCount = 0: uint32
@@ -1883,10 +1888,10 @@ module Vk =
 
         let extensions = Array.ZeroCreate<VkExtensionProperties>(int32(extensionCount))
         let mutable extensionsHandle = fixed(extensions)
-        let throwAwayResult = vkEnumerateDeviceExtensionProperties(device, nullptr, &&extensionCount, UnsafeCast(extensionsHandle.AddrOfPinnedObject()))
+        let throwAwayResult = vkEnumerateDeviceExtensionProperties(device, nullptr, &&extensionCount, Unsafe.AsPointer(extensionsHandle.AddrOfPinnedObject()))
         extensionsHandle.Free()
 
-        UnsafeCast(extensions)
+        Unsafe.AsImmutable(extensions)
 
     private getSwapChainImages(device: VkDevice, swapChain: VkSwapchainKHR): VkImage[] =
         let mutable imageCount = 0: uint32
@@ -1894,10 +1899,10 @@ module Vk =
         
         let images = Array.ZeroCreate<VkImage>(int32(imageCount))
         let mutable imagesHandle = fixed(images)
-        let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, UnsafeCast(imagesHandle.AddrOfPinnedObject()))
+        let throwAwayResult = vkGetSwapchainImagesKHR(device, swapChain, &&imageCount, Unsafe.AsPointer(imagesHandle.AddrOfPinnedObject()))
         imagesHandle.Free()
 
-        UnsafeCast(images)
+        Unsafe.AsImmutable(images)
 
     // -----------------------------------------------------------------------
 
@@ -1940,7 +1945,7 @@ module Vk =
                 let mutable j = 0
                 while (j < availableLayers.Length)
                     let layerProperties = availableLayers[j]
-                    let layerName = String(UnsafeCast<int8*>(&&layerProperties.layerName))
+                    let layerName = String(Unsafe.AsPointer(&&layerProperties.layerName): int8*)
                     if (layerName == validationLayers[i])
                         foundLayer <- true
                     j <- j + 1
@@ -1967,7 +1972,7 @@ module Vk =
                 let mutable j = 0
                 while (j < availableExtensions.Length)
                     let extensionProperties = availableExtensions[j]
-                    let extensionName = String(UnsafeCast<int8*>(&&extensionProperties.extensionName))
+                    let extensionName = String(Unsafe.AsPointer(&&extensionProperties.extensionName): int8*)
                     if (extensionName == deviceExtensions[i])
                         foundExtension <- true
                     j <- j + 1

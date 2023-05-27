@@ -188,6 +188,9 @@ nint(void*): nint
 nint(int32): nint
 
 #[intrinsic("unsafe_cast")]
+nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
+
+#[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
 
 #[intrinsic("unsafe_cast")]
@@ -206,28 +209,10 @@ nuint(uint8): nuint
 nuint(void*): nuint
 
 #[intrinsic("unsafe_cast")]
+nuint<TResult, TArguments...>(static (TArguments...) -> TResult): nuint
+
+#[intrinsic("unsafe_cast")]
 nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuint
-
-#[intrinsic("unsafe_cast")]
-ToVoidPtr(int32): void*
-
-#[intrinsic("unsafe_cast")]
-ToVoidPtr(nuint): void*
-
-#[intrinsic("unsafe_cast")]
-UnsafeCast<T>(object): T
-
-#[intrinsic("unsafe_cast")]
-ToPtr<T>(int32): T*
-
-#[intrinsic("unsafe_cast")]
-ToPtr<T>(void*): T*
-
-#[intrinsic("unsafe_cast")]
-ToPtr<T>(nint): T*
-
-#[intrinsic("unsafe_cast")]
-ToPtr<T, TResult>(T*): TResult*
 
 #[intrinsic("unsafe_cast")]
 (*)<T>(void*): byref<T>
@@ -266,7 +251,7 @@ nullptr<T>: T*
 
 #[inline]
 (+)(ptr: void*, value: nuint): void* =
-    ToVoidPtr(nuint(ptr) + value)
+    Unsafe.AsPointer(nuint(ptr) + value)
 
 #[inline]
 (+)(ptr: void*, value: uint64): void* =
@@ -616,57 +601,87 @@ extension ArrayExtensions<T> =
         #[inline]
         get() = getLength(this)
 
-#[open]
-extension ArrayExtensions =
-    inherits System.Array
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+    AsImmutable<T>(arr: T[||]): T[] =
+        Cast(arr)
+
+    AsMutable<T>(arr: T[]): T[||] =
+        Cast(arr)
+
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(int32): T*
+    
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(void*): T*
+    
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(nint): T*
+
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(nuint): T*
+    
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T, TResult>(T*): TResult*
+
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TResult, TArguments...>(nint): static blittable (TArguments...) -> TResult
+
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
+
+module Array =
 
     #[intrinsic("new_array")]
-    static ZeroCreate<T>(size: int32): T[||]
+    ZeroCreate<T>(size: int32): T[||]
 
-    static InitializeMutable<T>(size: int32, f: int32 -> T): T[||] =
-        let newArr = System.Array.ZeroCreate<T>(size)
+    InitializeMutable<T>(size: int32, f: int32 -> T): T[||] =
+        let newArr = ZeroCreate<T>(size)
         let mutable i = 0
         while (i < newArr.Length)
             newArr[i] <- f(i)
             i <- i + 1
         newArr
 
-    static Initialize<T>(size: int32, f: int32 -> T): T[] =
-        UnsafeCast(System.Array.InitializeMutable(size, f))
+    Initialize<T>(size: int32, f: int32 -> T): T[] =
+        Unsafe.AsImmutable(InitializeMutable(size, f))
 
-    static Map<T, U>(arr: T[||], f: T -> U): U[||] =
-        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+    Map<T, U>(arr: T[||], f: T -> U): U[||] =
+        let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
             newArr[i] <- f(arr[i])
             i <- i + 1
         newArr
 
-    static Map<T, U>(arr: T[], f: T -> U): U[] =
-        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+    Map<T, U>(arr: T[], f: T -> U): U[] =
+        let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
             newArr[i] <- f(arr[i])
             i <- i + 1
-        UnsafeCast(newArr)
+        Unsafe.AsImmutable(newArr)
 
-    static MapIndex<T, U>(arr: T[], f: (int32, T) -> U): U[] =
-        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+    MapIndex<T, U>(arr: T[], f: (int32, T) -> U): U[] =
+        let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
             newArr[i] <- f(i, arr[i])
             i <- i + 1
-        UnsafeCast(newArr)
+        Unsafe.AsImmutable(newArr)
 
-    static MapAsMutable<T, U>(arr: T[], f: T -> U): U[||] =
-        let newArr = System.Array.ZeroCreate<U>(arr.Length)
+    MapAsMutable<T, U>(arr: T[], f: T -> U): U[||] =
+        let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
             newArr[i] <- f(arr[i])
             i <- i + 1
         newArr
 
-    static DistinctBy<T, U>(arr: T[], f: T -> U): T[] =
+    DistinctBy<T, U>(arr: T[], f: T -> U): T[] =
         let found = System.Collections.Generic.HashSet<U>()
         let indicesToInclude = System.Collections.Generic.List<int32>()
         let mutable i = 0
@@ -676,14 +691,14 @@ extension ArrayExtensions =
                 indicesToInclude.Add(i)
             i <- i + 1
         
-        let newArr = System.Array.ZeroCreate<T>(indicesToInclude.Count)
+        let newArr = ZeroCreate<T>(indicesToInclude.Count)
         let mutable i = 0
         while (i < newArr.Length)
             newArr[i] <- arr[indicesToInclude[i]]
             i <- i + 1
-        UnsafeCast(newArr)
+        Unsafe.AsImmutable(newArr)
 
-    static MaxByUInt32<T>(arr: T[], f: T -> uint32): T =
+    MaxByUInt32<T>(arr: T[], f: T -> uint32): T =
         let mutable maxValue = 0: uint32
         let mutable found = -1
         let mutable i = 0
@@ -699,7 +714,7 @@ extension ArrayExtensions =
             fail("Empty array.")
         arr[found]
 
-    static Filter<T>(arr: T[], f: T -> bool): T[] =
+    Filter<T>(arr: T[], f: T -> bool): T[] =
         let indicesToInclude = System.Collections.Generic.List<int32>()
         let mutable i = 0
         while (i < arr.Length)
@@ -708,14 +723,14 @@ extension ArrayExtensions =
                 indicesToInclude.Add(i)
             i <- i + 1
         
-        let newArr = System.Array.ZeroCreate<T>(indicesToInclude.Count)
+        let newArr = ZeroCreate<T>(indicesToInclude.Count)
         let mutable i = 0
         while (i < newArr.Length)
             newArr[i] <- arr[indicesToInclude[i]]
             i <- i + 1
-        UnsafeCast(newArr)
+        Unsafe.AsImmutable(newArr)
 
-    static Find<T>(arr: T[], predicate: T -> bool): T =
+    Find<T>(arr: T[], predicate: T -> bool): T =
         let mutable result: T = unchecked default
         let mutable isFound = false
         let mutable i = 0
@@ -731,7 +746,7 @@ extension ArrayExtensions =
         else
             fail("Unable to find item.")
 
-    static FindIndex<T>(arr: T[], predicate: T -> bool): int32 =
+    FindIndex<T>(arr: T[], predicate: T -> bool): int32 =
         let mutable isFound = false
         let mutable i = 0
         while (i < arr.Length && !isFound)
@@ -745,7 +760,7 @@ extension ArrayExtensions =
         else
             fail("Unable to find item index.")
 
-    static FindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
+    FindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
         let mutable isFound = false
         let mutable i = 0
         while (i < arr.Length && !isFound)
@@ -759,17 +774,17 @@ extension ArrayExtensions =
         else
             fail("Unable to find item index.")
 
-    static Add<T>(arr: T[], item: T): T[] =
-        let newArr = System.Array.ZeroCreate<T>(arr.Length + 1)
+    Add<T>(arr: T[], item: T): T[] =
+        let newArr = ZeroCreate<T>(arr.Length + 1)
         let mutable i = 0
         while (i < arr.Length)
             newArr[i] <- arr[i]
             i <- i + 1
         newArr[arr.Length] <- item
-        UnsafeCast(newArr)
+        Unsafe.AsImmutable(newArr)
 
-    static Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
-        let newArr = System.Array.ZeroCreate<U>(arr.Length * 3)
+    Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
+        let newArr = ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0
         let mutable j = 0
         while (i < arr.Length)
@@ -820,16 +835,8 @@ typeof<require T>: System.Type
 sizeof<require T>: int32 =
     System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
 
-printLine<T>(value: T): () where T: { ToString(): string } =
+printLine<T>(value: T): () where T: { mutable ToString(): string } =
     print(value.ToString() + "\n")
-
-printLine(value: uint32): () =
-    print(value)
-    print("\n")
-
-printLine(value: int32): () =
-    print(value)
-    print("\n")
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
 (==)(str1: string, str2: string): bool = System.String.Equals(str1, str2)

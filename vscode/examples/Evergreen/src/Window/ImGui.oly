@@ -9,6 +9,8 @@ open TerraFX.Interop.Windows
 open TerraFX.Interop.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 
+private alias Unsafe = OlyPrelude.Unsafe
+
 alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> int32
 
 // enum ImGuiWindowFlags_
@@ -281,12 +283,14 @@ class ImGuiContext =
     internal Context: nint get
     internal Win32Handle: nint get
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
+    Callbacks: System.Collections.Generic.Queue<() -> ()> get
 
     internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
         {
             Context = context
             Win32Handle = hwnd
             VulkanInfo = info
+            Callbacks = System.Collections.Generic.Queue()
         }
 
 CreateContext(window: IWindow, app: Evergreen.Graphics.Backend.Vulkan.VulkanApplication, swapChain: Evergreen.Graphics.Backend.Vulkan.VulkanSwapChain, renderPass: VkRenderPass): ImGuiContext =
@@ -339,7 +343,7 @@ CreateContext(window: IWindow, app: Evergreen.Graphics.Backend.Vulkan.VulkanAppl
     poolInfo.flags <- VkDescriptorPoolCreateFlags.VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
     poolInfo.maxSets <- uint32(1000 * poolSizes.Length)
     poolInfo.poolSizeCount <- uint32(poolSizes.Length)
-    poolInfo.pPoolSizes <- UnsafeCast(poolSizesHandle.AddrOfPinnedObject())
+    poolInfo.pPoolSizes <- Unsafe.Cast(poolSizesHandle.AddrOfPinnedObject())
 
     if (vkCreateDescriptorPool(app.Device, &&poolInfo, nullptr, &&info.DescriptorPool) != VkResult.VK_SUCCESS)
         fail("Failed to create descriptor pool for ImGui.")
@@ -372,14 +376,14 @@ AddFont(context: ImGuiContext, filePath: string, pixelSize: float32): ImFont* =
     let mutable fontDataHandle = fixed(fontData)
 
     let fontConfigPtr = ImFontConfig_ImFontConfig()
-    let mutable fontConfig = &Unsafe.AsRef<ImFontConfig>(UnsafeCast<void*>(fontConfigPtr))
+    let mutable fontConfig = &System.Runtime.CompilerServices.Unsafe.AsRef<ImFontConfig>(Unsafe.AsPointer(fontConfigPtr))
     // Do this to avoid memory corruption when destroying the context.
     fontConfig.FontDataOwnedByAtlas <- ImGuiBool.False
 
     let mutable io = igGetIO()
     let glyphRanges = ImFontAtlas_GetGlyphRangesGreek(io.Fonts)
 
-    let fontPtr = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, UnsafeCast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, &&fontConfig, glyphRanges)
+    let fontPtr = ImFontAtlas_AddFontFromMemoryTTF(io.Fonts, Unsafe.Cast(fontDataHandle.AddrOfPinnedObject()), fontSize, pixelSize, &&fontConfig, glyphRanges)
 
     ImFontConfig_destroy(fontConfigPtr)
     fontDataHandle.Free()
@@ -464,7 +468,7 @@ LabelText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable text
 
 InputText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable buffer: Span<byte>): bool =
     let labelPtr = &&label.GetPinnableReference()
-    let bufferPtr = UnsafeCast(Unsafe.AsPointer(&buffer.GetPinnableReference()))
+    let bufferPtr = Unsafe.AsPointer(&&buffer.GetPinnableReference())
 
     let result =
         igInputText(

@@ -65,11 +65,10 @@ let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty:
     | TypeSymbol.Tuple(tyArgs, _) ->
         analyzeTypeTuple acenv aenv syntaxNode tyArgs
 
-    | TypeSymbol.Variable(tyPar) ->
-        analyzeTypeParameter acenv aenv syntaxNode tyPar
+    | TypeSymbol.Variable(_) ->
+        ()
 
-    | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-        analyzeTypeParameter acenv aenv syntaxNode tyPar
+    | TypeSymbol.HigherVariable(_, tyArgs) ->
         analyzeTypeArguments acenv aenv syntaxNode tyArgs
 
     | TypeSymbol.NativePtr(elementTy) ->
@@ -85,17 +84,24 @@ let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty:
     | _ ->
         analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
 
-and analyzeTypeParameter acenv aenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
-    if not tyPar.Constraints.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
-        tyPar.Constraints
-        |> ImArray.iter (function
-            | ConstraintSymbol.SubtypeOf(lazyTy) ->
-                analyzeType acenv aenv syntaxNode lazyTy.Value
-            | ConstraintSymbol.ConstantType(lazyTy) ->
-                analyzeType acenv aenv syntaxNode lazyTy.Value
-            | _ ->
-                ()
-        )
+and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxConstraintClause) (tyPar: TypeParameterSymbol) (constrs: ConstraintSymbol imarray) =
+    if not constrs.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
+        match syntaxConstrClause with
+        | OlySyntaxConstraintClause.ConstraintClause(_, _, _, syntaxConstrsList) ->
+            let syntaxConstrs = syntaxConstrsList.ChildrenOfType
+            if syntaxConstrs.Length = constrs.Length then 
+                (syntaxConstrs, constrs)
+                ||> ImArray.iter2 (fun syntaxConstr constr ->
+                    match constr with
+                    | ConstraintSymbol.SubtypeOf(lazyTy) ->
+                        analyzeType acenv aenv syntaxConstr lazyTy.Value
+                    | ConstraintSymbol.ConstantType(lazyTy) ->
+                        analyzeType acenv aenv syntaxConstr lazyTy.Value
+                    | _ ->
+                        ()
+                )
+        | _ ->
+            ()
 
 and analyzeTypeForParameter acenv aenv (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match stripTypeEquations ty with
@@ -169,7 +175,7 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol
             true
         
     if not isAccessible then
-        acenv.cenv.diagnostics.Error($"'{printEntity aenv.benv ent}' is less accessible that the signature its used in.", 10, syntaxNode)
+        acenv.cenv.diagnostics.Error($"'{printEntity aenv.benv ent}' is less accessible than the member its used in.", 10, syntaxNode)
 
     match acenv.scopes.TryGetValue(ent.Formal.Id) with
     | true, scope ->
@@ -283,10 +289,13 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
         if value.IsFunction then
             let func = value.AsFunction
             match func.TryWellKnownFunction with
-            | ValueSome(WellKnownFunction.LoadNullPtr) ->
-                let tyArg = func.TypeArguments[0]
-                if not tyArg.IsVoid_t then
-                    analyzeType acenv aenv syntaxNode tyArg
+            | ValueSome(WellKnownFunction.LoadNullPtr)
+            | ValueSome(WellKnownFunction.UnsafeCast) ->
+                func.TypeArguments
+                |> ImArray.iter (fun tyArg ->
+                    if not tyArg.IsVoid_t then
+                        analyzeType acenv aenv syntaxNode tyArg
+                )
                 match stripTypeEquations func.ReturnType with
                 | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_t -> ()
                 | _ ->
@@ -348,6 +357,7 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
 
     match value with
     | :? IFunctionSymbol as func ->
+
         func.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
 
         match syntaxNode with
@@ -358,7 +368,20 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
                 | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                 | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
                     match syntaxBindingDecl with
-                    | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, syntaxReturnTyAnnot, _) ->
+                    | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, syntaxReturnTyAnnot, syntaxConstrClauseList) ->
+
+                        // Check type parameters
+                        // --------------------------------------------------------
+                        let syntaxConstrClauses = syntaxConstrClauseList.ChildrenOfType
+            
+                        forEachConstraintBySyntaxConstraintClause 
+                            syntaxConstrClauses 
+                            func.TypeParameters 
+                            (fun syntaxConstrClause tyPar constrs ->                          
+                                analyzeTypeParameterDefinition acenv aenv syntaxConstrClause tyPar constrs
+                            )
+                        // --------------------------------------------------------
+
                         let syntaxReturnTy =
                             match syntaxReturnTyAnnot with
                             | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy) -> syntaxTy :> OlySyntaxNode

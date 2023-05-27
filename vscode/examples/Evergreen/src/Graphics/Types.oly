@@ -514,7 +514,7 @@ abstract class DrawCommand =
         DrawCommand.SetWindowTarget()
 
     pattern SetWindowTarget(cmd: DrawCommand): () when (cmd.Kind == DrawCommandKind.SetWindowTarget) =>
-        let impl = UnsafeCast<DrawCommand.SetWindowTarget>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.SetWindowTarget>(cmd)
         ()
 
     private class SetRenderTarget =
@@ -532,7 +532,7 @@ abstract class DrawCommand =
         DrawCommand.SetRenderTarget(renderTarget)
 
     pattern SetRenderTarget(cmd: DrawCommand): RenderTarget when (cmd.Kind == DrawCommandKind.SetRenderTarget) =>
-        let impl = UnsafeCast<DrawCommand.SetRenderTarget>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.SetRenderTarget>(cmd)
         impl.RenderTarget
 
     private class DrawMesh =
@@ -554,7 +554,7 @@ abstract class DrawCommand =
         DrawCommand.DrawMesh(mesh, shader, instances)
 
     pattern DrawMesh(cmd: DrawCommand): (mesh: Mesh, shader: Shader, instances: Instances) when (cmd.Kind == DrawCommandKind.DrawMesh) =>
-        let impl = UnsafeCast<DrawCommand.DrawMesh>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.DrawMesh>(cmd)
         (impl.Mesh, impl.Shader, impl.Instances)
 
     private class RunComputeShader =
@@ -574,7 +574,7 @@ abstract class DrawCommand =
         DrawCommand.RunComputeShader(computeShader, instances)
 
     pattern RunComputeShader(cmd: DrawCommand): (computeShader: ComputeShader, instances: Instances) when (cmd.Kind == DrawCommandKind.RunComputeShader) =>
-        let impl = UnsafeCast<DrawCommand.RunComputeShader>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.RunComputeShader>(cmd)
         (impl.ComputeShader, impl.Instances)
 
     private class BindTextureSet =
@@ -594,7 +594,7 @@ abstract class DrawCommand =
         DrawCommand.BindTextureSet(textureSet, kind)
 
     pattern BindTextureSet(cmd: DrawCommand): (ShaderTextureSet, BindResourceSetKind) when (cmd.Kind == DrawCommandKind.BindTextureSet) =>
-        let impl = UnsafeCast<DrawCommand.BindTextureSet>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.BindTextureSet>(cmd)
         (impl.TextureSet, impl.SetKind)
 
     private class BindInstancesSet =
@@ -614,7 +614,7 @@ abstract class DrawCommand =
         DrawCommand.BindInstancesSet(instancesSet, kind)
 
     pattern BindInstancesSet(cmd: DrawCommand): (ShaderInstancesSet, BindResourceSetKind) when (cmd.Kind == DrawCommandKind.BindInstancesSet) =>
-        let impl = UnsafeCast<DrawCommand.BindInstancesSet>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.BindInstancesSet>(cmd)
         (impl.InstancesSet, impl.SetKind)
 
     private class BindBufferSet =
@@ -636,7 +636,7 @@ abstract class DrawCommand =
         DrawCommand.BindBufferSet(BufferSet, kind, slot)
 
     pattern BindBufferSet(cmd: DrawCommand): (bufferSet: BufferSet, setKind: BindResourceSetKind, slot: uint32) when (cmd.Kind == DrawCommandKind.BindBufferSet) =>
-        let impl = UnsafeCast<DrawCommand.BindBufferSet>(cmd)
+        let impl = Unsafe.Cast<DrawCommand.BindBufferSet>(cmd)
         (impl.BufferSet, impl.SetKind, impl.Slot)
 
 enum KeyEventKind =

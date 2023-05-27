@@ -7,6 +7,8 @@ open System.Collections.Generic
 open Evergreen.Graphics
 open ImGuiNET
 
+private alias Array = OlyPrelude.Array
+
 interface IViewModel
 
 class WindowViewModel =
@@ -79,7 +81,7 @@ abstract class UINode =
             }
 
     pattern Window(node: UINode): (state: WindowViewModel, children: UINode[]) when (node.Tag == 0) =>
-        let node = UnsafeCast<UINode.Window>(node)
+        let node = Unsafe.Cast<UINode.Window>(node)
         (node.State, node.Children)
 
     internal class Button =
@@ -95,7 +97,7 @@ abstract class UINode =
             }
 
     pattern Button(node: UINode): (state: ButtonViewModel, onClick: ButtonViewModel -> ()) when (node.Tag == 1) =>
-        let node = UnsafeCast<UINode.Button>(node)
+        let node = Unsafe.Cast<UINode.Button>(node)
         (node.State, node.OnClick)
 
     internal class TextInput =
@@ -111,7 +113,7 @@ abstract class UINode =
             }
 
     pattern TextInput(node: UINode): (state: TextInputViewModel, onChanged: TextInputViewModel -> ()) when (node.Tag == 2) =>
-        let node = UnsafeCast<UINode.TextInput>(node)
+        let node = Unsafe.Cast<UINode.TextInput>(node)
         (node.State, node.OnChanged)
 
     internal class Int32Input =
@@ -127,7 +129,7 @@ abstract class UINode =
             }
 
     pattern Int32Input(node: UINode): (state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()) when (node.Tag == 3) =>
-        let node = UnsafeCast<UINode.Int32Input>(node)
+        let node = Unsafe.Cast<UINode.Int32Input>(node)
         (node.State, node.OnChanged)
 
     internal class Checkbox =
@@ -143,7 +145,7 @@ abstract class UINode =
             }
 
     pattern Checkbox(node: UINode): (state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()) when (node.Tag == 10) =>
-        let node = UnsafeCast<UINode.Checkbox>(node)
+        let node = Unsafe.Cast<UINode.Checkbox>(node)
         (node.State, node.OnChanged)
 
     internal class ComboBox =
@@ -159,7 +161,7 @@ abstract class UINode =
             }
 
     pattern ComboBox(node: UINode): (state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()) when (node.Tag == 11) =>
-        let node = UnsafeCast<UINode.ComboBox>(node)
+        let node = Unsafe.Cast<UINode.ComboBox>(node)
         (node.State, node.OnChanged)
 
 

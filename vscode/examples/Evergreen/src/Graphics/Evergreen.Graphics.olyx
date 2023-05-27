@@ -35,6 +35,8 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
+private alias Array = OlyPrelude.Array
+
 module Graphics =
 
     private mutable field window: Window = unchecked default
@@ -697,7 +699,7 @@ module Graphics =
                 let mutable mode = default
                 let result = SDL_GetDisplayMode(i, j, &mode)
 
-                match (UnsafeCast<PixelFormat>(mode.format))
+                match (Unsafe.Cast<PixelFormat>(mode.format))
                 | PixelFormat.R32_G32_B32_A32_Float =>
                     displayModes.Add(DisplayMode(uint32(mode.w), uint32(mode.h), uint32(mode.refresh_rate)))
                 | _ =>
@@ -705,7 +707,7 @@ module Graphics =
                 j <- j + 1
             i <- i + 1
 
-        UnsafeCast<_[]>(displayModes.ToArray())
+        Unsafe.AsImmutable(displayModes.ToArray())
 
     GetCurrentDisplayModeIndex(): int32 =
         let displayIndex = Sdl2Native.SDL_GetWindowDisplayIndex(SDL_Window(window.window.SdlWindowHandle))
@@ -728,7 +730,7 @@ module Graphics =
                 let mutable mode = default
                 let result = SDL_GetDisplayMode(i, j, &mode)
 
-                match (UnsafeCast<PixelFormat>(mode.format))
+                match (Unsafe.Cast<PixelFormat>(mode.format))
                 | PixelFormat.R32_G32_B32_A32_Float =>
                     if (i == displayIndex && 
                             (sdlDisplayMode.w == mode.w) && 
@@ -750,7 +752,7 @@ module Graphics =
     SetDisplayMode(displayMode: DisplayMode): () =
         let mutable sdl2DisplayMode = default: SDL_DisplayMode
 
-        sdl2DisplayMode.format <- UnsafeCast(PixelFormat.R32_G32_B32_A32_Float)
+        sdl2DisplayMode.format <- Unsafe.Cast(PixelFormat.R32_G32_B32_A32_Float)
         sdl2DisplayMode.w <- int32(displayMode.Width)
         sdl2DisplayMode.h <- int32(displayMode.Height)
         sdl2DisplayMode.refresh_rate <- int32(displayMode.RefreshRate)

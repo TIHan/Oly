@@ -353,7 +353,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
 
     match (opcode)
     | MOV =>
-        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+        if (op1.Size != op2.Size)
             fail("Register sizes do not match")
         let ptr =
             match (size)
@@ -365,7 +365,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
         EmitModRM(false, op1, op2, ptr)
 
     | ADD =>
-        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+        if (op1.Size != op2.Size)
             fail("Register sizes do not match")
         let ptr =
             match (size)
@@ -377,7 +377,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
         EmitModRM(false, op1, op2, ptr)
 
     | SUB =>
-        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+        if (op1.Size != op2.Size)
             fail("Register sizes do not match")
         let ptr =
             match (size)
@@ -389,7 +389,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
         EmitModRM(false, op1, op2, ptr)
 
     | IMUL =>
-        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+        if (op1.Size != op2.Size)
             fail("Register sizes do not match")
         let ptr =
             match (size)
@@ -405,7 +405,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
         EmitModRM(true, op1, op2, ptr)
 
     | XOR =>
-        if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(op2.Size))
+        if (op1.Size != op2.Size)
             fail("Register sizes do not match")
         let ptr =
             match (size)
@@ -445,7 +445,7 @@ Emit(opcode: opcode, op1: reg, op2: reg, buffer: void*): void* =
 
 #[inline]
 Emit(opcode: opcode, op1: reg, imm32: int32, buffer: void*): void* =
-    if (UnsafeCast<int32>(op1.Size) != UnsafeCast<int32>(SIZE_32))
+    if (op1.Size != SIZE_32)
         fail("Register sizes do not match")
 
     let usesREX = 

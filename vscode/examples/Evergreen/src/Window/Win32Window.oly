@@ -16,6 +16,8 @@ open static TerraFX.Interop.Windows.WM
 open static TerraFX.Interop.Windows.WS
 open static TerraFX.Interop.Windows.SW
 
+private alias Unsafe = OlyPrelude.Unsafe
+
 internal class Marker
 
 internal module Win32 =
@@ -33,7 +35,7 @@ internal module Win32 =
 
     GetRawMouseInput(hrawinput: HRAWINPUT): RAWMOUSE =
         let mutable inp = default: RAWINPUT
-        let pData = UnsafeCast<void*>(&&inp)
+        let pData = Unsafe.AsPointer(&&inp)
         let mutable size = uint32(sizeof<RAWINPUT>)
         let bytesCopied = GetRawInputData(hrawinput, 0x10000003, pData, &&size, uint32(sizeof<RAWINPUTHEADER>))
         inp.`data`.mouse
@@ -66,8 +68,8 @@ internal module Win32 =
         let mutable windowName = title
         let mutable gc = GCHandle.Alloc(example, GCHandleType.Pinned)
         let mutable gc2 = GCHandle.Alloc(windowName, GCHandleType.Pinned)
-        let addr = ToPtr(gc.AddrOfPinnedObject())
-        let addr2 = ToPtr(gc2.AddrOfPinnedObject())
+        let addr = Unsafe.AsPointer(gc.AddrOfPinnedObject())
+        let addr2 = Unsafe.AsPointer(gc2.AddrOfPinnedObject())
         wc.hInstance <- hInstance
         wc.lpfnWndProc <- &&wndProc
         wc.lpszClassName <- addr
@@ -264,7 +266,7 @@ internal class Win32Window =
         let getKeyEvents(): KeyEvent[] =
             let xs = this.keyEvents.ToArray()
             this.keyEvents.Clear()
-            UnsafeCast(xs)
+            Unsafe.AsImmutable(xs)
 
         let hwnd = this.hwnd
         let mutable msg = default: MSG
@@ -274,7 +276,7 @@ internal class Win32Window =
 
             match (int32(msg.message))
             | WM_INPUT =>
-                let rawMouse = Win32.GetRawMouseInput(UnsafeCast(msg.lParam))
+                let rawMouse = Win32.GetRawMouseInput(Unsafe.Cast(msg.lParam))
                 let isRelative = Win32.IsMouseRelative(rawMouse)
                 if (rawMouse.lLastX != 0 || rawMouse.lLastY != 0)
                     let mutable newMouseInfo = default: MouseInfo
