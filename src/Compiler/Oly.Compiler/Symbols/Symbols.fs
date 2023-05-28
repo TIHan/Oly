@@ -327,6 +327,10 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         OlyAssert.Equal(2, tyArgs.Length)
         TypeSymbol.Function(tyArgs[0], tyArgs[1])
 
+    | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
+        OlyAssert.Equal(2, tyArgs.Length)
+        TypeSymbol.NativeFunctionPtr(ilCallConv, tyArgs[0], tyArgs[1])
+
     | TypeSymbol.NativePtr _ ->
         TypeSymbol.NativePtr(tyArgs[0])
 
@@ -344,6 +348,9 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
                 tyArgs[0]
         else
             TypeSymbol.CreateTuple(tyArgs)
+
+    | TypeSymbol.Array(elementTy, rank, kind) ->
+        TypeSymbol.Array(tyArgs[0], rank, kind)
         
     | _ ->
         raise(NotImplementedException(ty.GetType().Name))
@@ -3081,8 +3088,7 @@ type TypeSymbol =
         | NativeFunctionPtr _ -> 2
         | ByRef _ 
         | NativePtr _ -> 1
-        | Array(_, 1, _) -> 1
-        | Array _ -> 2
+        | Array _ -> 1
         | _ -> 0
 
     member this.TypeParameters: TypeParameterSymbol imarray =

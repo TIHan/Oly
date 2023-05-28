@@ -523,7 +523,7 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
                 ty
             else
                 let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
-                actualType tyArgs ty.Formal
+                applyType ty.Formal tyArgs
         else
             ty
 
