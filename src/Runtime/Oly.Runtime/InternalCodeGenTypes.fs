@@ -1151,6 +1151,9 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
 
         if enclosingTy.TypeParameters.IsEmpty && funcTyArgs.IsEmpty then
             this
+        else if not enclosingTy.TypeParameters.IsEmpty && funcTyArgs.IsEmpty then
+            OlyAssert.True(this.TypeParameters.IsEmpty)
+            this.MakeReference(enclosingTy)
         else
 
         let genericContext = 

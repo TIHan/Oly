@@ -2247,7 +2247,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitFunctionReference(enclosingTy, func: ClrMethodInfo): ClrMethodInfo =
             let newHandle =
-                let parTys = func.Parameters.RemoveAt(0) |> ImArray.map (fun x -> (snd x).Handle)
+                let parTys = 
+                    if func.IsInstance && not func.isConstructor then
+                        func.Parameters.RemoveAt(0) |> ImArray.map (fun x -> (snd x).Handle)
+                    else
+                        func.Parameters |> ImArray.map (fun x -> (snd x).Handle)
+                        
                 asmBuilder.AddMethodReference(
                     SignatureCallingConvention.Default, 
                     func.IsInstance, 
@@ -2345,7 +2350,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     cilReturnTy
                         
-            let isInstance = not isStatic          
+            let isInstance = not isStatic && not isTypeExtension        
 
             let tyPars =
                 tyPars
@@ -2445,13 +2450,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let pars =
                 if isStatic || isCtor then 
-                    if isTypeExtension && not flags.IsStatic then
-                        let enclosingTy =
-                            match enclosingTy.TryTypeExtensionType with
-                            | ValueSome(enclosingTy, _, _) -> enclosingTy
-                            | _ -> enclosingTy
-                        ImArray.createOne("this", enclosingTy).AddRange(pars)
-                    else
+                    //if isTypeExtension && not flags.IsStatic then
+                    //    let enclosingTy =
+                    //        match enclosingTy.TryTypeExtensionType with
+                    //        | ValueSome(enclosingTy, _, _) -> enclosingTy
+                    //        | _ -> enclosingTy
+                    //    ImArray.createOne("this", enclosingTy).AddRange(pars)
+                    //else
                         pars
                 else
                     if enclosingTy.IsStruct then
