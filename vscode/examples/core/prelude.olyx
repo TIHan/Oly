@@ -607,40 +607,11 @@ extension ArrayEnumerableExtension<T> =
     implements System.Collections.Generic.IEnumerable<T>
 
     private GetEnumerator(): System.Collections.IEnumerator =
-        class Impl1 =
-            implements System.Collections.IEnumerator
-
-            mutable field arr: T[]
-            mutable field currentIndex: int32
-            mutable field current: object
-
-            new(arr: T[]) =
-                {
-                    arr = arr
-                    currentIndex = -1
-                    current = unchecked default
-                }
-
-            Current: object get() = this.current
-
-            MoveNext(): bool =
-                if (this.arr.Length == 0)
-                    false
-                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
-                    this.current <- this.arr[this.currentIndex]
-                    this.currentIndex <- this.currentIndex + 1
-                    true
-                else
-                    false
-
-            Reset(): () =
-                this.currentIndex <- -1
-                this.current <- unchecked default
-
-        Impl1(this)
+        let result = this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>
+        result   
 
     GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
-        class Impl2 =
+        class Impl =
             implements System.Collections.Generic.IEnumerator<T>
 
             mutable field arr: T[]
@@ -664,6 +635,8 @@ extension ArrayEnumerableExtension<T> =
                 if (this.arr.Length == 0)
                     false
                 else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
                     this.current <- this.arr[this.currentIndex]
                     this.currentTyped <- this.arr[this.currentIndex]
                     this.currentIndex <- this.currentIndex + 1
@@ -678,7 +651,7 @@ extension ArrayEnumerableExtension<T> =
 
             Dispose(): () = ()
 
-        Impl2(this)
+        Impl(this)
 
 module Unsafe =
 

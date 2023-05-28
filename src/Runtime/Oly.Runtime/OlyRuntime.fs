@@ -3391,8 +3391,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 |> ImArray.map (fun x -> x.Substitute(genericContext))
                             this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses))
                         else
-                            if not witnesses.IsEmpty then
-                                failwith "Function overrides with witnesses must be erased."
+                            // TODO: Should we enable this assert?
+                            //OlyAssert.True(witnesses.IsEmpty)
                             if x.EnclosingType.TypeParameters.IsEmpty then
                                 this.EmitFunction(x.Formal)
                             else
