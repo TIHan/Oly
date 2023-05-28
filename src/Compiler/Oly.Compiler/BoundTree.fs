@@ -1272,7 +1272,13 @@ let findInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
     match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
     | ValueSome(exts) ->
         exts.Values
+        |> Seq.distinctBy (fun ext -> ext.Id)
         |> Seq.collect (fun ext ->
+            let ext =
+                if ext.IsFormal && not ty.IsFormal then
+                    applyEntity ty.TypeArguments ext
+                else
+                    ext
             ext.Functions
             |> filterFunctions queryMemberFlags funcFlags nameOpt
             |> filterValuesByAccessibility benv.ac queryMemberFlags
@@ -1285,7 +1291,8 @@ let findInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
 
 let findAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty =
     let extMembers = findExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
-    let extInterfaceMembers = findInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+    let extInterfaceMembers = 
+        findInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
     ImArray.append extMembers extInterfaceMembers
     |> filterMostSpecificFunctions
 

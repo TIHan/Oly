@@ -4327,7 +4327,7 @@ extension ArrayEnumerableExtension<T> =
     inherits T[]
     implements IEnumerable<T>
 
-    GetEnumerator(): IEnumerator =
+    private GetEnumerator(): IEnumerator =
         print("failed")
         unchecked default
 

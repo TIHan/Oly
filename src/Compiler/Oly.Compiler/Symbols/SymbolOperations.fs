@@ -1533,6 +1533,35 @@ let private getTotalTypeVariableUseCountFromType (ty: TypeSymbol) =
     implType ty
     count
 
+let filterMostSpecificFunctionsByEnclosing (funcs: IFunctionSymbol imarray) =
+    let filteredFuncs =
+        funcs
+        |> ImArray.choose (fun func ->
+            let exists =
+                funcs
+                |> ImArray.exists (fun func2 ->
+                    if func.Id = func2.Id then
+                        false
+                    else
+                        if areEnclosingsEqual func.Enclosing func2.Enclosing then
+                            false
+                        else
+                            match func.Enclosing.TryEntity, func2.Enclosing.TryEntity with
+                            | Some(ent), Some(super) ->
+                                subsumesEntity super ent
+                            | _ ->
+                                false
+                )
+            if exists then
+                Some func
+            else
+                None
+        )
+    if filteredFuncs.IsEmpty then
+        funcs
+    else
+        filteredFuncs
+
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
     |> ImArray.filter (fun x ->

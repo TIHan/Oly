@@ -606,7 +606,7 @@ extension ArrayEnumerableExtension<T> =
     inherits T[]
     implements System.Collections.Generic.IEnumerable<T>
 
-    GetEnumerator(): System.Collections.IEnumerator =
+    private GetEnumerator(): System.Collections.IEnumerator =
         class Impl1 =
             implements System.Collections.IEnumerator
 
