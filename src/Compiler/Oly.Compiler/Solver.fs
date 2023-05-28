@@ -283,7 +283,13 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 if witness.HasSolution then ()
                 else
                     if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv FlexibleAndGeneralizable target mostSpecificTy then
-                        witness.Solution <- Some(WitnessSymbol.TypeExtension(tyExt, None))
+                        let appliedTyExt = 
+                            // Note: This is necessary to do!
+                            if tyExt.IsFormal && not ty.IsFormal then
+                                applyEntity ty.TypeArguments tyExt
+                            else
+                                tyExt
+                        witness.Solution <- Some(WitnessSymbol.TypeExtension(appliedTyExt, None))
             )
             true
 

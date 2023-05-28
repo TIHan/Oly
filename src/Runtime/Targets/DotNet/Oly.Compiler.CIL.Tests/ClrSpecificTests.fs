@@ -4238,3 +4238,39 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "123"
+
+[<Fact>]
+let ``Should get correct IEnumerable extension for array``() =
+    let src =
+        """
+open System.Collections
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+extension ArrayEnumerableExtension<T> =
+    inherits T[]
+    implements IEnumerable<T>
+
+    GetEnumerator(): IEnumerator =
+        unchecked default
+
+    GetEnumerator(): IEnumerator<T> =
+        print("passed")
+        unchecked default
+
+test<T>(xs: T): () where T: IEnumerable<int32> =
+    let x = xs.GetEnumerator()
+
+main(): () =
+    let xs = [1]
+    test(xs)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
