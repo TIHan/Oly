@@ -3393,7 +3393,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         else
                             if not witnesses.IsEmpty then
                                 failwith "Function overrides with witnesses must be erased."
-                            this.EmitFunction(x.Formal.MakeReference(x.EnclosingType))
+                            if x.EnclosingType.TypeParameters.IsEmpty then
+                                this.EmitFunction(x.Formal)
+                            else
+                                let enclosingTy = x.EnclosingType.Substitute(genericContext)
+                                this.EmitFunction(x.Formal.MakeReference(enclosingTy))
                     )
 
                 let flags = func.Flags
@@ -3567,7 +3571,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     let enclosingTy = func.Enclosing.AsType
                                     if genericContext.IsErasingType then enclosingTy
                                     else enclosingTy.Formal
-                                vm.EmitFunctionDefinition(enclosingTy, func.Formal, genericContext)
+                                let formalFunc =
+                                    if genericContext.IsErasingType && not enclosingTy.TypeParameters.IsEmpty then
+                                        func.Formal.MakeReference(enclosingTy).MakeFormal()
+                                    else
+                                        func.Formal
+                                vm.EmitFunctionDefinition(enclosingTy, formalFunc, genericContext)
 
                         let emittedFunc = 
                             match func.Kind with

@@ -607,7 +607,6 @@ extension ArrayEnumerableExtension<T> =
     implements System.Collections.Generic.IEnumerable<T>
 
     GetEnumerator(): System.Collections.IEnumerator =
-        fail("This should fail")
         class Impl1 =
             implements System.Collections.IEnumerator
 
@@ -641,7 +640,6 @@ extension ArrayEnumerableExtension<T> =
         Impl1(this)
 
     GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
-        fail("This should fail")
         class Impl2 =
             implements System.Collections.Generic.IEnumerator<T>
 

@@ -1208,6 +1208,19 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             resultState.Formal <- result
             result
 
+    /// Forces the function be considered the formal.
+    member this.MakeFormal(enclosingTy) =
+        if this.IsFormal then this
+        else        
+            let resultState =
+                { state with
+                    Enclosing = RuntimeEnclosing.Type(enclosingTy)
+                    Kind = RuntimeFunctionKind.Formal
+                }
+            let result = RuntimeFunction(resultState)
+            resultState.Formal <- result
+            result
+
     member this.EraseGenerics() =
         if this.TypeArguments.IsEmpty then this
         else
