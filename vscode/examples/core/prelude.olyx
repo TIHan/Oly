@@ -937,4 +937,3 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
     let xse = xs.GetEnumerator()
     while (xse.MoveNext())
         f(xse.Current)
-

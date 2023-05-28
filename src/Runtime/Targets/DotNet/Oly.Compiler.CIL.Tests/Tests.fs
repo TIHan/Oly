@@ -15134,3 +15134,33 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "M"
     |> ignore
+
+[<Fact>]
+let ``Array extension should work``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+#[open]
+extension ArrayTestExtension<T> =
+    inherits T[]
+    implements ITest
+
+    Test(): () = print("test")
+
+test<T>(xs: T): () where T: ITest =
+    xs.Test()
+
+main(): () =
+    let xs = [1]
+    test(xs)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
