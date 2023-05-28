@@ -4342,3 +4342,44 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Should get correct IEnumerable extension for array 4``() =
+    let src =
+        """
+open System.Collections
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+extension ArrayEnumerableExtension<T> =
+    inherits T[]
+    implements IEnumerable<T>
+
+    private GetEnumerator(): IEnumerator =
+        print("failed")
+        unchecked default
+
+    GetEnumerator(): IEnumerator<T> =
+        print("passed")
+        unchecked default
+
+#[inline(always)]
+ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: System.Collections.Generic.IEnumerable =
+    let xse = xs.GetEnumerator()
+
+test<T>(xs: T): () where T: IEnumerable<int32> =
+    ForEach(xs, x -> print(x))
+
+main(): () =
+    let xs = [1]
+    test(xs)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
