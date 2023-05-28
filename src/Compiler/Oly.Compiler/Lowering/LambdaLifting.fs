@@ -125,7 +125,7 @@ let substitute
                             // TODO: Handle type parameter constraints as they may have captured type variables we need to substitute.
                             OlyAssert.True(func.IsFormal)
                             OlyAssert.True(func.IsLocal)
-                            let id = newId()
+
                             let name = func.Name
                             let ty = func.Type.Substitute(tyParLookup)
                             let valueFlags = func.ValueFlags
@@ -656,7 +656,15 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             |> Seq.sortBy (fun x -> x.Index) 
             |> ImArray.ofSeq
 
-        let freeTyVars = cenv.enclosingTyPars.AddRange(freeTyVars)
+        let freeTyVars = 
+            let enclosingTyPars = 
+                cenv.enclosingTyPars 
+                |> ImArray.filter (fun x ->
+                    freeTyVars
+                    |> ImArray.exists (fun y -> x.Name = y.Name) // TODO: This is a hack, we should use 'x.Id = y.Id'.
+                    |> not
+                )
+            enclosingTyPars.AddRange(freeTyVars)
 
         let freeLocals = 
             origExpr.GetFreeLocals()
@@ -901,6 +909,15 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                         let newLazyLambdaBodyExpr =
                             LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
 
+#if DEBUG
+                        let freeLocalsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeLocals()
+                        let freeTyVarsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeTypeVariables()
+                        let freeLocalsDebug = newLazyLambdaBodyExpr.Expression.GetFreeLocals()
+                        let freeTyVarsDebug = newLazyLambdaBodyExpr.Expression.GetFreeTypeVariables()
+                        OlyAssert.Equal(freeLocalsDebugOrig.Count, freeLocalsDebug.Count)
+                        OlyAssert.Equal(freeTyVarsDebugOrig.Count, freeTyVarsDebug.Count)
+#endif
+
                         let newRhsExpr =
                             E.CreateLambda(syntaxInfoLambda, (LambdaFlags.StackEmplace ||| LambdaFlags.Static ||| LambdaFlags.Bound), tyPars, pars, newLazyLambdaBodyExpr)
 
@@ -998,6 +1015,35 @@ type Rewriter(cenv: cenv, core) =
             let result = base.Rewrite(expr)
             cenv.enclosingTyPars <- prevEnclosingTyPars
             result
+
+        | E.MemberDefinition(syntaxInfo, binding) ->
+            match binding with
+            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
+                match bindingInfo with
+                | BindingFunction(func) when func.TypeParameters.Length > 0 ->
+                    let bodyExpr = lazyBodyExpr.Expression
+
+                    let prevEnclosingTyPars = cenv.enclosingTyPars
+                    cenv.enclosingTyPars <- func.TypeParameters
+                    let newBodyExpr = base.Rewrite(bodyExpr)
+                    cenv.enclosingTyPars <- prevEnclosingTyPars
+                    
+                    if newBodyExpr = bodyExpr then
+                        expr
+                    else
+                        E.MemberDefinition(syntaxInfo,
+                            BoundBinding.Implementation(
+                                syntaxInfoBinding,
+                                bindingInfo,
+                                E.Lambda(syntaxInfoLambda, flags, tyPars, pars, LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr), cachedLambdaTy, freeLocals, freeVars)
+                            )
+                        )
+
+                | _ ->
+                    base.Rewrite(expr)
+            | _ ->
+                base.Rewrite(expr)
+            
         | _ ->
             base.Rewrite(expr)
 

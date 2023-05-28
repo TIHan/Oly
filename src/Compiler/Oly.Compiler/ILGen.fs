@@ -1033,7 +1033,8 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
 //                    ()
 //#endif
                 enclosing.TypeParameters.Length 
-        let tyPars = ent.TypeParameters |> ImArray.skip enclosingTyParCount
+        let tyPars = 
+            ent.TypeParameters |> ImArray.skip enclosingTyParCount
         emitILTypeParameters cenv env tyPars
 
     cenv.delayedEntityGenQueue.Enqueue(fun () ->         

@@ -607,6 +607,7 @@ extension ArrayEnumerableExtension<T> =
     implements System.Collections.Generic.IEnumerable<T>
 
     GetEnumerator(): System.Collections.IEnumerator =
+        fail("This should fail")
         class Impl1 =
             implements System.Collections.IEnumerator
 
@@ -640,6 +641,7 @@ extension ArrayEnumerableExtension<T> =
         Impl1(this)
 
     GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        fail("This should fail")
         class Impl2 =
             implements System.Collections.Generic.IEnumerator<T>
 
@@ -665,6 +667,7 @@ extension ArrayEnumerableExtension<T> =
                     false
                 else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
                     this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
                     this.currentIndex <- this.currentIndex + 1
                     true
                 else
@@ -673,6 +676,7 @@ extension ArrayEnumerableExtension<T> =
             Reset(): () =
                 this.currentIndex <- -1
                 this.current <- unchecked default
+                this.currentTyped <- unchecked default
 
             Dispose(): () = ()
 
@@ -931,6 +935,6 @@ fail<TResult>(msg: string): TResult =
 #[inline(always)]
 ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
     let xse = xs.GetEnumerator()
-    if (xse.MoveNext())
+    while (xse.MoveNext())
         f(xse.Current)
 
