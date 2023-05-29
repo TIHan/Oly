@@ -7844,3 +7844,39 @@ test2(): ITest2 =
         )
     ]
     |> ignore
+
+[<Fact>]
+let ``Trying to call constructor in a constructor with the explicit type name should fail``() =
+    let src =
+        """
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field value1: string
+    public field value2: string
+
+    new(value1: string) =
+        C(value1, "passed")
+
+    new(value1: string, value2: string) =
+        {
+            value1 = value1
+            value2 = value2
+        }     
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Invalid return expression for constructor.",
+            """
+        C(value1, "passed")
+        ^^^^^^^^^^^^^^^^^^^
+"""
+        )
+    ]
+    |> ignore

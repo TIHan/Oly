@@ -480,6 +480,13 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (syntaxNode: OlySy
         |> Seq.iter (fun fieldName ->
             env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, syntaxNode)
         )
+    else
+        match setFieldsExpr with
+        | BoundExpression.None _ -> ()
+        | BoundExpression.Let(bodyExpr=bodyExpr) ->
+            checkConstructorFieldAssignments env syntaxNode enclosingTy bodyExpr
+        | _ ->
+            env.diagnostics.Error("Invalid return expression for constructor.", 10, syntaxNode)
 
 and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression) (value: IValueSymbol) =
 
