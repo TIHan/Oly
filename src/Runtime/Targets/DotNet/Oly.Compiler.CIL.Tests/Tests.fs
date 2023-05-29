@@ -15164,3 +15164,37 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
+
+[<Fact>]
+let ``Multiple constructors where one calls the other``() =
+    let src =
+        """
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field value1: string
+    public field value2: string
+
+    new(value1: string) =
+        C(value1, "passed")
+
+    new(value1: string, value2: string) =
+        {
+            value1 = value1
+            value2 = value2
+        }       
+
+main(): () =
+    let c = C("hello")
+    print(c.value1)
+    print(c.value2)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "hellopassed"
+    |> ignore

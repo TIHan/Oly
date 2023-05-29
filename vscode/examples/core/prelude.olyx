@@ -902,14 +902,8 @@ fail<TResult>(msg: string): TResult =
 
 // ----------------------------------------
 
-// #[inline(always)]
-// ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
-//     let xse = xs.GetEnumerator()
-//     while (xse.MoveNext())
-//         f(xse.Current)
-
 #[inline(always)]
-ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: System.Collections.Generic.IEnumerable =
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
     let xse = xs.GetEnumerator()
     while (xse.MoveNext())
         f(xse.Current)
