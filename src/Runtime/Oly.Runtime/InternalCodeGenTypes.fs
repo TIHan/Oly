@@ -1238,7 +1238,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             result
 
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
-        if witnesses.IsEmpty || (this.TypeArguments.IsEmpty && this.EnclosingType.TypeArguments.IsEmpty) then
+        if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
             // If the function is not generic, then we do not need to set its witnesses
             //    since witnesses require that a function has at least one type parameter.
             this

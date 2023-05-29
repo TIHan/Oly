@@ -2554,11 +2554,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         funcInst
 
             let passedAndFilteredWitnesses =
-                vm.ResolveWitnesses(ilAsm, ilWitnesses, funcInst.TypeArguments, passedWitnesses, genericContext)
+                vm.ResolveWitnesses(ilAsm, ilWitnesses, funcInst, passedWitnesses, genericContext)
 
-            if func.IsFormal then func
-            else
-                func.SetWitnesses(passedAndFilteredWitnesses)
+            func.SetWitnesses(passedAndFilteredWitnesses)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext) =
         resolveFunction ilAsm ilFuncSpec ilFuncTyArgs enclosing genericContext
@@ -2600,27 +2598,32 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         else
             funcs.[0].MakeReference(enclosingTy)
 
-    member private this.ResolveWitnesses(ilAsm, ilWitnesses, funcTyArgs, passedWitnesses, genericContext) =
-        let witnesses =
-            let fixedGenericContext =
-                // TODO: This could add support for witness resolving for type parameters on types.
-                //let funcTyArgs =
-                //    if func.Flags.IsConstructor then
-                //        func.EnclosingType.TypeArguments
-                //    else 
-                //        funcTyArgs
-                if genericContext.IsErasingFunction then
-                    GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
-                else                     
-                    GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)
-            ilWitnesses
-            |> ImArray.map (fun x -> 
-                resolveWitness ilAsm x fixedGenericContext
-            )
+    member private this.ResolveWitnesses(ilAsm, ilWitnesses, func: RuntimeFunction, passedWitnesses, genericContext) =
+        if func.IsFormal || (func.EnclosingType.TypeParameters.IsEmpty && func.TypeArguments.IsEmpty) then
+            ImArray.empty
+        else
+            let funcTyArgs = func.TypeArguments
 
-        witnesses.AddRange(passedWitnesses)
-        |> Seq.distinct
-        |> ImArray.ofSeq
+            let witnesses =
+                let fixedGenericContext =
+                    // TODO: This could add support for witness resolving for type parameters on types.
+                    //let funcTyArgs =
+                    //    if func.Flags.IsConstructor then
+                    //        func.EnclosingType.TypeArguments
+                    //    else 
+                    //        funcTyArgs
+                    if genericContext.IsErasingFunction then
+                        GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
+                    else                     
+                        GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)
+                ilWitnesses
+                |> ImArray.map (fun x -> 
+                    resolveWitness ilAsm x fixedGenericContext
+                )
+
+            witnesses.AddRange(passedWitnesses)
+            |> Seq.distinct
+            |> ImArray.ofSeq
 
     member private this.AreFunctionSpecificationsEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
         ilFuncSpec1.IsInstance = ilFuncSpec2.IsInstance &&
@@ -3391,8 +3394,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 |> ImArray.map (fun x -> x.Substitute(genericContext))
                             this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses))
                         else
-                            // TODO: Should we enable this assert?
-                            //OlyAssert.True(witnesses.IsEmpty)
+                            // We should not have witnesses to pass here.
+                            if not witnesses.IsEmpty then
+                                OlyAssert.Fail("Did not expected witnesses for overrides function.")
                             if x.EnclosingType.TypeParameters.IsEmpty then
                                 this.EmitFunction(x.Formal)
                             else
