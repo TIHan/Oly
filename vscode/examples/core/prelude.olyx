@@ -607,8 +607,7 @@ extension ArrayEnumerableExtension<T> =
     implements System.Collections.Generic.IEnumerable<T>
 
     private GetEnumerator(): System.Collections.IEnumerator =
-        let result = this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>
-        result   
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
 
     GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
         class Impl =

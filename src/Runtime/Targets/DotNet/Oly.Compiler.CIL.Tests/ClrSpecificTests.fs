@@ -4404,7 +4404,7 @@ extension ArrayEnumerableExtension<T> =
 
     private GetEnumerator(): IEnumerator =
         print("failed")
-        unchecked default
+        (this.GetEnumerator(): IEnumerator<T>)
 
     GetEnumerator(): IEnumerator<T> =
         print("passed")

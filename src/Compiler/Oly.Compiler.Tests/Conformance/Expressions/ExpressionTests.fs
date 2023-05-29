@@ -7768,3 +7768,79 @@ internal module Helpers =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Subtyping should work when returning in a function``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest
+
+interface ITest<T> =
+    inherits ITest
+
+test1(): ITest<int32> = unchecked default
+
+test2(): ITest =
+    test1()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Subtyping should work when returning in a function 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest
+
+interface ITest2
+
+interface ITest<T> =
+    inherits ITest, ITest2
+
+test1(): ITest<int32> = unchecked default
+
+test2(): ITest2 =
+    test1()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+
+[<Fact>]
+let ``Subtyping should error when returning in a function``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest
+
+interface ITest2
+
+interface ITest<T> =
+    inherits ITest
+
+test1(): ITest<int32> = unchecked default
+
+test2(): ITest2 =
+    test1()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'ITest2' but is 'ITest<int32>'.",
+            """
+    test1()
+    ^^^^^^^
+"""
+        )
+    ]
+    |> ignore

@@ -1568,15 +1568,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.Typed(syntaxBody, _, syntaxTy) ->
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
-        let expectedTyOpt =
-            match expectedTyOpt with
-            | Some expectedTy ->
-                solveTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxTy expectedTy ty
-            | _ ->
-                ()
-            Some ty
-
-        let env1, expr = bindLocalExpression cenv (env.SetReturnable(false)) expectedTyOpt syntaxBody syntaxBody
+        let env1, expr = bindLocalExpression cenv (env.SetReturnable(false)) (Some ty) syntaxBody syntaxBody
         env1, BoundExpression.Typed(BoundSyntaxInfo.User(syntaxExpr, env.benv), expr, ty)
 
     | OlySyntaxExpression.Lambda(syntaxLambdaKind, syntaxPars, _, syntaxBodyExpr) ->
