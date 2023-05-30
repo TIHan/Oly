@@ -413,7 +413,7 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
         let env1, boundExpr1 = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr1
         let env2, boundExpr2 = bindTopLevelExpressionPass4 cenv env1 entities bindingInfos syntaxExpr2
-        env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2)
+        env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2, NormalSeqeuntial)
 
     | _ ->
         env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
@@ -567,7 +567,8 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             E.Sequential(
                 BoundSyntaxInfo.User(syntaxBinding, env.benv),
                 BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingGuard),
-                BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), binding)
+                BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), binding),
+                NormalSeqeuntial
             )
         | _ ->
             E.Error(BoundSyntaxInfo.User(syntaxBinding, env.benv))
@@ -751,7 +752,7 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
     let env2, expr2 =
         bindLocalExpression cenv (env1.SetReturnable(env.isReturnable)) expectedTyOpt syntaxExpr2 syntaxExpr2
 
-    let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2)
+    let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2, NormalSeqeuntial)
     env2, boundExpression
 
 let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) implicitBaseOpt (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
@@ -1587,7 +1588,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                 E.Sequential(
                     BoundSyntaxInfo.User(syntaxExpr, env.benv),
                     bindConstructType cenv env1 syntaxExpr syntaxConstructTy,
-                    bodyExpr
+                    bodyExpr,
+                    ConstructorInitSequential
                 )
             | _ ->
                 cenv.diagnostics.Error("This kind of record updates are not implemented.", 10, syntaxToCapture)

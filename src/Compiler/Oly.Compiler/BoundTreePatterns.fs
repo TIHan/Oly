@@ -147,7 +147,7 @@ let rec (|NoSideEffect|_|) (expr: E) =
     | E.Typed(body=NoSideEffect)
     // REVIEW: It's fine to go through a sequential expression, but it might be expensive if we do it alot. 
     //         Might be wise to consider adding a simple cached flag indicating that it doesn't cause side effects.
-    | E.Sequential(_, NoSideEffect, NoSideEffect)
+    | E.Sequential(_, NoSideEffect, NoSideEffect, _)
     | LogicalAnd(NoSideEffect, NoSideEffect)
     | LogicalOr(NoSideEffect, NoSideEffect)
     | Equal(NoSideEffect, NoSideEffect) -> 

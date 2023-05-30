@@ -1274,13 +1274,15 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         )
 
     | E.Sequential(syntaxInfo,
-        E.Sequential(_, expr1, expr2),
-        expr3
+        E.Sequential(_, expr1, expr2, _),
+        expr3,
+        _
       ) ->
       // TODO: We should throw if we actually encounter this pattern. Should be handled in lowering.
       E.Sequential(syntaxInfo,
         expr1,
-        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3)
+        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3, NormalSeqeuntial),
+        NormalSeqeuntial
       )
       |> GenExpression cenv prevEnv
 
@@ -1301,7 +1303,7 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
                 cenv.syntaxTree.DummyNode
         GenLetExpression cenv possiblyReturnableEnv syntaxDebugNode bindingInfo rhsExpr (Some bodyExpr)
 
-    | E.Sequential(_, expr1, expr2) ->
+    | E.Sequential(_, expr1, expr2, _) ->
         match expr1 with
         | E.None _ ->
             GenExpression cenv possiblyReturnableEnv expr2

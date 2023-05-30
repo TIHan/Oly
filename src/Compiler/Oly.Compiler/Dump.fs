@@ -164,7 +164,7 @@ let dumpExpression indentAmount (expr: E) =
         let letBinding = $"LET `{name}`: {dumpTypeSymbol bindingInfo.Value.Type} =\n{dumpExpression 0 rhsExpr |> indentLines 4}"
         $"{letBinding}\n\n{dumpExpression 4 bodyExpr}"
 
-    | E.Sequential(_, expr1, expr2) ->
+    | E.Sequential(_, expr1, expr2, _) ->
         $"{dumpExpression indentAmount expr1}\n{dumpExpression indentAmount expr2}"
 
     | E.EntityDefinition(body=bodyExpr;ent=ent) ->

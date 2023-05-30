@@ -340,7 +340,7 @@ module private Helpers =
                 handleExpression rhsExpr
                 handleExpression bodyExpr
 
-            | BoundExpression.Sequential(_, left, right) ->
+            | BoundExpression.Sequential(_, left, right, _) ->
                 handleExpression left
                 handleExpression right
 
@@ -741,7 +741,7 @@ type BoundTree with
                         | BoundExpression.EntityDefinition(body=body) ->
                             iterator.VisitExpression(body) |> ignore
 
-                        | BoundExpression.Sequential(_, expr1, expr2) ->
+                        | BoundExpression.Sequential(_, expr1, expr2, _) ->
                             iterator.VisitExpression(expr1) |> ignore
                             iterator.VisitExpression(expr2) |> ignore
 

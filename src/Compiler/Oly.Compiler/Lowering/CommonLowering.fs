@@ -141,7 +141,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
         |> lower ct syntaxTree
 
     // Sequential normalization
-    | E.Sequential(_, E.Sequential(_, expr1, expr2), expr3) ->
+    | E.Sequential(_, E.Sequential(_, expr1, expr2, semantic1), expr3, semantic2) when semantic1 = semantic2 ->
         E.CreateSequential(
             [
                 expr1

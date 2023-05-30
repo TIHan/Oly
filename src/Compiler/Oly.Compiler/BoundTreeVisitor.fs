@@ -160,7 +160,7 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
             | BoundExpression.MemberDefinition(_, binding) ->
                 this.VisitBinding(binding) |> ignore          
                 
-            | BoundExpression.Sequential(_, boundExpression1, boundExpression2) ->
+            | BoundExpression.Sequential(_, boundExpression1, boundExpression2, _) ->
                 this.VisitExpression(boundExpression1) |> ignore
                 this.VisitExpression(boundExpression2) |> ignore
 

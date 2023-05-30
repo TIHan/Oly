@@ -173,14 +173,14 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 else
                     BoundExpression.SetProperty(syntaxInfo, newReceiverOpt, prop, newRhs)
 
-            | BoundExpression.Sequential(syntaxInfo, expr1, expr2) ->
+            | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic) ->
                 let newExpr1 = this.Rewrite(expr1)
                 let newExpr2 = this.Rewrite(expr2)
 
                 if newExpr1 = expr1 && newExpr2 = expr2 then
                     expr
                 else
-                    BoundExpression.Sequential(syntaxInfo, newExpr1, newExpr2)
+                    BoundExpression.Sequential(syntaxInfo, newExpr1, newExpr2, semantic)
 
             | BoundExpression.NewTuple(syntaxInfo, args, ty) ->
                 let newArgs = args |> ImArray.map (fun arg -> this.Rewrite(arg))

@@ -741,7 +741,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         Assert.ThrowIf(binding.Info.Value.IsLocal)
         analyzeBinding acenv aenv expr.Syntax binding
 
-    | BoundExpression.Sequential(_, e1, e2) ->
+    | BoundExpression.Sequential(_, e1, e2, _) ->
         analyzeExpression acenv (notReturnableAddress aenv) e1
         analyzeExpression acenv aenv e2
 

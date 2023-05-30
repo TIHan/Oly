@@ -267,12 +267,16 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
 
+and BoundSequentialSemantic =
+    | NormalSeqeuntial
+    | ConstructorInitSequential
+
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundExpression =
     | None of syntaxInfo: BoundSyntaxInfo
     | Error of syntaxInfo: BoundSyntaxInfo
     | ErrorWithNamespace of syntax: OlySyntaxName * benv: BoundEnvironment * namespaceEnt: INamespaceSymbol
     | ErrorWithType of syntax: OlySyntaxName * benv: BoundEnvironment * ty: TypeSymbol
-    | Sequential of syntaxInfo: BoundSyntaxInfo * expr1: BoundExpression * expr2: BoundExpression
+    | Sequential of syntaxInfo: BoundSyntaxInfo * expr1: BoundExpression * expr2: BoundExpression * BoundSequentialSemantic
     | MemberDefinition of syntaxInfo: BoundSyntaxInfo * binding: BoundBinding
 
     | Call of 
@@ -312,7 +316,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         match this with
         | Witness(expr, _, _) -> expr.GetValidUserSyntax()
         | Lambda _ -> this.Syntax
-        | Sequential(_, e1, e2) ->
+        | Sequential(_, e1, e2, _) ->
             let r1 = e1.GetValidUserSyntax()
             if r1.IsDummy then
                 e2.GetValidUserSyntax()
@@ -458,8 +462,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewTuple _ 
         | NewArray _ -> this
         | Lambda _ -> this
-        | Sequential(_, e, None _) -> e.FirstReturnExpression
-        | Sequential(_, _, e) -> e.FirstReturnExpression
+        | Sequential(_, e, None _, _) -> e.FirstReturnExpression
+        | Sequential(_, _, e, _) -> e.FirstReturnExpression
         | Let(_, _, _, bodyExpr) -> bodyExpr.FirstReturnExpression
         | Call _ -> this
         | Value _
@@ -519,7 +523,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     member private this.FlattenSequentialExpressionsImpl() =
         match this with
-        | Sequential(_, e, rest) ->
+        | Sequential(_, e, rest, _) ->
             e.FlattenSequentialExpressionsImpl() @ rest.FlattenSequentialExpressionsImpl()
         | e ->
             [e]
@@ -533,7 +537,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             match expr with
             | BoundExpression.Let(bodyExpr=bodyExpr) ->
                 f bodyExpr
-            | BoundExpression.Sequential(_, _, nextExpr) ->
+            | BoundExpression.Sequential(_, _, nextExpr, _) ->
                 f nextExpr
             | BoundExpression.Match(_, _, _, matchClauses, _) ->
                 matchClauses
@@ -561,7 +565,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         let fields = ImArray.builder()
         let rec f (expr: BoundExpression) =
             match expr with
-            | BoundExpression.Sequential(_, expr1, expr2) ->
+            | BoundExpression.Sequential(_, expr1, expr2, _) ->
                 f expr1
                 f expr2
             | BoundExpression.SetField(receiver=BoundExpression.Value(value=value);field=field) when value.IsThis && field.IsInstance ->
@@ -571,7 +575,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         f this
         fields.ToImmutable()
 
-    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
+    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
         let syntaxTree = expr1.Syntax.Tree
         if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
             failwith "Syntax trees do not match."
@@ -579,8 +583,12 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         BoundExpression.Sequential(
             BoundSyntaxInfo.Generated(syntaxTree),
             expr1,
-            expr2
+            expr2,
+            semantic
         )
+
+    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
+        BoundExpression.CreateSequential(expr1, expr2, NormalSeqeuntial)
 
     static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntitySymbol) =
         OlyAssert.True(ent.IsFormal)
@@ -613,7 +621,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                         BoundExpression.Sequential(
                             syntaxInfo,
                             expr1,
-                            expr2
+                            expr2,
+                            NormalSeqeuntial
                         )
                     else
                         BoundExpression.Sequential(
@@ -622,8 +631,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                             BoundExpression.Sequential(
                                 syntaxInfo,
                                 expr2,
-                                loop (j + 1)
-                            )
+                                loop (j + 1),
+                                NormalSeqeuntial
+                            ),
+                            NormalSeqeuntial
                         )
             loop 0
 
