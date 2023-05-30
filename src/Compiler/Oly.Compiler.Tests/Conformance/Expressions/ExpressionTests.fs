@@ -7846,7 +7846,7 @@ test2(): ITest2 =
     |> ignore
 
 [<Fact>]
-let ``Trying to call constructor in a constructor with the explicit type name should fail``() =
+let ``Trying to call constructor in a constructor with the explicit type name should work``() =
     let src =
         """
 #[intrinsic("utf16")]
@@ -7861,7 +7861,7 @@ class C =
     public field value2: string
 
     new(value1: string) =
-        this(value1, "passed")
+        C(value1, "passed")
 
     new(value1: string, value2: string) =
         {
@@ -7870,13 +7870,5 @@ class C =
         }     
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Invalid return expression for constructor.",
-            """
-        C(value1, "passed")
-        ^^^^^^^^^^^^^^^^^^^
-"""
-        )
-    ]
+    |> shouldCompile
     |> ignore
