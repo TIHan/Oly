@@ -65,7 +65,7 @@ let optimizeImmediateExpression cenv origExpr =
         match argExpr1, argExpr2 with
         | True, _ -> argExpr2
         | _, True -> argExpr1
-        | E.Sequential(_, expr1, True), _ ->
+        | E.Sequential(_, expr1, True, _), _ ->
             E.CreateSequential(expr1, argExpr2)
         | _ ->
             origExpr

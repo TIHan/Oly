@@ -342,15 +342,18 @@ let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSym
     | _ ->
         false
 
-let subsumesTypeInEnvironment (benv: BoundEnvironment) (superTy: TypeSymbol) (ty: TypeSymbol) =
-    if subsumesType superTy ty then
+let subsumesTypeInEnvironmentWith (benv: BoundEnvironment) rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
+    if subsumesTypeWith rigidity superTy ty then
         true
     elif ty.IsBuiltIn then
         match benv.TryFindEntityByIntrinsicType(ty) with
         | ValueSome(ent) ->
-            subsumesType superTy ent.AsType
+            subsumesTypeWith rigidity superTy ent.AsType
         | _ ->
             false
     else
         false
+
+let subsumesTypeInEnvironment (benv: BoundEnvironment) (superTy: TypeSymbol) (ty: TypeSymbol) =
+    subsumesTypeInEnvironmentWith benv Rigid superTy ty
             

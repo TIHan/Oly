@@ -268,7 +268,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
 
 and BoundSequentialSemantic =
-    | NormalSeqeuntial
+    | NormalSequential
     | ConstructorInitSequential
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{ToDebugString()}")>] BoundExpression =
@@ -588,7 +588,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         )
 
     static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
-        BoundExpression.CreateSequential(expr1, expr2, NormalSeqeuntial)
+        BoundExpression.CreateSequential(expr1, expr2, NormalSequential)
 
     static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntitySymbol) =
         OlyAssert.True(ent.IsFormal)
@@ -622,7 +622,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                             syntaxInfo,
                             expr1,
                             expr2,
-                            NormalSeqeuntial
+                            NormalSequential
                         )
                     else
                         BoundExpression.Sequential(
@@ -632,11 +632,22 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                                 syntaxInfo,
                                 expr2,
                                 loop (j + 1),
-                                NormalSeqeuntial
+                                NormalSequential
                             ),
-                            NormalSeqeuntial
+                            NormalSequential
                         )
             loop 0
+
+    static member CreateSequential(syntaxTree, exprs: _ seq, semantic) =
+        let expr = BoundExpression.CreateSequential(syntaxTree, exprs)
+        match expr with
+        | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic2) ->
+            if semantic2 = semantic then
+                expr
+            else
+                BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic)
+        | _ ->
+            expr
 
     static member CreateLiteral(syntaxTree, literal) =
         BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), literal)

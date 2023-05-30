@@ -407,6 +407,18 @@ and solveConstraints
                 let witnessArgs =
                     witnessArgs
                     |> ImArray.filter (fun x -> x.TypeParameter.Id = tyPar.Id && not x.HasSolution)
+
+                let subTys =
+                    tyPar.Constraints
+                    |> ImArray.choose (fun constr ->
+                        match constr.TryGetSubtypeOf() with
+                        | ValueSome(ty) -> Some ty
+                        | _ -> None
+                    )
+
+                if subTys.Length = 1 then
+                    subsumesTypeInEnvironmentWith env.benv Flexible subTys[0] tyArg
+                    |> ignore
                     
                 tyPar.Constraints
                 |> ImArray.iter (fun constr ->

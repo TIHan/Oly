@@ -1281,8 +1281,8 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
       // TODO: We should throw if we actually encounter this pattern. Should be handled in lowering.
       E.Sequential(syntaxInfo,
         expr1,
-        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3, NormalSeqeuntial),
-        NormalSeqeuntial
+        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3, NormalSequential),
+        NormalSequential
       )
       |> GenExpression cenv prevEnv
 

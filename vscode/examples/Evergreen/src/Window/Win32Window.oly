@@ -222,7 +222,7 @@ internal class Win32Window =
     new(title: string) =
         match (Win32.CreateWindow(title))
         | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
-            fail("Failed to create window.")
+            throw Exception("Failed to create window.")
         | (hwnd, hinstance) =>
             Win32.WindowLookup[hwnd] <- this
             {
@@ -238,7 +238,7 @@ internal class Win32Window =
             }
         | _ =>
             // TODO: Fix language to handle this kind of exhaustiveness
-            fail("should not happen")
+            throw Exception("Failed to create window.")
 
     Show(): () =
         this.ThrowIfDisposed()

@@ -30,9 +30,8 @@ class ExternalProcess =
 
     field p: Process
 
-    // TODO: Runtime error, fix this.
-  //  new(filePath: string, args: string) =
-    //    ExternalProcess(filePath, args, Environment.CurrentDirectory)
+    new(filePath: string, args: string) =
+        ExternalProcess(filePath, args, Environment.CurrentDirectory)
 
     new(filePath: string, args: string, workingDirectory: string) =
         let startInfo = ProcessStartInfo()
@@ -141,7 +140,7 @@ radians(degrees: float32): float32 = float32(radians(float64(degrees)))
 
 compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     let outputPath = Path.ChangeExtension(path, ".spv")
-    let p = ExternalProcess("glslangValidator", "--target-env vulkan1.3 -o " + outputPath + " " + path, Environment.CurrentDirectory)
+    let p = ExternalProcess("glslangValidator", "--target-env vulkan1.3 -o " + outputPath + " " + path)
     let task = p.RunAsync(System.Threading.CancellationToken.None)
 
     let results = task.Result

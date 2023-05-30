@@ -94,7 +94,7 @@ let private cleanExpr (expr: BoundExpression) =
 let rec private stripExpr (expr: BoundExpression) =
     let newExpr = expr.Strip()
     match newExpr with
-    | BoundExpression.Sequential(syntaxInfo, expr1, expr2) as expr ->
+    | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic) as expr ->
         let newExpr2 = cleanExpr expr2
         match expr1, newExpr2 with
         | BoundExpression.None _, _ -> newExpr2
@@ -106,7 +106,8 @@ let rec private stripExpr (expr: BoundExpression) =
                 BoundExpression.Sequential(
                     syntaxInfo,
                     expr1,
-                    newExpr2
+                    newExpr2,
+                    semantic
                 )
     | _ ->
         newExpr
@@ -267,7 +268,7 @@ module Patterns =
 
     let (|Sequential|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Sequential(_, expr1, expr2), boundModel, ct) ->
+        | Expression(BoundExpression.Sequential(_, expr1, expr2, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel expr1 ct, convert boundModel expr2 ct)
         | _ ->

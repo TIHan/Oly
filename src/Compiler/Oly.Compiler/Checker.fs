@@ -460,7 +460,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
         let bindingInfo = BindingLocalFunction(func)
         bindingInfo
 
-and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValueSymbol) (syntaxNode: OlySyntaxNode) (enclosingTy: TypeSymbol) (setFieldsExpr: BoundExpression) =
+and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSymbol) (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let rec loop (expr: BoundExpression) : BoundExpression =
         match expr with
         | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
@@ -470,22 +470,32 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValue
             else
                 BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
 
-        | BoundExpression.Sequential(syntaxInfo, expr1, expr2, NormalSeqeuntial) ->
+        | BoundExpression.Sequential(syntaxInfo, expr1, expr2, NormalSequential) ->
             let newExpr2 = loop expr2
             if newExpr2 = expr2 then
                 expr
             else
-                BoundExpression.Sequential(syntaxInfo, expr1, expr2, NormalSeqeuntial)
+                BoundExpression.Sequential(syntaxInfo, expr1, expr2, NormalSequential)
 
         | BoundExpression.Match(syntax, benv, matchExprs, matchClauses, cachedExprTy) ->
-            matchClauses
-            |> ImArray.map (fun x ->
-                match x with
-                | BoundMatchClause.MatchClause(syntaxMatchClause, matchPat, guardExprOpt, targetExpr) ->
-                    let newTargetExpr = loop targetExpr
-                    if newTargetExpr = targetExpr then
-                        xz
-            )
+            let mutable hasNewMatchClauses = false
+            let newMatchClauses =
+                matchClauses
+                |> ImArray.map (fun x ->
+                    match x with
+                    | BoundMatchClause.MatchClause(syntaxMatchClause, matchPat, guardExprOpt, targetExpr) ->
+                        let newTargetExpr = loop targetExpr
+                        if newTargetExpr = targetExpr then
+                            x
+                        else
+                            hasNewMatchClauses <- true
+                            BoundMatchClause.MatchClause(syntaxMatchClause, matchPat, guardExprOpt, newTargetExpr)
+                )
+            if hasNewMatchClauses then
+                BoundExpression.Match(syntax, benv, matchExprs, newMatchClauses, cachedExprTy)
+            else
+                expr
+
         | BoundExpression.IfElse(syntaxInfo, conditionExpr, targetExpr1, targetExpr2, cachedExprTy) ->
             let newTargetExpr1 = loop targetExpr1
             let newTargetExpr2 = loop targetExpr2
@@ -503,7 +513,6 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValue
             | BoundExpression.Sequential _ -> true
             | _ -> false
 
-
         if canCheck then
             let expectedFields = enclosingTy.GetInstanceFields()
             let fields = expr.GetThisSetInstanceFields()
@@ -514,12 +523,14 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValue
             expectedFieldSet
             |> Seq.sort
             |> Seq.iter (fun fieldName ->
-                env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, syntaxNode)
+                env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, expr.Syntax)
             )
 
-            setFieldsExpr
+            expr
         else
-            match setFieldsExpr with
+            match expr with
+            | BoundExpression.Call(value=value) when value.IsFunction && value.AsFunction.TryWellKnownFunction = ValueSome(WellKnownFunction.Throw) ->
+                expr
             | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtual) 
                     when value.IsFunction && value.IsInstanceConstructor && areEnclosingsEqual value.Enclosing enclosingTy.AsEntity.AsEnclosing ->
                 BoundExpression.Call(
@@ -531,8 +542,10 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValue
                     isVirtual
                 )
             | _ ->
-                env.diagnostics.Error("Invalid return expression for constructor.", 10, syntaxNode)
-                setFieldsExpr
+                env.diagnostics.Error("Invalid return expression for constructor.", 10, expr.Syntax)
+                expr
+
+    loop expr
 
 and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression) (value: IValueSymbol) =
 

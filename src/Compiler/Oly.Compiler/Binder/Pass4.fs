@@ -413,7 +413,7 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
         let env1, boundExpr1 = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr1
         let env2, boundExpr2 = bindTopLevelExpressionPass4 cenv env1 entities bindingInfos syntaxExpr2
-        env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2, NormalSeqeuntial)
+        env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2, NormalSequential)
 
     | _ ->
         env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
@@ -568,7 +568,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                 BoundSyntaxInfo.User(syntaxBinding, env.benv),
                 BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingGuard),
                 BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), binding),
-                NormalSeqeuntial
+                NormalSequential
             )
         | _ ->
             E.Error(BoundSyntaxInfo.User(syntaxBinding, env.benv))
@@ -752,7 +752,7 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
     let env2, expr2 =
         bindLocalExpression cenv (env1.SetReturnable(env.isReturnable)) expectedTyOpt syntaxExpr2 syntaxExpr2
 
-    let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2, NormalSeqeuntial)
+    let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2, NormalSequential)
     env2, boundExpression
 
 let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) implicitBaseOpt (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
@@ -987,7 +987,7 @@ let private bindMatchClause (cenv: cenv) (env: BinderEnvironment) solverEnv expe
     | OlySyntaxMatchClause.MatchClause(_, syntaxMatchPattern, syntaxMatchGuard, _, syntaxTargetExpr) ->
         let clauseLocals = Dictionary()
         let env, matchPattern = bindMatchPattern cenv env solverEnv true clauseLocals exprTys syntaxMatchPattern
-        let conditionExprOpt = bindMatchGuard cenv env syntaxMatchGuard
+        let conditionExprOpt = bindMatchGuard cenv (env.SetReturnable(false)) syntaxMatchGuard
         let targetExpr = bindLocalExpression cenv env (Some expectedTargetTy) syntaxTargetExpr syntaxTargetExpr |> snd
         checkSubsumesType solverEnv syntaxTargetExpr expectedTargetTy targetExpr.Type
         BoundMatchClause.MatchClause(syntaxMatchClause, matchPattern, conditionExprOpt, targetExpr)
@@ -1155,7 +1155,14 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
                 )
                 |> List.ofSeq
 
-            BoundExpression.CreateSequential(cenv.syntaxTree, setFieldExprs)
+            if setFieldExprs.IsEmpty then
+                let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                BoundExpression.CreateSequential(noneExpr, noneExpr, ConstructorInitSequential)
+            elif setFieldExprs.Length = 1 then
+                let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                BoundExpression.CreateSequential(noneExpr, setFieldExprs[0], ConstructorInitSequential)
+            else
+                BoundExpression.CreateSequential(cenv.syntaxTree, setFieldExprs, ConstructorInitSequential)
         | _ ->
             cenv.diagnostics.Error("Construction of a type not allowed in this context.", 10, syntaxNode)
             invalidExpression syntaxNode env.benv
@@ -1785,7 +1792,6 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
     let env, expr = bindLocalExpressionAux cenv env expectedTyOpt syntaxToCapture syntaxExpr
 
-
     let expr =
         // Specific checks for expressions on return.
         if env.isReturnable then
@@ -1794,7 +1800,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             | Some(enclosingTy) ->
                 OlyAssert.True(env.implicitThisOpt.IsSome)
                 let thisValue = env.implicitThisOpt.Value
-                checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) thisValue syntaxToCapture enclosingTy expr
+                checkConstructorImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) thisValue enclosingTy expr
             | _ ->
                 expr
         else

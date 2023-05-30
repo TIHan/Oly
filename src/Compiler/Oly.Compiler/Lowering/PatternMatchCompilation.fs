@@ -614,7 +614,8 @@ let transformTuplePattern cenv (valueLookup: MatchPatternLookup) matchPatternInd
                 E.Sequential(
                     cenv.GeneratedSyntaxInfo,
                     postExpr1,
-                    postExpr2
+                    postExpr2,
+                    NormalSequential
                 )
 
             createInfo preExprOpt conditionExpr postExpr
@@ -826,12 +827,13 @@ let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
                 E.Sequential(
                     BoundSyntaxInfo.Generated(expr.Syntax.Tree),
                     foldingExpr,
-                    expr
+                    expr,
+                    NormalSequential
                 )
             | E.IfElse(syntaxInfo, conditionExpr, trueTargetExpr, falseTargetExpr, cachedExprTy) ->
                 E.IfElse(syntaxInfo, conditionExpr, transform trueTargetExpr, falseTargetExpr, cachedExprTy)
-            | E.Sequential(syntaxInfo, expr1, expr2) ->
-                E.Sequential(syntaxInfo, expr1, transform expr2)
+            | E.Sequential(syntaxInfo, expr1, expr2, semantic) ->
+                E.Sequential(syntaxInfo, expr1, transform expr2, semantic)
             | _ ->
                 OlyAssert.Fail("bad expression")
         transform letExpr
