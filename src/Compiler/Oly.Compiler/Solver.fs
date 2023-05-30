@@ -95,6 +95,30 @@ and solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys
         else
             funcs |> Seq.head
 
+let private tryFindMostSpecificTypeForExtension benv (tyExt: IEntitySymbol) targetTy =            
+    tyExt.Implements
+    |> filterMostSpecificTypes
+    |> ImArray.filter (fun x ->
+        subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv Generalizable targetTy x
+    )
+    |> Seq.tryExactlyOne
+
+let private tryFindExtensions benv (targetTy: TypeSymbol) ty =
+    match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
+    | ValueSome tyExts ->
+
+        let possibleTyExts =
+            tyExts.GetSimilar(targetTy)
+            |> List.ofSeq
+
+        match possibleTyExts with
+        | [] -> ValueNone
+        | tyExts ->
+            ValueSome(tyExts |> ImArray.ofSeq)
+
+    | _ ->
+        ValueNone
+
 let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg =
     OlyAssert.True(targetShape.IsShape)
 
@@ -255,28 +279,13 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
         solveSubsumption()
     else
 
-    match env.benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-    | ValueSome tyExts ->
-
-        let possibleTyExts =
-            tyExts.GetSimilar(target)
-            |> List.ofSeq
-
-        match possibleTyExts with
-        | [] -> solveSubsumption()
-        | [tyExt] ->
-            let mostSpecificTy =              
-                tyExt.Implements
-                |> filterMostSpecificTypes
-                |> ImArray.filter (fun x ->
-                    subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target x
-                )
-                |> Seq.tryExactlyOne
-
-            let mostSpecificTy =
-                match mostSpecificTy with
-                | Some x -> x
-                | _ -> OlyAssert.Fail("Should have found the most specific type.")
+    match tryFindExtensions env.benv target ty with
+    | ValueNone -> solveSubsumption()
+    | ValueSome(tyExts) ->
+        OlyAssert.False(tyExts.IsEmpty)
+        if tyExts.Length = 1 then
+            let tyExt = tyExts[0]
+            let mostSpecificTy = (tryFindMostSpecificTypeForExtension env.benv tyExt target).Value
 
             witnessArgs
             |> ImArray.iter (fun witness ->      
@@ -292,16 +301,13 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                         witness.Solution <- Some(WitnessSymbol.TypeExtension(appliedTyExt, None))
             )
             true
-
-        | _ ->
+        else
             let names =
-                possibleTyExts
+                tyExts
                 |> Seq.map (fun x -> printEntity env.benv x)
                 |> String.concat "\n    "
             env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             true // Return true for recovery
-    | _ ->
-        solveSubsumption()
 
 and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) =
     OlyAssert.True(tyArg.IsSolved)
@@ -416,9 +422,28 @@ and solveConstraints
                         | _ -> None
                     )
 
+                // This allows to infer types if the there is only one subtype constraint.
+                // TODO: We do something similar when solving the witness, could we combine them somehow?
                 if subTys.Length = 1 then
-                    subsumesTypeInEnvironmentWith env.benv Flexible subTys[0] tyArg
-                    |> ignore
+                    let subTy = subTys[0]
+                    if subsumesTypeInEnvironmentWith env.benv Flexible subTy tyArg then
+                        ()
+                    else
+                        match tryFindExtensions env.benv subTy tyArg with
+                        | ValueNone -> ()
+                        | ValueSome(tyExts) ->
+                            OlyAssert.False(tyExts.IsEmpty)
+                            if tyExts.Length = 1 then
+                                let tyExt = tyExts[0]
+                                let appliedTyExt = 
+                                    // Note: This is necessary to do!
+                                    if tyExt.IsFormal && not tyArg.IsFormal then
+                                        applyEntity tyArg.TypeArguments tyExt
+                                    else
+                                        tyExt
+                                let mostSpecificTy = (tryFindMostSpecificTypeForExtension env.benv appliedTyExt subTy).Value
+                                if areGeneralizedTypesEqual mostSpecificTy subTy then
+                                    UnifyTypes Flexible mostSpecificTy subTy |> ignore
                     
                 tyPar.Constraints
                 |> ImArray.iter (fun constr ->
