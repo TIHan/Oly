@@ -1942,6 +1942,38 @@ let createBaseInstanceConstructors name (ent: IEntitySymbol) =
         }
     )
 
+let createThisInstanceConstructors name (ent: IEntitySymbol) =
+    ent.Functions
+    |> ImArray.filter (fun x -> x.IsInstance && x.IsConstructor)
+    |> ImArray.map (fun x ->
+        let id = newId()
+        { new IFunctionSymbol with
+            member _.Name = name
+            member _.Enclosing = x.Enclosing
+            member _.TypeParameters = x.TypeParameters
+            member _.TypeArguments = x.TypeArguments
+            member _.Parameters = x.Parameters
+            member _.ReturnType = x.ReturnType
+            member _.ValueFlags = x.ValueFlags
+            member _.MemberFlags = x.MemberFlags &&& ~~~MemberFlags.Virtual
+            member _.FunctionFlags = x.FunctionFlags
+            member _.Attributes = x.Attributes
+            member _.Formal = x.Formal
+            member _.IsFunction = x.IsFunction
+            member _.IsField = x.IsField
+            member _.IsThis = true
+            member _.IsBase = false
+            member _.Id = id
+            member _.FunctionOverrides = x.FunctionOverrides
+            member _.IsProperty = false
+            member _.IsPattern = false
+            member _.Type = x.Type
+            member _.Semantic = x.Semantic
+            member _.WellKnownFunction = WellKnownFunction.None
+            member _.AssociatedFormalPattern = None
+        }
+    )
+
 let createFieldValue (enclosing: EnclosingSymbol) attrs name fieldTy memberFlags valueFlags associatedFormalPropId =
     FieldSymbol(attrs, enclosing, memberFlags, name, fieldTy, valueFlags, associatedFormalPropId) :> IFieldSymbol
 

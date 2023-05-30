@@ -460,7 +460,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
         let bindingInfo = BindingLocalFunction(func)
         bindingInfo
 
-and checkConstructorFieldAssignments (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (enclosingTy: TypeSymbol) (setFieldsExpr: BoundExpression) =
+and checkConstructorFieldAssignments (env: SolverEnvironment) (thisValue: IValueSymbol) (syntaxNode: OlySyntaxNode) (enclosingTy: TypeSymbol) (setFieldsExpr: BoundExpression) =
     let canCheck =
         match setFieldsExpr with
         | BoundExpression.Call(value=value) when value.IsBase && value.IsFunction -> true
@@ -480,13 +480,31 @@ and checkConstructorFieldAssignments (env: SolverEnvironment) (syntaxNode: OlySy
         |> Seq.iter (fun fieldName ->
             env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, syntaxNode)
         )
+
+        setFieldsExpr
     else
         match setFieldsExpr with
-        | BoundExpression.None _ -> ()
-        | BoundExpression.Let(bodyExpr=bodyExpr) ->
-            checkConstructorFieldAssignments env syntaxNode enclosingTy bodyExpr
+        | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtual) 
+                when value.IsFunction && value.IsInstanceConstructor && areEnclosingsEqual value.Enclosing enclosingTy.AsEntity.AsEnclosing ->
+            BoundExpression.Call(
+                syntaxInfo, 
+                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisValue)),
+                witnessArgs,
+                argExprs,
+                value,
+                isVirtual
+            )
+        | BoundExpression.None _ ->
+            setFieldsExpr
+        | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
+            let newBodyExpr = checkConstructorFieldAssignments env thisValue syntaxNode enclosingTy bodyExpr
+            if newBodyExpr = bodyExpr then
+                setFieldsExpr
+            else
+                BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
         | _ ->
             env.diagnostics.Error("Invalid return expression for constructor.", 10, syntaxNode)
+            setFieldsExpr
 
 and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression) (value: IValueSymbol) =
 

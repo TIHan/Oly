@@ -1783,14 +1783,20 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
     let env, expr = bindLocalExpressionAux cenv env expectedTyOpt syntaxToCapture syntaxExpr
 
-    // Specific checks for expressions on return.
-    if env.isReturnable then
-        // Check constructor to ensure fields are set.
-        match env.isInInstanceConstructorType with
-        | Some(enclosingTy) ->
-            checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture enclosingTy expr
-        | _ ->
-            ()
+
+    let expr =
+        // Specific checks for expressions on return.
+        if env.isReturnable then
+            // Check constructor to ensure fields are set.
+            match env.isInInstanceConstructorType with
+            | Some(enclosingTy) ->
+                OlyAssert.True(env.implicitThisOpt.IsSome)
+                let thisValue = env.implicitThisOpt.Value
+                checkConstructorFieldAssignments (SolverEnvironment.Create(cenv.diagnostics, env.benv)) thisValue syntaxToCapture enclosingTy expr
+            | _ ->
+                expr
+        else
+            expr
 
     if env.isInInstanceConstructorType.IsNone || (env.isInInstanceConstructorType.IsSome && not env.isReturnable) then
         match expr with

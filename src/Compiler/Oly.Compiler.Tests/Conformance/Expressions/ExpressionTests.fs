@@ -7861,7 +7861,7 @@ class C =
     public field value2: string
 
     new(value1: string) =
-        C(value1, "passed")
+        this(value1, "passed")
 
     new(value1: string, value2: string) =
         {
