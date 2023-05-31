@@ -319,6 +319,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 tyExts
                 |> Seq.map (fun x -> printEntity env.benv x)
                 |> String.concat "\n    "
+            // TODO: Provide a test case that hits this diagnostic, is it possible?
             env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             true // Return true for recovery
 
