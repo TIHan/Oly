@@ -150,13 +150,7 @@ compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     p.Dispose()
     code
 
-test<T>(): () where T: unmanaged = ()
-
-struct Doot<T> =
-    X: T get = unchecked default
-
 createUI(): UINode =
-    test<Doot<Doot<int32>>>()
     let windowViewModel = UI.WindowModel("Oly Window", Vector2.Zero, Vector2.Zero)
         
     let inputTextViewModel = UI.TextInputModel("Oly Input Text", "")
