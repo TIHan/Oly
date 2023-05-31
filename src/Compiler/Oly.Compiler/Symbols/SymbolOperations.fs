@@ -51,8 +51,8 @@ module SymbolComparers =
     
     let EntitySymbolComparer() =
         { new EqualityComparer<EntitySymbol>() with
-            member _.GetHashCode(ent) = int ent.Id
-            member _.Equals(ent1, ent2) = ent1.Id = ent2.Id
+            member _.GetHashCode(ent) = int ent.Formal.Id
+            member _.Equals(ent1, ent2) = areEntitiesEqual ent1 ent2
         }
 
     let SimilarEntitySymbolComparer() =

@@ -7872,3 +7872,22 @@ class C =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Struct should not cycle``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+test<T>(): () where T: unmanaged = ()
+
+struct Test<T> =
+    X: T get = unchecked default
+
+main(): () =
+    test<Test<Test<int32>>>()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

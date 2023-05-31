@@ -163,9 +163,9 @@ let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression
 [<Literal>]
 let private checkStructCycleDictionaryPoolMaxCount = 10
 let private checkStructCycleDictionaryPool = 
-    let stack = System.Collections.Concurrent.ConcurrentStack<Dictionary<int64, bool>>()
+    let stack = System.Collections.Concurrent.ConcurrentStack<Dictionary<EntitySymbol, bool>>()
     for _ = 1 to checkStructCycleDictionaryPoolMaxCount do
-        stack.Push(Dictionary())
+        stack.Push(Dictionary(EntitySymbolComparer()))
     stack
 
 let private tryPopCheckStructCycleDictionary(result: byref<Dictionary<_, _>>) =
@@ -176,14 +176,13 @@ let private pushCheckStructCycleDictionary(dict: Dictionary<_, _>) =
     checkStructCycleDictionaryPool.Push(dict)
 
 let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _>) =
-    let formalId = ent.Formal.Id
-    match hash.TryGetValue formalId with
+    match hash.TryGetValue ent with
     | true, result -> result
     | _ ->
-        hash.[formalId] <- false
+        hash.[ent] <- false
         let mutable result =
-            ent.Fields
-            |> Seq.forall (fun field ->
+            (ent.Fields)
+            |> ImArray.forall (fun field ->
                 if field.IsInstance && field.Type.IsAnyStruct then
                     match field.Type.TryEntity with
                     | ValueSome(ent) ->
@@ -193,7 +192,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
                 else
                     true
             )
-        hash.[formalId] <- result
+        hash.[ent] <- result
         result
 
 let checkStructCycle env syntaxNode (ent: EntitySymbol) =
@@ -202,7 +201,7 @@ let checkStructCycle env syntaxNode (ent: EntitySymbol) =
     let mutable hash = Unchecked.defaultof<_>
     let usedPool = tryPopCheckStructCycleDictionary(&hash)
     if not usedPool then
-        hash <- Dictionary()
+        hash <- Dictionary(EntitySymbolComparer())
 
     let result = checkStructCycleInner ent hash
 
