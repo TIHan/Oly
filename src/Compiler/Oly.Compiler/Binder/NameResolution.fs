@@ -20,6 +20,7 @@ open Oly.Compiler.Internal.FunctionOverloading
 open Oly.Compiler.Internal.WellKnownExpressions
 open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.ImplicitRules
+open System.Globalization
 
 [<RequireQualifiedAccess>]
 type ResolutionContext =
@@ -2304,25 +2305,25 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
 
     match syntaxLiteral with
     | OlySyntaxLiteral.Int8(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Int8(System.SByte.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Int8(System.SByte.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.UInt8(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.UInt8(System.Byte.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.UInt8(System.Byte.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Int16(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Int16(System.Int16.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Int16(System.Int16.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.UInt16(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.UInt16(System.UInt16.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.UInt16(System.UInt16.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Int32(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Int32(System.Int32.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Int32(System.Int32.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.UInt32(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.UInt32(System.UInt32.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.UInt32(System.UInt32.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Int64(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Int64(System.Int64.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Int64(System.Int64.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.UInt64(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.UInt64(System.UInt64.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.UInt64(System.UInt64.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Float32(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Float64(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText)))
+        BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
     | OlySyntaxLiteral.Bool(syntaxToken) ->
         if syntaxToken.IsTrueToken then
             BoundLiteral.Constant(ConstantSymbol.True)
@@ -2380,9 +2381,9 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                         | TypeSymbol.UInt64 ->
                             BoundLiteral.Constant(ConstantSymbol.UInt64(Convert.ToUInt64(cleanedText, fromBase)))
                         | TypeSymbol.Float32 ->
-                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanedText)))
+                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanedText, CultureInfo.InvariantCulture)))
                         | TypeSymbol.Float64 ->
-                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanedText)))
+                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanedText, CultureInfo.InvariantCulture)))
                         | _ ->
                             BoundLiteral.Constant(ConstantSymbol.Int32(Convert.ToInt32(cleanedText, fromBase)))
 
@@ -2406,9 +2407,9 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let literal =
                         match stripTypeEquations ty with
                         | TypeSymbol.Float32 ->
-                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText)))
+                            BoundLiteral.Constant(ConstantSymbol.Float32(System.Single.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
                         | _ ->
-                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText)))
+                            BoundLiteral.Constant(ConstantSymbol.Float64(System.Double.Parse(cleanNumericText syntaxToken.ValueText, CultureInfo.InvariantCulture)))
                     Ok(literal)
                 with
                 | ex ->
