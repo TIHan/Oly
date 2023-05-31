@@ -127,7 +127,7 @@ type ReceiverInfo =
 [<RequireQualifiedAccess>]
 type ResolutionItem = 
     | Type of syntaxName: OlySyntaxName * TypeSymbol
-    | Namespace of syntaxName: OlySyntaxName * IEntitySymbol
+    | Namespace of syntaxName: OlySyntaxName * EntitySymbol
     | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxExpression imarray * syntaxMemberExprOpt: OlySyntaxExpression option
     | MemberIndexerCall of syntaxToCapture: OlySyntaxExpression * syntaxReceiver: OlySyntaxExpression * syntaxBrackets: OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>> * syntaxMemberExprOpt: OlySyntaxExpression option * expectedTyOpt: TypeSymbol option
     | Parenthesis of syntaxToCapture: OlySyntaxExpression * syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression> * syntaxMemberExprOpt: OlySyntaxExpression option
@@ -270,7 +270,7 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                             cenv.diagnostics.Error(sprintf "Identifier '%s' not found in scope." ident, 10, syntaxNode)
                             ResolutionFormalItem.Error
 
-let private determineConstructorOrTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) (ent: IEntitySymbol) (resArgs: ResolutionArguments) =
+let private determineConstructorOrTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) (ent: EntitySymbol) (resArgs: ResolutionArguments) =
     let ctors = 
         match resArgs with
         | ResolutionArguments.NotAFunctionCall -> ImArray.empty

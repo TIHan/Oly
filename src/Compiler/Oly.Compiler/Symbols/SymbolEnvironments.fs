@@ -87,7 +87,7 @@ type ResolutionArguments =
 [<NoEquality;NoComparison>]
 type ScopeEnvironment =
     {
-        entitiesByIntrinsicTypes: TypeSymbolGeneralizedMap<IEntitySymbol>
+        entitiesByIntrinsicTypes: TypeSymbolGeneralizedMap<EntitySymbol>
         intrinsicTypesByAliasTypes: TypeSymbolGeneralizedMap<TypeSymbol>
         aliasTypesByIntrinsicTypes: TypeSymbolGeneralizedMap<TypeSymbol>
 
@@ -104,7 +104,7 @@ type ScopeEnvironment =
         enclosing: EnclosingSymbol
 
         // Current info
-        typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMap<IEntitySymbol>>
+        typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMap<EntitySymbol>>
         typeExtensionMembers: TypeSymbolGeneralizedMap<ExtensionMemberSymbolOrderedSet>
     }
 
@@ -112,15 +112,15 @@ type ScopeEnvironment =
 type AccessorContext =
     {
         AssemblyIdentity: Oly.Metadata.OlyILAssemblyIdentity
-        Entity: IEntitySymbol option
+        Entity: EntitySymbol option
     }
 
 [<NoEquality;NoComparison>]
 type BoundEnvironment =
     {
         senv: ScopeEnvironment
-        openedEnts: ImmutableHashSet<IEntitySymbol>
-        openDecls: IEntitySymbol imarray
+        openedEnts: ImmutableHashSet<EntitySymbol>
+        openDecls: EntitySymbol imarray
         ac: AccessorContext
         implicitExtendsForStruct: TypeSymbol option
         implicitExtendsForEnum: TypeSymbol option
@@ -158,7 +158,7 @@ type BoundEnvironment =
             implicitExtendsForEnum = None
         }
 
-    member this.AddOpenDeclaration(ent: IEntitySymbol) =
+    member this.AddOpenDeclaration(ent: EntitySymbol) =
         { this with
             openDecls = this.openDecls.Add(ent)
         }

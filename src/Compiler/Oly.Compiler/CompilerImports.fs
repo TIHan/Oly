@@ -269,12 +269,12 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
         member this.PatternGuardFunction = lazyPatGuardFuncOpt.Value
 
 [<Sealed;DebuggerDisplay("Retargeted({DebugName}) for {AssemblyNameThatImportedThis}")>]
-type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
-    inherit IEntitySymbol()
+type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: EntitySymbol) as this =
+    inherit EntitySymbol()
 
     let id = newId()
 
-    let asEnclosing = (this :> IEntitySymbol).AsEnclosing
+    let asEnclosing = (this :> EntitySymbol).AsEnclosing
 
     let lazyTyPars =
         lazy
@@ -445,9 +445,9 @@ let private retargetConstant currentAsmIdent importer constant =
     | _ ->
         constant
 
-let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: IEntitySymbol) =
+let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: EntitySymbol) =
     if ent.IsAnonymous then
-        RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> IEntitySymbol
+        RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> EntitySymbol
     else
         let qualName = ent.QualifiedName
         match importer.TryGetEntity(qualName) with
@@ -455,7 +455,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> IEntitySymbol
+            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> EntitySymbol
             importer.AddEntity(qualName, ent)
             ent
 
@@ -531,11 +531,11 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
 type SharedImportCache =
     private {
         importedAsms: ConcurrentDictionary<string, OlyILReadOnlyAssembly>
-        entFromName: ConcurrentDictionary<string, ConcurrentDictionary<QualifiedName, IEntitySymbol>>
+        entFromName: ConcurrentDictionary<string, ConcurrentDictionary<QualifiedName, EntitySymbol>>
         gate: obj
     }
 
-    member this.AddEntity(ent: IEntitySymbol) =
+    member this.AddEntity(ent: EntitySymbol) =
         match ent.ContainingAssembly with
         | Some(asm) ->
             let identity = asm.Identity
@@ -630,8 +630,8 @@ type internal LocalCache =
         identity: OlyILAssemblyIdentity
         tyFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, TypeSymbol>
         tyFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, TypeSymbol>
-        entFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, IEntitySymbol>
-        entFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, IEntitySymbol>
+        entFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, EntitySymbol>
+        entFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, EntitySymbol>
         funcFromFuncDef: ConcurrentDictionary<OlyILFunctionDefinitionHandle, IFunctionSymbol>
     }
 
@@ -676,7 +676,7 @@ type Imports =
         | true, ent -> 
             ent
         | _ ->
-            let ent: IEntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
+            let ent: EntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
             let asm =
                 match ent.ContainingAssembly with
                 | Some asm -> asm
@@ -1065,7 +1065,7 @@ let private importNamespace (namespaceEnv: NamespaceEnvironment) (path: string i
     if path.IsEmpty then failwith "Path cannot be empty."
     namespaceEnv.GetOrCreate(path)
 
-let private importEnclosing (cenv: cenv) (entToAdd: IEntitySymbol) tyParCount (ilEnclosing: OlyILEnclosing) =
+let private importEnclosing (cenv: cenv) (entToAdd: EntitySymbol) tyParCount (ilEnclosing: OlyILEnclosing) =
     match ilEnclosing with
     | OlyILEnclosing.Witness _ ->
         failwith "Witnesses are not allowed to be imported."
@@ -1083,7 +1083,7 @@ let private importEnclosing (cenv: cenv) (entToAdd: IEntitySymbol) tyParCount (i
             namespaceBuilder.AddEntity(entToAdd, tyParCount)
             EnclosingSymbol.Entity(namespaceBuilder.Entity)
 
-let private importFunctionFromDefinition (cenv: cenv) (enclosingEnt: IEntitySymbol) (ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
+let private importFunctionFromDefinition (cenv: cenv) (enclosingEnt: EntitySymbol) (ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
     let localCache = cenv.imports.GetLocalCache(cenv.ilAsm)
     match localCache.funcFromFuncDef.TryGetValue ilFuncDefHandle with
     | true, res -> res
@@ -1252,7 +1252,7 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: IEntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle) as this =
+type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: EntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle) as this =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1520,7 +1520,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
 type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) as this =
-    inherit IEntitySymbol()
+    inherit EntitySymbol()
 
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1694,12 +1694,12 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
     override _.ContainingAssembly = containingAsmOpt
     override _.Enclosing: EnclosingSymbol = lazyEnclosing.Value
-    override _.Entities: IEntitySymbol imarray = lazyEnts.Value
+    override _.Entities: EntitySymbol imarray = lazyEnts.Value
     override _.Fields: IFieldSymbol imarray = lazyFields.Value
     override _.Properties: IPropertySymbol imarray = lazyProps.Value
     override _.Patterns: IPatternSymbol imarray = lazyPats.Value
     override _.Flags: EntityFlags = entFlags
-    override this.Formal: IEntitySymbol = this :> IEntitySymbol
+    override this.Formal: EntitySymbol = this :> EntitySymbol
     override _.Functions: IFunctionSymbol imarray = lazyFuncs.Value
     override _.InstanceConstructors = lazyInstanceCtors.Value
     override _.Implements: TypeSymbol imarray = lazyImplements.Value
@@ -1712,19 +1712,19 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     override _.Attributes = lazyAttrs.Value
 
     static member Create(asm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
-        ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> IEntitySymbol
+        ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> EntitySymbol
 
 /// Not thread safe.
 [<Sealed>]
 type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
 
-    let entities: ConcurrentDictionary<QualifiedName, IEntitySymbol> = ConcurrentDictionary()
+    let entities: ConcurrentDictionary<QualifiedName, EntitySymbol> = ConcurrentDictionary()
 
     let currentAssemblies = ConcurrentDictionary()
     let ents = ResizeArray()
 
     member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
-    member val EntityCache: ConcurrentDictionary<int64, IEntitySymbol> = ConcurrentDictionary<int64, IEntitySymbol>()
+    member val EntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary<int64, EntitySymbol>()
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
@@ -1734,7 +1734,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                 namespaceBuilder.AddEntity(ent, ent.LogicalTypeParameterCount)
         )
 
-    member private this.HandleEntity(ent: IEntitySymbol) =
+    member private this.HandleEntity(ent: EntitySymbol) =
         if ent.IsNamespace then
             this.HandleNamespace(ent)
         else
@@ -1753,7 +1753,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
         sharedCache.AddAssembly(ilAsm)
         currentAssemblies.[ilAsm.Identity] <- ()
 
-    member this.ImportEntity(ent: IEntitySymbol) =
+    member this.ImportEntity(ent: EntitySymbol) =
         if ent.IsNamespace || ent.IsAnonymous then
             this.HandleEntity(ent)
         else
@@ -1768,14 +1768,14 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     member this.HasImportedAssembly(asmIdent: OlyILAssemblyIdentity) =
         currentAssemblies.ContainsKey(asmIdent)
 
-    member this.TryGetEntity(qualName, rent: outref<IEntitySymbol>): bool =
+    member this.TryGetEntity(qualName, rent: outref<EntitySymbol>): bool =
         entities.TryGetValue(qualName, &rent)
 
-    member this.AddEntity(qualName, rent: IEntitySymbol) =
+    member this.AddEntity(qualName, rent: EntitySymbol) =
         OlyAssert.False(rent.IsAnonymous)
         entities[qualName] <- rent
 
-    member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: IEntitySymbol) =
+    member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
         if ent.IsNamespace then
             ent.Entities
             |> ImArray.iter (fun ent ->

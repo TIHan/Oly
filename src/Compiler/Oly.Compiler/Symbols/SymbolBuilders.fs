@@ -18,7 +18,7 @@ type EntitySymbolBuilder private (
                                  extendsHole: Ref<imarray<TypeSymbol>>,
                                  implementsHole: Ref<imarray<TypeSymbol>>,
                                  runtimeTyOptHole: Ref<option<TypeSymbol>>,
-                                 entsHole: ResizeArray<IEntitySymbol>) =
+                                 entsHole: ResizeArray<EntitySymbol>) =
 
     let mutable bindings: (BindingInfoSymbol * bool) imarray = bindings
     let mutable ents: EntitySymbolBuilder imarray = ents
@@ -124,7 +124,7 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
-    member _.NamespaceAddEntity(entToAdd: IEntitySymbol) =
+    member _.NamespaceAddEntity(entToAdd: EntitySymbol) =
         if ent.IsNamespace then
             entsHole.Add(entToAdd)
         else
@@ -175,7 +175,7 @@ type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
 
     member _.EntityBuilder = entBuilder
 
-    member _.AddEntity(ent: IEntitySymbol, tyParCount: int32) =
+    member _.AddEntity(ent: EntitySymbol, tyParCount: int32) =
         // Prevent duplicates
         if set.ContainsKey(ent.Name, tyParCount) then ()
         else

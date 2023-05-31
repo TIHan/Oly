@@ -49,7 +49,7 @@ let rec deterministicEnclosingName (enclosing: EnclosingSymbol) =
     | EnclosingSymbol.Local ->
         failwith "Unexpected enclosing local."
 
-and deterministicEntityName (ent: IEntitySymbol) =
+and deterministicEntityName (ent: EntitySymbol) =
     let enclosingName = deterministicEnclosingName ent.Enclosing
     if ent.IsAnonymous then
         let tyNameArgs =
@@ -136,7 +136,7 @@ let emitTextRange cenv (syntaxNode: OlySyntaxNode) =
 [<RequireQualifiedAccess>]
 type LocalContext =
     | Namespace of string seq
-    | Entity of IEntitySymbol
+    | Entity of EntitySymbol
 
     member this.RealEntity =
         match this with
@@ -221,7 +221,7 @@ and GenString cenv (value: string) =
         cenv.cachedStrings.[value] <- handle
         handle
 
-and GenEntityAsILEntityReference (cenv: cenv) env (ent: IEntitySymbol) =
+and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
     OlyAssert.False(ent.IsAnonymous)
     let ent = ent.Formal
     match cenv.cachedEntRefs.TryGetValue ent.Id with
@@ -244,7 +244,7 @@ and GenEntityAsILEntityReference (cenv: cenv) env (ent: IEntitySymbol) =
         cenv.cachedEntRefs.[ent.Id] <- handle
         handle
 
-and GenEntityAsILEntityInstance cenv env (ent: IEntitySymbol) =
+and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
 #if DEBUG
     OlyAssert.Equal(ent.TypeParameters.Length, ent.TypeArguments.Length)
     OlyAssert.Equal(ent.LogicalTypeParameters.Length, ent.LogicalTypeArguments.Length)
@@ -262,7 +262,7 @@ and GenEntityAsILEntityInstance cenv env (ent: IEntitySymbol) =
     else
         OlyILEntityInstance(GenEntityAsILEntityReference cenv env ent, ilTyInst)
 
-and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: IEntitySymbol) =
+and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: EntitySymbol) =
 #if DEBUG
     OlyAssert.Equal(ent.TypeParameters.Length, ent.TypeArguments.Length)
     OlyAssert.Equal(ent.LogicalTypeParameters.Length, ent.LogicalTypeArguments.Length)
@@ -441,14 +441,14 @@ and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
     | TypeSymbol.Unit -> OlyILTypeVoid
     | ty -> emitILType cenv env ty
 
-and getAssemblyIdentity (ent: IEntitySymbol) =
+and getAssemblyIdentity (ent: EntitySymbol) =
     let asmIdentity =
         match ent.ContainingAssembly with
         | Some(asm) -> asm.Identity
         | _ -> failwith "Expected a containing assembly when emitting a entity reference."
     asmIdentity
 
-and emitILEnclosingNamespace cenv env asmIdentity (ent: IEntitySymbol) =
+and emitILEnclosingNamespace cenv env asmIdentity (ent: EntitySymbol) =
     OlyAssert.True(ent.IsNamespace)
     let rec loop (enclosing: EnclosingSymbol) acc =
             match enclosing with
@@ -460,7 +460,7 @@ and emitILEnclosingNamespace cenv env asmIdentity (ent: IEntitySymbol) =
 
     OlyILEnclosing.Namespace(loop ent.AsEnclosing [], asmIdentity)
 
-and emitILEnclosingEntityNoNamespace cenv env (ent: IEntitySymbol) =
+and emitILEnclosingEntityNoNamespace cenv env (ent: EntitySymbol) =
     OlyAssert.False(ent.IsNamespace)
     OlyILEnclosing.Entity(GenEntityAsILEntityInstance cenv env ent)
 
@@ -479,7 +479,7 @@ and emitILEnclosingForMember cenv env (func: IValueSymbol) =
     | EnclosingSymbol.Witness(concreteTy, tr) ->
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
-and emitILEnclosingForEntity cenv env (ent: IEntitySymbol) =
+and emitILEnclosingForEntity cenv env (ent: EntitySymbol) =
     match ent.Enclosing with
     | EnclosingSymbol.Entity(enclosingEnt) ->
         if enclosingEnt.IsNamespace then
@@ -915,7 +915,7 @@ and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.choose (GenAttribute cenv env)
 
-and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
+and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 #if DEBUG
     OlyAssert.True(ent.IsFormal)
     if ent.IsShape then
@@ -1133,7 +1133,7 @@ and GenEntityDefinitionNoCache cenv env (ent: IEntitySymbol) =
 
     ilEntDefHandleFixup
 
-and GenEntityAsILEntityDefinition cenv env (ent: IEntitySymbol) : OlyILEntityDefinitionHandle =
+and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefinitionHandle =
     OlyAssert.True(ent.IsFormal)
     match cenv.cachedEntDefs.TryGetValue ent.Id with
     | true, res -> res
@@ -1147,7 +1147,7 @@ and GenEntityAsILEntityDefinition cenv env (ent: IEntitySymbol) : OlyILEntityDef
         else
             ilEntDefHandleFixup
 
-and DoesILEntityDefinitionExists cenv (ent: IEntitySymbol) =
+and DoesILEntityDefinitionExists cenv (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
     cenv.cachedEntDefs.ContainsKey(ent.Id)
 
@@ -1197,7 +1197,7 @@ and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
     | _ ->
         failwith "Internal ILGen Error: Literal is invalid."
 
-and setLocalContext env (ent: IEntitySymbol) =
+and setLocalContext env (ent: EntitySymbol) =
     { env with context = LocalContext.Entity ent }
 
 and setLocalContextWithEnclosing env (enclosing: EnclosingSymbol) =

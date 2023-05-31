@@ -21,11 +21,11 @@ open System.Threading
 [<AutoOpen>]
 module private Helpers =
 
-    let findImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
+    let findImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
         filterFields queryMemberFlags valueFlags nameOpt ent.Fields
         |> filterValuesByAccessibility benv.ac queryMemberFlags
     
-    let findIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
+    let findIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
         let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
     
         let inheritedFields =
@@ -42,11 +42,11 @@ module private Helpers =
     
         Seq.append inheritedFields fields
     
-    let findImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
+    let findImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
         filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
         |> filterValuesByAccessibility benv.ac queryMemberFlags
     
-    let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: IEntitySymbol) =
+    let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
         let props = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
         
         let inheritedProps =
@@ -576,7 +576,7 @@ type BoundExpression with
         |> Seq.map (fun x -> x.Value |> snd)
         |> ImArray.ofSeq
 
-type IEntitySymbol with
+type EntitySymbol with
 
     member this.GetInstanceFields() =
         this.Fields

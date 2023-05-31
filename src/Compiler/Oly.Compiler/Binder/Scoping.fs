@@ -15,7 +15,7 @@ type OpenContent =
     | Entities
     | Values
 
-let scopeInInstanceConstructors (env: BinderEnvironment) (ent: IEntitySymbol) =
+let scopeInInstanceConstructors (env: BinderEnvironment) (ent: EntitySymbol) =
     let instanceCtors = ent.InstanceConstructors
     if instanceCtors.IsEmpty then
         env
@@ -24,7 +24,7 @@ let scopeInInstanceConstructors (env: BinderEnvironment) (ent: IEntitySymbol) =
     else
         env.SetUnqualifiedValue(FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length)) 
 
-let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: IEntitySymbol) =
+let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
         // REVIEW: This will not partially open namespaces. We should consider doing this as a feature.
         env
@@ -65,7 +65,7 @@ let scopeInEntityAndOverride env ent =
 let scopeInTypeParameter (env: BinderEnvironment) (tyPar: TypeParameterSymbol) =
     env.AddUnqualifiedType(tyPar.Name, tyPar.Arity, tyPar.AsType)
 
-let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: IEntitySymbol) =
+let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: EntitySymbol) =
     if openContent = OpenContent.None then env
     else
 
@@ -186,7 +186,7 @@ let addTypeParameter (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySynta
     else
         scopeInTypeParameter env tyPar, tyPar
 
-let addTypeParametersFromEntity (cenv: cenv) (env: BinderEnvironment) (syntaxTyPars: OlySyntaxType imarray) (ent: IEntitySymbol) =
+let addTypeParametersFromEntity (cenv: cenv) (env: BinderEnvironment) (syntaxTyPars: OlySyntaxType imarray) (ent: EntitySymbol) =
     if syntaxTyPars.IsEmpty then
         env
     else

@@ -88,7 +88,7 @@ type BinderEnvironment =
         this.benv.EnclosingTypeParameters
         |> ImArray.map (fun x -> x.AsType)
 
-    member this.SetIntrinsicType(ty: TypeSymbol, ent: IEntitySymbol) =
+    member this.SetIntrinsicType(ty: TypeSymbol, ent: EntitySymbol) =
         if ent.IsAlias then
             let env = 
                 { this with
@@ -124,7 +124,7 @@ type BinderEnvironment =
     member this.TryGetEntity(ty) =
         this.benv.TryGetEntity(ty)
 
-    member this.AddNamespace(ent: IEntitySymbol) =
+    member this.AddNamespace(ent: EntitySymbol) =
         if not ent.IsNamespace then
             failwith "Expected namespace."
 
@@ -357,7 +357,7 @@ type BinderEnvironment =
                     }
             }
 
-    member this.SetAccessorContext(ent: IEntitySymbol) =
+    member this.SetAccessorContext(ent: EntitySymbol) =
         if ent.IsNamespace then
             this
         else
@@ -376,7 +376,7 @@ type BinderEnvironment =
                     }
             }
 
-    member this.AddTypeExtension(tyExt: IEntitySymbol) =
+    member this.AddTypeExtension(tyExt: EntitySymbol) =
         if not tyExt.IsTypeExtension then
             failwith "Expected a type extension."
 
@@ -499,10 +499,10 @@ type BinderEnvironment =
         | _ ->
             false
 
-    member this.HasOpenedEntity(ent: IEntitySymbol) =
+    member this.HasOpenedEntity(ent: EntitySymbol) =
         this.benv.openedEnts.Contains(ent)
 
-    member this.AddOpenedEntity(ent: IEntitySymbol) =
+    member this.AddOpenedEntity(ent: EntitySymbol) =
         { this with
             benv = 
                 { this.benv with

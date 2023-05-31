@@ -40,7 +40,7 @@ let indentLines amount (str: string) =
 let dumpTypeSymbol (ty: TypeSymbol) =
     PrettyPrint.printType benvEmpty ty
 
-let dumpEntitySymbol (ent: IEntitySymbol) =
+let dumpEntitySymbol (ent: EntitySymbol) =
     if ent.IsLocal then
         ent.Name + "__" + ent.Formal.Id.ToString()
     else

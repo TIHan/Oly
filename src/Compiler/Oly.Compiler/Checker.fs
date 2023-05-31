@@ -95,7 +95,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
     generalizedTyPars
     |> ImmutableArray.CreateRange
 
-let checkAmbiguousFunctionsFromEntity env (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =
+let checkAmbiguousFunctionsFromEntity env (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
     let ambiguousFunctions: (IFunctionSymbol * IFunctionSymbol) seq =
         ent.Formal.Functions
         |> Seq.map (fun func ->
@@ -175,7 +175,7 @@ let private pushCheckStructCycleDictionary(dict: Dictionary<_, _>) =
     dict.Clear()
     checkStructCycleDictionaryPool.Push(dict)
 
-let rec private checkStructCycleInner (ent: IEntitySymbol) (hash: Dictionary<_, _>) =
+let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _>) =
     let formalId = ent.Formal.Id
     match hash.TryGetValue formalId with
     | true, result -> result
@@ -196,7 +196,7 @@ let rec private checkStructCycleInner (ent: IEntitySymbol) (hash: Dictionary<_, 
         hash.[formalId] <- result
         result
 
-let checkStructCycle env syntaxNode (ent: IEntitySymbol) =
+let checkStructCycle env syntaxNode (ent: EntitySymbol) =
     OlyAssert.True(ent.IsAnyStruct)
 
     let mutable hash = Unchecked.defaultof<_>
@@ -249,7 +249,7 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 
 // --------------------------------------------------------------------------------------------------
 
-let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: IEntitySymbol) =
+let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
     if ent.IsAnyStruct then
         checkStructCycle env syntaxNode ent
         |> ignore
@@ -406,7 +406,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
             env.diagnostics.Error(sprintf "The function '%s' is ambiguous." (printValue env.benv func), 0, syntaxNode)
     )
 
-and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =
+and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
 
     ent.Extends
     |> ImArray.iter (fun ty ->

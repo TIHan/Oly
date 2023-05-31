@@ -140,7 +140,7 @@ let private checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: Type
             ()
     )
 
-let checkEntityExport cenv env syntaxNode (ent: IEntitySymbol) =
+let checkEntityExport cenv env syntaxNode (ent: EntitySymbol) =
     if ent.IsExported && ent.IsImported then
         cenv.diagnostics.Error($"'{ent.Name}' cannot be imported and exported at the same time.", 10, syntaxNode)
     else

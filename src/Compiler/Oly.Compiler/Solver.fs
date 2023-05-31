@@ -95,7 +95,7 @@ and solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys
         else
             funcs |> Seq.head
 
-let private tryFindMostSpecificTypeForExtension benv (tyExt: IEntitySymbol) targetTy =            
+let private tryFindMostSpecificTypeForExtension benv (tyExt: EntitySymbol) targetTy =            
     tyExt.Implements
     |> filterMostSpecificTypes
     |> ImArray.filter (fun x ->

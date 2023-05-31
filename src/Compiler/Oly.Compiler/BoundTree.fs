@@ -775,7 +775,7 @@ type BoundRoot =
 [<Sealed>]
 type BoundDeclarationTable private (
     valueDecls: ImmutableDictionary<IValueSymbol, OlySourceLocation>, 
-    entDecls: ImmutableDictionary<IEntitySymbol, OlySourceLocation>, 
+    entDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>, 
     tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>) =
 
     member _.ValueDeclarations = valueDecls
@@ -990,7 +990,7 @@ type QueryMemberFlags =
 [<AutoOpen>]
 module EntitySymbolExtensions =
 
-    type IEntitySymbol with
+    type EntitySymbol with
 
         member this.ExtendsAndImplementsForMemberOverriding =
             if this.IsTypeExtension then
@@ -1104,7 +1104,7 @@ type QueryField =
     | Intrinsic
     | IntrinsicAndExtrinsic
 
-let canAccessEntity (ac: AccessorContext) (ent: IEntitySymbol) =
+let canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
     if ent.IsPublic then true
     elif ent.IsInternal then
         // TODO: There a way to make this a faster check?
@@ -1124,7 +1124,7 @@ let canAccessEntity (ac: AccessorContext) (ent: IEntitySymbol) =
         | _ -> 
             false
 
-let filterEntitiesByAccessibility ac (ents: IEntitySymbol seq) =
+let filterEntitiesByAccessibility ac (ents: EntitySymbol seq) =
     ents
     |> Seq.filter (canAccessEntity ac)
 
@@ -1176,12 +1176,12 @@ let filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags
         values
         |> Seq.filter (canAccessValue ac)
 
-let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: IEntitySymbol) =
+let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) =
     filterFunctions queryMemberFlags funcFlags nameOpt ent.Functions
     |> filterValuesByAccessibility benv.ac queryMemberFlags
 
 // Finds the most specific functions of an entity
-let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: IEntitySymbol) : IFunctionSymbol imarray =
+let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) : IFunctionSymbol imarray =
     let funcs = findImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent |> ImArray.ofSeq
 
     let overridenFuncs =

@@ -193,7 +193,7 @@ and printTypeDefinition benv ty =
 and printTypeHideHigherOrder benv ty =
     printTypeAux benv true ty
 
-and private printEntityAux (benv: BoundEnvironment) isDefinition (ent: IEntitySymbol) =
+and private printEntityAux (benv: BoundEnvironment) isDefinition (ent: EntitySymbol) =
     if ent.IsShape && ent.IsAnonymous then
         let props =
             ent.Properties 
@@ -255,7 +255,7 @@ and printEntity benv ent =
 and printEntityDefinition benv ent =
     printEntityAux benv true ent
 
-and private printEntityConstructorAux (benv: BoundEnvironment) (ent: IEntitySymbol) =
+and private printEntityConstructorAux (benv: BoundEnvironment) (ent: EntitySymbol) =
     ent.Name
 
 and printValueName (value: IValueSymbol) =

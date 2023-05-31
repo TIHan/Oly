@@ -138,7 +138,7 @@ and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElemen
                 analyzeType acenv aenv syntaxTupleElement tyArg
         )
 
-and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: IEntitySymbol) =   
+and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =   
             
     let isAccessible =
         if aenv.isMemberSig then
@@ -242,7 +242,7 @@ and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: Witnes
     | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()
 
-and checkEntity acenv aenv syntaxNode (ent: IEntitySymbol) =
+and checkEntity acenv aenv syntaxNode (ent: EntitySymbol) =
     match acenv.scopes.TryGetValue ent.Id with
     | true, scope ->
         ()

@@ -44,19 +44,19 @@ module SymbolComparers =
         }
 
     let EntitySymbolGeneralizedComparer() =
-        { new EqualityComparer<IEntitySymbol>() with
+        { new EqualityComparer<EntitySymbol>() with
             member _.GetHashCode(ent) = int ent.Formal.Id
             member _.Equals(ent1, ent2) = areGeneralizedEntitiesEqual ent1 ent2
         }
     
     let EntitySymbolComparer() =
-        { new EqualityComparer<IEntitySymbol>() with
+        { new EqualityComparer<EntitySymbol>() with
             member _.GetHashCode(ent) = int ent.Id
             member _.Equals(ent1, ent2) = ent1.Id = ent2.Id
         }
 
     let SimilarEntitySymbolComparer() =
-        { new EqualityComparer<IEntitySymbol>() with
+        { new EqualityComparer<EntitySymbol>() with
             member _.GetHashCode(ent) = ent.Name.GetHashCode()
             member _.Equals(ent1, ent2) = areEntitiesEqual ent1 ent2
         }
@@ -592,7 +592,7 @@ let areWitnessesEqual (witness1: WitnessSymbol) (witness2: WitnessSymbol) =
     | _ ->
         false
 
-let areEntitiesEqual (ent1: IEntitySymbol) (ent2: IEntitySymbol) =
+let areEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else
         ent1.Kind = ent2.Kind &&
@@ -630,7 +630,7 @@ let areNamespacesEqual (nmspace1: INamespaceSymbol) (nmspace2: INamespaceSymbol)
     else
         false
 
-let areGeneralizedEntitiesEqual (ent1: IEntitySymbol) (ent2: IEntitySymbol) =
+let areGeneralizedEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else
         ent1.Kind = ent2.Kind &&
@@ -784,7 +784,7 @@ type TypeSymbolMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
         TypeSymbolMap(map)
 
 [<Struct;NoComparison;NoEquality>]
-type EntitySymbolGeneralizedMap<'T> private (map: ImmutableDictionary<IEntitySymbol, 'T>) =
+type EntitySymbolGeneralizedMap<'T> private (map: ImmutableDictionary<EntitySymbol, 'T>) =
 
     member _.Add(key, value) =
         EntitySymbolGeneralizedMap(map.Add(key, value))
@@ -800,7 +800,7 @@ type EntitySymbolGeneralizedMap<'T> private (map: ImmutableDictionary<IEntitySym
     member _.ContainsKey(key) =
         map.ContainsKey(key)
 
-    member _.GetSimilar(tr: IEntitySymbol) =
+    member _.GetSimilar(tr: EntitySymbol) =
         map
         |> Seq.choose (fun pair ->
             if areGeneralizedEntitiesEqual tr pair.Key then
@@ -821,11 +821,11 @@ type EntitySymbolGeneralizedMap<'T> private (map: ImmutableDictionary<IEntitySym
     member _.Values = map.Values
    
     static member Create() =     
-        let map = ImmutableDictionary.Create<IEntitySymbol, 'T>(EntitySymbolGeneralizedComparer())
+        let map = ImmutableDictionary.Create<EntitySymbol, 'T>(EntitySymbolGeneralizedComparer())
         EntitySymbolGeneralizedMap(map)
 
 [<Struct;NoComparison;NoEquality>]
-type EntitySymbolSet private (set: ImmutableHashSet<IEntitySymbol>) =
+type EntitySymbolSet private (set: ImmutableHashSet<EntitySymbol>) =
 
     member _.Add(key) =
         EntitySymbolSet(set.Add(key))
@@ -838,7 +838,7 @@ type EntitySymbolSet private (set: ImmutableHashSet<IEntitySymbol>) =
     member _.Values = set :> _ seq
    
     static member Create(trs) =     
-        let set = ImmutableHashSet.CreateRange<IEntitySymbol>(EntitySymbolComparer(), trs)
+        let set = ImmutableHashSet.CreateRange<EntitySymbol>(EntitySymbolComparer(), trs)
         EntitySymbolSet(set)
 
 [<Struct;NoComparison;NoEquality>]
@@ -1189,7 +1189,7 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.IsExported
             | _ -> false
 
-type IEntitySymbol with
+type EntitySymbol with
 
     member this.IsAggregatedNamespace =
         this.IsNamespace &&
@@ -1392,7 +1392,7 @@ type IEntitySymbol with
         this.AllLogicallyInheritedAndImplementedFunctions
         |> Seq.append (this.Functions)
 
-let subsumesEntityWith rigidity (super: IEntitySymbol) (ent: IEntitySymbol) =
+let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
     if ent.Formal.Id = super.Formal.Id then
         if ent.TypeArguments.Length = super.TypeArguments.Length then
             (ent.TypeArguments, super.TypeArguments)
@@ -1426,7 +1426,7 @@ let subsumesEntityWith rigidity (super: IEntitySymbol) (ent: IEntitySymbol) =
                 false
         )
 
-let subsumesEntity (super: IEntitySymbol) (ent: IEntitySymbol) =
+let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
     subsumesEntityWith Rigid super ent
 
 let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
@@ -1859,7 +1859,7 @@ let private createLocalParameterBaseValue (name, ty) =
 let createLocalBridgeValue valueTy =
     createLocalGeneratedValue LocalBridgeName valueTy
 
-let createThisValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
+let createThisValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
     OlyAssert.False(ent.IsTypeConstructor)
 
     let ty =
@@ -1884,7 +1884,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
             ty
     createLocalParameterThisValue(name, ty, false)
 
-let createBaseValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
+let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
     let ty =
         let ty =
             if ent.IsTypeExtension then
@@ -1907,7 +1907,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: IEntitySymbol) =
             ty
     createLocalParameterBaseValue(name, ty)
 
-let createBaseInstanceConstructors name (ent: IEntitySymbol) =
+let createBaseInstanceConstructors name (ent: EntitySymbol) =
     ent.Functions
     |> ImArray.filter (fun x -> x.IsInstance && x.IsConstructor)
     |> ImArray.map (fun x ->
@@ -1939,7 +1939,7 @@ let createBaseInstanceConstructors name (ent: IEntitySymbol) =
         }
     )
 
-let createThisInstanceConstructors name (ent: IEntitySymbol) =
+let createThisInstanceConstructors name (ent: EntitySymbol) =
     ent.Functions
     |> ImArray.filter (fun x -> x.IsInstance && x.IsConstructor)
     |> ImArray.map (fun x ->
@@ -2148,7 +2148,7 @@ let invalidConstraint () =
     ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(invalidType()))
 
 let invalidEntityWithEnclosing enclosing =
-    { new IEntitySymbol() with
+    { new EntitySymbol() with
         member _.Enclosing = enclosing
         member _.Name = ""
         member _.ContainingAssembly = None
@@ -2192,9 +2192,9 @@ let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
         member _.Flags = EntityFlags.Invalid
     }
 
-let invalidateEntity (ent: IEntitySymbol) =
+let invalidateEntity (ent: EntitySymbol) =
     let id = newId()
-    { new IEntitySymbol() with
+    { new EntitySymbol() with
         member _.Enclosing = ent.Enclosing
         member _.Name = ent.Name
         member _.ContainingAssembly = ent.ContainingAssembly

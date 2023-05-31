@@ -165,9 +165,9 @@ type AssemblySymbol =
         | IL(identity) -> identity
 
 /// An entity is effectively equivalent to a named type.
-/// A namespace is also represented as an IEntitySymbol and can be promoted to a type in certain cases.
+/// A namespace is also represented as an EntitySymbol and can be promoted to a type in certain cases.
 [<AbstractClass>]
-type IEntitySymbol() =
+type EntitySymbol() =
     interface ISymbol
 
     member val Id: int64 = newId()
@@ -184,7 +184,7 @@ type IEntitySymbol() =
 
     abstract TypeArguments : ImmutableArray<TypeSymbol>
 
-    abstract Entities : IEntitySymbol imarray
+    abstract Entities : EntitySymbol imarray
 
     abstract Fields : IFieldSymbol imarray
 
@@ -202,15 +202,15 @@ type IEntitySymbol() =
 
     abstract RuntimeType : TypeSymbol option
 
-    abstract Formal : IEntitySymbol
+    abstract Formal : EntitySymbol
 
     abstract Attributes : AttributeSymbol imarray
 
     abstract Flags : EntityFlags
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<IEntitySymbol>) =
-    inherit IEntitySymbol()
+type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<EntitySymbol>) =
+    inherit EntitySymbol()
     
     let id = newId()
 
@@ -424,7 +424,7 @@ let applyEnclosing (tyArgs: TypeArgumentSymbol imarray) (enclosing: EnclosingSym
     | EnclosingSymbol.Witness(n, tr) ->
         EnclosingSymbol.Witness(n, applyEntity tyArgs tr.Formal)
 
-let actualEntities (tyArgs: TypeArgumentSymbol imarray) (ents: IEntitySymbol imarray) =
+let actualEntities (tyArgs: TypeArgumentSymbol imarray) (ents: EntitySymbol imarray) =
     ents
     |> ImArray.map (fun x ->
         let tyArgs2 = actualTypes tyArgs x.TypeArguments
@@ -442,7 +442,7 @@ let filterForTypeParameters (tys: TypeSymbol seq) =
         | _ -> None
     )
 
-let substituteEntity (tyArgs: TypeArgumentSymbol imarray) (ent: IEntitySymbol) =
+let substituteEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
     let tys =
         tyArgs
         |> filterForTypeParameters
@@ -463,8 +463,8 @@ let substituteTypes (tyArgs: TypeArgumentSymbol imarray) (tys: TypeSymbol imarra
     |> ImArray.map (substituteType tyArgs)
 
 [<Sealed;DebuggerDisplay("Applied({DebugName})")>]
-type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol) =
-    inherit IEntitySymbol()
+type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) =
+    inherit EntitySymbol()
 
     do
         if not ent.IsFormal then
@@ -584,7 +584,7 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
     override this.InstanceConstructors =
         match appliedInstanceCtors with
         | ValueNone ->
-            let funcs = (this :> IEntitySymbol).Functions
+            let funcs = (this :> EntitySymbol).Functions
             if funcs.IsEmpty then ImArray.empty
             else
                 let instanceCtors =
@@ -635,14 +635,14 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
     override _.Attributes = ent.Attributes
     override _.Flags = ent.Flags
 
-let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: IEntitySymbol) : IEntitySymbol =
+let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) : EntitySymbol =
     if not ent.IsFormal then
         failwith "Expected formal entity."
     if tyArgs.IsEmpty then ent
     elif tyArgs.Length <> ent.TypeParameters.Length then OlyAssert.Fail("Type arity should match type parameter count.")
     else AppliedEntitySymbol(tyArgs, ent)
 
-let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: IEntitySymbol) =
+let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
     let tyArgs2 = ent.Formal.TypeArguments |> ImArray.map (fun x -> actualType tyArgs x)
     applyEntity tyArgs2 ent.Formal
 
@@ -1162,7 +1162,7 @@ let tryActualValue (enclosing: EnclosingSymbol) (tys: IReadOnlyDictionary<int64,
         else
             failwith "Invalid value symbol."
 
-let tryActualEntity tys (ent: IEntitySymbol) =
+let tryActualEntity tys (ent: EntitySymbol) =
     let tyArgs2 = 
         ent.TypeArguments 
         |> ImArray.map (fun x -> tryActualType tys x)
@@ -1323,11 +1323,11 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
     | ConstraintSymbol.SubtypeOf(ty) ->
         ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
 
-type INamespaceSymbol = IEntitySymbol
+type INamespaceSymbol = EntitySymbol
 
 [<Sealed>]
 type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) =
-    inherit IEntitySymbol()
+    inherit EntitySymbol()
 
     let nestedEnts =
         lazy
@@ -1365,8 +1365,8 @@ type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) 
 
 [<RequireQualifiedAccess>]
 type EnclosingSymbol =
-    | Entity of IEntitySymbol
-    | Witness of concreteTy: TypeSymbol * ent: IEntitySymbol
+    | Entity of EntitySymbol
+    | Witness of concreteTy: TypeSymbol * ent: EntitySymbol
     | Local
     | RootNamespace
 
@@ -1530,7 +1530,7 @@ type EnclosingSymbol =
         | Entity(ent) -> ent.IsSealed
         | _ -> true
 
-    member this.TryEntity : IEntitySymbol option =
+    member this.TryEntity : EntitySymbol option =
         match this with
         | Entity(ent) -> ent |> Some
         | _ -> None
@@ -2697,12 +2697,12 @@ type TypeArgumentSymbol = TypeSymbol
 
 [<ReferenceEquality;NoComparison>]
 type WitnessSymbol =
-    | TypeExtension of tyExt: IEntitySymbol * specificAbstractFunc: IFunctionSymbol option
+    | TypeExtension of tyExt: EntitySymbol * specificAbstractFunc: IFunctionSymbol option
     | TypeParameter of tyPar: TypeParameterSymbol
     | Type of TypeSymbol
 
 [<Sealed>]
-type WitnessSolution (tyPar: TypeParameterSymbol, ent: IEntitySymbol, funcOpt: IFunctionSymbol option) =
+type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IFunctionSymbol option) =
 
 #if DEBUG
     do
@@ -2853,7 +2853,7 @@ type TypeSymbol =
     | NativePtr of elementTy: TypeSymbol
     | NativeFunctionPtr of OlyILCallingConvention * inputTy: TypeSymbol * returnTy: TypeSymbol
     | Array of elementTy: TypeSymbol * rank: int * kind: ArrayKind
-    | Entity of ent: IEntitySymbol
+    | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
     | Function of inputTy: TypeSymbol * returnTy: TypeSymbol
@@ -3291,17 +3291,17 @@ type TypeSymbol =
         | _ -> ImArray.empty
 
     // TODO: Rename this to TryEntityNoAlias.
-    member this.TryEntity: IEntitySymbol voption =
+    member this.TryEntity: EntitySymbol voption =
         match stripTypeEquations this with
         | Entity(ent) -> ValueSome(ent)
         | _ -> ValueNone
 
-    member this.AsEntity: IEntitySymbol =
+    member this.AsEntity: EntitySymbol =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
 
-    member this.AsEntityNoAlias: IEntitySymbol =
+    member this.AsEntityNoAlias: EntitySymbol =
         match stripTypeEquations this with
         | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
@@ -3757,8 +3757,8 @@ type TypeSymbol =
 
     interface ISymbol
 
-type IModuleSymbol = IEntitySymbol
-type INamespaceOrModuleSymbol = IEntitySymbol
+type IModuleSymbol = EntitySymbol
+type INamespaceOrModuleSymbol = EntitySymbol
 
 [<DebuggerDisplay("{Name}")>]
 type IAssembly =
@@ -4276,7 +4276,7 @@ module SymbolExtensions =
     [<AutoOpen>]
     module EntitySymbolExtensions =
     
-        type IEntitySymbol with
+        type EntitySymbol with
 
             member this.IsPublic =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Public
@@ -4601,7 +4601,7 @@ module OtherExtensions =
             | AttributeSymbol.Intrinsic("base_object") -> TypeSymbol.BaseObject |> ValueSome
             | _ -> ValueNone
 
-    type IEntitySymbol with
+    type EntitySymbol with
 
         member this.TryIntrinsicType =
             // TODO: Uncomment this.
@@ -4745,7 +4745,7 @@ module SymbolHelpers =
         member this.GetActual(enclosing, tyArgs) =
             actualFunction enclosing tyArgs this
 
-    type IEntitySymbol with
+    type EntitySymbol with
 
         member this.Substitute(tyParLookup: ReadOnlyDictionary<_, _>) =
             tryActualEntity tyParLookup this
@@ -4753,7 +4753,7 @@ module SymbolHelpers =
         member this.Substitute(tyArgs: TypeArgumentSymbol imarray) =
             substituteEntity tyArgs this
 
-        member this.Contains(ent: IEntitySymbol) =
+        member this.Contains(ent: EntitySymbol) =
             this.Entities
             |> ImArray.exists (fun x -> x.Id = ent.Id)
 

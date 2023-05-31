@@ -53,7 +53,7 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
         this :?> OlyConstantSymbol
 
 [<Sealed>][<DebuggerDisplay("{SignatureText}")>] 
-type OlyNamespaceSymbol internal (boundModel, benv, location, ent: IEntitySymbol) =
+type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol) =
     inherit OlySymbol(location)
 
     let mutable tys = ValueNone
@@ -824,7 +824,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
             benv.senv.namespaces.Values
             |> Seq.choose (fun group ->
                 match (group :> INamespaceSymbol).Enclosing with
-                | EnclosingSymbol.RootNamespace when (group :> IEntitySymbol).Name.Contains(containsText) ->
+                | EnclosingSymbol.RootNamespace when (group :> EntitySymbol).Name.Contains(containsText) ->
                     OlyNamespaceSymbol(boundModel, benv, syntax, group)
                     |> Some
                 | _ ->
@@ -1619,7 +1619,7 @@ type OlyBoundModel internal (
                         match syntaxBodyExpr with
                         | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, _) ->  
                             if ent.IsEnum then
-                                if (ent :> IEntitySymbol).RuntimeType.IsSome then
+                                if (ent :> EntitySymbol).RuntimeType.IsSome then
                                     let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
                                     let ty = ent.AsType
                                     let mutable i = 0
@@ -1869,7 +1869,7 @@ type OlyBoundModel internal (
             | _ ->
                 None
 
-    member internal _.TryFindDefinition(ent: IEntitySymbol, ct) : OlySourceLocation option =
+    member internal _.TryFindDefinition(ent: EntitySymbol, ct) : OlySourceLocation option =
         let declTable = getPartialDeclTable ct
         match declTable.EntityDeclarations.TryGetValue ent with
         | true, location ->
@@ -1903,7 +1903,7 @@ type OlyBoundModel internal (
 
     member internal this.TryFindDefinition(s: ISymbol, ct) : OlySourceLocation option =
         match s with
-        | :? IEntitySymbol as ent ->
+        | :? EntitySymbol as ent ->
             match ent.Formal with
             | :? Internal.CompilerImports.RetargetedEntitySymbol as ent ->
                 this.TryFindDefinition(ent.Original, ct)

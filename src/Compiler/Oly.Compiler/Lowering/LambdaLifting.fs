@@ -423,7 +423,7 @@ type cenv =
         this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_closure_" + string newId
 
-let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: ReadOnlyDictionary<_, _>) (fields: IFieldSymbol imarray) (closure: IEntitySymbol) =
+let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: ReadOnlyDictionary<_, _>) (fields: IFieldSymbol imarray) (closure: EntitySymbol) =
     Assert.ThrowIfNot(freeLocals.Length = fields.Length)
 
     let thisCtorPar = createThisValue "" true true (closure.ToInstantiation())
@@ -455,7 +455,7 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: Re
 
     ctor
 
-let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDictionary<_, _>) attrs (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: IEntitySymbol) =
+let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDictionary<_, _>) attrs (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: EntitySymbol) =
     let invokePars, invokeReturnTy =
         let invokePars =
             pars

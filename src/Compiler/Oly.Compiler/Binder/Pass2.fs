@@ -328,7 +328,7 @@ let private bindTopLevelValueDeclaration
 
     bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding
 
-let private canAddImplicitDefaultConstructor (ent: IEntitySymbol) =
+let private canAddImplicitDefaultConstructor (ent: EntitySymbol) =
     not ent.IsCompilerIntrinsic && 
     not ent.IsImported && 
     ((ent.IsClass || ent.IsStruct || ent.IsNewtype || ent.IsModule) && not ent.IsAlias)
@@ -414,7 +414,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         let ty = ent.AsType
 
         let mutable hasExplicitNonEnumCase = false
-        let mutable runtimeTyOpt = (ent :> IEntitySymbol).RuntimeType
+        let mutable runtimeTyOpt = (ent :> EntitySymbol).RuntimeType
         let mutable requireAllCasesAConstant = false
         let mutable autoIncrement = 0
         let fieldConstants =
