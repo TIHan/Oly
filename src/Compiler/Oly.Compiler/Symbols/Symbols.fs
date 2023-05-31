@@ -168,7 +168,8 @@ type AssemblySymbol =
 /// A namespace is also represented as an EntitySymbol and can be promoted to a type in certain cases.
 [<AbstractClass>]
 type EntitySymbol() =
-    interface ISymbol
+
+    let mutable isUnmanaged = ValueNone
 
     member val Id: int64 = newId()
 
@@ -207,6 +208,26 @@ type EntitySymbol() =
     abstract Attributes : AttributeSymbol imarray
 
     abstract Flags : EntityFlags
+
+    member this.IsUnmanaged =
+        match isUnmanaged with
+        | ValueSome(result) -> result
+        | _ ->
+            if this.IsStruct then
+                if this.Fields.IsEmpty then
+                    true
+                else
+                    let result =
+                        this.Fields
+                        |> ImArray.forall (fun x -> x.Type.IsUnmanaged)
+                    isUnmanaged <- ValueSome(result)
+                    result
+            else
+                isUnmanaged <- ValueSome(false)
+                false
+            
+
+    interface ISymbol
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
 type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<EntitySymbol>) =
@@ -3521,8 +3542,25 @@ type TypeSymbol =
         | _ -> false
 
     member this.IsUnmanaged =
-        // TODO: This doesn't actually check for unmanaged, but good enough for now. We will need to fix it.
-        this.IsAnyStruct
+        match stripTypeEquations this with
+        | Int8
+        | UInt8
+        | Int16
+        | UInt16
+        | Int32
+        | UInt32 
+        | Int64
+        | UInt64
+        | Float32 
+        | Float64 
+        | Bool
+        | Char16
+        | NativeInt
+        | NativeUInt
+        | NativePtr _
+        | NativeFunctionPtr _ -> true
+        | Entity(ent) -> ent.IsUnmanaged
+        | _ -> false
 
     member this.IsAnyStruct =
         match stripTypeEquations this with
