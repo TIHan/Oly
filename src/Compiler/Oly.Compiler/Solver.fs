@@ -291,7 +291,9 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             |> ImArray.iter (fun witness ->      
                 if witness.HasSolution then ()
                 else
-                    if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv FlexibleAndGeneralizable target mostSpecificTy then
+                    if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
+                        subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target mostSpecificTy
+                        |> ignore
                         let appliedTyExt = 
                             // Note: This is necessary to do!
                             if tyExt.IsFormal && not ty.IsFormal then

@@ -90,9 +90,6 @@ type TypeVariableRigidity =
 
     | NumberGeneralizable
 
-    /// TODO: Get rid of this, only used twice.
-    | FlexibleAndGeneralizable
-
 let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymbol) : bool =
     if obj.ReferenceEquals(ty1, ty2) then true
     else
@@ -135,7 +132,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.ObjectInferenceVariable _, TypeSymbol.ObjectInferenceVariable _ -> true
 
         | TypeSymbol.ObjectInferenceVariable(varSolution), ty 
-        | ty, TypeSymbol.ObjectInferenceVariable(varSolution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) ->
+        | ty, TypeSymbol.ObjectInferenceVariable(varSolution) when (rigidity = Flexible) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
                 tySolution.Solution <- TypeSymbol.BaseObject
@@ -168,7 +165,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
 
         | TypeSymbol.NumberInferenceVariable(varSolution1, defaultTy1, _), TypeSymbol.NumberInferenceVariable(varSolution2, defaultTy2, _) ->
             if UnifyTypes rigidity defaultTy1 defaultTy2 then
-                if (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) then
+                if (rigidity = Flexible) then
                     varSolution1.Solution <- defaultTy1
                     varSolution2.Solution <- defaultTy2
                 true
@@ -176,7 +173,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                 false
 
         | TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _), ty 
-        | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) ->
+        | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _) when (rigidity = Flexible) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
                 tySolution.Solution <- defaultTy
@@ -221,17 +218,17 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy defaultTy 
                     else
-                        rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable || rigidity = FlexibleAndGeneralizable
+                        rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
                 | TypeSymbol.Float32
                 | TypeSymbol.Float64 when defaultTy.IsReal || defaultTy.IsFixedInteger ->
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy defaultTy 
                     else
-                        rigidity = NumberGeneralizable || rigidity = Generalizable || rigidity = FlexibleAndGeneralizable
+                        rigidity = NumberGeneralizable || rigidity = Generalizable
                 | _ ->
                     false
             elif targetTy.IsTypeVariable then
-                rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable || rigidity = FlexibleAndGeneralizable
+                rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
             else
                 false
 
@@ -248,16 +245,16 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.InferenceVariable _, TypeSymbol.Variable _
         | TypeSymbol.InferenceVariable _, TypeSymbol.HigherVariable _
         | TypeSymbol.HigherInferenceVariable _, TypeSymbol.Variable _
-        | TypeSymbol.HigherInferenceVariable _, TypeSymbol.HigherVariable _ when (rigidity = Generalizable || rigidity = FlexibleAndGeneralizable) -> true
+        | TypeSymbol.HigherInferenceVariable _, TypeSymbol.HigherVariable _ when (rigidity = Generalizable) -> true
 
-        | TypeSymbol.Variable(tyPar1), TypeSymbol.Variable(tyPar2) when (rigidity <> Generalizable && rigidity <> FlexibleAndGeneralizable) -> 
+        | TypeSymbol.Variable(tyPar1), TypeSymbol.Variable(tyPar2) when (rigidity <> Generalizable) -> 
             match rigidity with
             | Indexable ->
                 TypeParameterSymbol.ReasonablyEquals(tyPar1, tyPar2)
             | _ ->
                 tyPar1.Id = tyPar2.Id
 
-        | TypeSymbol.HigherVariable(tyPar1, tyArgs1), TypeSymbol.HigherVariable(tyPar2, tyArgs2) when (rigidity <> Generalizable && rigidity <> FlexibleAndGeneralizable) && tyArgs1.Length = tyArgs2.Length ->
+        | TypeSymbol.HigherVariable(tyPar1, tyArgs1), TypeSymbol.HigherVariable(tyPar2, tyArgs2) when (rigidity <> Generalizable) && tyArgs1.Length = tyArgs2.Length ->
             (
                 match rigidity with
                 | Indexable ->
@@ -340,7 +337,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | _, TypeSymbol.Entity(ent) when ent.IsClosure ->
             UnifyTypes rigidity ty1 ent.TryClosureInvoke.Value.Type
 
-        | TypeSymbol.InferenceVariable(tyParOpt, solution), _ when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && not solution.HasSolution ->
+        | TypeSymbol.InferenceVariable(tyParOpt, solution), _ when (rigidity = Flexible) && not solution.HasSolution ->
             match tyParOpt with
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty2.Formal
@@ -348,7 +345,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                 solution.Solution <- ty2
             true
 
-        | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && not solution.HasSolution ->
+        | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible) && not solution.HasSolution ->
             match tyParOpt with
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty1.Formal
@@ -356,7 +353,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                 solution.Solution <- ty1
             true
 
-        | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), _ when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && (not solution.HasSolution) && tyArgs.Length = ty2.Arity ->
+        | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), _ when (rigidity = Flexible) && (not solution.HasSolution) && tyArgs.Length = ty2.Arity ->
             let result0 =
                 if externalSolution.HasSolution then
                     let ty1 = externalSolution.Solution
@@ -383,7 +380,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
             else
                 false
 
-        | _, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when (rigidity = Flexible || rigidity = FlexibleAndGeneralizable) && (not solution.HasSolution) && tyArgs.Length = ty1.Arity ->
+        | _, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when (rigidity = Flexible) && (not solution.HasSolution) && tyArgs.Length = ty1.Arity ->
             let result0 =
                 if externalSolution.HasSolution then
                     let ty2 = externalSolution.Solution
@@ -410,9 +407,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
             else
                 false
 
-        | TypeSymbol.Variable(tyPar1), TypeSymbol.HigherVariable(tyPar2, _) when (rigidity <> Generalizable && rigidity <> FlexibleAndGeneralizable) ->
+        | TypeSymbol.Variable(tyPar1), TypeSymbol.HigherVariable(tyPar2, _) when (rigidity <> Generalizable) ->
             tyPar1.Index = tyPar2.Index && tyPar1.Arity = tyPar2.Arity
-        | TypeSymbol.HigherVariable(tyPar1, _), TypeSymbol.Variable(tyPar2) when (rigidity <> Generalizable && rigidity <> FlexibleAndGeneralizable) ->
+        | TypeSymbol.HigherVariable(tyPar1, _), TypeSymbol.Variable(tyPar2) when (rigidity <> Generalizable) ->
             tyPar1.Index = tyPar2.Index && tyPar1.Arity = tyPar2.Arity
 
         // Error types will always succeed.
@@ -423,7 +420,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.HigherVariable _, _
         | _, TypeSymbol.Variable _
         | _, TypeSymbol.HigherVariable _ ->
-            (rigidity = Generalizable || rigidity = FlexibleAndGeneralizable)
+            (rigidity = Generalizable)
 
         | TypeSymbol.InferenceVariable(Some tyPar1, varSolution1), TypeSymbol.InferenceVariable(Some tyPar2, varSolution2) when (rigidity = Rigid) && not varSolution1.HasSolution && not varSolution2.HasSolution ->
             tyPar1.Index = tyPar2.Index
