@@ -211,8 +211,6 @@ type EntitySymbol() =
 [<Sealed;DebuggerDisplay("{DebugName}")>]
 type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<EntitySymbol>) =
     inherit EntitySymbol()
-    
-    let id = newId()
 
     // REVIEW: The first time this gets evaluated, we must already have the fields set.
     //         Could we make this less error prone? We haven't had a problem with it yet but it can be surprising.
