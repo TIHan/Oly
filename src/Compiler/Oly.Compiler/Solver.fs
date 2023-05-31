@@ -287,21 +287,32 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             let tyExt = tyExts[0]
             let mostSpecificTy = (tryFindMostSpecificTypeForExtension env.benv tyExt target).Value
 
-            witnessArgs
-            |> ImArray.iter (fun witness ->      
-                if witness.HasSolution then ()
-                else
-                    if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
-                        subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target mostSpecificTy
-                        |> ignore
-                        let appliedTyExt = 
-                            // Note: This is necessary to do!
-                            if tyExt.IsFormal && not ty.IsFormal then
-                                applyEntity ty.TypeArguments tyExt
-                            else
-                                tyExt
-                        witness.Solution <- Some(WitnessSymbol.TypeExtension(appliedTyExt, None))
-            )
+            let witnessCandidates =
+                witnessArgs
+                |> ImArray.choose (fun witness ->      
+                    if witness.HasSolution then None
+                    else
+                        if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
+                            Some witness
+                        else
+                            None
+                )
+
+            if witnessCandidates.Length = 1 then
+                let witness = witnessCandidates[0]
+                subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target mostSpecificTy
+                |> ignore
+                let appliedTyExt = 
+                    // Note: This is necessary to do!
+                    if tyExt.IsFormal && not ty.IsFormal then
+                        applyEntity ty.TypeArguments tyExt
+                    else
+                        tyExt
+                witness.Solution <- Some(WitnessSymbol.TypeExtension(appliedTyExt, None))
+            elif witnessCandidates.Length > 1 then
+                // TODO: Provide a test case that hits this diagnostic, is it possible?
+                env.diagnostics.Error($"Solving witnesses is too complex.", 10, syntaxNode)
+
             true
         else
             let names =
