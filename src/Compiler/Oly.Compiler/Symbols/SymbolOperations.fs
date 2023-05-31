@@ -2014,9 +2014,8 @@ let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFl
 
 let invalidModule () =
     let id = newId()
-    { new IModuleSymbol with
+    { new IModuleSymbol() with
         member _.Entities = ImArray.empty
-        member _.Id = id
         member _.Name = ""
         member _.Functions = ImArray.empty
         member _.InstanceConstructors = ImArray.empty
@@ -2149,9 +2148,8 @@ let invalidConstraint () =
     ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(invalidType()))
 
 let invalidEntityWithEnclosing enclosing =
-    { new IEntitySymbol with
+    { new IEntitySymbol() with
         member _.Enclosing = enclosing
-        member _.Id = -1L
         member _.Name = ""
         member _.ContainingAssembly = None
         member _.TypeParameters = enclosing.TypeParameters
@@ -2173,9 +2171,8 @@ let invalidEntityWithEnclosing enclosing =
 
 let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
     OlyAssert.True(enclosing.IsNamespace)
-    { new INamespaceSymbol with
+    { new INamespaceSymbol() with
         member _.Enclosing = enclosing
-        member _.Id = -1L
         member _.Name = ""
         member _.ContainingAssembly = None
         member _.TypeParameters = ImArray.empty
@@ -2197,9 +2194,8 @@ let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
 
 let invalidateEntity (ent: IEntitySymbol) =
     let id = newId()
-    { new IEntitySymbol with
+    { new IEntitySymbol() with
         member _.Enclosing = ent.Enclosing
-        member _.Id = id
         member _.Name = ent.Name
         member _.ContainingAssembly = ent.ContainingAssembly
         member _.TypeParameters = ent.TypeParameters

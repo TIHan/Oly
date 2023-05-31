@@ -270,7 +270,8 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
 
 [<Sealed;DebuggerDisplay("Retargeted({DebugName}) for {AssemblyNameThatImportedThis}")>]
 type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: IEntitySymbol) as this =
-    
+    inherit IEntitySymbol()
+
     let id = newId()
 
     let asEnclosing = (this :> IEntitySymbol).AsEnclosing
@@ -350,26 +351,24 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     member this.AssemblyNameThatImportedThis = currentAsmIdent.Name
     member this.DebugName = ent.Name
 
-    interface IEntitySymbol with
-        member this.Attributes = ent.Attributes
-        member this.ContainingAssembly = ent.ContainingAssembly
-        member this.Enclosing = enclosing
-        member this.Entities = lazyEntities.Value
-        member this.Extends = lazyExtends.Value
-        member this.RuntimeType = lazyRuntimeTyOpt.Value
-        member this.Fields = lazyFields.Value
-        member this.Flags = ent.Flags
-        member this.Formal = this
-        member this.Functions = lazyFunctions.Value
-        member this.Id = id
-        member this.Implements = lazyImplements.Value
-        member this.InstanceConstructors = lazyInstanceCtors.Value
-        member this.Kind = ent.Kind
-        member this.Name = ent.Name
-        member this.Patterns = lazyPats.Value
-        member this.Properties = lazyProps.Value
-        member this.TypeArguments = lazyTyArgs.Value
-        member this.TypeParameters = lazyTyPars.Value
+    override this.Attributes = ent.Attributes
+    override this.ContainingAssembly = ent.ContainingAssembly
+    override this.Enclosing = enclosing
+    override this.Entities = lazyEntities.Value
+    override this.Extends = lazyExtends.Value
+    override this.RuntimeType = lazyRuntimeTyOpt.Value
+    override this.Fields = lazyFields.Value
+    override this.Flags = ent.Flags
+    override this.Formal = this
+    override this.Functions = lazyFunctions.Value
+    override this.Implements = lazyImplements.Value
+    override this.InstanceConstructors = lazyInstanceCtors.Value
+    override this.Kind = ent.Kind
+    override this.Name = ent.Name
+    override this.Patterns = lazyPats.Value
+    override this.Properties = lazyProps.Value
+    override this.TypeArguments = lazyTyArgs.Value
+    override this.TypeParameters = lazyTyPars.Value
 
 let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (constr: ConstraintSymbol) =
     match constr with
@@ -1521,6 +1520,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
 type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) as this =
+    inherit IEntitySymbol()
 
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1692,45 +1692,24 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
     member _.DebugName = name
 
-    interface IEntitySymbol with
-
-        member _.ContainingAssembly = containingAsmOpt
-
-        member _.Enclosing: EnclosingSymbol = lazyEnclosing.Value
-
-        member _.Entities: IEntitySymbol imarray = lazyEnts.Value
-
-        member _.Fields: IFieldSymbol imarray = lazyFields.Value
-
-        member _.Properties: IPropertySymbol imarray = lazyProps.Value
-
-        member _.Patterns: IPatternSymbol imarray = lazyPats.Value
-
-        member _.Flags: EntityFlags = entFlags
-
-        member this.Formal: IEntitySymbol = this :> IEntitySymbol
-
-        member _.Functions: IFunctionSymbol imarray = lazyFuncs.Value
-
-        member _.InstanceConstructors = lazyInstanceCtors.Value
-
-        member _.Id: int64 = id
-
-        member _.Implements: TypeSymbol imarray = lazyImplements.Value
-
-        member this.Extends: TypeSymbol imarray = lazyExtends.Value
-
-        member _.RuntimeType: TypeSymbol option = lazyRuntimeTyOpt.Value
-
-        member _.Kind: EntityKind = kind
-
-        member _.Name: string = name
-
-        member _.TypeArguments: TypeSymbol imarray = lazyTyArgs.Value
-
-        member _.TypeParameters: TypeParameterSymbol imarray = lazyTyPars.Value
-
-        member _.Attributes = lazyAttrs.Value
+    override _.ContainingAssembly = containingAsmOpt
+    override _.Enclosing: EnclosingSymbol = lazyEnclosing.Value
+    override _.Entities: IEntitySymbol imarray = lazyEnts.Value
+    override _.Fields: IFieldSymbol imarray = lazyFields.Value
+    override _.Properties: IPropertySymbol imarray = lazyProps.Value
+    override _.Patterns: IPatternSymbol imarray = lazyPats.Value
+    override _.Flags: EntityFlags = entFlags
+    override this.Formal: IEntitySymbol = this :> IEntitySymbol
+    override _.Functions: IFunctionSymbol imarray = lazyFuncs.Value
+    override _.InstanceConstructors = lazyInstanceCtors.Value
+    override _.Implements: TypeSymbol imarray = lazyImplements.Value
+    override _.Extends: TypeSymbol imarray = lazyExtends.Value
+    override _.RuntimeType: TypeSymbol option = lazyRuntimeTyOpt.Value
+    override _.Kind: EntityKind = kind
+    override _.Name: string = name
+    override _.TypeArguments: TypeSymbol imarray = lazyTyArgs.Value
+    override _.TypeParameters: TypeParameterSymbol imarray = lazyTyPars.Value
+    override _.Attributes = lazyAttrs.Value
 
     static member Create(asm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> IEntitySymbol

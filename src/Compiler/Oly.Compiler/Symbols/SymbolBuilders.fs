@@ -6,7 +6,7 @@ open Oly.Compiler.Internal.Symbols
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
 type EntitySymbolBuilder private (
-                                 ent: EntitySymbol,
+                                 ent: EntityDefinitionSymbol,
                                  bindings: (BindingInfoSymbol * bool) imarray,
                                  ents: EntitySymbolBuilder imarray,
                                  attrsHole: Ref<imarray<AttributeSymbol>>,
@@ -27,7 +27,7 @@ type EntitySymbolBuilder private (
 
     member private _.DebugName = ent.Name
 
-    member _.Entity: EntitySymbol = ent
+    member _.Entity: EntityDefinitionSymbol = ent
     member _.Bindings : (BindingInfoSymbol * bool) imarray = bindings
     member _.NestedEntityBuilders : EntitySymbolBuilder imarray = ents
 
@@ -143,7 +143,7 @@ type EntitySymbolBuilder private (
         let entsHole = ResizeArray()
         let runtimeTyOptHole = ref None
 
-        let ent = EntitySymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
+        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
         EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
 
     static member CreateModule(containingAsmOpt, enclosing, flags, name) =

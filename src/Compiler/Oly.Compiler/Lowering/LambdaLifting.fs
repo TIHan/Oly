@@ -634,7 +634,7 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
 [<NoEquality;NoComparison>]
 type ClosureInfo =
     {
-        Entity: EntitySymbol
+        Entity: EntityDefinitionSymbol
         Constructor: FunctionSymbol
         Invoke: FunctionSymbol
         FreeLocals: IValueSymbol imarray

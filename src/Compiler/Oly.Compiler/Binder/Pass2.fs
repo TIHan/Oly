@@ -377,7 +377,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                     WellKnownFunction.None
                     None
                     false
-            entBuilder.SetFunctions(cenv.pass, ent.Functions.Add(ctor))
+            entBuilder.SetFunctions(cenv.pass, ent.FunctionDefinitions.Add(ctor))
 
     // Static
     let hasStaticCtor =
@@ -405,7 +405,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                 WellKnownFunction.None
                 None
                 false
-        entBuilder.SetFunctions(cenv.pass, ent.Functions.Add(ctor))
+        entBuilder.SetFunctions(cenv.pass, ent.FunctionDefinitions.Add(ctor))
 
 let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (syntaxCases: OlySyntaxTypeDeclarationCase imarray) =
     let ent = entBuilder.Entity

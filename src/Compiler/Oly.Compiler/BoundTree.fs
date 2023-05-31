@@ -291,7 +291,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | SetValue of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol * rhs: BoundExpression
     | SetContentsOfAddress of syntaxInfo: BoundSyntaxInfo * lhs: BoundExpression * rhs: BoundExpression
     | Literal of syntaxInfo: BoundSyntaxInfo * BoundLiteral
-    | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntitySymbol
+    | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntityDefinitionSymbol
     | GetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol
     | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression
     | GetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol
@@ -590,7 +590,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
         BoundExpression.CreateSequential(expr1, expr2, NormalSequential)
 
-    static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntitySymbol) =
+    static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntityDefinitionSymbol) =
         OlyAssert.True(ent.IsFormal)
         BoundExpression.EntityDefinition(syntaxInfo, bodyExpr, ent)
 

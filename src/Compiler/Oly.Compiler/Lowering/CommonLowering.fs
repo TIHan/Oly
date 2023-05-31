@@ -395,7 +395,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
         OlyAssert.True(ent.IsFormal)
 
         let implicitDefaultCtors = 
-            ent.Functions 
+            ent.FunctionDefinitions
             |> ImArray.filter (fun x -> x.FunctionFlags.HasFlag(FunctionFlags.ImplicitDefaultConstructor))
 
         OlyAssert.True(implicitDefaultCtors.Length <= 2)

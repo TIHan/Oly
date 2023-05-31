@@ -166,10 +166,11 @@ type AssemblySymbol =
 
 /// An entity is effectively equivalent to a named type.
 /// A namespace is also represented as an IEntitySymbol and can be promoted to a type in certain cases.
-type IEntitySymbol =
-    inherit ISymbol
+[<AbstractClass>]
+type IEntitySymbol() =
+    interface ISymbol
 
-    abstract Id : int64
+    member val Id: int64 = newId()
 
     abstract Kind : EntityKind
 
@@ -208,7 +209,8 @@ type IEntitySymbol =
     abstract Flags : EntityFlags
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<IEntitySymbol>) =
+type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<IEntitySymbol>) =
+    inherit IEntitySymbol()
     
     let id = newId()
 
@@ -233,55 +235,39 @@ type EntitySymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags
 
     member _.DebugName: string = name
 
-    member _.Id = id
-    member _.Name = name
-    member _.Attributes = attrs.contents
-    member _.Enclosing = enclosing
-    member _.TypeParameters = tyPars.contents
-    member _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
-    member _.Functions = funcs.contents
-    member _.Properties = props.contents
-    member _.Fields = fields.contents
-    member _.Patterns = pats.contents
-    member _.Implements = implements.contents
-    member _.Extends = extends.contents
-    member _.InstanceConstructors =
-        funcs.contents
-        |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
-
     // Mutability
     member _.ClearEntities(pass: CompilerPass) =
         if pass <> CompilerPass.Pass0 then
             OlyAssert.Fail($"ClearEntities - Invalid Pass {pass}")
         ents <- ImArray.empty
 
-    interface IEntitySymbol with
-        member _.Entities = 
-            if ents.Length <> entsHole.Count then
-                ents <- entsHole |> ImArray.ofSeq
-            ents
+    override _.Entities = 
+        if ents.Length <> entsHole.Count then
+            ents <- entsHole |> ImArray.ofSeq
+        ents
 
-        member _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
-        member _.InstanceConstructors =
-            funcs.contents
-            |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
-            |> ImArray.map (fun x -> x :> IFunctionSymbol)
-        member _.Enclosing = enclosing
-        member _.Id = id
-        member _.Name = name 
-        member _.Fields = fields.contents
-        member _.Properties = props.contents |> ImArray.map (fun x -> x :> IPropertySymbol)
-        member _.Patterns = pats.contents |> ImArray.map (fun x -> x :> IPatternSymbol)
-        member _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
-        member _.Implements = implements.contents
-        member _.Extends = extends.contents
-        member _.RuntimeType = runtimeTyOpt.contents
-        member _.TypeParameters = tyPars.contents
-        member _.Kind = kind
-        member _.ContainingAssembly = containingAsmOpt
-        member this.Formal = this
-        member _.Attributes = attrs.contents
-        member _.Flags = lazyFlags.Value
+    member _.FunctionDefinitions = funcs.contents
+
+    override _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
+    override _.InstanceConstructors =
+        funcs.contents
+        |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
+        |> ImArray.map (fun x -> x :> IFunctionSymbol)
+    override _.Enclosing = enclosing
+    override _.Name = name 
+    override _.Fields = fields.contents
+    override _.Properties = props.contents |> ImArray.map (fun x -> x :> IPropertySymbol)
+    override _.Patterns = pats.contents |> ImArray.map (fun x -> x :> IPatternSymbol)
+    override _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
+    override _.Implements = implements.contents
+    override _.Extends = extends.contents
+    override _.RuntimeType = runtimeTyOpt.contents
+    override _.TypeParameters = tyPars.contents
+    override _.Kind = kind
+    override _.ContainingAssembly = containingAsmOpt
+    override this.Formal = this
+    override _.Attributes = attrs.contents
+    override _.Flags = lazyFlags.Value
 
 let takeTypeArguments (tyArgs: ImmutableArray<TypeSymbol>) tyParCount =
     if tyArgs.IsEmpty then
@@ -478,6 +464,7 @@ let substituteTypes (tyArgs: TypeArgumentSymbol imarray) (tys: TypeSymbol imarra
 
 [<Sealed;DebuggerDisplay("Applied({DebugName})")>]
 type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol) =
+    inherit IEntitySymbol()
 
     do
         if not ent.IsFormal then
@@ -508,7 +495,6 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
     let mutable appliedPats = ValueNone
     [<VolatileField>]
     let mutable appliedRuntimeTyOpt = ValueNone
-    let id = newId ()
 
     let tyArgs = takeTypeArguments tyArgs ent.TypeParameters.Length
 
@@ -516,140 +502,138 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: IEntitySymbol)
 
     member _.DebugName = ent.Name
 
-    interface IEntitySymbol with
-        member this.Entities =
-            match appliedEntities with
-            | ValueNone ->
-                if ent.Entities.IsEmpty then ImArray.empty
-                else
-                    let tyArgs = tyArgs
-                    let ents =
-                        ent.Entities
-                        |> ImArray.map (fun x -> substituteEntity tyArgs x)
-                    appliedEntities <- ValueSome ents
-                    ents
-            | ValueSome ents ->
+    override this.Entities =
+        match appliedEntities with
+        | ValueNone ->
+            if ent.Entities.IsEmpty then ImArray.empty
+            else
+                let tyArgs = tyArgs
+                let ents =
+                    ent.Entities
+                    |> ImArray.map (fun x -> substituteEntity tyArgs x)
+                appliedEntities <- ValueSome ents
                 ents
-        member _.Enclosing = enclosing
-        member _.TypeParameters = ent.TypeParameters
-        member _.ContainingAssembly = ent.ContainingAssembly
-        member _.Id = id
+        | ValueSome ents ->
+            ents
+    override _.Enclosing = enclosing
+    override _.TypeParameters = ent.TypeParameters
+    override _.ContainingAssembly = ent.ContainingAssembly
 
-        member this.Fields =
-            match appliedFields with
-            | ValueNone ->
-                if ent.Fields.IsEmpty then ImArray.empty
-                else
-                    let fields = 
-                        let enclosing = this.AsEnclosing
-                        ent.Fields 
-                        |> ImArray.map (fun x -> actualField enclosing tyArgs x)
-                    appliedFields <- ValueSome fields
-                    fields
-            | ValueSome fields ->
+    override this.Fields =
+        match appliedFields with
+        | ValueNone ->
+            if ent.Fields.IsEmpty then ImArray.empty
+            else
+                let fields = 
+                    let enclosing = this.AsEnclosing
+                    ent.Fields 
+                    |> ImArray.map (fun x -> actualField enclosing tyArgs x)
+                appliedFields <- ValueSome fields
                 fields
+        | ValueSome fields ->
+            fields
 
-        member this.Properties =
-            match appliedProps with
-            | ValueNone ->
-                if ent.Properties.IsEmpty then ImArray.empty
-                else
-                    let props = 
-                        let enclosing = this.AsEnclosing
-                        ent.Properties
-                        |> ImArray.map (fun x -> actualProperty enclosing tyArgs x)
-                    appliedProps <- ValueSome props
-                    props
-            | ValueSome props ->
+    override this.Properties =
+        match appliedProps with
+        | ValueNone ->
+            if ent.Properties.IsEmpty then ImArray.empty
+            else
+                let props = 
+                    let enclosing = this.AsEnclosing
+                    ent.Properties
+                    |> ImArray.map (fun x -> actualProperty enclosing tyArgs x)
+                appliedProps <- ValueSome props
                 props
+        | ValueSome props ->
+            props
 
-        member this.Patterns =
-            match appliedPats with
-            | ValueNone ->
-                if ent.Properties.IsEmpty then ImArray.empty
-                else
-                    let pats = 
-                        let enclosing = this.AsEnclosing
-                        ent.Patterns
-                        |> ImArray.map (fun x -> actualPattern enclosing tyArgs x)
-                    appliedPats <- ValueSome pats
-                    pats
-            | ValueSome pats ->
+    override this.Patterns =
+        match appliedPats with
+        | ValueNone ->
+            if ent.Properties.IsEmpty then ImArray.empty
+            else
+                let pats = 
+                    let enclosing = this.AsEnclosing
+                    ent.Patterns
+                    |> ImArray.map (fun x -> actualPattern enclosing tyArgs x)
+                appliedPats <- ValueSome pats
                 pats
+        | ValueSome pats ->
+            pats
 
-        member this.Functions =
-            match appliedFuncs with
-            | ValueNone ->
-                if ent.Functions.IsEmpty then ImArray.empty
-                else
-                    let funcs = 
-                        let enclosing = EnclosingSymbol.Entity(this)
-                        ent.Functions
-                        |> ImArray.map (fun x -> 
-                            let tyArgs2 = 
-                                if x.IsConstructor then
-                                    enclosing.TypeArguments
-                                else
-                                    enclosing.TypeArguments.AddRange(x.TypeArguments)
-                            actualFunction enclosing tyArgs2 x)
-                    appliedFuncs <- ValueSome funcs
-                    funcs
-            | ValueSome(funcs) ->
+    override this.Functions =
+        match appliedFuncs with
+        | ValueNone ->
+            if ent.Functions.IsEmpty then ImArray.empty
+            else
+                let funcs = 
+                    let enclosing = EnclosingSymbol.Entity(this)
+                    ent.Functions
+                    |> ImArray.map (fun x -> 
+                        let tyArgs2 = 
+                            if x.IsConstructor then
+                                enclosing.TypeArguments
+                            else
+                                enclosing.TypeArguments.AddRange(x.TypeArguments)
+                        actualFunction enclosing tyArgs2 x)
+                appliedFuncs <- ValueSome funcs
                 funcs
+        | ValueSome(funcs) ->
+            funcs
 
-        member this.InstanceConstructors =
-            match appliedInstanceCtors with
-            | ValueNone ->
-                let funcs = (this :> IEntitySymbol).Functions
-                if funcs.IsEmpty then ImArray.empty
-                else
-                    let instanceCtors =
-                        funcs
-                        |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
-                    appliedInstanceCtors <- ValueSome instanceCtors
-                    instanceCtors
-            | ValueSome(instanceCtors) ->
+    override this.InstanceConstructors =
+        match appliedInstanceCtors with
+        | ValueNone ->
+            let funcs = (this :> IEntitySymbol).Functions
+            if funcs.IsEmpty then ImArray.empty
+            else
+                let instanceCtors =
+                    funcs
+                    |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
+                appliedInstanceCtors <- ValueSome instanceCtors
                 instanceCtors
+        | ValueSome(instanceCtors) ->
+            instanceCtors
 
-        member _.Implements = 
-            match appliedImplements with
-            | ValueNone ->
-                if ent.Implements.IsEmpty then ImArray.empty
-                else
-                    let implements = actualTypes tyArgs ent.Implements
-                    appliedImplements <- ValueSome implements
-                    implements
-            | ValueSome(implements) ->
+    override _.Implements = 
+        match appliedImplements with
+        | ValueNone ->
+            if ent.Implements.IsEmpty then ImArray.empty
+            else
+                let implements = actualTypes tyArgs ent.Implements
+                appliedImplements <- ValueSome implements
                 implements
+        | ValueSome(implements) ->
+            implements
 
-        member _.Extends =
-            match appliedExtends with
-            | ValueNone ->
-                if ent.Extends.IsEmpty then ImArray.empty
-                else
-                    let inherits = actualTypes tyArgs ent.Extends
-                    appliedExtends <- ValueSome inherits
-                    inherits
-            | ValueSome(inherits) ->
+    override _.Extends =
+        match appliedExtends with
+        | ValueNone ->
+            if ent.Extends.IsEmpty then ImArray.empty
+            else
+                let inherits = actualTypes tyArgs ent.Extends
+                appliedExtends <- ValueSome inherits
                 inherits
+        | ValueSome(inherits) ->
+            inherits
 
-        member _.RuntimeType =
-            match appliedRuntimeTyOpt with
-            | ValueNone ->
-                if ent.RuntimeType.IsNone then None
-                else
-                    let runtimeTyOpt = actualType tyArgs ent.RuntimeType.Value |> Some
-                    appliedRuntimeTyOpt <- ValueSome runtimeTyOpt
-                    runtimeTyOpt
-            | ValueSome(runtimeTyOpt) ->
+    override _.RuntimeType =
+        match appliedRuntimeTyOpt with
+        | ValueNone ->
+            if ent.RuntimeType.IsNone then None
+            else
+                let runtimeTyOpt = actualType tyArgs ent.RuntimeType.Value |> Some
+                appliedRuntimeTyOpt <- ValueSome runtimeTyOpt
                 runtimeTyOpt
+        | ValueSome(runtimeTyOpt) ->
+            runtimeTyOpt
 
-        member _.Name = ent.Name
-        member _.TypeArguments = tyArgs
-        member _.Kind = ent.Kind
-        member _.Formal = ent.Formal
-        member _.Attributes = ent.Attributes
-        member _.Flags = ent.Flags
+    override _.Name = ent.Name
+    override _.TypeArguments = tyArgs
+    override _.Kind = ent.Kind
+    override _.Formal = ent.Formal
+    override _.Attributes = ent.Attributes
+    override _.Flags = ent.Flags
 
 let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: IEntitySymbol) : IEntitySymbol =
     if not ent.IsFormal then
@@ -1343,8 +1327,7 @@ type INamespaceSymbol = IEntitySymbol
 
 [<Sealed>]
 type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) =
-
-    let id = newId()
+    inherit IEntitySymbol()
 
     let nestedEnts =
         lazy
@@ -1361,26 +1344,24 @@ type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) 
 
         AggregatedNamespaceSymbol(name, enclosing, ents.Add(ent))
 
-    interface INamespaceSymbol with
-        member this.Attributes = ImArray.empty
-        member this.ContainingAssembly = None
-        member this.Enclosing = enclosing
-        member this.Entities = nestedEnts.Value
-        member this.Extends = ImArray.empty
-        member this.Fields = ImArray.empty
-        member this.Flags = EntityFlags.None
-        member this.Formal = this
-        member this.Functions = ImArray.empty
-        member this.Id = id
-        member this.Implements = ImArray.empty
-        member this.Patterns = ImArray.empty
-        member this.InstanceConstructors = ImArray.empty
-        member this.Kind = EntityKind.Namespace
-        member this.Name = name
-        member this.Properties = ImArray.empty
-        member this.TypeArguments = ImArray.empty
-        member this.TypeParameters = ImArray.empty
-        member this.RuntimeType = None
+    override this.Attributes = ImArray.empty
+    override this.ContainingAssembly = None
+    override this.Enclosing = enclosing
+    override this.Entities = nestedEnts.Value
+    override this.Extends = ImArray.empty
+    override this.Fields = ImArray.empty
+    override this.Flags = EntityFlags.None
+    override this.Formal = this
+    override this.Functions = ImArray.empty
+    override this.Implements = ImArray.empty
+    override this.Patterns = ImArray.empty
+    override this.InstanceConstructors = ImArray.empty
+    override this.Kind = EntityKind.Namespace
+    override this.Name = name
+    override this.Properties = ImArray.empty
+    override this.TypeArguments = ImArray.empty
+    override this.TypeParameters = ImArray.empty
+    override this.RuntimeType = None
 
 [<RequireQualifiedAccess>]
 type EnclosingSymbol =

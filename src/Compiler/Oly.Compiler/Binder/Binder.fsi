@@ -14,7 +14,7 @@ open Oly.Metadata
 [<Sealed>]
 type BinderPass4 =
 
-    member Entity : EntitySymbol
+    member Entity : EntityDefinitionSymbol
 
     member PartialDeclarationTable : BoundDeclarationTable
 
@@ -42,7 +42,7 @@ type BinderPass2 =
 [<Sealed>]
 type BinderPass1 =
 
-    member Entity : EntitySymbol
+    member Entity : EntityDefinitionSymbol
 
     member Bind : CompilerImports * CancellationToken -> BinderPass2
 
