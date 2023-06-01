@@ -77,9 +77,9 @@ module Graphics =
         let mutable options = default: GraphicsDeviceOptions
         options.PreferStandardClipSpaceYDirection <- true
         options.PreferDepthRangeZeroToOne <- true
-#if DEBUG
-        options.Debug <- true
-#end   
+// #if DEBUG
+//         options.Debug <- true
+// #end   
 
         graphicsDevice <- VeldridStartup.CreateGraphicsDevice(window.window, options, GraphicsBackend.Vulkan)
         factory <- graphicsDevice.ResourceFactory

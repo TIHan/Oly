@@ -213,7 +213,7 @@ type EntitySymbol() =
         match isUnmanaged with
         | ValueSome(result) -> result
         | _ ->
-            if this.IsStruct then
+            if this.IsAnyStruct then
                 if this.Fields.IsEmpty then
                     true
                 else
