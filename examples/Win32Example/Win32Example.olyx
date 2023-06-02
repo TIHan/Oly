@@ -239,6 +239,8 @@ main(): () =
                 
                  GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
                  GpuCommand.DrawUI(uiNode);
+                 GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
+                // GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
               //  GpuCommand.NewFrame(frame);
                 GpuCommand.NewWindowFrame()
             ],

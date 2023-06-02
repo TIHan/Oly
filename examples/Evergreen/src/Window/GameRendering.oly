@@ -903,7 +903,7 @@ class Gpu =
 
                                 commandBuffer.BeginRenderPass(gpuFrame.VkRenderPass, currentFramebuffer, gpuFrame.VkExtent)
 
-                            | GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, indexCount) when (currentFramebuffer != VkFramebuffer.NULL) =>
+                            | GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, indexCount) =>
                                 this.Sync(gpuProgramReference)
                                 this.Sync(vertices)
                                 this.Sync(indices)
@@ -921,20 +921,21 @@ class Gpu =
                                 if (currentProgramReference !== gpuProgramReference)
                                     currentProgramReference <- gpuProgramReference
 
-                                    let pipelineLayout = gpuProgram.VkPipelineLayout
-                                    let descriptorSet = descriptorSets[frame]
-                                    commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, descriptorSet)
+                                    commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, gpuProgram.VkPipelineLayout, descriptorSets[frame])
                                     
                                 commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
                                 commandBuffer.BindIndexBuffer(indices.Buffers[frame])
                                 commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
-                            | GpuCommand.DrawUI(uiNode) when (currentFramebuffer != VkFramebuffer.NULL) =>
+                            | GpuCommand.DrawUI(uiNode) =>
+                                currentProgramReference <- unchecked default
+                                currentPipeline <- VkPipeline.NULL
+
                                 UI.NewFrame(this.imguiContext)
                                 UI.Show(this.imguiContext, uiNode)
                                 UI.ShowDemoWindow(this.imguiContext)
                                 UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
-
+                                
                             | _ =>
                                 ()
                     )
