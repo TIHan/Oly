@@ -868,8 +868,6 @@ class Gpu =
         if (this.swapChain === unchecked default)
             this.RecreateSwapChain()
 
-        UI.NewFrame(this.imguiContext)
-
         try
             Vk.Draw(this.vk, this.swapChain, 
                 (framebufferIndex, frame) -> 
@@ -932,6 +930,7 @@ class Gpu =
                                 commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
                             | GpuCommand.DrawUI(uiNode) when (currentFramebuffer != VkFramebuffer.NULL) =>
+                                UI.NewFrame(this.imguiContext)
                                 UI.Show(this.imguiContext, uiNode)
                                 UI.ShowDemoWindow(this.imguiContext)
                                 UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
