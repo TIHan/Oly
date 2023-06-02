@@ -218,7 +218,7 @@ main(): () =
     gpuProgramReference.AddGlobalInput(globals)
     gpuProgramReference.AddGlobalInput(image)
 
-    let gpuProgramReference2 = GpuProgramReference(gpuProgram)
+    let gpuProgramReference2 = GpuProgramReference(gpuProgram2)
     gpuProgramReference2.AddGlobalInput(globals)
     gpuProgramReference2.AddGlobalInput(frame)
 
@@ -236,9 +236,9 @@ main(): () =
     let gpuCommands = 
         Array.Add(
             [
-               // GpuCommand.NewFrame(frame);
-               // GpuCommand.DrawUI(uiNode);
-                //GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
+               GpuCommand.NewFrame(frame);
+                GpuCommand.DrawUI(uiNode);
+               // GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
               //  GpuCommand.NewFrame(frame);
                 GpuCommand.NewWindowFrame()
             ],
