@@ -200,23 +200,52 @@ main(): () =
 
     let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
     let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
-    let gpuProgram = GpuProgram()
+    let gpuProgram = GpuProgram(frame)
     gpuProgram.AddGlobalInput(GpuProgramInputKind.Array, GpuProgramStageFlags.Vertex)
     gpuProgram.AddGlobalInput(GpuProgramInputKind.Image, GpuProgramStageFlags.Fragment)
     gpuProgram.SetVertexInput<Vertex>()
     gpuProgram.VertexCode <- vertexShaderByteCode
     gpuProgram.FragmentCode <- fragmentShaderByteCode
 
-    let gpuProgramGlobalInputs = GpuProgramGlobalInputs(gpuProgram)
-    gpuProgramGlobalInputs.Add(globals)
-    gpuProgramGlobalInputs.Add(frame)
+    let gpuProgram2 = GpuProgram()
+    gpuProgram2.AddGlobalInput(GpuProgramInputKind.Array, GpuProgramStageFlags.Vertex)
+    gpuProgram2.AddGlobalInput(GpuProgramInputKind.Image, GpuProgramStageFlags.Fragment)
+    gpuProgram2.SetVertexInput<Vertex>()
+    gpuProgram2.VertexCode <- vertexShaderByteCode
+    gpuProgram2.FragmentCode <- fragmentShaderByteCode
+
+    let gpuProgramReference = GpuProgramReference(gpuProgram)
+    gpuProgramReference.AddGlobalInput(globals)
+    gpuProgramReference.AddGlobalInput(image)
+
+    let gpuProgramReference2 = GpuProgramReference(gpuProgram)
+    gpuProgramReference2.AddGlobalInput(globals)
+    gpuProgramReference2.AddGlobalInput(frame)
 
     let gpuCommands =
-        Array.Initialize(1000,
-            i -> GpuCommand.DrawIndexed(gpuProgramGlobalInputs, vertices, indices, quad.Indices.Length)
+        Array.Initialize(1,
+            i -> GpuCommand.DrawIndexed(gpuProgramReference2, vertices, indices, quad.Indices.Length)
         )
-    let gpuCommands = Array.Add(gpuCommands, GpuCommand.NewFrame(frame))
-    let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(uiNode))
+    // let gpuCommands = 
+    //     Array.Add(gpuCommands, 
+    //         [
+    //             GpuCommand.NewFrame(frame);
+    //             GpuCommand.DrawUI(uiNode)
+    //         ]
+    //     )
+    let gpuCommands = 
+        Array.Add(
+            [
+               // GpuCommand.NewFrame(frame);
+               // GpuCommand.DrawUI(uiNode);
+                //GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
+              //  GpuCommand.NewFrame(frame);
+                GpuCommand.NewWindowFrame()
+            ],
+            gpuCommands
+        )
+        
+   // let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(uiNode))
 
     let mutable pos = Vector3(2, 2, 2)
 
@@ -230,7 +259,7 @@ main(): () =
         if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
             let mutable result = globals.AsSpan()
             let mutable x = &result[0]
-            pos <- Vector3(2, 2, pos.Z + 0.01)
+          //  pos <- Vector3(2, 2, pos.Z + 0.01)
 
             x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
             gpuProgram.FragmentCode <- fragmentShaderByteCode

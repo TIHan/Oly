@@ -40,6 +40,8 @@ internal module Helpers =
         PtrPtrHandle(handles, gcHandle)
 
 alias VkExtent2D = TerraFX.Interop.Vulkan.VkExtent2D
+alias VkRect2D = TerraFX.Interop.Vulkan.VkRect2D
+alias VkViewport = TerraFX.Interop.Vulkan.VkViewport
 alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint
 alias VkImageLayout = TerraFX.Interop.Vulkan.VkImageLayout
 alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
@@ -276,15 +278,15 @@ newtype VulkanCommandBuffer =
         let mutable clearValue = default: VkClearValue
         let mutable clearColorValue = default: VkClearColorValue
 
-        let clearColorValue0 = &clearColorValue.float32.FixedElementField
+        let clearColorValue0 = &clearColorValue.float32
         let clearColorValue1 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(4))
         let clearColorValue2 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(8))
         let clearColorValue3 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
 
-        clearColorValue0 <- 0
-        clearColorValue1 <- 0
-        clearColorValue2 <- 0
-        clearColorValue3 <- 1
+        clearColorValue0.FixedElementField <- 0
+        clearColorValue1.FixedElementField <- 1
+        clearColorValue2.FixedElementField <- 0
+        clearColorValue3.FixedElementField <- 1
 
         clearValue.color <- clearColorValue
 
@@ -543,18 +545,21 @@ module Vk =
         vkDestroyPipelineLayout(app.Device, pipelineLayout, nullptr)
 
     CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPass =
-        createRenderPass(app.Device, swapChain.ImageFormat, swapChain.DepthFormat)
+        createRenderPass(app.Device, swapChain.ImageFormat, swapChain.DepthFormat, VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+
+    CreateRenderPass(app: VulkanApplication, imageFormat: VkFormat, depthImageFormat: VkFormat): VkRenderPass =
+        createRenderPass(app.Device, imageFormat, depthImageFormat, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 
     DestroyRenderPass(app: VulkanApplication, renderPass: VkRenderPass): () =
         vkDestroyRenderPass(app.Device, renderPass, nullptr)
 
-    CreateGraphicsPipeline(app: VulkanApplication, swapChain: VulkanSwapChain, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, cullMode: VkCullModeFlags, frontFace: VkFrontFace, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule): VkPipeline =
+    CreateGraphicsPipeline(app: VulkanApplication, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, cullMode: VkCullModeFlags, frontFace: VkFrontFace, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule, extent: VkExtent2D, viewport: byref<VkViewport>, scissor: byref<VkRect2D>): VkPipeline =
         let stages =
             [|
                 createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
                 createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
             |]
-        createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, cullMode, frontFace, vertexBindingDescriptions, vertexAttributeDescriptions, swapChain.Extent)
+        createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, cullMode, frontFace, vertexBindingDescriptions, vertexAttributeDescriptions, extent, &viewport, &scissor)
 
     DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
         vkDestroyPipeline(app.Device, pipeline, nullptr)
@@ -1457,7 +1462,9 @@ module Vk =
             frontFace: VkFrontFace,
             vertexBindingDescriptions: VkVertexInputBindingDescription[],
             vertexAttributeDescriptions: VkVertexInputAttributeDescription[], 
-            swapChainExtent: VkExtent2D): VkPipeline =
+            extent: VkExtent2D,
+            outViewport: byref<VkViewport>,
+            outScissor: byref<VkRect2D>): VkPipeline =
         let dynamicStates =
             [
                 VkDynamicState.VK_DYNAMIC_STATE_VIEWPORT;
@@ -1489,14 +1496,14 @@ module Vk =
         let mutable viewport = default: VkViewport
         viewport.x <- 0
         viewport.y <- 0
-        viewport.width <- float32(swapChainExtent.width)
-        viewport.height <- float32(swapChainExtent.height)
+        viewport.width <- float32(extent.width)
+        viewport.height <- float32(extent.height)
         viewport.minDepth <- 0
         viewport.maxDepth <- 1
 
         let mutable scissor = default: VkRect2D
         scissor.offset <- default
-        scissor.extent <- swapChainExtent
+        scissor.extent <- extent
 
         let mutable viewportState = default: VkPipelineViewportStateCreateInfo
         viewportState.sType <- VkStructureType.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
@@ -1603,10 +1610,13 @@ module Vk =
         stagesHandle.Free()
         pNameHandle.Free()
         dynamicStatesHandle.Free()
+
+        outViewport <- viewport
+        outScissor <- scissor
         
         graphicsPipeline
 
-    private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat, depthFormat: VkFormat): VkRenderPass =
+    private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat, depthFormat: VkFormat, finalLayout: VkImageLayout): VkRenderPass =
         let mutable colorAttachment = default: VkAttachmentDescription
         colorAttachment.format <- swapChainImageFormat
         colorAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
@@ -1615,7 +1625,7 @@ module Vk =
         colorAttachment.stencilLoadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_DONT_CARE
         colorAttachment.stencilStoreOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE
         colorAttachment.initialLayout <- VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
-        colorAttachment.finalLayout <- VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        colorAttachment.finalLayout <- finalLayout
 
         let mutable colorAttachmentRef = default: VkAttachmentReference
         colorAttachmentRef.attachment <- 0
@@ -2118,8 +2128,7 @@ module Vk =
             destinationStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
 
         | _ =>
-            ()
-            //fail("Invalid image layout transition.")
+            fail("Invalid image layout transition.")
 
         vkCmdPipelineBarrier(
             commandBuffer,

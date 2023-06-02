@@ -834,6 +834,24 @@ module Array =
         newArr[arr.Length] <- item
         Unsafe.AsImmutable(newArr)
 
+    Add<T>(arr: T[], items: T[]): T[] =
+        if (items.Length == 0)
+            arr
+        else
+            let newArr = ZeroCreate<T>(arr.Length + items.Length)
+
+            let mutable i = 0
+            while (i < arr.Length)
+                newArr[i] <- arr[i]
+                i <- i + 1
+
+            let mutable j = 0
+            while (j < items.Length)
+                newArr[i + j] <- items[j]
+                j <- j + 1
+
+            Unsafe.AsImmutable(newArr)
+
     Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
         let newArr = ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0
