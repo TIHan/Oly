@@ -196,7 +196,6 @@ main(): () =
     let image = GpuImage("GameExample/Textures/flats/aqf068.png")
 
     let frame = GpuFrame()
-    r.Gpu.Sync(frame)
 
     let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
     let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
@@ -237,8 +236,9 @@ main(): () =
         Array.Add(
             [
                GpuCommand.NewFrame(frame);
-                GpuCommand.DrawUI(uiNode);
-               // GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
+                
+                 GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, quad.Indices.Length);
+                 GpuCommand.DrawUI(uiNode);
               //  GpuCommand.NewFrame(frame);
                 GpuCommand.NewWindowFrame()
             ],

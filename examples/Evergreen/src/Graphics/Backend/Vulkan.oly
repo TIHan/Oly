@@ -284,7 +284,7 @@ newtype VulkanCommandBuffer =
         let clearColorValue3 = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&clearColorValue0, nuint(12))
 
         clearColorValue0.FixedElementField <- 0
-        clearColorValue1.FixedElementField <- 1
+        clearColorValue1.FixedElementField <- 0
         clearColorValue2.FixedElementField <- 0
         clearColorValue3.FixedElementField <- 1
 
