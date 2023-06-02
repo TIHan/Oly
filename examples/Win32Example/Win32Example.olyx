@@ -168,9 +168,9 @@ createUI(): UINode =
 
 main(): () =
     let options = GameRenderingOptions()
-    let game = GameRendering.Create(options)
+    let r = GameRendering.Create(options)
     let uiNode = createUI()
-    game.Gpu.Draw([])
+    r.Gpu.Execute([])
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,
@@ -195,6 +195,9 @@ main(): () =
 
     let image = GpuImage("GameExample/Textures/flats/aqf068.png")
 
+    let frame = GpuFrame()
+    r.Gpu.Sync(frame)
+
     let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
     let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
     let gpuProgram = GpuProgram()
@@ -206,30 +209,31 @@ main(): () =
 
     let gpuProgramGlobalInputs = GpuProgramGlobalInputs(gpuProgram)
     gpuProgramGlobalInputs.Add(globals)
-    gpuProgramGlobalInputs.Add(image)
+    gpuProgramGlobalInputs.Add(frame)
 
     let gpuCommands =
         Array.Initialize(1000,
             i -> GpuCommand.DrawIndexed(gpuProgramGlobalInputs, vertices, indices, quad.Indices.Length)
         )
+    let gpuCommands = Array.Add(gpuCommands, GpuCommand.NewFrame(frame))
     let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(uiNode))
 
     let mutable pos = Vector3(2, 2, 2)
 
-    game.Window.Show()
-    while (!game.Window.IsClosed)
-        let inputSnapshot = game.Window.PumpEvents()
+    r.Window.Show()
+    while (!r.Window.IsClosed)
+        let inputSnapshot = r.Window.PumpEvents()
 
         // TODO
 
-        let size = game.Window.Size
-        if (!game.Window.IsClosed && !game.Window.IsHidden && size.X != 0 && size.Y != 0)
+        let size = r.Window.Size
+        if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
             let mutable result = globals.AsSpan()
             let mutable x = &result[0]
             pos <- Vector3(2, 2, pos.Z + 0.01)
 
             x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
             gpuProgram.FragmentCode <- fragmentShaderByteCode
-            game.Gpu.Draw(gpuCommands)
+            r.Gpu.Execute(gpuCommands)
 
-    game.Dispose()
+    r.Dispose()

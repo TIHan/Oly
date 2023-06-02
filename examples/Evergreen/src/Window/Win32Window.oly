@@ -234,7 +234,7 @@ internal class Win32Window =
                 hwnd = hwnd
                 hinstance = hinstance
                 isDisposed = false
-                isClosed = false
+                isClosed = true
             }
         | _ =>
             // TODO: Fix language to handle this kind of exhaustiveness

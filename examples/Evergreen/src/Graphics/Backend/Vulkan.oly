@@ -39,6 +39,7 @@ internal module Helpers =
         let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
         PtrPtrHandle(handles, gcHandle)
 
+alias VkExtent2D = TerraFX.Interop.Vulkan.VkExtent2D
 alias VkPipelineBindPoint = TerraFX.Interop.Vulkan.VkPipelineBindPoint
 alias VkImageLayout = TerraFX.Interop.Vulkan.VkImageLayout
 alias VkBufferUsageFlags = TerraFX.Interop.Vulkan.VkBufferUsageFlags
@@ -51,6 +52,7 @@ alias VkDescriptorPool = TerraFX.Interop.Vulkan.VkDescriptorPool
 alias VkCullModeFlags = TerraFX.Interop.Vulkan.VkCullModeFlags
 alias VkFrontFace = TerraFX.Interop.Vulkan.VkFrontFace
 alias VkFormat = TerraFX.Interop.Vulkan.VkFormat
+alias VkImageUsageFlags = TerraFX.Interop.Vulkan.VkImageUsageFlags
 alias VkImageAspectFlags = TerraFX.Interop.Vulkan.VkImageAspectFlags
 alias VkFramebuffer = TerraFX.Interop.Vulkan.VkFramebuffer
 alias VkPipeline = TerraFX.Interop.Vulkan.VkPipeline
@@ -562,6 +564,9 @@ module Vk =
             (i, x) -> createFramebuffer(app.Device, renderPass, x, swapChain.DepthImageViews[i], swapChain.Extent.width, swapChain.Extent.height)
         )
 
+    CreateFramebuffer(app: VulkanApplication, renderPass: VkRenderPass, imageView: VkImageView, depthImageView: VkImageView, width: uint32, height: uint32): VkFramebuffer =
+        createFramebuffer(app.Device, renderPass, imageView, depthImageView, width, height)
+
     DestroyFramebuffer(app: VulkanApplication, framebuffer: VkFramebuffer): () =
         vkDestroyFramebuffer(app.Device, framebuffer, nullptr)
 
@@ -705,7 +710,91 @@ module Vk =
             fail("Should not happen")
 
     CreateImage(app: VulkanApplication, width: uint32, height: uint32, imageFormat: VkFormat): VulkanImage =
-        CreateImage(app, width, height, imageFormat, default: VkImageUsageFlags)
+        CreateImage(app, width, height, imageFormat, default)
+
+    TransitionImageLayout(app: VulkanApplication, image: VkImage, width: uint32, height: uint32, format: VkFormat, targetLayout: VkImageLayout): () =
+        let size = uint64(width) * uint64(height) * 4
+        let mutable allocationInfo = default
+        let stagingBuffer = 
+            createBuffer(
+                app.Allocator, 
+                size, 
+                VkBufferUsageFlags.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                &&allocationInfo
+            )
+        match (stagingBuffer)
+        | (stagingBuffer, stagingAllocation) =>
+            let mutable imageCopy = default: VkBufferImageCopy
+            imageCopy.bufferOffset <- 0
+            imageCopy.bufferRowLength <- 0
+            imageCopy.bufferImageHeight <- 0
+
+            if (targetLayout == VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                imageCopy.imageSubresource.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
+            else
+                imageCopy.imageSubresource.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT
+            imageCopy.imageSubresource.mipLevel <- 0
+            imageCopy.imageSubresource.baseArrayLayer <- 0
+            imageCopy.imageSubresource.layerCount <- 1
+
+            imageCopy.imageOffset <- default // {0, 0, 0}
+            imageCopy.imageExtent <-
+                let mutable extent = default: VkExtent3D
+                extent.width <- width
+                extent.height <- height
+                extent.depth <- 1
+                extent
+
+            let mutable commandBuffer = createCommandBuffer(app.Device, app.TransferCommandPool)
+
+            let mutable beginInfo = default: VkCommandBufferBeginInfo
+            beginInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+            beginInfo.flags <- default // Optional
+            beginInfo.pInheritanceInfo <- nullptr // Optional
+
+            if (vkBeginCommandBuffer(commandBuffer, &&beginInfo) != VkResult.VK_SUCCESS)
+                fail("Failed to begin command buffer.")
+
+            let oldLayout = VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED
+            let newLayout = 
+                if (targetLayout == VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                else
+                    VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+
+            transitionImageLayout(commandBuffer, image, format, oldLayout, newLayout)
+
+            if (targetLayout != VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                vkCmdCopyBufferToImage(
+                    commandBuffer,
+                    stagingBuffer,
+                    image,
+                    newLayout,
+                    1,
+                    &&imageCopy
+                )
+                transitionImageLayout(commandBuffer, image, format, newLayout, targetLayout)
+
+            if (vkEndCommandBuffer(commandBuffer) != VkResult.VK_SUCCESS)
+                fail("Failed to end command buffer.")
+
+            let mutable submitInfo = default: VkSubmitInfo
+            submitInfo.sType <- VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO
+            submitInfo.commandBufferCount <- 1
+            submitInfo.pCommandBuffers <- &&commandBuffer
+
+            if (vkQueueSubmit(app.TransferQueue, 1, &&submitInfo, default) != VkResult.VK_SUCCESS)
+                fail("Failed to submit queue.")
+
+            if (vkDeviceWaitIdle(app.Device) != VkResult.VK_SUCCESS)
+                fail("Failed to wait idle on device.")
+
+            vkFreeCommandBuffers(app.Device, app.TransferCommandPool, 1, &&commandBuffer)
+
+            vmaDestroyBuffer(app.Allocator, stagingBuffer, stagingAllocation)
+        | _ =>
+            fail("Failed to create staging buffer.")
 
     UpdateImage(app: VulkanApplication, image: VulkanImage, mutable imageData: ReadOnlySpan<byte>): () =
         let mutable memPropFlags = default: VkMemoryPropertyFlags
@@ -828,6 +917,14 @@ module Vk =
 
     UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, imageLayout: VkImageLayout, imageView: VkImageView, sampler: VkSampler, descriptorType: VkDescriptorType): () =
         updateDescriptorSet(app.Device, binding, descriptorSet, imageLayout, imageView, sampler, descriptorType)
+
+    GetDepthFormat(app: VulkanApplication): VkFormat =
+        findSupportedFormat(
+            app.PhysicalDevice,
+            [VkFormat.VK_FORMAT_D32_SFLOAT;VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT;VkFormat.VK_FORMAT_D24_UNORM_S8_UINT],
+            VkImageTiling.VK_IMAGE_TILING_OPTIMAL,
+            VkFormatFeatureFlags.VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        )
     
     Draw(app: VulkanApplication, swapChain: VulkanSwapChain, acquireCommandBuffer: (framebufferIndex: int32, frame: int32) -> VulkanCommandBuffer): () =
         let currentFrame = app.currentFrame
@@ -1261,13 +1358,7 @@ module Vk =
         let images = getSwapChainImages(device, swapChain)
         let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT))
 
-        let depthFormat =
-            findSupportedFormat(
-                physicalDevice,
-                [VkFormat.VK_FORMAT_D32_SFLOAT;VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT;VkFormat.VK_FORMAT_D24_UNORM_S8_UINT],
-                VkImageTiling.VK_IMAGE_TILING_OPTIMAL,
-                VkFormatFeatureFlags.VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-            )
+        let depthFormat = GetDepthFormat(app)
 
         let depthImages = 
             Array.Initialize(images.Length, 
@@ -2004,15 +2095,18 @@ module Vk =
         let mutable sourceStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
         let mutable destinationStage = VkPipelineStageFlags.VK_PIPELINE_STAGE_TRANSFER_BIT
 
+        if (newLayout == VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            barrier.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
+        
+            if (hasStencilComponent(format))
+                barrier.subresourceRange.aspectMask <- barrier.subresourceRange.aspectMask | VkImageAspectFlags.VK_IMAGE_ASPECT_STENCIL_BIT
+        else
+            barrier.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT
+
         match (oldLayout, newLayout)
         | VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => ()
 
         | VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL =>
-            barrier.subresourceRange.aspectMask <- VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
-
-            if (hasStencilComponent(format))
-                barrier.subresourceRange.aspectMask <- barrier.subresourceRange.aspectMask | VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT
-
             barrier.dstAccessMask <- VkAccessFlags.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VkAccessFlags.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
             sourceStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
             destinationStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
@@ -2024,7 +2118,8 @@ module Vk =
             destinationStage <- VkPipelineStageFlags.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
 
         | _ =>
-            fail("Invalid image layout transition.")
+            ()
+            //fail("Invalid image layout transition.")
 
         vkCmdPipelineBarrier(
             commandBuffer,
