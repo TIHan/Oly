@@ -7891,3 +7891,130 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons``() =
+    let src =
+        """
+main(): () =
+    let xs = 
+        [
+            1
+            2
+        ]
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons 2``() =
+    let src =
+        """
+main(): () =
+    let xs = 
+        [
+            [1; 2]
+            [3; 4]
+        ]
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons 3``() =
+    let src =
+        """
+main(): () =
+    let xs = 
+        [
+            (
+                let xs = [1; 2]
+                xs
+            )
+            [3; 4]
+        ]
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons 4``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let xs = 
+        [
+            1 + 2
+            3
+        ]
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons should fail``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let xs = 
+        [
+            let x = 1
+            3
+        ]
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Declaration not valid in this context.",
+            """
+            let x = 1
+            ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Array expression without semi-colons should fail 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let xs = 
+        [
+            class C1
+            3
+        ]
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Declaration not valid in this context.",
+            """
+            class C1
+            ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

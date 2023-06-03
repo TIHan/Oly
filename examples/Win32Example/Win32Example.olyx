@@ -240,10 +240,10 @@ main(): () =
     let gpuCommands = 
         Array.Add(
             [
-               GpuCommand.NewFrame(frame);
-               GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length);
-               GpuCommand.DrawUI(gpuProgramUI2, uiNode);
-               GpuCommand.EndFrame()
+                GpuCommand.NewFrame(frame)
+                GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length)
+                GpuCommand.DrawUI(gpuProgramUI2, uiNode)
+                GpuCommand.EndFrame()
             ],
             gpuCommands
         )

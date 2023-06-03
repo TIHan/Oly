@@ -15,7 +15,7 @@ open Oly.Compiler.Syntax
 type ParsingText() =
 
     let vulkanText =
-        OlySourceText.FromFile("../../../../../../../../../../vscode/examples/Evergreen/src/Graphics/Backend/Vulkan.oly")
+        OlySourceText.FromFile("../../../../../../../../../../examples/Evergreen/src/Graphics/Backend/Vulkan.oly")
 
     let test (text: IOlySourceText) =
         let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)

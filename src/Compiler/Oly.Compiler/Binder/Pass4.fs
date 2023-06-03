@@ -1535,8 +1535,11 @@ let private bindLocalValueDeclaration
                 env
 
         let envForRhsExpr = 
-            { envWithValue with implicitThisOpt = None; isReturnable = false }
-            |> setIsInLocalLambda
+            let env = { envWithValue with implicitThisOpt = None; isReturnable = false }
+            if bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction then
+                setIsInLocalLambda env
+            else
+                env
         let rhsExpr = bindLetValueRightSideExpression cenv envForRhsExpr bindingInfo syntaxBindingDecl syntaxRhs
         let bindingInfo, rhsExpr = checkLetBindingDeclarationAndAutoGeneralize (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingInfo rhsExpr
         recordValueDeclaration cenv bindingInfo.Value syntaxBindingDecl.Identifier

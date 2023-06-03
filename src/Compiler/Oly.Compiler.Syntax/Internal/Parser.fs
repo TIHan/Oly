@@ -14,7 +14,16 @@ let SyntaxAttributeErrorF = SyntaxAttribute.Error
 
 type [<RequireQualifiedAccess>] SyntaxTreeContext =
     | TopLevel
-    | Local
+    | Local of skipSequential: bool
+
+    member this.CanSkipSequential =
+        match this with
+        | TopLevel
+        | Local(false) -> false
+        | _ -> true
+
+let SyntaxTreeContextLocal = SyntaxTreeContext.Local(false)
+let SyntaxTreeContextLocalSkipSequential = SyntaxTreeContext.Local(true)
 
 [<Flags>]
 type OffsideFlags =
@@ -794,6 +803,15 @@ let tryOptionalSemiColon state =
         | _ ->
             None
 
+let tryOptionalSemiColonWithTerminalRightBracket state =
+    match bt SEMI_COLON state with
+    | result when result.IsSome -> result
+    | _ -> 
+        if isNextToken (function RightBracket -> true | _ -> false) state then
+            None
+        else
+            Some(dummyToken())
+
 let tryPeekOffsideTerminal = ignoreOffside (tryPeek tryTerminal)
 
 let parseAccessor state =
@@ -1450,7 +1468,7 @@ let tryParseVariadicType state =
 
     match bt2 tryParseIdentifierOrOperator DOT_DOT_DOT state with
     | Some(ident), Some(dotDotDotToken) ->
-        match bt3 LEFT_BRACKET (tryParseOffsideExpression SyntaxTreeContext.Local) tryRightBracket state with
+        match bt3 LEFT_BRACKET (tryParseOffsideExpression SyntaxTreeContextLocal) tryRightBracket state with
         | Some(lessThanToken), Some(expr), Some(greaterThanToken) ->
             SyntaxType.VariadicIndexer(ident, dotDotDotToken, lessThanToken, expr, greaterThanToken, ep s state) |> Some
         | Some(lessThanToken), Some(expr), _ ->
@@ -2304,7 +2322,7 @@ let tryParsePropertyBinding state =
             let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
             SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
         | _ ->
-            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
             | Some(equalsToken), Some(rhsExpr) ->
                 let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, rhsExpr, ep sBinding state)
                 SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
@@ -2338,7 +2356,7 @@ let tryParseGuardBinding state =
         match bt WHEN state with
         | Some(whenToken) ->
             let identTokenOptional = parseOptionalIdentifier state
-            match bt5 LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContext.Local) tryRecoverableRightParenthesis FAT_RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+            match bt5 LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContextLocal) tryRecoverableRightParenthesis FAT_RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
             | Some(leftParenToken), Some(conditionalExpr), Some(rightParenToken), Some(fatRightArrowToken), Some(rhsExpr) ->
                 SyntaxGuardBinding.Implementation(whenToken, identTokenOptional, leftParenToken, conditionalExpr, rightParenToken, fatRightArrowToken, rhsExpr, ep s state)
                 |> Some
@@ -2376,11 +2394,17 @@ let tryParseGuardBinding state =
 let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context premodifierList kind postmodifierList state =
     match context, kind with
     | SyntaxTreeContext.TopLevel, _
-    | SyntaxTreeContext.Local, SyntaxValueDeclarationKind.Error _ 
-    | SyntaxTreeContext.Local, SyntaxValueDeclarationKind.Let _
-    | SyntaxTreeContext.Local, SyntaxValueDeclarationKind.LetBind _ ->
-        
+    | SyntaxTreeContext.Local _, SyntaxValueDeclarationKind.Error _ 
+    | SyntaxTreeContext.Local _, SyntaxValueDeclarationKind.Let _
+    | SyntaxTreeContext.Local _, SyntaxValueDeclarationKind.LetBind _ ->
+
         let sBinding = sp state
+
+        let parseBody state =
+            if context.CanSkipSequential then
+                SyntaxExpression.None()
+            else
+                parseAlignedExpression context state
 
         match bt tryParseBindingDeclaration state with
         | Some(binding) ->
@@ -2388,17 +2412,17 @@ let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context pre
             | Some(guardBinding) ->
                 let binding = SyntaxBinding.PatternWithGuard(binding, guardBinding, ep sBinding state)
                 let eValueDecl = ep s state
-                let body = parseAlignedExpression context state
+                let body = parseBody state
                 SyntaxExpression.Sequential(
                     SyntaxExpression.ValueDeclaration(attrs, accessor, premodifierList, kind, postmodifierList, binding, eValueDecl),
                     body, ep s state
                 )|> Some
             | _ ->
-                match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+                match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
                 | Some(equalsToken), Some(expr) ->
                     let binding = SyntaxBinding.Implementation(binding, equalsToken, expr, ep sBinding state)
                     let eValueDecl = ep s state
-                    let body = parseAlignedExpression context state
+                    let body = parseBody state
                     SyntaxExpression.Sequential(
                         SyntaxExpression.ValueDeclaration(attrs, accessor, premodifierList, kind, postmodifierList, binding, eValueDecl),
                         body, ep s state
@@ -2407,7 +2431,7 @@ let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context pre
                     errorDo(ExpectedSyntaxAfterToken("expression", Equal), equalsToken) state
                     let binding = SyntaxBinding.Implementation(binding, equalsToken, SyntaxExpression.Error(dummyToken()), ep sBinding state)
                     let eValueDecl = ep s state
-                    let body = parseAlignedExpression context state
+                    let body = parseBody state
                     SyntaxExpression.Sequential(
                         SyntaxExpression.ValueDeclaration(attrs, accessor, premodifierList, kind, postmodifierList, binding, eValueDecl),
                         body, ep s state
@@ -2416,7 +2440,7 @@ let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context pre
                     match bt tryParsePropertyBindings state with
                     | Some(propBindingList) ->
                         let binding = 
-                            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+                            match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
                             | Some(equalToken), Some(expr) ->
                                 SyntaxBinding.PropertyWithDefault(binding, propBindingList, equalToken, expr, ep sBinding state)
                             | Some(equalToken), _ ->
@@ -2431,8 +2455,7 @@ let tryParseValueDeclarationExpressionWithModifiers s attrs accessor context pre
                     | _ ->
                         let binding = SyntaxBinding.Signature(binding)
                         let eValueDecl = ep s state
-
-                        let body = parseAlignedExpression context state
+                        let body = parseBody state
                         SyntaxExpression.Sequential(
                             SyntaxExpression.ValueDeclaration(attrs, accessor, premodifierList, kind, postmodifierList, binding, eValueDecl),
                             body, ep s state
@@ -2498,7 +2521,7 @@ let tryParseParenthesisOrTupleOrLambdaExpression state =
 
         let s = sp state
 
-        match bt (tryParseParenthesisSeparatorList COMMA "expression" (tryParseExpression SyntaxTreeContext.Local) (fun x -> SyntaxExpression.Error(x) |> Some)) state with
+        match bt (tryParseParenthesisSeparatorList COMMA "expression" (tryParseExpression SyntaxTreeContextLocal) (fun x -> SyntaxExpression.Error(x) |> Some)) state with
         | Some(leftParenToken, exprList, rightParenToken) ->
             SyntaxExpression.Parenthesis(leftParenToken, exprList, rightParenToken, ep s state) |> Some
         | _ ->
@@ -2507,11 +2530,11 @@ let tryParseParenthesisOrTupleOrLambdaExpression state =
     else
         None
 
-let tryParseArrayExpression context state =
+let tryParseArrayExpression state =
     if isNextToken (function LeftBracket -> true | _ -> false) state then
         let s = sp state
 
-        match bt3 LEFT_BRACKET (tryParseListWithSeparatorOld tryOptionalSemiColon "expression" SyntaxExpression.Error (tryParseOffsideExpression context)) (tryFlexAlign RIGHT_BRACKET) state with
+        match bt3 LEFT_BRACKET (tryParseListWithSeparatorOld tryOptionalSemiColonWithTerminalRightBracket "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocalSkipSequential)) (tryFlexAlign RIGHT_BRACKET) state with
         | Some(leftBracketToken), Some(items), Some(rightBracketToken) ->
             SyntaxExpression.Array(leftBracketToken, items, rightBracketToken, ep s state) |> Some
 
@@ -2529,11 +2552,11 @@ let tryParseArrayExpression context state =
     else
         None
 
-let tryParseMutableArrayExpression context state =
+let tryParseMutableArrayExpression state =
     if isNextToken (function LeftBracketInnerPipe -> true | _ -> false) state then
         let s = sp state
 
-        match bt3 LEFT_BRACKET_INNER_PIPE (tryParseListWithSeparatorOld tryOptionalSemiColon "expression" SyntaxExpression.Error (tryParseOffsideExpression context)) (tryFlexAlign RIGHT_BRACKET_INNER_PIPE) state with
+        match bt3 LEFT_BRACKET_INNER_PIPE (tryParseListWithSeparatorOld tryOptionalSemiColon "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocalSkipSequential)) (tryFlexAlign RIGHT_BRACKET_INNER_PIPE) state with
         | Some(leftBracketPipeInnerToken), Some(items), Some(rightBracketInnerPipeToken) ->
             SyntaxExpression.MutableArray(leftBracketPipeInnerToken, items, rightBracketInnerPipeToken, ep s state) |> Some
 
@@ -2614,7 +2637,11 @@ let tryCreateTerminalExpression context state =
     | _ ->
         None
 
-let tryParseValueOrTypeDeclarationExpression context state =
+let checkContextForValueOrTypeDeclarationExpression (context: SyntaxTreeContext) syntaxNode state =
+    if context.CanSkipSequential then
+        errorDo(InvalidSyntax("Declaration not valid in this context."), syntaxNode) state
+
+let tryParseValueOrTypeDeclarationExpression (context: SyntaxTreeContext) state =
     let s = sp state
 
     let tryParseAux s attrs context state =
@@ -2622,11 +2649,31 @@ let tryParseValueOrTypeDeclarationExpression context state =
 
         // Order matters: we need to try to do this first.
         match bt (tryParseTypeDeclarationExpression s attrs accessor) state with
-        | Some result -> Some result
+        | Some result -> 
+            checkContextForValueOrTypeDeclarationExpression context result state
+            if context.CanSkipSequential then
+                SyntaxExpression.Sequential(
+                    result,
+                    SyntaxExpression.Error(dummyToken()),
+                    ep s state
+                )
+                |> Some
+            else
+                Some result
         | _ ->
 
         match bt (tryParseValueDeclarationExpression s attrs accessor context) state with
-        | Some result -> Some result
+        | Some result -> 
+            checkContextForValueOrTypeDeclarationExpression context result state
+            if context.CanSkipSequential then
+                SyntaxExpression.Sequential(
+                    result,
+                    SyntaxExpression.Error(dummyToken()),
+                    ep s state
+                )
+                |> Some
+            else
+                Some result
         | _ ->
 
         None
@@ -2677,11 +2724,11 @@ and parseMemberAccessExpression s receiver state =
         receiver
 
 let tryParseIndexer s left state =
-    match bt (tryParseBracketsSeparatorList COMMA "expression" (tryParseOffsideExpression SyntaxTreeContext.Local) (fun x -> SyntaxExpression.Error(x) |> Some)) state with
+    match bt (tryParseBracketsSeparatorList COMMA "expression" (tryParseOffsideExpression SyntaxTreeContextLocal) (fun x -> SyntaxExpression.Error(x) |> Some)) state with
     | Some(brackets) ->
         let eLeftBrackets = ep s state
 
-        match bt2 LEFT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt2 LEFT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(leftArrowToken), Some(expr) ->
             SyntaxExpression.Mutate(SyntaxExpression.Indexer(left, brackets, eLeftBrackets), leftArrowToken, expr, ep s state) |> Some
         | Some(leftArrowToken), _ ->
@@ -2697,7 +2744,7 @@ let tryParseThrowExpression state =
     if isNextToken (function Throw -> true | _ -> false) state then
         let s = sp state
 
-        match bt2 THROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt2 THROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(throwToken), Some(expr) ->
             SyntaxExpression.Throw(throwToken, expr, ep s state) |> Some
         | Some(throwToken), _ ->
@@ -2710,7 +2757,7 @@ let tryParseThrowExpression state =
 
 let parseDefaultOrMutateExpression s lhs state =
     if isNextToken (function LeftArrow | LeftBracket -> true | _ -> false) state then
-        match bt2 LEFT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt2 LEFT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(leftArrowToken), Some(rhs) ->
             SyntaxExpression.Mutate(lhs, leftArrowToken, rhs, ep s state)
         | Some(leftArrowToken), _ ->
@@ -2815,7 +2862,7 @@ let restructureForInfix left (opName: SyntaxName) right =
     restructureForInfixTail left opName right id
 
 let tryInfixOperator s left state =
-    match bt2 tryParseOperator (tryParseFlexExpression SyntaxTreeContext.Local) state with
+    match bt2 tryParseOperator (tryParseFlexExpression SyntaxTreeContextLocal) state with
     | Some(operatorToken), Some(right) ->
         restructureForInfix left (SyntaxName.Identifier(operatorToken)) right |> Some
 
@@ -2856,11 +2903,11 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (tryParseArrayExpression context)) state with
+        match bt (alignOrFlexAlignRecover tryParseArrayExpression) state with
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (tryParseMutableArrayExpression context)) state with
+        match bt (alignOrFlexAlignRecover tryParseMutableArrayExpression) state with
         | Some result -> result
         | _ ->
 
@@ -2988,7 +3035,7 @@ let tryParseLambdaExpression state =
 
     let kind = parseLambdaKind state
 
-    match bt3 tryParseParameters RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    match bt3 tryParseParameters RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some(pars), Some(rightArrowToken), Some(body) ->
         SyntaxExpression.Lambda(kind, pars, rightArrowToken, body, ep s state) |> Some
     | Some(pars), Some(rightArrowToken), _ ->
@@ -2999,7 +3046,7 @@ let tryParseLambdaExpression state =
     match bt tryParseParameter state with
     | Some(par) ->       
         let ePar = ep s state
-        match bt2 RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt2 RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(rightArrowToken), Some(body) ->
             let parList = SyntaxSeparatorList.List(par, dummyToken(), SyntaxSeparatorList.Empty(), ePar)
             let pars = SyntaxParameters.Parameters(dummyToken(), parList, dummyToken(), ePar)
@@ -3019,7 +3066,7 @@ let tryParseIfExpression state =
     if isNextToken (function If -> true | _ -> false) state then
         let s = sp state
 
-        match bt6 IF LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContext.Local) tryRecoverableRightParenthesis (tryParseOffsideExpression SyntaxTreeContext.Local) (tryFlexAlign tryParseOffsideElseIfOrElseExpression) state with
+        match bt6 IF LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContextLocal) tryRecoverableRightParenthesis (tryParseOffsideExpression SyntaxTreeContextLocal) (tryFlexAlign tryParseOffsideElseIfOrElseExpression) state with
         | Some(ifToken), Some(leftParenToken), Some(predicateExpr), Some(rightParenToken), Some(targetExpr), Some(whenOrElseExpr) ->
             SyntaxExpression.If(ifToken, leftParenToken, predicateExpr, rightParenToken, targetExpr, whenOrElseExpr, ep s state) |> Some
 
@@ -3032,7 +3079,7 @@ let tryParseIfExpression state =
 
         | Some(ifToken), Some(leftParenToken), Some(predicateExpr), _, _, _ ->
             // Better error recovery
-            let targetExprOpt = tryParseOffsideExpression SyntaxTreeContext.Local state
+            let targetExprOpt = tryParseOffsideExpression SyntaxTreeContextLocal state
             let whenOrElseExprOpt = tryFlexAlign tryParseOffsideElseIfOrElseExpression state
             let targetExpr = match targetExprOpt with Some targetExpr -> targetExpr | _ -> SyntaxExpression.Error(dummyToken ())
             let whenOrElseExpr = match whenOrElseExprOpt with Some whenOrElseExpr -> whenOrElseExpr | _ -> SyntaxElseIfOrElseExpression.None(dummyToken ()) 
@@ -3060,7 +3107,7 @@ let parseNextCatchOrFinallyExpression state =
 let tryParseCatchOrFinallyExpression state =
     let s = sp state
 
-    match bt6 CATCH LEFT_PARENTHESIS tryParseParameter tryRecoverableRightParenthesis FAT_RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    match bt6 CATCH LEFT_PARENTHESIS tryParseParameter tryRecoverableRightParenthesis FAT_RIGHT_ARROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some(catchToken), Some(leftParenToken), Some(par), Some(rightParenToken), Some(fatRightArrowToken), Some(catchBodyExpr) ->
         let catchOrFinallyExpr = parseNextCatchOrFinallyExpression state
         SyntaxCatchOrFinallyExpression.Catch(catchToken, leftParenToken, par, rightParenToken, fatRightArrowToken, catchBodyExpr, catchOrFinallyExpr, ep s state) |> Some
@@ -3091,7 +3138,7 @@ let tryParseCatchOrFinallyExpression state =
         SyntaxCatchOrFinallyExpression.Catch(catchToken, dummyToken(), SyntaxParameter.Error(dummyToken()), dummyToken(), dummyToken(), SyntaxExpression.Error(dummyToken()), catchOrFinallyExpr, ep s state) |> Some
     | _ ->
 
-    match bt2 FINALLY (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    match bt2 FINALLY (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some(finallyToken), Some(finallyBodyExpr) ->
         SyntaxCatchOrFinallyExpression.Finally(finallyToken, finallyBodyExpr, ep s state) |> Some
     
@@ -3106,7 +3153,7 @@ let tryParseTryExpression state =
     if isNextToken (function Try -> true | _ -> false) state then
         let s = sp state
 
-        match bt3 TRY (tryParseOffsideExpression SyntaxTreeContext.Local) (tryFlexAlign tryParseCatchOrFinallyExpression) state with
+        match bt3 TRY (tryParseOffsideExpression SyntaxTreeContextLocal) (tryFlexAlign tryParseCatchOrFinallyExpression) state with
         | Some(tryToken), Some(bodyExpr), Some(catchOrFinallyExpr) ->
             SyntaxExpression.Try(tryToken, bodyExpr, catchOrFinallyExpr, ep s state) |> Some
 
@@ -3127,7 +3174,7 @@ let tryParseMatchExpression state =
     if isNextToken (function Match -> true | _ -> false) state then
         let s = sp state
 
-        match bt5 MATCH LEFT_PARENTHESIS (tryParseListWithSeparatorOld COMMA "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContext.Local)) tryRecoverableRightParenthesis (tryParseList (tryAlign tryParseMatchClause)) state with
+        match bt5 MATCH LEFT_PARENTHESIS (tryParseListWithSeparatorOld COMMA "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocal)) tryRecoverableRightParenthesis (tryParseList (tryAlign tryParseMatchClause)) state with
         | Some(matchToken), Some(leftParenToken), Some(matchExprList), Some(rightParenToken), Some(matchCaseList) ->
             SyntaxExpression.Match(matchToken, leftParenToken, matchExprList, rightParenToken, matchCaseList, ep s state) |> Some
         | Some(matchToken), Some(leftParenToken), Some(matchExprList), Some(rightParenToken), _ ->
@@ -3151,7 +3198,7 @@ let tryParseWhileExpression state =
     if isNextToken (function While -> true | _ -> false) state then
         let s = sp state
 
-        match bt5 WHILE LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContext.Local) tryRecoverableRightParenthesis (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt5 WHILE LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContextLocal) tryRecoverableRightParenthesis (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(whileToken), Some(leftParenToken), Some(conditionExpr), Some(rightParenToken), Some(bodyExpr) ->
             SyntaxExpression.While(whileToken, leftParenToken, conditionExpr, rightParenToken, bodyExpr, ep s state) |> Some
         | Some(whileToken), Some(leftParenToken), Some(conditionExpr), Some(rightParenToken), _ ->
@@ -3219,7 +3266,7 @@ let tryParseTypeDeclarationCase state =
 
     match bt2 PIPE IDENTIFIER state with
     | Some(pipeToken), Some(ident) ->
-        match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(equalToken), Some(expr) ->
             SyntaxTypeDeclarationCase.EnumCase(pipeToken, ident, equalToken, expr, ep s state) |> Some
         | Some(equalToken), _ ->
@@ -3290,7 +3337,10 @@ let parseNextAlignedExpression s context currentExpr state =
         | _ ->
             currentExpr
 
-    | SyntaxTreeContext.Local ->
+    | SyntaxTreeContext.Local(skipSequential) ->
+        if skipSequential then currentExpr
+        else
+
         match bt (tryAlignIfNoFlex (tryParseExpression context)) state with
         | Some(next) ->
             SyntaxExpression.Sequential(currentExpr, next, ep s state)
@@ -3384,7 +3434,7 @@ let tryParsePattern (state: ParserState) : SyntaxPattern option =
 let parseMatchGuard (state: ParserState) =
     let s = sp state
 
-    match bt4 WHEN LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContext.Local) tryRecoverableRightParenthesis state with
+    match bt4 WHEN LEFT_PARENTHESIS (tryParseOffsideExpression SyntaxTreeContextLocal) tryRecoverableRightParenthesis state with
     | Some(whenToken), Some(leftParenToken), Some(conditionalExpr), Some(rightParenToken) ->
         SyntaxMatchGuard.MatchGuard(whenToken, leftParenToken, conditionalExpr, rightParenToken, ep s state)
 
@@ -3453,7 +3503,7 @@ let tryParseMatchClause (state: ParserState) =
     | Some(pipeToken), Some(matchPattern) ->
         let matchGuard = parseMatchGuard state
 
-        match bt2 FAT_RIGHT_ARROW (tryParseOffsideExpression (SyntaxTreeContext.Local)) state with
+        match bt2 FAT_RIGHT_ARROW (tryParseOffsideExpression (SyntaxTreeContextLocal)) state with
         | Some(fatRightArrowToken), Some(targetExpr) ->
             SyntaxMatchClause.MatchClause(pipeToken, matchPattern, matchGuard, fatRightArrowToken, targetExpr, ep s state) |> Some
         | Some(fatRightArrowToken), _ ->
@@ -3520,7 +3570,7 @@ let tryParseAttribute state =
     | Some attr -> attr |> Some
     | _ ->
 
-    match bt (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    match bt (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some expr ->
         SyntaxAttribute.Expression(expr) |> Some
     | _ ->
@@ -3563,7 +3613,7 @@ let tryParseElseIfOrElseExpression state =
     | Some(elseToken) ->
         match bt (tryOffside IF) state with
         | Some(ifToken) ->
-            match bt3 (tryParseParenthesis (parseOffsideExpression (SyntaxTreeContext.Local, ifToken))) (tryParseOffsideExpression SyntaxTreeContext.Local) (tryFlexAlign tryParseOffsideElseIfOrElseExpression) state with
+            match bt3 (tryParseParenthesis (parseOffsideExpression (SyntaxTreeContextLocal, ifToken))) (tryParseOffsideExpression SyntaxTreeContextLocal) (tryFlexAlign tryParseOffsideElseIfOrElseExpression) state with
             | Some(leftParenToken, conditionExpr, rightParenToken), Some(targetExpr), Some(next) ->
                 SyntaxElseIfOrElseExpression.ElseIf(elseToken, ifToken, leftParenToken, conditionExpr, rightParenToken, targetExpr, next, ep s state) |> Some
             | Some(leftParenToken, conditionExpr, rightParenToken), Some(targetExpr), _ ->
@@ -3576,7 +3626,7 @@ let tryParseElseIfOrElseExpression state =
                 SyntaxElseIfOrElseExpression.ElseIf(elseToken, ifToken, dummyToken(), SyntaxExpression.Error(dummyToken()), dummyToken(), SyntaxExpression.Error(dummyToken()), SyntaxElseIfOrElseExpression.None(dummyToken()), ep s state) |> Some
         | _ ->
 
-        match bt (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+        match bt (tryParseOffsideExpression SyntaxTreeContextLocal) state with
         | Some(elseBody) ->
             SyntaxElseIfOrElseExpression.Else(elseToken, elseBody, ep s state) |> Some
         | _ ->
@@ -3604,12 +3654,12 @@ let possibleNamedArgument state =
 let tryParseArgument state =
     match (tryPeek possibleNamedArgument) state with
     | true -> None
-    | _ -> tryParseOffsideExpression SyntaxTreeContext.Local state
+    | _ -> tryParseOffsideExpression SyntaxTreeContextLocal state
 
 let tryParseNamedArgument state =
     let s = sp state
 
-    match bt3 IDENTIFIER EQUAL (tryParseOffsideExpression SyntaxTreeContext.Local) state with
+    match bt3 IDENTIFIER EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some(ident), Some(equalToken), Some(expr) ->
         SyntaxNamedArgument.NamedArgument(ident, equalToken, expr, ep s state) |> Some
     | Some(ident), Some(equalToken), _ ->
