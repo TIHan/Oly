@@ -166,8 +166,7 @@ class GpuFrame =
 
 enum GpuProgramInputKind =
     | Array
-    | Image
-    | Frame
+    | ImageOrFrame
 
 internal struct GpuProgramInput =
     Kind: GpuProgramInputKind get
@@ -187,10 +186,10 @@ internal struct GpuProgramInput =
         GpuProgramInput(GpuProgramInputKind.Array, unchecked default, gpuArray, unchecked default)
 
     static CreateImage(gpuImage: GpuImage): GpuProgramInput =
-        GpuProgramInput(GpuProgramInputKind.Image, gpuImage, unchecked default, unchecked default)
+        GpuProgramInput(GpuProgramInputKind.ImageOrFrame, gpuImage, unchecked default, unchecked default)
 
     static CreateFrame(gpuFrame: GpuFrame): GpuProgramInput =
-        GpuProgramInput(GpuProgramInputKind.Frame, unchecked default, unchecked default, gpuFrame)
+        GpuProgramInput(GpuProgramInputKind.ImageOrFrame, unchecked default, unchecked default, gpuFrame)
 
 class GpuProgram =
     IsDirty: bool get, internal set
@@ -216,8 +215,6 @@ class GpuProgram =
             this.IsDirty <- true
             this.computeCode <- value
 
-    internal Frame: GpuFrame get
-
     internal VulkanDescriptorBindingInfos: List<VulkanDescriptorBindingInfo> get
     internal VkDescriptorSetLayout: VkDescriptorSetLayout get, set
     internal VkVertexShaderModule: VkShaderModule get, set
@@ -227,21 +224,13 @@ class GpuProgram =
 
     internal VkVertexInputBindingDescriptions: VkVertexInputBindingDescription[] get, set
     internal VkVertexInputAttributeDescriptions: VkVertexInputAttributeDescription[] get, set
-    internal VkPipeline: VkPipeline get, set
-    internal VkViewport: VkViewport get, set
-    internal VkScissor: VkRect2D get, set
 
     internal Version: Guid get, set
 
     new() =
-        GpuProgram(unchecked default)
-
-    new(frame: GpuFrame) =
         {
             Version = default
             IsDirty = true
-
-            Frame = frame
 
             vertexCode = ReadOnlyMemory<_>.Empty
             fragmentCode = ReadOnlyMemory<_>.Empty
@@ -256,10 +245,6 @@ class GpuProgram =
 
             VkVertexInputBindingDescriptions = []
             VkVertexInputAttributeDescriptions = []
-            VkPipeline = VkPipeline.NULL
-
-            VkViewport = default
-            VkScissor = default
         }
 
     AddGlobalInput(kind: GpuProgramInputKind, stageFlags: GpuProgramStageFlags): () =
@@ -269,9 +254,7 @@ class GpuProgram =
             match (kind)
             | GpuProgramInputKind.Array =>
                 VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-            | GpuProgramInputKind.Image =>
-                VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-            | GpuProgramInputKind.Frame =>
+            | GpuProgramInputKind.ImageOrFrame =>
                 VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
             | _ =>
                 fail("Invalid gpu program input kind.")
@@ -340,25 +323,59 @@ class GpuProgramReference =
 
         this.Inputs.Add(GpuProgramInput.CreateFrame(gpuFrame))
 
+class GpuProgramInstance =
+    internal ProgramReference: GpuProgramReference get
+    internal Frame: GpuFrame get
+
+    internal VkPipeline: VkPipeline get, set
+    internal VkViewport: VkViewport get, set
+    internal VkScissor: VkRect2D get, set
+
+    new(gpuProgramReference: GpuProgramReference) =
+        GpuProgramInstance(gpuProgramReference, unchecked default)
+
+    new(gpuProgramReference: GpuProgramReference, gpuFrame: GpuFrame) =
+        {
+            ProgramReference = gpuProgramReference
+            Frame = gpuFrame
+            VkPipeline = VkPipeline.NULL
+            VkViewport = default
+            VkScissor = default
+        }
+
+class GpuProgramUI =
+    internal Frame: GpuFrame get, set
+
+    internal ImGuiContext: ImGui.ImGuiContext get, set
+
+    new() =
+        GpuProgramUI(unchecked default)
+
+    new(gpuFrame: GpuFrame) =
+        {
+            Frame = gpuFrame
+            ImGuiContext = unchecked default
+        }
+
 abstract class GpuCommand =
     internal Tag: int32 get, set
     
     private class _DrawIndexed =
         inherits GpuCommand
 
-        ProgramReference: GpuProgramReference get, set
+        ProgramInstance: GpuProgramInstance get, set
         Vertices: IGpuArray get, set = unchecked default
         Indices: IGpuArray get, set = unchecked default
         IndexCount: int32 get, set = 0
 
-    pattern DrawIndexed(cmd: GpuCommand): (programReference: GpuProgramReference, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
+    pattern DrawIndexed(cmd: GpuCommand): (programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
         let cmd = Unsafe.Cast<_DrawIndexed>(cmd)
-        (cmd.ProgramReference, cmd.Vertices, cmd.Indices, cmd.IndexCount)
+        (cmd.ProgramInstance, cmd.Vertices, cmd.Indices, cmd.IndexCount)
 
-    static DrawIndexed(programReference: GpuProgramReference, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
+    static DrawIndexed(programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
         let cmd = _DrawIndexed()
         cmd.Tag <- 0
-        cmd.ProgramReference <- programReference
+        cmd.ProgramInstance <- programInstance
         cmd.Vertices <- vertices
         cmd.Indices <- indices
         cmd.IndexCount <- indexCount
@@ -367,28 +384,30 @@ abstract class GpuCommand =
     private class _DrawUI =
         inherits GpuCommand
 
+        ProgramUI: GpuProgramUI get, set = unchecked default
         Node: UINode get, set = unchecked default
 
-    pattern DrawUI(cmd: GpuCommand): UINode when (cmd.Tag == 1) =>
+    pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, UINode) when (cmd.Tag == 1) =>
         let cmd = Unsafe.Cast<_DrawUI>(cmd)
-        cmd.Node
+        (cmd.ProgramUI, cmd.Node)
 
-    static DrawUI(uiNode: UINode): GpuCommand =
+    static DrawUI(gpuProgramUI: GpuProgramUI, uiNode: UINode): GpuCommand =
         let cmd = _DrawUI()
         cmd.Tag <- 1
+        cmd.ProgramUI <- gpuProgramUI
         cmd.Node <- uiNode
         cmd
 
-    private class _NewWindowFrame =
+    private class _EndFrame =
         inherits GpuCommand
 
         new() = {}
 
-    pattern NewWindowFrame(cmd: GpuCommand): () when (cmd.Tag == 2) =>
-        let cmd = Unsafe.Cast<_NewWindowFrame>(cmd)
+    pattern EndFrame(cmd: GpuCommand): () when (cmd.Tag == 2) =>
+        let cmd = Unsafe.Cast<_EndFrame>(cmd)
 
-    static NewWindowFrame(): GpuCommand =
-        let cmd = _NewWindowFrame()
+    static EndFrame(): GpuCommand =
+        let cmd = _EndFrame()
         cmd.Tag <- 2
         cmd
 
@@ -432,15 +451,16 @@ class Gpu =
     field gpuFrames: ConcurrentDictionary<GpuFrame, ()>
     field gpuPrograms: ConcurrentDictionary<GpuProgram, ()>
     field gpuProgramReferences: ConcurrentDictionary<GpuProgramReference, ()>
+    field gpuProgramInstances: ConcurrentDictionary<GpuProgramInstance, ()>
+    field gpuProgramUIs: ConcurrentDictionary<GpuProgramUI, ()>
 
     field vk: VulkanApplication
     field vkCmdBuffers: VulkanCommandBuffer[||]
 
-    mutable field imguiContext: ImGui.ImGuiContext // can be null
     mutable field swapChain: VulkanSwapChain
+    mutable field swapChainRenderPass: VkRenderPass
     mutable field swapChainFramebuffers: VkFramebuffer[]
     mutable field graphicsPipeline: VkPipeline
-    mutable field renderPass: VkRenderPass
 
     internal new(window: IWindow, vk: VulkanApplication) =
         let vkCmdBuffers =
@@ -459,16 +479,19 @@ class Gpu =
             gpuFrames = ConcurrentDictionary()
             gpuPrograms = ConcurrentDictionary()
             gpuProgramReferences = ConcurrentDictionary()
+            gpuProgramInstances = ConcurrentDictionary()
+            gpuProgramUIs = ConcurrentDictionary()
 
             vk = vk
             vkCmdBuffers = vkCmdBuffers
 
-            imguiContext = unchecked default
             swapChain = unchecked default
+            swapChainRenderPass = VkRenderPass.NULL
             swapChainFramebuffers = unchecked default
             graphicsPipeline = unchecked default
-            renderPass = unchecked default
         }
+
+    DeviceName: string get() = this.vk.GetDeviceName()
 
     Sync(gpuArray: IGpuArray): () =
         if (gpuArray.IsDirty)
@@ -648,49 +671,6 @@ class Gpu =
 
             this.gpuPrograms[gpuProgram] <- ()
 
-        if (gpuProgram.VkPipeline == VkPipeline.NULL)
-            if (gpuProgram.Frame !== unchecked default)
-                this.Sync(gpuProgram.Frame)
-
-            let renderPass =
-                if (gpuProgram.Frame === unchecked default)
-                    this.renderPass
-                else
-                    gpuProgram.Frame.VkRenderPass
-
-            let extent =
-                if (gpuProgram.Frame === unchecked default)
-                    this.swapChain.Extent
-                else
-                    gpuProgram.Frame.VkExtent
-
-            let vertexShader = gpuProgram.VkVertexShaderModule
-            let fragmentShader = gpuProgram.VkFragmentShaderModule
-            let computeShader = gpuProgram.VkComputeShaderModule
-            if (vertexShader != VkShaderModule.NULL && fragmentShader != VkShaderModule.NULL)
-                let mutable viewport = default
-                let mutable scissor = default
-                gpuProgram.VkPipeline <-
-                    Vk.CreateGraphicsPipeline(
-                        this.vk, 
-                        gpuProgram.VkVertexInputBindingDescriptions, 
-                        gpuProgram.VkVertexInputAttributeDescriptions, 
-                        gpuProgram.VkPipelineLayout, 
-                        renderPass, 
-                        VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
-                        VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
-                        vertexShader,
-                        fragmentShader,
-                        extent,
-                        &viewport,
-                        &scissor
-                    )
-
-                gpuProgram.VkViewport <- viewport
-                gpuProgram.VkScissor <- scissor
-            else
-                fail("Invalid gpu program.")
-
     Sync(gpuProgramReference: GpuProgramReference): () =
         this.Sync(gpuProgramReference.Program)
 
@@ -700,10 +680,11 @@ class Gpu =
             match (globalInput.Kind)
             | GpuProgramInputKind.Array =>
                 this.Sync(globalInput.Array)
-            | GpuProgramInputKind.Image =>
-                this.Sync(globalInput.Image)
-            | GpuProgramInputKind.Frame =>
-                this.Sync(globalInput.Frame)
+            | GpuProgramInputKind.ImageOrFrame =>
+                if (globalInput.Image === unchecked default)
+                    this.Sync(globalInput.Frame)
+                else
+                    this.Sync(globalInput.Image)
             | _ =>
                 fail("Invalid gpu program input kind.")
             i <- i + 1
@@ -738,13 +719,17 @@ class Gpu =
                     match (globalInput.Kind)
                     | GpuProgramInputKind.Array =>
                         Vk.UpdateDescriptorSet(this.vk, uint32(i), descriptorSets[frame], globalInput.Array.Buffers[frame], descriptorType)
-                    | GpuProgramInputKind.Image =>
-                        let vkImageView = globalInput.Image.VkImageView
-                        let vkSampler = globalInput.Image.VkSampler
-                        Vk.UpdateDescriptorSet(this.vk, 1, descriptorSets[frame], VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vkImageView, vkSampler, descriptorType)
-                    | GpuProgramInputKind.Frame =>
-                        let vkImageView = globalInput.Frame.VkImageViews[frame]
-                        let vkSampler = globalInput.Frame.VkSampler
+                    | GpuProgramInputKind.ImageOrFrame =>
+                        let vkImageView = 
+                            if (globalInput.Image === unchecked default)
+                                globalInput.Frame.VkImageViews[frame]
+                            else
+                                globalInput.Image.VkImageView
+                        let vkSampler = 
+                            if (globalInput.Image === unchecked default)
+                                globalInput.Frame.VkSampler
+                            else
+                                globalInput.Image.VkSampler
                         Vk.UpdateDescriptorSet(this.vk, 1, descriptorSets[frame], VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vkImageView, vkSampler, descriptorType)
                     | _ =>
                         fail("Invalid gpu program input kind.")
@@ -757,6 +742,92 @@ class Gpu =
             gpuProgramReference.Version <- gpuProgramReference.Program.Version
 
             this.gpuProgramReferences[gpuProgramReference] <- ()
+
+    Sync(gpuProgramInstance: GpuProgramInstance): () =
+        this.Sync(gpuProgramInstance.ProgramReference)
+
+        if (gpuProgramInstance.VkPipeline == VkPipeline.NULL)
+            let gpuFrame = gpuProgramInstance.Frame
+            let gpuProgramReference = gpuProgramInstance.ProgramReference
+            let gpuProgram = gpuProgramReference.Program
+
+            if (gpuFrame !== unchecked default)
+                this.Sync(gpuFrame)
+
+            let renderPass =
+                if (gpuProgramInstance.Frame === unchecked default)
+                    this.swapChainRenderPass
+                else
+                    gpuProgramInstance.Frame.VkRenderPass
+
+            let extent =
+                if (gpuProgramInstance.Frame === unchecked default)
+                    this.swapChain.Extent
+                else
+                    gpuProgramInstance.Frame.VkExtent
+
+            let vertexShader = gpuProgram.VkVertexShaderModule
+            let fragmentShader = gpuProgram.VkFragmentShaderModule
+            let computeShader = gpuProgram.VkComputeShaderModule
+            if (vertexShader != VkShaderModule.NULL && fragmentShader != VkShaderModule.NULL)
+                let mutable viewport = default
+                let mutable scissor = default
+                gpuProgramInstance.VkPipeline <-
+                    Vk.CreateGraphicsPipeline(
+                        this.vk, 
+                        gpuProgram.VkVertexInputBindingDescriptions, 
+                        gpuProgram.VkVertexInputAttributeDescriptions, 
+                        gpuProgram.VkPipelineLayout, 
+                        renderPass, 
+                        VkCullModeFlags.VK_CULL_MODE_BACK_BIT, 
+                        VkFrontFace.VK_FRONT_FACE_CLOCKWISE, 
+                        vertexShader,
+                        fragmentShader,
+                        extent,
+                        &viewport,
+                        &scissor
+                    )
+
+                gpuProgramInstance.VkViewport <- viewport
+                gpuProgramInstance.VkScissor <- scissor
+            else
+                fail("Invalid gpu program.")
+
+            this.gpuProgramInstances[gpuProgramInstance] <- ()
+
+    Sync(gpuProgramUI: GpuProgramUI): () =
+        if (gpuProgramUI.ImGuiContext === unchecked default)
+            Vk.WaitForIdle(this.vk)
+
+            let renderPass =
+                if (gpuProgramUI.Frame === unchecked default)
+                    this.swapChainRenderPass
+                else
+                    this.Sync(gpuProgramUI.Frame)
+                    gpuProgramUI.Frame.VkRenderPass
+
+            let minImageCount = this.swapChain.SupportDetails.Capabilities.minImageCount
+            let imageCount = uint32(this.swapChain.Images.Length)
+
+            let enableInput = gpuProgramUI.Frame === unchecked default
+            gpuProgramUI.ImGuiContext <- ImGui.CreateContext(this.window, this.vk, minImageCount, imageCount, renderPass)
+    
+            if (enableInput)
+                ImGui.EnableInput(gpuProgramUI.ImGuiContext)
+
+            //  let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
+    
+            // Must do this first before NewFrame!
+            let fontSize =
+                let size = this.window.Size
+                let ratio = (size.Y / 720)
+                ratio * 16
+            //fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
+
+            let commandBuffer = Vk.CreateTransferCommandBuffer(this.vk)
+            ImGui.UploadFonts(gpuProgramUI.ImGuiContext, this.vk.TransferCommandPool, commandBuffer)
+
+            this.gpuProgramUIs[gpuProgramUI] <- ()
 
     Free(gpuArray: IGpuArray): () =
         if (gpuArray.Buffers.Length != 0)
@@ -831,7 +902,6 @@ class Gpu =
         if (gpuProgram.VkPipelineLayout != VkPipelineLayout.NULL)
             Vk.WaitForIdle(this.vk)
 
-            Vk.DestroyPipeline(this.vk, gpuProgram.VkPipeline)
             Vk.DestroyDescriptorSetLayout(this.vk, gpuProgram.VkDescriptorSetLayout)
             Vk.DestroyPipelineLayout(this.vk, gpuProgram.VkPipelineLayout)
 
@@ -844,7 +914,6 @@ class Gpu =
             if (gpuProgram.VkComputeShaderModule != VkShaderModule.NULL)
                 Vk.DestroyShaderModule(this.vk, gpuProgram.VkComputeShaderModule)
 
-            gpuProgram.VkPipeline <- VkPipeline.NULL
             gpuProgram.VkDescriptorSetLayout <- VkDescriptorSetLayout.NULL
             gpuProgram.VkPipelineLayout <- VkPipelineLayout.NULL
             gpuProgram.VkVertexShaderModule <- VkShaderModule.NULL
@@ -864,6 +933,22 @@ class Gpu =
             let result = this.gpuProgramReferences.TryRemove(gpuProgramReference, &value)
             gpuProgramReference.IsDirty <- true
 
+    Free(gpuProgramInstance: GpuProgramInstance): () =
+        if (gpuProgramInstance.VkPipeline != VkPipeline.NULL)
+            Vk.DestroyPipeline(this.vk, gpuProgramInstance.VkPipeline)
+            gpuProgramInstance.VkPipeline <- VkPipeline.NULL
+
+            let mutable value = unchecked default
+            let result = this.gpuProgramInstances.TryRemove(gpuProgramInstance, &value)
+
+    Free(gpuProgramUI: GpuProgramUI): () =
+        if (gpuProgramUI.ImGuiContext !== unchecked default)
+            ImGui.DestroyContext(gpuProgramUI.ImGuiContext)
+            gpuProgramUI.ImGuiContext <- unchecked default
+
+            let mutable value = unchecked default
+            let result = this.gpuProgramUIs.TryRemove(gpuProgramUI, &value)
+
     Execute<T>(gpuCommands: T): () where T: IEnumerable<GpuCommand> =
         if (this.swapChain === unchecked default)
             this.RecreateSwapChain()
@@ -877,64 +962,94 @@ class Gpu =
 
                     commandBuffer.Begin()
 
+                    let mutable currentRenderPass = this.swapChainRenderPass
                     let mutable currentFramebuffer = this.swapChainFramebuffers[framebufferIndex]
+                    let mutable currentExtent = this.swapChain.Extent
 
-                    commandBuffer.BeginRenderPass(this.renderPass, currentFramebuffer, this.swapChain.Extent)
+                    commandBuffer.BeginRenderPass(currentRenderPass, currentFramebuffer, currentExtent)
 
                     let mutable currentPipeline = VkPipeline.NULL
+                    let mutable currentProgram = unchecked default
                     let mutable currentProgramReference = unchecked default
+                    let mutable currentProgramInstance = unchecked default
+                    let mutable currentFrame = unchecked default
 
                     ForEach(gpuCommands,
                         gpuCommand ->
                             match (gpuCommand)
-                            | GpuCommand.NewWindowFrame =>
+                            | GpuCommand.EndFrame =>
                                 commandBuffer.EndRenderPass()
-
+                                
+                                currentFrame <- unchecked default
+                                currentRenderPass <- this.swapChainRenderPass
                                 currentFramebuffer <- this.swapChainFramebuffers[framebufferIndex]
+                                currentExtent <- this.swapChain.Extent
 
-                                commandBuffer.BeginRenderPass(this.renderPass, currentFramebuffer, this.swapChain.Extent)
+                                commandBuffer.BeginRenderPass(currentRenderPass, currentFramebuffer, currentExtent)
 
                             | GpuCommand.NewFrame(gpuFrame) =>
                                 this.Sync(gpuFrame)
 
                                 commandBuffer.EndRenderPass()
 
+                                currentFrame <- gpuFrame
+                                currentRenderPass <- gpuFrame.VkRenderPass
                                 currentFramebuffer <- gpuFrame.VkFramebuffers[frame]
+                                currentExtent <- gpuFrame.VkExtent
 
-                                commandBuffer.BeginRenderPass(gpuFrame.VkRenderPass, currentFramebuffer, gpuFrame.VkExtent)
+                                commandBuffer.BeginRenderPass(currentRenderPass, currentFramebuffer, currentExtent)
 
-                            | GpuCommand.DrawIndexed(gpuProgramReference, vertices, indices, indexCount) =>
-                                this.Sync(gpuProgramReference)
+                            | GpuCommand.DrawIndexed(gpuProgramInstance, vertices, indices, indexCount) =>
+                                this.Sync(gpuProgramInstance)
                                 this.Sync(vertices)
                                 this.Sync(indices)
 
+                                if (gpuProgramInstance.Frame !== currentFrame)
+                                    fail("Program instance's frame does not match the current frame.")
+
+                                let gpuProgramReference = gpuProgramInstance.ProgramReference
                                 let gpuProgram = gpuProgramReference.Program
+
                                 let descriptorSets = gpuProgramReference.VkDescriptorSets
 
-                                if (currentPipeline != gpuProgram.VkPipeline)
-                                    currentPipeline <- gpuProgram.VkPipeline
+                                if (currentPipeline != gpuProgramInstance.VkPipeline)
+                                    currentPipeline <- gpuProgramInstance.VkPipeline
 
                                     commandBuffer.BindPipeline(currentPipeline, VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS)
-                                    commandBuffer.SetViewport(gpuProgram.VkViewport)
-                                    commandBuffer.SetScissor(gpuProgram.VkScissor)
+                                    commandBuffer.SetViewport(gpuProgramInstance.VkViewport)
+                                    commandBuffer.SetScissor(gpuProgramInstance.VkScissor)
 
                                 if (currentProgramReference !== gpuProgramReference)
                                     currentProgramReference <- gpuProgramReference
 
                                     commandBuffer.BindDescriptorSet(VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, gpuProgram.VkPipelineLayout, descriptorSets[frame])
                                     
+                                if (currentProgram !== gpuProgram)
+                                    currentProgram <- gpuProgram
+
                                 commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
                                 commandBuffer.BindIndexBuffer(indices.Buffers[frame])
                                 commandBuffer.DrawIndexed(uint32(indexCount), 1)
 
-                            | GpuCommand.DrawUI(uiNode) =>
+                                currentProgramInstance <- gpuProgramInstance
+
+                            | GpuCommand.DrawUI(gpuProgramUI, uiNode) =>
+                                this.Sync(gpuProgramUI)
+
+                                if (gpuProgramUI.Frame !== currentFrame)
+                                    fail("Program instance's frame does not match the current frame.")
+
+                                currentProgramInstance <- unchecked default
                                 currentProgramReference <- unchecked default
+                                currentProgram <- unchecked default
                                 currentPipeline <- VkPipeline.NULL
 
-                                UI.NewFrame(this.imguiContext)
-                                UI.Show(this.imguiContext, uiNode)
-                                UI.ShowDemoWindow(this.imguiContext)
-                                UI.Draw(this.imguiContext, commandBuffer, VkPipeline.NULL)
+                                let context = gpuProgramUI.ImGuiContext
+
+                                UI.NewFrame(context)
+                                UI.Show(context, uiNode)
+                                UI.ShowDemoWindow(context)
+                                UI.Draw(context, commandBuffer, VkPipeline.NULL)
                                 
                             | _ =>
                                 ()
@@ -964,6 +1079,18 @@ class Gpu =
 
     Dispose(): () =
         Vk.WaitForIdle(this.vk)
+
+        let gpuProgramUIs = this.gpuProgramUIs.ToArray()
+        let mutable i = 0
+        while (i < gpuProgramUIs.Length)
+            this.Free(gpuProgramUIs[i].Key)
+            i <- i + 1
+
+        let gpuProgramInstances = this.gpuProgramInstances.ToArray()
+        let mutable i = 0
+        while (i < gpuProgramInstances.Length)
+            this.Free(gpuProgramInstances[i].Key)
+            i <- i + 1
 
         let gpuProgramReferences = this.gpuProgramReferences.ToArray()
         let mutable i = 0
@@ -1004,45 +1131,45 @@ class Gpu =
         
         let vulkanApp = this.vk
 
-        let gpuPrograms = this.gpuPrograms.ToArray()
+        ImGui.ImGuiContext.InputContext <- unchecked default
+
+        let gpuProgramUIs = this.gpuProgramUIs.ToArray()
         let mutable i = 0
-        while (i < gpuPrograms.Length)
-            let gpuProgram = gpuPrograms[i].Key
-            Vk.DestroyPipeline(this.vk, gpuProgram.VkPipeline)
-            gpuProgram.VkPipeline <- VkPipeline.NULL
+        while (i < gpuProgramUIs.Length)
+            let gpuProgramUI = gpuProgramUIs[i].Key
+            if (gpuProgramUI.ImGuiContext !== unchecked default)
+                ImGui.DestroyContext(gpuProgramUI.ImGuiContext)
+                gpuProgramUI.ImGuiContext <- unchecked default
+            i <- i + 1
+
+        let gpuProgramInstances = this.gpuProgramInstances.ToArray()
+        let mutable i = 0
+        while (i < gpuProgramInstances.Length)
+            let gpuProgramInstance = gpuProgramInstances[i].Key
+            if (gpuProgramInstance.VkPipeline != VkPipeline.NULL)
+                Vk.DestroyPipeline(this.vk, gpuProgramInstance.VkPipeline)
+                gpuProgramInstance.VkPipeline <- VkPipeline.NULL
             i <- i + 1
 
         this.swapChain <- Vk.CreateSwapChain(vulkanApp, VkFormat.VK_FORMAT_B8G8R8A8_UNORM)
-        this.renderPass <- Vk.CreateRenderPass(vulkanApp, this.swapChain)
-        this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.renderPass)    
-        this.imguiContext <- ImGui.CreateContext(this.window, vulkanApp, this.swapChain, this.renderPass)
-
-      //  let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
-
-        // Must do this first before NewFrame!
-        let fontSize =
-            let size = this.window.Size
-            let ratio = (size.Y / 720)
-            ratio * 16
-        //fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
-        ImGui.UploadFonts(this.imguiContext, vulkanApp.GraphicsCommandPool, this.vkCmdBuffers[0])
+        this.swapChainRenderPass <- Vk.CreateRenderPass(vulkanApp, this.swapChain)
+        this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.swapChainRenderPass)
 
         GC.Collect(2, GCCollectionMode.Forced, true)
 
     private CleanupSwapChain(): () =
         if (this.swapChain !== unchecked default)
-            ImGui.DestroyContext(this.imguiContext)
             Vk.DestroyPipeline(this.vk, this.graphicsPipeline)
             Vk.DestroyFramebuffers(this.vk, this.swapChainFramebuffers)   
-            Vk.DestroyRenderPass(this.vk, this.renderPass)
+            Vk.DestroyRenderPass(this.vk, this.swapChainRenderPass)
             Vk.DestroySwapChain(this.vk, this.swapChain)
             this.swapChain <- unchecked default
 
-class GameRenderingOptions =
+class RenderingOptions =
     WindowTitle: string get, set = "Evergreen Engine"
     InitialWindowSize: Vector2 get, set = Vector2(1280, 720)
 
-class GameRendering =
+class Rendering =
     implements IDisposable
 
     private new(window: IWindow, gpu: Gpu) =
@@ -1054,7 +1181,7 @@ class GameRendering =
     Window: IWindow get
     Gpu: Gpu get
 
-    static Create(options: GameRenderingOptions): GameRendering =
+    static Create(options: RenderingOptions): Rendering =
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
         Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
         
@@ -1066,7 +1193,7 @@ class GameRendering =
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
         let gpu = Gpu(window, vulkanApp)
-        GameRendering(window, gpu)
+        Rendering(window, gpu)
 
     Dispose(): () =
         this.Gpu.Dispose()

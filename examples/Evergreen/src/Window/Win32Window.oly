@@ -46,7 +46,8 @@ internal module Win32 =
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
     private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
-        if (Evergreen.ImGui.Win32ProcHandler(hWnd, msg, wParam, lParam))
+        if (Evergreen.ImGui.ImGuiContext.InputContext !== unchecked default &&
+                Evergreen.ImGui.Win32ProcHandler(hWnd, msg, wParam, lParam))
             LRESULT(nint(1))
         else
             match (int32(msg))
@@ -267,6 +268,9 @@ internal class Win32Window =
             let xs = this.keyEvents.ToArray()
             this.keyEvents.Clear()
             Unsafe.AsImmutable(xs)
+
+        if (Evergreen.ImGui.ImGuiContext.InputContext !== unchecked default)
+            Evergreen.ImGui.SetCurrentContext(Evergreen.ImGui.ImGuiContext.InputContext)
 
         let hwnd = this.hwnd
         let mutable msg = default: MSG
