@@ -150,18 +150,26 @@ compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     p.Dispose()
     code
 
-createUI(windowTitle: string): UINode =
-    let windowViewModel = UI.WindowModel(windowTitle, Vector2.Zero, Vector2.Zero)
+createUI(windowTitle: string, texture: GpuImage, deviceName: string): UINode =
+    let windowModel = UI.WindowModel(windowTitle, Vector2.Zero, Vector2.Zero)
         
-    let inputTextViewModel = UI.TextInputModel("Oly Input Text", "")
-    let buttonViewModel = UI.ButtonModel("Oly Button")
-    UI.Window(windowViewModel, 
+    let labelModel = UI.LabelModel("Device", deviceName)
+    labelModel.IsEnabled <- false
+
+    let imageModel = UI.ImageModel(texture, Vector2(256, 256))
+
+    let textInputModel = UI.TextInputModel("Oly Input Text", "")
+    let buttonModel = UI.ButtonModel("Oly Button")
+    UI.Window(windowModel, 
         [
-            UI.TextInput(inputTextViewModel, vm -> printLine(vm.Text));
-            UI.Button(buttonViewModel,
-                vm ->
+          //  UI.DemoWindow();
+            UI.Label(labelModel);
+            UI.Image(imageModel);
+            UI.TextInput(textInputModel, m -> printLine(m.Text));
+            UI.Button(buttonModel,
+                _m ->
                     printLine("Clicked!")
-                    inputTextViewModel.Text <- inputTextViewModel.Text + "doot"
+                    textInputModel.Text <- textInputModel.Text + "doot"
             )
         ]
     )
@@ -169,7 +177,11 @@ createUI(windowTitle: string): UINode =
 main(): () =
     let options = RenderingOptions()
     let r = Rendering.Create(options)
-    let uiNode = createUI("Oly Window")
+
+    let image = GpuImage("GameExample/Textures/flats/aqf068.png")
+    r.Gpu.Sync(image)
+
+    let uiNode = createUI("Oly Window", image, r.Gpu.DeviceName)
     r.Gpu.Execute([])
 
     let globals =
@@ -192,8 +204,6 @@ main(): () =
         GpuMutableArray.Initialize(GpuArrayKind.Index, GpuMemoryKind.Local, quad.Indices.Length,
             i -> quad.Indices[i]
         )
-
-    let image = GpuImage("GameExample/Textures/flats/aqf068.png")
 
     let gpuProgramUI = GpuProgramUI()
     r.Gpu.Sync(gpuProgramUI)
@@ -230,10 +240,10 @@ main(): () =
     let gpuCommands = 
         Array.Add(
             [
-                GpuCommand.NewFrame(frame);
-                GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length);
-                GpuCommand.DrawUI(gpuProgramUI2, uiNode);
-                GpuCommand.EndFrame()
+               GpuCommand.NewFrame(frame);
+               GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length);
+               GpuCommand.DrawUI(gpuProgramUI2, uiNode);
+               GpuCommand.EndFrame()
             ],
             gpuCommands
         )

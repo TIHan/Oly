@@ -580,7 +580,7 @@ class Gpu =
         if (gpuFrame.IsDirty)
             gpuFrame.IsDirty <- false
 
-            let renderPass = Vk.CreateRenderPass(this.vk, this.swapChain.ImageFormat, this.swapChain.DepthFormat)
+            let renderPass = Vk.CreateRenderPass(this.vk, this.swapChain.ImageFormat, this.swapChain.DepthImageFormat)
 
             let width = 
                 if (gpuFrame.UsesWindowFrameSize)
@@ -606,12 +606,12 @@ class Gpu =
                     image -> Vk.CreateImageView(this.vk, image, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT)
                 )
 
-            let depthFormat = Vk.GetDepthFormat(this.vk)
+            let depthImageFormat = Vk.GetDepthImageFormat(this.vk)
             let depthImages =
                 Array.Initialize(this.vk.MaxFramesInFlight,
                     i -> 
-                        let image = Vk.CreateImage(this.vk, width, height, depthFormat, VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-                        Vk.TransitionImageLayout(this.vk, image.Image, width, height, depthFormat, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                        let image = Vk.CreateImage(this.vk, width, height, depthImageFormat, VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+                        Vk.TransitionImageLayout(this.vk, image.Image, width, height, depthImageFormat, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                         image
                 )
             let depthImageViews =
@@ -1048,7 +1048,6 @@ class Gpu =
 
                                 UI.NewFrame(context)
                                 UI.Show(context, uiNode)
-                                UI.ShowDemoWindow(context)
                                 UI.Draw(context, commandBuffer, VkPipeline.NULL)
                                 
                             | _ =>

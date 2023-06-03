@@ -83,6 +83,8 @@ private struct ImFontAtlas
 
 struct ImFont
 
+alias ImTextureID = void*
+
 newtype ImGuiBool =
     field Value: byte
 
@@ -231,6 +233,9 @@ private igInputInt(label: byte*, v: int32*, step: int32, step_fast: int32, flags
 #[import("C", "imgui.dll", "igCombo_Str_arr")]
 private igCombo_Str_arr(label: byte*, current_item: int32*, items: (byte*)*, items_count: int32, popup_max_height_in_items: int32): ImGuiBool
 
+#[import("C", "imgui.dll", "igImage")]
+private igImage(user_texture_id: VkDescriptorSet, size: Vector2, uv0: Vector2, uv1: Vector2, tint_col: Vector4, border_col: Vector4): ()
+
 #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
 private ImFontConfig_ImFontConfig(): ImFontConfig*
 
@@ -264,6 +269,14 @@ private ImGui_ImplVulkan_CreateFontsTexture(command_buffer: VkCommandBuffer): ()
 #[import("C", "imgui.dll", "ImGui_ImplVulkan_DestroyFontUploadObjects")]
 private ImGui_ImplVulkan_DestroyFontUploadObjects(): ()
 
+// Register a texture (VkDescriptorSet == ImTextureID)
+// FIXME: This is experimental in the sense that we are unsure how to best design/tackle this problem
+// Please post to https://github.com/ocornut/imgui/pull/914 if you have suggestions.
+#[import("C", "imgui.dll", "ImGui_ImplVulkan_AddTexture")]
+private ImGui_ImplVulkan_AddTexture(sampler: VkSampler, image_view: VkImageView, image_layout: VkImageLayout): VkDescriptorSet
+#[import("C", "imgui.dll", "ImGui_ImplVulkan_RemoveTexture")]
+private ImGui_ImplVulkan_RemoveTexture(descriptor_set: VkDescriptorSet): ()
+
 #[import("C", "imgui.dll", "ImGui_ImplWin32_Init")]
 private ImGui_ImplWin32_Init(hwnd: nint): ImGuiBool
 
@@ -292,6 +305,8 @@ class ImGuiContext =
     internal Context: nint get
     internal Win32Handle: nint get
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
+    internal VkDescriptorSets: System.Collections.Concurrent.ConcurrentDictionary<VkDescriptorSet, () -> ()> get
+    Frame: int32 get, set
     Callbacks: System.Collections.Generic.Queue<() -> ()> get
 
     internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
@@ -299,7 +314,9 @@ class ImGuiContext =
             Context = context
             Win32Handle = hwnd
             VulkanInfo = info
+            Frame = 0
             Callbacks = System.Collections.Generic.Queue()
+            VkDescriptorSets = System.Collections.Concurrent.ConcurrentDictionary()
         }
 
     internal static InputContext: ImGuiContext get, set = unchecked default
@@ -376,6 +393,14 @@ CreateContext(window: IWindow, app: Evergreen.Graphics.Backend.Vulkan.VulkanAppl
 
 DestroyContext(context: ImGuiContext): () =
     igSetCurrentContext(context.Context)
+
+    let descriptorSets = context.VkDescriptorSets.ToArray()
+    let mutable i = 0
+    while (i < descriptorSets.Length)
+        let mutable pair = descriptorSets[i]
+        ImGui_ImplVulkan_RemoveTexture(pair.Key)
+        pair.Value()
+        i <- i + 1
 
     ImGui_ImplVulkan_Shutdown()
     ImGui_ImplWin32_Shutdown()
@@ -601,3 +626,20 @@ Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemInde
         )
 
     result == true
+
+CreateTexture(context: ImGuiContext, sampler: VkSampler, imageView: VkImageView, imageLayout: VkImageLayout, onDestroyTexture: () -> ()): VkDescriptorSet =
+    igSetCurrentContext(context.Context)
+
+    let descriptorSet = ImGui_ImplVulkan_AddTexture(sampler, imageView, imageLayout)
+    context.VkDescriptorSets[descriptorSet] <- onDestroyTexture
+    descriptorSet
+
+DestroyTexture(context: ImGuiContext, texture: VkDescriptorSet): () =
+    igSetCurrentContext(context.Context)
+
+    ImGui_ImplVulkan_RemoveTexture(texture)
+
+Image(context: ImGuiContext, texture: VkDescriptorSet, size: Vector2, uv0: Vector2, uv1: Vector2): () =
+    igSetCurrentContext(context.Context)
+
+    igImage(texture, size, uv0, uv1, Vector4(255, 255, 255, 255), Vector4.One)

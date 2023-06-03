@@ -811,6 +811,20 @@ module Array =
         else
             fail("Unable to find item index.")
 
+    TryFindIndex<T>(arr: T[], predicate: T -> bool): int32 =
+        let mutable isFound = false
+        let mutable i = 0
+        while (i < arr.Length && !isFound)
+            let item = arr[i]
+            if (predicate(item))
+                isFound <- true
+            else
+                i <- i + 1
+        if (isFound)
+            i
+        else
+            -1
+
     FindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
         let mutable isFound = false
         let mutable i = 0

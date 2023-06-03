@@ -118,8 +118,6 @@ class VulkanApplication =
         let mutable deviceProperties = default
         vkGetPhysicalDeviceProperties(this.PhysicalDevice, &&deviceProperties)
         String(Unsafe.AsPointer(&&deviceProperties.deviceName): int8*)
-        // TODO: This should work: "String(Unsafe.AsPointer(&&deviceProperties.deviceName))"
-        // Fix language bug.
 
     new(validationLayersEnabled: bool, instance: VkInstance, surface: VkSurfaceKHR, physicalDevice: VkPhysicalDevice, device: VkDevice, graphicsQueue: VkQueue, graphicsQueueFamilyIndex: uint32, computeQueue: VkQueue, computeQueueFamilyIndex: uint32, transferQueue: VkQueue, transferQueueFamilyIndex: uint32, presentQueue: VkQueue, presentQueueFamilyIndex: uint32, debugMessenger: VkDebugUtilsMessengerEXT, imageAvailableSemaphores: VkSemaphore[], renderFinishedSemaphores: VkSemaphore[], inFlightFences: VkFence[], allocator: VmaAllocator) =
         let graphicsCommandPool = Vk.createCommandPool(device, graphicsQueueFamilyIndex)
@@ -175,10 +173,10 @@ class VulkanSwapChain =
     Viewport: VkViewport get
     Scissor: VkRect2D get
     ImageFormat: VkFormat get
-    DepthFormat: VkFormat get
+    DepthImageFormat: VkFormat get
     SupportDetails: VulkanSwapChainSupportDetails get
 
-    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthFormat: VkFormat, supportDetails: VulkanSwapChainSupportDetails) =
+    new(swapChain: VkSwapchainKHR, images: VkImage[], imageViews: VkImageView[], depthImages: VulkanImage[], depthImageViews: VkImageView[], extent: VkExtent2D, viewport: VkViewport, scissor: VkRect2D, imageFormat: VkFormat, depthImageFormat: VkFormat, supportDetails: VulkanSwapChainSupportDetails) =
         {
             SwapChain = swapChain
             Images = images
@@ -189,7 +187,7 @@ class VulkanSwapChain =
             Viewport = viewport
             Scissor = scissor
             ImageFormat = imageFormat
-            DepthFormat = depthFormat
+            DepthImageFormat = depthImageFormat
             SupportDetails = supportDetails
         }
 
@@ -545,7 +543,7 @@ module Vk =
         vkDestroyPipelineLayout(app.Device, pipelineLayout, nullptr)
 
     CreateRenderPass(app: VulkanApplication, swapChain: VulkanSwapChain): VkRenderPass =
-        createRenderPass(app.Device, swapChain.ImageFormat, swapChain.DepthFormat, VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+        createRenderPass(app.Device, swapChain.ImageFormat, swapChain.DepthImageFormat, VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 
     CreateRenderPass(app: VulkanApplication, imageFormat: VkFormat, depthImageFormat: VkFormat): VkRenderPass =
         createRenderPass(app.Device, imageFormat, depthImageFormat, VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
@@ -923,7 +921,7 @@ module Vk =
     UpdateDescriptorSet(app: VulkanApplication, binding: uint32, descriptorSet: VkDescriptorSet, imageLayout: VkImageLayout, imageView: VkImageView, sampler: VkSampler, descriptorType: VkDescriptorType): () =
         updateDescriptorSet(app.Device, binding, descriptorSet, imageLayout, imageView, sampler, descriptorType)
 
-    GetDepthFormat(app: VulkanApplication): VkFormat =
+    GetDepthImageFormat(app: VulkanApplication): VkFormat =
         findSupportedFormat(
             app.PhysicalDevice,
             [VkFormat.VK_FORMAT_D32_SFLOAT;VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT;VkFormat.VK_FORMAT_D24_UNORM_S8_UINT],
@@ -1363,11 +1361,11 @@ module Vk =
         let images = getSwapChainImages(device, swapChain)
         let imageViews = Array.Map(images, x -> createImageView(device, x, surfaceFormat.format, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT))
 
-        let depthFormat = GetDepthFormat(app)
+        let depthImageFormat = GetDepthImageFormat(app)
 
         let depthImages = 
             Array.Initialize(images.Length, 
-                i -> CreateImage(app, extent.width, extent.height, depthFormat, VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+                i -> CreateImage(app, extent.width, extent.height, depthImageFormat, VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
             )
         let depthImageViews = 
             Array.Map(depthImages, 
@@ -1386,7 +1384,7 @@ module Vk =
         scissor.offset <- default
         scissor.extent <- extent
 
-        VulkanSwapChain(swapChain, images, imageViews, depthImages, depthImageViews, extent, viewport, scissor, surfaceFormat.format, depthFormat, details)
+        VulkanSwapChain(swapChain, images, imageViews, depthImages, depthImageViews, extent, viewport, scissor, surfaceFormat.format, depthImageFormat, details)
 
     private createImageView(device: VkDevice, image: VkImage, imageFormat: VkFormat, aspectMask: VkImageAspectFlags): VkImageView =
         let mutable createInfo = default: VkImageViewCreateInfo
@@ -1616,9 +1614,9 @@ module Vk =
         
         graphicsPipeline
 
-    private createRenderPass(device: VkDevice, swapChainImageFormat: VkFormat, depthFormat: VkFormat, finalLayout: VkImageLayout): VkRenderPass =
+    private createRenderPass(device: VkDevice, imageFormat: VkFormat, depthImageFormat: VkFormat, finalLayout: VkImageLayout): VkRenderPass =
         let mutable colorAttachment = default: VkAttachmentDescription
-        colorAttachment.format <- swapChainImageFormat
+        colorAttachment.format <- imageFormat
         colorAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
         colorAttachment.loadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_CLEAR
         colorAttachment.storeOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_STORE
@@ -1632,7 +1630,7 @@ module Vk =
         colorAttachmentRef.layout <- VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 
         let mutable depthAttachment = default: VkAttachmentDescription
-        depthAttachment.format <- depthFormat
+        depthAttachment.format <- depthImageFormat
         depthAttachment.samples <- VkSampleCountFlags.VK_SAMPLE_COUNT_1_BIT
         depthAttachment.loadOp <- VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_CLEAR
         depthAttachment.storeOp <- VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE
