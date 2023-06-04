@@ -850,8 +850,9 @@ type SyntaxType =
         fullWidth: int
     | MutableArray
         of
+        mutableToken: SyntaxToken *
         elementTy: SyntaxType *
-        bracketInnerPipes: SyntaxToken SyntaxList SyntaxBracketInnerPipes *
+        brackets: SyntaxToken SyntaxList SyntaxBrackets *
         fullWidth: int
     | Shape
         of
@@ -923,10 +924,11 @@ type SyntaxType =
                 | 0 -> elementTy :> ISyntaxNode
                 | 1 -> brackets :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | MutableArray(elementTy, bracketInnerPipes, _) ->
+            | MutableArray(mutableToken, elementTy, brackets, _) ->
                 match index with
-                | 0 -> elementTy :> ISyntaxNode
-                | 1 -> bracketInnerPipes :> ISyntaxNode
+                | 0 -> mutableToken :> ISyntaxNode
+                | 1 -> elementTy :> ISyntaxNode
+                | 2 -> brackets :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | Shape(curlyBrackets) ->
                 match index with
@@ -971,7 +973,7 @@ type SyntaxType =
             | Variadic _ -> 2
             | VariadicIndexer _ -> 5
             | Array _ -> 2
-            | MutableArray _ -> 2
+            | MutableArray _ -> 3
             | Shape _ -> 1
             | WildCard _ -> 1
             | Function _ -> 3
@@ -3336,9 +3338,10 @@ type SyntaxExpression =
         fullWidth: int
     | MutableArray
         of
-        leftBracketInnerPipeToken: SyntaxToken *
+        mutableToken: SyntaxToken *
+        leftBracketToken: SyntaxToken *
         elements: SyntaxExpression SyntaxSeparatorList *
-        rightBracketInnerPipeToken: SyntaxToken *
+        rightBracketToken: SyntaxToken *
         fullWidth: int
     | Call
         of
@@ -3507,11 +3510,12 @@ type SyntaxExpression =
                 | 1 -> elements :> ISyntaxNode
                 | 2 -> rightBracketToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | MutableArray(leftBracketInnerPipeToken, elements, rightBracketInnerPipeToken, _) ->
+            | MutableArray(mutableToken, leftBracketToken, elements, rightBracketToken, _) ->
                 match index with
-                | 0 -> leftBracketInnerPipeToken :> ISyntaxNode
-                | 1 -> elements :> ISyntaxNode
-                | 2 -> rightBracketInnerPipeToken :> ISyntaxNode
+                | 0 -> mutableToken :> ISyntaxNode
+                | 1 -> leftBracketToken :> ISyntaxNode
+                | 2 -> elements :> ISyntaxNode
+                | 3 -> rightBracketToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | Call(expression, arguments, _) ->
                 match index with
@@ -3648,7 +3652,7 @@ type SyntaxExpression =
             | Sequential _ -> 2
             | Parenthesis _ -> 3
             | Array _ -> 3
-            | MutableArray _ -> 3
+            | MutableArray _ -> 4
             | Call _ -> 2
             | InfixCall _ -> 3
             | PrefixCall _ -> 2

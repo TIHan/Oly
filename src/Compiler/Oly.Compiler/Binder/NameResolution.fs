@@ -1358,7 +1358,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             else
                 TypeSymbol.CreateArray(elementTy)
 
-        | OlySyntaxType.MutableArray(syntaxElementTy, syntaxBracketPipes) ->
+        | OlySyntaxType.MutableArray(_, syntaxElementTy, syntaxBracketPipes) ->
             let rank = syntaxBracketPipes.Element.Children.Length + 1
             let elementTy = bind cenv env resTyArity false syntaxElementTy
             if rank > 1 then

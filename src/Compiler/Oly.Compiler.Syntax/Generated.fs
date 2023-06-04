@@ -1119,10 +1119,10 @@ module OlySyntaxType =
         | _ ->
             Option.None
 
-    let (|MutableArray|_|) (node: OlySyntaxType) : ( OlySyntaxType * OlySyntaxToken OlySyntaxList OlySyntaxBracketInnerPipes ) option =
+    let (|MutableArray|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxToken OlySyntaxList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxType.MutableArray _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
         | _ ->
             Option.None
 
@@ -3605,10 +3605,10 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|MutableArray|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxExpression OlySyntaxSeparatorList * OlySyntaxToken ) option =
+    let (|MutableArray|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxExpression OlySyntaxSeparatorList * OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxExpression.MutableArray _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
         | _ ->
             Option.None
 

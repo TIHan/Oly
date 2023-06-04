@@ -1517,7 +1517,20 @@ let tryParseInputOrOutput state =
                 
     None
 
-let tryParseInputType s input state =
+let errorMutableArrayType s mutableToken input state =
+    let emptyBrackets = SyntaxBrackets.Brackets(dummyToken(), SyntaxList.Empty(), dummyToken(), 0)
+    let result = SyntaxType.MutableArray(mutableToken, input, emptyBrackets, ep s state)
+    errorDo(ExpectedSyntaxAfterToken("array type", mutableToken.RawToken), result) state
+    result
+
+let parseInputType s (mutableTokenOpt: SyntaxToken option) input state =
+    match mutableTokenOpt with
+    | Some(mutableToken) ->
+        match bt (tryParseBracketsList COMMA) state with
+        | Some(brackets) -> SyntaxType.MutableArray(mutableToken, input, brackets, ep s state)
+        | _ -> errorMutableArrayType s mutableToken input state
+    | _ ->
+
     match bt tryParseTypeOperator state with
     | Some(operator) ->
         SyntaxType.Postfix(input, operator, ep s state)
@@ -1526,11 +1539,6 @@ let tryParseInputType s input state =
     match bt (tryParseBracketsList COMMA) state with
     | Some(brackets) ->
         SyntaxType.Array(input, brackets, ep s state)
-    | _ ->
-
-    match bt (tryParseBracketInnerPipesList COMMA) state with
-    | Some(bracketPipes) ->
-        SyntaxType.MutableArray(input, bracketPipes, ep s state)
     | _ ->
 
     input
@@ -1549,7 +1557,7 @@ let tryParseType state =
         let blittableOptional = parseBlittableOptional state
         match bt tryParseInputOrOutput state with
         | Some(input) ->
-            let input = tryParseInputType s input state
+            let input = parseInputType s None input state
             match (tryPeek canRecover) state with
             | true -> 
                 errorDo (ExpectedSyntax "function type", input) state
@@ -1568,9 +1576,10 @@ let tryParseType state =
             errorDo (ExpectedSyntaxAfterToken("function type", staticToken.RawToken), staticToken) state
             Some(SyntaxType.FunctionPtr(staticToken, blittableOptional, SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), dummyToken(), SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state))
     | _ ->
+        let mutableTokenOpt = bt MUTABLE state
         match bt tryParseInputOrOutput state with
         | Some(input) ->
-            let input = tryParseInputType s input state
+            let input = parseInputType s mutableTokenOpt input state
             match (tryPeek canRecover) state with
             | true -> 
                 Some(input)
@@ -1584,6 +1593,13 @@ let tryParseType state =
 
                 Some(input)
         | _ ->
+            match mutableTokenOpt with
+            | Some(mutableToken) ->
+                let input = SyntaxType.Error(dummyToken())
+                errorMutableArrayType s mutableToken input state
+                |> Some
+            | _ ->
+
             None
 
 let parseMutability state =
@@ -1706,11 +1722,20 @@ let tryParseParameter state : SyntaxParameter option =
     match bt tryParseType state with
     | Some(ty) ->
         match mutability with
-        | SyntaxMutability.Mutable _ ->
-            let par = SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, dummyToken(), dummyToken(), ty, ep s state)
-            errorReturn (InvalidSyntax "'mutable' not expected for a qualified name.", mutability) state
-            |> ignore
-            par |> Some
+        | SyntaxMutability.Mutable(mutableToken) ->
+            // Note: This is a little special since 'mutable' can signify a mutable array type.
+            //       To handle this ambiguity, we match on the type to see if it is an immutable array and then create a mutable array type.
+            //       There are not many cases where we do this sort of thing and it can be dangerous because we throw away the old syntax.
+            //       Throwing away the old syntax means we lose any diagnostics specifically on that node, however it should be fine for this case.
+            match ty with
+            | SyntaxType.Array(elementTy, brackets, _) ->
+                SyntaxParameter.Type(attrs, SyntaxType.MutableArray(mutableToken, elementTy, brackets, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
+                |> Some
+            | _ ->
+                let par = SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, dummyToken(), dummyToken(), ty, ep s state)
+                errorReturn (InvalidSyntax "'mutable' not expected for a qualified name.", mutability) state
+                |> ignore
+                par |> Some
         | _ ->
             SyntaxParameter.Type(attrs, ty, ep s state) |> Some
     | _ ->
@@ -2530,47 +2555,52 @@ let tryParseParenthesisOrTupleOrLambdaExpression state =
     else
         None
 
-let tryParseArrayExpression state =
-    if isNextToken (function LeftBracket -> true | _ -> false) state then
+let tryParseArrayExpression context state =
+    match context with
+    | SyntaxTreeContext.TopLevel -> None
+    | _ ->
+
+    if isNextToken (function LeftBracket | Mutable -> true | _ -> false) state then
         let s = sp state
+
+        let mutableTokenOpt = bt MUTABLE state
 
         match bt3 LEFT_BRACKET (tryParseListWithSeparatorOld tryOptionalSemiColonWithTerminalRightBracket "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocalSkipSequential)) (tryFlexAlign RIGHT_BRACKET) state with
         | Some(leftBracketToken), Some(items), Some(rightBracketToken) ->
-            SyntaxExpression.Array(leftBracketToken, items, rightBracketToken, ep s state) |> Some
+            match mutableTokenOpt with
+            | Some(mutableToken) ->
+                SyntaxExpression.MutableArray(mutableToken, leftBracketToken, items, rightBracketToken, ep s state) |> Some
+            | _ ->
+                SyntaxExpression.Array(leftBracketToken, items, rightBracketToken, ep s state) |> Some
 
         | Some(leftBracketToken), Some(items), _ ->
-            error (ExpectedToken RightBracket, SyntaxExpression.Array(leftBracketToken, items, dummyToken (), ep s state)) state
+            match mutableTokenOpt with
+            | Some(mutableToken) ->
+                error (ExpectedToken RightBracket, SyntaxExpression.MutableArray(mutableToken, leftBracketToken, items, dummyToken (), ep s state)) state
+            | _ ->
+                error (ExpectedToken RightBracket, SyntaxExpression.Array(leftBracketToken, items, dummyToken (), ep s state)) state
+
         | Some(leftBracketToken), _, _ ->
             match bt (tryFlexAlign RIGHT_BRACKET) state with
             | Some(rightBracketToken) ->
-                SyntaxExpression.Array(leftBracketToken, SyntaxSeparatorList.Empty(), rightBracketToken, ep s state) |> Some
+                match mutableTokenOpt with
+                | Some(mutableToken) ->
+                    SyntaxExpression.MutableArray(mutableToken, leftBracketToken, SyntaxSeparatorList.Empty(), rightBracketToken, ep s state) |> Some
+                | _ ->
+                    SyntaxExpression.Array(leftBracketToken, SyntaxSeparatorList.Empty(), rightBracketToken, ep s state) |> Some
             | _ ->
 
-            error (ExpectedSyntax "] or items", SyntaxExpression.Array(leftBracketToken, SyntaxSeparatorList.Empty(), dummyToken (), ep s state)) state
-        | _ ->
-            None
-    else
-        None
-
-let tryParseMutableArrayExpression state =
-    if isNextToken (function LeftBracketInnerPipe -> true | _ -> false) state then
-        let s = sp state
-
-        match bt3 LEFT_BRACKET_INNER_PIPE (tryParseListWithSeparatorOld tryOptionalSemiColon "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocalSkipSequential)) (tryFlexAlign RIGHT_BRACKET_INNER_PIPE) state with
-        | Some(leftBracketPipeInnerToken), Some(items), Some(rightBracketInnerPipeToken) ->
-            SyntaxExpression.MutableArray(leftBracketPipeInnerToken, items, rightBracketInnerPipeToken, ep s state) |> Some
-
-        | Some(leftBracketInnerPipeToken), Some(items), _ ->
-            error (ExpectedToken RightBracketInnerPipe, SyntaxExpression.MutableArray(leftBracketInnerPipeToken, items, dummyToken (), ep s state)) state
-        | Some(leftBracketInnerPipeToken), _, _ ->
-            match bt (tryFlexAlign RIGHT_BRACKET_INNER_PIPE) state with
-            | Some(rightBracketInnerPipeToken) ->
-                SyntaxExpression.MutableArray(leftBracketInnerPipeToken, SyntaxSeparatorList.Empty(), rightBracketInnerPipeToken, ep s state) |> Some
+            match mutableTokenOpt with
+            | Some(mutableToken) ->
+                error (ExpectedSyntax "] or items", SyntaxExpression.MutableArray(mutableToken, leftBracketToken, SyntaxSeparatorList.Empty(), dummyToken (), ep s state)) state
             | _ ->
-
-            error (ExpectedSyntax "|] or items", SyntaxExpression.MutableArray(leftBracketInnerPipeToken, SyntaxSeparatorList.Empty(), dummyToken (), ep s state)) state
+                error (ExpectedSyntax "] or items", SyntaxExpression.Array(leftBracketToken, SyntaxSeparatorList.Empty(), dummyToken (), ep s state)) state
         | _ ->
-            None
+            match mutableTokenOpt with
+            | Some(mutableToken) ->
+                error (ExpectedSyntaxAfterToken("array expression", mutableToken.RawToken), SyntaxExpression.MutableArray(mutableToken, dummyToken(), SyntaxSeparatorList.Empty(), dummyToken (), ep s state)) state
+            | _ ->
+                None
     else
         None
 
@@ -2903,11 +2933,7 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover tryParseArrayExpression) state with
-        | Some result -> result
-        | _ ->
-
-        match bt (alignOrFlexAlignRecover tryParseMutableArrayExpression) state with
+        match bt (alignOrFlexAlignRecover (tryParseArrayExpression context)) state with
         | Some result -> result
         | _ ->
 
