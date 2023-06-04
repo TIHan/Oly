@@ -409,11 +409,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
         OlyILTypeArray(emitILType cenv env elementTy, rank, ilKind)
 
-    | TypeSymbol.ObjectInferenceVariable _ ->
-        failwith "Internal error: Unable to code-gen a object inference variable type."
-
-    | TypeSymbol.NumberInferenceVariable _ ->
-        failwith "Internal error: Unable to code-gen a number inference variable type."
+    | TypeSymbol.EagerInferenceVariable _ ->
+        OlyAssert.Fail("Internal error: Unable to code-gen an eager inference variable type.")
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
         if innerTy.IsBuiltIn then

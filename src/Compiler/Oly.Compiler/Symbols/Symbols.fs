@@ -1257,8 +1257,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
             else
                 ty
 
-    | TypeSymbol.ObjectInferenceVariable(solution)
-    | TypeSymbol.NumberInferenceVariable(solution, _) ->
+    | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
             solution.Solution <- strippedTy // cache solution
@@ -2881,8 +2880,9 @@ type TypeSymbol =
     | HigherVariable of TypeParameterSymbol * tyArgs: TypeArgumentSymbol imarray
     | InferenceVariable of tyParOpt: TypeParameterSymbol option * solution: VariableSolutionSymbol
     | HigherInferenceVariable of tyParOpt: TypeParameterSymbol option * tyArgs: TypeArgumentSymbol imarray * externalSolution: VariableSolutionSymbol * solution: VariableSolutionSymbol
-    | ObjectInferenceVariable of solution: VariableSolutionSymbol
-    | NumberInferenceVariable of solution: VariableSolutionSymbol * defaultTy: TypeSymbol
+
+    /// An eager inference variable type is a type that will solve itself with the specified 'eagerTy' if it was not able be solved in flexible unificiation the first time.
+    | EagerInferenceVariable of solution: VariableSolutionSymbol * eagerTy: TypeSymbol
 
     | DependentIndexer of inputValueTy: TypeSymbol * innerTy: TypeSymbol
 
@@ -2929,16 +2929,14 @@ type TypeSymbol =
         | DependentIndexer _ -> true
         | _ -> false
 
-    member this.IsObjectOrNumberInferenceVariable =
+    member this.IsEagerInferenceVariable_t =
         match stripTypeEquations this with
-        | ObjectInferenceVariable _
-        | NumberInferenceVariable _ -> true
+        | EagerInferenceVariable _ -> true
         | _ -> false
 
     member this.IsOrWasInferenceVariable =
         match this with
-        | ObjectInferenceVariable _
-        | NumberInferenceVariable _ 
+        | EagerInferenceVariable _ 
         | InferenceVariable _
         | HigherInferenceVariable _ -> true
         | _ -> false
@@ -3011,16 +3009,11 @@ type TypeSymbol =
         | NativePtr _ -> "__oly_native_ptr"
         | NativeFunctionPtr _ -> "__oly_native_function_ptr"
         | Array _ -> "__oly_array"
-        | ObjectInferenceVariable(solution) ->
+        | EagerInferenceVariable(solution, eagerTy) ->
             if solution.HasSolution then
                 solution.Solution.Name
             else
-                "?"
-        | NumberInferenceVariable(solution, defaultTy) ->
-            if solution.HasSolution then
-                solution.Solution.Name
-            else
-                "?"
+                eagerTy.Name
         | DependentIndexer(_, formalTy) -> "!!dependent!!" + formalTy.Name // TODO:
         | Error _ -> 
             "?"
@@ -3114,9 +3107,8 @@ type TypeSymbol =
         | InferenceVariable _ 
         | BaseObject
         | NativeInt
-        | NativeUInt 
-        | ObjectInferenceVariable _ 
-        | NumberInferenceVariable _ -> ImArray.empty
+        | NativeUInt
+        | EagerInferenceVariable _ -> ImArray.empty
         | RefCell _ -> FormalRefCellTypeParameters
         | Function _ -> FormalFunctionTypeParameters
         | HigherInferenceVariable(_, tyArgs, _, _)
@@ -3156,8 +3148,7 @@ type TypeSymbol =
         | BaseObject
         | NativeInt
         | NativeUInt
-        | ObjectInferenceVariable _
-        | NumberInferenceVariable _ -> ImArray.empty
+        | EagerInferenceVariable _ -> ImArray.empty
         | RefCell(elementTy) ->
             ImArray.createOne elementTy
 
@@ -3218,8 +3209,7 @@ type TypeSymbol =
         | NativeUInt -> 27
         | NativePtr _ -> 28
         | Array _ -> 29
-        | ObjectInferenceVariable _ -> TypeSymbol.BaseObject.FormalId
-        | NumberInferenceVariable(_, defaultTy) -> defaultTy.FormalId
+        | EagerInferenceVariable(_, eagerTy) -> eagerTy.FormalId
         | NativeFunctionPtr _ -> 39
         | DependentIndexer _ -> 40
         | Entity(ent) -> ent.Formal.Id
@@ -3257,8 +3247,7 @@ type TypeSymbol =
         | NativePtr _
         | NativeFunctionPtr _
         | Array _
-        | ObjectInferenceVariable _
-        | NumberInferenceVariable _
+        | EagerInferenceVariable _
         | DependentIndexer _
         | Error _ -> EnclosingSymbol.RootNamespace
         | Entity(ent) -> ent.Enclosing
@@ -3623,8 +3612,7 @@ type TypeSymbol =
         match stripTypeEquations this with
         | InferenceVariable _
         | HigherInferenceVariable _
-        | NumberInferenceVariable _
-        | ObjectInferenceVariable _ -> false
+        | EagerInferenceVariable _ -> false
         | Error _ -> false
         | _ -> true
 
@@ -4324,8 +4312,10 @@ module SymbolExtensions =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Internal
 
             member this.IsNullable =
-                this.Flags.HasFlag(EntityFlags.Nullable) &&
-                not this.IsAnyStruct
+                if this.IsAnyStruct || this.IsNamespaceOrModule then false
+                else
+                    this.Flags.HasFlag(EntityFlags.Nullable) ||
+                    (this.Flags.HasFlag(EntityFlags.Abstract) && not(this.Flags.HasFlag(EntityFlags.Final)))
 
             member this.IsAutoOpenable =
                 this.Flags.HasFlag(EntityFlags.AutoOpen)
@@ -4666,6 +4656,8 @@ module OtherExtensions =
                     | ConstraintSymbol.Null -> true
                     | _ -> false
                 )
+            // Object is always nullable.
+            | TypeSymbol.BaseObject -> true
             | _ -> false
 
         member this.TryIntrinsicType =

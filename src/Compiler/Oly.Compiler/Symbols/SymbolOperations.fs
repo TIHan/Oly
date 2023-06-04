@@ -129,54 +129,20 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.NativePtr(elementTy1), TypeSymbol.NativePtr(elementTy2) ->
             UnifyTypes rigidity elementTy1 elementTy2
 
-        | TypeSymbol.ObjectInferenceVariable _, TypeSymbol.ObjectInferenceVariable _ -> true
-
-        | TypeSymbol.ObjectInferenceVariable(varSolution), ty 
-        | ty, TypeSymbol.ObjectInferenceVariable(varSolution) when (rigidity = Flexible) ->
-            match ty with
-            | TypeSymbol.InferenceVariable(_, tySolution) ->
-                tySolution.Solution <- TypeSymbol.BaseObject
-                varSolution.Solution <- ty
-                true
-            | TypeSymbol.HigherInferenceVariable _ ->
-                varSolution.Solution <- TypeSymbol.BaseObject
-                false
-            | _ ->
-                if ty.IsAnyStruct || ty.IsTypeVariable (* TODO: type variable check will need to be modified when we have a null constraint *) then
-                    false
-                else
-                    varSolution.Solution <- ty
-                    true
-
-        | TypeSymbol.ObjectInferenceVariable(_), targetTy
-        | targetTy, TypeSymbol.ObjectInferenceVariable(_) ->
-            if targetTy.IsAnyStruct then
-                false
-            elif targetTy.IsTypeVariable then
-                if rigidity = Rigid then
-                    false
-                else
-                    true
-            else
-                if rigidity = Rigid then
-                    UnifyTypes rigidity targetTy TypeSymbol.BaseObject
-                else
-                    true
-
-        | TypeSymbol.NumberInferenceVariable(varSolution1, defaultTy1), TypeSymbol.NumberInferenceVariable(varSolution2, defaultTy2) ->
-            if UnifyTypes rigidity defaultTy1 defaultTy2 then
+        | TypeSymbol.EagerInferenceVariable(varSolution1, eagerTy1), TypeSymbol.EagerInferenceVariable(varSolution2, eagerTy2) ->
+            if UnifyTypes rigidity eagerTy1 eagerTy2 then
                 if (rigidity = Flexible) then
-                    varSolution1.Solution <- defaultTy1
-                    varSolution2.Solution <- defaultTy2
+                    varSolution1.Solution <- eagerTy1
+                    varSolution2.Solution <- eagerTy2
                 true
             else
                 false
 
-        | TypeSymbol.NumberInferenceVariable(varSolution, defaultTy), ty 
-        | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy) when (rigidity = Flexible) ->
+        | TypeSymbol.EagerInferenceVariable(varSolution, eagerTy), ty 
+        | ty, TypeSymbol.EagerInferenceVariable(varSolution, eagerTy) when (rigidity = Flexible) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
-                tySolution.Solution <- defaultTy
+                tySolution.Solution <- eagerTy
                 varSolution.Solution <- ty
                 UnifyTypes rigidity ty1 ty2
             | _ ->
@@ -189,22 +155,25 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                     | TypeSymbol.UInt32
                     | TypeSymbol.Int32
                     | TypeSymbol.UInt64
-                    | TypeSymbol.Int64 when defaultTy.IsFixedInteger ->
+                    | TypeSymbol.Int64 when eagerTy.IsFixedInteger ->
                         varSolution.Solution <- ty
                         UnifyTypes rigidity ty1 ty2
                     | TypeSymbol.Float32
-                    | TypeSymbol.Float64 when defaultTy.IsReal || defaultTy.IsFixedInteger ->
+                    | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
                         varSolution.Solution <- ty
                         UnifyTypes rigidity ty1 ty2
                     | _ ->
-                        varSolution.Solution <- defaultTy
+                        varSolution.Solution <- eagerTy
                         UnifyTypes rigidity ty1 ty2
                 else
-                    varSolution.Solution <- defaultTy
+                    if subsumesTypeWith rigidity eagerTy ty then
+                        varSolution.Solution <- ty
+                    else
+                        varSolution.Solution <- eagerTy
                     UnifyTypes rigidity ty1 ty2
 
-        | TypeSymbol.NumberInferenceVariable(_, defaultTy), targetTy
-        | targetTy, TypeSymbol.NumberInferenceVariable(_, defaultTy) ->
+        | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
+        | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
             if targetTy.IsAnyStruct then
                 match targetTy with
                 | TypeSymbol.UInt8
@@ -214,15 +183,15 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                 | TypeSymbol.UInt32
                 | TypeSymbol.Int32
                 | TypeSymbol.UInt64
-                | TypeSymbol.Int64 when defaultTy.IsFixedInteger ->
+                | TypeSymbol.Int64 when eagerTy.IsFixedInteger ->
                     if rigidity = Rigid then
-                        UnifyTypes rigidity targetTy defaultTy 
+                        UnifyTypes rigidity targetTy eagerTy 
                     else
                         rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
                 | TypeSymbol.Float32
-                | TypeSymbol.Float64 when defaultTy.IsReal || defaultTy.IsFixedInteger ->
+                | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
                     if rigidity = Rigid then
-                        UnifyTypes rigidity targetTy defaultTy 
+                        UnifyTypes rigidity targetTy eagerTy 
                     else
                         rigidity = NumberGeneralizable || rigidity = Generalizable
                 | _ ->

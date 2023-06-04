@@ -1339,8 +1339,7 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
             match stripTypeEquations ty with
             | TypeSymbol.InferenceVariable _
             | TypeSymbol.HigherInferenceVariable _ 
-            | TypeSymbol.ObjectInferenceVariable _
-            | TypeSymbol.NumberInferenceVariable _ -> None
+            | TypeSymbol.EagerInferenceVariable _ -> None
             | _ -> Some ty
         )
         |> Option.defaultWith(fun () ->

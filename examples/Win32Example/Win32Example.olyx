@@ -162,10 +162,10 @@ createUI(windowTitle: string, texture: GpuImage, deviceName: string): UINode =
     let buttonModel = UI.ButtonModel("Oly Button")
     UI.Window(windowModel, 
         [
-          //  UI.DemoWindow();
-            UI.Label(labelModel);
-            UI.Image(imageModel);
-            UI.TextInput(textInputModel, m -> printLine(m.Text));
+          //  UI.DemoWindow()
+            UI.Label(labelModel)
+            UI.Image(imageModel)
+            UI.TextInput(textInputModel, m -> printLine(m.Text))
             UI.Button(buttonModel,
                 _m ->
                     printLine("Clicked!")
