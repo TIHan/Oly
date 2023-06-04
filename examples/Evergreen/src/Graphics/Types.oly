@@ -21,12 +21,12 @@ internal alias VeldridShaderDescription = Veldrid.ShaderDescription
 internal alias VeldridShader = Veldrid.Shader
 
 class MeshDescription =
-    Vertices:   Vector3[||] get, set
-    Indices:    uint32[||] get, set
-    Normals:    Vector3[||] get, set
-    TexCoords:  Vector2[||] get, set
+    Vertices:   mutable Vector3[] get, set
+    Indices:    mutable uint32[] get, set
+    Normals:    mutable Vector3[] get, set
+    TexCoords:  mutable Vector2[] get, set
 
-    new(vertices: Vector3[||], indices: uint32[||], normals: Vector3[||], texCoords: Vector2[||]) =
+    new(vertices: mutable Vector3[], indices: mutable uint32[], normals: mutable Vector3[], texCoords: mutable Vector2[]) =
         {
             Vertices = vertices;
             Indices = indices;
@@ -36,34 +36,34 @@ class MeshDescription =
 
     static CreateQuad(scale: float32): MeshDescription =
         let vertices =
-            [|
+            mutable [
                 Vector3(-scale, -scale,  scale);
                 Vector3(scale, -scale,  scale);
                 Vector3(scale,  scale,  scale);
                 Vector3(-scale,  scale,  scale)
-            |]
+            ]
 
         let normals =
-            [|
+            mutable [
                 Vector3(0, 0, 1);
                 Vector3(0, 0, 1);
                 Vector3(0, 0, 1);
                 Vector3(0, 0, 1)
-            |]
+            ]
 
         let texCoords =
-            [|
+            mutable [
                 Vector2(0.0, 0.0);
                 Vector2(1.0, 0.0);
                 Vector2(1.0, 1.0);
                 Vector2(0.0, 1.0)
-            |]
+            ]
 
         let indices =
-            [|
+            mutable [
                 0;  1;  2;
                 2;  3;  0: uint32
-            |]
+            ]
         
         MeshDescription(
             vertices, 
@@ -77,7 +77,7 @@ class MeshDescription =
 
     static CreateCube(): MeshDescription =
         let vertices =
-            [|
+            mutable [
                 // front
                 Vector3(-0.5, -0.5,  0.5);
                 Vector3(0.5, -0.5,  0.5);
@@ -108,10 +108,10 @@ class MeshDescription =
                 Vector3(0.5, -0.5, -0.5);
                 Vector3(0.5,  0.5, -0.5);
                 Vector3(0.5,  0.5,  0.5)
-            |]
+            ]
 
         let normals =
-            [|
+            mutable [
                 // front
                 Vector3(0, 0, 1);
                 Vector3(0, 0, 1);
@@ -142,7 +142,7 @@ class MeshDescription =
                 Vector3(1, 0, 0);
                 Vector3(1, 0, 0);
                 Vector3(1, 0, 0)
-            |]
+            ]
 
         // let texCoords =
         //     [|
@@ -178,7 +178,7 @@ class MeshDescription =
         //         Vector2(0.0, 1.0)
         //     |]
         let texCoords =
-            [|
+            mutable [
                 // front
                 Vector2(0.0, 0.0);
                 Vector2(1.0, 0.0);
@@ -209,10 +209,10 @@ class MeshDescription =
                 Vector2(0.0, 0.0);
                 Vector2(-1.0, 0.0);
                 Vector2(-1.0, 1.0)
-            |]
+            ]
 
         let indices =
-            [|
+            mutable [
                 // front
                 0;  1;  2;
                 2;  3;  0: uint32;
@@ -231,7 +231,7 @@ class MeshDescription =
                 // right
                 20; 21; 22;
                 22; 23; 20: uint32
-            |]
+            ]
         
         MeshDescription(
             vertices, 
@@ -241,25 +241,25 @@ class MeshDescription =
         )
 
 class ShaderDescription =
-    internal VertexLayouts:  VertexLayoutDescription[||] get, set
+    internal VertexLayouts:  mutable VertexLayoutDescription[] get, set
     internal VertexShader:   VeldridShaderDescription get, set
     internal FragmentShader: VeldridShaderDescription get, set
 
-    private new(vertexLayouts: VertexLayoutDescription[||], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
+    private new(vertexLayouts: mutable VertexLayoutDescription[], vertexShader: VeldridShaderDescription, fragmentShader: VeldridShaderDescription) =
         {
             VertexLayouts = vertexLayouts;
             VertexShader = vertexShader;
             FragmentShader = fragmentShader
         }
 
-    static CreateMeshShader(vertexShaderBytes: byte[||], fragmentShaderBytes: byte[||]): ShaderDescription =
+    static CreateMeshShader(vertexShaderBytes: mutable byte[], mutable fragmentShaderBytes: mutable byte[]): ShaderDescription =
         let vertexLayout =
             VertexLayoutDescription(
-                [|
+                mutable [
                     VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3);
                     VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2);
                     VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3)
-                |]
+                ]
             )
     
         let vertexShader =
@@ -276,7 +276,7 @@ class ShaderDescription =
                 "main"
             )
 
-        ShaderDescription([|vertexLayout|], vertexShader, fragmentShader)
+        ShaderDescription(mutable [vertexLayout], vertexShader, fragmentShader)
 
 class ComputeShaderDescription =
     internal ComputeShader: VeldridShaderDescription get, set
@@ -286,7 +286,7 @@ class ComputeShaderDescription =
             ComputeShader = computeShader
         }
 
-    static CreateMeshLayout(computeShaderBytes: byte[||]): ComputeShaderDescription =
+    static CreateMeshLayout(computeShaderBytes: mutable byte[]): ComputeShaderDescription =
         let computeShader =
             ShaderDescription(
                 ShaderStages.Compute,
@@ -649,13 +649,13 @@ alias Key = Veldrid.Key
 alias MouseEvent = Veldrid.MouseEvent
 
 class InputState =
-    KeyEvents: KeyEvent[||] get
-    MouseEvents: MouseEvent[||] get
+    KeyEvents: mutable KeyEvent[] get
+    MouseEvents: mutable MouseEvent[] get
     MousePosition: Vector2 get, set
     MouseDelta: Vector2 get, set
     internal field snapshot: InputSnapshot
 
-    internal new(keyEvents: KeyEvent[||], mouseEvents: MouseEvent[||], snapshot: InputSnapshot) =
+    internal new(keyEvents: mutable KeyEvent[], mouseEvents: mutable MouseEvent[], snapshot: InputSnapshot) =
         {
             KeyEvents = keyEvents
             MouseEvents = mouseEvents

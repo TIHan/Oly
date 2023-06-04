@@ -33,7 +33,7 @@ class WindowModel =
     Size: Vector2 get, set = Vector2.Zero
     RelativePosition: Vector2 get, set = Vector2.Zero
 
-    field titleBuffer: byte[||] = Array.ZeroCreate(256)
+    field titleBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field titleBufferLength: int32 = 0
     mutable field title: string = string.Empty
     internal TitleSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.titleBuffer, 0, this.titleBufferLength)
@@ -49,7 +49,7 @@ class ButtonModel =
     IsEnabled: bool get, set = true
     Size: Vector2 get, set = Vector2.Zero
 
-    field labelBuffer: byte[||] = Array.ZeroCreate(256)
+    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
     mutable field label: string = string.Empty
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
@@ -64,7 +64,7 @@ class TextInputModel =
 
     IsEnabled: bool get, set = true
 
-    field labelBuffer: byte[||] = Array.ZeroCreate(256)
+    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
     mutable field label: string = string.Empty
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
@@ -74,7 +74,7 @@ class TextInputModel =
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
-    field textBuffer: byte[||] = Array.ZeroCreate(256)
+    field textBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field text: string = string.Empty
     internal TextSpan: Span<byte> get() = Span(this.textBuffer, 0, this.textBuffer.Length)
     Text: string
@@ -95,7 +95,7 @@ class LabelModel =
 
     IsEnabled: bool get, set = true
     
-    field labelBuffer: byte[||] = Array.ZeroCreate(256)
+    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
     mutable field label: string = string.Empty
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
@@ -105,7 +105,7 @@ class LabelModel =
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
-    field textBuffer: byte[||] = Array.ZeroCreate(256)
+    field textBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field text: string = string.Empty
     internal TextSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.textBuffer, 0, this.textBuffer.Length)
     Text: string
@@ -137,7 +137,7 @@ class ComboBoxModel =
     IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     SelectedItemIndex: int32 get, set = 0
-    Items: string[||] get, set = [||]
+    Items: mutable string[] get, set = mutable []
     ItemCount: int32 get, set = 0
 
 abstract class UINode =
@@ -449,7 +449,7 @@ module UI =
     ComboBox(state: ComboBoxModel, onChanged: ComboBoxModel -> ()): UINode =
         UINode.ComboBox(state, () -> onChanged(state))
 
-    ComboBoxModel(label: string, selectedItemIndex: int32, items: string[||], itemCount: int32): ComboBoxModel =
+    ComboBoxModel(label: string, selectedItemIndex: int32, items: mutable string[], itemCount: int32): ComboBoxModel =
         let m = ComboBoxModel()
         m.Label <- label
         m.SelectedItemIndex <- selectedItemIndex

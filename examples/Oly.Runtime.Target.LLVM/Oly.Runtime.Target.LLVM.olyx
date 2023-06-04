@@ -1,7 +1,7 @@
 #target "dotnet: net7"
 
 #reference "../core/prelude.olyx"
-#reference "../../../src/Compiler/Oly.Compiler.Workspace/Oly.Compiler.Workspace.fsproj"
+#reference "../../src/Compiler/Oly.Compiler.Workspace/Oly.Compiler.Workspace.fsproj"
 
 #package "LLVMSharp,14.0.0-beta1"
 #package "libLLVM.runtime.win-x64,14.0.0"

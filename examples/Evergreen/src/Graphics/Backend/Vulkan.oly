@@ -344,7 +344,7 @@ newtype VulkanCommandBuffer =
         offsetsHandle.Free()
         vertexBuffersHandle.Free()
 
-    BindVertexBuffers(vertexBuffers: VulkanBuffer[||]): () =
+    BindVertexBuffers(vertexBuffers: mutable VulkanBuffer[]): () =
         this.BindVertexBuffers(ReadOnlySpan(vertexBuffers))
 
     BindVertexBuffers(vertexBuffers: VulkanBuffer[]): () =
@@ -371,10 +371,10 @@ newtype VulkanCommandBuffer =
 internal class PtrPtrHandle =
     implements IDisposable
 
-    private mutable field handles: GCHandle[||]
+    private mutable field handles: mutable GCHandle[]
     private mutable field ptrPtr: GCHandle
 
-    new(handles: GCHandle[||], ptrPtr: GCHandle) =
+    new(handles: mutable GCHandle[], ptrPtr: GCHandle) =
         {
             handles = handles
             ptrPtr = ptrPtr
@@ -553,10 +553,10 @@ module Vk =
 
     CreateGraphicsPipeline(app: VulkanApplication, vertexBindingDescriptions: VkVertexInputBindingDescription[], vertexAttributeDescriptions: VkVertexInputAttributeDescription[], pipelineLayout: VkPipelineLayout, renderPass: VkRenderPass, cullMode: VkCullModeFlags, frontFace: VkFrontFace, vertexShaderModule: VkShaderModule, fragmentShaderModule: VkShaderModule, extent: VkExtent2D, viewport: byref<VkViewport>, scissor: byref<VkRect2D>): VkPipeline =
         let stages =
-            [|
+            mutable [
                 createShaderStageInfo(vertexShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_VERTEX_BIT);
                 createShaderStageInfo(fragmentShaderModule, VkShaderStageFlags.VK_SHADER_STAGE_FRAGMENT_BIT)
-            |]
+            ]
         createGraphicsPipeline(app.Device, pipelineLayout, renderPass, stages, cullMode, frontFace, vertexBindingDescriptions, vertexAttributeDescriptions, extent, &viewport, &scissor)
 
     DestroyPipeline(app: VulkanApplication, pipeline: VkPipeline): () =
@@ -579,7 +579,7 @@ module Vk =
             DestroyFramebuffer(app, framebuffers[i])
             i <- i + 1
 
-    DestroyFramebuffers(app: VulkanApplication, framebuffers: VkFramebuffer[||]): () =
+    DestroyFramebuffers(app: VulkanApplication, framebuffers: mutable VkFramebuffer[]): () =
         DestroyFramebuffers(app, ReadOnlySpan(framebuffers))
 
     DestroyFramebuffers(app: VulkanApplication, framebuffers: VkFramebuffer[]): () =
@@ -695,7 +695,7 @@ module Vk =
             | _ =>
                 fail("should not happen")
 
-    UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[||]): () where T: unmanaged =
+    UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: mutable T[]): () where T: unmanaged =
         UpdateBuffer<T>(app, buffer, ReadOnlySpan(bufferData))
 
     UpdateBuffer<T>(app: VulkanApplication, buffer: VulkanBuffer, bufferData: T[]): () where T: unmanaged =
@@ -1455,7 +1455,7 @@ module Vk =
             device: VkDevice, 
             pipelineLayout: VkPipelineLayout, 
             renderPass: VkRenderPass, 
-            stages: VkPipelineShaderStageCreateInfo[||],
+            stages: mutable VkPipelineShaderStageCreateInfo[],
             cullMode: VkCullModeFlags,
             frontFace: VkFrontFace,
             vertexBindingDescriptions: VkVertexInputBindingDescription[],

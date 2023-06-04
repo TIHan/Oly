@@ -326,9 +326,9 @@ struct EntityId =
 class Archetype<T0> where T0: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||] get
-    EntityIds: EntityId[||] get
-    Buffer0: T0[||] get
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
 
     new(size: int32) =
         {
@@ -350,10 +350,10 @@ class Archetype<T0, T1> where T0: unmanaged
                                where T1: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||] get
-    EntityIds: EntityId[||] get
-    Buffer0: T0[||] get
-    Buffer1: T1[||] get
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
 
     new(size: int32) =
         {
@@ -378,11 +378,11 @@ class Archetype<T0, T1, T2> where T0: unmanaged
                                    where T2: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||] get
-    EntityIds: EntityId[||] get
-    Buffer0: T0[||] get
-    Buffer1: T1[||] get
-    Buffer2: T2[||] get
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
+    Buffer2: mutable T2[] get
 
     new(size: int32) =
         {
@@ -410,12 +410,12 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
                                        where T3: unmanaged =
     Count: int32 get, set
 
-    Lookup: int32[||] get
-    EntityIds: EntityId[||] get
-    Buffer0: T0[||] get
-    Buffer1: T1[||] get
-    Buffer2: T2[||] get
-    Buffer3: T3[||] get
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
+    Buffer2: mutable T2[] get
+    Buffer3: mutable T3[] get
 
     new(size: int32) =
         {
@@ -446,7 +446,7 @@ class World =
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
     mutable field entityCount: int32 = 0
-    field entityVersions: uint32[||] = Array.ZeroCreate<uint32>(1024)
+    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(1024)
 
     Archetype_StaticBox:  Archetype<Transform, Color, StaticObjectId> get             = Archetype(1024)
     Archetype_Box:        Archetype<Transform, Color, DynamicObjectId> get           = Archetype(1024)
