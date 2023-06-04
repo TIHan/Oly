@@ -1134,6 +1134,8 @@ let areLiteralsEqual (literal1: BoundLiteral) (literal2: BoundLiteral) =
       BoundLiteral.ConstantEnum(cns2, ty2) -> areTypesEqual ty1 ty2 && areConstantsEqual cns1 cns2
     | BoundLiteral.NullInference(ty1),
       BoundLiteral.NullInference(ty2) -> areTypesEqual ty1 ty2
+    | BoundLiteral.DefaultInference(ty1, isUnchecked1),
+      BoundLiteral.DefaultInference(ty2, isUnchecked2) -> areTypesEqual ty1 ty2 && isUnchecked1 = isUnchecked2
     | _ -> false
 
 let areTargetExpressionsEqual (expr1: E) (expr2: E) =
