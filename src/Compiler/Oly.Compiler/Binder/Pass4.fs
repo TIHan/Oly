@@ -1747,7 +1747,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture false syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 
-    | OlySyntaxExpression.MutableArray(_, syntaxElements, _) ->
+    | OlySyntaxExpression.MutableArray(_, _, syntaxElements, _) ->
         let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture true syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 

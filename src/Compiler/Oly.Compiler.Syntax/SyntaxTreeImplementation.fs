@@ -1428,7 +1428,7 @@ module OlySyntaxDiffs =
                             syntaxToken1.GetText(ct).ContentEquals(syntaxToken2.GetText(ct))
                         )
                     )
-                | OlySyntaxType.MutableArray(syntaxElementTy1, syntaxBrackets1), OlySyntaxType.Array(syntaxElementTy2, syntaxBrackets2) ->
+                | OlySyntaxType.MutableArray(_, syntaxElementTy1, syntaxBrackets1), OlySyntaxType.Array(syntaxElementTy2, syntaxBrackets2) ->
                     checkType syntaxElementTy1 syntaxElementTy2 &&
                     (
                         let syntaxTokens1 = syntaxBrackets1.Element.ChildrenOfType

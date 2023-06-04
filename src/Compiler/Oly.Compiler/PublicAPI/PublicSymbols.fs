@@ -987,7 +987,7 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
         if ty.TypeArguments.Length > 0 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
 
-    | OlySyntaxType.MutableArray(syntaxElementTy, _) ->
+    | OlySyntaxType.MutableArray(_, syntaxElementTy, _) ->
         if ty.TypeArguments.Length > 0 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
 

@@ -3389,11 +3389,11 @@ alias int32
 getLength<T>(T[]): int32
 
 #[intrinsic("get_length")]
-getLength<T>(T[||]): int32
+getLength<T>(mutable T[]): int32
 
 main(): () =
     let result = getLength<_>([1])
-    let result = getLength<_>([|1|])
+    let result = getLength<_>(mutable [1])
         """
     Oly src
     |> shouldCompile
@@ -3427,7 +3427,7 @@ alias int32
 (`[]`)<T>(T[], int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], int32): T
+(`[]`)<T>(mutable T[], int32): T
 
 test(xs: int32[]): () =
     let x = xs[0]
@@ -3447,7 +3447,7 @@ alias int32
 (`[]`)<T>(T[], int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], int32): T
+(`[]`)<T>(mutable T[], int32): T
 
 shape DotNetIndexGetter<T> =
 
@@ -3476,7 +3476,7 @@ alias bool
 (`[]`)<T>(T[], int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], int32): T
+(`[]`)<T>(mutable T[], int32): T
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -3503,9 +3503,9 @@ let ``Index setter call``() =
 alias int32
 
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], int32, T): ()
+(`[]`)<T>(mutable T[], int32, T): ()
 
-test(xs: int32[||]): () =
+test(xs: mutable int32[]): () =
     xs[0] <- 1
         """
     Oly src
@@ -4360,18 +4360,18 @@ alias bool
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 #[intrinsic("get_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 module Array =
 
     #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): T[||]
+    ZeroCreate<T>(size: int32): mutable T[]
 
 interface IMemory<T> where T: struct =
 
@@ -4383,9 +4383,9 @@ interface IMemory<T> where T: struct =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private field Buffer: T[||]
+    private field Buffer: mutable T[]
 
-    private new(buffer: T[||]) =
+    private new(buffer: mutable T[]) =
         {
             Buffer = buffer
         }
@@ -4448,7 +4448,7 @@ private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
 
         
 test(): () =
-    let m = DefaultMemory<int32>([||])
+    let m = DefaultMemory<int32>(mutable [])
     let x = IndexQueue<DefaultMemory>(m, 0)
     ()
         """
@@ -4480,16 +4480,16 @@ alias bool
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 #[intrinsic("get_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 #[intrinsic("get_length")]
-getLength<T>(T[||]): int32
+getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
 print(__oly_object): ()
@@ -4497,7 +4497,7 @@ print(__oly_object): ()
 module Array =
 
     #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): T[||]
+    ZeroCreate<T>(size: int32): mutable T[]
 
 interface IMemory<T> where T: struct =
 
@@ -4513,9 +4513,9 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private field Buffer: T[||]
+    private field Buffer: mutable T[]
 
-    private new(buffer: T[||]) =
+    private new(buffer: mutable T[]) =
         {
             Buffer = buffer
         }
@@ -4596,16 +4596,16 @@ alias bool
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 #[intrinsic("get_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 #[intrinsic("get_length")]
-getLength<T>(T[||]): int32
+getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
 print(__oly_object): ()
@@ -4613,7 +4613,7 @@ print(__oly_object): ()
 module Array =
 
     #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): T[||]
+    ZeroCreate<T>(size: int32): mutable T[]
 
 interface IMemory<T> where T: struct =
 
@@ -4629,9 +4629,9 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 struct DefaultMemory<T> where T: struct =
     implements IMemory<T>
 
-    private field Buffer: T[||]
+    private field Buffer: mutable T[]
 
-    private new(buffer: T[||]) =
+    private new(buffer: mutable T[]) =
         {
             Buffer = buffer
         }
@@ -4695,9 +4695,9 @@ print(object): ()
 alias int32
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("by_ref_read_write")]
 alias byref<T>
@@ -4710,7 +4710,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field Buffer: int32[||] = unchecked default
+    mutable field Buffer: mutable int32[] = unchecked default
 
     mutable A(): () =
         let z: byref<_> = &this.Buffer
@@ -4734,9 +4734,9 @@ print(object): ()
 alias int32
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("by_ref_read_write")]
 alias byref<T>
@@ -4789,9 +4789,9 @@ print(object): ()
 alias int32
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("by_ref_read_write")]
 alias byref<T>
@@ -4940,11 +4940,11 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): byref<T>
+(`[]`)<T>(mutable T[], index: int32): byref<T>
 
-test(xs: int32[||]): () =
+test(xs: mutable int32[]): () =
     let z: int32 = xs[0]
         """
     Oly src
@@ -4977,9 +4977,9 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 
-test(xs: int32[||]): () =
+test(xs: mutable int32[]): () =
     let z: byref<int32> = &xs[0]
         """
     Oly src
@@ -5012,9 +5012,9 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 
-test(xs: int32[||]): () =
+test(xs: mutable int32[]): () =
     let z: int32 = xs[0]
         """
     Oly src
@@ -5044,12 +5044,12 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 
-test(xs: int32[||]): int32 = xs[0]
-test(xs: int32[||]): byref<int32> = &xs[0]
+test(xs: mutable int32[]): int32 = xs[0]
+test(xs: mutable int32[]): byref<int32> = &xs[0]
 
-test2(xs: int32[||]): () =
+test2(xs: mutable int32[]): () =
     // The non-byref return takes precedence.
     let z = test(xs)
         """
@@ -6568,18 +6568,18 @@ let ``Regression - extension of array should pass``() =
 alias int32
 
 #[intrinsic("get_length")]
-getLength<T>(T[||]): int32
+getLength<T>(mutable T[]): int32
 
 #[open]
 extension ArrayExtensions<T> =
-    inherits T[||]
+    inherits mutable T[]
 
     Length: int32 
         #[inline]
         get() = getLength(this)
 
 main(): () =
-    let arr = [|1|]
+    let arr = mutable [1]
     let result = arr.Length
     ()
         """
@@ -7386,7 +7386,7 @@ struct TestStruct2 =
     public field S: TestStruct = default
 
 Find<T>(arr: T[], predicate: T -> bool): T = unchecked default
-Find<T>(arr: T[||], predicate: T -> bool): T = unchecked default
+Find<T>(arr: mutable T[], predicate: T -> bool): T = unchecked default
 
 main(): () =
     let s = TestStruct()

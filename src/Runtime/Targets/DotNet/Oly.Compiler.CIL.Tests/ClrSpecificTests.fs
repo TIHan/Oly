@@ -1268,7 +1268,7 @@ open System
 open System.IO
 
 main(): () =
-    let ms = MemoryStream([||])
+    let ms = MemoryStream(mutable [])
     Console.Write("test")
         """
 
@@ -1562,10 +1562,10 @@ alias int32
 (`[]`)<T>(T[], index: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 
 shape DotNetIndexGetter<TKey, TValue> =
 
@@ -1602,10 +1602,10 @@ alias int32
 (`[]`)<T>(T[], index: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 
 shape DotNetIndexGetter<TKey, TValue> =
 
@@ -1636,7 +1636,7 @@ open System
 open System.Collections.Generic
 
 main(): () =
-    let xs = [|1;2;3|]
+    let xs = mutable [1;2;3]
     let mutable xs = ReadOnlySpan(xs)
     Console.Write(xs.get_Item(1))
         """
@@ -3234,7 +3234,7 @@ class TestData =
     public field X: uint64 = 123456789
 
 main(): () =
-    let mutable xs = ReadOnlySpan([|TestData()|])
+    let mutable xs = ReadOnlySpan(mutable [TestData()])
     print(xs.get_Item(0).X)
         """
     let proj = getProject src
@@ -3860,13 +3860,13 @@ print(object): ()
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 #[intrinsic("get_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -3937,11 +3937,11 @@ GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
 private getLength<T>(T[]): int32
 
 #[intrinsic("get_length")]
-private getLength<T>(T[||]): int32
+private getLength<T>(mutable T[]): int32
 
 #[open]
 extension MutableArrayExtensions<T> =
-    inherits T[||]
+    inherits mutable T[]
 
     Length: int32 
         #[inline]
@@ -3960,9 +3960,9 @@ extension ArrayExtensions =
     inherits System.Array
 
     #[intrinsic("new_array")]
-    static ZeroCreate<T>(size: int32): T[||]
+    static ZeroCreate<T>(size: int32): mutable T[]
 
-    static Initialize<T>(size: int32, f: int32 -> T): T[||] =
+    static Initialize<T>(size: int32, f: int32 -> T): mutable T[] =
         let newArr = System.Array.ZeroCreate<T>(size)
         let mutable i = 0
         while (i < newArr.Length)
@@ -3970,7 +3970,7 @@ extension ArrayExtensions =
             i <- i + 1
         newArr
 
-    static Map<T, U>(arr: T[||], f: T -> U): U[||] =
+    static Map<T, U>(arr: mutable T[], f: T -> U): mutable U[] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
@@ -3986,7 +3986,7 @@ extension ArrayExtensions =
             i <- i + 1
         UnsafeCast(newArr)
 
-    static MapAsMutable<T, U>(arr: T[], f: T -> U): U[||] =
+    static MapAsMutable<T, U>(arr: T[], f: T -> U): mutable U[] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
@@ -4087,7 +4087,7 @@ extension ArrayExtensions =
         else
             fail("Unable to find item index.")
 
-    static Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
+    static Flatten<T, U>(arr: mutable T[], f: T -> (U, U, U)): mutable U[] =
         let newArr = System.Array.ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0
         let mutable j = 0

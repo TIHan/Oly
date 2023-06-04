@@ -60,7 +60,7 @@ struct KeyEvent =
     IsRepeat: bool get() = this.Flags & KeyEventFlags.Repeat == KeyEventFlags.Repeat
 
     overrides ToString(): string =
-        string.Format("(Key = {0}, Flags = {1})", [|this.Key: object;this.Flags|])
+        string.Format("(Key = {0}, Flags = {1})", mutable [this.Key: object;this.Flags])
 
 class InputSnapshot =
     KeyEvents: KeyEvent[] get

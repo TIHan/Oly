@@ -506,13 +506,13 @@ print(object): ()
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[||], index: int32): T
+(`[]`)<T>(mutable T[], index: int32): T
 #[intrinsic("set_element")]
-(`[]`)<T>(T[||], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: int32, T): ()
 #[intrinsic("get_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
 #[intrinsic("set_element")]
-(`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -583,11 +583,11 @@ GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
 private getLength<T>(T[]): int32
 
 #[intrinsic("get_length")]
-private getLength<T>(T[||]): int32
+private getLength<T>(mutable T[]): int32
 
 #[open]
 extension MutableArrayExtensions<T> =
-    inherits T[||]
+    inherits mutable T[]
 
     Length: int32 
         #[inline]
@@ -657,10 +657,10 @@ module Unsafe =
     #[intrinsic("unsafe_cast")]
     Cast<T>(object): T
 
-    AsImmutable<T>(arr: T[||]): T[] =
+    AsImmutable<T>(arr: mutable T[]): T[] =
         Cast(arr)
 
-    AsMutable<T>(arr: T[]): T[||] =
+    AsMutable<T>(arr: T[]): mutable T[] =
         Cast(arr)
 
     #[intrinsic("unsafe_cast")]
@@ -687,9 +687,9 @@ module Unsafe =
 module Array =
 
     #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): T[||]
+    ZeroCreate<T>(size: int32): mutable T[]
 
-    InitializeMutable<T>(size: int32, f: int32 -> T): T[||] =
+    InitializeMutable<T>(size: int32, f: int32 -> T): mutable T[] =
         let newArr = ZeroCreate<T>(size)
         let mutable i = 0
         while (i < newArr.Length)
@@ -700,7 +700,7 @@ module Array =
     Initialize<T>(size: int32, f: int32 -> T): T[] =
         Unsafe.AsImmutable(InitializeMutable(size, f))
 
-    Map<T, U>(arr: T[||], f: T -> U): U[||] =
+    Map<T, U>(arr: mutable T[], f: T -> U): mutable U[] =
         let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
@@ -724,7 +724,7 @@ module Array =
             i <- i + 1
         Unsafe.AsImmutable(newArr)
 
-    MapAsMutable<T, U>(arr: T[], f: T -> U): U[||] =
+    MapAsMutable<T, U>(arr: T[], f: T -> U): mutable U[] =
         let newArr = ZeroCreate<U>(arr.Length)
         let mutable i = 0
         while (i < arr.Length)
@@ -866,7 +866,7 @@ module Array =
 
             Unsafe.AsImmutable(newArr)
 
-    Flatten<T, U>(arr: T[||], f: T -> (U, U, U)): U[||] =
+    Flatten<T, U>(arr: mutable T[], f: T -> (U, U, U)): mutable U[] =
         let newArr = ZeroCreate<U>(arr.Length * 3)
         let mutable i = 0
         let mutable j = 0

@@ -40,7 +40,7 @@ main(): () =
     let updateWorldPhysics(dt) =
         physics.Update(dt)
 
-        let updatePhysicsBoxes(physicsBoxCount: int32, physicsBoxTransforms: Transform[||], physicsBoxDynamicObjectIds: DynamicObjectId[||]) =
+        let updatePhysicsBoxes(physicsBoxCount: int32, physicsBoxTransforms: mutable Transform[], physicsBoxDynamicObjectIds: mutable DynamicObjectId[]) =
             let mutable i = 0
             while (i < physicsBoxCount)
                 let mutable m = physicsBoxTransforms[i]
@@ -218,7 +218,7 @@ main(): () =
 
     let quadInstances = 
         let transform = Transform.Create(Vector3(0, 0, 0), Quaternion.Identity, Vector3.One)
-        Graphics.CreateInstances([|Matrix4x4.Identity|])
+        Graphics.CreateInstances(mutable [Matrix4x4.Identity])
 
     let renderTarget = Graphics.CreateRenderTarget(1280, 720)
     let renderTargetTextureSet = Graphics.CreateShaderTextureSet(renderTarget)

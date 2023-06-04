@@ -305,13 +305,13 @@ module TestModule =
     (`[,]`)<T>(T[,], index1: int32, index2: int32): T
 
     #[intrinsic("get_element")]
-    (`[]`)<T>(T[||], index: int32): T
+    (`[]`)<T>(mutable T[], index: int32): T
     #[intrinsic("set_element")]
-    (`[]`)<T>(T[||], index: int32, T): ()
+    (`[]`)<T>(mutable T[], index: int32, T): ()
     #[intrinsic("get_element")]
-    (`[,]`)<T>(T[|,|], index1: int32, index2: int32): T
+    (`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
     #[intrinsic("set_element")]
-    (`[,]`)<T>(T[|,|], index1: int32, index2: int32, T): ()
+    (`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
     #[intrinsic("print")]
     print(__oly_object): ()

@@ -36,7 +36,7 @@ enum GpuArrayKind =
 
 interface IGpuArray =
 
-    internal Buffers: VulkanBuffer[||] get, set
+    internal Buffers: mutable VulkanBuffer[] get, set
     DataSize: int32 get
     IsDirty: bool get, internal set
     Kind: GpuArrayKind get
@@ -48,7 +48,7 @@ interface IGpuArray =
 class GpuMutableArray<T> where T: unmanaged =
     implements IGpuArray
 
-    internal Buffers: VulkanBuffer[||] get, set  
+    internal Buffers: mutable VulkanBuffer[] get, set  
     DataSize: int32 get
     IsDirty: bool get, internal set
     Kind: GpuArrayKind get
@@ -59,15 +59,15 @@ class GpuMutableArray<T> where T: unmanaged =
         let buffer = this.Buffers[frame]
         Vk.UpdateBuffer(vk, buffer, this.bufferData)
 
-    field bufferData: T[||]  
+    field bufferData: mutable T[]  
 
-    internal new(kind: GpuArrayKind, memoryKind: GpuMemoryKind, bufferData: T[||]) =
+    internal new(kind: GpuArrayKind, memoryKind: GpuMemoryKind, bufferData: mutable T[]) =
         {
             DataSize = sizeof<T>
             Kind = kind
             MemoryKind = memoryKind
             bufferData = bufferData
-            Buffers = [||]
+            Buffers = mutable []
             IsDirty = true
         }
 
@@ -455,7 +455,7 @@ class Gpu =
     field gpuProgramUIs: ConcurrentDictionary<GpuProgramUI, ()>
 
     field vk: VulkanApplication
-    field vkCmdBuffers: VulkanCommandBuffer[||]
+    field vkCmdBuffers: mutable VulkanCommandBuffer[]
 
     mutable field swapChain: VulkanSwapChain
     mutable field swapChainRenderPass: VkRenderPass
@@ -835,7 +835,7 @@ class Gpu =
             while (i < gpuArray.Buffers.Length)
                 Vk.DestroyBuffer(this.vk, gpuArray.Buffers[i])
                 i <- i + 1
-            gpuArray.Buffers <- [||]
+            gpuArray.Buffers <- mutable []
 
             let mutable value = unchecked default
             let result = this.gpuArrays.TryRemove(gpuArray, &value)

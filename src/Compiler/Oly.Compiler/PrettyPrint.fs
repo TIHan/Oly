@@ -87,14 +87,14 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | ArrayKind.Immutable ->
                 printTypeAux benv isDefinition false elementTy + "[]"
             | ArrayKind.Mutable ->
-                printTypeAux benv isDefinition false elementTy + "[||]"
+                "mutable " + printTypeAux benv isDefinition false elementTy + "[]"
         | _ ->
             let commas = Array.init (rank - 1) (fun _ -> ",") |> String.concat ""
             match kind with
             | ArrayKind.Immutable ->
                 printTypeAux benv isDefinition false elementTy + $"[{commas}]"
             | ArrayKind.Mutable ->
-                printTypeAux benv isDefinition false elementTy + $"[|{commas}|]"
+                "mutable " + printTypeAux benv isDefinition false elementTy + $"[{commas}]"
 
     | TypeSymbol.Variable(tyPar) ->
         let name =

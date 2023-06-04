@@ -88,46 +88,46 @@ module Graphics =
         globalUniformBuffer <- createGlobalUniformBuffer(0)
         let globalResourceLayoutDesc =
             ResourceLayoutDescription(
-                [|
+                mutable [
                     ResourceLayoutElementDescription("Global", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
-                |]
+                ]
             )
         globalResourceLayout <- factory.CreateResourceLayout(globalResourceLayoutDesc)
         globalResourceSet <- CreateResourceSet(globalResourceLayout, globalUniformBuffer)
 
         let bufferResourceLayoutDesc =
             ResourceLayoutDescription(
-                [|
+                mutable [
                     ResourceLayoutElementDescription("Buffer", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute);
                     ResourceLayoutElementDescription("BufferCount", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
-                |]
+                ]
             )
         bufferResourceLayout <- factory.CreateResourceLayout(bufferResourceLayoutDesc)
 
         let instanceResourceLayoutDesc =
             ResourceLayoutDescription(
-                [|
+                mutable [
                     ResourceLayoutElementDescription("InstanceData", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex | ShaderStages.Compute)
-                |]
+                ]
             )
         instanceResourceLayout <- factory.CreateResourceLayout(instanceResourceLayoutDesc)
 
         let defaultResourceLayoutDescFragment =
             ResourceLayoutDescription(
-                [|
+                mutable [ 
                     ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
                     ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment)
-                |]
+                ]
             )
         defaultResourceLayoutFragment <- factory.CreateResourceLayout(defaultResourceLayoutDescFragment)
 
         let depthResourceLayoutDescFragment =
             ResourceLayoutDescription(
-                [|
+                mutable [
                     ResourceLayoutElementDescription("Texture", ResourceKind.TextureReadOnly, ShaderStages.Fragment);
                     ResourceLayoutElementDescription("Sampler", ResourceKind.Sampler, ShaderStages.Fragment);
                     ResourceLayoutElementDescription("DepthTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment)
-                |]
+                ]
             )
         depthResourceLayoutFragment <- factory.CreateResourceLayout(depthResourceLayoutDescFragment)
 
@@ -152,7 +152,7 @@ module Graphics =
         mainWindowOutputs <- mainWindowRenderTarget.State.Framebuffer.OutputDescription
         mainWindowRenderTargetCmds <-
             let mesh = CreateMesh(MeshDescription.CreateQuad(1))
-            let instances = CreateInstances([|Matrix4x4.Identity|])
+            let instances = CreateInstances(mutable [Matrix4x4.Identity])
             
             let desc = 
                 ShaderDescription.CreateMeshShader(
@@ -237,9 +237,9 @@ module Graphics =
         let resourceSetDesc = 
             ResourceSetDescription(
                 resourceLayout,
-                [|
+                mutable [
                     bindableResource
-                |]
+                ]
             )
         factory.CreateResourceSet(resourceSetDesc)
 
@@ -250,9 +250,9 @@ module Graphics =
         let resourceSetDesc = 
             ResourceSetDescription(
                 resourceLayout,
-                [|
+                mutable [
                     (instances.InstanceBuffer: BindableResource)
-                |]
+                ]
             )
         factory.CreateResourceSet(resourceSetDesc)
 
@@ -266,16 +266,16 @@ module Graphics =
             ResourceSetDescription(
                 resourceLayout,
                 if (depthTextureOption === null)
-                    [|
+                    mutable [
                         (texture.Texture: BindableResource);
                         pixelSampler
-                    |]
+                    ]
                 else
-                    [|
+                    mutable [
                         (texture.Texture: BindableResource);
                         pixelSampler;
                         depthTextureOption.Texture
-                    |]
+                    ]
             )
         factory.CreateResourceSet(resourceSetDesc)
 
@@ -284,10 +284,10 @@ module Graphics =
         let resourceSetDesc = 
             ResourceSetDescription(
                 resourceLayout,
-                [|
+                mutable [
                     (buffer.DeviceBuffer: BindableResource);
                     buffer.DeviceBufferCount
-                |]
+                ]
             )
         factory.CreateResourceSet(resourceSetDesc)
     
@@ -332,25 +332,25 @@ module Graphics =
                 defaultResourceLayoutFragment
     
         pipelineDesc.ResourceLayouts <-
-            [|
+            mutable [
                 // slot 0 - vert/frag
-                globalResourceLayout;
+                globalResourceLayout
 
                 // slot 1 - vert
-                instanceResourceLayout;
+                instanceResourceLayout
 
                 // slot 2 - frag
-                fragmentResourceLayout;
+                fragmentResourceLayout
 
                 // slot 3 - vert
-                bufferResourceLayout;
+                bufferResourceLayout
 
                 // slot 4 - vert
-                bufferResourceLayout;
+                bufferResourceLayout
 
                 // slot 5
                 bufferResourceLayout
-            |]
+            ]
         pipelineDesc.Outputs <- outputs
         let pipeline = factory.CreateGraphicsPipeline(pipelineDesc)
     
@@ -364,7 +364,7 @@ module Graphics =
         let pipelineDesc = 
             ComputePipelineDescription(
                 shader, 
-                [|globalResourceLayout;instanceResourceLayout|], 
+                mutable [globalResourceLayout;instanceResourceLayout], 
                 1, 
                 1, 
                 1
@@ -395,7 +395,7 @@ module Graphics =
         let texture = image.CreateDeviceTexture(graphicsDevice, factory)
         Texture2D(texture)
 
-    CreateBuffer<T>(buffer: T[||], mutable count: uint32): Buffer<T> where T: unmanaged =
+    CreateBuffer<T>(buffer: mutable T[], mutable count: uint32): Buffer<T> where T: unmanaged =
         let size = uint32(sizeof<T>) * uint32(buffer.Length)
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
         let deviceBuffer = factory.CreateBuffer(BufferDescription(size, usage, size))
@@ -406,10 +406,10 @@ module Graphics =
 
         Buffer<T>(deviceBuffer, deviceBufferCount)
 
-    CreateBuffer<T>(buffer: T[||]): Buffer<T> where T: unmanaged =
+    CreateBuffer<T>(buffer: mutable T[]): Buffer<T> where T: unmanaged =
         CreateBuffer(buffer, 0)
 
-    UpdateBuffer<T>(buffer: Buffer<T>, bufferData: T[||], mutable count: uint32): () where T: unmanaged =
+    UpdateBuffer<T>(buffer: Buffer<T>, bufferData: mutable T[], mutable count: uint32): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(buffer.DeviceBuffer, 0, bufferData)
         graphicsDevice.UpdateBuffer(buffer.DeviceBufferCount, 0, &count)
 
@@ -431,7 +431,7 @@ module Graphics =
             factory.CreateTexture(
                 TextureDescription.Texture2D(width, height, 1, 1, PixelFormat.R32_G32_B32_A32_Float, usages)
             )
-        let desc = FramebufferDescription(depthTexture, [|colorTexture|])
+        let desc = FramebufferDescription(depthTexture, mutable [colorTexture])
         let framebuffer = factory.CreateFramebuffer(desc)
         let depthTexture =
             if (depthTexture === null)
@@ -486,7 +486,7 @@ module Graphics =
     SetDeltaTime(value: float32): () =
         graphicsDevice.UpdateBuffer(globalUniformBuffer, 400, value)
 
-    CreateInstances<T>(instanceData: T[||]): Instances where T: unmanaged =
+    CreateInstances<T>(instanceData: mutable T[]): Instances where T: unmanaged =
         let usage: BufferUsage = BufferUsage.StructuredBufferReadWrite
         let instanceBuffer = factory.CreateBuffer(BufferDescription(uint32(instanceData.Length * sizeof<T>), usage, uint32(instanceData.Length * sizeof<T>)))
         graphicsDevice.UpdateBuffer(instanceBuffer, 0, instanceData)
@@ -495,7 +495,7 @@ module Graphics =
         instances.Count <- instanceData.Length
         instances
 
-    UpdateInstances<T>(instances: Instances, instanceData: T[||]): () where T: unmanaged =
+    UpdateInstances<T>(instances: Instances, mutable instanceData: mutable T[]): () where T: unmanaged =
         graphicsDevice.UpdateBuffer(instances.InstanceBuffer, 0, instanceData)
 
     field bindBufferSetCmds: Queue<DrawCommand> = Queue()

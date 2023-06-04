@@ -38,7 +38,7 @@ class TextInputViewModel =
             this.text <- value
             let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.TextBuffer, 0)
 
-    internal field TextBuffer: byte[||] = Array.ZeroCreate(256)
+    internal field TextBuffer: mutable byte[] = Array.ZeroCreate(256)
 
 class Int32InputViewModel =
     implements IViewModel
@@ -60,7 +60,7 @@ class ComboBoxViewModel =
     public mutable field IsEnabled: bool = true
     public mutable field Label: string = string.Empty
     public mutable field SelectedItemIndex: int32 = 0
-    public mutable field Items: string[||] = [||]
+    public mutable field Items: mutable string[] = mutable []
     public mutable field ItemCount: int32 = 0
 
 abstract class UINode =
@@ -281,7 +281,7 @@ module UI =
     ComboBox(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()): UINode =
         UINode.ComboBox(state, onChanged)
 
-    ComboBoxModel(label: string, selectedItemIndex: int32, items: string[||], itemCount: int32): ComboBoxViewModel =
+    ComboBoxModel(label: string, selectedItemIndex: int32, items: mutable string[], itemCount: int32): ComboBoxViewModel =
         let vm = ComboBoxViewModel()
         vm.Label <- label
         vm.SelectedItemIndex <- selectedItemIndex

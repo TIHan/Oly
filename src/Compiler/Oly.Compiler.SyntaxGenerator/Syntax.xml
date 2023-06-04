@@ -208,8 +208,9 @@
       <Field name="brackets">SyntaxToken SyntaxList SyntaxBrackets</Field>
     </Case>
     <Case name="MutableArray">
+      <Field name="mutableToken">SyntaxToken</Field>
 	  <Field name="elementTy">SyntaxType</Field>
-      <Field name="bracketInnerPipes">SyntaxToken SyntaxList SyntaxBracketInnerPipes</Field>
+	  <Field name="brackets">SyntaxToken SyntaxList SyntaxBrackets</Field>
     </Case>
     <Case name="Shape">
       <Field name="curlyBrackets">SyntaxExpression SyntaxSeparatorList SyntaxCurlyBrackets</Field>
@@ -799,9 +800,10 @@
       <Field name="rightBracketToken">SyntaxToken</Field>
     </Case>
     <Case name="MutableArray">
-      <Field name="leftBracketInnerPipeToken">SyntaxToken</Field>
-      <Field name="elements">SyntaxExpression SyntaxSeparatorList</Field>
-      <Field name="rightBracketInnerPipeToken">SyntaxToken</Field>
+	  <Field name="mutableToken">SyntaxToken</Field>
+	  <Field name="leftBracketToken">SyntaxToken</Field>
+	  <Field name="elements">SyntaxExpression SyntaxSeparatorList</Field>
+	  <Field name="rightBracketToken">SyntaxToken</Field>
     </Case>
     <Case name="Call">
       <Field name="expression">SyntaxExpression</Field>
