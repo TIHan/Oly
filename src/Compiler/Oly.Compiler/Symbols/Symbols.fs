@@ -1258,7 +1258,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                 ty
 
     | TypeSymbol.ObjectInferenceVariable(solution)
-    | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
+    | TypeSymbol.NumberInferenceVariable(solution, _) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
             solution.Solution <- strippedTy // cache solution
@@ -2882,7 +2882,7 @@ type TypeSymbol =
     | InferenceVariable of tyParOpt: TypeParameterSymbol option * solution: VariableSolutionSymbol
     | HigherInferenceVariable of tyParOpt: TypeParameterSymbol option * tyArgs: TypeArgumentSymbol imarray * externalSolution: VariableSolutionSymbol * solution: VariableSolutionSymbol
     | ObjectInferenceVariable of solution: VariableSolutionSymbol
-    | NumberInferenceVariable of solution: VariableSolutionSymbol * defaultTy: TypeSymbol * valueText: string
+    | NumberInferenceVariable of solution: VariableSolutionSymbol * defaultTy: TypeSymbol
 
     | DependentIndexer of inputValueTy: TypeSymbol * innerTy: TypeSymbol
 
@@ -3016,7 +3016,7 @@ type TypeSymbol =
                 solution.Solution.Name
             else
                 "?"
-        | NumberInferenceVariable(solution, defaultTy, _) ->
+        | NumberInferenceVariable(solution, defaultTy) ->
             if solution.HasSolution then
                 solution.Solution.Name
             else
@@ -3219,7 +3219,7 @@ type TypeSymbol =
         | NativePtr _ -> 28
         | Array _ -> 29
         | ObjectInferenceVariable _ -> TypeSymbol.BaseObject.FormalId
-        | NumberInferenceVariable(_, defaultTy, _) -> defaultTy.FormalId
+        | NumberInferenceVariable(_, defaultTy) -> defaultTy.FormalId
         | NativeFunctionPtr _ -> 39
         | DependentIndexer _ -> 40
         | Entity(ent) -> ent.Formal.Id

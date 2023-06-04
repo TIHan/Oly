@@ -163,7 +163,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                 else
                     true
 
-        | TypeSymbol.NumberInferenceVariable(varSolution1, defaultTy1, _), TypeSymbol.NumberInferenceVariable(varSolution2, defaultTy2, _) ->
+        | TypeSymbol.NumberInferenceVariable(varSolution1, defaultTy1), TypeSymbol.NumberInferenceVariable(varSolution2, defaultTy2) ->
             if UnifyTypes rigidity defaultTy1 defaultTy2 then
                 if (rigidity = Flexible) then
                     varSolution1.Solution <- defaultTy1
@@ -172,8 +172,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
             else
                 false
 
-        | TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _), ty 
-        | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy, _) when (rigidity = Flexible) ->
+        | TypeSymbol.NumberInferenceVariable(varSolution, defaultTy), ty 
+        | ty, TypeSymbol.NumberInferenceVariable(varSolution, defaultTy) when (rigidity = Flexible) ->
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
                 tySolution.Solution <- defaultTy
@@ -203,8 +203,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
                     varSolution.Solution <- defaultTy
                     UnifyTypes rigidity ty1 ty2
 
-        | TypeSymbol.NumberInferenceVariable(_, defaultTy, _), targetTy
-        | targetTy, TypeSymbol.NumberInferenceVariable(_, defaultTy, _) ->
+        | TypeSymbol.NumberInferenceVariable(_, defaultTy), targetTy
+        | targetTy, TypeSymbol.NumberInferenceVariable(_, defaultTy) ->
             if targetTy.IsAnyStruct then
                 match targetTy with
                 | TypeSymbol.UInt8

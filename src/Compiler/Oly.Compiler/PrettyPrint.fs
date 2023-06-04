@@ -25,7 +25,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.Error _ -> "?"
     | TypeSymbol.Unit -> "()"
     | TypeSymbol.ObjectInferenceVariable(solution)
-    | TypeSymbol.NumberInferenceVariable(solution, _, _) ->
+    | TypeSymbol.NumberInferenceVariable(solution, _) ->
         if solution.HasSolution then           
             printTypeAux benv isDefinition isTyCtor solution.Solution
         else

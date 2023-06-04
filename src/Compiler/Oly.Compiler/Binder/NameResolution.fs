@@ -2349,8 +2349,7 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
 
     // These are the defaults for integer and rational values.
     | OlySyntaxLiteral.Integer(syntaxToken) ->
-        let valueText = cleanNumericText syntaxToken.ValueText
-        let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Int32, valueText)
+        let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Int32)
         let lazyValue =
             lazy
                 try
@@ -2399,8 +2398,7 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
     | OlySyntaxLiteral.Real(syntaxToken) ->
-        let valueText = cleanNumericText syntaxToken.ValueText
-        let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Float64, cleanNumericText valueText)
+        let ty = TypeSymbol.NumberInferenceVariable(mkVariableSolution(), TypeSymbol.Float64)
         let lazyValue =
             lazy
                 try
