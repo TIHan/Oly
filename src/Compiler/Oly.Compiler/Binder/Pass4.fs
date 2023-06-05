@@ -1309,24 +1309,8 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
        
     env, expr
 
-let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
+let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
     let elements =
-        // TODO: Uncomment this when we figure out the final design of not requiring ";" for
-        //       array expressions.
-        //let syntaxElements =
-        //    let syntaxElements =
-        //        syntaxElements
-        //        |> ImArray.map (fun syntaxElement ->
-        //            syntaxElement.FlattenSequentials()
-        //        )
-        //    if syntaxElements.Length > 1 then
-        //        syntaxElements
-        //        |> ImArray.reduce ImArray.append
-        //    elif syntaxElements.Length = 1 then
-        //        syntaxElements[0]
-        //    else
-        //        ImArray.empty
-
         syntaxElements
         |> ImArray.map (fun syntaxElement ->
             let _, item = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxElement syntaxElement
@@ -1355,18 +1339,6 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
             TypeSymbol.CreateMutableArray(elementTy)
         else
             TypeSymbol.CreateArray(elementTy)
-    let expectedArrayTy = 
-        if isMutable then
-            TypeSymbol.CreateMutableArray(mkInferenceVariableType None)
-        else
-            TypeSymbol.CreateArray(mkInferenceVariableType None)
-
-    checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture expectedArrayTy arrayTy
-    match expectedTyOpt with
-    | Some(expectedTy) ->
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture expectedTy expectedArrayTy
-    | _ ->
-        ()
 
     env, BoundExpression.NewArray(syntaxToCapture, env.benv, elements, arrayTy)
 
@@ -1743,11 +1715,11 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Array(_, syntaxElements, _) ->
-        let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture false syntaxElements.ChildrenOfType
+        let env, expr = bindNewArrayExpression cenv env syntaxToCapture false syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.MutableArray(_, _, syntaxElements, _) ->
-        let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture true syntaxElements.ChildrenOfType
+        let env, expr = bindNewArrayExpression cenv env syntaxToCapture true syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.If(_, _, syntaxConditionExpr, _, syntaxTargetExpr, syntaxElseIfOrElseExpr) ->

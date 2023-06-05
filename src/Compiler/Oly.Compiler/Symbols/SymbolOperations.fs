@@ -199,7 +199,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
             elif targetTy.IsTypeVariable then
                 rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
             else
-                false
+                subsumesTypeWith rigidity eagerTy targetTy
 
         | TypeSymbol.ByRef(ty1, kind1), TypeSymbol.ByRef(ty2, kind2) ->
             UnifyTypes rigidity ty1 ty2 && kind1 = kind2

@@ -3013,7 +3013,7 @@ type TypeSymbol =
             if solution.HasSolution then
                 solution.Solution.Name
             else
-                eagerTy.Name
+                "?"
         | DependentIndexer(_, formalTy) -> "!!dependent!!" + formalTy.Name // TODO:
         | Error _ -> 
             "?"

@@ -8018,3 +8018,31 @@ main(): () =
             )
         ]
     |> ignore
+
+
+[<Fact>]
+let ``Array expression without semi-colons should fail due to eager inference not available on arrays (yet)``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+test(xs: mutable int32[]): () = ()
+
+main(): () =
+    test([0])
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'mutable int32[]' but is 'int32[]'.",
+            """
+test([0])
+     ^^^
+"""
+            )
+        ]
+    |> ignore
