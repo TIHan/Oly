@@ -108,14 +108,14 @@ let private filterFunctionsForOverloadingByMostGenericArgumentTypes (funcs: IFun
     |> Option.map (fun x -> snd x |> ImArray.ofSeq)
     |> Option.defaultValue ImArray.empty
 
-let private filterFunctionsForOverloadingByWeight resArgs (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray) =
+let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
     else
 
     let rec computeWeight (currentRigidWeight, currentWeight) (expectedTy: TypeSymbol) (ty: TypeSymbol) : struct(int * int) =
         let expectedTy = stripTypeEquationsAndBuiltIn expectedTy
         let ty = stripTypeEquationsAndBuiltIn ty
-        if ((ty.IsSolved || ty.IsEagerInferenceVariable_t) && UnifyTypes Generalizable expectedTy ty) then
+        if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && not skipEager)) && UnifyTypes Generalizable expectedTy ty) then
             let currentWeight = currentWeight + 1
             let currentRigidWeight =
                 if UnifyTypes Rigid expectedTy.Formal ty.Formal then
@@ -395,11 +395,11 @@ let filterFunctionsForOverloadingPart2 (resArgs: ResolutionArguments) (returnTyO
 
 /// Overloading Part 3:
 ///     Handles ambiguity for generics by using scores.
-let filterFunctionsForOverloadingPart3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
-    let funcs3 = filterFunctionsForOverloadingByWeight resArgs None candidates
+let filterFunctionsForOverloadingPart3 skipEager (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
+    let funcs3 = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
 
     if returnTyOpt.IsSome then
-        filterFunctionsForOverloadingByWeight resArgs returnTyOpt funcs3
+        filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt funcs3
         |> filterFunctionsForOverloadingFinalPhase
     else
         funcs3

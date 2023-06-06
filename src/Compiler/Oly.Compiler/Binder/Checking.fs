@@ -1,11 +1,7 @@
 ﻿[<AutoOpen>]
 module internal rec Oly.Compiler.Internal.Binder.Checking
 
-open System.Collections.Generic
-open System.Collections.Immutable
-
 open Oly.Core
-open Oly.Compiler
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
@@ -194,17 +190,17 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
 
 let private autoDereferenceExpression expr =
     match expr with
-    | BoundExpression.Call(value=value) ->
+    | E.Call(value=value) ->
         if value.IsAddressOf then
             expr
         else
             AutoDereferenceIfPossible expr
-    | BoundExpression.Value _ ->
+    | E.Value _ ->
         AutoDereferenceIfPossible expr
     | _ ->
         expr
 
-let private filterByRefReturnTypes (argExprs: BoundExpression imarray) (funcs: IFunctionSymbol imarray) =
+let private filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
     else
 
@@ -213,14 +209,14 @@ let private filterByRefReturnTypes (argExprs: BoundExpression imarray) (funcs: I
         if x.IsAddressOf then
             let argExpr = argExprs[0]
             match argExpr with
-            | BoundExpression.Value(value=value) when value.IsLocal ->
+            | E.Value(value=value) when value.IsLocal ->
                 if value.IsMutable && x.ReturnType.IsReadWriteByRef then
                     true
                 elif not value.IsMutable && x.ReturnType.IsReadOnlyByRef then
                     true
                 else
                     false
-            | BoundExpression.GetField(receiver=receiverExpr;field=field) ->
+            | E.GetField(receiver=receiverExpr;field=field) ->
                 let isReadOnly =
                     if not field.IsMutable then
                         true
@@ -237,7 +233,7 @@ let private filterByRefReturnTypes (argExprs: BoundExpression imarray) (funcs: I
                     false
             | FromAddress(expr) ->
                 areTypesEqual expr.Type.Formal x.ReturnType.Formal
-            | BoundExpression.Call(value=value) ->
+            | E.Call(value=value) ->
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) ->
                     let par = (value :?> IFunctionSymbol).Parameters[0]
@@ -288,10 +284,11 @@ let private tryOverloadResolution
 let private tryOverloadedCallExpression 
         (cenv: cenv) 
         (env: BinderEnvironment) 
+        skipEager
         (expectedTyOpt: TypeSymbol option) 
         (syntaxInfo: BoundSyntaxInfo) 
-        (receiverExprOpt: BoundExpression option)
-        (argExprs: BoundExpression imarray)
+        (receiverExprOpt: E option)
+        (argExprs: E imarray)
         (isArgForAddrOf: bool)
         (funcs: IFunctionSymbol imarray) =
 
@@ -308,7 +305,7 @@ let private tryOverloadedCallExpression
             |> ImArray.iter (fun x ->
                 x.ForEachReturningTargetExpression(fun x ->
                     match x with
-                    | BoundExpression.Lambda _ ->
+                    | E.Lambda _ ->
                         // We must evaluate the lambda at this point.
                         checkImmediateExpression solverEnv false x
                     | _ ->
@@ -321,7 +318,7 @@ let private tryOverloadedCallExpression
             Some expr
         else
             checkLambdaArguments()
-            let funcs2 = filterFunctionsForOverloadingPart3 resArgs expectedTyOpt funcs
+            let funcs2 = filterFunctionsForOverloadingPart3 skipEager resArgs expectedTyOpt funcs
             let funcs = if funcs2.IsEmpty then funcs else funcs2
 
             let funcs = filterByRefReturnTypes argExprs funcs
@@ -341,12 +338,12 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
     
     let argExprs =
         lambdaPars
-        |> ImArray.map (fun x -> BoundExpression.CreateValue(cenv.syntaxTree, x))
+        |> ImArray.map (fun x -> E.CreateValue(cenv.syntaxTree, x))
 
     let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, syntaxNameOpt, None)
     
     let callExpr =
-        BoundExpression.Call(
+        E.Call(
             syntaxInfo,
             None,
             ImArray.empty,
@@ -356,7 +353,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
         )
     
     let lambdaExpr =
-        BoundExpression.CreateLambda(
+        E.CreateLambda(
             cenv.syntaxTree,
             LambdaFlags.None,
             ImArray.empty,
@@ -400,90 +397,30 @@ let private tryOverloadPartialCallExpression
                 createPartialCallExpression cenv env syntaxInfo.Syntax syntaxNameOpt ImArray.empty func
                 |> Some
 
-let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: BoundExpression) =
+let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expr: E) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
 
         let isAddrOf = value.IsAddressOf
 
         let argExprs =
             if value.IsFunctionGroup then
-                if isAddrOf then 
-                    let argExpr = argExprs[0]
-                    let argExpr = 
-                        checkCallExpression cenv env expectedTyOpt true argExpr
-                        |> checkExpressionTypes cenv env None
-                    ImArray.createOne argExpr
+                if isAddrOf then
+                    checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env argExprs[0]
+                    |> ImArray.createOne
                 else
                     argExprs
-                    |> ImArray.map (fun argExpr ->
-                        checkExpression cenv env None argExpr
-                    )
+                    |> ImArray.map (checkFunctionGroupCalleeArgumentExpression cenv env)
             else
-                let argTys = value.Type.FunctionArgumentTypes
-                if argTys.Length = argExprs.Length then              
-                    (argExprs, argTys)
-                    ||> ImArray.mapi2 (fun i argExpr parTy ->
-                        match argExpr with
-                        | BoundExpression.Call(value=funcGroup) when funcGroup.IsFunctionGroup ->
-                            let expectedTy =
-                                if isAddrOf then
-                                    match value.Type.TryFunction with
-                                    | ValueSome(_, outputTy) ->
-                                        if outputTy.IsReadOnlyByRef then
-                                            TypeSymbol.CreateByRef(parTy, ByRefKind.Read)
-                                        else
-                                            TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)
-                                    | _ ->
-                                        parTy
-                                else
-                                    parTy
-                            let newArgExpr = checkExpressionAux cenv env (Some expectedTy) isAddrOf argExpr
-                            if newArgExpr = argExpr then
-                                argExpr
-                            else
-                                newArgExpr
-
-                        | BoundExpression.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars) ->
-                            let parsOpt =
-                                if value.IsFunction then
-                                    (value :?> IFunctionSymbol).Parameters
-                                    |> ValueSome
-                                else
-                                    ValueNone
-                            match parsOpt with
-                            | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
-                                let lambdaInlineFlagsOpt =
-                                    pars[i].Attributes
-                                    |> ImArray.tryPick (function
-                                        | AttributeSymbol.Inline(inlineArg) ->
-                                            inlineArg.ToLambdaFlags() |> Some
-                                        | _ ->
-                                            None
-                                    )
-                                match lambdaInlineFlagsOpt with
-                                | Some lambdaInlineFlags ->
-                                    BoundExpression.Lambda(syntaxInfo, lambdaFlags ||| lambdaInlineFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
-                                | _ ->
-                                    argExpr
-                            | _ ->
-                                argExpr
-
-                        | _ ->
-                            argExpr
-                    )
-                else
-                    // Not enough arguments, but we check for this elsewhere.
-                    // REVIEW: Maybe we should actually check it here...
-                    argExprs
+                checkCalleeArgumentExpressions cenv env value argExprs
 
         if isAddrOf then
             let argExpr = argExprs[0]
             match argExpr with
             | AutoDereferenced _ -> ()
-            | BoundExpression.Value _ -> ()
-            | BoundExpression.GetField _ -> ()
-            | BoundExpression.Call(value=value) ->
+            | E.Value _ -> ()
+            | E.GetField _ -> ()
+            | E.Call(value=value) ->
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) -> ()
                 | _ ->
@@ -497,7 +434,7 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
                 else
                     cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
 
-        BoundExpression.Call(
+        E.Call(
             syntaxInfo,
             receiverExprOpt,
             witnessArgs,
@@ -508,9 +445,9 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
     | _ ->
         expr
 
-let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
+let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, _) ->
+    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, _) ->
 
         let checkLambdaArguments() =
             let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
@@ -518,7 +455,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (exp
             |> ImArray.iter (fun x ->
                 x.ForEachReturningTargetExpression(fun x ->
                     match x with
-                    | BoundExpression.Lambda _ ->
+                    | E.Lambda _ ->
                         // We must evaluate the lambda at this point.
                         checkImmediateExpression solverEnv false x
                     | _ ->
@@ -540,7 +477,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (exp
                 | _ ->
                     ()
                    
-            match tryOverloadedCallExpression cenv env expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
+            match tryOverloadedCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
             | Some expr -> expr
             | _ -> expr
         | _ ->
@@ -549,9 +486,9 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) (exp
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
-let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: BoundExpression) =
+let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     match expr with
-    | BoundExpression.Value(syntaxInfo, value) when value.IsFunction ->
+    | E.Value(syntaxInfo, value) when value.IsFunction ->
         let syntaxNameOpt =
             match syntaxInfo.Syntax with
             | :? OlySyntaxName as syntaxName -> Some syntaxName
@@ -579,19 +516,19 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (expecte
             | _ ->
                 expr
 
-    | BoundExpression.Witness(bodyExpr, witnessTy, exprTy) ->
+    | E.Witness(bodyExpr, witnessTy, exprTy) ->
         let newBodyExpr = checkExpression cenv env None bodyExpr
         if newBodyExpr = bodyExpr then
             expr
         else
-            BoundExpression.Witness(newBodyExpr, witnessTy, exprTy)
+            E.Witness(newBodyExpr, witnessTy, exprTy)
 
-    | BoundExpression.Call _ ->
-        checkCallerCallExpression cenv env expectedTyOpt isArgForAddrOf expr
+    | E.Call _ ->
+        checkCallerCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf expr
 
     | AutoDereferenced(exprAsAddr) ->
         // We do this to make sure we actually check the call 'FromAddress'.
-        checkCallerExpression cenv env None false exprAsAddr
+        checkCallerExpression cenv env skipEager None false exprAsAddr
         |> autoDereferenceExpression
 
     | _ ->
@@ -665,14 +602,7 @@ let private lateCheckCalleeExpression cenv env expr =
 
     autoDereferenceExpression expr
 
-let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: BoundExpression) =
-    checkCallerExpression cenv env None isArgForAddrOf expr
-    |> checkCalleeExpression cenv env None
-    |> checkCallerExpression cenv env expectedTyOpt isArgForAddrOf
-    |> checkCalleeExpression cenv env expectedTyOpt
-    |> lateCheckCalleeExpression cenv env
-
-let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
+let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
     let expr = autoDereferenceExpression expr
     let recheckExpectedTy =
         match expectedTyOpt with
@@ -714,10 +644,80 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
 
     expr
 
-let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) expectedTyOpt isArgForAddrOf (expr: BoundExpression) =
-    checkCallExpression cenv env expectedTyOpt isArgForAddrOf expr
-    |> checkExpressionTypes cenv env expectedTyOpt
+let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
+    checkCallerExpression cenv env true None isArgForAddrOf expr
+    |> checkCalleeExpression cenv env
+    |> checkCallerExpression cenv env skipEager expectedTyOpt isArgForAddrOf
+    |> checkCalleeExpression cenv env
+    |> lateCheckCalleeExpression cenv env
+    |> checkCallReturnExpression cenv env expectedTyOpt
 
-let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: BoundExpression) =
-    checkCallExpression cenv env expectedTyOpt false expr
-    |> checkExpressionTypes cenv env expectedTyOpt
+let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index parTy argExpr =
+    match argExpr with
+    | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup ->
+        let isAddrOf = caller.IsAddressOf
+        let expectedTy =
+            if isAddrOf then
+                match caller.Type.TryFunction with
+                | ValueSome(_, outputTy) ->
+                    if outputTy.IsReadOnlyByRef then
+                        TypeSymbol.CreateByRef(parTy, ByRefKind.Read)
+                    else
+                        TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)
+                | _ ->
+                    parTy
+            else
+                parTy
+        let newArgExpr = checkCallExpression cenv env false (Some expectedTy) isAddrOf argExpr
+        if newArgExpr = argExpr then
+            argExpr
+        else
+            newArgExpr
+
+    | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars) ->
+        let parsOpt =
+            if caller.IsFunction then
+                (caller :?> IFunctionSymbol).Parameters
+                |> ValueSome
+            else
+                ValueNone
+        match parsOpt with
+        | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
+            let lambdaInlineFlagsOpt =
+                pars[index].Attributes
+                |> ImArray.tryPick (function
+                    | AttributeSymbol.Inline(inlineArg) ->
+                        inlineArg.ToLambdaFlags() |> Some
+                    | _ ->
+                        None
+                )
+            match lambdaInlineFlagsOpt with
+            | Some lambdaInlineFlags ->
+                E.Lambda(syntaxInfo, lambdaFlags ||| lambdaInlineFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
+            | _ ->
+                argExpr
+        | _ ->
+            argExpr
+
+    | _ ->
+        argExpr
+
+let private checkCalleeArgumentExpressions cenv env (caller: IValueSymbol) (argExprs: E imarray) =
+    let argTys = caller.Type.FunctionArgumentTypes
+    if argTys.Length = argExprs.Length then              
+        (argTys, argExprs)
+        ||> ImArray.mapi2 (checkCalleeArgumentExpression cenv env caller)
+    else
+        // Not enough arguments, but we check for this elsewhere.
+        // REVIEW: Maybe we should actually check it here...
+        argExprs
+
+let private checkFunctionGroupCalleeArgumentExpression cenv env argExpr =
+    checkCallExpression cenv env false None false argExpr
+
+let private checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env argExpr =
+    checkCallExpression cenv env false None true argExpr
+
+let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
+    // If the expression is used as an argument, then we will skip eager inference in function overloads.
+    checkCallExpression cenv env env.isPassedAsArgument expectedTyOpt false expr

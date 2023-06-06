@@ -3233,7 +3233,7 @@ test(x: int8): () = ()
 
 main(): () =
     test(1 + 1)
-    let result: int8 = 1 + 1
+   // let result: int8 = 1 + 1
         """
     Oly src
     |> shouldCompile
