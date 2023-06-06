@@ -1915,6 +1915,51 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ -> Choice2Of2(this.EmitType(tyDef.Enclosing.AsType))
         
                 let ilEntDef = ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
+
+                let runtimeTyOpt = 
+                    tyDef.RuntimeType
+                    |> Option.map (fun x ->
+                        // REVIEW: Do we need to subscribe the the runtime type?
+                        this.SubscribeType(x, tyDef)
+                        this.EmitType(x)
+                    )
+
+                let tyFlags =
+                    if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
+                        RuntimeTypeFlags.GenericsErased
+                    else
+                        RuntimeTypeFlags.None
+
+                let tyFlags =
+                    if tyDef.IsExported then
+                        tyFlags ||| RuntimeTypeFlags.Exported
+                    else
+                        tyFlags
+
+                match emitted.TryGetValue tyDef.TypeArguments with
+                | ValueSome res -> res
+                | _ ->
+
+                let kind = ilEntDef.Kind
+
+                let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
+
+                let tyParCount =
+                    if isGenericsErased then
+                        0
+                    else
+                        tyDef.TypeParameters.Length
+
+                let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyParCount)
+                emitted.[tyDef.TypeArguments] <- res
+
+                let irAttrs = 
+                    match tyDef with
+                    | RuntimeType.Entity(ent) ->
+                        emitAttributes ilAsm ent.Attributes
+                    | _ ->
+                        ImArray.empty
+
                 let tyPars =
                     if isGenericsErased then
                         ImArray.empty
@@ -1944,43 +1989,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             this.EmitType(x)
                         )
 
-                let runtimeTyOpt = 
-                    tyDef.RuntimeType
-                    |> Option.map (fun x ->
-                        // REVIEW: Do we need to subscribe the the runtime type?
-                        this.SubscribeType(x, tyDef)
-                        this.EmitType(x)
-                    )
+                this.Emitter.EmitTypeDefinitionInfo(res, enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
 
-                let tyFlags =
-                    if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
-                        RuntimeTypeFlags.GenericsErased
-                    else
-                        RuntimeTypeFlags.None
-
-                let tyFlags =
-                    if tyDef.IsExported then
-                        tyFlags ||| RuntimeTypeFlags.Exported
-                    else
-                        tyFlags
-
-                match emitted.TryGetValue tyDef.TypeArguments with
-                | ValueSome res -> res
-                | _ ->
-
-                let kind = ilEntDef.Kind
-
-                let irAttrs = 
-                    match tyDef with
-                    | RuntimeType.Entity(ent) ->
-                        emitAttributes ilAsm ent.Attributes
-                    | _ ->
-                        ImArray.empty
-
-                let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
-
-                let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
-                emitted.[tyDef.TypeArguments] <- res
                 if not mustDelayFuncs then
                     isEmittingTypeDefinition <- false
 
@@ -2797,7 +2807,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if (abstractFunc.Formal = possibleFunc.Formal) || (possibleFunc.EnclosingType.IsShape && abstractTy.IsShape && 
                                                                            possibleFunc.Name = abstractFunc.Name && 
                                                                            possibleFunc.TypeParameters.Length = abstractFunc.TypeParameters.Length) then
-                            findFormalFunctionsByTypeAndFunctionSignature x.TypeExtension abstractFunc
+                            let formalFuncs = findFormalFunctionsByTypeAndFunctionSignature x.TypeExtension abstractFunc
+                            formalFuncs
+                            |> ImArray.map (fun formalFunc ->
+                                let enclosingTy = formalFunc.EnclosingType
+                                formalFunc.MakeInstance(enclosingTy.Apply(x.TypeExtension.TypeArguments), abstractFunc.TypeArguments)
+                            )
                             |> Some
                         else
                             None
@@ -2809,10 +2824,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             if possibleFuncs.IsEmpty then
                 None
             elif possibleFuncs.Length = 1 then
-                let possibleFunc: RuntimeFunction = possibleFuncs[0]
-                OlyAssert.True(possibleFunc.IsFormal)
-                let enclosingTy = possibleFunc.EnclosingType.Apply(ty.TypeArguments)
-                Some(possibleFunc.MakeInstance(enclosingTy, abstractFunc.TypeArguments))
+                Some possibleFuncs[0]
             else
                 failwith "Ambiguous specific abstract functions found."
 

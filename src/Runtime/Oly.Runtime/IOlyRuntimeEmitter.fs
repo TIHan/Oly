@@ -60,18 +60,27 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         name: string * 
         tyParCount: int 
             -> 'Type
-    
+
     abstract EmitTypeDefinition : 
         enclosing: Choice<string imarray, 'Type> * 
         kind: OlyILEntityKind * 
         flags: OlyIRTypeFlags * 
         name: string * 
+        tyParCount: int
+            -> 'Type
+    
+    abstract EmitTypeDefinitionInfo : 
+        ty: 'Type *
+        enclosing: Choice<string imarray, 'Type> * 
+        kind: OlyILEntityKind * 
+        flags: OlyIRTypeFlags * 
+        name: string *
         tyPars: OlyIRTypeParameter<'Type> imarray * 
         extends: 'Type imarray * 
         implements: 'Type imarray * 
         attrs: OlyIRAttribute<'Type, 'Function> imarray *
         runtimeTyOpt: 'Type option
-            -> 'Type
+            -> unit
 
     abstract EmitTypeGenericInstance : ty: 'Type * tyArgs: 'Type imarray -> 'Type
 

@@ -20,6 +20,25 @@ type InterpreterEnvironment() =
     member _.StandardOut = builder
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
+type InterpreterTypeDefinitionInfo =
+    {
+        mutable inherits: InterpreterType imarray
+        mutable implements: InterpreterType imarray
+        mutable runtimeTyOpt: InterpreterType option
+        fields: ResizeArray<InterpreterField>
+        funcs: ResizeArray<InterpreterFunction>
+    }
+
+    static member Default =
+        {
+            inherits = ImArray.empty
+            implements = ImArray.empty
+            runtimeTyOpt = None
+            fields = ResizeArray()
+            funcs = ResizeArray()
+        }
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
 type InterpreterType =
     | Void
     | Unit
@@ -48,7 +67,7 @@ type InterpreterType =
     | BaseStructEnum
     | LiteralInt32 of value: int32
 
-    | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * tyArgs: InterpreterType imarray * funcs: InterpreterFunction ResizeArray * fields: ResizeArray<InterpreterField> * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * inherits: InterpreterType imarray * implements: InterpreterType imarray
+    | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * info: InterpreterTypeDefinitionInfo
 
     member this.IsEnum =
         match this with
@@ -79,27 +98,36 @@ type InterpreterType =
         | Float64
         | Bool
         | Char16 -> true
-        | Custom(isStruct=isStruct) -> isStruct
+        | Custom(isStruct=isStruct;info=info) -> 
+            if isStruct then
+                true
+            elif this.IsEnum then
+                match info.runtimeTyOpt with
+                | Some(ty) -> ty.IsStruct
+                | _ -> false
+            else
+                false
+
         | _ -> false
 
     member this.Fields =
         match this with
-        | InterpreterType.Custom(fields=fields) -> fields :> _ seq
+        | InterpreterType.Custom(info=info) -> info.fields :> _ seq
         | _ -> Seq.empty
 
     member this.Functions: InterpreterFunction seq =
         match this with
-        | InterpreterType.Custom(funcs=funcs) -> funcs :> _ seq
+        | InterpreterType.Custom(info=info) -> info.funcs :> _ seq
         | _ -> Seq.empty
 
     member this.Inherits: InterpreterType imarray =
         match this with
-        | InterpreterType.Custom(inherits=inherits) -> inherits
+        | InterpreterType.Custom(info=info) -> info.inherits
         | _ -> ImArray.empty
 
     member this.Implements: InterpreterType imarray =
         match this with
-        | InterpreterType.Custom(inherits=inherits) -> inherits
+        | InterpreterType.Custom(info=info) -> info.implements
         | _ -> ImArray.empty
 
     member this.TryFindMostSpecificFunctionBySignatureKey(sigKey1: OlyIRFunctionSignatureKey) =
@@ -152,6 +180,11 @@ type InterpreterType =
             this.TryFindMostSpecificFunctionBySignatureKey(sigKey)
         | _ ->
             None
+
+    member this.TypeDefinitionInfo =
+        match this with
+        | Custom(info=info) -> info
+        | _ -> OlyAssert.Fail("Expected a type definition.")
 
 [<NoEquality;NoComparison>]
 type InterpreterField = InterpreterField of declaringTy: InterpreterType * name: string * ty: InterpreterType * constValueOpt: obj option * staticFieldValueOpt: obj option ref with
@@ -1152,7 +1185,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                         match enumTyOpt with
                         | Some enumTy ->
                             match enumTy with
-                            | InterpreterType.Custom(fields=fields) ->
+                            | InterpreterType.Custom(info = { fields=fields }) ->
                                 let fieldNameOpt =
                                     fields
                                     |> Seq.tryPick (fun field ->
@@ -1225,7 +1258,10 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 let ctor = ctor.EmittedFunction
                 let thisArg =
                     match resultTy with
-                    | InterpreterType.Custom(_, _, _, funcs, fields, isTyExt, isStruct, isEnum, isInterface, inherits, implements) ->
+                    | InterpreterType.Custom(_, _, isTyExt, isStruct, isEnum, isInterface, info) ->
+                        let fields = info.fields
+                        let inherits = info.inherits
+                        let implements = info.implements
                         let instance = InterpreterInstanceOfType(resultTy, isTyExt, isStruct, inherits, implements)
                         for field in fields do
                             instance.SetFieldState(field.Name, null)
@@ -1622,7 +1658,7 @@ type InterpreterRuntimeEmitter() =
 
         member this.EmitField(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, irConstValueOpt): InterpreterField = 
             match enclosingTy with
-            | InterpreterType.Custom(fields=fields) ->
+            | InterpreterType.Custom(info = { fields=fields }) ->
                 let constValueOpt =
                     match irConstValueOpt with
                     | Some(OlyIRConstant.UInt8(value)) -> Some(value :> obj)
@@ -1655,7 +1691,7 @@ type InterpreterRuntimeEmitter() =
                 raise(NotSupportedException())
 
             match enclosingTy with
-            | InterpreterType.Custom(funcs=funcs) ->
+            | InterpreterType.Custom(info = { funcs=funcs }) ->
                 let func = InterpreterFunction(env, name, enclosingTy, not flags.IsStatic, flags.IsConstructor, flags.IsVirtual, flags.IsFinal, overridesOpt, Some sigKey)
                 if flags.IsEntryPoint then
                     entryPoint <- ValueSome func
@@ -1668,17 +1704,12 @@ type InterpreterRuntimeEmitter() =
         member this.EmitFunctionBody(irFuncBody: Lazy<_>, _, func: InterpreterFunction): unit =
             func.Body <- Some irFuncBody
 
-        member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, extends, implements, _, runtimeTyOpt): InterpreterType = 
-            let funcs = ResizeArray()
-            let fields = ResizeArray()
-            let isStruct =
-                if (kind = OlyILEntityKind.Struct) then
-                    true
-                elif (kind = OlyILEntityKind.Enum) then
-                    runtimeTyOpt.Value.IsStruct
-                else
-                    false
-            let ty = InterpreterType.Custom(enclosing, name, ImArray.empty, funcs, fields, (kind = OlyILEntityKind.TypeExtension), isStruct, (kind = OlyILEntityKind.Enum), (kind = OlyILEntityKind.Interface), extends, implements)
+        member this.EmitTypeDefinitionInfo(ty, enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, extends, implements, _, runtimeTyOpt) = 
+            let funcs = ty.TypeDefinitionInfo.funcs
+            let fields = ty.TypeDefinitionInfo.fields
+            ty.TypeDefinitionInfo.runtimeTyOpt <- runtimeTyOpt
+            ty.TypeDefinitionInfo.inherits <- extends
+            ty.TypeDefinitionInfo.implements <- implements
             if kind = OlyILEntityKind.TypeExtension && extends.Length = 1 then
                 let valueFieldName = "__oly_instance_value"
                 let valueField = InterpreterField(ty, valueFieldName, extends.[0], None, ref None)
@@ -1699,7 +1730,19 @@ type InterpreterRuntimeEmitter() =
                     let argFlags = ImArray.init 2 (fun _ -> OlyIRLocalFlags.None) // TODO: This is not accurate. Consider never having to include the argflags.
                     lazy OlyIRFunctionBody(body, argFlags, ImArray.empty) |> Some
                 funcs.Add(ctor)
-            ty
+            
+
+        member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, _flags: OlyIRTypeFlags, name: string, _tyParCount): InterpreterType = 
+            let isStruct = (kind = OlyILEntityKind.Struct)
+            InterpreterType.Custom(
+                enclosing, 
+                name, 
+                (kind = OlyILEntityKind.TypeExtension), 
+                isStruct, 
+                (kind = OlyILEntityKind.Enum), 
+                (kind = OlyILEntityKind.Interface), 
+                InterpreterTypeDefinitionInfo.Default
+            )
 
         member this.EmitTypeBool(): InterpreterType = 
             InterpreterType.Bool

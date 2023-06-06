@@ -1399,13 +1399,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         createMemRef realHandle name signature
 
-    member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyPars, isStruct) =
-        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyPars, isStruct, false)
+    member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct) =
+        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, isStruct, false)
         tyDefQueue.Enqueue(fun () -> tyDefBuilder.Handle.EntityHandle |> ignore)
         tyDefBuilder
 
-    member this.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyPars) =
-        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyPars, false, true)
+    member this.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int) =
+        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, false, true)
         tyDefQueue.Enqueue(fun () -> tyDefBuilder.Handle.EntityHandle |> ignore)
         tyDefBuilder
 
@@ -2492,7 +2492,7 @@ type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name
     member internal _.BuildAndCache() = handle.Value
 
 [<Sealed>]
-type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyPars: string imarray, isValueType: bool, isEnum: bool) as this =
+type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyParCount: int, isValueType: bool, isEnum: bool) as this =
 
     let fullyQualifiedName =
         if enclosingTyHandle.IsNamed then
@@ -2516,6 +2516,13 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
     let fieldDefs = ResizeArray<string * ClrFieldHandle>()
     let propDefs = ResizeArray<ClrPropertyDefinitionBuilder>()
 
+    let mutable tyPars = ImArray.empty
+
+    member _.SetTypeParameters(newTyPars: string imarray) =
+        if newTyPars.Length <> tyParCount then
+            failwith "Invalid amount of type parameters."
+        tyPars <- newTyPars
+
     member _.FullyQualifiedName = fullyQualifiedName
 
     member val Attributes = TypeAttributes() with get, set
@@ -2526,7 +2533,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
     member _.FindField(name: string) = fieldDefs |> Seq.find (fun (x, _) -> x = name) |> snd
 
     member this.CreateMethodDefinitionBuilder(name: string, methTyPars, pars, returnTy: ClrTypeHandle, isInstance: bool) =
-        let methDefBuilder = ClrMethodDefinitionBuilder(asmBuilder, tyPars.Length, name, methTyPars, pars, returnTy, isInstance)
+        let methDefBuilder = ClrMethodDefinitionBuilder(asmBuilder, tyParCount, name, methTyPars, pars, returnTy, isInstance)
         methDefs.Add(methDefBuilder)
         methDefBuilder
 
@@ -2621,6 +2628,9 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
             let castedTyDefHandle = TypeDefinitionHandle.op_Implicit tyDefHandle : EntityHandle
             let tyDefIndex = CodedIndex.TypeOrMethodDef(castedTyDefHandle)
+
+            if tyPars.Length <> tyParCount then
+                failwith "Invalid amount of type parameters."
 
             let f = fun () ->
                 for i = 0 to tyPars.Length - 1 do

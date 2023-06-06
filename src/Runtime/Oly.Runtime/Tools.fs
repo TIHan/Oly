@@ -55,8 +55,10 @@ type DummyEmitter(onEmitBody) =
         member this.EmitTypeBool() = DummyType("bool")
         member this.EmitTypeByRef(arg1, arg2) = DummyType("by_ref")
         member this.EmitTypeChar16() = DummyType("char16")
-        member this.EmitTypeDefinition(enclosing, kind, flags, name, tyPars, extends, implements, attrs, runtimeTyOpt) = 
+        member this.EmitTypeDefinition(enclosing, kind, flags, name, tyParCount) = 
             DummyType(name)
+        member this.EmitTypeDefinitionInfo(_, enclosing, kind, flags, name, tyPars, extends, implements, attrs, runtimeTyOpt) = 
+            ()
         member this.EmitTypeFloat32() = DummyType("float32")
         member this.EmitTypeFloat64() = DummyType("float64")
         member this.EmitTypeFunction(inputTys, outputTy) = DummyType("func")

@@ -4520,3 +4520,111 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "2"
+
+[<Fact>]
+let ``Implement IEquatable``() =
+    let src =
+        """
+open System
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+struct Test =
+   implements IEquatable<Test>
+
+   mutable Equals(x: Test): bool =
+      true
+
+   static op_Equality(x: Test, y: Test): bool =
+      print("passed")
+      true
+
+main(): () =
+   let t = Test()
+   print(t == t)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedTrue"
+
+[<Fact>]
+let ``Implement IEquatable with extension``() =
+    let src =
+        """
+open System
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+#[open]
+extension IEquatableExtensions<T> =
+   inherits IEquatable<T>
+
+   static op_Equality(x: T, y: T): bool =
+      print("passed")
+      true
+
+struct Test =
+   implements IEquatable<Test>
+
+   mutable Equals(x: Test): bool =
+      true
+
+main(): () =
+   let t = Test()
+   print(t == t)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedTrue"
+
+[<Fact>]
+let ``Implement IEquatable with extension 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+#[open]
+extension IEquatableExtensions<T> =
+   inherits IEquatable<T>
+
+   static op_Equality(x: T, y: T): bool =
+      print("failed")
+      true
+
+struct Test =
+   implements IEquatable<Test>
+
+   mutable Equals(x: Test): bool =
+      true
+
+   static op_Equality(x: Test, y: Test): bool =
+      print("passed")
+      true
+
+main(): () =
+   let t = Test()
+   print(t == t)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedTrue"
