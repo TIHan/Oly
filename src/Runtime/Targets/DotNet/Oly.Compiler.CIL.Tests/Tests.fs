@@ -11295,6 +11295,7 @@ struct TestStruct =
     mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
+        print("normal")
         this.Value
 
     mutable get_Item(index: int32): byref<int32> =
@@ -11323,7 +11324,7 @@ main(): () =
         """
     Oly src
     |> shouldCompile
-    |> shouldRunWithExpectedOutput "byrefbyrefbyrefbyref123123123123"
+    |> shouldRunWithExpectedOutput "normalbyrefbyrefbyrefbyref123123123123"
     |> ignore
 
 [<Fact>]
@@ -11367,6 +11368,7 @@ struct TestStruct =
     mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
+        print("normal")
         this.Value
 
     mutable get_Item(index: int32): byref<int32> =
@@ -11400,7 +11402,7 @@ main(): () =
         """
     Oly src
     |> shouldCompile
-    |> shouldRunWithExpectedOutput "byrefbyrefbyref123123123123inrefinref123123123"
+    |> shouldRunWithExpectedOutput "normalbyrefbyrefbyref123123123123normalinrefinref123123123"
     |> ignore
 
 [<Fact>]
@@ -11443,6 +11445,7 @@ class TestClass =
     mutable field Value: int32 = 123
 
     get_Item(index: int32): int32 =
+        print("normal")
         this.Value
 
     get_Item(index: int32): byref<int32> =
@@ -11465,7 +11468,69 @@ main(): () =
         """
     Oly src
     |> shouldCompile
-    |> shouldRunWithExpectedOutput "byrefinref123123123"
+    |> shouldRunWithExpectedOutput "normalbyrefinref123123123"
+    |> ignore
+
+[<Fact>]
+let ``Byref indexer should pass 4``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
+
+interface ITest<T> =
+
+    get_Item(index: int32): T
+    get_Item(index: int32): byref<T>
+    get_Item(index: int32): inref<T>
+
+class TestClass =
+    implements ITest<int32>
+
+    mutable field Value: int32 = 123
+
+    get_Item(index: int32): int32 =
+        print("normal")
+        this.Value
+
+    get_Item(index: int32): byref<int32> =
+        print("byref")
+        &this.Value
+
+    get_Item(index: int32): inref<int32> =
+        print("inref")
+        &this.Value
+
+main(): () =
+    let t = TestClass()
+    let x: int32 = t[0]
+    let y: byref<int32> = &t[0]
+
+    print(x)
+    print(y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "byrefbyref123123"
     |> ignore
 
 [<Fact>]
@@ -11495,8 +11560,8 @@ struct Test =
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
@@ -11505,6 +11570,109 @@ main(): () =
     let mutable s = Test()
     print(s.X)
     (s[0]) <- 5
+    print(s.X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "15"
+    |> ignore
+
+[<Fact>]
+let ``Indexer operator that returns a byref should pass on set 2``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Test =
+
+    public mutable field X: __oly_int32 = 1
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+
+#[open]
+extension TestSetItemExtension =
+    inherits Test
+
+    set_Item(index: __oly_int32, value: __oly_int32): () =
+        //(this[index]) <- value
+        this.get_Item(index) <- value
+
+main(): () =
+    let mutable s = Test()
+    print(s.X)
+    s[0] <- 5
+    print(s.X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "15"
+    |> ignore
+
+[<Fact>]
+let ``Indexer operator that returns a byref should pass on set 3``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Test =
+
+    public mutable field X: __oly_int32 = 1
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+
+#[open]
+extension TestSetItemExtension =
+    inherits Test
+
+    mutable set_Item(index: __oly_int32, value: __oly_int32): () =
+        (this[index]) <- value
+
+main(): () =
+    let mutable s = Test()
+    print(s.X)
+    s[0] <- 5
     print(s.X)
         """
     Oly src

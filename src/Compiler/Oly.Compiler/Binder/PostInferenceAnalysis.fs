@@ -28,7 +28,7 @@ let returnableAddress aenv =
     else
         { aenv with isReturnableAddress = true }
 
-let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
 
@@ -54,7 +54,12 @@ let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty:
 
     | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
     | TypeSymbol.Function(inputTy, returnTy) ->
-        analyzeType acenv aenv syntaxNode inputTy
+        match inputTy with
+        | TypeSymbol.Tuple(tyArgs, _) ->
+            tyArgs
+            |> ImArray.iter (analyzeTypePermitByRef acenv aenv syntaxNode)
+        | _ ->
+            analyzeTypePermitByRef acenv aenv syntaxNode inputTy
         analyzeType acenv aenv syntaxNode returnTy
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
@@ -81,8 +86,24 @@ let rec analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty:
     | TypeSymbol.Error(_, Some msg) ->
         diagnostics.Error(msg, 10, syntaxNode)
     
-    | _ ->
+    | strippedTy ->
+        match strippedTy with
+        | TypeSymbol.ByRef _ when not permitByRef ->
+            match ty with
+            | TypeSymbol.InferenceVariable(Some tyPar, _)
+            | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) when tyPar.Constraints |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false) ->
+                ()
+            | _ ->
+                diagnostics.Error($"'{printType benv ty}' not permitted in this context.", 10, syntaxNode)
+        | _ ->
+            ()
         analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
+
+and analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv false syntaxNode ty
+
+and analyzeTypePermitByRef (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv true syntaxNode ty
 
 and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxConstraintClause) (tyPar: TypeParameterSymbol) (constrs: ConstraintSymbol imarray) =
     if not constrs.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
@@ -109,7 +130,7 @@ and analyzeTypeForParameter acenv aenv (syntaxNode: OlySyntaxNode) (ty: TypeSymb
     | TypeSymbol.HigherVariable(tyPar, _) when tyPar.IsVariadic ->
         acenv.cenv.diagnostics.Error($"Invalid use of variadic type parameter.", 10, syntaxNode)
     | _ ->
-        analyzeType acenv aenv syntaxNode ty
+        analyzeTypePermitByRef acenv aenv syntaxNode ty
 
 and analyzeTypeArguments acenv aenv syntaxNode (tyArgs: TypeSymbol imarray) =
     tyArgs
@@ -273,37 +294,56 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
     else
         checkEnclosing acenv aenv syntaxNode value.Enclosing
 
-        let cont() =
-            value.TypeArguments
-            |> ImArray.iter (fun tyArg -> 
-                analyzeType acenv aenv syntaxNode tyArg
-            )
-            analyzeType acenv aenv syntaxNode value.Type
-            match value with
-            | :? FunctionGroupSymbol as funcGroup ->
-                acenv.cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
-            | _ ->
-                ()
-
         // TODO: We need to use the syntaxNode to get access to the type arguments if they exists, parameters, and return type.
         if value.IsFunction then
             let func = value.AsFunction
             match func.TryWellKnownFunction with
             | ValueSome(WellKnownFunction.LoadNullPtr)
             | ValueSome(WellKnownFunction.UnsafeCast) ->
-                func.TypeArguments
-                |> ImArray.iter (fun tyArg ->
-                    if not tyArg.IsVoid_t then
-                        analyzeType acenv aenv syntaxNode tyArg
-                )
+
+                match func.TryWellKnownFunction with
+                | ValueSome(WellKnownFunction.LoadNullPtr) ->
+                    func.TypeArguments
+                    |> ImArray.iter (fun tyArg ->
+                        if not tyArg.IsVoid_t then
+                            analyzeType acenv aenv syntaxNode tyArg
+                    )
+
+                | ValueSome(WellKnownFunction.UnsafeCast) ->
+                    func.TypeArguments
+                    |> ImArray.iter (fun tyArg ->
+                        if not tyArg.IsVoid_t then
+                            analyzeTypePermitByRef acenv aenv syntaxNode tyArg
+                    )
+
+                | _ ->
+                    ()
+
                 match stripTypeEquations func.ReturnType with
                 | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_t -> ()
                 | _ ->
-                    analyzeType acenv aenv syntaxNode func.ReturnType
+                    analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
             | _ ->
-                cont()
+                func.TypeArguments
+                |> ImArray.iter (fun tyArg -> 
+                    analyzeType acenv aenv syntaxNode tyArg
+                )
+                func.Parameters
+                |> ImArray.iter (fun par ->
+                    analyzeTypeForParameter acenv aenv syntaxNode par.Type
+                )
+                analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
+                match func with
+                | :? FunctionGroupSymbol as funcGroup ->
+                    acenv.cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
+                | _ ->
+                    ()
         else
-            cont()
+            value.TypeArguments
+            |> ImArray.iter (fun tyArg -> 
+                analyzeType acenv aenv syntaxNode tyArg
+            )
+            analyzeType acenv aenv syntaxNode value.Type
 
 let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
     expr.GetReturningTargetExpressions()
@@ -462,7 +502,7 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
                             else
                                 syntaxBinding :> OlySyntaxNode
                         analyzeAttribute acenv aenv syntaxNode prop.Attributes[i]
-                    analyzeType acenv aenv syntaxTy prop.Type
+                    analyzeTypePermitByRef acenv aenv syntaxTy prop.Type
                 | _ ->
                     defaultCheck()
             | _ ->
@@ -582,13 +622,13 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
             ()
 
     | BoundExpression.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, exprTy) ->
-        analyzeType acenv aenv syntaxNode exprTy
+        analyzeTypePermitByRef acenv aenv syntaxNode exprTy
         analyzeExpression acenv (notReturnableAddress aenv) conditionExpr
         analyzeExpression acenv aenv trueTargetExpr
         analyzeExpression acenv aenv falseTargetExpr
 
     | BoundExpression.Match(_, _, matchExprs, matchClauses, exprTy) ->
-        analyzeType acenv aenv syntaxNode exprTy
+        analyzeTypePermitByRef acenv aenv syntaxNode exprTy
         matchExprs
         |> ImArray.iter (analyzeExpression acenv (notReturnableAddress aenv))
         matchClauses

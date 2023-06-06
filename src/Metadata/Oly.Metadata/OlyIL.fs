@@ -310,6 +310,7 @@ type OlyILConstraint =
     | Struct
     | NotStruct
     | Unmanaged
+    | Scoped
     | ConstantType of OlyILType
     | SubtypeOf of OlyILType
 

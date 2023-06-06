@@ -438,7 +438,7 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expecte
                                         parTy
                                 else
                                     parTy
-                            let newArgExpr = checkExpression cenv env (Some expectedTy) argExpr
+                            let newArgExpr = checkExpressionAux cenv env (Some expectedTy) isAddrOf argExpr
                             if newArgExpr = argExpr then
                                 argExpr
                             else
@@ -666,7 +666,8 @@ let private lateCheckCalleeExpression cenv env expr =
     autoDereferenceExpression expr
 
 let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: BoundExpression) =
-    checkCalleeExpression cenv env None expr
+    checkCallerExpression cenv env None isArgForAddrOf expr
+    |> checkCalleeExpression cenv env None
     |> checkCallerExpression cenv env expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env expectedTyOpt
     |> lateCheckCalleeExpression cenv env
@@ -676,7 +677,15 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
     let recheckExpectedTy =
         match expectedTyOpt with
         | Some expectedTy when expectedTy.IsSolved ->
-            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+            let exprTy = expr.Type
+            if exprTy.IsSolved then
+                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+            else
+                match expr with
+                | AutoDereferenced expr when expectedTy.IsByRef_t ->
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+                | _ ->
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
             false
         | _ ->
             true
@@ -704,6 +713,10 @@ let private checkExpressionTypes (cenv: cenv) (env: BinderEnvironment) (expected
             ()
 
     expr
+
+let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) expectedTyOpt isArgForAddrOf (expr: BoundExpression) =
+    checkCallExpression cenv env expectedTyOpt isArgForAddrOf expr
+    |> checkExpressionTypes cenv env expectedTyOpt
 
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: BoundExpression) =
     checkCallExpression cenv env expectedTyOpt false expr

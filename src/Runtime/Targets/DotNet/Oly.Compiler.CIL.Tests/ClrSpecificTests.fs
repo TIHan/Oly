@@ -4474,3 +4474,49 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Get ReadOnlySpan index``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+main(): () =
+    let xs = mutable [1;2;3]
+    let mutable rospan = ReadOnlySpan(xs)
+    let x = rospan[1]
+    print(x)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "2"

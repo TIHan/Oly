@@ -192,6 +192,11 @@ let OlyWithConditionalDefines (conditionalDefines: string list) (src: string) =
     |> stressTest src
 
 /// Will also assert that the syntax tree produced will equal the source.
+let OlyWithRef refSrc src =
+    TestCompilation.CreateWithReference(src, refSrc)
+    |> stressTest src
+
+/// Will also assert that the syntax tree produced will equal the source.
 let OlyWithReference refSrc src =
     let c =
         TestCompilation.CreateWithReference(src, refSrc)

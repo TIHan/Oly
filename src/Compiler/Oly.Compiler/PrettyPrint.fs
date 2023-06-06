@@ -181,6 +181,8 @@ and printConstraint benv constr =
         "not struct"
     | ConstraintSymbol.Unmanaged ->
         "unmanaged"
+    | ConstraintSymbol.Scoped ->
+        "scoped"
     | ConstraintSymbol.ConstantType(constTy) ->
         $"constant {printType benv constTy.Value}"
     | ConstraintSymbol.SubtypeOf(lazyTy) ->
@@ -302,6 +304,7 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
             if Seq.isEmpty constrs then
                 None
             else
+                // TODO: This is the wrong way to print constaints. Fix this.
                 let constrs =
                     constrs |> Seq.map (fun constr ->
                         match constr with
@@ -317,6 +320,9 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
                         | ConstraintSymbol.Unmanaged ->
                             let isTyCtor = tyPar.HasArity
                             printTypeAux benv false isTyCtor tyPar.AsType + ": unmanaged"
+                        | ConstraintSymbol.Scoped ->
+                            let isTyCtor = tyPar.HasArity
+                            printTypeAux benv false isTyCtor tyPar.AsType + ": scoped"
                         | ConstraintSymbol.ConstantType(ty) ->
                             let isTyCtor = tyPar.HasArity
                             printTypeAux benv false isTyCtor tyPar.AsType + ": constant " + printTypeAux benv false isTyCtor ty.Value

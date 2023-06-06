@@ -1375,6 +1375,7 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
                             | ConstraintSymbol.Struct
                             | ConstraintSymbol.NotStruct 
                             | ConstraintSymbol.Unmanaged 
+                            | ConstraintSymbol.Scoped
                             | ConstraintSymbol.ConstantType _ -> false
                             | ConstraintSymbol.SubtypeOf(superTy) ->
                                 subsumesTypeConstructorWith rigidity superTy.Value ty
@@ -1415,7 +1416,8 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.Null
                 | ConstraintSymbol.Struct
                 | ConstraintSymbol.NotStruct 
-                | ConstraintSymbol.Unmanaged -> exists
+                | ConstraintSymbol.Unmanaged 
+                | ConstraintSymbol.Scoped -> exists
                 | ConstraintSymbol.ConstantType(ty) ->
                     areTypesEqualWithRigidity rigidity superTy ty.Value
                 | ConstraintSymbol.SubtypeOf(ty) ->

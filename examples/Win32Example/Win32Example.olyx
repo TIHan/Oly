@@ -248,6 +248,7 @@ main(): () =
             gpuCommands
         )
         
+        
     let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(gpuProgramUI, uiNode))
 
     let mutable pos = Vector3(2, 2, 2)

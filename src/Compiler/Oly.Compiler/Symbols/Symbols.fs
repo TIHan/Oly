@@ -1335,7 +1335,8 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
     | ConstraintSymbol.Null
     | ConstraintSymbol.Struct
     | ConstraintSymbol.NotStruct 
-    | ConstraintSymbol.Unmanaged -> constr
+    | ConstraintSymbol.Unmanaged 
+    | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.ConstantType(ty) ->
         ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
     | ConstraintSymbol.SubtypeOf(ty) ->
@@ -2617,6 +2618,7 @@ type ConstraintSymbol =
     | Struct
     | NotStruct
     | Unmanaged
+    | Scoped
     | ConstantType of Lazy<TypeSymbol>
     | SubtypeOf of Lazy<TypeSymbol>
 
@@ -3293,6 +3295,7 @@ type TypeSymbol =
                 | ConstraintSymbol.Struct
                 | ConstraintSymbol.NotStruct 
                 | ConstraintSymbol.Unmanaged 
+                | ConstraintSymbol.Scoped
                 | ConstraintSymbol.ConstantType _ -> None
                 | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
             )
@@ -4866,11 +4869,24 @@ module SymbolHelpers =
             | ConstraintSymbol.Null
             | ConstraintSymbol.Struct
             | ConstraintSymbol.NotStruct 
-            | ConstraintSymbol.Unmanaged -> this
+            | ConstraintSymbol.Unmanaged 
+            | ConstraintSymbol.Scoped -> this
             | ConstraintSymbol.ConstantType(ty) ->
                 ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
             | ConstraintSymbol.SubtypeOf(ty) ->
                 ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
+
+        member this.Substitute(tyParLookup: ReadOnlyDictionary<_, _>) =
+            match this with
+            | ConstraintSymbol.Null
+            | ConstraintSymbol.Struct
+            | ConstraintSymbol.NotStruct 
+            | ConstraintSymbol.Unmanaged 
+            | ConstraintSymbol.Scoped -> this
+            | ConstraintSymbol.ConstantType(ty) ->
+                ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))
+            | ConstraintSymbol.SubtypeOf(ty) ->
+                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))
 
 // -----------------------------------------------
 // - Custom asserts

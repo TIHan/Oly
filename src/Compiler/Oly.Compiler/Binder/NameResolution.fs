@@ -1748,7 +1748,7 @@ let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPar
         | _ ->
             env1, env1.EnclosingTypeParameters.AddRange(tyPars)
 
-let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSymbol) (resTyArity: ResolutionTypeArity) syntaxConstr =
+let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSymbol) (resTyArity: ResolutionTypeArity) (delayed: Queue<unit -> unit>) syntaxConstr =
     match syntaxConstr with
     | OlySyntaxConstraint.Type(syntaxConstrTy) ->
 
@@ -1795,6 +1795,27 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
                             freeTyPars
                             |> ImArray.mapi (fun i tyPar ->
                                 TypeParameterSymbol(tyPar.Name, i, tyPar.Arity, TypeParameterKind.Type, ref ImArray.empty)
+                            )
+
+                        if tyPars.Length > 0 then
+                            let tyParLookup =
+                                (tyPars, freeTyPars)
+                                ||> ImArray.map2 (fun tyPar oldTyPar ->
+                                    KeyValuePair(oldTyPar.Id, tyPar.AsType)
+                                )
+                                |> Dictionary
+                                |> System.Collections.ObjectModel.ReadOnlyDictionary
+
+                            delayed.Enqueue(fun () -> 
+                                (tyPars, freeTyPars)
+                                ||> ImArray.iter2 (fun tyPar oldTyPar ->
+                                    let constrs =
+                                        oldTyPar.Constraints
+                                        |> ImArray.map (fun constr ->
+                                            constr.Substitute(tyParLookup)
+                                        )
+                                    tyPar.SetConstraints(constrs)
+                                )
                             )
 
                         let tyArgs =
@@ -1846,13 +1867,16 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
     | OlySyntaxConstraint.Unmanaged _ ->
         tyPar.AddConstraint(ConstraintSymbol.Unmanaged)
 
+    | OlySyntaxConstraint.Scoped _ ->
+        tyPar.AddConstraint(ConstraintSymbol.Scoped)
+
     | OlySyntaxConstraint.Error _ ->
         ()
 
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>) (syntaxConstrClause: OlySyntaxConstraintClause) =
+let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>) (delayed: Queue<_>) (syntaxConstrClause: OlySyntaxConstraintClause) =
     match syntaxConstrClause with
     | OlySyntaxConstraintClause.ConstraintClause(_, syntaxTy, _, syntaxConstrList) ->
         let ty, isTyCtor = 
@@ -1892,7 +1916,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
                     ResolutionTypeArity.Any
 
             syntaxConstrList.ChildrenOfType
-            |> ImArray.iter (fun syntaxConstr -> bindConstraint cenv { env with isInConstraint = true } tyPar resTyArity syntaxConstr)
+            |> ImArray.iter (fun syntaxConstr -> bindConstraint cenv { env with isInConstraint = true } tyPar resTyArity delayed syntaxConstr)
 
     | OlySyntaxConstraintClause.Error _ ->
         ()
@@ -1901,13 +1925,18 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
         raise(InternalCompilerException())
 
 let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) =
-    let hash = HashSet()
+    let hash = HashSet() // TODO: Cache this allocation.
+    let delayed = Queue() // TODO: Cache this allocation.
 
     syntaxConstrClauses
     |> ImArray.iter (fun syntaxConstrClause ->
         // Binding a constraint clause will not check the type constructors of the constraints.
-        bindConstraintClause cenv env hash syntaxConstrClause
+        bindConstraintClause cenv env hash delayed syntaxConstrClause
     )
+
+    let mutable f = Unchecked.defaultof<_>
+    while delayed.TryDequeue &f do
+        f()
 
 /// Determine member flags and value explicitness based on the modifiers and kind.
 /// Performs validation on the modifiers and kind.

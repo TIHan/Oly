@@ -756,6 +756,7 @@ let inline CHECKED state = tryToken (function Checked -> true | _ -> false) stat
 let inline UNMANAGED state = tryToken (function Unmanaged -> true | _ -> false) state
 let inline MANAGED state = tryToken (function Managed -> true | _ -> false) state
 let inline BLITTABLE state = tryToken (function Blittable -> true | _ -> false) state
+let inline SCOPED state = tryToken (function Scoped -> true | _ -> false) state
 let inline PURE state = tryToken (function Pure -> true | _ -> false) state
 let inline PATTERN state = tryToken (function Pattern -> true | _ -> false) state
 let inline IMPLICIT state = tryToken (function Implicit -> true | _ -> false) state
@@ -1798,6 +1799,11 @@ let tryParseConstraint state =
     match bt UNMANAGED state with
     | Some(unmanagedToken) ->
         SyntaxConstraint.Unmanaged(unmanagedToken) |> Some
+    | _ ->
+
+    match bt SCOPED state with
+    | Some(scopedToken) ->
+        SyntaxConstraint.Scoped(scopedToken) |> Some
     | _ ->
 
     match bt2 CONSTANT tryParseType state with

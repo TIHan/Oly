@@ -488,6 +488,9 @@ type SyntaxConstraint =
     | Unmanaged
         of
         unmanagedToken: SyntaxToken
+    | Scoped
+        of
+        scopedToken: SyntaxToken
     | Type
         of
         ty: SyntaxType
@@ -527,6 +530,10 @@ type SyntaxConstraint =
                 match index with
                 | 0 -> unmanagedToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Scoped(scopedToken) ->
+                match index with
+                | 0 -> scopedToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | Type(ty) ->
                 match index with
                 | 0 -> ty :> ISyntaxNode
@@ -547,6 +554,7 @@ type SyntaxConstraint =
             | Struct _ -> 1
             | NotStruct _ -> 2
             | Unmanaged _ -> 1
+            | Scoped _ -> 1
             | Type _ -> 1
             | Error _ -> 1
             | ConstantType _ -> 2
@@ -560,6 +568,8 @@ type SyntaxConstraint =
             | NotStruct(fullWidth=fullWidth) ->
                 fullWidth
             | Unmanaged(x) ->
+                (x :> ISyntaxNode).FullWidth
+            | Scoped(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Type(x) ->
                 (x :> ISyntaxNode).FullWidth

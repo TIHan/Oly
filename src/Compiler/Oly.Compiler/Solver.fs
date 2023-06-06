@@ -373,8 +373,17 @@ and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
         |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false)
 
     | tyArg ->
-        // TODO: This doesn't actually check for unmanaged, but good enough for now. We will need to fix it.
         tyArg.IsUnmanaged
+
+and solveConstraintScoped env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
+    match stripTypeEquations tyArg with
+    | TypeSymbol.Variable(tyPar)
+    | TypeSymbol.HigherVariable(tyPar, _) ->
+        tyPar.Constraints 
+        |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false)
+
+    | _ ->
+        true       
 
 and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSymbol) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -400,6 +409,8 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
         solveConstraintNotStruct env syntaxNode tyArg
     | ConstraintSymbol.Unmanaged ->
         solveConstraintUnmanaged env syntaxNode tyArg
+    | ConstraintSymbol.Scoped ->
+        solveConstraintScoped env syntaxNode tyArg
     | ConstraintSymbol.ConstantType(constTy) ->
         solveConstraintConstantType env syntaxNode constTy.Value tyArg
     | ConstraintSymbol.SubtypeOf(target) ->

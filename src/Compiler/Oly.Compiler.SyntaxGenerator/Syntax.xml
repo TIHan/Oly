@@ -117,6 +117,9 @@
 	<Case name="Unmanaged">
 	  <Field name="unmanagedToken">SyntaxToken</Field>
 	</Case>
+    <Case name="Scoped">
+	  <Field name="scopedToken">SyntaxToken</Field>
+	</Case>
     <Case name="Type">
       <Field name="ty">SyntaxType</Field>
     </Case>

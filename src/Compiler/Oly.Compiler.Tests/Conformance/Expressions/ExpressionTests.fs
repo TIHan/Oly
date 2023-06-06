@@ -3229,7 +3229,10 @@ alias int32
 #[intrinsic("add")]
 (+)(int32, int32): int32
 
+test(x: int8): () = ()
+
 main(): () =
+    test(1 + 1)
     let result: int8 = 1 + 1
         """
     Oly src
@@ -3744,11 +3747,8 @@ struct Test =
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { mutable get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 main(): () =
     let mutable s = Test()
@@ -3917,7 +3917,7 @@ class Test<T> where T: struct =
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 
 main(): () =
     let mutable s = Test<__oly_int32>()
@@ -3950,7 +3950,7 @@ class Test<T> where T: struct =
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 
 main(): () =
     let mutable s = Test<__oly_int32>()
@@ -8019,7 +8019,6 @@ main(): () =
         ]
     |> ignore
 
-
 [<Fact>]
 let ``Array expression without semi-colons should fail due to eager inference not available on arrays (yet)``() =
     let src =
@@ -8040,9 +8039,51 @@ main(): () =
         [
             ("Expected type 'mutable int32[]' but is 'int32[]'.",
             """
-test([0])
-     ^^^
+    test([0])
+         ^^^
 """
             )
         ]
+    |> ignore
+
+[<Fact>]
+let ``Shape constraint used in a recursive way should pass``() =
+    let refSrc =
+        """
+module Test
+
+#[intrinsic("float32")]
+alias float32
+
+struct Vector3 =
+
+    public mutable field X: float32
+    public mutable field Y: float32
+    public mutable field Z: float32
+
+    new(x: float32) =
+        {
+            X = x
+            Y = x
+            Z = x
+        }
+
+    static op_Multiply(v1: Vector3, v2: Vector3): Vector3 = default
+
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+        """
+    let src =
+        """
+open static Test
+
+main(): () =
+    let mutable v = Vector3(0)
+    v.X <- 1
+    v.Y <- 2
+    v.Z <- 3
+    
+    let result = v * v
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
     |> ignore

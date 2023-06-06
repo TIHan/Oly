@@ -74,6 +74,7 @@ module private Helpers =
                     | ConstraintSymbol.Struct
                     | ConstraintSymbol.NotStruct 
                     | ConstraintSymbol.Unmanaged 
+                    | ConstraintSymbol.Scoped
                     | ConstraintSymbol.ConstantType _ -> None
                     | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
                 )
@@ -112,7 +113,8 @@ module private Helpers =
                     | ConstraintSymbol.Null
                     | ConstraintSymbol.Struct
                     | ConstraintSymbol.NotStruct 
-                    | ConstraintSymbol.Unmanaged 
+                    | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Scoped
                     | ConstraintSymbol.ConstantType _ -> None
                     | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
                 )
@@ -1108,7 +1110,8 @@ let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy
                     | ConstraintSymbol.Null
                     | ConstraintSymbol.Struct
                     | ConstraintSymbol.NotStruct 
-                    | ConstraintSymbol.Unmanaged -> true
+                    | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Scoped -> true
                     | ConstraintSymbol.ConstantType(ty) ->
                         subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy ty.Value
                     | ConstraintSymbol.SubtypeOf(ty) ->

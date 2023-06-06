@@ -536,6 +536,8 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
                     OlyILConstraint.NotStruct
                 | ConstraintSymbol.Unmanaged ->
                     OlyILConstraint.Unmanaged
+                | ConstraintSymbol.Scoped ->
+                    OlyILConstraint.Scoped
                 | ConstraintSymbol.ConstantType(constTy) ->
                     OlyILConstraint.ConstantType(emitILType cenv env constTy.Value)
                 | ConstraintSymbol.SubtypeOf(ty) ->

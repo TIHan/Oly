@@ -115,7 +115,7 @@ let private filterFunctionsForOverloadingByWeight resArgs (returnTyOpt: TypeSymb
     let rec computeWeight (currentRigidWeight, currentWeight) (expectedTy: TypeSymbol) (ty: TypeSymbol) : struct(int * int) =
         let expectedTy = stripTypeEquationsAndBuiltIn expectedTy
         let ty = stripTypeEquationsAndBuiltIn ty
-        if (ty.IsSolved || ty.IsEagerInferenceVariable_t) && UnifyTypes Generalizable expectedTy ty then
+        if ((ty.IsSolved || ty.IsEagerInferenceVariable_t) && UnifyTypes Generalizable expectedTy ty) then
             let currentWeight = currentWeight + 1
             let currentRigidWeight =
                 if UnifyTypes Rigid expectedTy.Formal ty.Formal then

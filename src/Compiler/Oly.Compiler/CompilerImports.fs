@@ -272,27 +272,15 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
 type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: EntitySymbol) as this =
     inherit EntitySymbol()
 
-    let id = newId()
-
     let asEnclosing = (this :> EntitySymbol).AsEnclosing
 
-    let lazyTyPars =
-        lazy
-            let tyPars: TypeParameterSymbol imarray = 
-                ent.TypeParameters
-                |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
-
-            (ent.TypeParameters, tyPars)
-            ||> ImArray.iter2 (fun oldTyPar tyPar ->
-                if not oldTyPar.Constraints.IsEmpty then 
-                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
-            )
-
-            tyPars
+    let tyPars =
+        ent.TypeParameters
+        |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
 
     let lazyTyArgs =
         lazy
-            lazyTyPars.Value
+            tyPars
             |> ImArray.map (fun (tyPar: TypeParameterSymbol) -> tyPar.AsType)
 
     let lazyEntities =
@@ -322,19 +310,16 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
 
     let lazyExtends =
         lazy
-            let tyPars = lazyTyPars.Value
             ent.Extends
             |> ImArray.map (retargetType currentAsmIdent importer tyPars)
 
     let lazyImplements =
         lazy
-            let tyPars = lazyTyPars.Value
             ent.Implements
             |> ImArray.map (retargetType currentAsmIdent importer tyPars)
 
     let lazyRuntimeTyOpt =
         lazy
-            let tyPars = lazyTyPars.Value
             ent.RuntimeType
             |> Option.map (retargetType currentAsmIdent importer tyPars)
 
@@ -350,6 +335,15 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
 
     member this.AssemblyNameThatImportedThis = currentAsmIdent.Name
     member this.DebugName = ent.Name
+
+    member this.ComputeConstraints() =
+        if not ent.TypeParameters.IsEmpty then
+            let tyPars = this.TypeParameters
+            (ent.TypeParameters, tyPars)
+            ||> ImArray.iter2 (fun oldTyPar tyPar ->
+                if not oldTyPar.Constraints.IsEmpty then 
+                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
+            )
 
     override this.Attributes = ent.Attributes
     override this.ContainingAssembly = ent.ContainingAssembly
@@ -368,14 +362,16 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Patterns = lazyPats.Value
     override this.Properties = lazyProps.Value
     override this.TypeArguments = lazyTyArgs.Value
-    override this.TypeParameters = lazyTyPars.Value
+    override this.TypeParameters = tyPars
+
 
 let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (constr: ConstraintSymbol) =
     match constr with
     | ConstraintSymbol.NotStruct
     | ConstraintSymbol.Struct
     | ConstraintSymbol.Null
-    | ConstraintSymbol.Unmanaged -> constr
+    | ConstraintSymbol.Unmanaged
+    | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.ConstantType(lazyTy) ->
         let ty = lazyTy.Value
         let rty = retargetType currentAsmIdent importer tyPars ty
@@ -447,7 +443,16 @@ let private retargetConstant currentAsmIdent importer constant =
 
 let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: EntitySymbol) =
     if ent.IsAnonymous then
-        RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> EntitySymbol
+        match importer.AnonymousEntityCache.TryGetValue(ent.Id) with
+        | true, rtgtEnt -> rtgtEnt
+        | _ ->
+            let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
+            importer.AnonymousEntityCache[ent.Id] <- rtgtEnt
+            // We do this to stop infinite recursion from happenening.
+            // Example:
+            //     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+            rtgtEnt.ComputeConstraints()
+            rtgtEnt
     else
         let qualName = ent.QualifiedName
         match importer.TryGetEntity(qualName) with
@@ -455,9 +460,11 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            let ent = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent) :> EntitySymbol
-            importer.AddEntity(qualName, ent)
-            ent
+            let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
+            importer.AddEntity(qualName, rtgtEnt)
+            // We do this to stop infinite recursion from happenening.
+            rtgtEnt.ComputeConstraints()
+            rtgtEnt
 
 let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     match enclosing with
@@ -774,6 +781,8 @@ let private importTypeParameterSymbols cenv (enclosingTyPars: TypeParameterSymbo
                     ConstraintSymbol.NotStruct
                 | OlyILConstraint.Unmanaged ->
                     ConstraintSymbol.Unmanaged
+                | OlyILConstraint.Scoped ->
+                    ConstraintSymbol.Scoped
                 | OlyILConstraint.ConstantType(ilTy) ->
                     ConstraintSymbol.ConstantType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
                 | OlyILConstraint.SubtypeOf(ilTy) ->
@@ -1725,6 +1734,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
 
     member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
     member val EntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary<int64, EntitySymbol>()
+
+    member val AnonymousEntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary()
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
