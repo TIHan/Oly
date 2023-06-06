@@ -4628,3 +4628,35 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passedTrue"
+
+[<Fact>]
+let ``Always choose most specific implementation``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+   implements IDisposable
+
+   Dispose(): () = print("passed")
+
+#[open]
+extension CExtension =
+   inherits C
+   implements IDisposable
+
+   Dispose(): () = print("failed")
+
+test<T>(x: T): () where T: IDisposable = x.Dispose()
+
+main(): () =
+   let c = C()
+   c.Dispose()
+   test(c)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedpassed"

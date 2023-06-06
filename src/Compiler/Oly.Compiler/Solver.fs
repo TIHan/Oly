@@ -274,13 +274,18 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             else
                 false
 
+    // If we can solve the witness by subsumption, then we are done.
+    // This allows the concrete implementation to take precedence over extensions.
+    if solveSubsumption() then 
+        true
+
     // Type parameters from types cannot solve for type extensions.
-    if tyPar.Kind = TypeParameterKind.Type then
-        solveSubsumption()
+    elif tyPar.Kind = TypeParameterKind.Type then
+        false
     else
 
     match tryFindExtensions env.benv target ty with
-    | ValueNone -> solveSubsumption()
+    | ValueNone -> false
     | ValueSome(tyExts) ->
         OlyAssert.False(tyExts.IsEmpty)
         if tyExts.Length = 1 then
