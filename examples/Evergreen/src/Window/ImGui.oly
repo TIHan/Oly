@@ -54,6 +54,9 @@ alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> i
 // TODO:
 enum ImGuiWindowFlags =
     | None = 0
+    | NoTitleBar      = 0b000000001
+    | NoCollapse      = 0b000100000
+    | NoSavedSettings = 0b100000000
 
 // TODO:
 enum ImGuiInputTextFlags =
@@ -162,7 +165,7 @@ internal struct ImGui_ImplVulkan_InitInfo =
     public mutable field Allocator: VkAllocationCallbacks* = default
     public mutable field CheckVnResultVn: static blittable VkResult -> () = default
 
-
+private alias ImGuiCond = int32
 
 #[import("C", "imgui.dll", "igCreateContext")]
 private igCreateContext(shared_font_atlas: void*): nint
@@ -214,6 +217,18 @@ private igBeginDisabled(disabled: ImGuiBool): ()
 
 #[import("C", "imgui.dll", "igEndDisabled")]
 private igEndDisabled(): ()
+
+#[import("C", "imgui.dll", "igBeginChild_ID")]
+private igBeginChild_ID(id: uint32, size: Vector2, border: ImGuiBool, flags: ImGuiWindowFlags): ImGuiBool
+
+#[import("C", "imgui.dll", "igEndChild")]
+private igEndChild(): ()
+
+#[import("C", "imgui.dll", "igSetNextWindowPos")]
+private igSetNextWindowPos(pos: Vector2, cond: ImGuiCond, pivot: Vector2): ()
+
+#[import("C", "imgui.dll", "igSetNextWindowSize")]
+private igSetNextWindowSize(size: Vector2, cond: ImGuiCond): ()
 
 #[import("C", "imgui.dll", "igLabelText")]
 private igLabelText(label: byte*, fmt: byte*): ()
@@ -521,13 +536,16 @@ ShowDemoWindow(context: ImGuiContext): () =
     let mutable p_open = ImGuiBool.True
     igShowDemoWindow(&&p_open)
 
-Begin(context: ImGuiContext, mutable title: ReadOnlySpan<byte>): bool =
+Begin(context: ImGuiContext, isOpen: byref<bool>, hideCloseButton: bool, mutable title: ReadOnlySpan<byte>): bool =
     igSetCurrentContext(context.Context)
 
     let titlePtr = &&title.GetPinnableReference()
 
     let mutable p_open = ImGuiBool.True
-    let result = igBegin(titlePtr, &&p_open, ImGuiWindowFlags.None)
+    let p_openPtr = if (hideCloseButton) nullptr else &&p_open
+    let result = igBegin(titlePtr, p_openPtr, ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoSavedSettings)
+
+    isOpen <- p_open == true
 
     result == true
 
@@ -545,6 +563,26 @@ EndDisabled(context: ImGuiContext): () =
     igSetCurrentContext(context.Context)
 
     igEndDisabled()
+
+BeginChild(context: ImGuiContext, id: uint32, size: Vector2): bool =
+    igSetCurrentContext(context.Context)
+
+    igBeginChild_ID(id, size, ImGuiBool.False, ImGuiWindowFlags.None) == true
+
+EndChild(context: ImGuiContext): () =
+    igSetCurrentContext(context.Context)
+
+    igEndChild()
+
+SetWindowPosition(context: ImGuiContext, position: Vector2): () =
+    igSetCurrentContext(context.Context)
+
+    igSetNextWindowPos(position, 0, Vector2.Zero)
+
+SetWindowSize(context: ImGuiContext, size: Vector2): () =
+    igSetCurrentContext(context.Context)
+
+    igSetNextWindowSize(size, 0)
 
 LabelText(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable text: ReadOnlySpan<byte>): () =
     igSetCurrentContext(context.Context)

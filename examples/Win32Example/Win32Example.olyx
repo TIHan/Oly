@@ -151,25 +151,30 @@ compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     code
 
 createUI(windowTitle: string, texture: GpuImage, deviceName: string): UINode =
-    let windowModel = UI.WindowModel(windowTitle, Vector2.Zero, Vector2.Zero)
+    let windowModel = UI.WindowModel(windowTitle, Vector2.Zero)
         
     let labelModel = UI.LabelModel("Device", deviceName)
     labelModel.IsEnabled <- false
 
-    let imageModel = UI.ImageModel(texture, Vector2(256, 256))
+    let imageModel = UI.ImageModel(texture)
+    imageModel.Size <- Vector2(64, 64)
 
     let textInputModel = UI.TextInputModel("Oly Input Text", "")
-    let buttonModel = UI.ButtonModel("Oly Button")
+    let closeWindowModel = UI.ButtonModel("Close Window")
+
+    let toggleTextInput = UI.ButtonModel("Toggle Text Input")
     UI.Window(windowModel, 
         [
           //  UI.DemoWindow()
             UI.Label(labelModel)
             UI.Image(imageModel)
-            UI.TextInput(textInputModel, m -> printLine(m.Text))
-            UI.Button(buttonModel,
-                _m ->
-                    printLine("Clicked!")
-                    textInputModel.Text <- textInputModel.Text + "doot"
+
+            UI.TextInput(textInputModel, () -> printLine(textInputModel.Text))
+            UI.Button(toggleTextInput, () -> textInputModel.IsEnabled <- !textInputModel.IsEnabled)
+
+            UI.Button(closeWindowModel,
+                () ->
+                    windowModel.IsOpen <- false
             )
         ]
     )
@@ -263,7 +268,7 @@ main(): () =
         if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
             let mutable result = globals.AsSpan()
             let mutable x = &result[0]
-            pos <- Vector3(2, 2, pos.Z + 0.01)
+          //  pos <- Vector3(2, 2, pos.Z + 0.01)
 
             x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
             gpuProgram.FragmentCode <- fragmentShaderByteCode

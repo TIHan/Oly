@@ -24,14 +24,16 @@ private module Span =
         else
             -1
 
-abstract class UIModel
+abstract class UIModel =
+
+    IsEnabled: bool get, set = true
+    Size: Vector2 get, set = Vector2.Zero
 
 class WindowModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
-    Size: Vector2 get, set = Vector2.Zero
-    RelativePosition: Vector2 get, set = Vector2.Zero
+    IsOpen: bool get, set = true
+    Position: Vector2 get, set = Vector2.Zero
 
     field titleBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field titleBufferLength: int32 = 0
@@ -46,9 +48,6 @@ class WindowModel =
 class ButtonModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
-    Size: Vector2 get, set = Vector2.Zero
-
     field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
     mutable field label: string = string.Empty
@@ -61,8 +60,6 @@ class ButtonModel =
 
 class TextInputModel =
     inherits UIModel
-
-    IsEnabled: bool get, set = true
 
     field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
@@ -86,14 +83,11 @@ class TextInputModel =
 class Int32InputModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     Value: int32 get, set = 0
 
 class LabelModel =
     inherits UIModel
-
-    IsEnabled: bool get, set = true
     
     field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
     mutable field labelBufferLength: int32 = 0
@@ -117,9 +111,6 @@ class LabelModel =
 class ImageModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
-    Size: Vector2 get, set = Vector2.Zero
-
     internal mutable field descriptorSet: Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet = Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
     internal mutable field gpuImage: Evergreen.Game.Rendering.GpuImage = unchecked default
     GpuImage: Evergreen.Game.Rendering.GpuImage get() = this.gpuImage
@@ -127,14 +118,12 @@ class ImageModel =
 class CheckboxModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     IsChecked: bool get, set = false
 
 class ComboBoxModel =
     inherits UIModel
 
-    IsEnabled: bool get, set = true
     Label: string get, set = string.Empty
     SelectedItemIndex: int32 get, set = 0
     Items: mutable string[] get, set = mutable []
@@ -282,23 +271,31 @@ module UI =
     private MakeNode(context: ImGui.ImGuiContext, node: UINode): () =
         match (node)
         | UINode.Window(state, children) =>
-          //  ImGui.SetNextWindowSize(state.Size)
-          //  ImGui.SetNextWindowPos(state.RelativePosition)
+            ImGui.SetWindowSize(context, state.Size)
+            ImGui.SetWindowPosition(context, state.Position)
             ImGui.BeginDisabled(context, !state.IsEnabled)
-            MakeWindow(context, state.TitleSpan, children)
+            MakeWindow(context, state, children)
             ImGui.EndDisabled(context)
         
         | UINode.Button(state, onClick) =>
+            ImGui.BeginDisabled(context, !state.IsEnabled)
             MakeButton(context, state, onClick)
+            ImGui.EndDisabled(context)
 
         | UINode.TextInput(state, onChanged) =>
+            ImGui.BeginDisabled(context, !state.IsEnabled)
             MakeTextInput(context, state, onChanged)
+            ImGui.EndDisabled(context)
 
         | UINode.Label(state) =>
+            ImGui.BeginDisabled(context, !state.IsEnabled)
             MakeLabel(context, state)
+            ImGui.EndDisabled(context)
 
         | UINode.Image(state) =>
+            ImGui.BeginDisabled(context, !state.IsEnabled)
             MakeImage(context, state)
+            ImGui.EndDisabled(context)
 
         | UINode.DemoWindow =>
             ImGui.ShowDemoWindow(context)
@@ -315,22 +312,21 @@ module UI =
         | _ =>
             ()
 
-    private MakeWindow(context: ImGui.ImGuiContext, title: ReadOnlySpan<byte>, children: UINode[]): () =
-        if (ImGui.Begin(context, title))
+    private MakeWindow(context: ImGui.ImGuiContext, state: WindowModel, children: UINode[]): () =
+        let mutable isOpen = state.IsOpen
+        if (isOpen && ImGui.Begin(context, &isOpen, true, state.TitleSpan))
             let mutable i = 0
             while (i < children.Length)
                 MakeNode(context, children[i])
                 i <- i + 1
             ImGui.End(context)
+        state.IsOpen <- isOpen
 
     private MakeButton(context: ImGui.ImGuiContext, state: ButtonModel, onClick: () -> ()): () =
-        ImGui.BeginDisabled(context, !state.IsEnabled)
         if (ImGui.Button(context, state.LabelSpan, state.Size))
             context.Callbacks.Enqueue(onClick)
-        ImGui.EndDisabled(context)
 
     private MakeTextInput(context: ImGui.ImGuiContext, state: TextInputModel, onTextChanged: () -> ()): () =
-        ImGui.BeginDisabled(context, !state.IsEnabled)
         if (ImGui.InputText(context, state.LabelSpan, state.TextSpan))
             let mutable textSpan = state.TextSpan
             let indexZero = Span.TryFindIndex(textSpan, x -> x == 0)
@@ -341,16 +337,11 @@ module UI =
                     textSpan.Slice(0, indexZero)
             state.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(textSpan))
             context.Callbacks.Enqueue(onTextChanged)
-        ImGui.EndDisabled(context)
 
     private MakeLabel(context: ImGui.ImGuiContext, state: LabelModel): () =
-        ImGui.BeginDisabled(context, !state.IsEnabled)
         ImGui.LabelText(context, state.LabelSpan, state.TextSpan)
-        ImGui.EndDisabled(context)
 
     private MakeImage(context: ImGui.ImGuiContext, state: ImageModel): () =
-        ImGui.BeginDisabled(context, !state.IsEnabled)
-
         if (state.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
             state.descriptorSet <-
                 ImGui.CreateTexture(context, state.gpuImage.VkSampler, state.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -359,7 +350,6 @@ module UI =
                 )
 
         ImGui.Image(context, state.descriptorSet, state.Size, Vector2.Zero, Vector2.One)
-        ImGui.EndDisabled(context)
 
     // private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
     //     ImGui.BeginDisabled(!state.IsEnabled)
@@ -382,27 +372,23 @@ module UI =
     Window(state: WindowModel, children: UINode[]): UINode =
         UINode.Window(state, children)
 
-    WindowModel(title: string, size: Vector2, relativePosition: Vector2): WindowModel =
+    WindowModel(title: string, position: Vector2): WindowModel =
         let m = WindowModel()
         m.Title <- title
-        m.Size <- size
-        m.RelativePosition <- relativePosition
+        m.Position <- position
         m
 
-    Button(state: ButtonModel, onClick: ButtonModel -> ()): UINode =
-        UINode.Button(state, () -> onClick(state))
+    Button(state: ButtonModel, onClick: () -> ()): UINode =
+        UINode.Button(state, onClick)
 
-    ButtonModel(label: string, size: Vector2): ButtonModel =
-        let m = ButtonModel()
-        m.Label <- label
-        m.Size <- size
-        m
 
     ButtonModel(label: string): ButtonModel =
-        ButtonModel(label, Vector2.Zero)
+        let m = ButtonModel()
+        m.Label <- label
+        m
 
-    TextInput(state: TextInputModel, onTextChanged: TextInputModel -> ()): UINode =
-        UINode.TextInput(state, () -> onTextChanged(state))
+    TextInput(state: TextInputModel, onTextChanged: () -> ()): UINode =
+        UINode.TextInput(state, onTextChanged)
 
     TextInputModel(label: string, text: string): TextInputModel =
         let vm = TextInputModel()
@@ -410,8 +396,8 @@ module UI =
         vm.Text <- text
         vm
 
-    Int32Input(state: Int32InputModel, onChanged: Int32InputModel -> ()): UINode =
-        UINode.Int32Input(state, () -> onChanged(state))
+    Int32Input(state: Int32InputModel, onChanged: () -> ()): UINode =
+        UINode.Int32Input(state, onChanged)
 
     Int32InputModel(label: string, value: int32): Int32InputModel =
         let m = Int32InputModel()
@@ -431,10 +417,9 @@ module UI =
     Image(state: ImageModel): UINode =
         UINode.Image(state)
 
-    ImageModel(gpuImage: Evergreen.Game.Rendering.GpuImage, size: Vector2): ImageModel =
+    ImageModel(gpuImage: Evergreen.Game.Rendering.GpuImage): ImageModel =
         let m = ImageModel()
         m.gpuImage <- gpuImage
-        m.Size <- size
         m
 
     Checkbox(state: CheckboxModel, onChanged: CheckboxModel -> ()): UINode =
