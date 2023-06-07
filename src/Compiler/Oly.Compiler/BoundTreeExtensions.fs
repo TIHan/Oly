@@ -86,21 +86,22 @@ module private Helpers =
             | _ ->
                 Seq.empty
     
-        let extrinsicFields =
-            match queryField with
-            | QueryField.IntrinsicAndExtrinsic ->
-                match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-                | ValueSome (traitImpls) ->
-                    traitImpls.Values
-                    |> Seq.collect (fun trImpl ->
-                        filterFields queryMemberFlags valueFlags nameOpt trImpl.Fields
-                    )
-                | _ ->
-                    Seq.empty
-            | _ ->
-                Seq.empty
+        //let extrinsicFields =
+        //    match queryField with
+        //    | QueryField.IntrinsicAndExtrinsic ->
+        //        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
+        //        | ValueSome (traitImpls) ->
+        //            traitImpls.Values
+        //            |> Seq.collect (fun trImpl ->
+        //                filterFields queryMemberFlags valueFlags nameOpt trImpl.Fields
+        //            )
+        //        | _ ->
+        //            Seq.empty
+        //    | _ ->
+        //        Seq.empty
     
-        Seq.append intrinsicFields extrinsicFields
+        //Seq.append intrinsicFields extrinsicFields
+        intrinsicFields
 
     let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
@@ -134,7 +135,10 @@ module private Helpers =
                     | ValueSome (traitImpls) ->
                         traitImpls.Values
                         |> Seq.collect (fun trImpl ->
-                            filterProperties queryMemberFlags valueFlags nameOpt trImpl.Properties
+                            trImpl.Values
+                            |> Seq.collect (fun trImpl ->
+                                filterProperties queryMemberFlags valueFlags nameOpt trImpl.Properties
+                            )
                         )
                     | _ ->
                         Seq.empty

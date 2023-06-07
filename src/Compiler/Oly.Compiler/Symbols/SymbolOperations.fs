@@ -794,6 +794,49 @@ type EntitySymbolGeneralizedMap<'T> private (map: ImmutableDictionary<EntitySymb
         EntitySymbolGeneralizedMap(map)
 
 [<Struct;NoComparison;NoEquality>]
+type EntitySymbolGeneralizedMapEntitySet private (map: ImmutableDictionary<EntitySymbol, EntitySymbolSet>) =
+
+    member _.SetItem(key, value) =
+        let entSet =
+            match map.TryGetValue key with
+            | true, entSet -> entSet
+            | _ -> EntitySymbolSet.Create(Seq.empty)
+        let entSet = entSet.Add(value)
+        EntitySymbolGeneralizedMapEntitySet(map.SetItem(key, entSet))
+
+    member _.TryFind(key) =
+        match map.TryGetValue key with
+        | true, value -> ValueSome value
+        | _ -> ValueNone
+
+    member _.ContainsKey(key) =
+        map.ContainsKey(key)
+
+    member _.GetSimilar(tr: EntitySymbol) =
+        map
+        |> Seq.choose (fun pair ->
+            if areGeneralizedEntitiesEqual tr pair.Key then
+                Some pair.Value
+            else
+                None
+        )
+
+    member _.GetSimilar(ty: TypeSymbol) =
+        map
+        |> Seq.choose (fun pair ->
+            if areGeneralizedTypesEqual ty pair.Key.AsType then
+                Some pair.Value
+            else
+                None
+        )
+
+    member _.Values = map.Values
+   
+    static member Create() =     
+        let map = ImmutableDictionary.Create<EntitySymbol, EntitySymbolSet>(EntitySymbolGeneralizedComparer())
+        EntitySymbolGeneralizedMapEntitySet(map)
+
+[<Struct;NoComparison;NoEquality>]
 type EntitySymbolSet private (set: ImmutableHashSet<EntitySymbol>) =
 
     member _.Add(key) =
@@ -805,8 +848,10 @@ type EntitySymbolSet private (set: ImmutableHashSet<EntitySymbol>) =
         | _ -> None
 
     member _.Values = set :> _ seq
+
+    member _.Count = set.Count
    
-    static member Create(trs) =     
+    static member Create(trs: EntitySymbol seq) =     
         let set = ImmutableHashSet.CreateRange<EntitySymbol>(EntitySymbolComparer(), trs)
         EntitySymbolSet(set)
 
@@ -1080,6 +1125,11 @@ type TypeSymbol with
             let builder = ImArray.builder()
             this.Hierarchy(fun x -> builder.Add(x); true)
             builder.ToImmutable()
+
+        member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
+            if f(this) then
+                let set = HashSet(SymbolComparers.TypeSymbolComparer())
+                this.Hierarchy(f, set)
 
         // TODO: Remove this.
         member this.AllLogicalInheritsAndImplements: _ imarray =
@@ -1464,6 +1514,22 @@ let filterMostSpecificTypes (tys: TypeSymbol imarray) =
     |> ImArray.filter (fun ty1 ->
         tys
         |> ImArray.forall (fun ty2 ->
+            if subsumesType ty1 ty2 || subsumesType ty2 ty1 then
+                subsumesType ty2 ty1
+            else
+                true
+        )
+    )
+
+let filterMostSpecificExtensions (tyExts: EntitySymbol imarray) =       
+    tyExts
+    |> ImArray.filter (fun ty1 ->
+        OlyAssert.True(ty1.IsTypeExtension)
+        let ty1 = ty1.Extends[0]
+        tyExts
+        |> ImArray.forall (fun ty2 ->
+            OlyAssert.True(ty2.IsTypeExtension)
+            let ty2 = ty2.Extends[0]
             if subsumesType ty1 ty2 || subsumesType ty2 ty1 then
                 subsumesType ty2 ty1
             else

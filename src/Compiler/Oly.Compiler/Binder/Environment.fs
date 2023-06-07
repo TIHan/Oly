@@ -439,7 +439,7 @@ type BinderEnvironment =
                 let tyExts =
                     match typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn inheritsTy) with
                     | ValueSome tyExts -> tyExts
-                    | _ -> EntitySymbolGeneralizedMap.Create()
+                    | _ -> EntitySymbolGeneralizedMapEntitySet.Create()
 
                 let tyExts2 = 
                     (tyExts, implementsTys)

@@ -615,8 +615,14 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                     expr, value
                 else
                     match tryFindTypeHasTypeExtensionImplementedType env.benv tyArgs[0] argTy with
-                    | ValueSome ent ->
-                        BoundExpression.Witness(expr, ent.AsType, tyArgs[0]), value
+                    | ValueSome entSet when entSet.Count > 0 ->
+                        let ents = entSet.Values |> ImArray.ofSeq
+                        if ents.Length = 1 then
+                            let ent = ents[0]
+                            BoundExpression.Witness(expr, ent.AsType, tyArgs[0]), value
+                        else
+                            cenv.diagnostics.Error($"Ambiguous extensions. Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
+                            expr, value
                     | _ ->
                         cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
                         expr, value

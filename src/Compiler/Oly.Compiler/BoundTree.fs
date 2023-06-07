@@ -1030,10 +1030,13 @@ let findIntrinsicAndExtrinsicInheritsAndImplementsOfType (benv: BoundEnvironment
             let extrinsic =
                 tyExts.Values
                 |> Seq.collect (fun x ->
-                    if x.IsTypeExtension then
-                        x.Implements
-                    else
-                        ImArray.empty
+                    x.Values
+                    |> Seq.collect (fun x ->
+                        if x.IsTypeExtension then
+                            x.Implements
+                        else
+                            ImArray.empty
+                    )
                 )
 
             Seq.append intrinsic extrinsic
@@ -1290,31 +1293,30 @@ let findExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFla
     |> ImArray.ofSeq
     |> filterMostSpecificFunctions
 
-let findInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
-    match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-    | ValueSome(exts) ->
-        exts.Values
-        |> Seq.distinctBy (fun ext -> ext.Id)
-        |> Seq.collect (fun ext ->
-            let ext =
-                if ext.IsFormal && not ty.IsFormal then
-                    applyEntity ty.TypeArguments ext
-                else
-                    ext
-            ext.Functions
+let findMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
+    match tryFindTypeExtensions benv ty with
+    | ValueSome(tyExts) ->
+        tyExts
+        |> ImArray.map (fun tyExt ->
+            if tyExt.IsFormal && not ty.IsFormal then
+                applyEntity ty.TypeArguments tyExt
+            else
+                tyExt
+        )
+        |> Seq.collect (fun tyExt ->
+            tyExt.Functions
             |> filterFunctions queryMemberFlags funcFlags nameOpt
             |> filterValuesByAccessibility benv.ac queryMemberFlags
         )
+        |> ImArray.ofSeq
+        |> filterMostSpecificFunctions
     | _ ->
-        Seq.empty
-
-    |> ImArray.ofSeq
-    |> filterMostSpecificFunctions
+        ImArray.empty
 
 let findAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty =
     let extMembers = findExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
     let extInterfaceMembers = 
-        findInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+        findMostSpecificInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
     ImArray.append extMembers extInterfaceMembers
     |> filterMostSpecificFunctions
 

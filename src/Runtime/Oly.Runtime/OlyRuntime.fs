@@ -2745,10 +2745,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
 
                     let extendsTy = x.TypeExtension.Extends[0]
-                    if extendsTy.Formal = ty.Formal && subsumesType abstractTy x.TypeExtension then
+                    if subsumesType extendsTy.Formal ty.Formal && subsumesType abstractTy x.TypeExtension then
                         // TODO: Checking the formals is a hack.
                         //    The reason why is because the 'ty' could be a type constructor where as the 'inherit ty' is never a type constructor.
-                        if (extendsTy = ty) || (extendsTy.Formal = ty && ty.IsTypeConstructor) then
+                        if subsumesType extendsTy ty || (extendsTy.Formal = ty && ty.IsTypeConstructor) then
                             Some x
                         else
                             if ty.IsTypeConstructor then

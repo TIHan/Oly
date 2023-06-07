@@ -1453,3 +1453,259 @@ class Test =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type should error``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface IA
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+    implements IA
+
+#[open]
+extension AExtension2 =
+    inherits A
+    implements IA
+
+test<T>(t: T): () where T: IA = ()
+
+main(): () =
+    let a = A()
+    test(a)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("Unable to solve due to ambiguity of the possibly resolved constraints:\n    AExtension\n    AExtension2\n\nUse explicit type annotations to disambiguate.",
+            """
+    test(a)
+    ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error``() =
+    let src =
+        """
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+
+    Test(): () = ()
+
+main(): () =
+    let a = A()
+    a.Test()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    a.Test()
+      ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error 2``() =
+    let src =
+        """
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+
+    Test(): () = ()
+
+test<T>(t: T): () where T: { Test(): () } = ()
+
+main(): () =
+    let a = A()
+    test(a)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    test(a)
+    ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error 3``() =
+    let src =
+        """
+interface IA
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+    implements IA
+
+    Test(): () = ()
+
+main(): () =
+    let a = A()
+    a.Test()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    a.Test()
+      ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error 4``() =
+    let src =
+        """
+interface IA
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+    implements IA
+
+    Test(): () = ()
+
+test<T>(t: T): () where T: { Test(): () } = ()
+
+main(): () =
+    let a = A()
+    test(a)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    test(a)
+    ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error 5``() =
+    let src =
+        """
+interface IA
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+    implements IA
+
+    Test(): () = ()
+
+test<T>(t: T): () where T: IA, { Test(): () } = ()
+
+main(): () =
+    let a = A()
+    test(a)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    test(a)
+    ^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Multiple type extensions on the same type with same function should error 6``() =
+    let src =
+        """
+interface IA
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+
+    Test(): () = ()
+
+#[open]
+extension AExtension2 =
+    inherits A
+    implements IA
+
+    Test(): () = ()
+
+test<T>(t: T): () where T: { Test(): () }, IA = ()
+
+main(): () =
+    let a = A()
+    test(a)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics [
+        ("'Test' has ambiguous functions.",
+            """
+    test(a)
+    ^^^^
+"""
+        )
+    ]
+    |> ignore

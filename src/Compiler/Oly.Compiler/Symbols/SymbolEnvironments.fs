@@ -104,7 +104,7 @@ type ScopeEnvironment =
         enclosing: EnclosingSymbol
 
         // Current info
-        typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMap<EntitySymbol>>
+        typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMapEntitySet>
         typeExtensionMembers: TypeSymbolGeneralizedMap<ExtensionMemberSymbolOrderedSet>
     }
 
@@ -356,4 +356,51 @@ let subsumesTypeInEnvironmentWith (benv: BoundEnvironment) rigidity (superTy: Ty
 
 let subsumesTypeInEnvironment (benv: BoundEnvironment) (superTy: TypeSymbol) (ty: TypeSymbol) =
     subsumesTypeInEnvironmentWith benv Rigid superTy ty
+
+let tryFindTypeExtensions benv (ty: TypeSymbol) =
+    let builder = ImArray.builder()
+
+    ty.HierarchyIncluding(fun ty ->
+        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
+        | ValueSome tyExts ->
+            builder.AddRange(tyExts.Values |> Seq.collect (fun x -> x.Values))
+        | _ ->
+            ()
+        true
+    )
+
+    if builder.Count = 0 then
+        ValueNone
+    else
+        let tyExts =
+            builder.ToImmutable()
+            |> ImArray.distinctBy (fun x -> x.Id)
+        ValueSome(filterMostSpecificExtensions tyExts)
+
+let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSymbol) =
+    let builder = ImArray.builder()
+
+    ty.HierarchyIncluding(fun ty ->
+        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
+        | ValueSome tyExts ->
+            let possibleTyExts =
+                tyExts.GetSimilar(targetTy)
+                |> List.ofSeq
+
+            match possibleTyExts with
+            | [] -> ()
+            | tyExts ->
+                builder.AddRange(tyExts |> Seq.collect (fun x -> x.Values))
+        | _ ->
+            ()
+        true
+    )
+
+    if builder.Count = 0 then
+        ValueNone
+    else
+        let tyExts =
+            builder.ToImmutable()
+            |> ImArray.distinctBy (fun x -> x.Id)
+        ValueSome(filterMostSpecificExtensions tyExts)
             

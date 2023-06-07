@@ -1415,9 +1415,11 @@ let getAllDistinctInheritsAndImplements (ty: RuntimeType) : RuntimeType imarray 
 let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
     if superTy.StripAlias().IsObjectType then true
     else
-        let possibleTys = getAllDistinctInheritsAndImplements ty
-        possibleTys
-        |> ImArray.exists (fun x -> superTy = x)
+        if superTy = ty then true
+        else
+            let possibleTys = getAllDistinctInheritsAndImplements ty
+            possibleTys
+            |> ImArray.exists (fun x -> superTy = x)
 
 [<Sealed>]
 type RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Value>() =  

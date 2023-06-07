@@ -103,22 +103,6 @@ let private tryFindMostSpecificTypeForExtension benv (tyExt: EntitySymbol) targe
     )
     |> Seq.tryExactlyOne
 
-let private tryFindExtensions benv (targetTy: TypeSymbol) ty =
-    match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-    | ValueSome tyExts ->
-
-        let possibleTyExts =
-            tyExts.GetSimilar(targetTy)
-            |> List.ofSeq
-
-        match possibleTyExts with
-        | [] -> ValueNone
-        | tyExts ->
-            ValueSome(tyExts |> ImArray.ofSeq)
-
-    | _ ->
-        ValueNone
-
 let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg =
     OlyAssert.True(targetShape.IsShape)
 
@@ -284,7 +268,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
         false
     else
 
-    match tryFindExtensions env.benv target ty with
+    match tryFindTypeExtensionsWithTargetType env.benv target ty with
     | ValueNone -> false
     | ValueSome(tyExts) ->
         OlyAssert.False(tyExts.IsEmpty)
@@ -324,7 +308,6 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 tyExts
                 |> Seq.map (fun x -> printEntity env.benv x)
                 |> String.concat "\n    "
-            // TODO: Provide a test case that hits this diagnostic, is it possible?
             env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             true // Return true for recovery
 
@@ -459,7 +442,7 @@ and solveConstraints
                     if subsumesTypeInEnvironmentWith env.benv Flexible subTy tyArg then
                         ()
                     else
-                        match tryFindExtensions env.benv subTy tyArg with
+                        match tryFindTypeExtensionsWithTargetType env.benv subTy tyArg with
                         | ValueNone -> ()
                         | ValueSome(tyExts) ->
                             OlyAssert.False(tyExts.IsEmpty)

@@ -4630,7 +4630,7 @@ main(): () =
     |> runWithExpectedOutput "passedTrue"
 
 [<Fact>]
-let ``Always choose most specific implementation``() =
+let ``Always choose most specific implementation for extension``() =
     let src =
         """
 open System
@@ -4654,6 +4654,77 @@ test<T>(x: T): () where T: IDisposable = x.Dispose()
 
 main(): () =
    let c = C()
+   c.Dispose()
+   test(c)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedpassed"
+
+[<Fact>]
+let ``Always choose most specific implementation for extension 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract default class C
+
+class Z =
+   inherits C
+
+#[open]
+extension CExtension =
+   inherits C
+   implements IDisposable
+
+   Dispose(): () = print("failed")
+
+#[open]
+extension ZExtension =
+   inherits Z
+   implements IDisposable
+
+   Dispose(): () = print("passed")
+
+test<T>(x: T): () where T: IDisposable = x.Dispose()
+
+main(): () =
+   let c = Z()
+   c.Dispose()
+   test(c)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passedpassed"
+
+[<Fact>]
+let ``Always choose most specific implementation for extension 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract default class C
+
+class Z =
+   inherits C
+
+#[open]
+extension CExtension =
+   inherits C
+   implements IDisposable
+
+   Dispose(): () = print("passed")
+
+test<T>(x: T): () where T: IDisposable = x.Dispose()
+
+main(): () =
+   let c = Z()
    c.Dispose()
    test(c)
         """
