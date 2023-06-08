@@ -514,7 +514,7 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
             | _ -> false
 
         if canCheck then
-            let expectedFields = enclosingTy.GetInstanceFields()
+            let expectedFields = enclosingTy.GetInstanceFields() |> ImArray.filter (fun x -> not x.IsFieldInit)
             let fields = expr.GetThisSetInstanceFields()
             let fieldNames = fields |> ImArray.map (fun x -> x.Name)
     

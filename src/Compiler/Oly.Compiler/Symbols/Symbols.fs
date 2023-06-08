@@ -1650,15 +1650,16 @@ type FunctionFlags =
 
 [<System.Flags>]
 type ValueFlags =
-    | None =      0x000000
-    | Imported =  0x000001
-    | Exported =  0x000010
+    | None =      0x0000000
+    | Imported =  0x0000001
+    | Exported =  0x0000010
     /// Marks a function, local, or field as 'mutable'.
     /// If a function is marked 'mutable', meaning that the function is an instance member on a (struct or shape) and does mutate the receiver.
-    | Mutable =   0x000100
-    | Parameter = 0x001000
-    | Generated = 0x010000
-    | Invalid =   0x100000
+    | Mutable =   0x0000100
+    | Parameter = 0x0001000
+    | Generated = 0x0010000
+    | FieldInit = 0x0100000
+    | Invalid =   0x1000000
 
 [<RequireQualifiedAccess>]
 type EntityKind =
@@ -2092,10 +2093,12 @@ type FieldSymbol(attrs, enclosing, memberFlags, name, ty, valueFlags, associated
 
     let mutable attrs = attrs
     let mutable constant = ValueNone
+    let mutable valueFlags = valueFlags
 
     /// Mutability - is this the only good way to handle this?
     member _.SetAttributes_Pass3_NonConcurrent(newAttrs) = attrs <- newAttrs
 
+    /// Mutability
     member _.SetConstant_Pass4_NonConcurrent(newConstant) = constant <- newConstant
 
     member _.Name = name
@@ -3878,6 +3881,9 @@ module SymbolExtensions =
 
             member this.IsFieldConstant =
                 this.IsField && (this :?> IFieldSymbol).Constant.IsSome
+
+            member this.IsFieldInit =
+                this.IsField && (this.ValueFlags &&& ValueFlags.FieldInit = ValueFlags.FieldInit)
     
             /// Returns the type of the value except it excludes the instance argument type and quantified type parameters.
             /// Useful for checking implementations for abstract functions.

@@ -385,13 +385,13 @@ abstract class GpuCommand =
         inherits GpuCommand
 
         ProgramUI: GpuProgramUI get, set = unchecked default
-        Node: UINode get, set = unchecked default
+        Node: View get, set = unchecked default
 
-    pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, UINode) when (cmd.Tag == 1) =>
+    pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, View) when (cmd.Tag == 1) =>
         let cmd = Unsafe.Cast<_DrawUI>(cmd)
         (cmd.ProgramUI, cmd.Node)
 
-    static DrawUI(gpuProgramUI: GpuProgramUI, uiNode: UINode): GpuCommand =
+    static DrawUI(gpuProgramUI: GpuProgramUI, uiNode: View): GpuCommand =
         let cmd = _DrawUI()
         cmd.Tag <- 1
         cmd.ProgramUI <- gpuProgramUI

@@ -898,3 +898,20 @@ class C2 =
             )
         ]
     |> ignore
+
+[<Fact(Skip = "Not enabled yet")>]
+let ``Class constructor does not need to initialize field``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    field x: int32 = 0
+
+    new() = { }
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
