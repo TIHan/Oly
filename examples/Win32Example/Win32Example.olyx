@@ -154,34 +154,39 @@ createUI(windowTitle: string, texture: GpuImage, deviceName: string): View =
     let window = WindowView()
     window.Title <- "Oly Window"
 
+    window.Children.Add(
+        let view = LabelView()
+        view.Label <- "Device"
+        view.Text <- deviceName
+        view
+    )
+
+    window.Children.Add(
+        let view = ImageView(texture)
+        view.Size <- Vector2(64, 64)
+        view
+    )
+
+    let textInput = TextInputView()
+    textInput.Label <- "Oly Input Text"
+    textInput.OnTextChanged <- () -> printLine(textInput.Text)
+    window.Children.Add(textInput)
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Toggle Input Text"
+        view.OnClick <- () -> textInput.IsEnabled <- !textInput.IsEnabled
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Close Window"
+        view.OnClick <- () -> window.IsOpen <- false
+        view
+    )
+
     window
-    // let windowModel = UI.WindowModel(windowTitle, Vector2.Zero)
-        
-    // let labelModel = UI.LabelModel("Device", deviceName)
-    // labelModel.IsEnabled <- false
-
-    // let imageModel = UI.ImageModel(texture)
-    // imageModel.Size <- Vector2(64, 64)
-
-    // let textInputModel = UI.TextInputModel("Oly Input Text", "")
-    // let closeWindowModel = UI.ButtonModel("Close Window")
-
-    // let toggleTextInput = UI.ButtonModel("Toggle Text Input")
-    // UI.Window(windowModel, 
-    //     [
-    //       //  UI.DemoWindow()
-    //         UI.Label(labelModel)
-    //         UI.Image(imageModel)
-
-    //         UI.TextInput(textInputModel, () -> printLine(textInputModel.Text))
-    //         UI.Button(toggleTextInput, () -> textInputModel.IsEnabled <- !textInputModel.IsEnabled)
-
-    //         UI.Button(closeWindowModel,
-    //             () ->
-    //                 windowModel.IsOpen <- false
-    //         )
-    //     ]
-    // )
 
 main(): () =
     let options = RenderingOptions()

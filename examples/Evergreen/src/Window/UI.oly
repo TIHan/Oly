@@ -24,110 +24,24 @@ private module Span =
         else
             -1
 
-abstract class UIModel =
+// abstract class UIModel =
 
-    IsEnabled: bool get, set = true
-    Size: Vector2 get, set = Vector2.Zero
+//     IsEnabled: bool get, set = true
+//     Size: Vector2 get, set = Vector2.Zero
 
-class WindowModel =
-    inherits UIModel
+// class CheckboxModel =
+//     inherits UIModel
 
-    IsOpen: bool get, set = true
-    Position: Vector2 get, set = Vector2.Zero
+//     Label: string get, set = string.Empty
+//     IsChecked: bool get, set = false
 
-    field titleBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field titleBufferLength: int32 = 0
-    mutable field title: string = string.Empty
-    internal TitleSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.titleBuffer, 0, this.titleBufferLength)
-    Title: string
-        get() = this.title
-        set(value) =
-            this.title <- value
-            this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
+// class ComboBoxModel =
+//     inherits UIModel
 
-class ButtonModel =
-    inherits UIModel
-
-    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field labelBufferLength: int32 = 0
-    mutable field label: string = string.Empty
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(value) =
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
-
-class TextInputModel =
-    inherits UIModel
-
-    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field labelBufferLength: int32 = 0
-    mutable field label: string = string.Empty
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(value) =
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
-
-    field textBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field text: string = string.Empty
-    internal TextSpan: Span<byte> get() = Span(this.textBuffer, 0, this.textBuffer.Length)
-    Text: string
-        get() = this.text
-        set(value) = 
-            this.text <- value
-            let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
-
-class Int32InputModel =
-    inherits UIModel
-
-    Label: string get, set = string.Empty
-    Value: int32 get, set = 0
-
-class LabelModel =
-    inherits UIModel
-    
-    field labelBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field labelBufferLength: int32 = 0
-    mutable field label: string = string.Empty
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(value) =
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
-
-    field textBuffer: mutable byte[] = Array.ZeroCreate(256)
-    mutable field text: string = string.Empty
-    internal TextSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.textBuffer, 0, this.textBuffer.Length)
-    Text: string
-        get() = this.text
-        set(value) = 
-            this.text <- value
-            let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
-
-class ImageModel =
-    inherits UIModel
-
-    internal mutable field descriptorSet: Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet = Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
-    internal mutable field gpuImage: Evergreen.Game.Rendering.GpuImage = unchecked default
-    GpuImage: Evergreen.Game.Rendering.GpuImage get() = this.gpuImage
-
-class CheckboxModel =
-    inherits UIModel
-
-    Label: string get, set = string.Empty
-    IsChecked: bool get, set = false
-
-class ComboBoxModel =
-    inherits UIModel
-
-    Label: string get, set = string.Empty
-    SelectedItemIndex: int32 get, set = 0
-    Items: mutable string[] get, set = mutable []
-    ItemCount: int32 get, set = 0
+//     Label: string get, set = string.Empty
+//     SelectedItemIndex: int32 get, set = 0
+//     Items: mutable string[] get, set = mutable []
+//     ItemCount: int32 get, set = 0
 
 abstract class View =
 
@@ -146,81 +60,17 @@ abstract class View =
     pattern Window(view: View): WindowView when (view.Tag == 0) =>
         Unsafe.Cast<WindowView>(view)
 
-    // internal class Button =
-    //     inherits UINode
+    pattern Button(view: View): ButtonView when (view.Tag == 1) =>
+        Unsafe.Cast<ButtonView>(view)
 
-    //     State: ButtonModel get
-    //     OnClick: () -> () get
+    pattern TextInput(view: View): TextInputView when (view.Tag == 2) =>
+        Unsafe.Cast<TextInputView>(view)
 
-    //     new(state: ButtonModel, onClick: () -> ()) =
-    //         base(1) with {
-    //             State = state
-    //             OnClick = onClick
-    //         }
+    pattern Label(view: View): LabelView when (view.Tag == 3) =>
+        Unsafe.Cast<LabelView>(view)
 
-    // pattern Button(node: UINode): (state: ButtonModel, onClick: () -> ()) when (node.Tag == 1) =>
-    //     let node = Unsafe.Cast<Button>(node)
-    //     (node.State, node.OnClick)
-
-    // internal class TextInput =
-    //     inherits UINode
-
-    //     State: TextInputModel get
-    //     OnTextChanged: () -> () get
-
-    //     new(state: TextInputModel, onTextChanged: () -> ()) =
-    //         base(2) with {
-    //             State = state
-    //             OnTextChanged = onTextChanged
-    //         }
-
-    // pattern TextInput(node: UINode): (state: TextInputModel, onTextChanged: () -> ()) when (node.Tag == 2) =>
-    //     let node = Unsafe.Cast<TextInput>(node)
-    //     (node.State, node.OnTextChanged)
-
-    // internal class Int32Input =
-    //     inherits UINode
-
-    //     State: Int32InputModel get
-    //     OnChanged: () -> () get
-
-    //     new(state: Int32InputModel, onChanged: () -> ()) =
-    //         base(3) with {
-    //             State = state
-    //             OnChanged = onChanged
-    //         }
-
-    // pattern Int32Input(node: UINode): (state: Int32InputModel, onChanged: () -> ()) when (node.Tag == 3) =>
-    //     let node = Unsafe.Cast<Int32Input>(node)
-    //     (node.State, node.OnChanged)
-
-    // internal class Label =
-    //     inherits UINode
-
-    //     State: LabelModel get
-
-    //     new(state: LabelModel) =
-    //         base(4) with {
-    //             State = state
-    //         }
-
-    // pattern Label(node: UINode): LabelModel when (node.Tag == 4) =>
-    //     let node = Unsafe.Cast<Label>(node)
-    //     node.State
-
-    // internal class Image =
-    //     inherits UINode
-
-    //     State: ImageModel get
-
-    //     new(state: ImageModel) =
-    //         base(5) with {
-    //             State = state
-    //         }
-
-    // pattern Image(node: UINode): ImageModel when (node.Tag == 5) =>
-    //     let node = Unsafe.Cast<Image>(node)
-    //     node.State
+    pattern Image(view: View): ImageView when (view.Tag == 4) =>
+        Unsafe.Cast<ImageView>(view)
 
     // internal class Checkbox =
     //     inherits UINode
@@ -292,6 +142,111 @@ class WindowView =
             this.title <- value
             this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
 
+class ButtonView =
+    inherits View
+
+    new() =
+        base(1) with {
+            labelBuffer = Array.ZeroCreate(256)
+            labelBufferLength = 0
+            label = string.Empty
+
+            OnClick = () -> ()
+        }
+
+    field labelBuffer: mutable byte[]
+    mutable field labelBufferLength: int32
+    mutable field label: string
+    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
+    Label: string
+        get() = this.label
+        set(value) =
+            this.label <- value
+            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
+
+    OnClick: () -> () get, set
+
+class TextInputView =
+    inherits View
+
+    new() =
+        base(2) with {
+            labelBuffer = Array.ZeroCreate(256)
+            labelBufferLength = 0
+            label = string.Empty
+
+            textBuffer = Array.ZeroCreate(256)
+            text = string.Empty
+
+            OnTextChanged = () -> ()
+        }
+
+    field labelBuffer: mutable byte[]
+    mutable field labelBufferLength: int32
+    mutable field label: string
+    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
+    Label: string
+        get() = this.label
+        set(value) =
+            this.label <- value
+            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
+
+    field textBuffer: mutable byte[]
+    mutable field text: string
+    internal TextSpan: Span<byte> get() = Span(this.textBuffer, 0, this.textBuffer.Length)
+    Text: string
+        get() = this.text
+        set(value) = 
+            this.text <- value
+            let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
+
+    OnTextChanged: () -> () get, set
+
+class LabelView =
+    inherits View
+
+    new() =
+        base(3) with {
+            labelBuffer = Array.ZeroCreate(256)
+            labelBufferLength = 0
+            label = string.Empty
+
+            textBuffer = Array.ZeroCreate(256)
+            text = string.Empty
+        }
+
+    field labelBuffer: mutable byte[]
+    mutable field labelBufferLength: int32
+    mutable field label: string
+    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
+    Label: string
+        get() = this.label
+        set(value) =
+            this.label <- value
+            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
+
+    field textBuffer: mutable byte[]
+    mutable field text: string
+    internal TextSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.textBuffer, 0, this.textBuffer.Length)
+    Text: string
+        get() = this.text
+        set(value) = 
+            this.text <- value
+            let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
+
+class ImageView =
+    inherits View
+
+    new(gpuImage: Evergreen.Game.Rendering.GpuImage) =
+        base(4) with {
+            descriptorSet = Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
+            gpuImage = gpuImage
+        }
+
+    internal mutable field descriptorSet: Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet
+    internal mutable field gpuImage: Evergreen.Game.Rendering.GpuImage
+    GpuImage: Evergreen.Game.Rendering.GpuImage get() = this.gpuImage
+
 module UI =
 
     private MakeNode(context: ImGui.ImGuiContext, view: View): () =
@@ -303,25 +258,25 @@ module UI =
             MakeWindow(context, view)
             ImGui.EndDisabled(context)
         
-        // | UINode.Button(state, onClick) =>
-        //     ImGui.BeginDisabled(context, !state.IsEnabled)
-        //     MakeButton(context, state, onClick)
-        //     ImGui.EndDisabled(context)
+        | View.Button(view) =>
+            ImGui.BeginDisabled(context, !view.IsEnabled)
+            MakeButton(context, view)
+            ImGui.EndDisabled(context)
 
-        // | UINode.TextInput(state, onChanged) =>
-        //     ImGui.BeginDisabled(context, !state.IsEnabled)
-        //     MakeTextInput(context, state, onChanged)
-        //     ImGui.EndDisabled(context)
+        | View.TextInput(view) =>
+            ImGui.BeginDisabled(context, !view.IsEnabled)
+            MakeTextInput(context, view)
+            ImGui.EndDisabled(context)
 
-        // | UINode.Label(state) =>
-        //     ImGui.BeginDisabled(context, !state.IsEnabled)
-        //     MakeLabel(context, state)
-        //     ImGui.EndDisabled(context)
+        | View.Label(view) =>
+            ImGui.BeginDisabled(context, !view.IsEnabled)
+            MakeLabel(context, view)
+            ImGui.EndDisabled(context)
 
-        // | UINode.Image(state) =>
-        //     ImGui.BeginDisabled(context, !state.IsEnabled)
-        //     MakeImage(context, state)
-        //     ImGui.EndDisabled(context)
+        | View.Image(view) =>
+            ImGui.BeginDisabled(context, !view.IsEnabled)
+            MakeImage(context, view)
+            ImGui.EndDisabled(context)
 
         // | UINode.DemoWindow =>
         //     ImGui.ShowDemoWindow(context)
@@ -348,34 +303,34 @@ module UI =
             ImGui.End(context)
         view.IsOpen <- isOpen
 
-    private MakeButton(context: ImGui.ImGuiContext, state: ButtonModel, onClick: () -> ()): () =
-        if (ImGui.Button(context, state.LabelSpan, state.Size))
-            context.Callbacks.Enqueue(onClick)
+    private MakeButton(context: ImGui.ImGuiContext, view: ButtonView): () =
+        if (ImGui.Button(context, view.LabelSpan, view.Size))
+            context.Callbacks.Enqueue(view.OnClick)
 
-    private MakeTextInput(context: ImGui.ImGuiContext, state: TextInputModel, onTextChanged: () -> ()): () =
-        if (ImGui.InputText(context, state.LabelSpan, state.TextSpan))
-            let mutable textSpan = state.TextSpan
+    private MakeTextInput(context: ImGui.ImGuiContext, view: TextInputView): () =
+        if (ImGui.InputText(context, view.LabelSpan, view.TextSpan))
+            let mutable textSpan = view.TextSpan
             let indexZero = Span.TryFindIndex(textSpan, x -> x == 0)
             let textSpan = 
                 if (indexZero == -1)
                     textSpan
                 else
                     textSpan.Slice(0, indexZero)
-            state.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(textSpan))
-            context.Callbacks.Enqueue(onTextChanged)
+            view.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(textSpan))
+            context.Callbacks.Enqueue(view.OnTextChanged)
 
-    private MakeLabel(context: ImGui.ImGuiContext, state: LabelModel): () =
-        ImGui.LabelText(context, state.LabelSpan, state.TextSpan)
+    private MakeLabel(context: ImGui.ImGuiContext, view: LabelView): () =
+        ImGui.LabelText(context, view.LabelSpan, view.TextSpan)
 
-    private MakeImage(context: ImGui.ImGuiContext, state: ImageModel): () =
-        if (state.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
-            state.descriptorSet <-
-                ImGui.CreateTexture(context, state.gpuImage.VkSampler, state.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    private MakeImage(context: ImGui.ImGuiContext, view: ImageView): () =
+        if (view.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
+            view.descriptorSet <-
+                ImGui.CreateTexture(context, view.gpuImage.VkSampler, view.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     () ->
-                        state.descriptorSet <- Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
+                        view.descriptorSet <- Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
                 )
 
-        ImGui.Image(context, state.descriptorSet, state.Size, Vector2.Zero, Vector2.One)
+        ImGui.Image(context, view.descriptorSet, view.Size, Vector2.Zero, Vector2.One)
 
     // private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
     //     ImGui.BeginDisabled(!state.IsEnabled)
