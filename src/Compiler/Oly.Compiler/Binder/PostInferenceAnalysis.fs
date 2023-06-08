@@ -32,7 +32,15 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
 
-    match stripTypeEquations ty with
+    let partiallyStrippedTy = stripTypeEquationsExceptAlias ty
+
+    match partiallyStrippedTy with
+    | TypeSymbol.Entity(ent) when ent.IsAlias ->
+        analyzeTypeEntityAccessibility acenv aenv syntaxNode ent
+    | _ ->
+        ()
+
+    match stripTypeEquations partiallyStrippedTy with
     | TypeSymbol.Entity(ent) ->
         analyzeTypeEntity acenv aenv syntaxNode ent
 
@@ -159,8 +167,7 @@ and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElemen
                 analyzeType acenv aenv syntaxTupleElement tyArg
         )
 
-and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =   
-            
+and analyzeTypeEntityAccessibility acenv aenv syntaxNode (ent: EntitySymbol) =
     let isAccessible =
         if aenv.isMemberSig then
             let flags = ent.Flags &&& EntityFlags.AccessorMask
@@ -197,6 +204,9 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol)
         
     if not isAccessible then
         acenv.cenv.diagnostics.Error($"'{printEntity aenv.benv ent}' is less accessible than the member its used in.", 10, syntaxNode)
+
+and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =   
+    analyzeTypeEntityAccessibility acenv aenv syntaxNode ent
 
     match acenv.scopes.TryGetValue(ent.Formal.Id) with
     | true, scope ->

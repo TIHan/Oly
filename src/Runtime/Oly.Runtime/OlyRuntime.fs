@@ -46,7 +46,7 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
     | OlyILExpression.None _
     | OlyILExpression.Value _ -> true
     | OlyILExpression.Sequential(ilExpr1, ilExpr2) when depth <= 1 ->
-        isSimpleILExpression (depth + 1) ilExpr1 && isSimpleILExpression (depth + 1) ilExpr2
+        isSimpleILExpression (depth) ilExpr1 && isSimpleILExpression (depth) ilExpr2
     | OlyILExpression.IfElse(ilCondExpr, ilTrueTargetExpr, ilFalseTargetExpr) when depth <= 1 ->
         isSimpleILExpression (depth + 1) ilCondExpr &&
         isSimpleILExpression (depth + 1) ilTrueTargetExpr &&
@@ -114,6 +114,18 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
             isSimpleILExpression depthPlusOne ilArgExpr &&
             isSimpleILExpression depthPlusOne ilRhsExpr &&
             areSimpleILExpressions depthPlusOne ilArgExprs
+
+    // Special heuristic!
+    // We really want to inline these functions as the optimizer can eliminate the tuple.
+    // Handles pattern:
+    //     pattern Window(node: UINode): (state: WindowModel, children: UINode[]) when (node.Tag == 0) =>
+    //         let node = Unsafe.Cast<Window>(node)
+    //         (node.State, node.Children)
+    | OlyILExpression.Let(_, OlyILExpression.Operation(_, OlyILOperation.Cast(ilCastArgExpr, _)), OlyILExpression.Operation(_, OlyILOperation.NewTuple(_, ilNewTupleArgExprs, _))) ->
+        // Do not increment 'depth' as we want to try to inline the function.
+        isSimpleILExpression depth ilCastArgExpr &&
+        areSimpleILExpressions depth ilNewTupleArgExprs
+
     | _ ->
         false
 
@@ -135,15 +147,7 @@ let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILF
         true
     else
         let ilFuncBody = ilAsm.GetFunctionBody(ilFuncDef.BodyHandle.contents.Value)
-
-        // TODO: Add a flag to always inline the function, for stress testing purposes.
-
-        // If there are locals, this isn't a candidate for inlining as we may not want the
-        // extra locals.
-        if ilFuncBody.Locals.IsEmpty then
-            isSimpleILExpression 0 ilFuncBody.BodyExpression
-        else
-            false
+        isSimpleILExpression 0 ilFuncBody.BodyExpression
 
 [<Sealed>]
 type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Type, 'Function, 'Field>, ilAsm: OlyILReadOnlyAssembly) =
@@ -2635,26 +2639,36 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             |> Seq.distinct
             |> ImArray.ofSeq
 
+    member private this.AreFunctionSpecificationParametersEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
+        let returnTy1 = this.ResolveType(enclosingTyParCount1, ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
+        let returnTy2 = this.ResolveType(enclosingTyParCount2, ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
+        if returnTy1 = returnTy2 then
+            (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
+            ||> ImArray.forall2 (fun x1 x2 ->
+                this.ResolveType(enclosingTyParCount1, ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(enclosingTyParCount2, ilAsm2, x2.Type, scopeTyArgs2)
+            )
+        else
+            false
+
     member private this.AreFunctionSpecificationsEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
-        ilFuncSpec1.IsInstance = ilFuncSpec2.IsInstance &&
-        ilFuncSpec1.Parameters.Length = ilFuncSpec2.Parameters.Length &&
-        ilFuncSpec1.TypeParameters.Length = ilFuncSpec2.TypeParameters.Length &&
-        (
-            let name1 = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
-            let name2 = ilAsm2.GetStringOrEmpty(ilFuncSpec2.NameHandle)
-            if name1 = name2 then
-                let returnTy1 = this.ResolveType(enclosingTyParCount1, ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
-                let returnTy2 = this.ResolveType(enclosingTyParCount2, ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
-                if returnTy1 = returnTy2 then
-                    (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
-                    ||> ImArray.forall2 (fun x1 x2 ->
-                        this.ResolveType(enclosingTyParCount1, ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(enclosingTyParCount2, ilAsm2, x2.Type, scopeTyArgs2)
-                    )
+        if obj.ReferenceEquals(ilFuncSpec1, ilFuncSpec2) then
+            if enclosingTyParCount1 = 0 && ilFuncSpec1.TypeParameters.IsEmpty then
+                OlyAssert.Equal(0, enclosingTyParCount2)
+                true
+            else
+                this.AreFunctionSpecificationParametersEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, scopeTyArgs1, enclosingTyParCount2, ilAsm2, ilFuncSpec2, scopeTyArgs2)
+        else
+            ilFuncSpec1.IsInstance = ilFuncSpec2.IsInstance &&
+            ilFuncSpec1.Parameters.Length = ilFuncSpec2.Parameters.Length &&
+            ilFuncSpec1.TypeParameters.Length = ilFuncSpec2.TypeParameters.Length &&
+            (
+                let name1 = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
+                let name2 = ilAsm2.GetStringOrEmpty(ilFuncSpec2.NameHandle)
+                if name1 = name2 then
+                    this.AreFunctionSpecificationParametersEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, scopeTyArgs1, enclosingTyParCount2, ilAsm2, ilFuncSpec2, scopeTyArgs2)
                 else
                     false
-            else
-                false
-        )
+            )
 
     member private this.AreILEnclosingsEqual(ilAsm1: OlyILReadOnlyAssembly, ilEnclosing1: OlyILEnclosing, ilAsm2: OlyILReadOnlyAssembly, ilEnclosing2: OlyILEnclosing) =
         match ilEnclosing1, ilEnclosing2 with

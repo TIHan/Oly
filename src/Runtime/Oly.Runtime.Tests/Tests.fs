@@ -416,6 +416,18 @@ module OlyExpressionHelpers =
             OlyILOperation.StoreToAddress(lhsExpr, rhsExpr)
         )
 
+    let NewTuple tyInst argExprs =
+        OlyILExpression.Operation(
+            OlyILDebugSourceTextRange.Empty,
+            OlyILOperation.NewTuple(tyInst, argExprs, ImArray.empty)
+        )
+
+    let LoadTupleElement receiverExpr index =
+        OlyILExpression.Operation(
+            OlyILDebugSourceTextRange.Empty,
+            OlyILOperation.LoadTupleElement(receiverExpr, index)
+        )
+
 [<Fact>]
 let ``Should not eliminate local because isDebuggable is true`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = true)
@@ -1186,5 +1198,81 @@ let ``Test 12`` () =
     match irExpr with
     | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
         Assert.Equal(1, finalLocalCount)
+    | _ ->
+        failwithexpr irExpr
+
+[<Fact>]
+let ``Should eliminate tuple`` () =
+    let builder = DummyAssemblyBuilder(isDebuggable = false)
+
+    let locals = builder.CreateLocalManager()
+    let ilTupleTy = OlyILTypeTuple(ImArray.createTwo OlyILTypeInt32 OlyILTypeInt32, ImArray.empty)
+    let ilExprTy = OlyILTypeInt32
+
+    let ilExpr =
+        let local0 = locals.CreateLocal(ilTupleTy, OlyILLocalFlags.None)
+        Let local0 (NewTuple (ImArray.createTwo OlyILTypeInt32 OlyILTypeInt32) (ImArray.createTwo (ConstantInt32 456) (ConstantInt32 789)))
+            (LoadTupleElement (Local local0) 0)
+
+    let finalLocalCount, irExpr = 
+        getIR
+            builder
+            ImArray.empty
+            ImArray.empty
+            (locals.GetLocals())
+            ilExpr
+            ilExprTy
+            (fun _ ilEnclosing ilFuncSpecHandle ->
+                Call
+                    ilEnclosing
+                    ilFuncSpecHandle
+                    ImArray.empty
+                    ImArray.empty
+                    ImArray.empty
+            )
+
+    Assert.Equal(0, finalLocalCount)
+
+    match irExpr with
+    | ConstantInt32(value) ->
+        Assert.Equal(456, value)
+    | _ ->
+        failwithexpr irExpr
+
+[<Fact>]
+let ``Should eliminate tuple 2`` () =
+    let builder = DummyAssemblyBuilder(isDebuggable = false)
+
+    let locals = builder.CreateLocalManager()
+    let ilTupleTy = OlyILTypeTuple(ImArray.createTwo OlyILTypeInt32 OlyILTypeInt32, ImArray.empty)
+    let ilExprTy = OlyILTypeInt32
+
+    let ilExpr =
+        let local0 = locals.CreateLocal(ilTupleTy, OlyILLocalFlags.None)
+        Let local0 (NewTuple (ImArray.createTwo OlyILTypeInt32 OlyILTypeInt32) (ImArray.createTwo (ConstantInt32 456) (ConstantInt32 789)))
+            (LoadTupleElement (Local local0) 1)
+
+    let finalLocalCount, irExpr = 
+        getIR
+            builder
+            ImArray.empty
+            ImArray.empty
+            (locals.GetLocals())
+            ilExpr
+            ilExprTy
+            (fun _ ilEnclosing ilFuncSpecHandle ->
+                Call
+                    ilEnclosing
+                    ilFuncSpecHandle
+                    ImArray.empty
+                    ImArray.empty
+                    ImArray.empty
+            )
+
+    Assert.Equal(0, finalLocalCount)
+
+    match irExpr with
+    | ConstantInt32(value) ->
+        Assert.Equal(789, value)
     | _ ->
         failwithexpr irExpr

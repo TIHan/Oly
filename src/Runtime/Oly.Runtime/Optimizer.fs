@@ -1044,6 +1044,22 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
 
     and optimizeExpression irExpr : E<_, _, _> =
         match irExpr with
+        // Normalize sequential expressions
+        | E.Let(name, localIndex, E.Sequential(expr1, expr2), bodyExpr) ->
+            E.Sequential(
+                expr1,
+                E.Let(name, localIndex, expr2, bodyExpr)
+            )
+            |> optimizeExpression
+        | E.Let(name, localIndex, E.Let(name2, localIndex2, rhsExpr2, bodyExpr2), bodyExpr) ->
+            E.Let(
+                name2,
+                localIndex2,
+                rhsExpr2,
+                E.Let(name, localIndex, bodyExpr2, bodyExpr)
+            )
+            |> optimizeExpression
+
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = optimizeExpression irRhsExpr
             let irNewBodyExpr = optimizeExpression irBodyExpr
@@ -1323,6 +1339,8 @@ let copyPropagationOptimizeExpression optenv (items: Dictionary<int, CopyPropaga
             | Some(CopyPropagationItem.LoadField(irField, irReceiverExpr)) ->
                 let irReceiverExpr = OptimizeExpression optenv irReceiverExpr
                 E.Operation(NoRange, O.LoadField(irField, irReceiverExpr, resultTy))
+            | Some(CopyPropagationItem.Constant(c)) ->
+                E.Value(NoRange, OlyIRValue.Constant(c, resultTy))
             | _ ->
                 irExpr
         | _ ->
@@ -1373,6 +1391,7 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr
+
             if optenv.IsLocalMutable(localIndex) |> not then
                 match irNewRhsExpr with
                 | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
@@ -1520,6 +1539,10 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
 
                                 | _ ->
                                     None
+
+                            | E.Value(value=V.Constant(c, _)) ->
+                                Some(CopyPropagationItem.Constant(c))
+
                             | _ ->
                                 None
                         )
@@ -2258,7 +2281,7 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
 
     let irLocalFlags = optenv.GetLocalFlags()
 
-    //if optenv.isDebuggable then
+    //if optenv.IsDebuggable then
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug.oly-ir", Dump.DumpExpression irOptimizedExpr)
     //else
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}.oly-ir", Dump.DumpExpression irOptimizedExpr)
