@@ -8105,3 +8105,47 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Namespaces across compilation references should compile``() =
+    let refSrc =
+        """
+namespace Test.Library
+
+#[intrinsic("int32")]
+alias int32
+        """
+    let src =
+        """
+namespace Test.Library
+
+module M =
+    main(): () =
+        let x: int32 = 0
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Namespaces across compilation references should compile 2``() =
+    let refSrc =
+        """
+namespace Test.Library.SubLibrary
+
+#[intrinsic("int32")]
+alias int32
+        """
+    let src =
+        """
+namespace Test.Library
+
+open Test.Library.SubLibrary
+
+module M =
+    main(): () =
+        let x: int32 = 0
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
