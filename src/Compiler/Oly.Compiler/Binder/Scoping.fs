@@ -107,7 +107,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         env
     else
         let env1 =
-            (env, ent.Entities)
+            (env, ent.Entities |> filterEntitiesByAccessibility env.benv.ac |> ImArray.ofSeq)
             ||> ImArray.fold (fun env ent ->
                 let env =
                     match openContent with

@@ -9,7 +9,6 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 open System.Diagnostics
 open TerraFX.Interop.Vulkan
-open Evergreen.Graphics.Backend.Vulkan
 open static TerraFX.Interop.Vulkan.Vulkan
 open static Evergreen.Graphics.Backend.Interop.VulkanMemoryAllocator
 

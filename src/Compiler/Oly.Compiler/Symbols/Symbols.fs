@@ -1345,15 +1345,41 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
 type INamespaceSymbol = EntitySymbol
 
 [<Sealed>]
-type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) =
+type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespaceSymbol imarray) as this =
     inherit EntitySymbol()
 
     let nestedEnts =
         lazy
-            // TODO: What if we have name collisions?
+#if DEBUG
+            let path = enclosing.FullNamespacePath.Add(name)
             ents
-            |> ImArray.map (fun x -> x.Entities)
-            |> ImArray.concat
+            |> ImArray.iter (fun x ->
+                OlyAssert.EqualArray((path : string imarray), (x.FullNamespacePath : string imarray))
+            )
+#endif
+            // TODO: We could optimize this a bit without as many allocations and iterations.
+            let nestedEnts =
+                ents
+                |> ImArray.map (fun x -> x.Entities)
+                |> ImArray.concat
+            if nestedEnts.IsEmpty || nestedEnts.Length = 1 then
+                nestedEnts
+            else
+                let nmspaces = Dictionary<string, AggregatedNamespaceSymbol>()
+                nestedEnts
+                |> ImArray.filter (fun x -> 
+                    if x.IsNamespace then
+                        let aggrNmspace =
+                            match nmspaces.TryGetValue x.Name with
+                            | true, aggrNmspace -> aggrNmspace
+                            | _ ->
+                                AggregatedNamespaceSymbol(x.Name, EnclosingSymbol.Entity(this), ImArray.empty)
+                        nmspaces[x.Name] <- aggrNmspace.AddNamespace(x)
+                        false
+                    else
+                        true
+                )
+                |> ImArray.append (nmspaces.Values |> Seq.map (fun x -> x :> EntitySymbol) |> ImArray.ofSeq)
 
     member _.Namespaces = ents
 
@@ -1361,6 +1387,7 @@ type AggregatedNamespaceSymbol(name, enclosing, ents: INamespaceSymbol imarray) 
         if not ent.IsNamespace then
             failwith "Expected namespace."
 
+        OlyAssert.Equal(name, ent.Name)
         AggregatedNamespaceSymbol(name, enclosing, ents.Add(ent))
 
     override this.Attributes = ImArray.empty
@@ -1582,6 +1609,11 @@ type EnclosingSymbol =
         match this.TryEntity with
         | Some ent -> ent
         | _ -> failwith "Enclosing is not an entity."
+
+    member this.FullNamespacePath: string imarray =
+        match this with
+        | Entity(ent) -> ent.FullNamespacePath
+        | _ -> ImArray.empty
 
 /// Member flags.
 [<System.Flags>]

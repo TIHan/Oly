@@ -14,9 +14,8 @@ open System.Runtime.InteropServices
 open Evergreen
 open Evergreen.Window
 open Evergreen.Graphics.Backend.Vulkan
-open Evergreen.Game.Rendering
-open Evergreen.UI
-open Evergreen.Game
+open Evergreen.Graphics.Rendering
+open Evergreen.Graphics.Rendering.UI
 
 open SixLabors.ImageSharp
 open SixLabors.ImageSharp.Advanced

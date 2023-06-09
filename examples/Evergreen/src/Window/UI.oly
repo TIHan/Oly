@@ -1,11 +1,11 @@
-namespace Evergreen.UI
+namespace Evergreen.Graphics.Rendering.UI
 
 open System
 open System.Numerics
 open System.Collections.Generic
 open System.Threading
 open Evergreen
-open Evergreen.Graphics
+open Evergreen.Graphics.Rendering
 
 private alias Array = OlyPrelude.Array
 
@@ -258,8 +258,8 @@ class ImageView =
 
     internal mutable field isDirty: bool
     internal mutable field descriptorSet: Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet
-    internal mutable field gpuImage: Evergreen.Game.Rendering.GpuImage
-    GpuImage: Evergreen.Game.Rendering.GpuImage 
+    internal mutable field gpuImage: GpuImage
+    GpuImage: GpuImage 
         get() = this.gpuImage
         set(value) =
             this.gpuImage <- value 
@@ -267,12 +267,12 @@ class ImageView =
 
 class UIContext =
 
-    internal Gpu: Evergreen.Game.Rendering.Gpu get
-    internal GpuProgramUI: Evergreen.Game.Rendering.GpuProgramUI get
+    internal Gpu: Gpu get
+    internal GpuProgramUI: GpuProgramUI get
 
     internal ImGuiContext: ImGui.ImGuiContext get() = this.GpuProgramUI.ImGuiContext
 
-    internal new(gpu: Evergreen.Game.Rendering.Gpu, gpuProgramUI: Evergreen.Game.Rendering.GpuProgramUI) =
+    internal new(gpu: Gpu, gpuProgramUI: GpuProgramUI) =
         {
             Gpu = gpu
             GpuProgramUI = gpuProgramUI

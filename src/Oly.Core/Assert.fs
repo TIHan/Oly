@@ -34,6 +34,26 @@ type OlyAssert =
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member NotEqual<'T when 'T: equality> (expected: 'T, actual: 'T) =
+        if expected = actual then
+            OlyAssertionException $"Assertion failed. Not expected '{expected}', but was '{actual}'."
+            |> raise
+
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member EqualArray<'T when 'T: equality> (expected: 'T imarray, actual: 'T imarray) =
+        if expected.Length = actual.Length then
+            (expected, actual)
+            ||> ImArray.iter2 (fun expected actual ->
+                if expected <> actual then
+                    OlyAssertionException $"Assertion failed. Expected '{expected}', but was '{actual}'."
+                    |> raise
+            )
+
+    [<DebuggerHidden>]
+    [<Conditional("DEBUG")>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member Contains<'T> (src: HashSet<'T>, expected: 'T) =
         if not(src.Contains(expected)) then
             OlyAssertionException "Assertion failed."

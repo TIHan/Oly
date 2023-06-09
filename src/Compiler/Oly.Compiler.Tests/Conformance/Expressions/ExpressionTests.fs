@@ -8149,3 +8149,17 @@ module M =
     OlyWithRef refSrc src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Nested private type should able to be accessed within``() =
+    let src =
+        """
+module M =
+
+    private struct S
+
+    field F: S = default
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

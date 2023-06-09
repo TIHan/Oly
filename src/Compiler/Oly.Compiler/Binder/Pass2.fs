@@ -538,13 +538,13 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
 
     let env = setSkipCheckTypeConstructor env
 
+    let env = env.SetAccessorContext(ent)
     let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
 
-    let envWithEnclosing = 
+    let env = 
         env.SetEnclosing(EnclosingSymbol.Entity(ent))
            .SetEnclosingTypeParameters(ent.TypeParameters)
-           .SetAccessorContext(ent) 
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->
@@ -556,11 +556,11 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
             |> ImmutableArray.CreateRange
 
         bindTypeDeclarationCases cenv env entBuilder syntaxCaseList.ChildrenOfType
-        bindBodyExpressionPass2 cenv envWithEnclosing supers entities entBuilder syntaxExpr
+        bindBodyExpressionPass2 cenv env supers entities entBuilder syntaxExpr
 
         // Re-bind 'extends' and 'implements' to perform checks.
-        let _extends = bindExtends cenv envWithEnclosing syntaxExtends // Rebind to check constraints
-        let _implements = bindImplements cenv envWithEnclosing syntaxImplements // Rebind to check constraints
+        let _extends = bindExtends cenv env syntaxExtends // Rebind to check constraints
+        let _implements = bindImplements cenv env syntaxImplements // Rebind to check constraints
         ()
 
     | _ ->

@@ -6,8 +6,8 @@
 
   <ItemGroup>
     <Compile Include="OlyPath.fs" />
-    <Compile Include="Assert.fs" />
     <Compile Include="ImArray.fs" />
+    <Compile Include="Assert.fs" />
     <Compile Include="CacheValue.fs" />
     <Compile Include="FileWatcher.fs" />
     <Compile Include="FileStore.fs" />
