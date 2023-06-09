@@ -551,6 +551,12 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 
     let firstReturnExpression = rhsExpr.FirstReturnExpression
 
+    match firstReturnExpression with
+    | BoundExpression.Lambda(body=body) ->
+        OlyAssert.True(body.HasExpression)         
+    | _ ->
+        ()
+
     let returnTy = 
         if firstReturnExpression.IsLambdaExpression then
             match firstReturnExpression.Type.TryFunction with
@@ -570,12 +576,6 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
                 solveFunctionInput env syntax argTys1 argTys2WithSyntax
             | _, _ ->
                 solveTypes env syntax value.Type firstReturnExpression.Type
-        else
-            match firstReturnExpression with
-            | BoundExpression.Lambda(body=body) ->
-                OlyAssert.True(body.HasExpression)         
-            | _ ->
-                ()
 
     syntax
 

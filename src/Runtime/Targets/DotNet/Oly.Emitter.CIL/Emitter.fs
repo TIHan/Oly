@@ -2290,7 +2290,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitFunctionReference(enclosingTy, func: ClrMethodInfo): ClrMethodInfo =
             let newHandle =
                 let parTys = 
-                 //   parTys |> ImArray.map (fun x -> x.Handle)
                     if func.IsInstance && not func.isConstructor then
                         func.Parameters.RemoveAt(0) |> ImArray.map (fun x -> (snd x).Handle)
                     else

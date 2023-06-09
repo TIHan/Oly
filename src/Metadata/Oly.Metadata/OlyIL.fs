@@ -1075,6 +1075,7 @@ type OlyILAssembly =
         stringSet: ConcurrentDictionary<string, OlyILStringHandle> // this is a helper, not serialized
         entDefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
         entRefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
+        funcDefSet: ConcurrentDictionary<OlyILEntityDefinitionHandle, ConcurrentDictionary<string, ConcurrentDictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
 
         // Signature metadata.
         identity: OlyILAssemblyIdentity
@@ -1159,6 +1160,28 @@ type OlyILAssembly =
                     handles
             handles[handle] <- 0uy 
 
+    member private this.SetFunctionDefinitionLookup(entDefHandle: OlyILEntityDefinitionHandle, funcDefHandle: OlyILFunctionDefinitionHandle, funcDef: OlyILFunctionDefinition) =
+        let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
+        let name = this.GetStringOrEmpty(funcSpec.NameHandle)
+        if String.IsNullOrWhiteSpace name |> not then
+            let handles =
+                match this.funcDefSet.TryGetValue(entDefHandle) with
+                | true, handles -> handles
+                | _ ->
+                    let handles = ConcurrentDictionary()
+                    this.funcDefSet.[entDefHandle] <- handles
+                    handles
+
+            let funcHandles =
+                match handles.TryGetValue(name) with
+                | true, funcHandles -> funcHandles
+                | _ ->
+                    let funcHandles = ConcurrentDictionary()
+                    handles[name] <- funcHandles
+                    funcHandles
+
+            funcHandles[funcDefHandle] <- 0uy
+
     member this.AddEntityReference(entRef: OlyILEntityReference) : OlyILEntityReferenceHandle =
         let handle = this.entRefs.Add(entRef)
         this.SetEntityReferenceLookup(handle, entRef)
@@ -1182,11 +1205,14 @@ type OlyILAssembly =
     member this.SetFunctionSpecification(handle: OlyILFunctionSpecificationHandle, funcSpec: OlyILFunctionSpecification) =
         this.funcSpecs.Set(handle, funcSpec)
 
-    member this.AddFunctionDefinition(funcDef: OlyILFunctionDefinition) : OlyILFunctionDefinitionHandle =
-        this.funcDefs.Add(funcDef)
+    member this.AddFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, funcDef: OlyILFunctionDefinition) : OlyILFunctionDefinitionHandle =
+        let handle = this.funcDefs.Add(funcDef)
+        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
+        handle
 
-    member this.SetFunctionDefinition(handle: OlyILFunctionDefinitionHandle, funcDef) =
+    member this.SetFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, handle: OlyILFunctionDefinitionHandle, funcDef) =
         this.funcDefs.Set(handle, funcDef)
+        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
 
     member this.AddFieldDefinition(fieldDef: OlyILFieldDefinition) : OlyILFieldDefinitionHandle =
         this.fieldDefs.Add(fieldDef)
@@ -1212,7 +1238,7 @@ type OlyILAssembly =
         else
             failwith "Incorrect table kind."
 
-    member this.GetFunctionSpecification(handle: OlyILFunctionSpecificationHandle) =
+    member this.GetFunctionSpecification(handle: OlyILFunctionSpecificationHandle): OlyILFunctionSpecification =
         this.funcSpecs.Get(handle)
 
     member this.GetFunctionDefinition(handle: OlyILFunctionDefinitionHandle) =
@@ -1272,6 +1298,15 @@ type OlyILAssembly =
         | true, handles -> handles.Keys |> ImArray.ofSeq
         | _ -> ImArray.empty
 
+    member this.FindFunctionDefinitions(entDefHandle: OlyILEntityDefinitionHandle, name: string) =
+        match this.funcDefSet.TryGetValue(entDefHandle) with
+        | true, handles ->
+            match handles.TryGetValue(name) with
+            | true, handles -> handles.Keys |> ImArray.ofSeq
+            | _ -> ImArray.empty
+        | _ ->
+            ImArray.empty
+
     member this.AddPrimitiveType(builtInTy, entDefHandle) =
         this.primitiveTypes.Add(builtInTy, entDefHandle)
 
@@ -1300,6 +1335,8 @@ type OlyILAssembly =
             stringSet = ConcurrentDictionary()
             entDefSet = ConcurrentDictionary()
             entRefSet = ConcurrentDictionary()
+            funcDefSet = ConcurrentDictionary()
+
             strings = Table(OlyILTableKind.String)
             entRefs = Table(OlyILTableKind.EntityReference)
             entDefs = Table(OlyILTableKind.EntityDefinition)
@@ -1378,6 +1415,9 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
 
     member this.FindEntityReferences(name: string) =
         ilAsm.FindEntityReferences(name)
+
+    member this.FindFunctionDefinitions(entDefHandle, name) =
+        ilAsm.FindFunctionDefinitions(entDefHandle, name)
 
     member this.ForEachPrimitiveType(f) =
         ilAsm.ForEachPrimitiveType(f)

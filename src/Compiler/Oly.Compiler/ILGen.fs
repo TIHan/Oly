@@ -772,8 +772,9 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                 func.Enclosing.AsEntity
 
         let ilFuncDefHandle = 
-            OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ref None)
-            |> cenv.assembly.AddFunctionDefinition
+            let ilEntDefHandle = GenEntityAsILEntityDefinition cenv env enclosingEnt
+            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ref None)
+            cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle
 

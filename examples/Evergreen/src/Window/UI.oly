@@ -3,6 +3,7 @@ namespace Evergreen.UI
 open System
 open System.Numerics
 open System.Collections.Generic
+open System.Threading
 open Evergreen
 open Evergreen.Graphics
 
@@ -45,7 +46,9 @@ private module Span =
 
 abstract class View =
 
+    static field NextId: uint64 = 0
     field Tag: int32
+    internal field Id: uint64
 
     IsEnabled: bool get, set
     Size: Vector2 get, set
@@ -53,6 +56,7 @@ abstract class View =
     internal new(tag: int32) = 
         { 
             Tag = tag
+            Id = Interlocked.Increment(&NextId)
             IsEnabled = true
             Size = Vector2.Zero
         }
@@ -124,7 +128,7 @@ class WindowView =
 
             titleBuffer = Array.ZeroCreate(256)
             titleBufferLength = 0
-            title = string.Empty
+            title = ""
         }
 
     Children: List<View> get
@@ -138,7 +142,9 @@ class WindowView =
     internal TitleSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.titleBuffer, 0, this.titleBufferLength)
     Title: string
         get() = this.title
-        set(value) =
+        set(mutable value) =
+            // if (string.IsNullOrWhiteSpace(value))
+            //     value <- "##"
             this.title <- value
             this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
 
@@ -149,7 +155,7 @@ class ButtonView =
         base(1) with {
             labelBuffer = Array.ZeroCreate(256)
             labelBufferLength = 0
-            label = string.Empty
+            label = ""
 
             OnClick = () -> ()
         }
@@ -160,7 +166,9 @@ class ButtonView =
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
     Label: string
         get() = this.label
-        set(value) =
+        set(mutable value) =
+            // if (string.IsNullOrWhiteSpace(value))
+            //     value <- "##"
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
@@ -173,7 +181,7 @@ class TextInputView =
         base(2) with {
             labelBuffer = Array.ZeroCreate(256)
             labelBufferLength = 0
-            label = string.Empty
+            label = ""
 
             textBuffer = Array.ZeroCreate(256)
             text = string.Empty
@@ -187,7 +195,9 @@ class TextInputView =
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
     Label: string
         get() = this.label
-        set(value) =
+        set(mutable value) =
+            // if (string.IsNullOrWhiteSpace(value))
+            //     value <- "##"
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
@@ -209,7 +219,7 @@ class LabelView =
         base(3) with {
             labelBuffer = Array.ZeroCreate(256)
             labelBufferLength = 0
-            label = string.Empty
+            label = ""
 
             textBuffer = Array.ZeroCreate(256)
             text = string.Empty
@@ -221,7 +231,9 @@ class LabelView =
     internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
     Label: string
         get() = this.label
-        set(value) =
+        set(mutable value) =
+            // if (string.IsNullOrWhiteSpace(value))
+            //     value <- "##"
             this.label <- value
             this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
@@ -237,46 +249,57 @@ class LabelView =
 class ImageView =
     inherits View
 
-    new(gpuImage: Evergreen.Game.Rendering.GpuImage) =
+    new() =
         base(4) with {
             descriptorSet = Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
-            gpuImage = gpuImage
+            gpuImage = unchecked default
+            isDirty = false
         }
 
+    internal mutable field isDirty: bool
     internal mutable field descriptorSet: Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet
     internal mutable field gpuImage: Evergreen.Game.Rendering.GpuImage
-    GpuImage: Evergreen.Game.Rendering.GpuImage get() = this.gpuImage
+    GpuImage: Evergreen.Game.Rendering.GpuImage 
+        get() = this.gpuImage
+        set(value) =
+            this.gpuImage <- value 
+            this.isDirty <- true
+
+class UIContext =
+
+    internal Gpu: Evergreen.Game.Rendering.Gpu get
+    internal GpuProgramUI: Evergreen.Game.Rendering.GpuProgramUI get
+
+    internal ImGuiContext: ImGui.ImGuiContext get() = this.GpuProgramUI.ImGuiContext
+
+    internal new(gpu: Evergreen.Game.Rendering.Gpu, gpuProgramUI: Evergreen.Game.Rendering.GpuProgramUI) =
+        {
+            Gpu = gpu
+            GpuProgramUI = gpuProgramUI
+        }
 
 module UI =
 
-    private MakeNode(context: ImGui.ImGuiContext, view: View): () =
+    private MakeNode(context: UIContext, view: View): () =
+        ImGui.PushId(context.ImGuiContext, Unsafe.Cast(view.Id))
+        ImGui.BeginDisabled(context.ImGuiContext, !view.IsEnabled)
         match (view)
         | View.Window(view) =>
-            ImGui.SetWindowSize(context, view.Size)
-            ImGui.SetWindowPosition(context, view.Position)
-            ImGui.BeginDisabled(context, !view.IsEnabled)
+            ImGui.SetWindowSize(context.ImGuiContext, view.Size)
+            ImGui.SetWindowPosition(context.ImGuiContext, view.Position)
             MakeWindow(context, view)
-            ImGui.EndDisabled(context)
         
         | View.Button(view) =>
-            ImGui.BeginDisabled(context, !view.IsEnabled)
             MakeButton(context, view)
-            ImGui.EndDisabled(context)
 
         | View.TextInput(view) =>
-            ImGui.BeginDisabled(context, !view.IsEnabled)
             MakeTextInput(context, view)
-            ImGui.EndDisabled(context)
 
         | View.Label(view) =>
-            ImGui.BeginDisabled(context, !view.IsEnabled)
             MakeLabel(context, view)
-            ImGui.EndDisabled(context)
 
         | View.Image(view) =>
-            ImGui.BeginDisabled(context, !view.IsEnabled)
             MakeImage(context, view)
-            ImGui.EndDisabled(context)
 
         // | UINode.DemoWindow =>
         //     ImGui.ShowDemoWindow(context)
@@ -293,22 +316,25 @@ module UI =
         | _ =>
             ()
 
-    private MakeWindow(context: ImGui.ImGuiContext, view: WindowView): () =
+        ImGui.EndDisabled(context.ImGuiContext)
+        ImGui.PopId(context.ImGuiContext)
+
+    private MakeWindow(context: UIContext, view: WindowView): () =
         let mutable isOpen = view.IsOpen
-        if (isOpen && ImGui.Begin(context, &isOpen, true, view.TitleSpan))
+        if (isOpen && ImGui.Begin(context.ImGuiContext, &isOpen, true, view.TitleSpan))
             let mutable i = 0
             while (i < view.Children.Count)
                 MakeNode(context, view.Children[i])
                 i <- i + 1
-            ImGui.End(context)
+            ImGui.End(context.ImGuiContext)
         view.IsOpen <- isOpen
 
-    private MakeButton(context: ImGui.ImGuiContext, view: ButtonView): () =
-        if (ImGui.Button(context, view.LabelSpan, view.Size))
-            context.Callbacks.Enqueue(view.OnClick)
+    private MakeButton(context: UIContext, view: ButtonView): () =
+        if (ImGui.Button(context.ImGuiContext, view.LabelSpan, view.Size))
+            context.ImGuiContext.Callbacks.Enqueue(view.OnClick)
 
-    private MakeTextInput(context: ImGui.ImGuiContext, view: TextInputView): () =
-        if (ImGui.InputText(context, view.LabelSpan, view.TextSpan))
+    private MakeTextInput(context: UIContext, view: TextInputView): () =
+        if (ImGui.InputText(context.ImGuiContext, view.LabelSpan, view.TextSpan))
             let mutable textSpan = view.TextSpan
             let indexZero = Span.TryFindIndex(textSpan, x -> x == 0)
             let textSpan = 
@@ -317,20 +343,27 @@ module UI =
                 else
                     textSpan.Slice(0, indexZero)
             view.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(textSpan))
-            context.Callbacks.Enqueue(view.OnTextChanged)
+            context.ImGuiContext.Callbacks.Enqueue(view.OnTextChanged)
 
-    private MakeLabel(context: ImGui.ImGuiContext, view: LabelView): () =
-        ImGui.LabelText(context, view.LabelSpan, view.TextSpan)
+    private MakeLabel(context: UIContext, view: LabelView): () =
+        ImGui.LabelText(context.ImGuiContext, view.LabelSpan, view.TextSpan)
 
-    private MakeImage(context: ImGui.ImGuiContext, view: ImageView): () =
-        if (view.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
+    private MakeImage(context: UIContext, view: ImageView): () =
+        if (view.isDirty)
+            view.isDirty <- false
+            
+            if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
+                ImGui.DestroyTexture(context.ImGuiContext, view.descriptorSet)
             view.descriptorSet <-
-                ImGui.CreateTexture(context, view.gpuImage.VkSampler, view.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                context.Gpu.Sync(view.gpuImage)
+                ImGui.CreateTexture(context.ImGuiContext, view.gpuImage.VkSampler, view.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     () ->
                         view.descriptorSet <- Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
+                        view.isDirty <- true
                 )
 
-        ImGui.Image(context, view.descriptorSet, view.Size, Vector2.Zero, Vector2.One)
+        if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
+            ImGui.Image(context.ImGuiContext, view.descriptorSet, view.Size, Vector2.Zero, Vector2.One)
 
     // private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
     //     ImGui.BeginDisabled(!state.IsEnabled)
@@ -350,14 +383,14 @@ module UI =
     //         onChanged(state)
     //     ImGui.EndDisabled()
 
-    NewFrame(context: ImGui.ImGuiContext): () =
-        ImGui.NewFrame(context)
+    NewFrame(context: UIContext): () =
+        ImGui.NewFrame(context.ImGuiContext)
 
-    Show(context: ImGui.ImGuiContext, view: View): () =
+    Show(context: UIContext, view: View): () =
         MakeNode(context, view)
         let mutable callback = unchecked default
-        while (context.Callbacks.TryDequeue(&callback))
+        while (context.ImGuiContext.Callbacks.TryDequeue(&callback))
             callback()
 
-    Draw(context: ImGui.ImGuiContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
-        ImGui.Draw(context, commandBuffer, pipeline)
+    Draw(context: UIContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
+        ImGui.Draw(context.ImGuiContext, commandBuffer, pipeline)

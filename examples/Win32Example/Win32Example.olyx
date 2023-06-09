@@ -150,9 +150,24 @@ compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     p.Dispose()
     code
 
-createUI(windowTitle: string, texture: GpuImage, deviceName: string): View =
+createImageByFile(path: string): GpuImage =
+    let image = Image.Load<Rgba32>(File.ReadAllBytes(path))
+
+    let mutable imageSpan = default
+    if (!image.TryGetSinglePixelSpan(&imageSpan))
+        fail("Invalid image.")
+
+    let mutable imageSpan = Span<Rgba32>.op_Implicit(imageSpan)
+    let mutable bytesSpan = System.Runtime.InteropServices.MemoryMarshal.Cast<Rgba32, byte>(imageSpan)
+    let mutable bytes = Array.ZeroCreate<byte>(bytesSpan.Length)
+    bytesSpan.CopyTo(Span(bytes))
+    image.Dispose()
+
+    GpuImage(image.Width, image.Height, ReadOnlyMemory(bytes))
+
+createUI(deviceName: string): View =
     let window = WindowView()
-    window.Title <- "Oly Window"
+    window.Title <- "Window"
 
     window.Children.Add(
         let view = LabelView()
@@ -161,8 +176,10 @@ createUI(windowTitle: string, texture: GpuImage, deviceName: string): View =
         view
     )
 
+    let image = ImageView()
     window.Children.Add(
-        let view = ImageView(texture)
+        let view = image
+        view.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf068.png")
         view.Size <- Vector2(64, 64)
         view
     )
@@ -181,6 +198,28 @@ createUI(windowTitle: string, texture: GpuImage, deviceName: string): View =
 
     window.Children.Add(
         let view = ButtonView()
+        view.Label <- "Add Image"
+        view.OnClick <- 
+            () ->
+                image.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf066.png")
+                window.Children.Add(
+                    let view = ImageView()
+                    view.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf067.png")
+                    view.Size <- Vector2(64, 64)
+                    view
+                )
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Close Window"
+        view.OnClick <- () -> window.IsOpen <- false
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
         view.Label <- "Close Window"
         view.OnClick <- () -> window.IsOpen <- false
         view
@@ -192,11 +231,11 @@ main(): () =
     let options = RenderingOptions()
     let r = Rendering.Create(options)
 
-    let image = GpuImage("GameExample/Textures/flats/aqf068.png")
+    let image = createImageByFile("GameExample/Textures/flats/aqf068.png")
     r.Gpu.Sync(image)
 
-    let uiNode = createUI("Oly Window", image, r.Gpu.DeviceName)
-    r.Gpu.Execute([])
+    let uiNode = createUI(r.Gpu.DeviceName)
+    let uiNode2 = createUI(r.Gpu.DeviceName)
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,
@@ -230,8 +269,8 @@ main(): () =
     let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
     let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
     let gpuProgram = GpuProgram()
-    gpuProgram.AddGlobalInput(GpuProgramInputKind.Array, GpuProgramStageFlags.Vertex)
-    gpuProgram.AddGlobalInput(GpuProgramInputKind.ImageOrFrame, GpuProgramStageFlags.Fragment)
+    gpuProgram.AddGlobalInput(GpuInputKind.Array, GpuStageFlags.Vertex)
+    gpuProgram.AddGlobalInput(GpuInputKind.ImageOrFrame, GpuStageFlags.Fragment)
     gpuProgram.SetVertexInput<Vertex>()
     gpuProgram.VertexCode <- vertexShaderByteCode
     gpuProgram.FragmentCode <- fragmentShaderByteCode
@@ -256,7 +295,7 @@ main(): () =
             [
                 GpuCommand.NewFrame(frame)
                 GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length)
-                GpuCommand.DrawUI(gpuProgramUI2, uiNode)
+                GpuCommand.DrawUI(gpuProgramUI2, uiNode2)
                 GpuCommand.EndFrame()
             ],
             gpuCommands
@@ -277,7 +316,7 @@ main(): () =
         if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
             let mutable result = globals.AsSpan()
             let mutable x = &result[0]
-          //  pos <- Vector3(2, 2, pos.Z + 0.01)
+           // pos <- Vector3(2, 2, pos.Z + 0.01)
 
             x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
             gpuProgram.FragmentCode <- fragmentShaderByteCode

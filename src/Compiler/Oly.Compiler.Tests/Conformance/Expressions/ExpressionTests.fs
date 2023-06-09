@@ -8087,3 +8087,21 @@ main(): () =
     OlyWithRef refSrc src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Partially applied function should not hit an assert``() =
+    let src =
+        """
+class C1
+
+test(c: C1): () = ()
+
+main(): () =
+    test(
+        let f = C1
+        f()
+    )
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

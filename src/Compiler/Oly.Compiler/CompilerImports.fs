@@ -1092,12 +1092,12 @@ let private importEnclosing (cenv: cenv) (entToAdd: EntitySymbol) tyParCount (il
             namespaceBuilder.AddEntity(entToAdd, tyParCount)
             EnclosingSymbol.Entity(namespaceBuilder.Entity)
 
-let private importFunctionFromDefinition (cenv: cenv) (enclosingEnt: EntitySymbol) (ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
+let private importFunctionFromDefinition (cenv: cenv) (enclosingEnt: EntitySymbol) (ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle) semantic (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
     let localCache = cenv.imports.GetLocalCache(cenv.ilAsm)
     match localCache.funcFromFuncDef.TryGetValue ilFuncDefHandle with
     | true, res -> res
     | _ ->
-        let res = ImportedFunctionDefinitionSymbol(cenv.ilAsm, cenv.imports, enclosingEnt, ilEnclosingEntDefHandle, ilFuncDefHandle) :> IFunctionSymbol
+        let res = ImportedFunctionDefinitionSymbol(cenv.ilAsm, cenv.imports, enclosingEnt, ilEnclosingEntDefHandle, ilFuncDefHandle, semantic) :> IFunctionSymbol
         localCache.funcFromFuncDef.[ilFuncDefHandle] <- res
         res
 
@@ -1261,7 +1261,7 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: EntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle) as this =
+type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: EntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle, semantic: FunctionSemantic) as this =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1431,7 +1431,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         member _.IsThis = false
         member _.IsBase = false
 
-        member _.Semantic = NormalFunction
+        member _.Semantic = semantic
 
         member _.WellKnownFunction = lazyWellKnownFunc.Value
         member _.AssociatedFormalPattern = patOpt
@@ -1584,24 +1584,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
             ilEntDef.RuntimeType
             |> Option.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
 
-    let lazyFuncs =
-        lazy
-            ilEntDef.FunctionHandles
-            |> ImArray.map (importFunctionFromDefinition cenv this ilEntDefHandle)
-
-    let lazyInstanceCtors =
-        lazy
-            lazyFuncs.Value
-            |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
-
-    let lazyFields =
-        lazy
-            let asEnclosing = this.AsEnclosing
-            ilEntDef.FieldDefinitionHandles
-            |> ImArray.map (fun ilFieldDefHandle ->
-                ImportedFieldDefinitionSymbol(asEnclosing, ilAsm, imports, ilFieldDefHandle) :> IFieldSymbol
-            )
-
     let lazyProps =
         lazy
             ilEntDef.PropertyDefinitionHandles
@@ -1617,14 +1599,14 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                     if ilPropDef.Getter.IsNil then
                         None
                     else
-                        importFunctionFromDefinition cenv this ilEntDefHandle ilPropDef.Getter
+                        importFunctionFromDefinition cenv this ilEntDefHandle GetterFunction ilPropDef.Getter
                         |> Some
 
                 let setterOpt =
                     if ilPropDef.Setter.IsNil then
                         None
                     else
-                        importFunctionFromDefinition cenv this ilEntDefHandle ilPropDef.Setter
+                        importFunctionFromDefinition cenv this ilEntDefHandle SetterFunction ilPropDef.Setter
                         |> Some
 
                 let isValid, memberFlags =
@@ -1686,14 +1668,34 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                     |> Some
             )
 
+    let lazyPats =
+        lazy
+            ImArray.empty // TODO:
+
+    let lazyFuncs =
+        lazy
+            lazyProps.Force() |> ignore
+            lazyPats.Force() |> ignore
+            ilEntDef.FunctionHandles
+            |> ImArray.map (importFunctionFromDefinition cenv this ilEntDefHandle NormalFunction)
+
+    let lazyInstanceCtors =
+        lazy
+            lazyFuncs.Value
+            |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
+
+    let lazyFields =
+        lazy
+            let asEnclosing = this.AsEnclosing
+            ilEntDef.FieldDefinitionHandles
+            |> ImArray.map (fun ilFieldDefHandle ->
+                ImportedFieldDefinitionSymbol(asEnclosing, ilAsm, imports, ilFieldDefHandle) :> IFieldSymbol
+            )
+
     let lazyAttrs =
         lazy
             ilEntDef.Attributes
             |> ImArray.map (importAttribute cenv)
-
-    let lazyPats =
-        lazy
-            ImArray.empty // TODO:
 
     let kind = importEntityKind ilEntDef.Kind
 

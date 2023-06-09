@@ -761,15 +761,15 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
             Some func.ReturnType
         else
             None
-    let _, boundRhsBody = bindLocalExpression cenv (envRhs.SetReturnable(true)) expectedRhsTyOpt syntaxRhs syntaxRhs
+    let _, rhsBodyExpr = bindLocalExpression cenv (envRhs.SetReturnable(true)) expectedRhsTyOpt syntaxRhs syntaxRhs
 
-    let boundRhsBody =
+    let rhsBodyExpr =
         if func.IsLocal then
-            checkExpression cenv env expectedRhsTyOpt boundRhsBody
+            checkExpression cenv env expectedRhsTyOpt rhsBodyExpr
         else
-            boundRhsBody
+            rhsBodyExpr
 
-    let boundRhsBody =
+    let rhsBodyExpr =
         match implicitBaseOpt with
         | Some baseValue ->
             let syntaxInfo = BoundSyntaxInfo.Generated(cenv.syntaxTree)
@@ -777,34 +777,33 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
                 syntaxInfo,
                 BindingLocal(baseValue),
                 BoundExpression.Value(syntaxInfo, pars[0]),
-                boundRhsBody
+                rhsBodyExpr
                 
             )
         | _ ->
-            boundRhsBody
+            rhsBodyExpr
 
-    let boundRhs = 
+    let rhsExpr = 
         BoundExpression.CreateLambda(
             cenv.syntaxTree,
             LambdaFlags.None,
             func.TypeParameters, 
             pars, 
-            LazyExpression.CreateNonLazy(None, fun _ -> boundRhsBody)
+            LazyExpression.CreateNonLazy(None, fun _ -> rhsBodyExpr)
         )
     let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
-    checkLocalLambdaKind solverEnv boundRhs pars func.IsStaticLocalFunction
-    boundRhs
+    checkLocalLambdaKind solverEnv rhsExpr pars func.IsStaticLocalFunction
+    rhsExpr
 
 let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (value: IValueSymbol) : BoundExpression =
     let expectedTy = value.Type
-    let _, boundRhs = bindLocalExpression cenv (envOfBinding.SetReturnable(false)) (Some expectedTy) syntaxRhs syntaxRhs
-    let boundRhs =
-        match boundRhs with
-        | AutoDereferenced _ -> boundRhs
-        | BoundExpression.Call(value=value) when not value.IsFunctionGroup -> boundRhs
-        | BoundExpression.Value(value=value) when value.Type.IsSolved -> boundRhs
-        | _ -> checkExpression cenv env (Some expectedTy) boundRhs
-    boundRhs
+    let _, rhsExpr = bindLocalExpression cenv (envOfBinding.SetReturnable(false)) (Some expectedTy) syntaxRhs syntaxRhs
+    match rhsExpr with
+    | E.Lambda _ ->
+        checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) false rhsExpr
+        checkExpression cenv env (Some expectedTy) rhsExpr
+    | _ ->
+        rhsExpr
 
 let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (implicitBaseOpt: ILocalParameterSymbol option) (binding: BindingInfoSymbol) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding, pars =
@@ -852,15 +851,12 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
         else
             envOfBinding
 
-    let boundRhs =
-        match binding with
-        | BindingFunction(func=func)
-        | BindingPattern(_, func) ->
-            bindFunctionRightSideExpression cenv env envOfBinding implicitBaseOpt syntaxRhs pars func
-        | _ ->
-            bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
-
-    boundRhs
+    match binding with
+    | BindingFunction(func=func)
+    | BindingPattern(_, func) ->
+        bindFunctionRightSideExpression cenv env envOfBinding implicitBaseOpt syntaxRhs pars func
+    | _ ->
+        bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
 
 let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (binding: LocalBindingInfoSymbol) (syntaxBindingDecl: OlySyntaxBindingDeclaration) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding =
@@ -876,14 +872,11 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
         | BindingLocal _ ->
             env
 
-    let boundRhs =
-        match binding with
-        | BindingLocalFunction(func=func) ->
-            bindFunctionRightSideExpression cenv env envOfBinding None syntaxRhs func.Parameters func
-        | _ ->
-            bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
-
-    boundRhs
+    match binding with
+    | BindingLocalFunction(func=func) ->
+        bindFunctionRightSideExpression cenv env envOfBinding None syntaxRhs func.Parameters func
+    | _ ->
+        bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
 
 let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr =
 
@@ -1550,7 +1543,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | OlySyntaxExpression.Typed(syntaxBody, _, syntaxTy) ->
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
         let env1, expr = bindLocalExpression cenv (env.SetReturnable(false)) (Some ty) syntaxBody syntaxBody
-        env1, BoundExpression.Typed(BoundSyntaxInfo.User(syntaxExpr, env.benv), expr, ty)
+        let expr = BoundExpression.Typed(BoundSyntaxInfo.User(syntaxExpr, env.benv), expr, ty)
+        env1, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Lambda(syntaxLambdaKind, syntaxPars, _, syntaxBodyExpr) ->
         let env = setIsInLocalLambda env

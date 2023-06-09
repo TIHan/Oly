@@ -125,6 +125,7 @@ let ``Should not get function body because it is not invoked in main`` () =
     let ilEntDefHandle = builder.CreateEntityDefinitionHandle()
     let ilFuncDefHandle = 
         builder.CreateFunctionDefinition(
+            ilEntDefHandle,
             "test", 
             ImArray.empty,
             ImArray.empty,
@@ -158,6 +159,7 @@ let ``Should get function body because it is invoked in main`` () =
     let ilEntDefHandle = builder.CreateEntityDefinitionHandle()
     let ilFuncDefHandle, ilFuncSpecHandle = 
         builder.CreateFunctionDefinition(
+            ilEntDefHandle,
             "test", 
             ImArray.empty,
             ImArray.empty,
@@ -184,7 +186,7 @@ let ``Should get function body because it is invoked in main`` () =
         | _ ->
             failwith "Expected an entity."
 
-    builder.SetMainFunctionBody(ImArray.empty,
+    builder.SetMainFunctionBody(ilEntDefHandle, ImArray.empty,
         OlyILExpression.Operation(
             OlyILDebugSourceTextRange.Empty,
             OlyILOperation.Call(
@@ -217,6 +219,7 @@ let getIR
     let ilEntDefHandle = builder.CreateEntityDefinitionHandle()
     let ilFuncDefHandle, ilFuncSpecHandle = 
         builder.CreateFunctionDefinition(
+            ilEntDefHandle,
             "test", 
             ilFuncTyPars,
             ilFuncPars,
@@ -252,7 +255,7 @@ let getIR
         | _ ->
             OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, OlyILOperation.Ignore(ilMainExpr))
 
-    builder.SetMainFunctionBody(locals.GetLocals(), ilMainExpr)
+    builder.SetMainFunctionBody(ilEntDefHandle, locals.GetLocals(), ilMainExpr)
 
     let result = builder.TryGetIRFunctionBodyByJIT(ilFuncDefHandle).Value
     result.LocalCount, result.Expression

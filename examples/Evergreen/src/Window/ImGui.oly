@@ -224,6 +224,12 @@ private igBeginChild_ID(id: uint32, size: Vector2, border: ImGuiBool, flags: ImG
 #[import("C", "imgui.dll", "igEndChild")]
 private igEndChild(): ()
 
+#[import("C", "imgui.dll", "igPushID_Ptr")]
+private igPushID_Ptr(ptr_id: void*): ()
+
+#[import("C", "imgui.dll", "igPopID")]
+private igPopID(): ()
+
 #[import("C", "imgui.dll", "igSetNextWindowPos")]
 private igSetNextWindowPos(pos: Vector2, cond: ImGuiCond, pivot: Vector2): ()
 
@@ -413,7 +419,6 @@ DestroyContext(context: ImGuiContext): () =
     let mutable i = 0
     while (i < descriptorSets.Length)
         let mutable pair = descriptorSets[i]
-        ImGui_ImplVulkan_RemoveTexture(pair.Key)
         pair.Value()
         i <- i + 1
 
@@ -574,6 +579,16 @@ EndChild(context: ImGuiContext): () =
 
     igEndChild()
 
+PushId(context: ImGuiContext, id: void*): () =
+    igSetCurrentContext(context.Context)
+
+    igPushID_Ptr(id)
+
+PopId(context: ImGuiContext): () =
+    igSetCurrentContext(context.Context)
+
+    igPopID()
+
 SetWindowPosition(context: ImGuiContext, position: Vector2): () =
     igSetCurrentContext(context.Context)
 
@@ -672,10 +687,14 @@ CreateTexture(context: ImGuiContext, sampler: VkSampler, imageView: VkImageView,
     context.VkDescriptorSets[descriptorSet] <- onDestroyTexture
     descriptorSet
 
-DestroyTexture(context: ImGuiContext, texture: VkDescriptorSet): () =
-    igSetCurrentContext(context.Context)
-
-    ImGui_ImplVulkan_RemoveTexture(texture)
+DestroyTexture(context: ImGuiContext, descriptorSet: VkDescriptorSet): () =
+    let mutable onDestroy = unchecked default
+    if (context.VkDescriptorSets.TryRemove(descriptorSet, &onDestroy))
+        igSetCurrentContext(context.Context)
+        ImGui_ImplVulkan_RemoveTexture(descriptorSet)
+        onDestroy()
+    else
+        fail("Texture already destroyed.")
 
 Image(context: ImGuiContext, texture: VkDescriptorSet, size: Vector2, uv0: Vector2, uv1: Vector2): () =
     igSetCurrentContext(context.Context)

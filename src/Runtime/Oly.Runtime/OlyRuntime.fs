@@ -1570,7 +1570,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
 
             let asm = assemblies.[enclosingTy1.AssemblyIdentity]
-            let ilEntDef = asm.ilAsm.GetEntityDefinition(enclosingTy1.ILEntityDefinitionHandle)
+            let ilEntDefHandle = enclosingTy1.ILEntityDefinitionHandle
+            let ilEntDef = asm.ilAsm.GetEntityDefinition(ilEntDefHandle)
             let genericContext2 =
                 if genericContext.IsErasing then
                     GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
@@ -1578,8 +1579,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
             let enclosingTyParCount2 = ilEntDef.FullTypeParameterCount
 
-            let funcs =
-                ilEntDef.FunctionHandles
+            let find funcHandles =
+                funcHandles
                 |> ImArray.choose (fun ilFuncDefHandle2 ->
                     let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
                     let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
@@ -1589,10 +1590,53 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         None
                 )
+
+            let funcs =
+                let funcName = ilAsm1.GetStringOrEmpty(ilFuncSpec1.NameHandle)
+                if String.IsNullOrWhiteSpace(funcName) then
+                    OlyAssert.Fail("Function has an invalid name.")
+                asm.ilAsm.FindFunctionDefinitions(ilEntDefHandle, funcName)
+                |> find
         
             funcs, funcTyArgs
 
         tryResolve enclosingTy1
+        //let enclosingTyParCount1 = enclosingTy1.TypeParameters.Length
+
+        //let tryResolve (enclosingTy1: RuntimeType) =
+        //    if enclosingTy1.IsBuiltIn then ImArray.empty, funcTyArgs
+        //    else
+
+        //    let genericContext1 =
+        //        if genericContext.IsErasing then
+        //            GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+        //        else
+        //            GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+
+        //    let asm = assemblies.[enclosingTy1.AssemblyIdentity]
+        //    let ilEntDef = asm.ilAsm.GetEntityDefinition(enclosingTy1.ILEntityDefinitionHandle)
+        //    let genericContext2 =
+        //        if genericContext.IsErasing then
+        //            GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+        //        else
+        //            GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+        //    let enclosingTyParCount2 = ilEntDef.FullTypeParameterCount
+
+        //    let funcs =
+        //        ilEntDef.FunctionHandles
+        //        |> ImArray.choose (fun ilFuncDefHandle2 ->
+        //            let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
+        //            let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
+        //            if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, genericContext1, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, genericContext2) then
+        //                this.ResolveFunctionDefinition(enclosingTy1.Formal, ilFuncDefHandle2)
+        //                |> Some
+        //            else
+        //                None
+        //        )
+        
+        //    funcs, funcTyArgs
+
+        //tryResolve enclosingTy1
 
     let getTotalTypeVariableUseCountFromType (ty: RuntimeType) =
         let rec loop count (ty: RuntimeType) =

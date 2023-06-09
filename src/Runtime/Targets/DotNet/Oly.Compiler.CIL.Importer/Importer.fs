@@ -785,7 +785,7 @@ module internal rec Helpers =
 
         OlyILFunctionReference(olyEnclosing, olyFuncSpecHandle)
 
-    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) (tyDefName: string) tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
+    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
         match cenv.methDefToOlyFuncDefCache.TryGetValue methDefHandle with
         | true, res -> ValueSome res
         | _ ->
@@ -889,7 +889,7 @@ module internal rec Helpers =
                 ref None
             )
 
-        let res = olyAsm.AddFunctionDefinition(olyFuncDef)
+        let res = olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
         cenv.methDefToOlyFuncDefCache.[methDefHandle] <- res
         ValueSome res
 
@@ -1109,7 +1109,7 @@ module internal rec Helpers =
             let handles = tyDef.GetMethods().ToImmutableArray()
             seq {
                 for i = 0 to handles.Length - 1 do
-                    match importMethodDefinitionAsOlyILFunctionDefinition cenv unmangledName fullTyParCount methImpls handles.[i] with
+                    match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls handles.[i] with
                     | ValueNone -> ()
                     | ValueSome x -> yield x
             }
@@ -1173,39 +1173,14 @@ module internal rec Helpers =
                         if getter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv unmangledName fullTyParCount methImpls getter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls getter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
                                 match olyFuncSpec with
-                                | OlyILFunctionSpecification(isInstance, olyCallConv, olyName, olyTyPars, olyPars, olyReturnTy) ->
-                                    let name = olyAsm.GetStringOrEmpty(olyName)
-                                    if olyPars.IsEmpty && name.StartsWith("get_") then
-                                        let olyFixupFuncSpec =
-                                            OlyILFunctionSpecification(
-                                                isInstance,
-                                                olyCallConv,
-                                                olyAsm.AddString(name),
-                                                olyTyPars,
-                                                olyPars,
-                                                olyReturnTy
-                                            )
-
-                                        olyAsm.SetFunctionSpecification(olyFuncDef.SpecificationHandle, olyFixupFuncSpec)
-
-                                        match olyFuncDef with
-                                        | OlyILFunctionDefinition(olyFlags, olyMemberFlags, olyAttrs, olyFuncSpecHandle, olyOverrides, olyBodyHandle) ->
-                                            let olyFixupFuncDef =
-                                                OlyILFunctionDefinition(
-                                                    olyFlags,
-                                                    olyMemberFlags,
-                                                    olyAttrs,
-                                                    olyFuncSpecHandle,
-                                                    olyOverrides,
-                                                    olyBodyHandle
-                                                )
-                                            olyAsm.SetFunctionDefinition(olyFuncDefHandle, olyFixupFuncDef)
-                                            Some olyFuncDefHandle
+                                | OlyILFunctionSpecification(pars=olyPars) ->
+                                    if olyPars.IsEmpty then
+                                        Some olyFuncDefHandle
                                     else
                                         None
                             | _ -> 
@@ -1215,39 +1190,14 @@ module internal rec Helpers =
                         if setter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv unmangledName fullTyParCount methImpls setter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls setter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
                                 match olyFuncSpec with
-                                | OlyILFunctionSpecification(isInstance, olyCallConv, olyName, olyTyPars, olyPars, olyReturnTy) ->
-                                    let name = olyAsm.GetStringOrEmpty(olyName)
-                                    if olyPars.Length = 1 && name.StartsWith("set_") then
-                                        let olyFixupFuncSpec =
-                                            OlyILFunctionSpecification(
-                                                isInstance,
-                                                olyCallConv,
-                                                olyAsm.AddString(name),
-                                                olyTyPars,
-                                                olyPars,
-                                                olyReturnTy
-                                            )
-
-                                        olyAsm.SetFunctionSpecification(olyFuncDef.SpecificationHandle, olyFixupFuncSpec)
-
-                                        match olyFuncDef with
-                                        | OlyILFunctionDefinition(olyFlags, olyMemberFlags, olyAttrs, olyFuncSpecHandle, olyOverrides, olyBodyHandle) ->
-                                            let olyFixupFuncDef =
-                                                OlyILFunctionDefinition(
-                                                    olyFlags,
-                                                    olyMemberFlags,
-                                                    olyAttrs,
-                                                    olyFuncSpecHandle,
-                                                    olyOverrides,
-                                                    olyBodyHandle
-                                                )
-                                            olyAsm.SetFunctionDefinition(olyFuncDefHandle, olyFixupFuncDef)
-                                            Some olyFuncDefHandle
+                                | OlyILFunctionSpecification(pars=olyPars) ->
+                                    if olyPars.Length = 1 then
+                                        Some olyFuncDefHandle
                                     else
                                         None
                             | _ -> 
