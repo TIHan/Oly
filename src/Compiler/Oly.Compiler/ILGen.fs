@@ -304,7 +304,7 @@ and emitILType cenv env ty =
 
 and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol) =
     let argTys =
-        match inputTy with
+        match stripTypeEquations inputTy with
         | TypeSymbol.Unit -> ImArray.empty
         | TypeSymbol.Tuple(argTys, _) -> argTys
         | _ -> ImArray.createOne inputTy
@@ -325,7 +325,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         if canStripBuiltIn then
             stripTypeEquationsAndBuiltIn ty
         else
-            stripTypeEquations ty
+            ty
     match ty with
     | TypeSymbol.DependentIndexer(inputValueTy, innerTy) ->
         OlyILTypeDependentIndexer(emitILType cenv env inputValueTy, emitILType cenv env innerTy)
