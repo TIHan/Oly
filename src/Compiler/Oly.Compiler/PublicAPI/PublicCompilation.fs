@@ -395,7 +395,6 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let initialState = state.lazyInitialState.GetValue(ct)
         let imports = CompilerImports(SharedImportCache.Create())
         let importer = imports.Importer
 
@@ -442,17 +441,9 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
-            match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
-            | true, srcLoc ->
-                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists.", 10, srcLoc)
-                |> Some
-            | _ ->
-                None
-
         binders4
-        |> map (fun (b1, diags) ->
-            let boundTree, diags2 = b1.Bind(ct)
+        |> map (fun (x, diags) ->
+            let boundTree, diags2 = x.Bind(ct)
             boundTree, diags.AddRange(diags2)
         )
 
