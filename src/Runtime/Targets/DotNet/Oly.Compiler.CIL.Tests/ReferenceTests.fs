@@ -282,7 +282,7 @@ module TestMain =
         print("hello")
         test()
         """
-    OlyTwo src2 src1
+    (OlyTwo src2 src1).Compilation
     |> runWithExpectedOutput "hellocall"
 
 [<Fact>]

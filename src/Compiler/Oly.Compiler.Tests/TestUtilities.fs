@@ -206,7 +206,7 @@ let OlyWithReference refSrc src =
 /// Does not check for syntax tree - source equality.
 let OlyTwo src1 src2 =
     let c = TestCompilation.CreateTwo(src1, src2)
-    c.Compilation
+    c
 
 let getAllSymbols (src: string) =
     let c = Oly (src.Replace("~^~", ""))

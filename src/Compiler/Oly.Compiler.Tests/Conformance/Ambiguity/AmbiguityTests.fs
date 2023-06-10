@@ -1709,3 +1709,61 @@ main(): () =
         )
     ]
     |> ignore
+
+[<Fact>]
+let ``Same type names across compilation units in the same namespace should fail``() =
+    let src1 =
+        """
+namespace A
+
+class B
+        """
+    let src2 =
+        """
+namespace A
+
+class B
+        """  
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'B' already exists across compilation units.",
+            """
+class B
+      ^
+"""
+        )
+        ("'B' already exists across compilation units.",
+            """
+class B
+      ^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Same module names across compilation units should fail``() =
+    let src1 =
+        """
+module M
+        """
+    let src2 =
+        """
+module M
+        """  
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'M' already exists across compilation units.",
+            """
+module M
+       ^
+"""
+        )
+        ("'M' already exists across compilation units.",
+            """
+module M
+       ^
+"""
+        )
+    ]
+    |> ignore

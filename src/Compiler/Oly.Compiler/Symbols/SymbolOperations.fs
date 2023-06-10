@@ -11,6 +11,22 @@ open Oly.Compiler.Internal.Symbols
 [<AutoOpen>]
 module SymbolComparers =
 
+    let private areEntitiesSimilar (ent1: EntitySymbol) (ent2: EntitySymbol) =
+        if ent1.Name = ent2.Name && ent1.TypeParameters.Length = ent2.TypeParameters.Length then
+            areEnclosingsSimilar ent1.Enclosing ent2.Enclosing
+        else
+            false
+
+    let private areEnclosingsSimilar (enclosing1: EnclosingSymbol) (enclosing2: EnclosingSymbol) =
+        match enclosing1, enclosing2 with
+        | EnclosingSymbol.Local, EnclosingSymbol.Local -> true
+        | EnclosingSymbol.Witness _, EnclosingSymbol.Witness _ -> false // we don't really check for witnesses here, so it's fine
+        | EnclosingSymbol.RootNamespace, EnclosingSymbol.RootNamespace -> true
+        | EnclosingSymbol.Entity(ent1), EnclosingSymbol.Entity(ent2) ->
+            areEntitiesSimilar ent1.Formal ent2.Formal
+        | _ ->
+            false
+
     let MultiStringComparer() =
         { new EqualityComparer<string imarray>() with
             member _.GetHashCode(strs) = strs.Length
@@ -58,7 +74,7 @@ module SymbolComparers =
     let SimilarEntitySymbolComparer() =
         { new EqualityComparer<EntitySymbol>() with
             member _.GetHashCode(ent) = ent.Name.GetHashCode()
-            member _.Equals(ent1, ent2) = areEntitiesEqual ent1 ent2
+            member _.Equals(ent1, ent2) = areEntitiesSimilar ent1 ent2
         }
 
     let SimilarValueSymbolComparer() =

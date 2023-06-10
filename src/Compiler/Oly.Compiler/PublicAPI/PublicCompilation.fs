@@ -5,6 +5,7 @@ open System
 open System.Collections.Immutable
 open System.Collections.Generic
 open System.Threading
+open System.Runtime.CompilerServices
 
 open Oly.Core
 open Oly.Metadata
@@ -343,6 +344,48 @@ let private setup isApp ilAsmIdent references =
 [<RequireQualifiedAccess>]
 module private CompilationPhases =
 
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    let checkDuplications (state: CompilationState) (binders4: (BinderPass4 * OlyDiagnostic imarray) imarray) =
+        let map f = 
+            if state.options.Parallel then
+                ImArray.Parallel.map f
+            else
+                ImArray.map f
+
+        let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
+            match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
+            | true, srcLoc ->
+                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists across compilation units.", 10, srcLoc)
+                |> Some
+            | _ ->
+                None
+
+        // This checks for ambiguity of types with the same signature declared across multiple compilation units.
+        // TODO: This is quadratic, but not super bad since we are able to look at a dictionary to determine if a similar entity exists in
+        //       each compilation unit. The quadratic'ness is caused by iterating over each compilation unit for every compilation unit.
+        //       This is mitigated by doing each check potentially in parallel.
+        //       We should find another way to do this without being quadratic.
+        binders4
+        |> map (fun (b1, diags) ->
+            let newDiags = ImArray.builder()
+            binders4
+            |> ImArray.iter (fun (b2, _) ->
+                if obj.ReferenceEquals(b1, b2) |> not then
+                    if b1.Entity.IsNamespace then
+                        b1.Entity.Entities
+                        |> ImArray.iter (fun ent ->
+                            match checkDuplicate b2 ent with
+                            | Some(diag) -> newDiags.Add(diag)
+                            | _ -> ()
+                        )
+                    else
+                        match checkDuplicate b2 b1.Entity with
+                        | Some(diag) -> newDiags.Add(diag)
+                        | _ -> ()
+            )
+            (b1, diags.AddRange(newDiags))
+        )
+
     let signature (state: CompilationState) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
 
@@ -388,7 +431,7 @@ module private CompilationPhases =
             binders3
             |> map (fun x -> x.Bind(ct))
 
-        binders4
+        checkDuplications state binders4
 
     let implementation (state: CompilationState) (binders4: (BinderPass4 * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -399,9 +442,17 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
+        let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
+            match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
+            | true, srcLoc ->
+                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists.", 10, srcLoc)
+                |> Some
+            | _ ->
+                None
+
         binders4
-        |> map (fun (x, diags) ->
-            let boundTree, diags2 = x.Bind(ct)
+        |> map (fun (b1, diags) ->
+            let boundTree, diags2 = b1.Bind(ct)
             boundTree, diags.AddRange(diags2)
         )
 
