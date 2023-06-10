@@ -1641,6 +1641,8 @@ type InterpreterRuntimeEmitter() =
 
     interface IOlyRuntimeEmitter<InterpreterType, InterpreterFunction, InterpreterField> with
 
+        member this.Initialize(_) = ()
+
         member this.EmitFunctionInstance(_, func: InterpreterFunction, tyArgs: _): InterpreterFunction = 
             raise(System.NotSupportedException())
 

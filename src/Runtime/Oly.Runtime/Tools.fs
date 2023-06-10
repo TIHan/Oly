@@ -29,6 +29,8 @@ type DummyField(name: string) =
 type DummyEmitter(onEmitBody) =
     interface IOlyRuntimeEmitter<DummyType, DummyFunction, DummyField> with
 
+        member _.Initialize(_) = ()
+
         member _.EmitExportedProperty(_, _, _, _, _, _) =
             raise(System.NotSupportedException())
 

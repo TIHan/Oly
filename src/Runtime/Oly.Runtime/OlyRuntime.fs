@@ -1601,42 +1601,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             funcs, funcTyArgs
 
         tryResolve enclosingTy1
-        //let enclosingTyParCount1 = enclosingTy1.TypeParameters.Length
-
-        //let tryResolve (enclosingTy1: RuntimeType) =
-        //    if enclosingTy1.IsBuiltIn then ImArray.empty, funcTyArgs
-        //    else
-
-        //    let genericContext1 =
-        //        if genericContext.IsErasing then
-        //            GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
-        //        else
-        //            GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
-
-        //    let asm = assemblies.[enclosingTy1.AssemblyIdentity]
-        //    let ilEntDef = asm.ilAsm.GetEntityDefinition(enclosingTy1.ILEntityDefinitionHandle)
-        //    let genericContext2 =
-        //        if genericContext.IsErasing then
-        //            GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
-        //        else
-        //            GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
-        //    let enclosingTyParCount2 = ilEntDef.FullTypeParameterCount
-
-        //    let funcs =
-        //        ilEntDef.FunctionHandles
-        //        |> ImArray.choose (fun ilFuncDefHandle2 ->
-        //            let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
-        //            let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
-        //            if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, genericContext1, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, genericContext2) then
-        //                this.ResolveFunctionDefinition(enclosingTy1.Formal, ilFuncDefHandle2)
-        //                |> Some
-        //            else
-        //                None
-        //        )
-        
-        //    funcs, funcTyArgs
-
-        //tryResolve enclosingTy1
 
     let getTotalTypeVariableUseCountFromType (ty: RuntimeType) =
         let rec loop count (ty: RuntimeType) =
@@ -2378,6 +2342,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member val TypeBaseObject: _ Lazy  = lazy emitter.EmitTypeBaseObject()
 
     member internal this.Assemblies: ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
+
+    member this.InitializeEmitter() =
+        emitter.Initialize(this)
 
     member this.SubscribeType(receiverTy: RuntimeType, ty: RuntimeType) =
         if not receiverTy.IsBuiltIn then
@@ -3952,3 +3919,44 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             OlyIRFunctionTier.Tier0(true)
         else
             OlyIRFunctionTier.Tier2
+
+    interface IOlyVirtualMachine<'Type, 'Function, 'Field> with
+
+        /// Try to find a type based on its fully-qualified name.
+        /// Note: Does not support generics or nested types.
+        member this.TryFindType(fullyQualifiedTypeName: string): 'Type option =
+            // TODO: This should be optimized.
+            let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
+            let enclosingTargetNames = splitted.RemoveAt(splitted.Length - 1)
+            let targetName = splitted[splitted.Length - 1]
+            let rec collect (enclosingTargetNames: string imarray) targetName =
+                assemblies.Values
+                |> Seq.map (fun asm ->
+                    asm.ilAsm.FindEntityDefinitions(targetName)
+                    |> ImArray.filter (fun ilEntDefHandle ->
+                        let ilEntDef = asm.ilAsm.GetEntityDefinition(ilEntDefHandle)
+                        match ilEntDef.Enclosing with
+                        | OlyILEnclosing.Namespace(path, _) ->
+                            if path.Length = enclosingTargetNames.Length then
+                                (path, enclosingTargetNames)
+                                ||> ImArray.forall2 (fun handle name ->
+                                    asm.ilAsm.GetStringOrEmpty(handle) = name
+                                )
+                            else
+                                false
+                        | OlyILEnclosing.Entity _ ->
+                            // TODO: Handle nested types.
+                            false
+                        | _ ->
+                            false
+
+                    )
+                    |> ImArray.map (fun ilEntDefHandle ->
+                        this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
+                        |> this.EmitType
+                    )
+                )
+                |> Seq.concat
+            collect enclosingTargetNames targetName
+            |> Seq.tryExactlyOne
+        

@@ -14,7 +14,13 @@ type OlyIRFunctionTier =
         | Tier0 true -> true
         | _ -> false
 
+type IOlyVirtualMachine<'Type, 'Function, 'Field> =
+
+    abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
+
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
+
+    abstract Initialize : vm: IOlyVirtualMachine<'Type, 'Function, 'Field> -> unit
 
     abstract EmitTypeNativeInt      : unit -> 'Type
     abstract EmitTypeNativeUInt     : unit -> 'Type

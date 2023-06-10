@@ -16,6 +16,7 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     |> ImArray.iter (fun x -> runtime.ImportAssembly(x.ToReadOnly()))
 
     runtime.ImportAssembly(asm.ToReadOnly())
+    runtime.InitializeEmitter()
     runtime.EmitEntryPoint()
     
     TestPlatform.emitterWrite emitter

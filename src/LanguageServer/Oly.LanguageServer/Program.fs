@@ -1869,6 +1869,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                         | _ ->
                                             ()
                                     )
+
+                                    runtime.InitializeEmitter()
+
                                     runtime.EmitEntryPoint()
                                     let fullQualifiedTyName =
                                         match valueSymbol.Enclosing.TryType with

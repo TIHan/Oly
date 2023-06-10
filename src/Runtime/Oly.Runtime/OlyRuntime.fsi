@@ -8,7 +8,11 @@ open Oly.Metadata
 [<Sealed>]
 type OlyRuntime<'Type, 'Function, 'Field> =
 
+    interface IOlyVirtualMachine<'Type, 'Function, 'Field>
+
     new : IOlyRuntimeEmitter<'Type, 'Function, 'Field> -> OlyRuntime<'Type, 'Function, 'Field>
+
+    member InitializeEmitter : unit -> unit
 
     /// Loads an assembly into the runtime.
     member ImportAssembly : OlyILReadOnlyAssembly -> unit

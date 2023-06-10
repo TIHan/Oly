@@ -510,6 +510,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
         runtime.ImportAssembly(asm.ToReadOnly())
 
+        runtime.InitializeEmitter()
+
         if asm.EntryPoint.IsSome then
             runtime.EmitEntryPoint()
         else

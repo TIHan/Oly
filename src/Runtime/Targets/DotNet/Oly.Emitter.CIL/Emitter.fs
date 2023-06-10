@@ -1738,6 +1738,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     interface IOlyRuntimeEmitter<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo> with
 
+        member this.Initialize(vm) =
+            asmBuilder.tr_InAttribute <- vm.TryFindType("System.Runtime.InteropServices.InAttribute") |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_IsReadOnlyAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsReadOnlyAttribute") |> Option.map (fun x -> x.Handle)
+
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
 
@@ -1784,7 +1788,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | OlyIRByRefKind.ReadWrite ->
                 ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(ty.Handle), false, true)     
             | OlyIRByRefKind.Read ->
-                let ty = ClrTypeHandle.ModReq(asmBuilder.tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
+                let ty = 
+                    match asmBuilder.tr_InAttribute with
+                    | Some tr_InAttribute ->
+                        ClrTypeHandle.ModReq(tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
+                    | _ ->
+                        ClrTypeHandle.CreateByRef(ty.Handle)
                 ClrTypeInfo.TypeReference(asmBuilder, ty, true, true)     
 
         member this.EmitTypeRefCell(ty) =
