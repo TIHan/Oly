@@ -1778,6 +1778,12 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
         | E.Lambda _ ->
             if not env.isPassedAsArgument then
                 checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
+                match expectedTyOpt with
+                // TODO: Do we really need to check for 'isReturnable' here? It was put here to prevent duplicate error messages...
+                | Some(expectedTy) when not env.isReturnable ->
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+                | _ ->
+                    ()
         | _ ->
             checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
 

@@ -8163,3 +8163,41 @@ module M =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Assignment of function should fail as types mismatch``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class Test =
+
+    X: int32 -> () get, set
+
+    new() =
+        {
+            X = () -> ()
+        }
+
+main(): () =
+    let t = Test()
+    t.X <- () -> ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'int32 -> ()' but is '() -> ()'.",
+            """
+            X = () -> ()
+                ^^^^^^^^
+"""
+            )
+            ("Expected type 'int32 -> ()' but is '() -> ()'.",
+            """
+    t.X <- () -> ()
+           ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
