@@ -3191,6 +3191,12 @@ type TypeSymbol =
 
         | Function(inputTy, returnTy)
         | NativeFunctionPtr(_, inputTy, returnTy) ->
+            let inputTy =
+                match stripTypeEquations inputTy with
+                | TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
+                    elementTys[0]
+                | _ ->
+                    inputTy
             ImArray.createTwo inputTy returnTy
                 
         | HigherInferenceVariable(_, tyArgs, _, _)
@@ -3776,6 +3782,9 @@ type TypeSymbol =
     static member CreateMutableArray(elementTy: TypeSymbol) =
         TypeSymbol.CreateMutableArray(elementTy, 1)
 
+    static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol) =
+        TypeSymbol.Function(inputTy, outputTy)
+
     static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol) =
         let inputTy =
             if argTys.IsEmpty then
@@ -3801,6 +3810,9 @@ type TypeSymbol =
 
     static member CreateFunction(argTys: TypeSymbol imarray, returnTy) =
         TypeSymbol.CreateFunction(ImArray.empty, argTys, returnTy)
+
+    static member CreateFunctionPtr(ilCallConv, inputTy: TypeSymbol, outputTy: TypeSymbol) =
+        TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, outputTy)
 
     static member CreateFunctionPtr(ilCallConv, argTys: TypeSymbol imarray, returnTy: TypeSymbol) =
         let inputTy =

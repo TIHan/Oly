@@ -155,7 +155,7 @@ class TextInputView =
             textBuffer = Array.ZeroCreate(256)
             text = string.Empty
 
-            OnTextChanged = () -> ()
+            OnTextChanged = (x, y) -> ()
         }
 
     field textBuffer: mutable byte[]

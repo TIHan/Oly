@@ -669,7 +669,8 @@ type OlyILType =
 
     | OlyILTypeTuple of elementTys: OlyILType imarray * elementNames: OlyILStringHandle imarray
     | OlyILTypeRefCell of ty: OlyILType
-    | OlyILTypeFunction of argTys: OlyILType imarray * returnTy: OlyILType
+    /// TODO: Add parameter type names.
+    | OlyILTypeFunction of parTys: OlyILType imarray * returnTy: OlyILType
     | OlyILTypeNativeInt
     | OlyILTypeNativeUInt
     | OlyILTypeNativePtr of elementTy: OlyILType

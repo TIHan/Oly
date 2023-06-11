@@ -257,11 +257,29 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
         | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2)
         | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2))
         | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2) ->
-            UnifyTypes rigidity inputTy1 inputTy2 &&
+            (
+                match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
+                | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
+                    UnifyTypes rigidity inputTy1 inputTy2
+                | TypeSymbol.Tuple(elementTys, _), ty
+                | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
+                    UnifyTypes rigidity elementTys[0] ty
+                | _ ->
+                    UnifyTypes rigidity inputTy1 inputTy2
+            ) &&
             UnifyTypes rigidity returnTy1 returnTy2
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
-            UnifyTypes rigidity inputTy1 inputTy2 &&
+            (
+                match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
+                | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
+                    UnifyTypes rigidity inputTy1 inputTy2
+                | TypeSymbol.Tuple(elementTys, _), ty
+                | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
+                    UnifyTypes rigidity elementTys[0] ty
+                | _ ->
+                    UnifyTypes rigidity inputTy1 inputTy2
+            ) &&
             UnifyTypes rigidity returnTy1 returnTy2 &&
             ilCallConv1 = ilCallConv2
 

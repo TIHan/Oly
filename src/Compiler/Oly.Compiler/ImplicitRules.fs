@@ -47,8 +47,8 @@ let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
 
         let funcTy =
             match stripTypeEquations func.Type with
-            | TypeSymbol.Function(argTys, _) ->
-                TypeSymbol.Function(argTys, returnTy)
+            | TypeSymbol.Function(inputTy, _) ->
+                TypeSymbol.Function(inputTy, returnTy)
             | _ ->
                 OlyAssert.Fail("Unsupported type.")
 

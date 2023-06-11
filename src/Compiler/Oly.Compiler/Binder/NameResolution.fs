@@ -1377,24 +1377,11 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
         | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
-            
-            let argTys =
-                match inputTy with
-                | TypeSymbol.Tuple(itemTys, _) -> itemTys
-                | TypeSymbol.Unit -> ImArray.empty
-                | _ -> ImArray.createOne inputTy
-            let returnTy = bind cenv env resTyArity false syntaxOutputTy
-
-            TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, returnTy)
+            let outputTy = bind cenv env resTyArity false syntaxOutputTy
+            TypeSymbol.CreateFunction(inputTy, outputTy)
 
         | OlySyntaxType.FunctionPtr(_, syntaxBlittableOptional, syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
-
-            let argTys =
-                match inputTy with
-                | TypeSymbol.Tuple(itemTys, _) -> itemTys
-                | TypeSymbol.Unit -> ImArray.empty
-                | _ -> ImArray.createOne inputTy
             let returnTy = bind cenv env resTyArity false syntaxOutputTy
             let ilCallConv =
                 match syntaxBlittableOptional with
@@ -1402,7 +1389,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     Oly.Metadata.OlyILCallingConvention.Blittable
                 | _ ->
                     Oly.Metadata.OlyILCallingConvention.Default
-            TypeSymbol.CreateFunctionPtr(ilCallConv, argTys, returnTy)
+            TypeSymbol.CreateFunctionPtr(ilCallConv, inputTy, returnTy)
 
         | OlySyntaxType.WildCard _ ->
             if env.resolutionMustSolveTypes then

@@ -8201,3 +8201,17 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Lambda signature with parameter names should have the right signature``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class Test =
+
+    ~^~X: (x: int32, y: int32) -> () get, set
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "X: (x: int32, y: int32) -> () get, set"

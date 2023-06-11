@@ -185,7 +185,7 @@ createUI(deviceName: string): WindowView =
 
     let textInput = TextInputView()
     textInput.Label <- "Oly Input Text"
-    textInput.OnTextChanged <- () -> printLine(textInput.Text)
+    textInput.OnTextChanged <- (x: string, y: string) -> printLine(textInput.Text)
     window.Children.Add(textInput)
 
     window.Children.Add(
