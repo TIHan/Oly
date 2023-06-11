@@ -167,7 +167,6 @@ createImageByFile(path: string): GpuImage =
 createUI(deviceName: string): WindowView =
     let window = WindowView()
     window.Title <- "Window"
- //   window.Size <- Vector2(256, 512)
 
     window.Children.Add(
         let view = LabelView()
@@ -192,14 +191,14 @@ createUI(deviceName: string): WindowView =
     window.Children.Add(
         let view = ButtonView()
         view.Label <- "Toggle Input Text"
-        view.OnClick <- () -> textInput.IsEnabled <- !textInput.IsEnabled
+        view.OnClicked <- () -> textInput.IsEnabled <- !textInput.IsEnabled
         view
     )
 
     window.Children.Add(
         let view = ButtonView()
         view.Label <- "Add Image"
-        view.OnClick <- 
+        view.OnClicked <- 
             () ->
                 image.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf066.png")
                 window.Children.Add(
@@ -212,44 +211,48 @@ createUI(deviceName: string): WindowView =
     )
 
     window.Children.Add(
-        let view = ButtonView()
+        let view = CheckboxView()
         view.Label <- "Enable Move"
-        view.OnClick <- () -> window.CanMove <- true
+        view.IsChecked <- window.CanMove
+        view.OnChanged <- () -> window.CanMove <- view.IsChecked
         view
     )
 
     window.Children.Add(
-        let view = ButtonView()
+        let view = CheckboxView()
         view.Label <- "Enable Resize"
-        view.OnClick <- () -> window.CanResize <- true
+        view.IsChecked <- window.CanResize
+        view.OnChanged <- () -> window.CanResize <- view.IsChecked
         view
     )
 
     window.Children.Add(
-        let view = ButtonView()
-        view.Label <- "Disable Auto-Resize"
-        view.OnClick <- () -> window.CanAutoResize <- false
-        view
-    )
-
-    window.Children.Add(
-        let view = ButtonView()
+        let view = CheckboxView()
         view.Label <- "Enable Auto-Resize"
-        view.OnClick <- () -> window.CanAutoResize <- true
+        view.IsChecked <- window.CanAutoResize
+        view.OnChanged <- () -> window.CanAutoResize <- view.IsChecked
+        view
+    )
+
+    window.Children.Add(
+        let view = ComboBoxView()
+        view.Label <- "Combo Box"
+        view.Items <- mutable ["Item1";"Item2";"Item3"]
+        view.OnChanged <- () -> ()
         view
     )
 
     window.Children.Add(
         let view = ButtonView()
         view.Label <- "Close Window"
-        view.OnClick <- () -> window.IsOpen <- false
+        view.OnClicked <- () -> window.IsOpen <- false
         view
     )
 
     window.Children.Add(
         let view = ButtonView()
         view.Label <- "Close Window"
-        view.OnClick <- () -> window.IsOpen <- false
+        view.OnClicked <- () -> window.IsOpen <- false
         view
     )
 

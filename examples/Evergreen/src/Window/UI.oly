@@ -1,9 +1,11 @@
 namespace Evergreen.Graphics.Rendering.UI
 
 open System
+open System.Text
 open System.Numerics
 open System.Collections.Generic
 open System.Threading
+open System.Runtime.InteropServices
 open Evergreen
 open Evergreen.Graphics.Rendering
 
@@ -24,25 +26,6 @@ private module Span =
             i
         else
             -1
-
-// abstract class UIModel =
-
-//     IsEnabled: bool get, set = true
-//     Size: Vector2 get, set = Vector2.Zero
-
-// class CheckboxModel =
-//     inherits UIModel
-
-//     Label: string get, set = string.Empty
-//     IsChecked: bool get, set = false
-
-// class ComboBoxModel =
-//     inherits UIModel
-
-//     Label: string get, set = string.Empty
-//     SelectedItemIndex: int32 get, set = 0
-//     Items: mutable string[] get, set = mutable []
-//     ItemCount: int32 get, set = 0
 
 abstract class View =
 
@@ -80,45 +63,33 @@ abstract class View =
     pattern Image(view: View): ImageView when (view.Tag == 4) =>
         Unsafe.Cast<ImageView>(view)
 
-    // internal class Checkbox =
-    //     inherits UINode
+    pattern Checkbox(view: View): CheckboxView when (view.Tag == 5) =>
+        Unsafe.Cast<CheckboxView>(view)
 
-    //     State: CheckboxModel get
-    //     OnChanged: () -> () get
+    pattern ComboBox(view: View): ComboBoxView when (view.Tag == 6) =>
+        Unsafe.Cast<ComboBoxView>(view)
 
-    //     new(state: CheckboxModel, onChanged: () -> ()) =
-    //         base (10) with {
-    //             State = state
-    //             OnChanged = onChanged
-    //         }
+abstract class AbstractLabelView =
+    inherits View
 
-    // pattern Checkbox(node: UINode): (state: CheckboxModel, onChanged: () -> ()) when (node.Tag == 10) =>
-    //     let node = Unsafe.Cast<Checkbox>(node)
-    //     (node.State, node.OnChanged)
+    internal new(tag: int32) =
+        base(tag) with {
+            labelBuffer = Array.ZeroCreate(256)
+            labelBufferLength = 0
+            label = ""
+        }
 
-    // internal class ComboBox =
-    //     inherits UINode
-
-    //     State: ComboBoxModel get
-    //     OnChanged: () -> () get
-
-    //     new(state: ComboBoxModel, onChanged: () -> ()) =
-    //         base (11) with {
-    //             State = state
-    //             OnChanged = onChanged
-    //         }
-
-    // pattern ComboBox(node: UINode): (state: ComboBoxModel, onChanged: () -> ()) when (node.Tag == 11) =>
-    //     let node = Unsafe.Cast<ComboBox>(node)
-    //     (node.State, node.OnChanged)
-
-    // internal class DemoWindow =
-    //     inherits UINode
-
-    //     new() = base(100)
-
-    // pattern DemoWindow(node: UINode): () when (node.Tag == 100) =>
-    //     ()
+    field labelBuffer: mutable byte[]
+    mutable field labelBufferLength: int32
+    mutable field label: string
+    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
+    Label: string
+        get() = this.label
+        set(mutable value) =
+            // if (string.IsNullOrWhiteSpace(value))
+            //     value <- "##"
+            this.label <- value
+            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
 class WindowView =
     inherits View
@@ -167,57 +138,25 @@ class WindowView =
             this.titleBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.title, 0, this.title.Length, this.titleBuffer, 0)
 
 class ButtonView =
-    inherits View
+    inherits AbstractLabelView
 
     new() =
         base(1) with {
-            labelBuffer = Array.ZeroCreate(256)
-            labelBufferLength = 0
-            label = ""
-
-            OnClick = () -> ()
+            OnClicked = () -> ()
         }
 
-    field labelBuffer: mutable byte[]
-    mutable field labelBufferLength: int32
-    mutable field label: string
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(mutable value) =
-            // if (string.IsNullOrWhiteSpace(value))
-            //     value <- "##"
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
-
-    OnClick: () -> () get, set
+    OnClicked: () -> () get, set
 
 class TextInputView =
-    inherits View
+    inherits AbstractLabelView
 
     new() =
         base(2) with {
-            labelBuffer = Array.ZeroCreate(256)
-            labelBufferLength = 0
-            label = ""
-
             textBuffer = Array.ZeroCreate(256)
             text = string.Empty
 
             OnTextChanged = () -> ()
         }
-
-    field labelBuffer: mutable byte[]
-    mutable field labelBufferLength: int32
-    mutable field label: string
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(mutable value) =
-            // if (string.IsNullOrWhiteSpace(value))
-            //     value <- "##"
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
     field textBuffer: mutable byte[]
     mutable field text: string
@@ -231,29 +170,13 @@ class TextInputView =
     OnTextChanged: () -> () get, set
 
 class LabelView =
-    inherits View
+    inherits AbstractLabelView
 
     new() =
         base(3) with {
-            labelBuffer = Array.ZeroCreate(256)
-            labelBufferLength = 0
-            label = ""
-
             textBuffer = Array.ZeroCreate(256)
             text = string.Empty
         }
-
-    field labelBuffer: mutable byte[]
-    mutable field labelBufferLength: int32
-    mutable field label: string
-    internal LabelSpan: ReadOnlySpan<byte> get() = ReadOnlySpan(this.labelBuffer, 0, this.labelBufferLength)
-    Label: string
-        get() = this.label
-        set(mutable value) =
-            // if (string.IsNullOrWhiteSpace(value))
-            //     value <- "##"
-            this.label <- value
-            this.labelBufferLength <- System.Text.Encoding.UTF8.GetBytes(this.label, 0, this.label.Length, this.labelBuffer, 0)
 
     field textBuffer: mutable byte[]
     mutable field text: string
@@ -282,6 +205,77 @@ class ImageView =
         set(value) =
             this.gpuImage <- value 
             this.isDirty <- true
+
+class CheckboxView =
+    inherits AbstractLabelView
+
+    new() =
+        base(5) with {
+            IsChecked = false
+            OnChanged = () -> ()
+        }
+
+    IsChecked: bool get, set
+    OnChanged: () -> () get, set
+
+class ComboBoxView =
+    inherits AbstractLabelView
+    implements IDisposable
+
+    new() =
+        base(6) with {
+            SelectedItemIndex = 0
+            PopupMaxHeight = 8
+            OnChanged = () -> ()
+
+            itemPtrs = mutable []
+            items = mutable []
+            isDisposed = false
+        }
+
+    mutable field isDisposed: bool
+
+    SelectedItemIndex: int32 get, set
+    PopupMaxHeight: int32 get, set
+    OnChanged: () -> () get, set
+
+    internal mutable field itemPtrs: mutable nint[]
+    mutable field items: mutable string[]
+    Items: mutable string[] 
+        get() = 
+            if (this.isDisposed)
+                throw System.ObjectDisposedException("ComboBoxView")
+            this.items
+        set(value) =
+            this.Free()
+
+            this.itemPtrs <- 
+                Array.Map(value,
+                    str ->
+                        let buffer = Array.ZeroCreate(256)
+                        let byteCount = System.Text.Encoding.UTF8.GetBytes(str, 0, str.Length, buffer, 0)
+                        let ptr = Marshal.AllocHGlobal(byteCount + 1)
+                        let mutable span = Span<byte>(buffer, 0, byteCount)
+                        let mutable outputSpan = Span<byte>(Unsafe.Cast<void*>(ptr), byteCount + 1)
+                        span.CopyTo(outputSpan)
+                        (outputSpan[outputSpan.Length - 1]) <- 0
+                        ptr
+                )
+
+            this.items <- value
+
+    private Free(): () =
+        if (this.isDisposed)
+            throw System.ObjectDisposedException("ComboBoxView")
+        let mutable i = 0
+        while (i < this.itemPtrs.Length)
+            Marshal.FreeHGlobal(this.itemPtrs[i])
+            this.itemPtrs[i] <- default
+            i <- i + 1
+
+    Dispose(): () =
+        this.Free()
+        this.isDisposed <- true
 
 class UIContext =
 
@@ -317,17 +311,11 @@ module UI =
         | View.Image(view) =>
             MakeImage(context, view)
 
-        // | UINode.DemoWindow =>
-        //     ImGui.ShowDemoWindow(context)
+        | View.Checkbox(view) =>
+            MakeCheckbox(context, view)
 
-        // | UINode.Int32Input(state, onChanged) =>
-        //     MakeInt32Input(state, onChanged)
-
-        // | UINode.Checkbox(state, onChanged) =>
-        //     MakeCheckbox(state, onChanged)
-
-        // | UINode.ComboBox(state, onChanged) =>
-        //     MakeComboBox(state, onChanged)
+        | View.ComboBox(view) =>
+            MakeComboBox(context, view)
 
         | _ =>
             ()
@@ -390,7 +378,7 @@ module UI =
 
     private MakeButton(context: UIContext, view: ButtonView): () =
         if (ImGui.Button(context.ImGuiContext, view.LabelSpan, view.Size))
-            context.ImGuiContext.Callbacks.Enqueue(view.OnClick)
+            context.ImGuiContext.Callbacks.Enqueue(view.OnClicked)
 
     private MakeTextInput(context: UIContext, view: TextInputView): () =
         if (ImGui.InputText(context.ImGuiContext, view.LabelSpan, view.TextSpan))
@@ -424,23 +412,17 @@ module UI =
         if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
             ImGui.Image(context.ImGuiContext, view.descriptorSet, view.Size, Vector2.Zero, Vector2.One)
 
-    // private MakeInt32Input(state: Int32InputViewModel, onChanged: Int32InputViewModel -> ()): () =
-    //     ImGui.BeginDisabled(!state.IsEnabled)
-    //     if (ImGui.InputInt(state.Label, &state.Value))
-    //         onChanged(state)
-    //     ImGui.EndDisabled()
+    private MakeCheckbox(context: UIContext, view: CheckboxView): () =
+        let mutable isChecked = view.IsChecked
+        if (ImGui.Checkbox(context.ImGuiContext, view.LabelSpan, &isChecked))
+            view.IsChecked <- isChecked
+            context.ImGuiContext.Callbacks.Enqueue(view.OnChanged)
 
-    // private MakeCheckbox(state: CheckboxViewModel, onChanged: CheckboxViewModel -> ()): () =
-    //     ImGui.BeginDisabled(!state.IsEnabled)
-    //     if (ImGui.Checkbox(state.Label, &state.IsChecked))
-    //         onChanged(state)
-    //     ImGui.EndDisabled()
-
-    // private MakeComboBox(state: ComboBoxViewModel, onChanged: ComboBoxViewModel -> ()): () =
-    //     ImGui.BeginDisabled(!state.IsEnabled)
-    //     if (ImGui.Combo(state.Label, &state.SelectedItemIndex, state.Items, state.ItemCount))
-    //         onChanged(state)
-    //     ImGui.EndDisabled()
+    private MakeComboBox(context: UIContext, view: ComboBoxView): () =
+        let mutable selectedItemIndex = view.SelectedItemIndex
+        if (ImGui.Combo(context.ImGuiContext, view.LabelSpan, &selectedItemIndex, view.itemPtrs, view.PopupMaxHeight))
+            view.SelectedItemIndex <- selectedItemIndex
+            context.ImGuiContext.Callbacks.Enqueue(view.OnChanged)
 
     NewFrame(context: UIContext): () =
         ImGui.NewFrame(context.ImGuiContext)

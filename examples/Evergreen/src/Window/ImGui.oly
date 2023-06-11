@@ -703,7 +703,7 @@ Checkbox(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, value: byref<
 
     let labelPtr = &&label.GetPinnableReference()
 
-    let mutable imValue = default: ImGuiBool
+    let mutable imValue = if (value) ImGuiBool.True else ImGuiBool.False
     let result = igCheckbox(labelPtr, &&imValue)
 
     if (imValue == true)
@@ -720,20 +720,22 @@ Button(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, size: Vector2):
 
     igButton(labelPtr, size) == true
 
-Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemIndex: byref<int32>, mutable items: ReadOnlySpan<byte*>, popupMaxHeight: int32): bool =
+Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemIndex: byref<int32>, items: mutable nint[], popupMaxHeight: int32): bool =
     igSetCurrentContext(context.Context)
 
     let labelPtr = &&label.GetPinnableReference()
-    let itemsPtr = &&items.GetPinnableReference()
+    let mutable itemsHandle = fixed(items)
 
     let result =
         igCombo_Str_arr(
             labelPtr,
             &&selectedItemIndex,
-            itemsPtr,
+            Unsafe.AsPointer(itemsHandle.AddrOfPinnedObject()),
             items.Length,
             popupMaxHeight
         )
+
+    itemsHandle.Free()
 
     result == true
 
