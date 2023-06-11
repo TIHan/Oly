@@ -123,7 +123,7 @@ class WindowView =
     CanAutoResize: bool get, set
     Position: Vector2 get, set
 
-    OnPositionChanged: (previousPosition: Vector2, currentPosition: Vector2) -> () get, set
+    OnPositionChanged: (previousPosition: Vector2, position: Vector2) -> () get, set
 
     field titleBuffer: mutable byte[]
     mutable field titleBufferLength: int32
@@ -167,7 +167,7 @@ class TextInputView =
             this.text <- value
             let byteCount = System.Text.Encoding.UTF8.GetBytes(this.text, 0, this.text.Length, this.textBuffer, 0)
 
-    OnTextChanged: () -> () get, set
+    OnTextChanged: (previousText: string, text: string) -> () get, set
 
 class LabelView =
     inherits AbstractLabelView
@@ -212,11 +212,11 @@ class CheckboxView =
     new() =
         base(5) with {
             IsChecked = false
-            OnChanged = () -> ()
+            OnChecked = (x: bool) -> ()
         }
 
     IsChecked: bool get, set
-    OnChanged: () -> () get, set
+    OnChecked: bool -> () get, set
 
 class ComboBoxView =
     inherits AbstractLabelView
@@ -226,7 +226,7 @@ class ComboBoxView =
         base(6) with {
             SelectedItemIndex = 0
             PopupMaxHeight = 8
-            OnChanged = () -> ()
+            OnSelectedItemIndexChanged = (x: int32, y: int32) -> ()
 
             itemPtrs = mutable []
             items = mutable []
@@ -237,7 +237,7 @@ class ComboBoxView =
 
     SelectedItemIndex: int32 get, set
     PopupMaxHeight: int32 get, set
-    OnChanged: () -> () get, set
+    OnSelectedItemIndexChanged: (previousSelectedItemIndex: int32, selectedItemIndex: int32) -> () get, set
 
     internal mutable field itemPtrs: mutable nint[]
     mutable field items: mutable string[]
@@ -378,10 +378,12 @@ module UI =
 
     private MakeButton(context: UIContext, view: ButtonView): () =
         if (ImGui.Button(context.ImGuiContext, view.LabelSpan, view.Size))
-            context.ImGuiContext.Callbacks.Enqueue(view.OnClicked)
+            view.OnClicked()
 
     private MakeTextInput(context: UIContext, view: TextInputView): () =
         if (ImGui.InputText(context.ImGuiContext, view.LabelSpan, view.TextSpan))
+            let prevText = view.Text
+
             let mutable textSpan = view.TextSpan
             let indexZero = Span.TryFindIndex(textSpan, x -> x == 0)
             let textSpan = 
@@ -389,8 +391,9 @@ module UI =
                     textSpan
                 else
                     textSpan.Slice(0, indexZero)
+
             view.Text <- System.Text.Encoding.UTF8.GetString(Span<_>.op_Implicit(textSpan))
-            context.ImGuiContext.Callbacks.Enqueue(view.OnTextChanged)
+            view.OnTextChanged(prevText, view.Text)
 
     private MakeLabel(context: UIContext, view: LabelView): () =
         ImGui.LabelText(context.ImGuiContext, view.LabelSpan, view.TextSpan)
@@ -416,22 +419,21 @@ module UI =
         let mutable isChecked = view.IsChecked
         if (ImGui.Checkbox(context.ImGuiContext, view.LabelSpan, &isChecked))
             view.IsChecked <- isChecked
-            context.ImGuiContext.Callbacks.Enqueue(view.OnChanged)
+            view.OnChecked(isChecked)
 
     private MakeComboBox(context: UIContext, view: ComboBoxView): () =
         let mutable selectedItemIndex = view.SelectedItemIndex
         if (ImGui.Combo(context.ImGuiContext, view.LabelSpan, &selectedItemIndex, view.itemPtrs, view.PopupMaxHeight))
+            let prevSelectedItemIndex = view.SelectedItemIndex
+
             view.SelectedItemIndex <- selectedItemIndex
-            context.ImGuiContext.Callbacks.Enqueue(view.OnChanged)
+            view.OnSelectedItemIndexChanged(prevSelectedItemIndex, selectedItemIndex)
 
     NewFrame(context: UIContext): () =
         ImGui.NewFrame(context.ImGuiContext)
 
     Show(context: UIContext, view: WindowView): () =
         MakeNode(context, view)
-        let mutable callback = unchecked default
-        while (context.ImGuiContext.Callbacks.TryDequeue(&callback))
-            callback()
 
     Draw(context: UIContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
         ImGui.Draw(context.ImGuiContext, commandBuffer, pipeline)

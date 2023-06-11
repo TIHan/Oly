@@ -348,7 +348,6 @@ class ImGuiContext =
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
     internal VkDescriptorSets: System.Collections.Concurrent.ConcurrentDictionary<VkDescriptorSet, () -> ()> get
     Frame: int32 get, set
-    Callbacks: System.Collections.Generic.Queue<() -> ()> get
 
     internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
         {
@@ -356,7 +355,6 @@ class ImGuiContext =
             Win32Handle = hwnd
             VulkanInfo = info
             Frame = 0
-            Callbacks = System.Collections.Generic.Queue()
             VkDescriptorSets = System.Collections.Concurrent.ConcurrentDictionary()
         }
 
