@@ -391,17 +391,17 @@ abstract class GpuCommand =
         inherits GpuCommand
 
         ProgramUI: GpuProgramUI get, set = unchecked default
-        Node: View get, set = unchecked default
+        WindowViews: IEnumerable<WindowView> get, set = unchecked default
 
-    pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, View) when (cmd.Tag == 1) =>
+    pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, IEnumerable<WindowView>) when (cmd.Tag == 1) =>
         let cmd = Unsafe.Cast<_DrawUI>(cmd)
-        (cmd.ProgramUI, cmd.Node)
+        (cmd.ProgramUI, cmd.WindowViews)
 
-    static DrawUI(gpuProgramUI: GpuProgramUI, uiNode: View): GpuCommand =
+    static DrawUI(gpuProgramUI: GpuProgramUI, windowViews: IEnumerable<WindowView>): GpuCommand =
         let cmd = _DrawUI()
         cmd.Tag <- 1
         cmd.ProgramUI <- gpuProgramUI
-        cmd.Node <- uiNode
+        cmd.WindowViews <- windowViews
         cmd
 
     private class _EndFrame =
@@ -1029,7 +1029,7 @@ class Gpu =
 
                                 currentProgramInstance <- gpuProgramInstance
 
-                            | GpuCommand.DrawUI(gpuProgramUI, uiNode) =>
+                            | GpuCommand.DrawUI(gpuProgramUI, windowViews) =>
                                 this.Sync(gpuProgramUI)
 
                                 if (gpuProgramUI.Frame !== currentFrame)
@@ -1043,7 +1043,10 @@ class Gpu =
                                 let context = UIContext(this, gpuProgramUI)
 
                                 UI.NewFrame(context)
-                                UI.Show(context, uiNode)
+                                ForEach(windowViews, 
+                                    windowView ->
+                                        UI.Show(context, windowView)
+                                )
                                 UI.Draw(context, commandBuffer, VkPipeline.NULL)
                                 
                             | _ =>

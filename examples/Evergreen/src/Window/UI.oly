@@ -59,7 +59,11 @@ abstract class View =
             Id = Interlocked.Increment(&NextId)
             IsEnabled = true
             Size = Vector2.Zero
+
+            OnSizeChanged = (x: Vector2, y: Vector2) -> ()
         }
+
+    OnSizeChanged: (previousSize: Vector2, currentSize: Vector2) -> () get, set
 
     pattern Window(view: View): WindowView when (view.Tag == 0) =>
         Unsafe.Cast<WindowView>(view)
@@ -124,17 +128,31 @@ class WindowView =
             Children = List()
 
             IsOpen = true
+            CanMove = false
+            CanResize = false
+            CanAutoResize = true
             Position = Vector2.Zero
+
+            OnPositionChanged = (x: Vector2, y: Vector2) -> ()
 
             titleBuffer = Array.ZeroCreate(256)
             titleBufferLength = 0
             title = ""
+
+            isInit = false
         }
+
+    internal mutable field isInit: bool
 
     Children: List<View> get
 
     IsOpen: bool get, set
+    CanMove: bool get, set
+    CanResize: bool get, set
+    CanAutoResize: bool get, set
     Position: Vector2 get, set
+
+    OnPositionChanged: (previousPosition: Vector2, currentPosition: Vector2) -> () get, set
 
     field titleBuffer: mutable byte[]
     mutable field titleBufferLength: int32
@@ -285,8 +303,6 @@ module UI =
         ImGui.BeginDisabled(context.ImGuiContext, !view.IsEnabled)
         match (view)
         | View.Window(view) =>
-            ImGui.SetWindowSize(context.ImGuiContext, view.Size)
-            ImGui.SetWindowPosition(context.ImGuiContext, view.Position)
             MakeWindow(context, view)
         
         | View.Button(view) =>
@@ -321,12 +337,55 @@ module UI =
 
     private MakeWindow(context: UIContext, view: WindowView): () =
         let mutable isOpen = view.IsOpen
-        if (isOpen && ImGui.Begin(context.ImGuiContext, &isOpen, true, view.TitleSpan))
-            let mutable i = 0
-            while (i < view.Children.Count)
-                MakeNode(context, view.Children[i])
-                i <- i + 1
-            ImGui.End(context.ImGuiContext)
+        if (isOpen)
+            let mutable prevPos = view.Position
+            let mutable prevSize = view.Size
+
+            if (!view.isInit)
+                view.isInit <- true
+                ImGui.SetNextWindowPosition(context.ImGuiContext, view.Position)
+                ImGui.SetNextWindowSize(context.ImGuiContext, view.Size)
+
+            if (view.CanAutoResize)
+                ImGui.SetNextWindowSize(context.ImGuiContext, Vector2.Zero)
+
+            let mutable defaultFlags = ImGui.ImGuiWindowFlags.NoCollapse | ImGui.ImGuiWindowFlags.NoSavedSettings
+
+            defaultFlags <-
+                if (view.CanMove)
+                    defaultFlags
+                else
+                    defaultFlags | ImGui.ImGuiWindowFlags.NoMove
+
+            defaultFlags <-
+                if (view.CanResize)
+                    defaultFlags
+                else
+                    defaultFlags | ImGui.ImGuiWindowFlags.NoResize
+
+            if (ImGui.Begin(context.ImGuiContext, &isOpen, true, view.TitleSpan, defaultFlags))
+                let mutable i = 0
+                while (i < view.Children.Count)
+                    MakeNode(context, view.Children[i])
+                    i <- i + 1
+
+                let pos = ImGui.GetWindowPosition(context.ImGuiContext)
+                view.Position <- pos
+
+                if (prevPos != pos)
+                    ImGui.SetWindowPosition(context.ImGuiContext, view.Position)
+                    view.OnPositionChanged(prevPos, pos)
+
+                let size = ImGui.GetWindowSize(context.ImGuiContext)
+                view.Size <- size
+
+                if (prevSize != size)
+                    if (!view.CanAutoResize)
+                       ImGui.SetWindowSize(context.ImGuiContext, view.Size)
+                    view.OnSizeChanged(prevSize, size)
+
+                ImGui.End(context.ImGuiContext)
+
         view.IsOpen <- isOpen
 
     private MakeButton(context: UIContext, view: ButtonView): () =
@@ -386,7 +445,7 @@ module UI =
     NewFrame(context: UIContext): () =
         ImGui.NewFrame(context.ImGuiContext)
 
-    Show(context: UIContext, view: View): () =
+    Show(context: UIContext, view: WindowView): () =
         MakeNode(context, view)
         let mutable callback = unchecked default
         while (context.ImGuiContext.Callbacks.TryDequeue(&callback))

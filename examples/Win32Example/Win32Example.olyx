@@ -164,9 +164,10 @@ createImageByFile(path: string): GpuImage =
 
     GpuImage(image.Width, image.Height, ReadOnlyMemory(bytes))
 
-createUI(deviceName: string): View =
+createUI(deviceName: string): WindowView =
     let window = WindowView()
     window.Title <- "Window"
+ //   window.Size <- Vector2(256, 512)
 
     window.Children.Add(
         let view = LabelView()
@@ -207,6 +208,34 @@ createUI(deviceName: string): View =
                     view.Size <- Vector2(64, 64)
                     view
                 )
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Enable Move"
+        view.OnClick <- () -> window.CanMove <- true
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Enable Resize"
+        view.OnClick <- () -> window.CanResize <- true
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Disable Auto-Resize"
+        view.OnClick <- () -> window.CanAutoResize <- false
+        view
+    )
+
+    window.Children.Add(
+        let view = ButtonView()
+        view.Label <- "Enable Auto-Resize"
+        view.OnClick <- () -> window.CanAutoResize <- true
         view
     )
 
@@ -294,14 +323,14 @@ main(): () =
             [
                 GpuCommand.NewFrame(frame)
                 GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length)
-                GpuCommand.DrawUI(gpuProgramUI2, uiNode2)
+                GpuCommand.DrawUI(gpuProgramUI2, Unsafe.Cast([uiNode2]))
                 GpuCommand.EndFrame()
             ],
             gpuCommands
         )
         
         
-    let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(gpuProgramUI, uiNode))
+    let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(gpuProgramUI, Unsafe.Cast([uiNode])))
 
     let mutable pos = Vector3(2, 2, 2)
 
