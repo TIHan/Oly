@@ -270,6 +270,14 @@ let dumpExpression indentAmount (expr: E) =
             |> String.concat "\n"
         $"IF_ELSE\n" + args
 
+    | E.While(_, condExpr, bodyExpr) ->
+        let args =
+            [condExpr;bodyExpr]
+            |> ImArray.ofSeq
+            |> ImArray.map (fun argExpr -> leafLine (dumpExpression 4 argExpr))
+            |> String.concat "\n"
+        $"WHILE\n" + args
+
     | _ ->
         expr.GetType().Name
 

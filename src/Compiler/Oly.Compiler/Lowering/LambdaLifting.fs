@@ -881,7 +881,15 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 valueLookup[x.Id] <- par :> IValueSymbol
                                 par
                             )
-                            |> ImArray.append pars
+                            |> ImArray.append (
+                                pars
+                                |> ImArray.map (fun x ->
+                                    // TODO: Do we need to replace type variables in the attributes?
+                                    let par = createLocalParameterValue(x.Attributes, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
+                                    valueLookup[x.Id] <- par :> IValueSymbol
+                                    par
+                                )
+                            )
                              
                         let func = bindingInfo.Value :?> IFunctionSymbol
 
