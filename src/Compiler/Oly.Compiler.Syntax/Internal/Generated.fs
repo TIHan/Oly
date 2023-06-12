@@ -1742,6 +1742,51 @@ module SyntaxBinding =
     let Tag = 23
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
+type SyntaxLetPatternBinding =
+    | Binding
+        of
+        letToken: SyntaxToken *
+        pat: SyntaxPattern *
+        equalToken: SyntaxToken *
+        rhsExpr: SyntaxExpression *
+        fullWidth: int
+
+    interface ISyntaxNode with
+
+        member this.IsTerminal = false
+
+        member this.IsToken = false
+
+        member this.IsError = false
+
+        member this.GetSlot(index) =
+            match this with
+            | Binding(letToken, pat, equalToken, rhsExpr, _) ->
+                match index with
+                | 0 -> letToken :> ISyntaxNode
+                | 1 -> pat :> ISyntaxNode
+                | 2 -> equalToken :> ISyntaxNode
+                | 3 -> rhsExpr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+
+        member this.SlotCount =
+            match this with
+            | Binding _ -> 4
+
+        member this.FullWidth =
+            match this with
+            | Binding(fullWidth=fullWidth) ->
+                fullWidth
+
+        member _.Tag = 24
+
+[<RequireQualifiedAccess>]
+module SyntaxLetPatternBinding =
+
+    [<Literal>]
+    let Tag = 24
+
+[<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationKind =
     | Alias
         of
@@ -1892,13 +1937,13 @@ type SyntaxTypeDeclarationKind =
             | Newtype(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 24
+        member _.Tag = 25
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationKind =
 
     [<Literal>]
-    let Tag = 24
+    let Tag = 25
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxLiteral =
@@ -2103,13 +2148,13 @@ type SyntaxLiteral =
             | Real(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 25
+        member _.Tag = 26
 
 [<RequireQualifiedAccess>]
 module SyntaxLiteral =
 
     [<Literal>]
-    let Tag = 25
+    let Tag = 26
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxFieldPattern =
@@ -2156,13 +2201,13 @@ type SyntaxFieldPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 26
+        member _.Tag = 27
 
 [<RequireQualifiedAccess>]
 module SyntaxFieldPattern =
 
     [<Literal>]
-    let Tag = 26
+    let Tag = 27
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxNamedArgument =
@@ -2199,13 +2244,13 @@ type SyntaxNamedArgument =
             | NamedArgument(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 27
+        member _.Tag = 28
 
 [<RequireQualifiedAccess>]
 module SyntaxNamedArgument =
 
     [<Literal>]
-    let Tag = 27
+    let Tag = 28
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxArguments =
@@ -2251,13 +2296,13 @@ type SyntaxArguments =
             | Empty _ ->
                 0
 
-        member _.Tag = 28
+        member _.Tag = 29
 
 [<RequireQualifiedAccess>]
 module SyntaxArguments =
 
     [<Literal>]
-    let Tag = 28
+    let Tag = 29
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxElseIfOrElseExpression =
@@ -2325,13 +2370,13 @@ type SyntaxElseIfOrElseExpression =
             | None(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 29
+        member _.Tag = 30
 
 [<RequireQualifiedAccess>]
 module SyntaxElseIfOrElseExpression =
 
     [<Literal>]
-    let Tag = 29
+    let Tag = 30
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxCatchOrFinallyExpression =
@@ -2399,13 +2444,13 @@ type SyntaxCatchOrFinallyExpression =
             | None(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 30
+        member _.Tag = 31
 
 [<RequireQualifiedAccess>]
 module SyntaxCatchOrFinallyExpression =
 
     [<Literal>]
-    let Tag = 30
+    let Tag = 31
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationPremodifier =
@@ -2487,13 +2532,13 @@ type SyntaxValueDeclarationPremodifier =
             | New(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 31
+        member _.Tag = 32
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPremodifier =
 
     [<Literal>]
-    let Tag = 31
+    let Tag = 32
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationPostmodifier =
@@ -2525,13 +2570,13 @@ type SyntaxValueDeclarationPostmodifier =
             | Mutable(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 32
+        member _.Tag = 33
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPostmodifier =
 
     [<Literal>]
-    let Tag = 32
+    let Tag = 33
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationKind =
@@ -2620,13 +2665,13 @@ type SyntaxValueDeclarationKind =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 33
+        member _.Tag = 34
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationKind =
 
     [<Literal>]
-    let Tag = 33
+    let Tag = 34
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxExtends =
@@ -2678,13 +2723,13 @@ type SyntaxExtends =
             | Empty _ ->
                 0
 
-        member _.Tag = 34
+        member _.Tag = 35
 
 [<RequireQualifiedAccess>]
 module SyntaxExtends =
 
     [<Literal>]
-    let Tag = 34
+    let Tag = 35
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxImplements =
@@ -2726,13 +2771,13 @@ type SyntaxImplements =
             | Empty _ ->
                 0
 
-        member _.Tag = 35
+        member _.Tag = 36
 
 [<RequireQualifiedAccess>]
 module SyntaxImplements =
 
     [<Literal>]
-    let Tag = 35
+    let Tag = 36
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationCase =
@@ -2784,13 +2829,13 @@ type SyntaxTypeDeclarationCase =
             | EnumCase(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 36
+        member _.Tag = 37
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationCase =
 
     [<Literal>]
-    let Tag = 36
+    let Tag = 37
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationBody =
@@ -2836,13 +2881,13 @@ type SyntaxTypeDeclarationBody =
             | None _ ->
                 0
 
-        member _.Tag = 37
+        member _.Tag = 38
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationBody =
 
     [<Literal>]
-    let Tag = 37
+    let Tag = 38
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationName =
@@ -2889,13 +2934,13 @@ type SyntaxTypeDeclarationName =
             | Parenthesis(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 38
+        member _.Tag = 39
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationName =
 
     [<Literal>]
-    let Tag = 38
+    let Tag = 39
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxPattern =
@@ -2989,13 +3034,13 @@ type SyntaxPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 39
+        member _.Tag = 40
 
 [<RequireQualifiedAccess>]
 module SyntaxPattern =
 
     [<Literal>]
-    let Tag = 39
+    let Tag = 40
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchGuard =
@@ -3041,13 +3086,13 @@ type SyntaxMatchGuard =
             | None _ ->
                 0
 
-        member _.Tag = 40
+        member _.Tag = 41
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchGuard =
 
     [<Literal>]
-    let Tag = 40
+    let Tag = 41
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchPattern =
@@ -3114,13 +3159,13 @@ type SyntaxMatchPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 41
+        member _.Tag = 42
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchPattern =
 
     [<Literal>]
-    let Tag = 41
+    let Tag = 42
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchClause =
@@ -3161,13 +3206,13 @@ type SyntaxMatchClause =
             | MatchClause(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 42
+        member _.Tag = 43
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchClause =
 
     [<Literal>]
-    let Tag = 42
+    let Tag = 43
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxConstructType =
@@ -3221,13 +3266,13 @@ type SyntaxConstructType =
             | Named(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 43
+        member _.Tag = 44
 
 [<RequireQualifiedAccess>]
 module SyntaxConstructType =
 
     [<Literal>]
-    let Tag = 43
+    let Tag = 44
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxCompilationUnit =
@@ -3302,13 +3347,13 @@ type SyntaxCompilationUnit =
             | AnonymousModule(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 44
+        member _.Tag = 45
 
 [<RequireQualifiedAccess>]
 module SyntaxCompilationUnit =
 
     [<Literal>]
-    let Tag = 44
+    let Tag = 45
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxExpression =
@@ -3440,6 +3485,9 @@ type SyntaxExpression =
         postmodifierList: SyntaxValueDeclarationPostmodifier SyntaxList *
         binding: SyntaxBinding *
         fullWidth: int
+    | LetPatternDeclaration
+        of
+        binding: SyntaxLetPatternBinding
     | TypeDeclaration
         of
         attrs: SyntaxAttributes *
@@ -3617,6 +3665,10 @@ type SyntaxExpression =
                 | 4 -> postmodifierList :> ISyntaxNode
                 | 5 -> binding :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | LetPatternDeclaration(binding) ->
+                match index with
+                | 0 -> binding :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | TypeDeclaration(attrs, accessor, kind, name, typeParameters, constrClauseList, equalsToken, body, _) ->
                 match index with
                 | 0 -> attrs :> ISyntaxNode
@@ -3678,6 +3730,7 @@ type SyntaxExpression =
             | While _ -> 5
             | Typed _ -> 3
             | ValueDeclaration _ -> 6
+            | LetPatternDeclaration _ -> 1
             | TypeDeclaration _ -> 8
             | MemberAccess _ -> 3
             | Mutate _ -> 3
@@ -3731,6 +3784,8 @@ type SyntaxExpression =
                 fullWidth
             | ValueDeclaration(fullWidth=fullWidth) ->
                 fullWidth
+            | LetPatternDeclaration(x) ->
+                (x :> ISyntaxNode).FullWidth
             | TypeDeclaration(fullWidth=fullWidth) ->
                 fullWidth
             | MemberAccess(fullWidth=fullWidth) ->
@@ -3744,11 +3799,11 @@ type SyntaxExpression =
             | None _ ->
                 0
 
-        member _.Tag = 45
+        member _.Tag = 46
 
 [<RequireQualifiedAccess>]
 module SyntaxExpression =
 
     [<Literal>]
-    let Tag = 45
+    let Tag = 46
 

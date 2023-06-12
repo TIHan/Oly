@@ -403,6 +403,15 @@
 		<Field name="guardBinding">SyntaxGuardBinding</Field>
 	</Case>
   </Node>
+	
+  <Node name="SyntaxLetPatternBinding">
+    <Case name="Binding">
+      <Field name="letToken">SyntaxToken</Field>
+	  <Field name="pat">SyntaxPattern</Field>
+      <Field name="equalToken">SyntaxToken</Field>
+      <Field name="rhsExpr">SyntaxExpression</Field>
+    </Case>
+  </Node>
 
   <Node name="SyntaxTypeDeclarationKind">
     <Case name="Alias">
@@ -883,6 +892,9 @@
       <Field name="postmodifierList">SyntaxValueDeclarationPostmodifier SyntaxList</Field>
       <Field name="binding">SyntaxBinding</Field>
     </Case>
+	<Case name="LetPatternDeclaration">
+	  <Field name="binding">SyntaxLetPatternBinding</Field>
+	</Case>
     <Case name="TypeDeclaration">
       <Field name="attrs">SyntaxAttributes</Field>
       <Field name="accessor">SyntaxAccessor</Field>

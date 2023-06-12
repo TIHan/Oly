@@ -1931,6 +1931,27 @@ let parseTypeArguments context state =
     | Some(tyArgs) -> tyArgs
     | _ -> SyntaxTypeArguments.Empty()
 
+let tryParseLetPatternBinding context state =
+    if isNextToken (function Let -> true | _ -> false) state then
+        let s = sp state
+
+        match bt2 LET (tryParsePattern true) state with
+        | Some(letToken), Some(pat) ->
+            match pat with
+            | SyntaxPattern.Name(SyntaxName.Identifier _) ->
+                // This is handled in value declaration.
+                None
+            | _ ->
+                match bt2 EQUAL (tryParseOffsideExpression context) state with
+                | Some(equalToken), Some(expr) ->
+                    SyntaxLetPatternBinding.Binding(letToken, pat, equalToken, expr, ep s state) |> Some
+                | _ ->
+                    None
+        | _ ->
+            None
+    else
+        None
+
 let tryParseBindingDeclaration state =
     let s = sp state
 
@@ -2947,6 +2968,10 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
+        match bt (alignOrFlexAlignRecover (tryParseLetPatternBinding context)) state with
+        | Some result -> SyntaxExpression.LetPatternDeclaration(result)
+        | _ ->
+
         match bt (alignOrFlexAlignRecover (tryParseValueOrTypeDeclarationExpression context)) state with
         | Some result -> result
         | _ ->
@@ -3433,7 +3458,7 @@ let parseOffsideExpression (context: SyntaxTreeContext, errorNode: ISyntaxNode) 
         errorDo (InvalidSyntax("Missing expression body."), errorNode) state
         SyntaxExpression.Error(dummyToken())
 
-let tryParsePattern (state: ParserState) : SyntaxPattern option =
+let tryParsePattern (isLetBinding: bool) (state: ParserState) : SyntaxPattern option =
     let s = sp state
 
     match bt tryParseLiteral state with
@@ -3447,21 +3472,24 @@ let tryParsePattern (state: ParserState) : SyntaxPattern option =
     | _ ->
 
     if isNextToken (function LeftParenthesis -> true | _ -> false) state then
-        match bt (tryParseParenthesisSeparatorList COMMA "pattern" tryParsePattern (fun _ -> None)) state with
+        match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun _ -> None)) state with
         | Some(leftParenToken, patList, rightParenToken) ->
             SyntaxPattern.Parenthesis(leftParenToken, patList, rightParenToken, ep s state) |> Some
         | _ ->
             None
     else
-        match bt (tryParseName TypeParameterContext.Operator) state with
-        | Some(name) ->
-            match bt (tryParseParenthesisSeparatorList COMMA "pattern" tryParsePattern (fun _ -> None)) state with
-            | Some(leftParenToken, patList, rightParenToken) ->
-                SyntaxPattern.Function(name, leftParenToken, patList, rightParenToken, ep s state) |> Some
-            | _ ->
-                SyntaxPattern.Name(name) |> Some
-        | _ ->
+        if isLetBinding then
             None
+        else
+            match bt (tryParseName TypeParameterContext.Operator) state with
+            | Some(name) ->
+                match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun _ -> None)) state with
+                | Some(leftParenToken, patList, rightParenToken) ->
+                    SyntaxPattern.Function(name, leftParenToken, patList, rightParenToken, ep s state) |> Some
+                | _ ->
+                    SyntaxPattern.Name(name) |> Some
+            | _ ->
+                None
 
 let parseMatchGuard (state: ParserState) =
     let s = sp state
@@ -3504,7 +3532,7 @@ let tryParseMatchPatternLhs state =
     | Some result -> result |> Some
     | _ ->
 
-    match bt (tryParseListWithSeparatorOld COMMA "pattern" SyntaxPattern.Error tryParsePattern) state with
+    match bt (tryParseListWithSeparatorOld COMMA "pattern" SyntaxPattern.Error (tryParsePattern false)) state with
     | Some(patList) ->
         SyntaxMatchPattern.Patterns(patList) |> Some
     | _ ->

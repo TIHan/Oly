@@ -8215,3 +8215,93 @@ class Test =
         """
     src
     |> hasSymbolSignatureTextByCursor "X: (x: int32, y: int32) -> () get, set"
+
+[<Fact>]
+let ``Let pattern binding should pass``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let (x, y) = (1, 2)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Let pattern binding should pass 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let (x, y) = (1, 2)
+    print(x)
+    print(y)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Let pattern binding should pass 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let (x) = 1
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Let pattern binding should pass 4``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let (x) = 1
+    print(x)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Let pattern binding should fail for lack of exhaustiveness``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let 1 = 1
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Match is not exhaustive.",
+            """
+    let 1 = 1
+    ^^^
+"""
+            )
+        ]
+    |> ignore

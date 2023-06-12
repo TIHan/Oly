@@ -15366,3 +15366,23 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "hellopassed"
     |> ignore
+
+[<Fact>]
+let ``Let pattern binding should pass``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let (x, y) = (1, 2)
+    print(x)
+    print(y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "12"
+    |> ignore

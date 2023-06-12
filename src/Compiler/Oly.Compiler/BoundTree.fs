@@ -721,14 +721,42 @@ type BoundCasePattern =
         | Tuple(syntaxInfo, _)
         | Discard(syntaxInfo) -> syntaxInfo.Syntax
 
+    member this.ExhaustivenessColumns =
+        match this with
+        | Discard _
+        | Literal _
+        | Local _
+        | FieldConstant _ -> ImArray.createOne this
+        | Function(_, pat, _, _) when pat.PatternGuardFunction.IsSome -> ImArray.createOne this
+        | Function(_, _, _, casePatArgs)
+        | Tuple(_, casePatArgs) ->
+            casePatArgs
+            |> Seq.collect (fun x ->
+                x.ExhaustivenessColumns
+            )
+            |> ImArray.ofSeq
+
+    member this.ExhaustivenessColumnCount =
+        match this with
+        | Discard _
+        | Literal _
+        | Local _
+        | FieldConstant _ -> 1
+        | Function(_, pat, _, _) when pat.PatternGuardFunction.IsSome -> 1
+        | Function(_, _, _, casePatArgs)
+        | Tuple(_, casePatArgs) ->
+            casePatArgs
+            |> Seq.sumBy (fun x -> x.ExhaustivenessColumnCount)
+
+
     interface IBoundNode with
 
         member this.Syntax = this.Syntax
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundMatchPattern =
-    | Cases of OlySyntaxMatchPattern * casePats: BoundCasePattern imarray
-    | Or of OlySyntaxMatchPattern * lhsPattern: BoundMatchPattern * rhsPattern: BoundMatchPattern
+    | Cases of OlySyntaxNode * casePats: BoundCasePattern imarray
+    | Or of OlySyntaxNode * lhsPattern: BoundMatchPattern * rhsPattern: BoundMatchPattern
 
     member this.CaseCount =
         match this with
@@ -737,14 +765,14 @@ type BoundMatchPattern =
         | Or(_, lhsPattern, rhsPattern) ->
             lhsPattern.CaseCount + rhsPattern.CaseCount
 
-    member this.Syntax =
+    member this.Syntax: OlySyntaxNode =
         match this with
-        | Cases(syntax, _)
+        | Cases(syntax, _) -> syntax
         | Or(syntax, _, _) -> syntax
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundMatchClause =
-    | MatchClause of OlySyntaxMatchClause * BoundMatchPattern * guardExprOpt: BoundExpression option * targetExpr: BoundExpression
+    | MatchClause of OlySyntaxNode * BoundMatchPattern * guardExprOpt: BoundExpression option * targetExpr: BoundExpression
 
     member this.Syntax =
         match this with

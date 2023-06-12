@@ -1938,3 +1938,14 @@ main(): () =
     Oly src
     |> withNoSyntaxDiagnostics
     |> ignore
+
+[<Fact>]
+let ``Let pattern binding``() =
+    let src =
+        """
+main(): () =
+    let (x, y) = call()
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore

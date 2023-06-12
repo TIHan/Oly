@@ -795,8 +795,7 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
     checkLocalLambdaKind solverEnv rhsExpr pars func.IsStaticLocalFunction
     rhsExpr
 
-let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (value: IValueSymbol) : BoundExpression =
-    let expectedTy = value.Type
+let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: TypeSymbol) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let _, rhsExpr = bindLocalExpression cenv (envOfBinding.SetReturnable(false)) (Some expectedTy) syntaxRhs syntaxRhs
     match rhsExpr with
     | E.Lambda _ ->
@@ -856,7 +855,7 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
     | BindingPattern(_, func) ->
         bindFunctionRightSideExpression cenv env envOfBinding implicitBaseOpt syntaxRhs pars func
     | _ ->
-        bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
+        bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
 let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (binding: LocalBindingInfoSymbol) (syntaxBindingDecl: OlySyntaxBindingDeclaration) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding =
@@ -876,7 +875,7 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
     | BindingLocalFunction(func=func) ->
         bindFunctionRightSideExpression cenv env envOfBinding None syntaxRhs func.Parameters func
     | _ ->
-        bindValueRightSideExpression cenv env envOfBinding syntaxRhs binding.Value
+        bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
 let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr =
 
@@ -986,28 +985,15 @@ let private bindMatchClause (cenv: cenv) (env: BinderEnvironment) solverEnv expe
     | _ ->
         failwith "New pattern matching syntax not handled."
 
-let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv expectedTargetTyOpt (syntaxNode: OlySyntaxExpression) (syntaxMatchToken: OlySyntaxToken) (matchExprs: BoundExpression imarray) (syntaxMatchClauses: OlySyntaxMatchClause imarray) =
-    let matchExprTys =
-        matchExprs
-        |> ImArray.map (fun x -> x.Type)
-
-    let expectedTargetTy =
-        match expectedTargetTyOpt with
-        | Some expectedTargetTy -> expectedTargetTy
-        | _ -> mkInferenceVariableType None
-
-    let matchClauses =
-        syntaxMatchClauses
-        |> ImArray.map (fun syntaxMatchClause ->
-            bindMatchClause cenv env solverEnv expectedTargetTy matchExprTys syntaxMatchClause
-        )
-
-    // Exhaustiveness checks
-
+let private checkExhaustiveness (cenv: cenv) (_env: BinderEnvironment) syntaxNode matchClauses =
     let rows =
         let rec loop (matchPattern: BoundMatchPattern) =
             match matchPattern with
             | BoundMatchPattern.Cases(syntaxMatchPattern, patterns) ->
+                let patterns =
+                    patterns
+                    |> Seq.collect (fun x -> x.ExhaustivenessColumns)
+                    |> ImArray.ofSeq
                 ImArray.createOne (ImArray.createOne(syntaxMatchPattern, patterns))
             | BoundMatchPattern.Or(_, lhs, rhs) ->
                 ImArray.append (loop lhs) (loop rhs)
@@ -1033,7 +1019,10 @@ let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv 
                     if x.IsEmpty then 0
                     else
                         x
-                        |> Seq.map (fun (_, x) -> x.Length)
+                        |> Seq.map (fun (_, x) -> 
+                            x
+                            |> Seq.sumBy (fun x -> x.ExhaustivenessColumnCount)
+                        )
                         |> Seq.min
                 )
                 |> Seq.min
@@ -1089,7 +1078,25 @@ let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv 
 
     if not isMatchExhaustive then
         // TODO: More descriptive error message.
-        cenv.diagnostics.Error("Match is not exhaustive.", 10, syntaxMatchToken)
+        cenv.diagnostics.Error("Match is not exhaustive.", 10, syntaxNode)
+
+let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv expectedTargetTyOpt (syntaxNode: OlySyntaxExpression) (syntaxMatchToken: OlySyntaxToken) (matchExprs: BoundExpression imarray) (syntaxMatchClauses: OlySyntaxMatchClause imarray) =
+    let matchExprTys =
+        matchExprs
+        |> ImArray.map (fun x -> x.Type)
+
+    let expectedTargetTy =
+        match expectedTargetTyOpt with
+        | Some expectedTargetTy -> expectedTargetTy
+        | _ -> mkInferenceVariableType None
+
+    let matchClauses =
+        syntaxMatchClauses
+        |> ImArray.map (fun syntaxMatchClause ->
+            bindMatchClause cenv env solverEnv expectedTargetTy matchExprTys syntaxMatchClause
+        )
+
+    checkExhaustiveness cenv env syntaxMatchToken matchClauses   
 
     env, BoundExpression.Match(syntaxNode, env.benv, matchExprs, matchClauses, expectedTargetTy)
 
@@ -1527,6 +1534,30 @@ let private bindLocalValueDeclaration
         cenv.diagnostics.Error("Member declarations are not allowed in a local context.", 10, syntaxBinding.Declaration.Identifier)
         env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
 
+let private bindLetPatternBinding (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxToCapture: OlySyntaxExpression) (syntaxLetPatternBinding: OlySyntaxLetPatternBinding) (syntaxBodyExprOpt: OlySyntaxExpression option) =
+    match syntaxLetPatternBinding with
+    | OlySyntaxLetPatternBinding.Binding(syntaxLetToken, syntaxPat, _, syntaxRhsExpr) ->
+        let matchTy = mkInferenceVariableType None
+        let envOfBinding, pat = bindPattern cenv env (SolverEnvironment.Create(cenv.diagnostics, env.benv)) true (Dictionary()) (HashSet()) matchTy syntaxPat
+        let rhsExpr = bindValueRightSideExpression cenv env matchTy env syntaxRhsExpr
+
+        let _, bodyExpr =
+            match syntaxBodyExprOpt with
+            | Some(syntaxBodyExpr) ->
+                bindLocalExpression cenv envOfBinding expectedTyOpt syntaxBodyExpr syntaxBodyExpr
+            | _ ->
+                envOfBinding, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+
+        let matchPat = BoundMatchPattern.Cases(syntaxPat, ImArray.createOne pat)
+        let matchClause = BoundMatchClause.MatchClause(syntaxPat, matchPat, None, bodyExpr)
+        let matchClauses = ImArray.createOne matchClause
+
+        checkExhaustiveness cenv env syntaxLetToken matchClauses
+
+        env, BoundExpression.Match(syntaxToCapture, env.benv, ImArray.createOne rhsExpr, matchClauses, bodyExpr.Type)
+    | _ ->
+        OlyAssert.Fail("Unmatched syntax expression.")
+
 let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
     cenv.ct.ThrowIfCancellationRequested()
 
@@ -1639,6 +1670,15 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, syntaxValueDeclPremodifierList, syntaxValueDeclKind, syntaxValueDeclPostmodifierList, syntaxBinding) as syntaxBindingDeclExpr ->
         bindLocalValueDeclaration cenv env expectedTyOpt syntaxToCapture (syntaxAttrs, syntaxValueDeclPremodifierList, syntaxValueDeclKind, syntaxValueDeclPostmodifierList, syntaxBinding, syntaxBindingDeclExpr)
             None
+
+    | OlySyntaxExpression.Sequential(
+            OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding) as syntaxLetPatternDeclExpr,
+            syntaxBodyExpr
+      ) ->
+        bindLetPatternBinding cenv env expectedTyOpt syntaxLetPatternDeclExpr syntaxLetPatternBinding (Some syntaxBodyExpr)
+
+    | OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding) ->
+        bindLetPatternBinding cenv env expectedTyOpt syntaxExpr syntaxLetPatternBinding None
 
     | OlySyntaxExpression.Sequential(leftSyntax, rightSyntax) ->
         bindSequentialExpression cenv env expectedTyOpt syntaxToCapture leftSyntax rightSyntax
