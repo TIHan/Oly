@@ -871,10 +871,10 @@ module Array =
         let mutable i = 0
         let mutable j = 0
         while (i < arr.Length)
-            let tup = f(arr[i])
-            newArr[j] <- GetTupleElement<0, _>(tup)
-            newArr[j + 1] <- GetTupleElement<1, _>(tup)
-            newArr[j + 2] <- GetTupleElement<2, _>(tup)
+            let (x, y, z) = f(arr[i])
+            newArr[j] <- x
+            newArr[j + 1] <- y
+            newArr[j + 2] <- z
             i <- i + 1
             j <- j + 3
         newArr
