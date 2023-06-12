@@ -352,6 +352,8 @@ module UI =
                     defaultFlags | ImGui.ImGuiWindowFlags.NoResize
 
             if (ImGui.Begin(context.ImGuiContext, &isOpen, true, view.TitleSpan, defaultFlags))
+                view.IsOpen <- isOpen
+                
                 let mutable i = 0
                 while (i < view.Children.Count)
                     MakeNode(context, view.Children[i])
@@ -373,8 +375,6 @@ module UI =
                     view.OnSizeChanged(prevSize, size)
 
                 ImGui.End(context.ImGuiContext)
-
-        view.IsOpen <- isOpen
 
     private MakeButton(context: UIContext, view: ButtonView): () =
         if (ImGui.Button(context.ImGuiContext, view.LabelSpan, view.Size))
