@@ -164,7 +164,7 @@ createImageByFile(path: string): GpuImage =
 
     GpuImage(image.Width, image.Height, ReadOnlyMemory(bytes))
 
-createUI(deviceName: string): WindowView =
+createUI(deviceName: string, r: Rendering): WindowView =
     let window = WindowView()
     window.Title <- "Window"
 
@@ -237,8 +237,16 @@ createUI(deviceName: string): WindowView =
     window.Children.Add(
         let view = ComboBoxView()
         view.Label <- "Combo Box"
-        view.Items <- mutable ["Item1";"Item2";"Item3"]
+        view.Items <- Array.MapAsMutable(r.Window.GetDisplayModes(), x -> x.Width.ToString() + " x " + x.Height.ToString() + " | " + x.RefreshRate.ToString() + "hz")
         view.OnSelectedItemIndexChanged <- (x: int32, y: int32) -> ()
+        view
+    )
+
+    window.Children.Add(
+        let view = CheckboxView()
+        view.Label <- "Fullscreen"
+        view.IsChecked <- r.Window.IsFullscreen
+        view.OnChecked <- (x: bool) -> r.Window.IsFullscreen <- view.IsChecked
         view
     )
 
@@ -262,11 +270,13 @@ main(): () =
     let options = RenderingOptions()
     let r = Rendering.Create(options)
 
+    let deviceName = r.Gpu.DeviceName
+
     let image = createImageByFile("GameExample/Textures/flats/aqf068.png")
     r.Gpu.Sync(image)
 
-    let uiNode = createUI(r.Gpu.DeviceName)
-    let uiNode2 = createUI(r.Gpu.DeviceName)
+    let uiNode = createUI(r.Gpu.DeviceName, r)
+    let uiNode2 = createUI(r.Gpu.DeviceName, r)
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,
@@ -339,7 +349,7 @@ main(): () =
 
     r.Window.Show()
     while (!r.Window.IsClosed)
-        let inputSnapshot = r.Window.PumpEvents()
+        let _ = r.Window.PumpEvents()
 
         // TODO
 

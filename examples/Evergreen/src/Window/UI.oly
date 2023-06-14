@@ -332,10 +332,9 @@ module UI =
             if (!view.isInit)
                 view.isInit <- true
                 ImGui.SetNextWindowPosition(context.ImGuiContext, view.Position)
-                ImGui.SetNextWindowSize(context.ImGuiContext, view.Size)
 
-            if (view.CanAutoResize)
-                ImGui.SetNextWindowSize(context.ImGuiContext, Vector2.Zero)
+            if (!view.CanAutoResize)
+                ImGui.SetNextWindowSize(context.ImGuiContext, view.Size)
 
             let mutable defaultFlags = ImGui.ImGuiWindowFlags.NoCollapse | ImGui.ImGuiWindowFlags.NoSavedSettings
 
@@ -351,6 +350,12 @@ module UI =
                 else
                     defaultFlags | ImGui.ImGuiWindowFlags.NoResize
 
+            defaultFlags <-
+                if (view.CanAutoResize)
+                    defaultFlags | ImGui.ImGuiWindowFlags.AlwaysAutoResize
+                else
+                    defaultFlags
+
             if (ImGui.Begin(context.ImGuiContext, &isOpen, true, view.TitleSpan, defaultFlags))
                 view.IsOpen <- isOpen
                 
@@ -363,15 +368,12 @@ module UI =
                 view.Position <- pos
 
                 if (prevPos != pos)
-                    ImGui.SetWindowPosition(context.ImGuiContext, view.Position)
                     view.OnPositionChanged(prevPos, pos)
 
                 let size = ImGui.GetWindowSize(context.ImGuiContext)
                 view.Size <- size
 
                 if (prevSize != size)
-                    if (!view.CanAutoResize)
-                       ImGui.SetWindowSize(context.ImGuiContext, view.Size)
                     view.OnSizeChanged(prevSize, size)
 
                 ImGui.End(context.ImGuiContext)

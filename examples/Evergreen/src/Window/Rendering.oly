@@ -351,8 +351,8 @@ class GpuProgramInstance =
 
 class GpuProgramUI =
     internal Frame: GpuFrame get, set
-
     internal ImGuiContext: ImGui.ImGuiContext get, set
+    internal CanInitializeWindow: bool get, set
 
     new() =
         GpuProgramUI(unchecked default)
@@ -361,6 +361,7 @@ class GpuProgramUI =
         {
             Frame = gpuFrame
             ImGuiContext = unchecked default
+            CanInitializeWindow = true
         }
 
 abstract class GpuCommand =
@@ -825,6 +826,7 @@ class Gpu =
             ImGui.UploadFonts(gpuProgramUI.ImGuiContext, this.vk.TransferCommandPool, commandBuffer)
 
             this.gpuProgramUIs[gpuProgramUI] <- ()
+            gpuProgramUI.CanInitializeWindow <- true
 
     Free(gpuArray: IGpuArray): () =
         if (gpuArray.Buffers.Length != 0)
@@ -1045,9 +1047,11 @@ class Gpu =
                                 UI.NewFrame(context)
                                 ForEach(windowViews, 
                                     windowView ->
+                                        windowView.isInit <- !gpuProgramUI.CanInitializeWindow
                                         UI.Show(context, windowView)
                                 )
                                 UI.Draw(context, commandBuffer, VkPipeline.NULL)
+                                gpuProgramUI.CanInitializeWindow <- false
                                 
                             | _ =>
                                 ()

@@ -15,6 +15,28 @@ namespace Evergreen.Window
 open System
 open System.Numerics
 
+class DisplayMode =
+
+    Width: int32 get
+    Height: int32 get
+    RefreshRate: int32 get
+
+    internal mutable field devmodea: TerraFX.Interop.Windows.DEVMODEA
+
+    new(width: int32, height: int32, refreshRate: int32) =
+        {
+            Width = width
+            Height = height
+            RefreshRate = refreshRate
+            devmodea = default
+        }
+    
+    overrides GetHashCode(): int32 = this.Width + this.Height + this.RefreshRate
+
+    overrides Equals(o: object): bool =
+        let displayMode = Unsafe.Cast<DisplayMode>(o)
+        this.Width == displayMode.Width && this.Height == displayMode.Height && this.RefreshRate == displayMode.RefreshRate
+
 interface IWindow =
     inherits IDisposable
 
@@ -26,14 +48,22 @@ interface IWindow =
     Position: Vector2 get, set
     Size: Vector2 get, set
 
+    IsFullscreen: bool get, set
+
+    CurrentDisplayMode: DisplayMode get
+
     Show(): ()
     Hide(): ()
     Close(): ()
     PumpEvents(): InputSnapshot
     Minimize(): ()
+    
+    GetDisplayModes(): DisplayMode[]
+    ChangeDisplayMode(displayMode: DisplayMode): ()
 
     static CreateWin32(title: string, position: Vector2, size: Vector2): IWindow =
         let window: IWindow = Win32Window(title)
         window.Position <- position
         window.Size <- size
+       // window.ChangeDisplayMode(window.CurrentDisplayMode)
         window

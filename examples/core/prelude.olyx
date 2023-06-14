@@ -83,6 +83,9 @@ uint16(byte): uint16
 uint16(char): uint16
 
 #[intrinsic("unsafe_cast")]
+uint16(int32): uint16
+
+#[intrinsic("unsafe_cast")]
 uint32(uint16): uint32
 
 #[intrinsic("unsafe_cast")]
