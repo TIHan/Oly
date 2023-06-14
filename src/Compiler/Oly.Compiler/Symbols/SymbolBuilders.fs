@@ -39,7 +39,11 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
-    member _.SetExtends(pass: CompilerPass, extends) = 
+    member _.SetExtends(pass: CompilerPass, extends: TypeSymbol imarray) = 
+#if DEBUG
+        extends
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+#endif
         match pass with
         | Pass1
         | Pass0 (*Pass0 is for intrinsic types*) ->
@@ -47,7 +51,11 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
-    member _.SetImplements(pass: CompilerPass, implements) = 
+    member _.SetImplements(pass: CompilerPass, implements: TypeSymbol imarray) = 
+#if DEBUG
+        implements
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+#endif
         match pass with
         | Pass1 ->
             implementsHole.contents <- implements
@@ -55,6 +63,7 @@ type EntitySymbolBuilder private (
             failwith "Invalid pass."
 
     member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol) =
+        OlyAssert.True(runtimeTy.IsSolved)
         match pass with
         | Pass1 ->
             runtimeTyOptHole.contents <- Some runtimeTy

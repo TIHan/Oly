@@ -88,7 +88,13 @@ type OlyDiagnostic internal () =
                 let lineText = sourceLine.ToString()
                 let locationText = 
                     let a = String.init startI (fun _ -> " ")
-                    let b = String.init textSpan.Width (fun _ -> "^")
+                    let width = textSpan.Width
+                    let width =
+                        if width = 0 then
+                            1
+                        else
+                            width
+                    let b = String.init width (fun _ -> "^")
                     a + b
                 lineText + "\n" + locationText
             else

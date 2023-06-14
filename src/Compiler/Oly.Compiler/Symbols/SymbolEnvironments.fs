@@ -42,6 +42,12 @@ type ResolutionTypeArity =
         | SecondOrder _ -> true
         | _ -> false
 
+    member this.IsValidArity(arity: int32) =
+        match this with
+        | Any -> true
+        | FirstOrder n
+        | SecondOrder n -> arity = n
+
     static member Create(arity: int32) =
         if arity < 0 then
             invalidArg (nameof(arity)) "Arity is less than zero."

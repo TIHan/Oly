@@ -49,6 +49,8 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
     env
 
 let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
+    let env = env.SetResolutionMustSolveTypes()
+
     let ent = entBuilder.Entity
 
     let env = unsetSkipCheckTypeConstructor env

@@ -120,6 +120,8 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
 
 /// Pass 0 - Gather all type definitions.
 let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let env = env.SetResolutionMustSolveTypes()
+
     let ent = entBuilder.Entity
 
     let env = setSkipCheckTypeConstructor env

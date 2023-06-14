@@ -3657,7 +3657,6 @@ type TypeSymbol =
         | InferenceVariable _
         | HigherInferenceVariable _
         | EagerInferenceVariable _ -> false
-        | Error _ -> false
         | _ -> true
 
     member this.IsFormal =

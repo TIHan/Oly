@@ -1393,7 +1393,9 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
         | OlySyntaxType.WildCard _ ->
             if env.resolutionMustSolveTypes then
-                if not env.skipCheckTypeConstructor then
+                // For open-declarations, we do not error because open-declarations requires all type arguments of a type to either be "_"(wild-card) or not.
+                // Therefore, if we see a "_"(wild-card), we do not need to report this error.
+                if not env.skipCheckTypeConstructor && not env.isInOpenDeclaration then
                     cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
                 TypeSymbolError
             else
@@ -1470,36 +1472,39 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
         // Wild card open declaration rules
         let hasOpenDeclWildCard =
-            if env.isInOpenDeclaration && not env.resolutionMustSolveTypes then
-                syntaxTyArgs
-                |> ImArray.exists (fun x ->
-                    match x with
-                    | OlySyntaxType.WildCard _ -> true
-                    | _ -> false
-                )
+            if not env.skipCheckTypeConstructor then
+                let hasOpenDeclWildCard =
+                    if env.isInOpenDeclaration then
+                        syntaxTyArgs
+                        |> ImArray.exists (fun x ->
+                            match x with
+                            | OlySyntaxType.WildCard _ -> true
+                            | _ -> false
+                        )
+                    else
+                        false
+
+                if hasOpenDeclWildCard then
+                    let isValid =
+                        syntaxTyArgs
+                        |> ImArray.forall (fun x ->
+                            match x with
+                            | OlySyntaxType.WildCard _ -> true
+                            | _ -> false
+                        )
+                    if not isValid then
+                        cenv.diagnostics.Error("Open declarations using one or more wild cards, '_', requires using wild cards for all type arguments.", 10, syntaxTyArgsRoot)
+                    true
+                else
+                    false
             else
                 false
-
-        if hasOpenDeclWildCard then
-            let isValid =
-                syntaxTyArgs
-                |> ImArray.forall (fun x ->
-                    match x with
-                    | OlySyntaxType.WildCard _ -> true
-                    | _ -> false
-                )
-            if not isValid && not env.skipCheckTypeConstructor then
-                cenv.diagnostics.Error("Open declarations using one or more wild cards, '_', requires using wild cards for all type arguments.", 10, syntaxTyArgsRoot)
 
         let partialTyInst: TypeSymbol imarray = 
             if hasOpenDeclWildCard then
                 ImArray.empty
             else
-                let env = 
-                    if env.isInOpenDeclaration then
-                        env.SetResolutionMustSolveTypes()
-                    else
-                        env
+                let env = env.UnsetIsInOpenDeclaration()
                 bindTypeArgumentsAsTypes cenv env tyArities (syntaxTyArgsRoot, syntaxTyArgs)
 
         let tyArgs =
@@ -1648,7 +1653,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) offset (tyPars: Immu
 
         if isValid then
             cenv.diagnostics.Error(sprintf "Expected '%i' type argument(s) but got '%i'." expectedTypeParameterCount syntaxTyArgs.Length, 0, syntaxTyArgsRoot)
-            tyPars |> Seq.map (fun tyPar -> mkInferenceVariableType (Some tyPar)) |> ImmutableArray.CreateRange
+            tyPars |> Seq.map (fun tyPar -> TypeSymbol.Error(Some tyPar, None)) |> ImmutableArray.CreateRange
         else
 
             let tyArgsTail = 
@@ -1824,11 +1829,10 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
             | _ ->
                 constrTy
 
-        let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
-
         if env.EnclosingTypeParameters |> Seq.exists (fun tyPar2 -> tyPar2.Index = tyPar.Index) then
             cenv.diagnostics.Error(sprintf "Cannot add additional constraints to the captured type parameter '%s'." tyPar.DisplayName, 10, syntaxConstr)
         else
+            let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
             tyPar.AddConstraint(constr)
 
     | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
@@ -1888,7 +1892,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
             | TypeSymbol.Variable(tyPar) -> 
                 tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                if tyArgs |> Seq.exists (fun x -> x.IsSolved) then
+                if tyArgs |> Seq.exists (fun x -> x.IsSolved && not x.IsError_t) then
                     cenv.diagnostics.Error("A type parameter with a generic instantiation is not allowed.", 10, syntaxTy)
                 tyPar
             | _ ->
@@ -2454,28 +2458,38 @@ let bindLiteral cenv env expectedTyOpt syntaxLiteral =
         literal
 
 let bindExtends (cenv: cenv) (env: BinderEnvironment) (syntaxExtends: OlySyntaxExtends) =
-    match syntaxExtends with
-    | OlySyntaxExtends.Empty _ ->
-        ImArray.empty
-    | OlySyntaxExtends.Inherits(_, syntaxTys) ->
-        syntaxTys.ChildrenOfType 
-        |> ImArray.map (fun x -> bindType cenv env None ResolutionTypeArity.Any x)
-    | OlySyntaxExtends.Type(syntaxTy) ->
-        ImArray.createOne (bindType cenv env None ResolutionTypeArity.Any syntaxTy)
+    let extends =
+        match syntaxExtends with
+        | OlySyntaxExtends.Empty _ ->
+            ImArray.empty
+        | OlySyntaxExtends.Inherits(_, syntaxTys) ->
+            syntaxTys.ChildrenOfType 
+            |> ImArray.map (fun x -> bindType cenv env None ResolutionTypeArity.Any x)
+        | OlySyntaxExtends.Type(syntaxTy) ->
+            ImArray.createOne (bindType cenv env None ResolutionTypeArity.Any syntaxTy)
 
-    | _ ->
-        raise(InternalCompilerException())
+        | _ ->
+            raise(InternalCompilerException())
+#if DEBUG
+    extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+#endif
+    extends
 
 let bindImplements (cenv: cenv) (env: BinderEnvironment) (syntaxImplements: OlySyntaxImplements) =
-    match syntaxImplements with
-    | OlySyntaxImplements.Empty _ ->
-        ImArray.empty
-    | OlySyntaxImplements.Implements(_, syntaxTys) ->
-        syntaxTys.ChildrenOfType
-        |> ImArray.map (fun x -> bindType cenv env None ResolutionTypeArity.Any x)
+    let implements =
+        match syntaxImplements with
+        | OlySyntaxImplements.Empty _ ->
+            ImArray.empty
+        | OlySyntaxImplements.Implements(_, syntaxTys) ->
+            syntaxTys.ChildrenOfType
+            |> ImArray.map (fun x -> bindType cenv env None ResolutionTypeArity.Any x)
 
-    | _ ->
-        raise(InternalCompilerException())
+        | _ ->
+            raise(InternalCompilerException())
+#if DEBUG
+    implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+#endif
+    implements
 
 let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnvironment) (syntaxInfo: BoundSyntaxInfo) receiverExprOpt argExprs (value: IValueSymbol, syntaxNameOpt: OlySyntaxName option) =
     match syntaxNameOpt with

@@ -203,6 +203,20 @@ type BinderEnvironment =
             | _ -> NameMap.empty
         let arityGroup = arityGroup.SetItem(name, ImArray.createOne ty)
 
+#if DEBUG
+        arityGroup.Values
+        |> Seq.iter (fun tys ->
+            tys
+            |> ImArray.iter (fun ty ->
+                OlyAssert.True(ty.IsSolved)
+                if ty.IsTypeExtension then
+                    if ty.Inherits.Length > 0 then
+                        OlyAssert.True(ty.Inherits[0].IsSolved)
+                        OlyAssert.Equal(1, ty.Inherits.Length)
+            )
+        )
+#endif
+
         { this with
             benv = 
                 { this.benv with
@@ -479,9 +493,17 @@ type BinderEnvironment =
         if this.isInOpenDeclaration then this
         else { this with isInOpenDeclaration = true }
 
+    member this.UnsetIsInOpenDeclaration() =
+        if this.isInOpenDeclaration then { this with isInOpenDeclaration = false }
+        else this
+
     member this.SetResolutionMustSolveTypes() =
         if this.resolutionMustSolveTypes then this
         else { this with resolutionMustSolveTypes = true }
+
+    member this.UnsetResolutionMustSolveTypes() =
+        if this.resolutionMustSolveTypes then { this with resolutionMustSolveTypes = false }
+        else this
 
     member this.UnqualifiedPatternExists(ident: string) =
         match this.benv.senv.unqualifiedSymbols.TryGetValue ident with

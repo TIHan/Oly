@@ -342,6 +342,8 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
 
 /// Pass 4 - Bind all implementations.
 let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos isRoot syntaxEntDefBody =
+    let env = env.UnsetResolutionMustSolveTypes()
+
     let ent = entBuilder.Entity
 
     let env = 

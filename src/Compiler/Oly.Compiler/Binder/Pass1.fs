@@ -25,6 +25,8 @@ let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
 /// Pass 1 - Get type inherits and implements.
 let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxTyPars: OlySyntaxType imarray) syntaxConstrClauses (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let env = env.SetResolutionMustSolveTypes()
+
     let ent = entBuilder.Entity
 
     let env = setSkipCheckTypeConstructor env

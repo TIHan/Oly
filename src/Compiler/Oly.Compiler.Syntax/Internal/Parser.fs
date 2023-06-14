@@ -88,7 +88,7 @@ type ParserState =
     /// ">>" is always lexed as a single token, GreaterThanGreaterThan.
     /// In order to handle ">>" when parsing type arguments, i.e. "A<B<int32>>"
     ///     we need to split the token in two.
-    member inline this.SplitGreaterThanGreaterThan(token: SyntaxToken) =
+    member this.SplitGreaterThanGreaterThan(token: SyntaxToken) =
         OlyAssert.True(token.RawToken = GreaterThanGreaterThan)
         OlyAssert.True(obj.ReferenceEquals(this.btBuffer[(this.btBufferPosition - 1) % MaxBackTrackableTokenAmount].Token, token))
 
@@ -110,8 +110,25 @@ type ParserState =
 
         let currentTokenInfo = this.btBuffer[this.btBufferPosition % MaxBackTrackableTokenAmount]
         this.btBuffer[this.btBufferPosition % MaxBackTrackableTokenAmount] <- nextTokenInfo
-        this.btBuffer[(this.btBufferPosition + 1) % MaxBackTrackableTokenAmount] <- currentTokenInfo
-        this.btBufferCount <- this.btBufferCount + 1
+
+        if (this.btBufferCount <= this.btBufferPosition + 1) then
+            this.btBuffer[(this.btBufferPosition + 1) % MaxBackTrackableTokenAmount] <- currentTokenInfo
+            this.btBufferCount <- this.btBufferCount + 1
+        else
+            let diff = this.btBufferCount - (this.btBufferPosition + 1)
+            OlyAssert.True(diff > 0)
+            
+            let startIndex = this.btBufferPosition + 1
+            let endIndex = (startIndex + diff - 1)
+
+            // Shift tokens in the back-track buffer
+            let mutable j = endIndex + diff
+            for i = startIndex to endIndex do
+                this.btBuffer[j % MaxBackTrackableTokenAmount] <- this.btBuffer[i % MaxBackTrackableTokenAmount]
+                j <- j - 1
+
+            this.btBuffer[(this.btBufferPosition + 1) % MaxBackTrackableTokenAmount] <- currentTokenInfo
+            this.btBufferCount <- this.btBufferCount + 1
 
         newPrevToken
 
@@ -157,6 +174,7 @@ let peekTokenSkipTriviaImpl state =
     state.newLine <- info.NewLine
 #if DEBUG
     OlyAssert.True(state.column >= 0)
+    OlyAssert.False(obj.ReferenceEquals(info.Token, null))
 #endif
     state.peekedPosition <- state.btBufferPosition
     state.peekedToken <- info.Token
@@ -1283,6 +1301,7 @@ let sp state =
 let ep s state =
     let token = peekTokenSkipTrivia state
 #if DEBUG
+    OlyAssert.False(obj.ReferenceEquals(token, null))
     let value = (state.start - token.LeadingTriviaWidth) - s
     if value < 0 then
         failwith "Invalid full width from parsing."
@@ -1916,9 +1935,8 @@ let tryParseTypeArguments context state =
                 // We return 'None' instead of showing an error because '<' is an operator.
                 None
             else
-                let tyArgs = SyntaxTypeArguments.TypeArguments(lessThanToken, typeArgumentList, dummyToken(), ep s state)
-                errorDo(ExpectedToken GreaterThan, tyArgs) state
-                tyArgs |> Some
+                errorDo(ExpectedToken GreaterThan, typeArgumentList) state
+                SyntaxTypeArguments.TypeArguments(lessThanToken, typeArgumentList, dummyToken(), ep s state) |> Some
         | _ ->
 
         None
@@ -3239,13 +3257,14 @@ let tryParseMatchExpression state =
             errorDo(ExpectedSyntaxAfterSyntax("match clause", "match expression"), result) state
             result |> Some
         | Some(matchToken), Some(leftParenToken), Some(matchExprList), _, _ ->
-            let result = SyntaxExpression.Match(matchToken, leftParenToken, matchExprList, dummyToken(), SyntaxList.Empty(), ep s state)
-            errorDo(ExpectedToken RightParenthesis, result) state
-            result |> Some
+            errorDo(ExpectedToken RightParenthesis, matchExprList) state
+            SyntaxExpression.Match(matchToken, leftParenToken, matchExprList, dummyToken(), SyntaxList.Empty(), ep s state) |> Some
+        | Some(matchToken), Some(leftParenToken), _, _, _ ->
+            errorDo(ExpectedSyntaxAfterToken("expressions to match", leftParenToken.RawToken), leftParenToken) state
+            SyntaxExpression.Match(matchToken, leftParenToken, SyntaxSeparatorList.Empty(), dummyToken(), SyntaxList.Empty(), ep s state) |> Some
         | Some(matchToken), _, _, _, _ ->
-            let result = SyntaxExpression.Match(matchToken, dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), SyntaxList.Empty(), ep s state)
-            errorDo(ExpectedSyntaxAfterToken("expressions to match", Match), result) state
-            result |> Some
+            errorDo(ExpectedTokenAfterToken(LeftParenthesis, matchToken.RawToken), matchToken) state
+            SyntaxExpression.Match(matchToken, dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), SyntaxList.Empty(), ep s state) |> Some
         | _ ->            
             None
     else
@@ -3263,13 +3282,14 @@ let tryParseWhileExpression state =
             errorDo(ExpectedSyntaxAfterSyntax("loop body expression", "while expression"), result) state
             result |> Some
         | Some(whileToken), Some(leftParenToken), Some(conditionExpr), _, _ ->
-            let result = SyntaxExpression.While(whileToken, leftParenToken, conditionExpr, dummyToken(), SyntaxExpression.Error(dummyToken()), ep s state)
-            errorDo(ExpectedToken RightParenthesis, result) state
-            result |> Some
+            errorDo(ExpectedToken RightParenthesis, conditionExpr) state
+            SyntaxExpression.While(whileToken, leftParenToken, conditionExpr, dummyToken(), SyntaxExpression.Error(dummyToken()), ep s state) |> Some
+        | Some(whileToken), Some(leftParenToken), _, _, _ ->
+            errorDo(ExpectedSyntaxAfterToken("condition expression", leftParenToken.RawToken), leftParenToken) state
+            SyntaxExpression.While(whileToken, leftParenToken, SyntaxExpression.Error(dummyToken()), dummyToken(), SyntaxExpression.Error(dummyToken()), ep s state) |> Some
         | Some(whileToken), _, _, _, _ ->
-            let result = SyntaxExpression.While(whileToken, dummyToken(), SyntaxExpression.Error(dummyToken()), dummyToken(), SyntaxExpression.Error(dummyToken()), ep s state)
-            errorDo(ExpectedSyntaxAfterToken("condition expression", whileToken.RawToken), result) state
-            result |> Some
+            errorDo(ExpectedTokenAfterToken(LeftParenthesis, whileToken.RawToken), whileToken) state
+            SyntaxExpression.While(whileToken, dummyToken(), SyntaxExpression.Error(dummyToken()), dummyToken(), SyntaxExpression.Error(dummyToken()), ep s state) |> Some
         | _ ->            
             None
     else

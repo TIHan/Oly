@@ -86,10 +86,51 @@ let private stressTyping (c: TestCompilation) =
     let mutable comp = c.Compilation
     let length = str.Length
     for i = 0 to length - 1 do
-        comp <- comp.SetSyntaxTree(tree.ApplySourceText(OlySourceText.Create(str.Substring(0, i))))
-        let boundModel = comp.GetBoundModel(tree.Path)
-        boundModel.GetSymbols(comp.SyntaxTrees[0].GetRoot(CancellationToken.None), CancellationToken.None)
-        |> ignore
+        let str = str.Substring(0, i)
+
+        try
+            let newTree = tree.ApplySourceText(OlySourceText.Create(str))
+
+            Assert.Equal(str, newTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
+
+            comp <- comp.SetSyntaxTree(newTree)
+            let boundModel = comp.GetBoundModel(tree.Path)
+            boundModel.GetSymbols(comp.SyntaxTrees[0].GetRoot(CancellationToken.None), CancellationToken.None)
+            |> ignore
+        with
+        | ex ->
+            raise(System.InvalidOperationException(str, ex))
+
+let private randomPartialSyntax (c: TestCompilation) =
+    let tree = c.Compilation.SyntaxTrees[0]
+    let text = tree.GetSourceText(CancellationToken.None)
+    let str = text.ToString()
+
+    let random = Random()
+    for i = 0 to 10 do
+        let tokens = tree.GetRoot(CancellationToken.None).GetDescendantTokens()
+
+        let randomToken =
+            let i = random.Next(0, tokens.Length - 1)
+            tokens[i]
+
+        let range = randomToken.Node.GetTextRange(CancellationToken.None)
+        let span = text.GetTextSpan(range)
+
+        let str = str.Remove(span.Start, span.Width)
+
+        try
+            let newTree = tree.ApplySourceText(OlySourceText.Create(str))
+
+            Assert.Equal(str, newTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
+
+            let comp = c.Compilation.SetSyntaxTree(newTree)
+            let boundModel = comp.GetBoundModel(tree.Path)
+            boundModel.GetSymbols(comp.SyntaxTrees[0].GetRoot(CancellationToken.None), CancellationToken.None)
+            |> ignore
+        with
+        | ex ->
+            raise(System.InvalidOperationException(str, ex))
 
 let private stressTest origSrc (c: TestCompilation) =
     let syntaxTree = getFirstSyntaxTree c
@@ -102,6 +143,8 @@ let private stressTest origSrc (c: TestCompilation) =
     // Syntax nodes associated with diagnostics are kept in a ConditionalWeakTable internally.
     GC.Collect(2, GCCollectionMode.Forced, true)
     GC.WaitForPendingFinalizers()
+
+  //  randomPartialSyntax c
 #endif
 
     c

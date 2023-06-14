@@ -534,6 +534,8 @@ let private bindBodyExpressionPass2 cenv env supers entities (entBuilder: Entity
 
 /// Pass 2 - Gather all entity definitions.
 let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) (syntaxTyPars: OlySyntaxType imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+    let env = env.SetResolutionMustSolveTypes()
+
     let ent = entBuilder.Entity
 
     let env = setSkipCheckTypeConstructor env
