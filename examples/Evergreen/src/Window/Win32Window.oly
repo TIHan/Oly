@@ -1,6 +1,7 @@
 namespace Evergreen.Window
 
 open System
+open System.Text
 open System.Numerics
 open System.Diagnostics
 open System.Collections.Generic
@@ -21,6 +22,15 @@ private alias Unsafe = OlyPrelude.Unsafe
 internal class Marker
 
 internal module Win32 =
+
+    #[open]
+    private module Helpers =
+
+        fixed(o: object): GCHandle =
+            GCHandle.Alloc(o, GCHandleType.Pinned)
+
+        fixedCopyUTF8(str: string): GCHandle =
+            fixed(UTF8Encoding.UTF8.GetBytes(str))
 
     WindowLookup: System.Collections.Concurrent.ConcurrentDictionary<HWND, Win32Window> get = System.Collections.Concurrent.ConcurrentDictionary()
 
@@ -43,9 +53,82 @@ internal module Win32 =
     IsMouseRelative(rawMouse: RAWMOUSE): bool =
         (rawMouse.usFlags & 0x01) == 0
 
+    GetDisplayModes(): DisplayMode[] =
+        let displayModes = List()
+        let hash = HashSet()
+
+        let mutable mode = default: DEVMODEA
+        mode.dmSize <- uint16(sizeof<DEVMODEA>)
+        mode.dmDriverExtra <- 0
+        let mutable i = 0: uint32
+        while (EnumDisplaySettingsA(nullptr, i, &&mode) == BOOL.TRUE)
+            if (mode.dmBitsPerPel == 32)
+                let displayMode =
+                    DisplayMode(int32(mode.dmPelsWidth), int32(mode.dmPelsHeight), int32(mode.dmDisplayFrequency))
+
+                if (hash.Add(displayMode))
+                    displayMode.devmodea <- mode
+                    displayModes.Add(displayMode)
+            i <- i + 1
+
+        let displayModes = System.Linq.Enumerable.OrderBy(displayModes, x -> x.RefreshRate)
+        let displayModes = System.Linq.Enumerable.OrderBy(displayModes, x -> x.Height * x.Width)
+        let displayModes = System.Linq.Enumerable.ToArray(displayModes)
+        Unsafe.AsImmutable(displayModes)
+
+    // GetCurrentDisplayMode(): DisplayMode =
+    //     let mutable info = default: MONITORINFO
+    //     if (GetMonitorInfo(HMONITOR.NULL, &&info) == BOOL.FALSE)
+    //         fail("Failed to get monitor info.")
+
+    //     let mutable requiredPaths = 0: uint32
+    //     let mutable requiredModes = 0: uint32
+
+    //     if (GetDisplayConfigBufferSizes(uint32(QDC_ONLY_ACTIVE_PATHS), &&requiredPaths, &&requiredModes) != 0)
+    //         fail("Failed to get display config buffer sizes.")
+
+    //     let paths = 
+        
+    //     if (QueryDisplayConfig(uint32(QDC_ONLY_ACTIVE_PATHS), &&requiredPaths, x, &&requiredModes, x, nullptr) != 0)
+    //         fail("Failed to query display config.")
+    //                           // using the CCD get the associated path and display configuration
+    //                         //   UINT32 requiredPaths, requiredModes;
+    //                         //   if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, &requiredModes) == ERROR_SUCCESS)
+    //                         //   {
+    //                         //          std::vector<DISPLAYCONFIG_PATH_INFO> paths(requiredPaths);
+    //                         //          std::vector<DISPLAYCONFIG_MODE_INFO> modes2(requiredModes);
+    //                         //          if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, paths.data(), &requiredModes, modes2.data(), nullptr) == ERROR_SUCCESS)
+    //                         //          {
+    //                         //                 // iterate through all the paths until find the exact source to match
+    //                         //                 for (auto& p : paths) {
+    //                         //                        DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName;
+    //                         //                        sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+    //                         //                        sourceName.header.size = sizeof(sourceName);
+    //                         //                        sourceName.header.adapterId = p.sourceInfo.adapterId;
+    //                         //                        sourceName.header.id = p.sourceInfo.id;
+    //                         //                        if (DisplayConfigGetDeviceInfo(&sourceName.header) == ERROR_SUCCESS)
+    //                         //                        {
+    //                         //                               // find the matched device which is associated with current device 
+    //                         //                               // there may be the possibility that display may be duplicated and windows may be one of them in such scenario
+    //                         //                               // there may be two callback because source is same target will be different
+    //                         //                               // as window is on both the display so either selecting either one is ok
+    //                         //                               if (wcscmp(info.szDevice, sourceName.viewGdiDeviceName) == 0) {
+    //                         //                                      // get the refresh rate
+    //                         //                                      UINT numerator = p.targetInfo.refreshRate.Numerator;
+    //                         //                                      UINT denominator = p.targetInfo.refreshRate.Denominator;
+    //                         //                                      double refrate = (double)numerator / (double)denominator;
+    //                         //                                      *outRefreshRate = refrate;
+    //                         //                                      break;
+    //                         //                               }
+    //                         //                        }
+    //                         //                 }
+
+    //     let displayMode = info.
+        
+
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
-    private wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
+    wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
         if (Evergreen.ImGui.ImGuiContext.InputContext !== unchecked default &&
                 Evergreen.ImGui.Win32ProcHandler(hWnd, msg, wParam, lParam))
             LRESULT(nint(1))
@@ -156,6 +239,7 @@ internal class Win32Window =
     mutable field keysDown: HashSet<Key>
     mutable field isDisposed: bool
     mutable field isClosed: bool
+    mutable field currentDisplayMode: DisplayMode
 
     Title: string get() = this.title
     HWND: nint get() = nint(this.hwnd.Value)
@@ -198,7 +282,7 @@ internal class Win32Window =
             rect.bottom <- height
             rect.left <- 0
             rect.right <- width
-            let result = AdjustWindowRect(&&rect, uint32(WS_OVERLAPPEDWINDOW), BOOL.FALSE)
+            let result = AdjustWindowRect(&&rect, uint32(GetWindowLong(this.hwnd, GWL.GWL_STYLE)), BOOL.FALSE)
             let width = rect.right - rect.left
             let height = rect.bottom - rect.top
 
@@ -225,6 +309,10 @@ internal class Win32Window =
         | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
             throw Exception("Failed to create window.")
         | (hwnd, hinstance) =>
+            let displayModes = Win32.GetDisplayModes()
+            if (displayModes.Length == 0)
+                fail("Failed to find appropriate display modes.")
+            let displayMode = displayModes[displayModes.Length - 1]
             Win32.WindowLookup[hwnd] <- this
             {
                 title = title
@@ -236,6 +324,7 @@ internal class Win32Window =
                 hinstance = hinstance
                 isDisposed = false
                 isClosed = true
+                currentDisplayMode = displayMode
             }
         | _ =>
             // TODO: Fix language to handle this kind of exhaustiveness
@@ -258,7 +347,48 @@ internal class Win32Window =
     Minimize(): () =
         this.ThrowIfDisposed()
         if (!this.isClosed)
-            let result = CloseWindow(this.hwnd)        
+            let result = CloseWindow(this.hwnd)     
+                
+    GetDisplayModes(): DisplayMode[] = Win32.GetDisplayModes()
+
+    CurrentDisplayMode: DisplayMode get() = this.currentDisplayMode
+
+    ChangeDisplayMode(displayMode: DisplayMode): () =
+        let displayModes = this.GetDisplayModes()
+        let loop(i) =
+            if (i == displayModes.Length)
+                ()
+            else
+                let displayMode2 = displayModes[i]
+                if (displayMode.Equals(displayMode2))
+                    this.currentDisplayMode <- displayMode2
+                    this.Size <- Vector2(float32(displayMode.Width), float32(displayMode.Height))
+                else
+                    loop(i + 1)
+        loop(0)
+
+    IsFullscreen: bool
+        get() = 
+            (GetWindowLong(this.hwnd, GWL.GWL_STYLE) & WS.WS_OVERLAPPEDWINDOW) == 0
+        set(value) =
+                let dwStyle = GetWindowLong(this.hwnd, GWL.GWL_STYLE)
+                if (dwStyle & WS.WS_OVERLAPPEDWINDOW != 0)
+                    let size = Vector2(float32(this.currentDisplayMode.Width), float32(this.currentDisplayMode.Height))
+                    let _ = SetWindowLong(this.hwnd, GWL.GWL_STYLE, dwStyle & ~WS.WS_OVERLAPPEDWINDOW)
+                    let _ =
+                        SetWindowPos(this.hwnd, HWND.HWND_TOP,
+                            0, 0,
+                            int32(size.X), int32(size.Y),
+                            uint32(SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
+                        )
+                else
+                    let _ = SetWindowLong(this.hwnd, GWL.GWL_STYLE, dwStyle | WS.WS_OVERLAPPEDWINDOW)
+                    let _ =
+                        SetWindowPos(this.hwnd, HWND.NULL,
+                            0, 0,
+                            0, 0,
+                            uint32(SWP.SWP_NOMOVE | SWP.SWP_NOSIZE | SWP.SWP_NOZORDER | SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
+                        )
 
     PumpEvents(): InputSnapshot =
         this.ThrowIfDisposed()

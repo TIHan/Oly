@@ -54,11 +54,12 @@ alias ImGuiInputTextCallback = static blittable ImGuiInputTextCallbackData* -> i
 // TODO:
 enum ImGuiWindowFlags =
     | None = 0
-    | NoTitleBar      = 0b000000001
-    | NoResize        = 0b000000010
-    | NoMove          = 0b000000100
-    | NoCollapse      = 0b000100000
-    | NoSavedSettings = 0b100000000
+    | NoTitleBar       = 0b000000001
+    | NoResize         = 0b000000010
+    | NoMove           = 0b000000100
+    | NoCollapse       = 0b000100000
+    | AlwaysAutoResize = 0b001000000
+    | NoSavedSettings  = 0b100000000
 
 // TODO:
 enum ImGuiInputTextFlags =
