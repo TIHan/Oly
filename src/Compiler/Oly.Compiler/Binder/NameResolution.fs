@@ -837,49 +837,56 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         if expectedTyArity = tyArity then
                             ty
                         else
-                            // This is effectively doing partial instantiation of a type.
-                            let partialTyPars = 
-                                ty.TypeArguments
-                                |> ImArray.skip (tyArity - expectedTyArity)
-                                |> ImArray.map (fun x ->
-                                    x.TryTypeParameter.Value
-                                )
-
-                            let tyPars =
-                                partialTyPars
-                                |> ImArray.mapi (fun i tyPar -> 
-                                    let newTyPar =
-                                        TypeParameterSymbol(
-                                            tyPar.Name,
-                                            i,
-                                            tyPar.Arity,
-                                            TypeParameterKind.Type,
-                                            ref ImArray.empty
-                                        )
-                                    newTyPar
-                                )
-
-                            let tyArgs =
-                                (partialTyPars, tyPars)
-                                ||> ImArray.map2 (fun partialTyPar tyPar ->
-                                    mkSolvedInferenceVariableType partialTyPar tyPar.AsType
-                                )
-
-                            (partialTyPars, tyPars)
-                            ||> ImArray.iter2 (fun partialTyPar tyPar ->
-                                if partialTyPar.Constraints.IsEmpty |> not then
-                                    tyPar.SetConstraints(
-                                        partialTyPar.Constraints
-                                        |> ImArray.map (fun constr ->
-                                            actualConstraint tyArgs constr
-                                        )
+                            // At this point, we expect an instantiation of a type which then we try to do a partial instantiation of it.
+                            // However, we cannot do a partial instantiation of a type-constructor, so simply return an error.
+                            if ty.IsTypeConstructor then
+                                cenv.diagnostics.Error($"Partial instantiation of type-constructor '{printType env.benv ty}' not valid.", 10, syntaxName)
+                                TypeSymbolError
+                            else
+                                // This is effectively doing partial instantiation of a type.
+                                let partialTyPars = 
+                                    ty.TypeArguments
+                                    |> ImArray.skip (tyArity - expectedTyArity)
+                                    |> ImArray.map (fun x ->
+                                        x.TryTypeParameter.Value
                                     )
-                            )
 
-                            OlyAssert.False(tyPars.IsEmpty)
-                            TypeSymbol.ForAll(tyPars, ty.Substitute(tyArgs))
+                                let tyPars =
+                                    partialTyPars
+                                    |> ImArray.mapi (fun i tyPar -> 
+                                        let newTyPar =
+                                            TypeParameterSymbol(
+                                                tyPar.Name,
+                                                i,
+                                                tyPar.Arity,
+                                                TypeParameterKind.Type,
+                                                ref ImArray.empty
+                                            )
+                                        newTyPar
+                                    )
+
+                                let tyArgs =
+                                    (partialTyPars, tyPars)
+                                    ||> ImArray.map2 (fun partialTyPar tyPar ->
+                                        mkSolvedInferenceVariableType partialTyPar tyPar.AsType
+                                    )
+
+                                (partialTyPars, tyPars)
+                                ||> ImArray.iter2 (fun partialTyPar tyPar ->
+                                    if partialTyPar.Constraints.IsEmpty |> not then
+                                        tyPar.SetConstraints(
+                                            partialTyPar.Constraints
+                                            |> ImArray.map (fun constr ->
+                                                actualConstraint tyArgs constr
+                                            )
+                                        )
+                                )
+
+                                OlyAssert.False(tyPars.IsEmpty)
+                                TypeSymbol.ForAll(tyPars, ty.Substitute(tyArgs))
                     else
                         ty
+
                 let ty = bindTypeConstructor cenv env syntaxName resInfo.resTyArity ty (syntaxTyArgsRoot, syntaxTyArgs)
                 ResolutionItem.Type(syntaxName, ty)
 

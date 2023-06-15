@@ -306,6 +306,18 @@ module ImArray =
         builder.Capacity <- builder.Count
         builder.MoveToImmutable()
 
+    let inline choose2 (chooser: 'T1 -> 'T2 -> 'U option) (arr1: imarray<'T1>) (arr2: imarray<'T2>) : imarray<'U> =
+        if arr1.Length <> arr2.Length then
+            invalidOp "Array lengths do not match."
+
+        let builder = ImmutableArray.CreateBuilder(arr1.Length)
+        for i = 0 to arr1.Length - 1 do
+            let result = chooser arr1[i] arr2[i]
+            if result.IsSome then
+                builder.Add(result.Value)
+        builder.Capacity <- builder.Count
+        builder.MoveToImmutable()
+
     let inline isEmpty (arr: imarray<_>) = arr.IsEmpty
 
     let fold folder state (arr: imarray<_>) =

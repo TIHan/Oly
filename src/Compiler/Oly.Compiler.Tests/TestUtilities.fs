@@ -198,6 +198,19 @@ let withErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCo
     Assert.Equal(expected.Length, errorMsgs.Length)
     c
 
+let containsErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
+    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let result =
+        expected
+        |> Seq.forall (fun (expectedMsg, expectedText) ->
+            errorMsgs
+            |> Array.exists (fun (msg, text) ->
+                expectedMsg = msg && expectedText = text
+            )
+        )
+    Assert.True(result, sprintf "%A" errorMsgs)
+    c
+
 [<NoEquality;NoComparison>]
 type TestCompilationOutput =
     {

@@ -1327,7 +1327,7 @@ let findMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnvironment) que
         tyExts
         |> ImArray.map (fun tyExt ->
             if tyExt.IsFormal && not ty.IsFormal then
-                applyEntity ty.TypeArguments tyExt
+                tyExt.SubstituteExtension(ty.TypeArguments)
             else
                 tyExt
         )

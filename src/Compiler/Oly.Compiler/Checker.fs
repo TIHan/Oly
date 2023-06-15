@@ -250,13 +250,20 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 // --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
+    OlyAssert.False(ent.Flags.HasFlag EntityFlags.Invalid)
+
     if ent.IsAnyStruct then
         checkStructCycle env syntaxNode ent
         |> ignore
 
-    let tyArgs = ent.LogicalTypeArguments
+    let tyPars = ent.TypeParameters
+    let tyArgs = ent.TypeArguments
 
-    (ent.LogicalTypeParameters, tyArgs)
+    let tyPars, tyArgs =
+        let skipAmount = tyPars.Length - syntaxTys.Length
+        tyPars |> ImArray.skip skipAmount, tyArgs |> ImArray.skip skipAmount
+
+    (tyPars, tyArgs)
     ||> Seq.iteri2 (fun i tyPar tyArg ->
         if tyPar.Arity > 0 then
             match stripTypeEquations tyArg with
@@ -284,18 +291,24 @@ let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType i
 
 /// Only used in pass3 to check types of value declarations
 let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: OlySyntaxType imarray) (ty: TypeSymbol) =
-    (syntaxTys, ty.TypeArguments)
-    ||> ImArray.tryIter2 (fun syntaxTy tyArg ->
-        match syntaxTy with
-        | OlySyntaxType.Name(syntaxName) ->
-            match syntaxName with
-            | OlySyntaxName.Generic(_, syntaxTyArgsRoot) ->
-                checkTypeConstructorDepth env syntaxTyArgsRoot syntaxTyArgsRoot.Values tyArg
+    let tyArgs = ty.TypeArguments
+    let skipAmount = tyArgs.Length - syntaxTys.Length
+
+    if skipAmount >= 0 then
+        let tyArgs = tyArgs |> ImArray.skip skipAmount
+        (syntaxTys, tyArgs)
+        ||> ImArray.iter2 (fun syntaxTy tyArg ->
+            match syntaxTy with
+            | OlySyntaxType.Name(syntaxName) ->
+                match syntaxName with
+                | OlySyntaxName.Generic(_, syntaxTyArgsRoot) ->
+                    checkTypeConstructorDepth env syntaxTyArgsRoot syntaxTyArgsRoot.Values tyArg
+                | _ ->
+                    checkTypeConstructorDepth env syntaxName ImArray.empty tyArg
             | _ ->
-                checkTypeConstructorDepth env syntaxName ImArray.empty tyArg
-        | _ ->
-            ()
-    )
+                ()
+        )
+
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
         checkEntityConstructor env syntaxNode (* skipUnsolved *) false syntaxTys ent
@@ -306,20 +319,22 @@ let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: Ol
             // If the constraint type has any type parameter constructors, then we skip this check
             // as it has already failed elsewhere. We do not support further "higher-rank" types.
             | ValueSome(constrTy) when constrTy.TypeParameters |> ImArray.forall (fun x -> x.HasArity |> not) ->
-                let constrTy = actualType tyArgs constrTy
-                checkTypeConstructorDepth env syntaxNode syntaxTys constrTy
+                if constrTy.IsTypeConstructor then
+                    checkTypeConstructorDepth env syntaxNode syntaxTys (applyType constrTy tyArgs)
+                else
+                    checkTypeConstructorDepth env syntaxNode ImArray.empty (actualType tyArgs constrTy)
             | _ ->
                 ()
         )
     | _ ->
         ()
 
-let checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
+and checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
     match syntaxTy with
     | OlySyntaxType.Name(syntaxName) ->
         match syntaxName with
-        | OlySyntaxName.Generic(_, syntaxTyArgsRoot) ->
-            checkTypeConstructorDepth env syntaxTyArgsRoot syntaxTyArgsRoot.Values ty
+        | OlySyntaxName.Generic(syntaxName, syntaxTyArgsRoot) ->
+            checkTypeConstructorDepth env syntaxName syntaxTyArgsRoot.Values ty
         | _ ->
             checkTypeConstructorDepth env syntaxName ImArray.empty ty
     | _ ->
@@ -551,11 +566,7 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 
     let firstReturnExpression = rhsExpr.FirstReturnExpression
 
-    match firstReturnExpression with
-    | BoundExpression.Lambda(body=body) ->
-        OlyAssert.True(body.HasExpression)         
-    | _ ->
-        ()
+
 
     let returnTy = 
         if firstReturnExpression.IsLambdaExpression then

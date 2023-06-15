@@ -1199,6 +1199,54 @@ class Test<T<_>> where T<_>: ITest =
     |> ignore
 
 [<Fact>]
+let ``Second-order generic constraint should fail because of constraints on generic type constructor 3``() =
+    let src =
+        """
+interface ITest<T1, T2> where T1: struct
+
+class C
+
+class Test<T<_, _>> where T<_, _>: ITest =
+
+    M(x: T<C, C>): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'C' is missing the constraint 'struct'.",
+                """
+    M(x: T<C, C>): () = ()
+           ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Second-order generic constraint should fail because of constraints on generic type constructor 4``() =
+    let src =
+        """
+interface ITest<T1, T2> where T2: struct
+
+class C
+
+class Test<T<_, _>> where T<_, _>: ITest =
+
+    M(x: T<C, C>): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'C' is missing the constraint 'struct'.",
+                """
+    M(x: T<C, C>): () = ()
+              ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Recursive constraint interface should compile``() =
     let src =
         """

@@ -62,6 +62,15 @@ type BinderEnvironment =
        isExecutable: bool
     }
 
+    member this.SetIsInInstanceConstructorType(ent: EntitySymbol) =
+        { this with isInInstanceConstructorType = Some(TypeSymbol.Entity(ent)) }
+
+    member this.UnsetIsInInstanceConstructorType() =
+        if this.isInInstanceConstructorType.IsSome then
+            { this with isInInstanceConstructorType = None }
+        else
+            this
+
     /// Context type is not the enclosing type, but rather using certain expressions like "let!"
     /// will be understood by the given type.
     /// The context type will be set with the formal type of the given type.
@@ -157,6 +166,11 @@ type BinderEnvironment =
         | ValueSome ent when ent.IsNamespace -> failwith "Cannot add a namespace as a type."
         | _  ->
 
+#if DEBUG
+        if ty.IsTypeConstructor then
+            OlyAssert.True(ty.Arity >= arity)
+#endif
+
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with
             | true, arityGroup -> arityGroup
@@ -196,6 +210,11 @@ type BinderEnvironment =
         | ValueSome ent when ent.IsNamespace && not(ty.IsAlias) -> 
             OlyAssert.Fail("Cannot add a namespace as a type.")
         | _ ->
+
+#if DEBUG
+        if ty.IsTypeConstructor then
+            OlyAssert.True(ty.Arity >= arity)
+#endif
 
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with

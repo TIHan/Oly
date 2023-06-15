@@ -846,9 +846,11 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
         if binding.Value.IsConstructor then 
             match currentEnclosing env with
             | EnclosingSymbol.Entity(ent) when not ent.IsInterface && not ent.IsModule ->
-                { envOfBinding with isInInstanceConstructorType = Some(TypeSymbol.Entity(ent)) }
+                envOfBinding.SetIsInInstanceConstructorType(ent)
             | _ ->
-                envOfBinding
+                envOfBinding.UnsetIsInInstanceConstructorType()
+        elif (binding.Value.IsFunction && not binding.Value.IsLocal) || binding.Value.IsStaticLocalFunction then
+            envOfBinding.UnsetIsInInstanceConstructorType()
         else
             envOfBinding
 

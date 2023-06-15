@@ -755,8 +755,11 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
 [<Struct;NoComparison;NoEquality>]
 type TypeSymbolGeneralizedMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
 
-    member _.SetItem(key, value) =
-        TypeSymbolGeneralizedMap(map.SetItem(key, value))
+    member this.SetItem(key: TypeSymbol, value) =
+        if key.IsError_t then
+            this
+        else
+            TypeSymbolGeneralizedMap(map.SetItem(key, value))
 
     member _.TryFind(key) =
         match map.TryGetValue key with
@@ -772,8 +775,11 @@ type TypeSymbolGeneralizedMap<'T> private (map: ImmutableDictionary<TypeSymbol, 
 [<Struct;NoComparison;NoEquality>]
 type TypeSymbolMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
 
-    member _.SetItem(key, value) =
-        TypeSymbolMap(map.SetItem(key, value))
+    member this.SetItem(key: TypeSymbol, value) =
+        if key.IsError_t then
+            this
+        else
+            TypeSymbolMap(map.SetItem(key, value))
 
     member _.TryFind(key) =
         match map.TryGetValue key with

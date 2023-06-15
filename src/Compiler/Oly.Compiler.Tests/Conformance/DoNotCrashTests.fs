@@ -85,7 +85,14 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
         this.Buffer[0] <- 1
     """
     |> Oly
-    |> hasErrorDiagnostics
+    |> containsErrorHelperTextDiagnostics [
+        ("Partial instantiation of type-constructor 'IMemory<T, TKey, TValue, T>' not valid.",
+        """
+struct Test<TMemory<_>> where TMemory<_>: IMemory =
+                                          ^^^^^^^
+"""
+        )
+    ]
 
 [<Fact>]
 let ``Test 4``() =
@@ -115,7 +122,14 @@ main(): () =
         )
     """
     |> Oly
-    |> hasErrorDiagnostics
+    |> containsErrorHelperTextDiagnostics [
+        ("Expected ')'.",
+        """
+    static op_Equality(x TestStruct, y: TestStruct): bool = true
+                        ^
+"""
+        )
+    ]
 
 [<Fact>]
 let ``Test 5``() =
@@ -178,7 +192,14 @@ extension MaybeMonadExtension<T> =
     Toot.bind<_, _>(ma, f)
     """
     |> Oly
-    |> hasErrorDiagnostics
+    |> containsErrorHelperTextDiagnostics [
+        ("Expected ')'.",
+        """
+    static abstract bind<A, B>(ma: MA>, f: A -> M2<B>) : M2<B>
+                                     ^
+"""
+        )
+    ]
 
 [<Fact>]
 let ``Test 7``() =
@@ -209,7 +230,14 @@ extension MaybeExtension<T> =
     Toot.bind<_, _>(ma, f)
     """
     |> Oly
-    |> hasErrorDiagnostics
+    |> containsErrorHelperTextDiagnostics [
+        ("Expected ')'.",
+        """
+    static abstract bind<A, B>(ma: M<A>, f: A  M2<B>) : M2<B>
+                                             ^
+"""
+        )
+    ]
 
 [<Fact>]
 let ``Test 8``() =
@@ -459,3 +487,453 @@ module Array =
 """
         )
     ]
+
+[<Fact>]
+let ``Test 13``() =
+    """
+#[intrinsic("base_object")]
+alias object
+
+#intrinsic("print")]
+print(object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+
+interface IMemory<T> where T: struct =
+
+    get_Item(index: int32): T
+    set_Item(index: int32, item: T): ()
+
+struct Test<TMemory<_>> where TMemory<_>: IMemory =
+
+    mutable field Buffer: TMemory<int32>
+
+    new(buffer: TMemory<int32>) =
+        {
+            Buffer = buffer
+        }
+
+    mutable A(): () =
+        this.Buffer[0] <- 1
+    """
+    |> Oly
+    |> containsErrorHelperTextDiagnostics [
+        ("Partial instantiation of type-constructor 'IMemory<T, TKey, TValue, T>' not valid.",
+        """
+struct Test<TMemory<_>> where TMemory<_>: IMemory =
+                                          ^^^^^^^
+"""
+        )
+    ]
+
+[<Fact>]
+let ``Test 14``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+struct TestStruct =
+
+    static op_Equality(x TestStruct, y: TestStruct): bool = true
+
+struct TestStruct2 =
+    
+    public field S: TestStruct = default
+
+Find<T>(arr: T[], predicate: T -> bool): T = unchecked default
+
+main(): () =
+    let s = TestStruct()
+    let xs: TestStruct2[] = []
+    let result = 
+        Find(xs, 
+                 let s = s
+                 x -> if (x.S == s) true else false
+        )
+    """
+    |> Oly
+    |> containsErrorHelperTextDiagnostics [
+        ("Expected ')'.",
+        """
+    static op_Equality(x TestStruct, y: TestStruct): bool = true
+                        ^
+"""
+        )
+    ]
+
+[<Fact>]
+let ``Test 15``() =
+    """
+interface ITest =
+
+    static abstract default M(): () = ()
+
+class TestT>
+
+#[open]
+extension TestExtension<T> =
+    inherits Test<T>
+    implements ITest
+
+test<T<_>>(): () where T<_>: Test =
+    T<()>.M()
+
+main(): () =
+    test<Test>()
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 16``() =
+    """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(, value)
+
+interface IMemory<T> where T: struct =
+
+    get_Item(index: int32): T
+    set_Item(index: int32, item: T): ()
+
+struct Test<TMemory<_>> where TMemory<_>: IMemory =
+
+    mutable field Buffer: TMemory<int32>
+
+    new(buffer: TMemory<int32>) =
+        {
+            Buffer = buffer
+        }
+
+    mutable A(): () =
+        this.Buffer[0] <- 1
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 17``() =
+    """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): ) where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+
+interface IMemory<T> where T: struct =
+
+    get_Item(index: int32): T
+    set_Item(index: int32, item: T): ()
+
+struct Test<TMemory<_>> where TMemory<_>: IMemory =
+
+    mutable field Buffer: TMemory<int32>
+
+    new(buffer: TMemory<int32>) =
+        {
+            Buffer = buffer
+        }
+
+    mutable A(): () =
+        this.Buffer[0] <- 1
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 18``() =
+    """
+module Oly.Entities
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+#[intrinsic("get_element")]
+(`[,]`)<T>(T[,], index1: int32, index2: int32): T
+
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+#intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+#[intrinsic("get_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
+#[intrinsic("set_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+
+#[intrinsic("get_length")]
+getLength<T>(mutable T[]): int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module Array =
+
+    #[intrinsic("new_array")]
+    ZeroCreate<T>(size: int32): mutable T[]
+
+interface IMemory<T> where T: struct =
+
+    get_Item(index: int32): T
+    set_Item(index: int32, item: T): ()
+
+    Length: int32 get
+
+interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
+
+    static abstract Allocate<T>(size: int32): TMemory<T> where T: struct
+
+struct DefaultMemory<T> where T: struct =
+    implements IMemory<T>
+
+    private field Buffer: mutable T[]
+
+    private new(buffer: mutable T[]) =
+        {
+            Buffer = buffer
+        }
+
+    get_Item(index: int32): T = this.Buffer[index]
+    set_Item(index: int32, item: T): () = this.Buffer[index] <- item
+
+    Length: int32
+        get() = getLength(this.Buffer)
+
+struct DefaultMemoryAllocator =
+    implements IMemoryAllocator<DefaultMemory>
+
+    static overrides Allocate<T>(size: int32): DefaultMemory<T> where T: struct =
+        DefaultMemory(Array.ZeroCreate<T>(size))
+
+interface IComponent
+
+internal struct IndexQueue<TMemory<_>, TMemoryAllocator> 
+    where TMemory<_>: IMemory; 
+    where TMemoryAllocator: IMemoryAllocator<TMemory> 
+    =
+
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
+
+    new(indices: TMemory<int32>, count: int32) =
+        {
+            Indices = indices
+            Count = count
+        }
+
+    new() =
+        {
+            Indices = TMemoryAllocator.Allocate(8)
+            Count = 0
+        }
+
+    mutable Enqueue(index: int32): () =
+        ()
+
+    mutable TryDequeue(index: byref<int32>): bool =
+        true
+
+    GetFirst(): int32 = this.Indices.get_Item(0)
+
+        
+internal test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
+    let x = IndexQueue<DefaultMemory, DefaultMemoryAllocator>()
+    print(x.GetFirst())
+    x
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 19``() =
+    """
+module Oly.Entities
+
+#[intrinsic("int32")]
+alias int32
+
+#intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+#[intrinsic("get_element")]
+(`[,]`)<T>(T[,], index1: int32, index2: int32): T
+
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+#[intrinsic("get_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
+#[intrinsic("set_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+
+#[intrinsic("get_length")]
+getLength<T>(mutable T[]): int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module Array =
+
+    #[intrinsic("new_array")]
+    ZeroCreate<T>(size: int32): mutable T[]
+
+interface IMemory<T> where T: struct =
+
+    get_Item(index: int32): T
+    set_Item(index: int32, item: T): ()
+
+    Length: int32 get
+
+interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
+
+    static abstract Allocate<T>(size: int32): TMemory<T> where T: struct
+
+struct DefaultMemory<T> where T: struct =
+    implements IMemory<T>
+
+    private field Buffer: mutable T[]
+
+    private new(buffer: mutable T[]) =
+        {
+            Buffer = buffer
+        }
+
+    get_Item(index: int32): T = this.Buffer[index]
+    set_Item(index: int32, item: T): () = this.Buffer[index] <- item
+
+    Length: int32
+        get() = getLength(this.Buffer)
+
+struct DefaultMemoryAllocator
+
+interface IComponent
+
+private struct IndexQueue<TMemory<_>, TMemoryAllocator> 
+    where TMemory<_>: IMemory; 
+    where TMemoryAllocator: IMemoryAllocator<TMemory> 
+    =
+
+    public mutable field Indices: TMemory<int32>
+    public mutable field Count: int32
+
+    new() =
+        {
+            Indices = TMemoryAllocator.Allocate(8)
+            Count = 0
+        }
+        
+test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
+    IndexQueue<DefaultMemory, DefaultMemoryAllocator>()
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 20``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+alias AliasObject<T1, T2, T3> = int32
+
+#[open]
+extension AdditionExtends<T1, T2, T3> =
+    inherits AliasObjectT1, T2, T3>
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 21``() =
+    """
+main(): () =
+    let loop() = ()
+    let loop() = )
+    loop()
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 22``() =
+    """
+interface ITest<T> where T: struct
+
+class C
+
+class Test<T<_, _>> where T<_, _>: ITest =
+
+    M(x: T<C>): () = ()
+    """
+    |> Oly
+    |> hasErrorDiagnostics

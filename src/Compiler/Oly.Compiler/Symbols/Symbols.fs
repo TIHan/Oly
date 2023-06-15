@@ -4833,6 +4833,20 @@ module SymbolHelpers =
         member this.Substitute(tyArgs: TypeArgumentSymbol imarray) =
             substituteEntity tyArgs this
 
+        member this.SubstituteExtension(tyArgs: TypeArgumentSymbol imarray) =
+            OlyAssert.True(this.IsTypeExtension)
+            let extendTy = this.Extends[0]
+            let tyArgs =
+                (extendTy.TypeArguments, tyArgs)
+                ||> ImArray.choose2 (fun ty tyArg ->
+                    if ty.IsTypeVariable then
+                        mkSolvedInferenceVariableType ty.TryTypeParameter.Value tyArg
+                        |> Some
+                    else
+                        None
+                )
+            this.Substitute(tyArgs)
+
         member this.Contains(ent: EntitySymbol) =
             this.Entities
             |> ImArray.exists (fun x -> x.Id = ent.Id)
