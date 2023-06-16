@@ -240,6 +240,14 @@ module ImArray =
             | res -> res
         loop 0 
 
+    let inline tryPicki ([<InlineIfLambda>] chooser) (arr: imarray<'T>) =
+        let rec loop i = 
+            if i >= arr.Length then None else 
+            match chooser i arr.[i] with 
+            | None -> loop(i+1)
+            | res -> res
+        loop 0 
+
     let inline tryExactlyOne (arr: imarray<'T>) =
         if arr.Length = 1 then
             Some arr[0]

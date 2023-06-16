@@ -212,6 +212,16 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                     true
             )
 
+        let extends =
+            if ent.IsInterface then
+                extends
+            elif extends.Length > 1 then
+                // Multiple inheritance not allowed here.
+                // So just truncate the rest.
+                ImArray.createOne extends[0]
+            else
+                extends
+
         entBuilder.SetExtends(cenv.pass, extends)
         entBuilder.SetImplements(cenv.pass, implements)
 

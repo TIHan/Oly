@@ -372,7 +372,10 @@ let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
 
 let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
     match rhsExprOpt with
-    | ValueSome rhsExpr ->
+    | ValueSome(E.Lambda(body=lazyBodyExpr)) when value.IsFunction ->
+        OlyAssert.True(lazyBodyExpr.HasExpression)
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false } lazyBodyExpr.Expression
+    | ValueSome(rhsExpr) ->
         analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
     | _ ->
         ()
@@ -766,8 +769,19 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeExpression acenv (notReturnableAddress aenv) lhsExpr
         analyzeExpression acenv (notReturnableAddress aenv) rhsExpr
 
-    | BoundExpression.Lambda(_, _, _, _, lazyBodyExpr, lazyTy, _, _) ->
+    | BoundExpression.Lambda(_, _, _, pars, lazyBodyExpr, lazyTy, _, _) ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
+        OlyAssert.True(lazyTy.Type.IsFunction_t)
+
+        match lazyTy.Type.TryFunction with
+        | ValueSome(_, outputTy) ->
+            pars
+            |> ImArray.iter (fun par ->
+                analyzeTypeForParameter acenv aenv syntaxNode par.Type
+            )
+            analyzeTypeForParameter acenv aenv syntaxNode outputTy
+        | _ ->
+            ()
 
         let freeLocals = expr.GetFreeLocals()
         freeLocals
@@ -782,8 +796,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
                     diagnostics.Error($"'{x.Name}' is an address and cannot be captured.", 10, syntaxNode)
         )
 
-        let isReturnableAddress = lazyTy.Type.IsByRef_t
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = isReturnableAddress; freeLocals = freeLocals } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; freeLocals = freeLocals } lazyBodyExpr.Expression
 
     | BoundExpression.MemberDefinition(_, binding) ->
         let aenv = (notReturnableAddress aenv)

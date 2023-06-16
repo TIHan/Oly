@@ -8420,3 +8420,150 @@ module Array =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Many target expressions returning lambdas should compile``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+test(f: int32 -> int32): () = ()
+
+main(): () =
+    let x = 1
+    let f =
+        match (x)
+        | 3 =>
+            let y = 1
+            x -> y
+        | 1 =>
+            let y = 5
+            ()
+            ()
+            x -> y
+        | _ =>
+            let z = 5
+            ()
+            let x = 2
+            ()
+            x -> z
+
+    test(f)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Many target expressions returning lambdas should compile 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+test(f: int32 -> int32): () = ()
+
+main(): () =
+    let x = 1
+
+    test(
+        match (x)
+        | 3 =>
+            let y = 1
+            x -> y
+        | 1 =>
+            let y = 5
+            ()
+            ()
+            x -> y
+        | _ =>
+            let z = 5
+            ()
+            let x = 2
+            ()
+            x -> z
+    )
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Many target expressions returning lambdas should compile 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool 
+
+test(f: int32 -> int32): () = ()
+
+main(): () =
+    let x = 1
+
+    test(
+        if (x == 3)
+            let y = 1
+            x -> y
+        else if (x == 1)
+            let y = 5
+            ()
+            ()
+            x -> y
+        else
+            let z = 5
+            ()
+            let x = 2
+            ()
+            x -> z
+    )
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Many target expressions returning lambdas should compile 4``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool 
+
+test(f: int32 -> int32): () = ()
+
+main(): () =
+    let x = 1
+
+    let f =
+        if (x == 3)
+            let y = 1
+            x -> y
+        else if (x == 1)
+            let y = 5
+            ()
+            ()
+            x -> y
+        else
+            let z = 5
+            ()
+            let x = 2
+            ()
+            x -> z
+
+    test(f)
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

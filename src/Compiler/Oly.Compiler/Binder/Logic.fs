@@ -121,7 +121,7 @@ let private isValidEntryPoint (cenv: cenv) env (enclosing: EnclosingSymbol) (fun
     else
         false
 
-let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) (valueExplicitness: ValueExplicitness) (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) : Choice<BindingInfoSymbol, LocalBindingInfoSymbol> option =
+let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAttributes, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) (valueExplicitness: ValueExplicitness) (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) : Choice<BindingInfoSymbol, LocalBindingInfoSymbol> option =
     let enclosing = currentEnclosing env
 
     let isCtor = syntaxBindingDecl.Identifier.IsNew
@@ -220,11 +220,6 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                     cenv.diagnostics.Error("Static functions cannot be marked with mutable.", 10, syntaxNode)
                 pars
 
-        let funcIntrin =
-            attrs
-            |> WellKnownFunction.TryFromAttributes
-            |> Option.defaultValue WellKnownFunction.None
-
         match funcSemantic with
         | PatternFunction ->
             if pars.Length <> 1 then
@@ -248,9 +243,42 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
                 memberFlags
                 funcFlags
                 funcSemantic
-                funcIntrin
+                WellKnownFunction.None
                 None
                 isMutable
+
+        // Begin - intrinsic functions
+        let wkf =
+            attrs
+            |> ImArray.tryPicki (fun i attr ->
+                match attr with
+                | AttributeSymbol.Intrinsic(intrinsicName) ->
+                    let error () =
+                        cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttrs.Values[i])
+                        None
+
+                    match intrinsicName with
+                    | "constant" ->
+                        if attrs |> ImArray.exists (function AttributeSymbol.Import _ -> true | _ -> false) then
+                            Some(WellKnownFunction.Constant)
+                        else
+                            error()
+
+                    | _ ->
+                        match WellKnownFunction.TryFromName intrinsicName with
+                        | Some(wkf) ->
+                            if Oly.Compiler.Internal.WellKnownFunctions.Validate(wkf, func) then
+                                Some wkf
+                            else
+                                error()
+                        | _ ->
+                            error()
+                | _ ->
+                    None
+            )
+            |> Option.defaultValue WellKnownFunction.None
+        func.SetWellKnownFunction(wkf)
+        // End - intrinsic functions
 
         if func.IsEntryPoint then
             match cenv.entryPoint with
@@ -513,8 +541,8 @@ let private bindBindingDeclarationAux (cenv: cenv) env (attrs: AttributeSymbol i
     | _ ->
         raise(InternalCompilerException())
 
-let bindMemberBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
-    match bindBindingDeclarationAux cenv env attrs onlyBindAsType memberFlags valueExplicitness propInfoOpt syntaxBindingDecl with
+let bindMemberBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
+    match bindBindingDeclarationAux cenv env (syntaxAttrs, attrs) onlyBindAsType memberFlags valueExplicitness propInfoOpt syntaxBindingDecl with
     | Some(Choice1Of2(bindingInfo)) ->
         recordValueDeclaration cenv bindingInfo.Value syntaxBindingDecl.Identifier
         checkValueExport cenv syntaxBindingDecl.Identifier bindingInfo.Value
@@ -524,8 +552,8 @@ let bindMemberBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarra
     | _ ->
         invalidBinding syntaxBindingDecl.Identifier.ValueText
 
-let bindLetBindingDeclaration (cenv: cenv) env (attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration) =  
-    match bindBindingDeclarationAux cenv env attrs onlyBindAsType memberFlags valueExplicitness None syntaxBindingDecl with
+let bindLetBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration) =  
+    match bindBindingDeclarationAux cenv env (syntaxAttrs, attrs) onlyBindAsType memberFlags valueExplicitness None syntaxBindingDecl with
     | Some(Choice2Of2(bindingInfo)) ->
         checkValueExport cenv syntaxBindingDecl.Identifier bindingInfo.Value
         bindingInfo

@@ -107,7 +107,7 @@ let private randomPartialSyntax (c: TestCompilation) =
     let str = text.ToString()
 
     let random = Random()
-    for i = 0 to 10 do
+    for _ = 1 to 100 do
         let tokens = tree.GetRoot(CancellationToken.None).GetDescendantTokens()
 
         let randomToken =
@@ -137,14 +137,14 @@ let private stressTest origSrc (c: TestCompilation) =
     Assert.Equal(origSrc, syntaxTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
 
 #if STRESS
-    stressTyping c
+  //  stressTyping c
 
     // We do this to ensure that syntax nodes with diagnostics do not get collected.
     // Syntax nodes associated with diagnostics are kept in a ConditionalWeakTable internally.
-    GC.Collect(2, GCCollectionMode.Forced, true)
-    GC.WaitForPendingFinalizers()
+  //  GC.Collect(2, GCCollectionMode.Forced, true)
+  //  GC.WaitForPendingFinalizers()
 
-  //  randomPartialSyntax c
+    randomPartialSyntax c
 #endif
 
     c

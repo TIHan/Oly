@@ -14,7 +14,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.PrettyPrint
 
 let private bindTopLevelBindingDeclaration cenv env syntaxBinding (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBindingDecl =
-    let binding = bindMemberBindingDeclaration cenv env attrs false memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
+    let binding = bindMemberBindingDeclaration cenv env (syntaxAttrs, attrs) false memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
     checkEnumForInvalidFieldOrFunction cenv syntaxBindingDecl binding
 
     checkSyntaxDeclarationBinding cenv enclosing memberFlags valueExplicitness syntaxBinding
@@ -46,17 +46,11 @@ let private bindTopLevelBindingDeclarationSignature cenv env (syntaxAttrs, attrs
         | _ ->
             attrs
 
-    let binding = bindMemberBindingDeclaration cenv env attrs true memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
+    let binding = bindMemberBindingDeclaration cenv env (syntaxAttrs, attrs) true memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
     checkEnumForInvalidFieldOrFunction cenv syntaxBindingDecl binding
 
     if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness propInfoOpt.IsNone syntaxBindingDecl then
         checkSyntaxBindingDeclaration cenv valueExplicitness syntaxBindingDecl
-
-    match binding.Value with
-    | :? IFunctionSymbol as func ->
-        AttributeBinder.bindIntrinsicPrimitivesForFunction cenv env syntaxAttrs func
-    | _ ->
-        ()
 
     binding
 

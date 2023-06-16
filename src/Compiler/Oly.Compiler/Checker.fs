@@ -250,8 +250,6 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 // --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
-    OlyAssert.False(ent.Flags.HasFlag EntityFlags.Invalid)
-
     if ent.IsAnyStruct then
         checkStructCycle env syntaxNode ent
         |> ignore
@@ -566,7 +564,13 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 
     let firstReturnExpression = rhsExpr.FirstReturnExpression
 
-
+    // TODO: Should we actually Run?
+    match firstReturnExpression with
+    | BoundExpression.Lambda(body=lazyBody) ->
+        if lazyBody.HasExpression |> not then
+            lazyBody.Run()
+    | _ ->
+        ()
 
     let returnTy = 
         if firstReturnExpression.IsLambdaExpression then
@@ -904,6 +908,15 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
+and checkImmediateLambdaExpression env (expr: BoundExpression) =
+    match expr with
+    | BoundExpression.Lambda(_, _, _, parValues, lazyBodyExpr, lazyTy, _, _) ->
+        if not lazyBodyExpr.HasExpression then
+            lazyBodyExpr.Run()
+            checkLambdaExpression env parValues lazyBodyExpr.Expression lazyTy.Type
+    | _ ->
+        OlyAssert.Fail("Expected 'Lambda' expression.")
+
 /// This checks the expression to verify its correctness.
 /// It does not check all expressions under the expression.
 /// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
@@ -913,6 +926,11 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
         checkArgumentsFromCallExpression env isReturnable expr
 
     | BoundExpression.Sequential(_, expr1, _, _) ->
+        match expr1 with
+        | BoundExpression.Lambda _ ->
+            checkImmediateLambdaExpression env expr1
+        | _ ->
+            ()
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
 
     | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
@@ -929,10 +947,8 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
     | BoundExpression.SetProperty _ ->
         checkReceiverOfExpression env expr
 
-    | BoundExpression.Lambda(_, _, _, parValues, lazyBodyExpr, lazyTy, _, _) ->
-        if not lazyBodyExpr.HasExpression then
-            lazyBodyExpr.Run()
-            checkLambdaExpression env parValues lazyBodyExpr.Expression lazyTy.Type
+    | BoundExpression.Lambda _ ->
+        checkImmediateLambdaExpression env expr
 
     | _ ->
         ()

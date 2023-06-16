@@ -1497,7 +1497,7 @@ let private bindLocalValueDeclaration
             env, callExpr
         else
 
-        let bindingInfo = bindLetBindingDeclaration cenv env attrs false memberFlags valueExplicitness syntaxBindingDecl
+        let bindingInfo = bindLetBindingDeclaration cenv env (syntaxAttrs, attrs) false memberFlags valueExplicitness syntaxBindingDecl
 
         if isExplicitStatic && not bindingInfo.IsFunction then
             cenv.diagnostics.Error("The 'static' modifier can only be used on local functions.", 10, syntaxBindingDecl.Identifier)

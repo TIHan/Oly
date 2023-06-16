@@ -1285,6 +1285,9 @@ type EntitySymbol with
     member this.IsIntrinsic =
         this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic
 
+    member this.IsInvalid =
+        this.Flags &&& EntityFlags.Invalid = EntityFlags.Invalid
+
     member this.TryImportedInfo =
         this.Attributes
         |> Seq.tryPick (fun x ->

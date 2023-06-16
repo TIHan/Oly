@@ -397,35 +397,3 @@ let tryFindIntrinsicAttribute (syntaxAttrs: OlySyntaxAttributes) (attrs: Attribu
         ValueSome(syntaxAttr, attr)
     | _ ->
         ValueNone
-
-let bindIntrinsicPrimitivesForFunction cenv (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (func: IFunctionSymbol) =
-    let attrs = func.Attributes
-    let tyParCount = func.TypeParameters.Length
-    let parCount = func.Parameters.Length
-    match tryFindIntrinsicAttribute syntaxAttrs attrs with
-    | ValueSome(syntaxAttr, attr) ->
-        match attr with
-        | AttributeSymbol.Intrinsic(intrinsicName) ->
-            let error () =
-                cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttr)
-
-            match intrinsicName with
-            | "constant" ->
-                if attrs |> ImArray.exists (function AttributeSymbol.Import _ -> true | _ -> false) then
-                    ()
-                else
-                    error()
-
-            | _ ->
-                match WellKnownFunction.TryFromName intrinsicName with
-                | Some(wkf) ->
-                    if Oly.Compiler.Internal.WellKnownFunctions.Validate(wkf, func) then
-                        ()
-                    else
-                        error()
-                | _ ->
-                    error()
-        | _ ->
-            ()
-    | _ ->
-        ()

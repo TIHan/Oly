@@ -681,23 +681,27 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
                 |> ValueSome
             else
                 ValueNone
-        match parsOpt with
-        | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
-            let lambdaInlineFlagsOpt =
-                pars[index].Attributes
-                |> ImArray.tryPick (function
-                    | AttributeSymbol.Inline(inlineArg) ->
-                        inlineArg.ToLambdaFlags() |> Some
-                    | _ ->
-                        None
-                )
-            match lambdaInlineFlagsOpt with
-            | Some lambdaInlineFlags ->
-                E.Lambda(syntaxInfo, lambdaFlags ||| lambdaInlineFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
+
+        let argExpr =
+            match parsOpt with
+            | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
+                let lambdaInlineFlagsOpt =
+                    pars[index].Attributes
+                    |> ImArray.tryPick (function
+                        | AttributeSymbol.Inline(inlineArg) ->
+                            inlineArg.ToLambdaFlags() |> Some
+                        | _ ->
+                            None
+                    )
+                match lambdaInlineFlagsOpt with
+                | Some lambdaInlineFlags ->
+                    E.Lambda(syntaxInfo, lambdaFlags ||| lambdaInlineFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars)
+                | _ ->
+                    argExpr
             | _ ->
                 argExpr
-        | _ ->
-            argExpr
+        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) parTy argExpr
+        argExpr
 
     | _ ->
         argExpr
@@ -706,7 +710,11 @@ let private checkCalleeArgumentExpressions cenv env (caller: IValueSymbol) (argE
     let argTys = caller.Type.FunctionArgumentTypes
     if argTys.Length = argExprs.Length then              
         (argTys, argExprs)
-        ||> ImArray.mapi2 (checkCalleeArgumentExpression cenv env caller)
+        ||> ImArray.mapi2 (fun i argTy argExpr ->
+            argExpr.RewriteReturningTargetExpression(fun x ->
+                checkCalleeArgumentExpression cenv env caller i argTy x
+            )
+        )
     else
         // Not enough arguments, but we check for this elsewhere.
         // REVIEW: Maybe we should actually check it here...

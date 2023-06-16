@@ -553,6 +553,54 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 action expr
         f this
 
+    member this.RewriteReturningTargetExpression(rewrite) =
+        let rec f (expr: BoundExpression) =
+            match expr with
+            | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
+                let newBodyExpr = f bodyExpr
+                if newBodyExpr = bodyExpr then
+                    expr
+                else
+                    BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
+
+            | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic) ->
+                let newExpr2 = f expr2
+                if newExpr2 = expr2 then
+                    expr
+                else
+                    BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic)
+
+            | BoundExpression.Match(syntax, benv, matchArgExprs, matchClauses, exprTy) ->
+                let mutable didChange = false
+                let newMatchClauses =
+                    matchClauses
+                    |> ImArray.map (fun x ->
+                        match x with
+                        | BoundMatchClause.MatchClause(syntax, matchPat, guardExprOpt, targetExpr) ->
+                            let newTargetExpr = f targetExpr
+                            if newTargetExpr = targetExpr then
+                                x
+                            else
+                                didChange <- true
+                                BoundMatchClause.MatchClause(syntax, matchPat, guardExprOpt, newTargetExpr)
+                    )
+                if didChange then
+                    BoundExpression.Match(syntax, benv, matchArgExprs, newMatchClauses, exprTy)
+                else
+                    expr
+
+            | BoundExpression.IfElse(syntaxInfo, conditionExpr, targetExpr1, targetExpr2, exprTy) ->
+                let newTargetExpr1 = f targetExpr1
+                let newTargetExpr2 = f targetExpr2
+                if newTargetExpr1 = targetExpr1 && newTargetExpr2 = targetExpr2 then
+                    expr
+                else
+                    BoundExpression.IfElse(syntaxInfo, conditionExpr, newTargetExpr1, newTargetExpr2, exprTy)
+
+            | _ ->
+                rewrite expr
+        f this
+
     member this.GetReturningTargetExpressions() =
         let exprs = ImArray.builder()
         this.ForEachReturningTargetExpression(exprs.Add)

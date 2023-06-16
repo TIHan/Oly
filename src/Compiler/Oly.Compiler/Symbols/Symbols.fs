@@ -1873,6 +1873,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
     let mutable patOpt = None
     let mutable funcFlags = funcFlags
     let mutable memberFlags = memberFlags
+    let mutable wellKnownFunc = wellKnownFunc
 
     member _.Enclosing = enclosing
     member _.Attributes = attrs
@@ -1892,6 +1893,11 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
 
     member _.AssociatedFormalPattern = patOpt
 
+    /// Mutability
+    member this.SetWellKnownFunction(wkf) =
+        wellKnownFunc <- wkf
+
+    /// Mutability
     member this.SetOverrides_Pass3_NonConcurrent(overridesToSet: IFunctionSymbol) =
         if overridesToSet.IsFinal then
             failwith "Cannot set overrides with a sealed function."

@@ -283,7 +283,8 @@ type BinderEnvironment =
                 match unqualified with
                 | UnqualifiedSymbol.FunctionGroup(funcGroup) -> funcGroup.Functions
                 | UnqualifiedSymbol.Function(func) -> ImArray.createOne func
-                | _ -> ImArray.empty
+                | _ -> 
+                    ImArray.empty
 
             if funcs.IsEmpty then this
             else
@@ -302,6 +303,10 @@ type BinderEnvironment =
                                 UnqualifiedSymbol.FunctionGroup(funcGroup)
                         unqualifiedSymbols.SetItem(name, unqualified)
 
+                    if funcs.Length = 1 && funcs[0].Enclosing.IsLocalEnclosing then
+                        defaultCase()
+                    else
+
                     match unqualifiedSymbols.TryGetValue name with
                     | true, result ->
                         match result with
@@ -319,9 +324,6 @@ type BinderEnvironment =
                             let funcGroup = FunctionGroupSymbol(funcGroup.Name, funcGroup.Functions.AddRange(funcs), funcGroup.Functions[0].Parameters.Length)
                             unqualifiedSymbols.SetItem(name, UnqualifiedSymbol.FunctionGroup funcGroup)
                         | UnqualifiedSymbol.Function(func) ->
-                            if func.Enclosing.IsLocalEnclosing then
-                                unqualifiedSymbols.SetItem(name, UnqualifiedSymbol.Function func)
-                            else
 #if DEBUG
                             OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
 #endif

@@ -460,12 +460,18 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
         let invokePars =
             pars
             |> ImArray.map (fun par ->
+                OlyAssert.True(par.Type.IsSolved)
+                OlyAssert.False(par.Type.IsError_t)
                 createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
             )
         let returnTy =
             match funcTy.TryFunction with
-            | ValueSome(_, returnTy) -> returnTy.Substitute(tyParLookup)
-            | _ -> failwith "Expected function type."
+            | ValueSome(_, returnTy) -> 
+                OlyAssert.True(returnTy.IsSolved)
+                OlyAssert.False(returnTy.IsError_t)
+                returnTy.Substitute(tyParLookup)
+            | _ -> 
+                failwith "Expected function type."
         if lambdaFlags.HasFlag(LambdaFlags.Static) then
             invokePars, returnTy
         else
