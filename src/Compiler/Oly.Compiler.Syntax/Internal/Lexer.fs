@@ -539,11 +539,7 @@ module Lexer =
             | _ ->
                 ()
 
-        match terminalToken with
-        | EndOfSource ->
-            lexer.currentColumn <- endColumn - 1
-        | _ ->
-            lexer.currentColumn <- endColumn
+        lexer.currentColumn <- endColumn
         CharLiteral(SingleQuotation, text, terminalToken)
 
     let rec scanCharLiteral lexer startPos hasNewLine endColumn began =
@@ -617,6 +613,12 @@ module Lexer =
                 match x with
                 | '`' -> BackQuote
                 | _ -> EndOfSource
+            match terminalToken with
+            | EndOfSource ->
+                let endPos = lexer.window.LexemeEnd - 1
+                lexer.window.SetLexemeRange(endPos, endPos)
+            | _ ->
+                ()
             ExplicitIdentifier(BackQuote, text, terminalToken)
         | _ ->
             advance lexer

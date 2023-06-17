@@ -155,14 +155,14 @@ let private stressTest origSrc (c: TestCompilation) =
     loop root
 
 #if STRESS
-  //  stressTyping c
+    stressTyping c
 
     // We do this to ensure that syntax nodes with diagnostics do not get collected.
     // Syntax nodes associated with diagnostics are kept in a ConditionalWeakTable internally.
-  //  GC.Collect(2, GCCollectionMode.Forced, true)
-  //  GC.WaitForPendingFinalizers()
+    GC.Collect(2, GCCollectionMode.Forced, true)
+    GC.WaitForPendingFinalizers()
 
-    randomPartialSyntax c
+   // randomPartialSyntax c
 #endif
 
     c
