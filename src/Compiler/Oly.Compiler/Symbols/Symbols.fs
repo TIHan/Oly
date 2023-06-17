@@ -450,15 +450,28 @@ let actualEntities (tyArgs: TypeArgumentSymbol imarray) (ents: EntitySymbol imar
         (applyEntity tyArgs2 x)
     )
 
+let private filterForTypeParameterVariableSolution (tyPar: TypeParameterSymbol) (varSolution: VariableSolutionSymbol) =
+    (not varSolution.HasSolution) || (not varSolution.Solution.IsTypeConstructor) || (varSolution.Solution.Arity = tyPar.Arity)
+
 let filterForTypeParameters (tys: TypeSymbol seq) =
     tys
     |> Seq.choose (fun x ->
         match x with
-        | TypeSymbol.Variable(tyPar)
-        | TypeSymbol.HigherVariable(tyPar, _) 
-        | TypeSymbol.InferenceVariable(Some tyPar, _) 
-        | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) -> KeyValuePair(tyPar.Id, x) |> Some
-        | _ -> None
+        | TypeSymbol.Variable(tyPar) -> KeyValuePair(tyPar.Id, x) |> Some
+        | TypeSymbol.HigherVariable(tyPar, tyArgs) when tyPar.Arity = tyArgs.Length -> KeyValuePair(tyPar.Id, x) |> Some
+
+        | TypeSymbol.InferenceVariable(Some tyPar, varSolution) -> 
+            if filterForTypeParameterVariableSolution tyPar varSolution then
+                KeyValuePair(tyPar.Id, x) |> Some
+            else
+                None
+        | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, varExternalSolution, varSolution) when tyPar.Arity = tyArgs.Length -> 
+            if filterForTypeParameterVariableSolution tyPar varExternalSolution && filterForTypeParameterVariableSolution tyPar varSolution then
+                KeyValuePair(tyPar.Id, x) |> Some
+            else
+                None
+        | _ -> 
+            None
     )
     |> Seq.distinctBy (fun pair -> pair.Key)
 

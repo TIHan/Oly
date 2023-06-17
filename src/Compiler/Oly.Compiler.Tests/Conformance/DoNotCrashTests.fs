@@ -1548,3 +1548,146 @@ test() : () =
     """
     |> Oly
     |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 41``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("get_tuple_element")]
+GetTupleElement<N, T...>__oly_tuple<T...>): T...[N] where N: constant int32
+
+main(): () =
+    let x = (5, 8.0f)
+    let value: int32 = GetTupleElement<0, _>(x)
+    print(value)
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 42``() =
+    """
+#[intrinsic("int32")]
+alias int32
+    
+#[intrinsic("utf16")]
+alias utf16
+    
+#[intrinsic("float32")]
+alias float32
+    
+#[intrinsic("base_object")]
+alias object
+    
+#[intrinsic("bool")]
+alias bool
+    
+#[intrinsic("print")]
+print(object): )
+    
+class Test1<T> =
+    
+    class Test2<U, V> =
+    
+        new() = {}
+    
+        class Test3<Z> =
+    
+            new() = {}
+    
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+    
+test<T<_>>(x: T<bool>): () = print("test")
+    
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<bool>()
+    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 43``() =
+    """
+#[intrinsic("int32")]
+alias int32
+    
+#[intrinsic("utf16")]
+alias utf16
+    
+#[intrinsic("float32")]
+alias float32
+    
+#[intrinsic("base_object")]
+alias object
+    
+#[intrinsic("bool")]
+alias bool
+    
+#[intrinsic("print")]
+print(object): ()
+    
+interface ITest =
+    
+    M(): ()
+    
+class Test1<T> =
+    
+    class Test2<U, V> 
+    
+        new() = {}
+    
+        class Test3<Z> =
+            implements ITest
+    
+            new() = {}
+    
+            M(): () = print("M")
+    
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+    
+test<T<_>>(x: T<bool>): () where T: ITest = 
+    x.M()
+    print("test")
+    
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<bool>()
+    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 44``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("get_tuple_element")]
+GetTupleElement<N, T...>__oly_tuple<T...>): T...[N] where N: constant int32
+
+main(): () =
+    print(GetTupleElement<1, _>("hello", 5))
+    print(GetTupleElement<0, _>(("world", 6)))
+    """
+    |> Oly
+    |> hasErrorDiagnostics

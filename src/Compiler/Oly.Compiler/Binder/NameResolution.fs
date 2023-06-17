@@ -497,7 +497,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
     let argExprs =
         if isLastTyParVariadic then
             let parCount = value.LogicalType.FunctionParameterCount
-            if argExprs.Length > parCount then
+            if argExprs.Length > parCount && parCount > 0 then
                 let lastArgIndex = parCount - 1
                 let headArgExprs = argExprs.RemoveRange(lastArgIndex, argExprs.Length - lastArgIndex)
                 let tailArgExprs = argExprs.RemoveRange(0, lastArgIndex)
