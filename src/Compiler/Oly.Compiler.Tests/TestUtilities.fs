@@ -94,7 +94,7 @@ let private stressTyping (c: TestCompilation) =
             let newRoot = newTree.GetRoot(CancellationToken.None)
             Assert.Equal(str, newRoot.BuildSource(CancellationToken.None))
             let rec loop (node: OlySyntaxNode) =
-                node.GetTextRange(CancellationToken.None) |> ignore
+                node.GetFullTextRange(CancellationToken.None) |> ignore
                 node.Children
                 |> ImArray.iter loop
             loop newRoot
@@ -131,7 +131,7 @@ let private randomPartialSyntax (c: TestCompilation) =
             let newRoot = newTree.GetRoot(CancellationToken.None)
             Assert.Equal(str, newRoot.BuildSource(CancellationToken.None))
             let rec loop (node: OlySyntaxNode) =
-                node.GetTextRange(CancellationToken.None) |> ignore
+                node.GetFullTextRange(CancellationToken.None) |> ignore
                 node.Children
                 |> ImArray.iter loop
             loop newRoot
@@ -149,7 +149,7 @@ let private stressTest origSrc (c: TestCompilation) =
     let root = syntaxTree.GetRoot(CancellationToken.None)
     Assert.Equal(origSrc, root.BuildSource(CancellationToken.None))
     let rec loop (node: OlySyntaxNode) =
-        node.GetTextRange(CancellationToken.None) |> ignore
+        node.GetFullTextRange(CancellationToken.None) |> ignore
         node.Children
         |> ImArray.iter loop
     loop root

@@ -1949,3 +1949,33 @@ main(): () =
     Oly src
     |> withNoSyntaxDiagnostics
     |> ignore
+
+[<Fact>]
+let ``Multi-line comment no end``() =
+    let src =
+        """
+/*
+        """
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Multi-line comment no end 2``() =
+    let src =
+        """
+/*"""
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Multi-line comment no end 3``() =
+    let src =
+        """
+main(): () =
+    ()
+/*"""
+    Oly src
+    |> withNoSyntaxDiagnostics
+    |> ignore
