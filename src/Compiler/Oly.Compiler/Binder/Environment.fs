@@ -78,7 +78,13 @@ type BinderEnvironment =
         { this with contextTypeOrTypeConstructor = Some ty.Formal }
 
     member this.SetReturnable(isReturnable: bool) =
-        if this.isReturnable = isReturnable then this
+        if this.isReturnable = isReturnable then 
+            if isReturnable then
+                this
+            elif this.isPassedAsArgument then
+                { this with isPassedAsArgument = false }
+            else
+                this
         else
             if isReturnable then
                 { this with isReturnable = true }

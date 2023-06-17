@@ -1509,7 +1509,7 @@ let private bindLocalValueDeclaration
                 env
 
         let envForRhsExpr = 
-            let env = { envWithValue with implicitThisOpt = None; isReturnable = false }
+            let env = { envWithValue with implicitThisOpt = None }.SetReturnable(false)
             if bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction then
                 setIsInLocalLambda env
             else
@@ -1543,7 +1543,7 @@ let private bindLetPatternBinding (cenv: cenv) (env: BinderEnvironment) expected
     | OlySyntaxLetPatternBinding.Binding(syntaxLetToken, syntaxPat, _, syntaxRhsExpr) ->
         let matchTy = mkInferenceVariableType None
         let envOfBinding, pat = bindPattern cenv env (SolverEnvironment.Create(cenv.diagnostics, env.benv)) true (Dictionary()) (HashSet()) matchTy syntaxPat
-        let rhsExpr = bindValueRightSideExpression cenv env matchTy env syntaxRhsExpr
+        let rhsExpr = bindValueRightSideExpression cenv env matchTy (env.SetReturnable(false)) syntaxRhsExpr
 
         let _, bodyExpr =
             match syntaxBodyExprOpt with

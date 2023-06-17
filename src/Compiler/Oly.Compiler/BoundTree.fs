@@ -1338,16 +1338,9 @@ let findExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFla
             |> Seq.choose (fun extMember ->
                 match extMember with
                 | ExtensionMemberSymbol.Function(func) -> 
-                    // TODO: We should have a helper function for this.
-                    //       We already have Substitute and Apply.
-                    //       Substitute goes by type parameter id, so it has to be exact and doesn't work here.
-
-                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)
-     
-                    let tyArgs = ty.TypeArguments
-                    let enclosing = applyEnclosing tyArgs func.Enclosing
-                    let func = actualFunction enclosing (tyArgs.AddRange(func.TypeArguments)) func
-                    Some(func)
+                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)    
+                    func.NewSubstituteExtension(ty.TypeArguments)
+                    |> Some
                 | ExtensionMemberSymbol.Property _ ->
                     // TODO: Handle properties.
                     None

@@ -235,10 +235,13 @@ createUI(deviceName: string, r: Rendering): WindowView =
     )
 
     window.Children.Add(
+        let displayModes = r.Window.GetDisplayModes()
         let view = ComboBoxView()
         view.Label <- "Combo Box"
-        view.Items <- Array.MapAsMutable(r.Window.GetDisplayModes(), x -> x.Width.ToString() + " x " + x.Height.ToString() + " | " + x.RefreshRate.ToString() + "hz")
-        view.OnSelectedItemIndexChanged <- (x: int32, y: int32) -> ()
+        view.Items <- Array.MapAsMutable(displayModes, x -> x.Width.ToString() + " x " + x.Height.ToString() + " | " + x.RefreshRate.ToString() + "hz")
+        view.OnSelectedItemIndexChanged <- 
+            (x: int32, y: int32) ->
+                r.Window.ChangeDisplayMode(displayModes[y])
         view
     )
 

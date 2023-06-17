@@ -460,6 +460,7 @@ let filterForTypeParameters (tys: TypeSymbol seq) =
         | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) -> KeyValuePair(tyPar.Id, x) |> Some
         | _ -> None
     )
+    |> Seq.distinctBy (fun pair -> pair.Key)
 
 let substituteEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
     let tys =
@@ -4750,6 +4751,56 @@ type CompilerPass =
 
 [<AutoOpen>]
 module SymbolHelpers =
+
+    type IFunctionSymbol with
+
+        member this.NewApply(enclosingTyArgs: TypeArgumentSymbol imarray, tyArgs: TypeArgumentSymbol imarray) =
+            OlyAssert.True(this.IsFormal)
+            if enclosingTyArgs.IsEmpty && tyArgs.IsEmpty then
+                OlyAssert.True(this.Enclosing.TypeParameters.IsEmpty)
+                OlyAssert.True(this.TypeParameters.IsEmpty)
+                this
+            else
+                let enclosingTyArgs =
+                    (this.Enclosing.TypeParameters, enclosingTyArgs)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar tyArg
+                    )
+
+                let tyArgs =
+                    (this.TypeParameters, tyArgs)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar tyArg
+                    )
+
+                let enclosing = applyEnclosing enclosingTyArgs this.Enclosing
+                actualFunction enclosing (enclosing.TypeArguments.AddRange(tyArgs)) this
+
+        member this.NewSubstitute(enclosingTyArgs: TypeArgumentSymbol imarray, tyArgs: TypeArgumentSymbol imarray) =
+            if enclosingTyArgs.IsEmpty && tyArgs.IsEmpty then
+                this
+            else
+                let allTyArgs = enclosingTyArgs.AddRange(tyArgs)
+
+                let enclosingTyArgs =
+                    (this.Enclosing.TypeParameters, this.Enclosing.TypeArguments)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(enclosingTyArgs))
+                    )
+
+                let tyArgs =
+                    (this.TypeParameters, this.TypeArguments)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(allTyArgs))
+                    )
+
+                this.Formal.AsFunction.NewApply(enclosingTyArgs, tyArgs)
+
+        member this.NewSubstituteExtension(enclosingTyArgs: TypeArgumentSymbol imarray) =
+            OlyAssert.True(this.Enclosing.IsTypeExtension)
+            let ent = this.Enclosing.AsEntity
+            let enclosing = EnclosingSymbol.Entity(ent.SubstituteExtension(enclosingTyArgs))
+            actualFunction enclosing (enclosing.TypeArguments.AddRange(this.TypeArguments)) this.Formal.AsFunction
 
     type IValueSymbol with
 
