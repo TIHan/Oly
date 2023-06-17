@@ -1761,3 +1761,24 @@ module M
         )
     ]
     |> ignore
+
+[<Fact>]
+let ``UnsafeCast should be in scope over Cast``() =
+    """
+#[intrinsic("cast")]
+Cast<T>(__oly_object): T
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(__oly_object): T
+
+    AsImmutable<T>(arr: mutable T[]): T[] =
+        Cast(arr)
+
+    AsMutable<T>(arr: T[]): mutable T[] =
+        Cast(arr)
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
