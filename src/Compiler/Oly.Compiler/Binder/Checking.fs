@@ -358,7 +358,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
             LambdaFlags.None,
             ImArray.empty,
             lambdaPars,
-            (LazyExpression(None, fun _ -> callExpr))
+            (LazyExpression.CreateNonLazy(None, fun _ -> callExpr))
         )
     
     lambdaExpr

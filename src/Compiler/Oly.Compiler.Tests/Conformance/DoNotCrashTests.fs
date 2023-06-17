@@ -1506,3 +1506,45 @@ open extension Int32AddExtension
     """
     |> Oly
     |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 39``() =
+    """
+abstract class Class1 =
+
+    field x: __oly_int32
+
+    new() = { x = 1 }
+
+class Class2 =
+    inherits Class1
+
+    new() = base)
+
+test() : () =
+    let t = Class2()
+    """
+    |> Oly
+    |> hasErrorDiagnostics
+
+[<Fact>]
+let ``Test 40``() =
+    """
+abstract class Class1 =
+
+    field x: __oly_int32
+
+    new() = { x = 1 }
+
+class Class2 =
+    inherits Class1
+
+    field y: __oly_int32
+
+    new() = base) with { y = 1 }
+
+test() : () =
+    let t = Class2()
+    """
+    |> Oly
+    |> hasErrorDiagnostics
