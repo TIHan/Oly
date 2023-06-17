@@ -2786,14 +2786,17 @@ let rec parseDefaultOrMemberAccessExpression s defaultExpr state =
 
 and parseMemberAccessExpression s receiver state =
     if isNextToken (function Dot -> true | _ -> false) state then
-        match bt2 DOT (tryParseName TypeParameterContext.Operator) state with
-        | Some(dotToken), Some(name) ->
-            let expr = parseDefaultOrMemberAccessExpression s (SyntaxExpression.Name(name)) state
-            SyntaxExpression.MemberAccess(receiver, dotToken, expr, ep s state)
-        | Some(dotToken), _ ->
-            errorReturn (InvalidSyntax "Missing qualification after the '.'.", SyntaxExpression.MemberAccess(receiver, dotToken, SyntaxExpression.Name(SyntaxName.Identifier(dummyToken())), ep s state)) state
-        | _ ->
+        match bt DOT state with
+        | Some(dotToken) ->
+            let sForDefaultOrMemberAccess = sp state
 
+            match bt (tryParseName TypeParameterContext.Operator) state with
+            | Some(name) ->
+                let expr = parseDefaultOrMemberAccessExpression sForDefaultOrMemberAccess (SyntaxExpression.Name(name)) state
+                SyntaxExpression.MemberAccess(receiver, dotToken, expr, ep s state)
+            | _ ->
+                errorReturn (InvalidSyntax "Missing qualification after the '.'.", SyntaxExpression.MemberAccess(receiver, dotToken, SyntaxExpression.Name(SyntaxName.Identifier(dummyToken())), ep s state)) state
+        | _ ->
             receiver
     else
         receiver

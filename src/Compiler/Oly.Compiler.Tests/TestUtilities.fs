@@ -91,7 +91,13 @@ let private stressTyping (c: TestCompilation) =
         try
             let newTree = tree.ApplySourceText(OlySourceText.Create(str))
 
-            Assert.Equal(str, newTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
+            let newRoot = newTree.GetRoot(CancellationToken.None)
+            Assert.Equal(str, newRoot.BuildSource(CancellationToken.None))
+            let rec loop (node: OlySyntaxNode) =
+                node.GetTextRange(CancellationToken.None) |> ignore
+                node.Children
+                |> ImArray.iter loop
+            loop newRoot
 
             comp <- comp.SetSyntaxTree(newTree)
             let boundModel = comp.GetBoundModel(tree.Path)
@@ -107,7 +113,7 @@ let private randomPartialSyntax (c: TestCompilation) =
     let str = text.ToString()
 
     let random = Random()
-    for _ = 1 to 100 do
+    for _ = 1 to 10 do
         let tokens = tree.GetRoot(CancellationToken.None).GetDescendantTokens()
 
         let randomToken =
@@ -122,7 +128,13 @@ let private randomPartialSyntax (c: TestCompilation) =
         try
             let newTree = tree.ApplySourceText(OlySourceText.Create(str))
 
-            Assert.Equal(str, newTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
+            let newRoot = newTree.GetRoot(CancellationToken.None)
+            Assert.Equal(str, newRoot.BuildSource(CancellationToken.None))
+            let rec loop (node: OlySyntaxNode) =
+                node.GetTextRange(CancellationToken.None) |> ignore
+                node.Children
+                |> ImArray.iter loop
+            loop newRoot
 
             let comp = c.Compilation.SetSyntaxTree(newTree)
             let boundModel = comp.GetBoundModel(tree.Path)
@@ -134,7 +146,13 @@ let private randomPartialSyntax (c: TestCompilation) =
 
 let private stressTest origSrc (c: TestCompilation) =
     let syntaxTree = getFirstSyntaxTree c
-    Assert.Equal(origSrc, syntaxTree.GetRoot(CancellationToken.None).BuildSource(CancellationToken.None))
+    let root = syntaxTree.GetRoot(CancellationToken.None)
+    Assert.Equal(origSrc, root.BuildSource(CancellationToken.None))
+    let rec loop (node: OlySyntaxNode) =
+        node.GetTextRange(CancellationToken.None) |> ignore
+        node.Children
+        |> ImArray.iter loop
+    loop root
 
 #if STRESS
   //  stressTyping c

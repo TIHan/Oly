@@ -1,5 +1,7 @@
 ﻿namespace Oly.Compiler.Syntax.Internal
 
+open Oly.Core
+
 [<NoComparison>]
 type internal Token =
     // Keywords
@@ -415,13 +417,13 @@ type internal Token =
     member this.Width =
         match this with
         | Space width -> width
-        | CharLiteral(text=text) -> 2 + text.Length
-        | StringLiteral(text=text) -> 2 + text.Length
-        | ExplicitIdentifier(text=text) -> 2 + text.Length
-        | DirectiveFlag(_, token) -> 1 + token.Width
-        | Directive(_, token, _, valueToken) -> 2 + token.Width + valueToken.Width
-        | SingleLineComment(_, text) -> 2 + text.Length
-        | MultiLineComment(text=text) -> 4 + text.Length
+        | CharLiteral(t1, text, t2) -> t1.Width + text.Length + t2.Width
+        | StringLiteral(t1, text, t2, _, _) -> t1.Width + text.Length + t2.Width
+        | ExplicitIdentifier(t1, text, t2) -> t1.Width + text.Length + t2.Width
+        | DirectiveFlag(hashToken, token) -> hashToken.Width + token.Width
+        | Directive(hashToken, token, whitespaceToken, valueToken) -> hashToken.Width + token.Width + whitespaceToken.Width + valueToken.Width
+        | SingleLineComment(startToken, text) -> startToken.Width + text.Length
+        | MultiLineComment(t1, text, t2) -> t1.Width + text.Length + t2.Width
         | _ -> this.Text.Length
 
     member this.IsKeyword =

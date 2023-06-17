@@ -523,18 +523,27 @@ module Lexer =
         if hasNewLine then
             let endPos = 
                 match terminalToken with
-                | EndOfSource -> lexer.window.LexemeEnd - 1
-                | _ -> lexer.window.LexemeEnd
+                | EndOfSource -> 
+                    let endPos = lexer.window.LexemeEnd - 1
+                    lexer.window.SetLexemeRange(endPos, endPos)
+                    endPos
+                | _ -> 
+                    lexer.window.LexemeEnd
             lexer.diagnostics.Add(startPos, endPos, "New-lines are not valid in character literals.", true, 170)
         else
             match terminalToken with
             | EndOfSource ->
                 let endPos = lexer.window.LexemeEnd - 1
+                lexer.window.SetLexemeRange(endPos, endPos)
                 lexer.diagnostics.Add(startPos, endPos, "Character literal reached end-of-source.", true, 171)
             | _ ->
                 ()
 
-        lexer.currentColumn <- endColumn
+        match terminalToken with
+        | EndOfSource ->
+            lexer.currentColumn <- endColumn - 1
+        | _ ->
+            lexer.currentColumn <- endColumn
         CharLiteral(SingleQuotation, text, terminalToken)
 
     let rec scanCharLiteral lexer startPos hasNewLine endColumn began =
@@ -573,7 +582,12 @@ module Lexer =
                 match c with
                 | '"' -> DoubleQuotation
                 | _ -> EndOfSource
-            lexer.currentColumn <- endColumn + 1
+            match terminalToken with
+            | EndOfSource ->
+                let endPos = lexer.window.LexemeEnd - 1
+                lexer.window.SetLexemeRange(endPos, endPos)
+            | _ ->
+                lexer.currentColumn <- endColumn + 1
             StringLiteral(DoubleQuotation, text, terminalToken, newLineCount, lexer.currentColumn)
         | c ->
             let newLineCount, endColumn =
