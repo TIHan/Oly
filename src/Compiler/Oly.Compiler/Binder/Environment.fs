@@ -299,14 +299,15 @@ type BinderEnvironment =
                         value.Enclosing.AsEntity.Name
                     else
                         value.Name
+                let create (funcs: IFunctionSymbol imarray) =
+                    if funcs.Length = 1 then
+                        UnqualifiedSymbol.Function(funcs[0])
+                    else
+                        let funcGroup = FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length)
+                        UnqualifiedSymbol.FunctionGroup(funcGroup)
                 let unqualifiedSymbols =
                     let defaultCase() =
-                        let unqualified =
-                            if funcs.Length = 1 then
-                                UnqualifiedSymbol.Function(funcs[0])
-                            else
-                                let funcGroup = FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length)
-                                UnqualifiedSymbol.FunctionGroup(funcGroup)
+                        let unqualified = create funcs
                         unqualifiedSymbols.SetItem(name, unqualified)
 
                     if funcs.Length = 1 && funcs[0].Enclosing.IsLocalEnclosing then
@@ -327,15 +328,40 @@ type BinderEnvironment =
                             OlyAssert.False(exists)
 #endif
 
-                            let funcGroup = FunctionGroupSymbol(funcGroup.Name, funcGroup.Functions.AddRange(funcs), funcGroup.Functions[0].Parameters.Length)
-                            unqualifiedSymbols.SetItem(name, UnqualifiedSymbol.FunctionGroup funcGroup)
+                            let funcs =
+                                if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                                    let funcs2 =
+                                        funcGroup.Functions
+                                        |> ImArray.filter (fun x ->
+                                            let exists =
+                                                // TODO: this uses indexable rigidity, should we do generalizable instead?
+                                                // TODO: PERFORMANCE ISSUES, this can be expensive if there are a lot of functions.
+                                                //       Consider creating a Map based on number of parameters to improve perf.
+                                                funcs
+                                                |> ImArray.exists (areLogicalFunctionSignaturesEqual x)
+                                            not exists
+                                        )
+                                    funcs2.AddRange(funcs)
+                                else
+                                    funcGroup.Functions.AddRange(funcs)
+
+                            unqualifiedSymbols.SetItem(name, create funcs)
                         | UnqualifiedSymbol.Function(func) ->
 #if DEBUG
                             OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
 #endif
 
-                            let funcGroup = FunctionGroupSymbol(func.Name, funcs |> ImArray.prependOne func, func.Parameters.Length)
-                            unqualifiedSymbols.SetItem(name, UnqualifiedSymbol.FunctionGroup funcGroup)
+                            let funcs =
+                                if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                                    // TODO: this uses indexable rigidity, should we do generalizable instead?
+                                    if areLogicalFunctionSignaturesEqual func value.AsFunction then
+                                        funcs
+                                    else
+                                        funcs |> ImArray.prependOne func
+                                else
+                                    funcs |> ImArray.prependOne func
+
+                            unqualifiedSymbols.SetItem(name, create funcs)
                         | _ ->
                             defaultCase()
                     | _ ->

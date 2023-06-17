@@ -535,12 +535,10 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
     let env = setSkipCheckTypeConstructor env
 
     let env = env.SetAccessorContext(ent)
+    let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
     let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
-
-    let env = 
-        env.SetEnclosing(EnclosingSymbol.Entity(ent))
-           .SetEnclosingTypeParameters(ent.TypeParameters)
+    let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.None _ ->

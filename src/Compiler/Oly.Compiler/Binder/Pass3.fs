@@ -55,6 +55,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
 
     let env = unsetSkipCheckTypeConstructor env
     let env = env.SetAccessorContext(ent)
+    let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
     let env = openContentsOfEntityAndOverride env OpenContent.All ent
 
     let funcs = 

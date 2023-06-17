@@ -351,9 +351,10 @@ let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuild
         |> unsetIsInLocalLambda
 
     let env = env.SetAccessorContext(ent)
+    let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
     let env = openContentsOfEntityAndOverride env OpenContent.All ent
     let env = env.SetEnclosingTypeArguments(ent.Id, env.GetEnclosingTypeParametersAsTypes())
-    let env = env.SetEnclosing(EnclosingSymbol.Entity(ent)).SetEnclosingTypeParameters(ent.TypeParameters)
+    let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
     let env =
         // Add intrinsic keyword identifiers to scope

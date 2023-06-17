@@ -35,10 +35,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
     bindConstraintClauseList cenv env syntaxConstrClauses
-
-    let env = 
-        env.SetEnclosing(EnclosingSymbol.Entity(ent))
-           .SetEnclosingTypeParameters(ent.TypeParameters)
+    let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
     (* CHECK FOR DUPLICATE NESTED ENTITIES *)
     let duplicateEnts = HashSet()
