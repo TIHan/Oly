@@ -11,6 +11,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.BoundTreePatterns
+open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 
 type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
@@ -672,10 +673,27 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
             analyzeExpression acenv (notReturnableAddress aenv) finallyBodyExpr
         )
 
-    | BoundExpression.Witness(expr, witnessArg, ty) ->
-        analyzeExpression acenv aenv expr
-        analyzeType acenv aenv syntaxNode witnessArg
-        analyzeType acenv aenv syntaxNode ty
+    | BoundExpression.Witness(_, benv, _, bodyExpr, witnessArgOptRef, exprTy) ->
+        OlyAssert.True(witnessArgOptRef.contents.IsNone)
+
+        let bodyTy = bodyExpr.Type   
+        if subsumesTypeWith Generalizable exprTy bodyTy then
+            checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv)) bodyExpr.Syntax exprTy bodyTy
+        else
+            match tryFindTypeHasTypeExtensionImplementedType benv exprTy bodyTy with
+            | ValueSome entSet when entSet.Count > 0 ->
+                let ents = entSet.Values |> ImArray.ofSeq
+                if ents.Length = 1 then
+                    let ent = ents[0].SubstituteExtension(bodyTy.TypeArguments)
+                    analyzeTypeEntity acenv aenv expr.Syntax ent
+                    witnessArgOptRef.contents <- Some(ent.AsType)
+                else
+                    acenv.cenv.diagnostics.Error($"Ambiguous extensions. Unable to upcast type '{printType benv bodyTy}' to '{printType benv exprTy}.", 10, expr.Syntax)
+            | _ ->
+                acenv.cenv.diagnostics.Error($"Unable to upcast type '{printType benv bodyTy}' to '{printType benv exprTy}.", 10, expr.Syntax)
+
+        analyzeExpression acenv aenv bodyExpr
+        analyzeType acenv aenv syntaxNode exprTy
 
     | BoundExpression.ErrorWithNamespace _
     | BoundExpression.ErrorWithType _ -> ()

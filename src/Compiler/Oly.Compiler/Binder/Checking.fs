@@ -516,12 +516,12 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) skipEage
             | _ ->
                 expr
 
-    | E.Witness(bodyExpr, witnessTy, exprTy) ->
+    | E.Witness(syntaxInfo, benv, castFunc, bodyExpr, witnessTy, exprTy) ->
         let newBodyExpr = checkExpression cenv env None bodyExpr
         if newBodyExpr = bodyExpr then
             expr
         else
-            E.Witness(newBodyExpr, witnessTy, exprTy)
+            E.Witness(syntaxInfo, benv, castFunc, newBodyExpr, witnessTy, exprTy)
 
     | E.Call _ ->
         checkCallerCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf expr

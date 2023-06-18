@@ -1833,31 +1833,10 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) env.isReturnable expr
 
     let expr =
-        // TODO: This isn't totally right.
         match expr with
-        | Cast(argExpr) ->
-            let exprTy = expr.Type
-            if exprTy.IsSolved then
-                let argTy = argExpr.Type   
-                if subsumesTypeWith Generalizable exprTy argTy then
-                    checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture exprTy argTy
-                    expr
-                else
-                    match tryFindTypeHasTypeExtensionImplementedType env.benv exprTy argTy with
-                    | ValueSome entSet when entSet.Count > 0 ->
-                        let ents = entSet.Values |> ImArray.ofSeq
-                        if ents.Length = 1 then
-                            let ent = ents[0].SubstituteExtension(argTy.TypeArguments)
-                            BoundExpression.Witness(expr, ent.AsType, exprTy)
-                        else
-                            cenv.diagnostics.Error($"Ambiguous extensions. Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv exprTy}.", 10, syntaxToCapture)
-                            expr
-                    | _ ->
-                        cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv exprTy}.", 10, syntaxToCapture)
-                        expr
-            else
-                cenv.diagnostics.Error($"Cast requires explicit type.", 10, syntaxToCapture)
-                expr
+        | Cast(castFunc, argExpr) ->
+            let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv)
+            BoundExpression.Witness(syntaxInfo, env.benv, castFunc, argExpr, ref None, expr.Type)
         | _ ->
             expr
 

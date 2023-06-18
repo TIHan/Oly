@@ -188,7 +188,7 @@ let (|Cast|_|) (expr: E) =
     | E.Call(receiverOpt=None;args=argExprs;value=value) when argExprs.Length = 1 ->
         match value.TryWellKnownFunction with
         | ValueSome(WellKnownFunction.Cast) when value.TypeArguments.Length = 1 ->
-            Some(argExprs[0])
+            Some(value.AsFunction, argExprs[0])
         | _ ->
             None
     | _ ->

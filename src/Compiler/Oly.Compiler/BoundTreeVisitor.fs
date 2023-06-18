@@ -131,8 +131,8 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
                         this.VisitExpression(targetExpr) |> ignore
                 )
 
-            | BoundExpression.Witness(expr, _, _) ->
-                this.VisitExpression(expr) |> ignore
+            | BoundExpression.Witness(bodyExpr=bodyExpr) ->
+                this.VisitExpression(bodyExpr) |> ignore
 
             | BoundExpression.NewTuple(_, args, _) ->
                 for i = 0 to args.Length - 1 do

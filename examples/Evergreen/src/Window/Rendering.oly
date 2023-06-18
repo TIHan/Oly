@@ -367,7 +367,7 @@ class GpuProgramUI =
 abstract class GpuCommand =
     internal Tag: int32 get, set
     
-    private class _DrawIndexed =
+    private class DrawIndexed =
         inherits GpuCommand
 
         ProgramInstance: GpuProgramInstance get, set
@@ -376,11 +376,11 @@ abstract class GpuCommand =
         IndexCount: int32 get, set = 0
 
     pattern DrawIndexed(cmd: GpuCommand): (programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
-        let cmd = Unsafe.Cast<_DrawIndexed>(cmd)
+        let cmd = Unsafe.Cast<DrawIndexed>(cmd)
         (cmd.ProgramInstance, cmd.Vertices, cmd.Indices, cmd.IndexCount)
 
     static DrawIndexed(programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
-        let cmd = _DrawIndexed()
+        let cmd = DrawIndexed()
         cmd.Tag <- 0
         cmd.ProgramInstance <- programInstance
         cmd.Vertices <- vertices
@@ -388,37 +388,37 @@ abstract class GpuCommand =
         cmd.IndexCount <- indexCount
         cmd
 
-    private class _DrawUI =
+    private class DrawUI =
         inherits GpuCommand
 
         ProgramUI: GpuProgramUI get, set = unchecked default
         WindowViews: IEnumerable<WindowView> get, set = unchecked default
 
     pattern DrawUI(cmd: GpuCommand): (GpuProgramUI, IEnumerable<WindowView>) when (cmd.Tag == 1) =>
-        let cmd = Unsafe.Cast<_DrawUI>(cmd)
+        let cmd = Unsafe.Cast<DrawUI>(cmd)
         (cmd.ProgramUI, cmd.WindowViews)
 
     static DrawUI(gpuProgramUI: GpuProgramUI, windowViews: IEnumerable<WindowView>): GpuCommand =
-        let cmd = _DrawUI()
+        let cmd = DrawUI()
         cmd.Tag <- 1
         cmd.ProgramUI <- gpuProgramUI
         cmd.WindowViews <- windowViews
         cmd
 
-    private class _EndFrame =
+    private class EndFrame =
         inherits GpuCommand
 
         new() = {}
 
     pattern EndFrame(cmd: GpuCommand): () when (cmd.Tag == 2) =>
-        let cmd = Unsafe.Cast<_EndFrame>(cmd)
+        let cmd = Unsafe.Cast<EndFrame>(cmd)
 
     static EndFrame(): GpuCommand =
-        let cmd = _EndFrame()
+        let cmd = EndFrame()
         cmd.Tag <- 2
         cmd
 
-    private class _NewFrame =
+    private class NewFrame =
         inherits GpuCommand
 
         Frame: GpuFrame get
@@ -429,11 +429,11 @@ abstract class GpuCommand =
             }
 
     pattern NewFrame(cmd: GpuCommand): GpuFrame when (cmd.Tag == 3) =>
-        let cmd = Unsafe.Cast<_NewFrame>(cmd)
+        let cmd = Unsafe.Cast<NewFrame>(cmd)
         cmd.Frame
 
     static NewFrame(gpuFrame: GpuFrame): GpuCommand =
-        let cmd = _NewFrame(gpuFrame)
+        let cmd = NewFrame(gpuFrame)
         cmd.Tag <- 3
         cmd
 

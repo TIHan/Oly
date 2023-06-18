@@ -1189,7 +1189,7 @@ type OlyBoundModel internal (
                                     addSymbol(OlyConstantSymbol(this, benv, syntaxToken, arg.ToLiteral()))
                             | _ ->
                                 ()
-                        | OlySyntaxExpression.Call(syntaxExpr, syntaxArgs) ->
+                        | OlySyntaxExpression.Call(syntaxExpr, _) ->
                             match syntaxExpr with
                             | OlySyntaxExpression.Name(syntaxName) ->
                                 match arg with
@@ -1683,6 +1683,25 @@ type OlyBoundModel internal (
                         match syntax with
                         | OlySyntaxExpression.Lambda(_, syntaxPars, _, _) ->
                             getParameterSymbolsByValues addSymbol benv predicate syntaxPars parValues
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
+
+            | BoundExpression.Witness(syntaxInfo, _, castFunc, _, _, _) ->
+                match syntaxInfo.TryEnvironment with
+                | Some benv ->
+                    match syntaxInfo.Syntax with
+                    | :? OlySyntaxExpression as syntax ->
+                        match syntax with
+                        | OlySyntaxExpression.Call(syntaxReceiverExpr, _) ->
+                            match syntaxReceiverExpr with
+                            | OlySyntaxExpression.Name(syntaxName) ->
+                                getSymbolsByNameAndValue addSymbol benv predicate syntaxName castFunc None
+                            | _ ->
+                                ()
                         | _ ->
                             ()
                     | _ ->

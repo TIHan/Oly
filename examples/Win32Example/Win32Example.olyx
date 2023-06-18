@@ -339,13 +339,13 @@ main(): () =
             [
                 GpuCommand.NewFrame(frame)
                 GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length)
-                GpuCommand.DrawUI(gpuProgramUI2, Cast<System.Collections.Generic.IEnumerable<WindowView>>([uiNode2]))
+                GpuCommand.DrawUI(gpuProgramUI2, Cast([uiNode2]))
                 GpuCommand.EndFrame()
             ],
             gpuCommands
         )
         
-    let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(gpuProgramUI, Cast<System.Collections.Generic.IEnumerable<WindowView>>([uiNode])))
+    let gpuCommands = Array.Add(gpuCommands, GpuCommand.DrawUI(gpuProgramUI, Cast([uiNode])))
 
     let mutable pos = Vector3(2, 2, 2)
 

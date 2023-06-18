@@ -1262,16 +1262,22 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
         GenTryExpression cenv env bodyExpr catchCases finallyBodyExprOpt
 
-    | E.Witness(expr, witnessArg, ty) ->
-        if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then
-            failwith "Expected type extension or type parameter."
-        OlyILExpression.Operation(ilTextRange, 
-            OlyILOperation.Witness(
-                GenExpression cenv env expr, 
-                emitILType cenv env witnessArg,
-                emitILType cenv env ty
+    | E.Witness(_, _, _, bodyExpr, witnessArgOptRef, exprTy) ->
+        match witnessArgOptRef.contents with
+        | None ->
+            OlyILExpression.Operation(ilTextRange,
+                OlyILOperation.Cast(GenExpression cenv env bodyExpr, emitILType cenv env exprTy)
             )
-        )
+        | Some(witnessArg) ->
+            if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then
+                failwith "Expected type extension or type parameter."
+            OlyILExpression.Operation(ilTextRange, 
+                OlyILOperation.Witness(
+                    GenExpression cenv env bodyExpr, 
+                    emitILType cenv env witnessArg,
+                    emitILType cenv env exprTy
+                )
+            )
 
     | E.Sequential(syntaxInfo,
         E.Sequential(_, expr1, expr2, _),

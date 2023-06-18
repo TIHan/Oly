@@ -215,13 +215,13 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 else
                     BoundExpression.SetContentsOfAddress(syntaxInfo, newLhsExpr, newRhsExpr)
 
-            | BoundExpression.Witness(bodyExpr, witnessArg, ty) ->
+            | BoundExpression.Witness(syntaxInfo, benv, castFunc, bodyExpr, witnessArgOptRef, exprTy) ->
                 let newBodyExpr = this.Rewrite(bodyExpr)
 
                 if newBodyExpr = bodyExpr then
                     expr
                 else
-                    BoundExpression.Witness(newBodyExpr, witnessArg, ty)
+                    BoundExpression.Witness(syntaxInfo, benv, castFunc, newBodyExpr, witnessArgOptRef, exprTy)
 
             | BoundExpression.EntityDefinition(syntaxInfo, body, ent) ->
                 let newBody = this.Rewrite(body)

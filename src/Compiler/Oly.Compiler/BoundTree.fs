@@ -303,7 +303,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | NewTuple of syntaxInfo: BoundSyntaxInfo * ImmutableArray<BoundExpression> * ty: TypeSymbol
     | NewArray of syntax: OlySyntaxExpression * benv: BoundEnvironment * ImmutableArray<BoundExpression> * ty: TypeSymbol
 
-    | Witness of BoundExpression * witnessArg: TypeSymbol * ty: TypeSymbol
+    | Witness of syntaxInfo: BoundSyntaxInfo * benv: BoundEnvironment * castFunc: IFunctionSymbol * bodyExpr: BoundExpression * witnessArg: TypeSymbol option ref * exprTy: TypeSymbol
 
     | Let of syntaxInfo: BoundSyntaxInfo * bindingInfo: LocalBindingInfoSymbol * rhsExpr: BoundExpression * bodyExpr: BoundExpression
     | IfElse of syntaxInfo: BoundSyntaxInfo * conditionExpr: BoundExpression * trueTargetExpr: BoundExpression * falseTargetExpr: BoundExpression * cachedExprTy: TypeSymbol
@@ -314,7 +314,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     member this.GetValidUserSyntax(): OlySyntaxNode =
         match this with
-        | Witness(expr, _, _) -> expr.GetValidUserSyntax()
+        | Witness(bodyExpr=bodyExpr) -> bodyExpr.GetValidUserSyntax()
         | Lambda _ -> this.Syntax
         | Sequential(_, e1, e2, _) ->
             let r1 = e1.GetValidUserSyntax()
@@ -390,7 +390,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | ErrorWithNamespace(benv=benv)
         | ErrorWithType(benv=benv) -> Some benv
         | Unit(benv=benv) -> Some benv
-        | Witness(expr, _, _) -> expr.TryEnvironment
+        | Witness(benv=benv) -> Some benv
 
     member this.Syntax =
         match this with
@@ -420,7 +420,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
         | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
-        | Witness(expr, _, _) -> expr.Syntax
+        | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
 
     member this.SyntaxNameOrDefault =
         match this with
@@ -450,7 +450,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
         | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
-        | Witness(expr, _, _) -> expr.SyntaxNameOrDefault
+        | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.SyntaxNameOrDefault
 
     member this.FirstReturnExpression =
         match this with
@@ -489,7 +489,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | IfElse(cachedExprTy=exprTy) -> exprTy
         | Match(cachedExprTy=exprTy) -> exprTy
         | Try(bodyExpr=bodyExpr) -> bodyExpr.Type
-        | Witness(_, _, ty) -> ty
+        | Witness(exprTy=exprTy) -> exprTy
         | NewTuple(ty=ty) -> ty
         | NewArray(ty=ty) -> ty
         | Call(value=value) ->
