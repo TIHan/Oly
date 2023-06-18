@@ -4731,3 +4731,30 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passedpassed"
+
+[<Fact>]
+let ``Override finalizer``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    protected overrides Finalize(): () =
+        print("finalize")
+
+#[inline(never)]
+test(): () =
+    let _ = C()
+
+main(): () =
+    test()
+    GC.Collect(2)
+    GC.WaitForPendingFinalizers()
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "finalize"

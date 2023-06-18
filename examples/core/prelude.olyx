@@ -887,6 +887,15 @@ module Array =
 
 // DotNet Specific
 
+module DotNet =
+
+    /// Performs a forced garbage collection of all generations as well as compacting the large-object-heap.
+    /// This will also wait for pending finalizers.
+    GCCollect(): () =
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+        System.GC.Collect(2, System.GCCollectionMode.Forced, true)
+        System.GC.WaitForPendingFinalizers()
+
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)

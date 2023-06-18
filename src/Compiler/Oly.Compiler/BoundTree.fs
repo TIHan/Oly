@@ -1228,7 +1228,7 @@ let canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
             false
     elif value.IsProtected then
         match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> subsumesEntity ent1 ent2 || subsumesEntity ent2 ent1
+        | Some ent1, Some ent2 -> subsumesType ent1.AsType ent2.AsType || subsumesType ent2.AsType ent1.AsType
         | _ -> false
     else
         match ac.Entity, value.Enclosing.TryEntity with

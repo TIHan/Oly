@@ -220,7 +220,6 @@ class CheckboxView =
 
 class ComboBoxView =
     inherits AbstractLabelView
-    implements IDisposable
 
     new() =
         base(6) with {
@@ -230,10 +229,7 @@ class ComboBoxView =
 
             itemPtrs = mutable []
             items = mutable []
-            isDisposed = false
         }
-
-    mutable field isDisposed: bool
 
     SelectedItemIndex: int32 get, set
     PopupMaxHeight: int32 get, set
@@ -242,10 +238,7 @@ class ComboBoxView =
     internal mutable field itemPtrs: mutable nint[]
     mutable field items: mutable string[]
     Items: mutable string[] 
-        get() = 
-            if (this.isDisposed)
-                throw System.ObjectDisposedException("ComboBoxView")
-            this.items
+        get() = this.items
         set(value) =
             this.Free()
 
@@ -265,17 +258,14 @@ class ComboBoxView =
             this.items <- value
 
     private Free(): () =
-        if (this.isDisposed)
-            throw System.ObjectDisposedException("ComboBoxView")
         let mutable i = 0
         while (i < this.itemPtrs.Length)
             Marshal.FreeHGlobal(this.itemPtrs[i])
             this.itemPtrs[i] <- default
             i <- i + 1
 
-    Dispose(): () =
+    protected overrides Finalize(): () =
         this.Free()
-        this.isDisposed <- true
 
 class UIContext =
 
