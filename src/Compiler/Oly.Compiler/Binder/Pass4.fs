@@ -1847,7 +1847,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
                     | ValueSome entSet when entSet.Count > 0 ->
                         let ents = entSet.Values |> ImArray.ofSeq
                         if ents.Length = 1 then
-                            let ent = ents[0]
+                            let ent = ents[0].SubstituteExtension(argTy.TypeArguments)
                             BoundExpression.Witness(expr, ent.AsType, exprTy)
                         else
                             cenv.diagnostics.Error($"Ambiguous extensions. Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv exprTy}.", 10, syntaxToCapture)
@@ -1856,6 +1856,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
                         cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv exprTy}.", 10, syntaxToCapture)
                         expr
             else
+                cenv.diagnostics.Error($"Cast requires explicit type.", 10, syntaxToCapture)
                 expr
         | _ ->
             expr
