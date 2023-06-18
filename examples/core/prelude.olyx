@@ -655,6 +655,9 @@ extension ArrayEnumerableExtension<T> =
 
         Impl(this)
 
+#[intrinsic("cast")]
+Cast<T>(object): T
+
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]

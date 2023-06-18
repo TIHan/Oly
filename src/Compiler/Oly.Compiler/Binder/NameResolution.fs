@@ -592,44 +592,14 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             )
         expr, value
     else
-        let expr = 
-            BoundExpression.Call(
-                syntaxInfo,
-                receiverOpt,
-                witnessArgs,
-                argExprs,
-                value,
-                isVirtualCall
-            )
-
-        match expr with
-        | Cast(argExpr) ->
-            let syntax = syntaxInfo.SyntaxNameOrDefault
-
-            let argTy = argExpr.Type
-            let func = value :?> IFunctionSymbol
-            let tyArgs = func.TypeArguments
-            if tyArgs.Length = 1 then    
-                if subsumesTypeWith Generalizable tyArgs[0] argTy then
-                    checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntax tyArgs[0] argTy
-                    expr, value
-                else
-                    match tryFindTypeHasTypeExtensionImplementedType env.benv tyArgs[0] argTy with
-                    | ValueSome entSet when entSet.Count > 0 ->
-                        let ents = entSet.Values |> ImArray.ofSeq
-                        if ents.Length = 1 then
-                            let ent = ents[0]
-                            BoundExpression.Witness(expr, ent.AsType, tyArgs[0]), value
-                        else
-                            cenv.diagnostics.Error($"Ambiguous extensions. Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
-                            expr, value
-                    | _ ->
-                        cenv.diagnostics.Error($"Unable to upcast type '{printType env.benv argTy}' to '{printType env.benv tyArgs[0]}.", 10, syntax)
-                        expr, value
-            else
-                expr, value
-        | _ ->
-            expr, value
+        BoundExpression.Call(
+            syntaxInfo,
+            receiverOpt,
+            witnessArgs,
+            argExprs,
+            value,
+            isVirtualCall
+        ), value
 
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =
     match syntaxReceiver with
