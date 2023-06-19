@@ -110,6 +110,11 @@ type ClrTypeHandle =
         | ByRef _ -> true
         | _ -> false
 
+    member this.IsNativePointer_t =
+        match this.StripModifiers() with
+        | NativePointer _ -> true
+        | _ -> false
+
     member this.IsVariable =
         match this.StripModifiers() with
         | TypeVariable _ -> true

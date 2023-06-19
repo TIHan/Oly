@@ -347,3 +347,16 @@ abc(): () when (true) => ()
 """)
         ]
     |> ignore
+
+[<Fact>]
+let ``Let discard pattern should give correct signature of expressions below``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let _ = 1
+    let ~^~x = 2
+        """
+    src |> hasSymbolSignatureTextByCursor "x: int32"

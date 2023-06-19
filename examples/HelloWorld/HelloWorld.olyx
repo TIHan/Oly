@@ -3,5 +3,5 @@
 #reference "../core/prelude.olyx"
 
 main(): () =
-   print("Hello World!")
+    print("Hello World!")
 

@@ -1677,10 +1677,10 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
             None
 
     | OlySyntaxExpression.Sequential(
-            OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding) as syntaxLetPatternDeclExpr,
+            OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding),
             syntaxBodyExpr
       ) ->
-        bindLetPatternBinding cenv env expectedTyOpt syntaxLetPatternDeclExpr syntaxLetPatternBinding (Some syntaxBodyExpr)
+        bindLetPatternBinding cenv env expectedTyOpt syntaxToCapture syntaxLetPatternBinding (Some syntaxBodyExpr)
 
     | OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding) ->
         bindLetPatternBinding cenv env expectedTyOpt syntaxExpr syntaxLetPatternBinding None

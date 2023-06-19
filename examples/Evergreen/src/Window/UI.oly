@@ -235,7 +235,7 @@ class ComboBoxView =
     PopupMaxHeight: int32 get, set
     OnSelectedItemIndexChanged: (previousSelectedItemIndex: int32, selectedItemIndex: int32) -> () get, set
 
-    internal mutable field itemPtrs: mutable nint[]
+    internal mutable field itemPtrs: mutable (byte*)[]
     mutable field items: mutable string[]
     Items: mutable string[] 
         get() = this.items
@@ -252,7 +252,7 @@ class ComboBoxView =
                         let mutable outputSpan = Span<byte>(Unsafe.Cast<void*>(ptr), byteCount + 1)
                         span.CopyTo(outputSpan)
                         (outputSpan[outputSpan.Length - 1]) <- 0
-                        ptr
+                        Unsafe.AsPointer(ptr)
                 )
 
             this.items <- value
@@ -260,7 +260,7 @@ class ComboBoxView =
     private Free(): () =
         let mutable i = 0
         while (i < this.itemPtrs.Length)
-            Marshal.FreeHGlobal(this.itemPtrs[i])
+            Marshal.FreeHGlobal(nint(this.itemPtrs[i]))
             this.itemPtrs[i] <- default
             i <- i + 1
 

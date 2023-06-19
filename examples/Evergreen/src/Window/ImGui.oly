@@ -719,7 +719,7 @@ Button(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, size: Vector2):
 
     igButton(labelPtr, size) == true
 
-Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemIndex: byref<int32>, items: mutable nint[], popupMaxHeight: int32): bool =
+Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemIndex: byref<int32>, items: mutable (byte*)[], popupMaxHeight: int32): bool =
     igSetCurrentContext(context.Context)
 
     let labelPtr = &&label.GetPinnableReference()

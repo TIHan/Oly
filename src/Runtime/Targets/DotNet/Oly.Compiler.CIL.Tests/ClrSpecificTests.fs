@@ -4758,3 +4758,54 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "finalize"
+
+[<Fact>]
+let ``Field array of byte pointers should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+field XS: (byte*)[] = []
+
+main(): () =
+    print(XS)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "System.UIntPtr[]"
+
+[<Fact>]
+let ``Lambda uses a pointer type should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[inline(never)]
+f(g: byte* -> byte*): () = 
+    let _ = g(default)
+
+main(): () =
+    f(x -> x)
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"

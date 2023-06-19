@@ -907,6 +907,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``DebuggableAttributeConstructor`` = lazy createDebuggableConstructor()
     member val ``DebuggerStepperBoundaryAttribute`` = lazy createDebuggerStepperBoundaryAttributeConstructor()
 
+    member val ``MulticastDelegate`` = sysTy "MulticastDelegate" false
+
     member val EntryPoint = ClrMethodHandle.None with get, set
 
     member this.EncodeAttributeElementType (encoder: CustomAttributeElementTypeEncoder, handle: ClrTypeHandle) =
@@ -1030,7 +1032,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                     encoder.GenericInstantiation(genericTyHandle.EntityHandle, tyInst.Length, isValueType)
                 tyInst
                 |> ImArray.iter (fun ty ->
-                    MetadataHelpers.encodeType(encoderInst.AddArgument(), ty, this)
+                    if ty.IsByRef_t || ty.IsNativePointer_t then
+                        OlyAssert.Fail("Invalid type argument.")
+                    else
+                        MetadataHelpers.encodeType(encoderInst.AddArgument(), ty, this)
                 )
 
                 metadataBuilder.AddTypeSpecification(metadataBuilder.GetOrAddBlob(signature))
@@ -1294,7 +1299,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member this.AddAnonymousFunctionInvoke(argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
         let parent, tyInst = this.AddAnonymousFunctionType(argTys, returnTy)
 
-        let returnsVoid = returnTy.EntityHandle = this.TypeReferenceVoid.EntityHandle
+        let returnsVoid = returnTy.HasEntityHandle && returnTy.EntityHandle = this.TypeReferenceVoid.EntityHandle
 
         let signature = BlobBuilder()
         let mutable encoder = BlobEncoder(signature)

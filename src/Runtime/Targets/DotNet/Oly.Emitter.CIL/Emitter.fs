@@ -108,6 +108,13 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | _ ->
             ValueNone
 
+    member this.IsNativePointer =
+        match this with
+        | TypeGenericInstance(_, _, handle) ->
+            handle.IsNativePointer_t
+        | _ ->
+            false
+
     member this.TryTypeVariable =
         match this with
         | TypeReference(asmBuilder, handle, _, _) ->
@@ -259,6 +266,40 @@ module rec ClrCodeGen =
             isReturnable: bool
             spb: SequencePointBehavior
         }
+
+    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle name invokeParTys invokeReturnTy =
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false)
+
+        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
+        ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual
+        invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+        tyDef
+
+    let createAnonymousFunctionConstructor (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
+        asmBuilder.AddAnonymousFunctionConstructor(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
+
+    let createAnonymousFunctionInvoke (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
+        asmBuilder.AddAnonymousFunctionInvoke(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
+
+    let createAnonymousFunctionType (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
+        let handle, _ = asmBuilder.AddAnonymousFunctionType(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
+        handle
+
+    let handleTypeArgument (asmBuilder: ClrAssemblyBuilder) (tyArgHandle: ClrTypeHandle) =
+        if tyArgHandle.IsNativePointer_t then
+            asmBuilder.TypeReferenceIntPtr
+        else
+            tyArgHandle
+
+    let handleTypeArguments (asmBuilder: ClrAssemblyBuilder) (tyArgHandles: ClrTypeHandle imarray) =
+        tyArgHandles
+        |> ImArray.map (handleTypeArgument asmBuilder)
 
     let private tryGetLastInstruction cenv =
         if cenv.buffer.Count > 0 then
@@ -440,7 +481,9 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env receiverExpr
 
             emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
-            I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
+
+            let ctor = ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly parTys returnTy
+            I.Newobj(ctor, parTys.Length) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -1000,16 +1043,10 @@ module rec ClrCodeGen =
 
             let argTys =
                 runtimeArgTys
-                |> Seq.map (fun x -> 
-                    if x.IsByRef then
-                        cenv.assembly.TypeReferenceIntPtr
-                    else
-                        x.Handle
-                )
-                |> ImArray.ofSeq
+                |> ImArray.map (fun x -> x.Handle)
 
-            let methRef = cenv.assembly.AddAnonymousFunctionInvoke(argTys, runtimeReturnTy.Handle)
-            I.Callvirt(methRef, irArgs.Length) |> emitInstruction cenv
+            let invoke = createAnonymousFunctionInvoke cenv.assembly argTys runtimeReturnTy.Handle
+            I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
     let rec MorphExpression (cenv: cenv) (expr: E<ClrTypeInfo, _, _>) =
@@ -1733,6 +1770,25 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         asmBuilder.AddBlob(b)
 
+    let addGenericInstanceTypeReference(tyHandle, tyArgs: ClrTypeHandle imarray) =
+        let tyArgs = ClrCodeGen.handleTypeArguments asmBuilder tyArgs
+        asmBuilder.AddGenericInstanceTypeReference(tyHandle, tyArgs)
+    
+    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle invokeParTys invokeReturnTy =
+        let name = "__oly_delegate_" + (newUniqueId().ToString())
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false)
+
+        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
+        ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual
+        invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+        tyDef
+
     member this.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
 
@@ -1862,24 +1918,19 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let tyInst =
                 tyInst 
                 |> ImArray.map (fun x -> x.Handle)
+                |> ClrCodeGen.handleTypeArguments asmBuilder
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddTupleType(tyInst), true, false)
 
         member this.EmitTypeConstantInt32 _ = raise (System.NotSupportedException())
 
         member this.EmitTypeFunction(inputTys, outputTy) =
-            let inputTyRefs =
+            let argTyHandles =
                 inputTys
-                |> ImArray.map (fun x -> 
-                    if x.IsByRef then
-                        asmBuilder.TypeReferenceIntPtr
-                    else
-                        x.Handle
-                )
-
-            let handle, tyInst = asmBuilder.AddAnonymousFunctionType(inputTyRefs, outputTy.Handle)
+                |> ImArray.map (fun x -> x.Handle)
+            let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
             ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
 
-        member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, name, tyParCount) =
+        member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum
             let isReadOnly = flags.IsReadOnly
 
@@ -1916,7 +1967,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 if tyParCount > 0 then
                     let tyArgs =
                         ImArray.init tyParCount (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
-                    asmBuilder.AddGenericInstanceTypeReference(tyHandle, tyArgs)
+                    addGenericInstanceTypeReference(tyHandle, tyArgs)
                 else
                     tyHandle
 
@@ -1926,7 +1977,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let tyArgHandles =
                 tyArgs 
                 |> ImArray.map (fun x -> x.Handle)
-            let appliedTyHandle = asmBuilder.AddGenericInstanceTypeReference(ty.Handle, tyArgHandles)
+            let appliedTyHandle = addGenericInstanceTypeReference(ty.Handle, tyArgHandles)
             ClrTypeInfo.TypeGenericInstance(ty, tyArgHandles, appliedTyHandle)
 
         member this.EmitTypeDefinitionInfo(tyDef, enclosing, kind, flags, _, irTyPars, extends, implements, irAttrs, runtimeTyOpt) =
