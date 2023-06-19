@@ -257,6 +257,15 @@ private igGetCurrentWindow(): nuint
 #[import("C", "imgui.dll", "igCalcWindowNextAutoFitSize")]
 private igCalcWindowNextAutoFitSize(pOut: Vector2*, window: nuint): ()
 
+#[import("C", "imgui.dll", "igPushItemWidth")]
+private igPushItemWidth(item_width: float32): ()
+
+#[import("C", "imgui.dll", "igPopItemWidth")]
+private igPopItemWidth(): ()
+
+#[import("C", "imgui.dll", "igCalcItemWidth")]
+private igCalcItemWidth(): float32
+
 #[import("C", "imgui.dll", "igLabelText")]
 private igLabelText(label: byte*, fmt: byte*): ()
 
@@ -607,6 +616,21 @@ PopId(context: ImGuiContext): () =
     igSetCurrentContext(context.Context)
 
     igPopID()
+
+PushItemWidth(context: ImGuiContext, width: float32): () =
+    igSetCurrentContext(context.Context)
+
+    igPushItemWidth(width)
+
+PopItemWidth(context: ImGuiContext): () =
+    igSetCurrentContext(context.Context)
+
+    igPopItemWidth()
+
+CalculateItemWidth(context: ImGuiContext): float32 =
+    igSetCurrentContext(context.Context)
+
+    igCalcItemWidth()
 
 SetNextWindowPosition(context: ImGuiContext, position: Vector2): () =
     igSetCurrentContext(context.Context)

@@ -388,7 +388,9 @@ module UI =
             view.OnTextChanged(prevText, view.Text)
 
     private MakeLabel(context: UIContext, view: LabelView): () =
+        ImGui.PushItemWidth(context.ImGuiContext, float32(view.Text.Length * 8))
         ImGui.LabelText(context.ImGuiContext, view.LabelSpan, view.TextSpan)
+        ImGui.PopItemWidth(context.ImGuiContext)
 
     private MakeImage(context: UIContext, view: ImageView): () =
         if (view.isDirty)

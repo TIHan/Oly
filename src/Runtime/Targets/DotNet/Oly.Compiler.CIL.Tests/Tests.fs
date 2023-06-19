@@ -15386,3 +15386,30 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
+
+[<Fact>]
+let ``Modify Vector X from a class``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Vector2 =
+    public mutable field X: int32 = 0
+    public mutable field Y: int32 = 0
+
+class C =
+    public mutable field X: Vector2 = Vector2()
+
+main(): () =
+    let c = C()
+    c.X.X <- 123
+    print(c.X.X)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
