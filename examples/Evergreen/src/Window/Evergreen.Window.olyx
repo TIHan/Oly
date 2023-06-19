@@ -21,14 +21,11 @@ class DisplayMode =
     Height: int32 get
     RefreshRate: int32 get
 
-    internal mutable field devmodea: TerraFX.Interop.Windows.DEVMODEA
-
     new(width: int32, height: int32, refreshRate: int32) =
         {
             Width = width
             Height = height
             RefreshRate = refreshRate
-            devmodea = default
         }
     
     overrides GetHashCode(): int32 = this.Width + this.Height + this.RefreshRate
@@ -61,9 +58,8 @@ interface IWindow =
     GetDisplayModes(): DisplayMode[]
     ChangeDisplayMode(displayMode: DisplayMode): ()
 
-    static CreateWin32(title: string, position: Vector2, size: Vector2): IWindow =
+    static CreateWin32(title: string): IWindow =
         let window: IWindow = Win32Window(title)
-        window.Position <- position
-        window.Size <- size
-       // window.ChangeDisplayMode(window.CurrentDisplayMode)
+        window.Position <- Vector2.Zero
+        window.ChangeDisplayMode(window.CurrentDisplayMode)
         window

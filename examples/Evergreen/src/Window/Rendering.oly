@@ -570,6 +570,7 @@ class Gpu =
             gpuImage.VulkanImage <- vulkanImage
             gpuImage.VkImageView <- Vk.CreateImageView(this.vk, vulkanImage, VkImageAspectFlags.VK_IMAGE_ASPECT_COLOR_BIT)
             gpuImage.VkSampler <- sampler
+            gpuImage.Bytes <- ReadOnlyMemory<_>.Empty
 
             this.gpuImages[gpuImage] <- ()
 
@@ -1194,7 +1195,8 @@ class Rendering =
         // We must set this variable otherwise some multi-gpu setups will fail with integrated AMD and discrete NVIDIA cards.
         Environment.SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1")
         
-        let window = IWindow.CreateWin32(options.WindowTitle, Vector2(0, 0), options.InitialWindowSize)
+        let window = IWindow.CreateWin32(options.WindowTitle)
+        window.Size <- options.InitialWindowSize
 
         let vulkanAppOptions = VulkanApplicationOptions()
         vulkanAppOptions.ValidationEnabled <- true

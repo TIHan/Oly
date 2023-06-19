@@ -239,6 +239,7 @@ createUI(deviceName: string, r: Rendering): WindowView =
         let view = ComboBoxView()
         view.Label <- "Combo Box"
         view.Items <- Array.MapAsMutable(displayModes, x -> x.Width.ToString() + " x " + x.Height.ToString() + " | " + x.RefreshRate.ToString() + "hz")
+        view.SelectedItemIndex <- Array.FindIndex(displayModes, (i, x) -> x.Equals(r.Window.CurrentDisplayMode))
         view.OnSelectedItemIndexChanged <- 
             (x: int32, y: int32) ->
                 r.Window.ChangeDisplayMode(displayModes[y])

@@ -67,7 +67,6 @@ internal module Win32 =
                     DisplayMode(int32(mode.dmPelsWidth), int32(mode.dmPelsHeight), int32(mode.dmDisplayFrequency))
 
                 if (hash.Add(displayMode))
-                    displayMode.devmodea <- mode
                     displayModes.Add(displayMode)
             i <- i + 1
 
@@ -76,55 +75,28 @@ internal module Win32 =
         let displayModes = System.Linq.Enumerable.ToArray(displayModes)
         Unsafe.AsImmutable(displayModes)
 
-    // GetCurrentDisplayMode(): DisplayMode =
-    //     let mutable info = default: MONITORINFO
-    //     if (GetMonitorInfo(HMONITOR.NULL, &&info) == BOOL.FALSE)
-    //         fail("Failed to get monitor info.")
+    GetCurrentDisplayMode(): DisplayMode =
+        let mutable devmodew = default: DEVMODEW
+        if (EnumDisplaySettings(nullptr, ENUM.ENUM_CURRENT_SETTINGS, &&devmodew) == BOOL.FALSE)
+            fail("Failed to get display settings.")
 
-    //     let mutable requiredPaths = 0: uint32
-    //     let mutable requiredModes = 0: uint32
+        let displayModes = GetDisplayModes()
+        OlyPrelude.Array.Find(displayModes, 
+            x -> 
+                int32(devmodew.dmDisplayFrequency) == x.RefreshRate &&
+                 int32(devmodew.dmPelsWidth) == x.Width &&
+                    int32(devmodew.dmPelsHeight) == x.Height
+        )
 
-    //     if (GetDisplayConfigBufferSizes(uint32(QDC_ONLY_ACTIVE_PATHS), &&requiredPaths, &&requiredModes) != 0)
-    //         fail("Failed to get display config buffer sizes.")
-
-    //     let paths = 
-        
-    //     if (QueryDisplayConfig(uint32(QDC_ONLY_ACTIVE_PATHS), &&requiredPaths, x, &&requiredModes, x, nullptr) != 0)
-    //         fail("Failed to query display config.")
-    //                           // using the CCD get the associated path and display configuration
-    //                         //   UINT32 requiredPaths, requiredModes;
-    //                         //   if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, &requiredModes) == ERROR_SUCCESS)
-    //                         //   {
-    //                         //          std::vector<DISPLAYCONFIG_PATH_INFO> paths(requiredPaths);
-    //                         //          std::vector<DISPLAYCONFIG_MODE_INFO> modes2(requiredModes);
-    //                         //          if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, paths.data(), &requiredModes, modes2.data(), nullptr) == ERROR_SUCCESS)
-    //                         //          {
-    //                         //                 // iterate through all the paths until find the exact source to match
-    //                         //                 for (auto& p : paths) {
-    //                         //                        DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName;
-    //                         //                        sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
-    //                         //                        sourceName.header.size = sizeof(sourceName);
-    //                         //                        sourceName.header.adapterId = p.sourceInfo.adapterId;
-    //                         //                        sourceName.header.id = p.sourceInfo.id;
-    //                         //                        if (DisplayConfigGetDeviceInfo(&sourceName.header) == ERROR_SUCCESS)
-    //                         //                        {
-    //                         //                               // find the matched device which is associated with current device 
-    //                         //                               // there may be the possibility that display may be duplicated and windows may be one of them in such scenario
-    //                         //                               // there may be two callback because source is same target will be different
-    //                         //                               // as window is on both the display so either selecting either one is ok
-    //                         //                               if (wcscmp(info.szDevice, sourceName.viewGdiDeviceName) == 0) {
-    //                         //                                      // get the refresh rate
-    //                         //                                      UINT numerator = p.targetInfo.refreshRate.Numerator;
-    //                         //                                      UINT denominator = p.targetInfo.refreshRate.Denominator;
-    //                         //                                      double refrate = (double)numerator / (double)denominator;
-    //                         //                                      *outRefreshRate = refrate;
-    //                         //                                      break;
-    //                         //                               }
-    //                         //                        }
-    //                         //                 }
-
-    //     let displayMode = info.
-        
+    SetDisplayMode(displayMode: DisplayMode): () =
+        let mutable mode = default: DEVMODEA
+        mode.dmSize <- uint16(sizeof<DEVMODEA>)
+        mode.dmBitsPerPel <- 32
+        mode.dmPelsWidth <- uint32(displayMode.Width)
+        mode.dmPelsHeight <- uint32(displayMode.Height)
+        mode.dmDisplayFrequency <- uint32(displayMode.RefreshRate)
+        mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
+        let _ = ChangeDisplaySettingsA(&&mode, uint32(CDS.CDS_FULLSCREEN))
 
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
@@ -240,6 +212,7 @@ internal class Win32Window =
     mutable field isDisposed: bool
     mutable field isClosed: bool
     mutable field currentDisplayMode: DisplayMode
+    mutable field defaultDisplayMode: DisplayMode
 
     Title: string get() = this.title
     HWND: nint get() = nint(this.hwnd.Value)
@@ -283,11 +256,22 @@ internal class Win32Window =
             rect.left <- 0
             rect.right <- width
             let result = AdjustWindowRect(&&rect, uint32(GetWindowLong(this.hwnd, GWL.GWL_STYLE)), BOOL.FALSE)
-            let width = rect.right - rect.left
-            let height = rect.bottom - rect.top
+            let rectWidth = rect.right - rect.left
+            let rectHeight = rect.bottom - rect.top
 
-            let result = SetWindowPos(this.hwnd, HWND.NULL, 0, 0, width, height, uint32(SWP.SWP_NOMOVE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+            let result = SetWindowPos(this.hwnd, HWND.NULL, 0, 0, rectWidth, rectHeight, uint32(SWP.SWP_NOMOVE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
 
+            let displayModes = this.GetDisplayModes()
+            let currentRefreshRate = this.CurrentDisplayMode.RefreshRate
+            let index = 
+                OlyPrelude.Array.TryFindIndex(displayModes, 
+                    x -> x.Width == width && x.Height == height && x.RefreshRate == currentRefreshRate
+                )
+            if (index != -1)
+                let displayMode = displayModes[index]
+                this.currentDisplayMode <- displayMode
+                if (this.IsFullscreen)
+                    Win32.SetDisplayMode(displayMode)
 
     Position: Vector2
         get() =
@@ -309,10 +293,7 @@ internal class Win32Window =
         | (hwnd, hinstance) when (hwnd == HWND.NULL) =>
             throw Exception("Failed to create window.")
         | (hwnd, hinstance) =>
-            let displayModes = Win32.GetDisplayModes()
-            if (displayModes.Length == 0)
-                fail("Failed to find appropriate display modes.")
-            let displayMode = displayModes[displayModes.Length - 1]
+            let displayMode = Win32.GetCurrentDisplayMode()
             Win32.WindowLookup[hwnd] <- this
             {
                 title = title
@@ -325,10 +306,8 @@ internal class Win32Window =
                 isDisposed = false
                 isClosed = true
                 currentDisplayMode = displayMode
+                defaultDisplayMode = displayMode
             }
-        | _ =>
-            // TODO: Fix language to handle this kind of exhaustiveness
-            throw Exception("Failed to create window.")
 
     Show(): () =
         this.ThrowIfDisposed()
@@ -363,14 +342,8 @@ internal class Win32Window =
                 if (displayMode.Equals(displayMode2))
                     this.currentDisplayMode <- displayMode2
                     this.Size <- Vector2(float32(displayMode.Width), float32(displayMode.Height))
-                    let mutable mode = default: DEVMODEA//this.currentDisplayMode.devmodea
-                    mode.dmSize <- uint16(sizeof<DEVMODEA>)
-                    mode.dmBitsPerPel <- 32
-                    mode.dmPelsWidth <- uint32(this.currentDisplayMode.Width)
-                    mode.dmPelsHeight <- uint32(this.currentDisplayMode.Height)
-                    mode.dmDisplayFrequency <- uint32(this.currentDisplayMode.RefreshRate)
-                    mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
-                    let _ = ChangeDisplaySettingsA(&&mode, uint32(CDS.CDS_FULLSCREEN))
+                    if (this.IsFullscreen)
+                        Win32.SetDisplayMode(this.currentDisplayMode)
                 else
                     loop(i + 1)
         loop(0)
@@ -379,17 +352,25 @@ internal class Win32Window =
         get() = 
             (GetWindowLong(this.hwnd, GWL.GWL_STYLE) & WS.WS_OVERLAPPEDWINDOW) == 0
         set(value) =
-                let mutable mode = default: DEVMODEA//this.currentDisplayMode.devmodea
+                let displayMode =
+                    if (value)
+                        this.currentDisplayMode
+                    else
+                        this.defaultDisplayMode
+
+                let mutable mode = default: DEVMODEA
                 mode.dmSize <- uint16(sizeof<DEVMODEA>)
                 mode.dmBitsPerPel <- 32
-                mode.dmPelsWidth <- uint32(this.currentDisplayMode.Width)
-                mode.dmPelsHeight <- uint32(this.currentDisplayMode.Height)
-                mode.dmDisplayFrequency <- uint32(this.currentDisplayMode.RefreshRate)
+                mode.dmPelsWidth <- uint32(displayMode.Width)
+                mode.dmPelsHeight <- uint32(displayMode.Height)
+                mode.dmDisplayFrequency <- uint32(displayMode.RefreshRate)
                 mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
 
                 let dwStyle = GetWindowLong(this.hwnd, GWL.GWL_STYLE)
-                if (dwStyle & WS.WS_OVERLAPPEDWINDOW != 0)                  
-                    let size = Vector2(float32(this.currentDisplayMode.Width), float32(this.currentDisplayMode.Height))
+                let wasWindowed = dwStyle & WS.WS_OVERLAPPEDWINDOW != 0
+
+                if (wasWindowed)                  
+                    let size = Vector2(float32(displayMode.Width), float32(displayMode.Height))
                     let _ = SetWindowLong(this.hwnd, GWL.GWL_STYLE, dwStyle & ~WS.WS_OVERLAPPEDWINDOW)
                     let _ =
                         SetWindowPos(this.hwnd, HWND.HWND_TOP,
