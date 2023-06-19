@@ -133,6 +133,11 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeDefinition(isInterface=isInterface) -> isInterface
         | _ -> false
 
+    member this.IsTypeDefinition_t =
+        match this with
+        | TypeDefinition _ -> true
+        | _ -> false
+
     member this.Handle =
         match this with
         | TypeGenericInstance(_, _, x) -> x
@@ -142,6 +147,10 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
     member this.TypeArguments: ClrTypeHandle imarray =
         match this with
         | TypeGenericInstance(tyArgs=tyArgs) -> tyArgs
+        | TypeReference(_, ty, _, _) ->
+            match ty with
+            | ClrTypeHandle.TypeSpecification(tyInst=tyInst) -> tyInst
+            | _ -> ImArray.empty
         | _ -> ImArray.empty
 
     member this.TryTypeExtensionType =
@@ -168,6 +177,13 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
             info
         | _ ->
             OlyAssert.Fail("Not a type definition.")
+
+    member this.MethodDefinitionBuilders: ClrMethodDefinitionBuilder seq =
+        match this with
+        | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
+            tyDefBuilder.MethodDefinitionBuilders
+        | _ ->
+            ImArray.empty
 
 [<ReferenceEquality;NoComparison>]
 type ClrFieldInfo = 
@@ -267,8 +283,10 @@ module rec ClrCodeGen =
             spb: SequencePointBehavior
         }
 
-    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle name invokeParTys invokeReturnTy =
-        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false)
+    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
+        tyDef.Attributes <- TypeAttributes.Sealed
+        tyDef.BaseType <- asmBuilder.MulticastDelegate
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
@@ -276,16 +294,24 @@ module rec ClrCodeGen =
         ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
 
         let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
-        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual
+
+        let mutable strictAttr = 0x00000200
+        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual ||| (System.Runtime.CompilerServices.Unsafe.As(&strictAttr))
         invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
 
         tyDef
 
-    let createAnonymousFunctionConstructor (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
-        asmBuilder.AddAnonymousFunctionConstructor(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
+    let createMultiCastDelegateConstructor (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
+        (enclosingTy.MethodDefinitionBuilders |> Seq.item 0).Handle
 
-    let createAnonymousFunctionInvoke (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
-        asmBuilder.AddAnonymousFunctionInvoke(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
+    let createMultiCastDelegateInvoke (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
+        (enclosingTy.MethodDefinitionBuilders |> Seq.item 1).Handle
+
+    let createAnonymousFunctionConstructor (asmBuilder: ClrAssemblyBuilder) enclosingTy =
+        asmBuilder.AddAnonymousFunctionConstructor(enclosingTy)
+
+    let createAnonymousFunctionInvoke (asmBuilder: ClrAssemblyBuilder) enclosingTy tyArgs parTys returnTy =
+        asmBuilder.AddAnonymousFunctionInvoke(enclosingTy, tyArgs, handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
 
     let createAnonymousFunctionType (asmBuilder: ClrAssemblyBuilder) parTys returnTy =
         let handle, _ = asmBuilder.AddAnonymousFunctionType(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
@@ -461,9 +487,6 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
-    let GenAnonymousFunctionInvoke cenv (argTys: ClrTypeInfo imarray) (returnTy: ClrTypeInfo) =
-        cenv.assembly.AddAnonymousFunctionInvoke(argTys |> Seq.map (fun x -> x.Handle) |> ImArray.ofSeq, returnTy.Handle)
-
     let GenArgumentExpression (cenv: cenv) (env: env) expr =
         match expr with
         | E.Value _ -> 
@@ -474,16 +497,17 @@ module rec ClrCodeGen =
     let GenOperation (cenv: cenv) prevEnv (irOp: O<ClrTypeInfo, _, _>) =
         let env = { prevEnv with isReturnable = false }
         match irOp with
-        | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, _) ->
-            let parTys = irFunc.EmittedFunction.Parameters.RemoveAt(0) |> ImArray.map (fun (_, x) -> x.Handle)
-            let returnTy = irFunc.EmittedFunction.ReturnType.Handle
-
+        | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             GenArgumentExpression cenv env receiverExpr
 
             emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 
-            let ctor = ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly parTys returnTy
-            I.Newobj(ctor, parTys.Length) |> emitInstruction cenv
+            let ctor = 
+                if funcTy.IsTypeDefinition_t then
+                    ClrCodeGen.createMultiCastDelegateConstructor cenv.assembly funcTy
+                else
+                    ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
+            I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -963,13 +987,16 @@ module rec ClrCodeGen =
         | V.FunctionPtr(methInfo, _) ->
             emitInstruction cenv (I.Ldftn(methInfo.handle))
 
-        | V.Function(methInfo, _) ->
-            let parTys = methInfo.Parameters |> ImArray.map (fun (_, x) -> x.Handle)
-            let returnTy = methInfo.ReturnType.Handle
-
+        | V.Function(methInfo, funcTy) ->
             I.Ldnull |> emitInstruction cenv
             emitInstruction cenv (I.Ldftn(methInfo.handle))
-            I.Newobj(cenv.assembly.AddAnonymousFunctionConstructor(parTys, returnTy), parTys.Length) |> emitInstruction cenv
+
+            let ctor = 
+                if funcTy.IsTypeDefinition_t then
+                    ClrCodeGen.createMultiCastDelegateConstructor cenv.assembly funcTy
+                else
+                    ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
+            I.Newobj(ctor, methInfo.Parameters.Length) |> emitInstruction cenv
 
         | V.DefaultStruct(ty) ->
             if ty.IsStruct then
@@ -1031,7 +1058,8 @@ module rec ClrCodeGen =
     let GenCallIndirect (cenv: cenv) env (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
         GenArgumentExpression cenv env irFunArg
 
-        match irFunArg.ResultType.Handle with
+        let funcTy = irFunArg.ResultType
+        match funcTy.Handle with
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->            
             let localIndex = cenv.NewLocal(irFunArg.ResultType)
             I.Stloc localIndex |> emitInstruction cenv
@@ -1045,7 +1073,11 @@ module rec ClrCodeGen =
                 runtimeArgTys
                 |> ImArray.map (fun x -> x.Handle)
 
-            let invoke = createAnonymousFunctionInvoke cenv.assembly argTys runtimeReturnTy.Handle
+            let invoke =
+                if funcTy.IsTypeDefinition_t then
+                    createMultiCastDelegateInvoke cenv.assembly funcTy
+                else
+                    createAnonymousFunctionInvoke cenv.assembly funcTy.Handle funcTy.TypeArguments argTys runtimeReturnTy.Handle
             I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
@@ -1924,11 +1956,25 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeConstantInt32 _ = raise (System.NotSupportedException())
 
         member this.EmitTypeFunction(inputTys, outputTy) =
+            let mutable mustCreateDelegate = false
             let argTyHandles =
                 inputTys
-                |> ImArray.map (fun x -> x.Handle)
-            let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
-            ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
+                |> ImArray.map (fun x -> 
+                    if x.IsByRef then
+                        mustCreateDelegate <- true
+                    x.Handle
+                )
+
+            if mustCreateDelegate then
+                let name = "__oly_delegate_" + (newUniqueId()).ToString()
+                let parTys =
+                    argTyHandles
+                    |> ImArray.map (fun x -> ("", x))
+                let tyDef = ClrCodeGen.createMultiCastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
+                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, false, false, ClrTypeDefinitionInfo.Default)
+            else
+                let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
+                ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum
@@ -2222,12 +2268,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic
-
-            let fieldTyHandle =
-                if enclosingTy.IsClosure && fieldTy.IsByRef then
-                    asmBuilder.TypeReferenceIntPtr
-                else
-                    fieldTy.Handle
+            let fieldTyHandle = fieldTy.Handle
 
             match enclosingTy with
             | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, isInterface, _, _, _) ->
@@ -2414,25 +2455,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 pars
                 |> ImArray.map (fun (_, x) -> x.Handle)
 
-            let parTys =
-                if enclosingTy.IsClosure then
-                    parTys
-                    |> ImArray.map (fun x ->
-                        if x.IsByRef_t then
-                            asmBuilder.TypeReferenceIntPtr
-                        else
-                            x
-                    )
-                else
-                    parTys
-
             let parHandles =
                 pars
                 |> ImArray.map (fun (name, x) -> 
-                    if x.IsByRef && enclosingTy.IsClosure then
-                        (name, asmBuilder.TypeReferenceIntPtr)
-                    else
-                        (name, x.Handle)
+                    (name, x.Handle)
                 )
 
             let cilReturnTy = returnTy

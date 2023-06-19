@@ -1473,6 +1473,12 @@ let importFunctionBody
         func.Witnesses
     )
 
+[<NoEquality;NoComparison>]
+type TypeCache<'Type, 'Function, 'Field> =
+    {
+        Functions: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+    }
+
 [<Sealed>]
 type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Function, 'Field>) as this =
 
@@ -1492,6 +1498,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match primitiveTypes.TryGetValue primTy with
         | true, ty -> ValueSome ty
         | _ -> ValueNone
+
+    let typeCache = 
+        {
+            Functions = RuntimeTypeArgumentListTable()
+        }
 
     let resolveFunctionDefinition (enclosingTy: RuntimeType) ilFuncDefHandle =
         OlyAssert.True(enclosingTy.IsFormal)
@@ -2234,7 +2245,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
             | RuntimeType.Function(argTys, returnTy) ->
-                this.Emitter.EmitTypeFunction(argTys |> ImArray.map (emitType false), emitType false returnTy)
+                let key = argTys.Add(returnTy)
+                match typeCache.Functions.TryGetValue key with
+                | ValueSome result -> result
+                | _ ->
+                    let result = this.Emitter.EmitTypeFunction(argTys |> ImArray.map (emitType false), emitType false returnTy)
+                    typeCache.Functions[key] <- result
+                    result
             | RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy) ->
                 this.Emitter.EmitTypeNativeFunctionPtr(ilCc, argTys |> ImArray.map (emitType false), emitType false returnTy)
             | RuntimeType.ByRef(elementTy, kind) ->

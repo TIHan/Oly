@@ -1270,9 +1270,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | _ ->
                 raise(System.NotImplementedException())
 
-    member this.AddAnonymousFunctionConstructor(argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        let parent, tyInst = this.AddAnonymousFunctionType(argTys, returnTy)
-
+    member this.AddAnonymousFunctionConstructor(parent: ClrTypeHandle) =
         let signature = BlobBuilder()
         let mutable encoder = BlobEncoder(signature)
         let mutable encoder = encoder.MethodSignature(isInstanceMethod = true)
@@ -1296,9 +1294,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         createMemRef realHandle name signature
 
-    member this.AddAnonymousFunctionInvoke(argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        let parent, tyInst = this.AddAnonymousFunctionType(argTys, returnTy)
-
+    member this.AddAnonymousFunctionInvoke(parent: ClrTypeHandle, tyInst: ClrTypeHandle imarray, argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
         let returnsVoid = returnTy.HasEntityHandle && returnTy.EntityHandle = this.TypeReferenceVoid.EntityHandle
 
         let signature = BlobBuilder()
@@ -2527,6 +2523,8 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
     member val InterfaceImplementations: ClrTypeHandle imarray = ImArray.empty with get, set
 
     member _.FindField(name: string) = fieldDefs |> Seq.find (fun (x, _) -> x = name) |> snd
+
+    member _.MethodDefinitionBuilders = methDefs :> _ seq
 
     member this.CreateMethodDefinitionBuilder(name: string, methTyPars, pars, returnTy: ClrTypeHandle, isInstance: bool) =
         let methDefBuilder = ClrMethodDefinitionBuilder(asmBuilder, tyParCount, name, methTyPars, pars, returnTy, isInstance)
