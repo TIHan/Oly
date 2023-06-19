@@ -98,6 +98,74 @@ internal module Win32 =
         mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
         let _ = ChangeDisplaySettingsA(&&mode, uint32(CDS.CDS_FULLSCREEN))
 
+    GetSize(hwnd: HWND): Vector2 =
+        let mutable rect = default: RECT
+        if (GetClientRect(hwnd, &&rect) == BOOL.TRUE)
+            let width = rect.right - rect.left
+            let height = rect.bottom - rect.top
+            Vector2(float32(width), float32(height))
+        else
+            Vector2.Zero
+
+    SetSize(hwnd: HWND, width: int32, height: int32): () =
+        let mutable rect = default: RECT
+        rect.top <- 0
+        rect.bottom <- height
+        rect.left <- 0
+        rect.right <- width
+        let result = AdjustWindowRect(&&rect, uint32(GetWindowLong(hwnd, GWL.GWL_STYLE)), BOOL.FALSE)
+        let rectWidth = rect.right - rect.left
+        let rectHeight = rect.bottom - rect.top
+
+        let _ = SetWindowPos(hwnd, HWND.NULL, 0, 0, rectWidth, rectHeight, uint32(SWP.SWP_NOMOVE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+
+    SetPosition(hwnd: HWND, x: int32, y: int32): () =
+        let _ = SetWindowPos(hwnd, HWND.NULL, x, y, 0, 0, uint32(SWP.SWP_NOSIZE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+
+    GetPosition(hwnd: HWND): Vector2 =
+        let mutable rect = default: RECT
+        if (GetWindowRect(hwnd, &&rect) == BOOL.TRUE)
+            let x = rect.left
+            let y = rect.top
+            Vector2(float32(x), float32(y))
+        else
+            Vector2.Zero
+
+    GetFullscreen(hwnd: HWND): bool =
+        (GetWindowLong(hwnd, GWL.GWL_STYLE) & WS.WS_OVERLAPPEDWINDOW) == 0
+
+    SetFullscreen(hwnd: HWND, isFullscreen: bool, displayMode: DisplayMode): () =
+        let mutable mode = default: DEVMODEA
+        mode.dmSize <- uint16(sizeof<DEVMODEA>)
+        mode.dmBitsPerPel <- 32
+        mode.dmPelsWidth <- uint32(displayMode.Width)
+        mode.dmPelsHeight <- uint32(displayMode.Height)
+        mode.dmDisplayFrequency <- uint32(displayMode.RefreshRate)
+        mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
+
+        let dwStyle = GetWindowLong(hwnd, GWL.GWL_STYLE)
+        let wasWindowed = dwStyle & WS.WS_OVERLAPPEDWINDOW != 0
+
+        if (dwStyle & WS.WS_OVERLAPPEDWINDOW != 0)                  
+            let size = Vector2(float32(displayMode.Width), float32(displayMode.Height))
+            let _ = SetWindowLong(hwnd, GWL.GWL_STYLE, dwStyle & ~WS.WS_OVERLAPPEDWINDOW)
+            let _ =
+                SetWindowPos(hwnd, HWND.HWND_TOP,
+                    0, 0,
+                    int32(size.X), int32(size.Y),
+                    uint32(SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
+                )
+        else                    
+            let _ = SetWindowLong(hwnd, GWL.GWL_STYLE, dwStyle | WS.WS_OVERLAPPEDWINDOW)
+            let _ =
+                SetWindowPos(hwnd, HWND.NULL,
+                    0, 0,
+                    0, 0,
+                    uint32(SWP.SWP_NOMOVE | SWP.SWP_NOSIZE | SWP.SWP_NOZORDER | SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
+                )
+
+        let _ = ChangeDisplaySettingsA(&&mode, uint32(CDS.CDS_FULLSCREEN))
+
     #[blittable]
     #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
     wndProc(hWnd: HWND, msg: uint32, wParam: WPARAM, lParam: LPARAM): LRESULT =
@@ -237,29 +305,13 @@ internal class Win32Window =
                 IsWindowVisible(this.hwnd) == BOOL.FALSE
 
     Size: Vector2
-        get() =
-            let mutable rect = default: RECT
-            if (GetClientRect(this.hwnd, &&rect) == BOOL.TRUE)
-                let width = rect.right - rect.left
-                let height = rect.bottom - rect.top
-                Vector2(float32(width), float32(height))
-            else
-                Vector2.Zero
-        
+        get() = Win32.GetSize(this.hwnd)     
         set(value) =
             let width = int32(value.X)
             let height = int32(value.Y)
 
-            let mutable rect = default: RECT
-            rect.top <- 0
-            rect.bottom <- height
-            rect.left <- 0
-            rect.right <- width
-            let result = AdjustWindowRect(&&rect, uint32(GetWindowLong(this.hwnd, GWL.GWL_STYLE)), BOOL.FALSE)
-            let rectWidth = rect.right - rect.left
-            let rectHeight = rect.bottom - rect.top
-
-            let result = SetWindowPos(this.hwnd, HWND.NULL, 0, 0, rectWidth, rectHeight, uint32(SWP.SWP_NOMOVE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+            if (!this.IsFullscreen)
+                Win32.SetSize(this.hwnd, width, height)
 
             let displayModes = this.GetDisplayModes()
             let currentRefreshRate = this.CurrentDisplayMode.RefreshRate
@@ -274,19 +326,9 @@ internal class Win32Window =
                     Win32.SetDisplayMode(displayMode)
 
     Position: Vector2
-        get() =
-            let mutable rect = default: RECT
-            if (GetWindowRect(this.hwnd, &&rect) == BOOL.TRUE)
-                let x = rect.left
-                let y = rect.top
-                Vector2(float32(x), float32(y))
-            else
-                Vector2.Zero
-
+        get() = Win32.GetPosition(this.hwnd)
         set(value) =
-            let x = int32(value.X)
-            let y = int32(value.Y)
-            let result = SetWindowPos(this.hwnd, HWND.NULL, x, y, 0, 0, uint32(SWP.SWP_NOSIZE | SWP.SWP_NOOWNERZORDER | SWP.SWP_NOZORDER))
+            Win32.SetPosition(this.hwnd, int32(value.X), int32(value.Y))
 
     new(title: string) =
         match (Win32.CreateWindow(title))
@@ -341,56 +383,23 @@ internal class Win32Window =
                 let displayMode2 = displayModes[i]
                 if (displayMode.Equals(displayMode2))
                     this.currentDisplayMode <- displayMode2
-                    this.Size <- Vector2(float32(displayMode.Width), float32(displayMode.Height))
                     if (this.IsFullscreen)
                         Win32.SetDisplayMode(this.currentDisplayMode)
+                    Win32.SetSize(this.hwnd, this.currentDisplayMode.Width, this.currentDisplayMode.Height)
                 else
                     loop(i + 1)
         loop(0)
 
     IsFullscreen: bool
-        get() = 
-            (GetWindowLong(this.hwnd, GWL.GWL_STYLE) & WS.WS_OVERLAPPEDWINDOW) == 0
+        get() = Win32.GetFullscreen(this.hwnd)
         set(value) =
-                let displayMode =
-                    if (value)
-                        this.currentDisplayMode
-                    else
-                        this.defaultDisplayMode
-
-                let mutable mode = default: DEVMODEA
-                mode.dmSize <- uint16(sizeof<DEVMODEA>)
-                mode.dmBitsPerPel <- 32
-                mode.dmPelsWidth <- uint32(displayMode.Width)
-                mode.dmPelsHeight <- uint32(displayMode.Height)
-                mode.dmDisplayFrequency <- uint32(displayMode.RefreshRate)
-                mode.dmFields <- uint32(DM.DM_BITSPERPEL | DM.DM_DISPLAYFREQUENCY | DM.DM_PELSWIDTH | DM.DM_PELSHEIGHT)
-
-                let dwStyle = GetWindowLong(this.hwnd, GWL.GWL_STYLE)
-                let wasWindowed = dwStyle & WS.WS_OVERLAPPEDWINDOW != 0
-
-                if (wasWindowed)                  
-                    let size = Vector2(float32(displayMode.Width), float32(displayMode.Height))
-                    let _ = SetWindowLong(this.hwnd, GWL.GWL_STYLE, dwStyle & ~WS.WS_OVERLAPPEDWINDOW)
-                    let _ =
-                        SetWindowPos(this.hwnd, HWND.HWND_TOP,
-                            0, 0,
-                            int32(size.X), int32(size.Y),
-                            uint32(SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
-                        )
-                    let _ = ShowWindow(this.hwnd, SW_MAXIMIZE)
-                else                    
-                    let _ = SetWindowLong(this.hwnd, GWL.GWL_STYLE, dwStyle | WS.WS_OVERLAPPEDWINDOW)
-                    let _ =
-                        SetWindowPos(this.hwnd, HWND.NULL,
-                            0, 0,
-                            0, 0,
-                            uint32(SWP.SWP_NOMOVE | SWP.SWP_NOSIZE | SWP.SWP_NOZORDER | SWP.SWP_NOOWNERZORDER | SWP.SWP_FRAMECHANGED)
-                        )
-                    let _ = ShowWindow(this.hwnd, SW_SHOWNORMAL)
-
-                let _ = ChangeDisplaySettingsA(&&mode, uint32(CDS.CDS_FULLSCREEN))
-                    
+            let displayMode =
+                if (value)
+                    this.currentDisplayMode
+                else
+                    this.defaultDisplayMode
+            Win32.SetFullscreen(this.hwnd, value, displayMode)
+            Win32.SetSize(this.hwnd, this.currentDisplayMode.Width, this.currentDisplayMode.Height)
 
     PumpEvents(): InputSnapshot =
         this.ThrowIfDisposed()

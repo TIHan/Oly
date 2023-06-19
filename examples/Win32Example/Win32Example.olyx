@@ -268,8 +268,6 @@ createUI(deviceName: string, r: Rendering): WindowView =
         view
     )
 
-    let _ = ComboBoxView()
-
     window
 
 main(): () =

@@ -1165,7 +1165,7 @@ class Gpu =
         this.swapChainRenderPass <- Vk.CreateRenderPass(vulkanApp, this.swapChain)
         this.swapChainFramebuffers <- Vk.CreateSwapChainFramebuffers(vulkanApp, this.swapChain, this.swapChainRenderPass)
 
-        GC.Collect(2, GCCollectionMode.Forced, true)
+        DotNet.GCCollect()
 
     private CleanupSwapChain(): () =
         if (this.swapChain !== unchecked default)
