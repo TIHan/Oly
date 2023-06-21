@@ -943,6 +943,7 @@ class Gpu =
 
     Free(gpuProgramUI: GpuProgramUI): () =
         if (gpuProgramUI.ImGuiContext !== unchecked default)
+            ImGui.Flush(gpuProgramUI.ImGuiContext)
             ImGui.DestroyContext(gpuProgramUI.ImGuiContext)
             gpuProgramUI.ImGuiContext <- unchecked default
 
@@ -1079,6 +1080,12 @@ class Gpu =
             info.GpuArray.Update(this.vk, info.Frame)
             let mutable result = unchecked default
             let result = this.delayedArrayUploadSet.TryRemove(info.GpuArray, &result)
+
+        ForEach(this.gpuProgramUIs.Keys,
+            x ->
+                if (x.ImGuiContext !== unchecked default)
+                    ImGui.Flush(x.ImGuiContext)
+        )
 
     Wait(): () =
         Vk.WaitForIdle(this.vk)

@@ -1,0 +1,78 @@
+module GameLoop
+
+open System
+open System.Diagnostics
+
+private alias Array = OlyPrelude.Array
+
+private ConvertSecondsToTicks(seconds: float64): int64 = TimeSpan.FromSeconds(seconds).Ticks
+private ConvertTicksToSeconds(ticks: int64): float64 = TimeSpan.FromTicks(ticks).TotalSeconds
+private ConvertFramesPerSecondToSeconds(fps: float64): float64 = (1000 / fps) * 0.001
+private ConvertFramesPerSecondToTicks(fps: float64): int64 = ConvertSecondsToTicks(ConvertFramesPerSecondToSeconds(fps))
+
+private ConvertTicksToTickRate(ticks: int64): int64 =
+    int64((float64(1000) / TimeSpan.FromTicks(ticks).TotalMilliseconds))
+
+#[inline] 
+Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool, #[inline] update: float64 -> bool, #[inline] render: (float64, float64) -> ()): () =
+    let tickRate: uint8 = 60
+    let maxRenderTickRate: uint8 = 120
+
+    let mutable quit = false
+    let stopwatch = Stopwatch.StartNew()
+    let getTicks() = stopwatch.Elapsed.Ticks
+
+    let skip = ConvertFramesPerSecondToTicks(1)
+
+    let dtFixed = ConvertFramesPerSecondToTicks(float64(tickRate))
+    let dtMaxRender = ConvertFramesPerSecondToTicks(float64(maxRenderTickRate))
+
+    let mutable dtRender = dtMaxRender
+    let mutable currentTime = getTicks()
+    let mutable accumulator = 0: int64
+    let mutable lastRenderTime = currentTime
+    let mutable fixedUpdateCount = 0
+
+    let avgCount = int32(tickRate)
+    let mutable frameCount = 0
+    let mutable frameTimes = Array.ZeroCreate<int64>(avgCount)
+    let getAvgFrameTime() =
+        let mutable totalFrameTime = 0: int64
+        let mutable i = 0
+        while (i < frameTimes.Length)
+            totalFrameTime <- totalFrameTime + frameTimes[((frameCount + i) % avgCount)]
+            i <- i + 1
+        int64(float64(totalFrameTime) / float64(avgCount))
+
+    let check(frameTime) =
+        if (fixedUpdateCount > 0)
+            frameTimes[frameCount % avgCount] <- frameTime
+            frameCount <- frameCount + 1
+
+    while (!quit)
+        let newTime = getTicks()
+        let frameTime = newTime - currentTime
+        currentTime <- newTime
+
+        // pre-update
+        preUpdate(ConvertTicksToSeconds(frameTime))
+
+        // fixed-update
+        fixedUpdateCount <- 0
+        accumulator <- 
+            if (frameTime > (dtFixed * 2))
+                dtFixed
+            else
+                accumulator + frameTime
+        while (accumulator >= dtFixed)
+            quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
+            accumulator <- accumulator - dtFixed
+            fixedUpdateCount <- fixedUpdateCount + 1
+
+        // update
+        quit <- update(ConvertTicksToSeconds(frameTime))
+
+        // render
+        if (fixedUpdateCount > 0)
+            let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
+            render(ConvertTicksToSeconds(dtFixed), alpha)

@@ -393,7 +393,7 @@ module UI =
         ImGui.PopItemWidth(context.ImGuiContext)
 
     private MakeImage(context: UIContext, view: ImageView): () =
-        if (view.isDirty)
+        if (view.isDirty || view.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
             view.isDirty <- false
             
             if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
@@ -403,7 +403,6 @@ module UI =
                 ImGui.CreateTexture(context.ImGuiContext, view.gpuImage.VkSampler, view.gpuImage.VkImageView, Evergreen.Graphics.Backend.Vulkan.VkImageLayout.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     () ->
                         view.descriptorSet <- Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL
-                        view.isDirty <- true
                 )
 
         if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)

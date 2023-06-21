@@ -331,7 +331,7 @@ main(): () =
     let gpuProgramInstance2 = GpuProgramInstance(gpuProgramReference2, frame)
 
     let gpuCommands =
-        Array.Initialize(1000,
+        Array.Initialize(1,
             i -> GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, quad.Indices.Length)
         )
 
@@ -351,19 +351,24 @@ main(): () =
     let mutable pos = Vector3(2, 2, 2)
 
     r.Window.Show()
-    while (!r.Window.IsClosed)
-        let _ = r.Window.PumpEvents()
 
-        // TODO
-
-        let size = r.Window.Size
-        if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
-            let mutable result = globals.AsSpan()
-            let mutable x = &result[0]
-           // pos <- Vector3(2, 2, pos.Z + 0.01)
-
-            x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
-            gpuProgram.FragmentCode <- fragmentShaderByteCode
-            r.Gpu.Execute(gpuCommands)
+    GameLoop.Start(
+        x -> 
+            let _ = r.Window.PumpEvents(),
+        x ->
+            r.Window.IsClosed,
+        x ->
+            r.Window.IsClosed,
+        (x, y) ->
+            let size = r.Window.Size
+            if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
+                let mutable result = globals.AsSpan()
+                let mutable x = &result[0]
+                // pos <- Vector3(2, 2, pos.Z + 0.01)
+    
+                x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
+               // gpuProgram.FragmentCode <- fragmentShaderByteCode
+                r.Gpu.Execute(gpuCommands)     
+    )
 
     r.Dispose()

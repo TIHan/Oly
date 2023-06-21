@@ -358,6 +358,7 @@ class ImGuiContext =
     internal VulkanInfo: ImGui_ImplVulkan_InitInfo get
     internal VkDescriptorSets: System.Collections.Concurrent.ConcurrentDictionary<VkDescriptorSet, () -> ()> get
     Frame: int32 get, set
+    internal DestroyTextureQueue: System.Collections.Concurrent.ConcurrentQueue<VkDescriptorSet> get
 
     internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
         {
@@ -366,6 +367,7 @@ class ImGuiContext =
             VulkanInfo = info
             Frame = 0
             VkDescriptorSets = System.Collections.Concurrent.ConcurrentDictionary()
+            DestroyTextureQueue = System.Collections.Concurrent.ConcurrentQueue()
         }
 
     internal static InputContext: ImGuiContext get, set = unchecked default
@@ -773,7 +775,7 @@ DestroyTexture(context: ImGuiContext, descriptorSet: VkDescriptorSet): () =
     let mutable onDestroy = unchecked default
     if (context.VkDescriptorSets.TryRemove(descriptorSet, &onDestroy))
         igSetCurrentContext(context.Context)
-        ImGui_ImplVulkan_RemoveTexture(descriptorSet)
+        context.DestroyTextureQueue.Enqueue(descriptorSet)
         onDestroy()
     else
         fail("Texture already destroyed.")
@@ -782,3 +784,8 @@ Image(context: ImGuiContext, texture: VkDescriptorSet, size: Vector2, uv0: Vecto
     igSetCurrentContext(context.Context)
 
     igImage(texture, size, uv0, uv1, Vector4(255, 255, 255, 255), Vector4.One)
+
+Flush(context: ImGuiContext): () =
+    let mutable descriptorSet = default
+    if (context.DestroyTextureQueue.TryDequeue(&descriptorSet))
+        ImGui_ImplVulkan_RemoveTexture(descriptorSet)
