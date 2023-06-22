@@ -1207,7 +1207,7 @@ class Rendering =
 
         let vulkanAppOptions = VulkanApplicationOptions()
         vulkanAppOptions.ValidationEnabled <- true
-        vulkanAppOptions.MaxFramesInFlight <- 2
+        vulkanAppOptions.MaxFramesInFlight <- 8
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
         let gpu = Gpu(window, vulkanApp)

@@ -69,6 +69,9 @@ abstract class View =
     pattern ComboBox(view: View): ComboBoxView when (view.Tag == 6) =>
         Unsafe.Cast<ComboBoxView>(view)
 
+    pattern LinePlot(view: View): LinePlotView when (view.Tag == 7) =>
+        Unsafe.Cast<LinePlotView>(view)
+
 abstract class AbstractLabelView =
     inherits View
 
@@ -267,6 +270,22 @@ class ComboBoxView =
     protected overrides Finalize(): () =
         this.Free()
 
+class LinePlotView =
+    inherits AbstractLabelView
+
+    new() =
+        base(7) with {
+            Values = mutable []
+            Offset = 0
+            ScaleMin = float32.MaxValue
+            ScaleMax = float32.MaxValue
+        }
+
+    Values: mutable float32[] get, set
+    Offset: int32 get, set
+    ScaleMin: float32 get, set
+    ScaleMax: float32 get, set
+
 class UIContext =
 
     internal Gpu: Gpu get
@@ -306,6 +325,9 @@ module UI =
 
         | View.ComboBox(view) =>
             MakeComboBox(context, view)
+
+        | View.LinePlot(view) =>
+            MakeLinePlot(context, view)
 
         | _ =>
             ()
@@ -422,11 +444,15 @@ module UI =
             view.SelectedItemIndex <- selectedItemIndex
             view.OnSelectedItemIndexChanged(prevSelectedItemIndex, selectedItemIndex)
 
+    private MakeLinePlot(context: UIContext, view: LinePlotView): () =
+        ImGui.PlotLines(context.ImGuiContext, view.LabelSpan, ReadOnlySpan(view.Values), view.Offset, view.ScaleMin, view.ScaleMax, view.Size)
+
     NewFrame(context: UIContext): () =
         ImGui.NewFrame(context.ImGuiContext)
 
     Show(context: UIContext, view: WindowView): () =
         MakeNode(context, view)
+        ImGui.ShowDemoWindow(context.ImGuiContext)
 
     Draw(context: UIContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
         ImGui.Draw(context.ImGuiContext, commandBuffer, pipeline)

@@ -164,7 +164,7 @@ createImageByFile(path: string): GpuImage =
 
     GpuImage(image.Width, image.Height, ReadOnlyMemory(bytes))
 
-createUI(deviceName: string, r: Rendering): WindowView =
+createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): WindowView =
     let window = WindowView()
     window.Title <- "Window"
 
@@ -268,7 +268,53 @@ createUI(deviceName: string, r: Rendering): WindowView =
         view
     )
 
+    window.Children.Add(
+        let view = LinePlotView()
+        view.Label <- "Frame Times"
+        view.Values <- frameTimesVM.Values
+        view.ScaleMax <- 33
+        view.ScaleMin <- 0
+        let _ = frameTimesVM.Offset.Subscribe(x -> view.Offset <- x)
+      //  view.ScaleMax <- 20
+        view.Size <- Vector2(0, 100)
+        view
+    )
+
     window
+
+class Subscription<T> =
+    implements IDisposable
+
+    private Unsubscribe: () -> () get
+
+    new(unsubscribe: () -> ()) =
+        {
+            Unsubscribe = unsubscribe
+        }
+
+    Dispose(): () = this.Unsubscribe()
+
+class Observable<T> =
+
+    field subscribers: System.Collections.Generic.HashSet<T -> ()>
+    mutable field value: T
+
+    Subscribe(callback: T -> ()): Subscription<T> =
+        let _ = this.subscribers.Add(callback)
+        Subscription(() -> let _ = this.subscribers.Remove(callback))
+
+    Value: T
+        get() = this.value
+        set(value) =
+            this.value <- value
+            ForEach(this.subscribers, callback -> callback(value))
+
+    new(value: T) = { value = value; subscribers = System.Collections.Generic.HashSet() }
+
+class FrameTimesViewModel =
+
+    Values: mutable float32[] get = Array.ZeroCreate(100)
+    Offset: Observable<int32> get = Observable(0)
 
 main(): () =
     let options = RenderingOptions()
@@ -279,8 +325,10 @@ main(): () =
     let image = createImageByFile("GameExample/Textures/flats/aqf068.png")
     r.Gpu.Sync(image)
 
-    let uiNode = createUI(r.Gpu.DeviceName, r)
-    let uiNode2 = createUI(r.Gpu.DeviceName, r)
+    let frameTimesVM = FrameTimesViewModel()
+
+    let uiNode = createUI(r.Gpu.DeviceName, r, frameTimesVM)
+    let uiNode2 = createUI(r.Gpu.DeviceName, r, frameTimesVM)
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Global, GpuMemoryKind.Shared, 1,
@@ -352,23 +400,46 @@ main(): () =
 
     r.Window.Show()
 
+    let mutable m = Matrix4x4.Identity
+    let mutable frame = 0
+    let mutable canRender = false
+    let mutable renderTime = 0: int64
+    let mutable lastRenderTime = 0: int64
     GameLoop.Start(
         x -> 
             let _ = r.Window.PumpEvents(),
         x ->
+            let mutable i = 0
+            while (i < 500000)
+                m <- m * m
+                i <- i + 1
+            canRender <- true
             r.Window.IsClosed,
         x ->
             r.Window.IsClosed,
-        (x, y) ->
-            let size = r.Window.Size
-            if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
-                let mutable result = globals.AsSpan()
-                let mutable x = &result[0]
-                // pos <- Vector3(2, 2, pos.Z + 0.01)
-    
-                x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
-               // gpuProgram.FragmentCode <- fragmentShaderByteCode
-                r.Gpu.Execute(gpuCommands)     
+        (mutable frameTime, y) ->
+            renderTime <- renderTime + frameTime.Ticks
+
+            if (canRender)
+                canRender <- false
+
+                let mutable frameTime = TimeSpan.FromTicks(renderTime - lastRenderTime)
+                
+                let frameTimeMs = frameTime.TotalMilliseconds
+                frameTimesVM.Offset.Value <- frame % frameTimesVM.Values.Length
+                frameTimesVM.Values[frame % frameTimesVM.Values.Length] <- float32(frameTimeMs)
+                frame <- frame + 1
+
+                let size = r.Window.Size
+                if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
+                    let mutable result = globals.AsSpan()
+                    let mutable x = &result[0]
+                    // pos <- Vector3(2, 2, pos.Z + 0.01)
+        
+                    x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
+                // gpuProgram.FragmentCode <- fragmentShaderByteCode
+                    r.Gpu.Execute(gpuCommands)     
+                    lastRenderTime <- renderTime
     )
 
     r.Dispose()

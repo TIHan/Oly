@@ -287,6 +287,9 @@ private igCombo_Str_arr(label: byte*, current_item: int32*, items: (byte*)*, ite
 #[import("C", "imgui.dll", "igImage")]
 private igImage(user_texture_id: VkDescriptorSet, size: Vector2, uv0: Vector2, uv1: Vector2, tint_col: Vector4, border_col: Vector4): ()
 
+#[import("C", "imgui.dll", "igPlotLines_FloatPtr")]
+private igPlotLines_FloatPtr(label: byte*, values: float32*, values_count: int32, values_offset: int32, overlay_text: byte*, scale_min: float32, scale_max: float32, graph_size: Vector2, stride: int32): ()
+
 #[import("C", "imgui.dll", "ImFontConfig_ImFontConfig")]
 private ImFontConfig_ImFontConfig(): ImFontConfig*
 
@@ -763,6 +766,14 @@ Combo(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, selectedItemInde
     itemsHandle.Free()
 
     result == true
+
+PlotLines(context: ImGuiContext, mutable label: ReadOnlySpan<byte>, mutable values: ReadOnlySpan<float32>, offset: int32, scaleMin: float32, scaleMax: float32, size: Vector2): () =
+    igSetCurrentContext(context.Context)
+
+    let labelPtr = &&label.GetPinnableReference()
+    let valuesPtr = &&values.GetPinnableReference()
+
+    igPlotLines_FloatPtr(labelPtr, valuesPtr, values.Length, offset, nullptr, 0, scaleMax, size, sizeof<float32>)
 
 CreateTexture(context: ImGuiContext, sampler: VkSampler, imageView: VkImageView, imageLayout: VkImageLayout, onDestroyTexture: () -> ()): VkDescriptorSet =
     igSetCurrentContext(context.Context)
