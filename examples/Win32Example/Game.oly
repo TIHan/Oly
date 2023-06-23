@@ -317,7 +317,7 @@ class World =
 
     IsValid(entId: EntityId): bool =
         let version = this.entityVersions[entId.Index]
-        version == 0 || version == entId.Version
+        version != 0 && version == entId.Version
 
     // --------------------------------------------------------------------------------------------------------
 
@@ -335,8 +335,21 @@ class World =
         this.Archetype_Box.Add(entId, transform, objId, Material(0))
         Box(entId)
 
-    Destroy(box: Box): () =
+    DestroyBox(box: Box): () =
         this.Check(box.Value)
         
         this.Archetype_Box.Remove(box.Value)
         this.DeleteEntityId(box.Value)
+
+    ForEachBox(f: (Box, byref<Transform>, DynamicObjectId, Material) -> ()): () =
+        let entIds = this.Archetype_Box.EntityIds
+        let buffer0 = this.Archetype_Box.Buffer0
+        let buffer1 = this.Archetype_Box.Buffer1
+        let buffer2 = this.Archetype_Box.Buffer2
+
+        let count = this.Archetype_Box.Count
+        
+        let mutable i = 0
+        while (i < count)
+            f(Box(entIds[i]), &buffer0[i], buffer1[i], buffer2[i])
+            i <- i + 1

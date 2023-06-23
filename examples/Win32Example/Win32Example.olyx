@@ -23,6 +23,8 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
+open static Game.Core
+
 private alias Array = OlyPrelude.Array
 
 class ExternalProcess =
@@ -315,6 +317,14 @@ class FrameTimesViewModel =
     Offset: Observable<int32> get = Observable(0)
 
 main(): () =
+
+    let world = World()
+    let entId = world.SpawnBox(vec3.Zero, quat.Identity, vec3.One)
+    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
+    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
+    world.DestroyBox(entId)
+    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
+
     let options = RenderingOptions()
     let r = Rendering.Create(options)
 
