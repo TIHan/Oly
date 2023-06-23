@@ -1,0 +1,30 @@
+#target "dotnet: netstandard2.1"
+#library
+
+#reference "prelude.olyx"
+
+#[open]
+module OlyCore
+
+open System
+open System.Numerics
+
+alias vec2 = Vector2
+alias vec3 = Vector3
+alias vec4 = Vector4
+
+#[open]
+extension Vector3Extensions =
+    inherits Vector3
+
+    static Forward: vec3 get() = -vec3.UnitZ
+    static Back: vec3 get() = vec3.UnitZ
+    static Left: vec3 get() = -vec3.UnitX
+    static Right: vec3 get() = vec3.UnitX
+
+(*)(v1: vec3, v2: vec3): vec3 = vec3.Multiply(v1, v2)
+(*)(v: vec3, s: float32): vec3 = vec3.Multiply(v, s)
+
+alias quat = Quaternion
+
+alias mat4 = Matrix4x4

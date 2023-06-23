@@ -1,8 +1,6 @@
 #target "dotnet: netstandard1.2"
 #library
 
-#load "*.oly"
-
 #[open]
 module OlyPrelude
 
@@ -954,3 +952,19 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
     let xse = xs.GetEnumerator()
     while (xse.MoveNext())
         f(xse.Current)
+
+// Math
+
+radians(degrees: float64): float64 = degrees * System.Math.PI / 180
+radians(degrees: float32): float32 = float32(radians(float64(degrees)))
+
+clamp(min: float32, max: float32, value: float32): float32 =
+    if (max <= min)
+        throw (System.ArgumentException("Invalid Min Max"))
+
+    if (value < min)
+        min
+    else if (value > max)
+        max
+    else
+        value

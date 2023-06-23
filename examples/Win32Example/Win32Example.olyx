@@ -2,9 +2,10 @@
 
 #load "*.oly"
 
-#reference "../core/prelude.olyx"
+#reference "../core/core.olyx"
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 #reference "../Evergreen/src/Window/Evergreen.Window.olyx"
+#reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
 
 open System
 open System.IO
@@ -133,9 +134,6 @@ struct Globals =
     public mutable field Model: Matrix4x4 = Matrix4x4.Identity
     public mutable field View: Matrix4x4 = Matrix4x4.Identity
     public mutable field Projection: Matrix4x4 = Matrix4x4.Identity
-
-radians(degrees: float64): float64 = degrees * System.Math.PI / 180
-radians(degrees: float32): float32 = float32(radians(float64(degrees)))
 
 compileShaderByFile(path: string): ReadOnlyMemory<byte> =
     let outputPath = Path.ChangeExtension(path, ".spv")

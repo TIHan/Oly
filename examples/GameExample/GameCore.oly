@@ -206,20 +206,6 @@ DefaultColorFragmentCode: string get =
 
 DefaultComputeCode: string get = System.IO.File.ReadAllText("GameExample/transform_rotation.comp")
 
-radians(degrees: float64): float64 = degrees * System.Math.PI / 180
-radians(degrees: float32): float32 = float32(radians(float64(degrees)))
-
-clamp(min: float32, max: float32, value: float32): float32 =
-    if (max <= min)
-        throw (System.ArgumentException("Invalid Min Max"))
-
-    if (value < min)
-        min
-    else if (value > max)
-        max
-    else
-        value
-
 struct PointLight =
     public mutable field Position: Vector3 = Vector3.Zero
     public field Padding: float32 = 0
@@ -259,17 +245,6 @@ struct Camera =
         let position = this.Transform.Position
         let rotation = Camera.DefaultRotation * Quaternion.CreateFromYawPitchRoll(-yaw, -pitch, 0)
         this.Transform <- Transform.Create(position, rotation, Vector3.One)
-
-#[open]
-extension Vector3Extensions =
-    inherits Vector3
-
-    static Forward: Vector3 get() = -Vector3.UnitZ
-    static Back: Vector3 get() = Vector3.UnitZ
-    static Left: Vector3 get() = -Vector3.UnitX
-    static Right: Vector3 get() = Vector3.UnitX
-
-(*)(v: Vector3, s: float32): Vector3 = Vector3.Multiply(v, s)
 
 struct Transform =
     public mutable field Matrix: Matrix4x4

@@ -2,6 +2,7 @@
 
 #load "*.oly"
 
+#reference "../core/core.olyx"
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 #reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
 

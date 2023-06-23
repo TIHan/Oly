@@ -1,0 +1,271 @@
+module Game.Core
+
+open System
+open System.Text
+open System.Collections.Generic
+open Evergreen.Graphics
+open Evergreen.Physics
+open System.Runtime.InteropServices
+
+private alias Array = OlyPrelude.Array
+
+struct PointLight =
+    public mutable field Position: vec3 = vec3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: vec4 = vec4.Zero
+
+struct DirectionalLight =
+    public mutable field Direction: vec3 = vec3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: vec4 = vec4.Zero
+
+struct Camera =
+    public mutable field Transform: Transform
+    public mutable field Projection: mat4
+
+    mutable field yaw: float32
+    mutable field pitch: float32
+
+    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(90))
+
+    new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
+        {
+            Transform = Transform(mat4.CreateFromQuaternion(Camera.DefaultRotation))
+            Projection = mat4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
+            yaw = 0
+            pitch = 0
+        }
+
+    Yaw: float32
+        get() = this.yaw
+        
+    Pitch: float32
+        get() = this.pitch
+
+    mutable SetYawPitch(yaw: float32, pitch: float32): () =
+        this.yaw <- yaw
+        this.pitch <- pitch
+        let position = this.Transform.Position
+        let rotation = Camera.DefaultRotation * quat.CreateFromYawPitchRoll(-yaw, -pitch, 0)
+        this.Transform <- Transform.Create(position, rotation, vec3.One)
+
+struct Transform =
+    public mutable field Matrix: mat4
+
+    new(matrix: mat4) = { Matrix = matrix }
+
+    Position: vec3
+        get() = this.Matrix.Translation
+        set(value) = this.Matrix.Translation <- value
+
+    Rotation: quat
+        get() = quat.CreateFromRotationMatrix(this.Matrix)
+
+    Scale: vec3
+        get() = 
+            let mutable scale = vec3.Zero
+            let mutable rotation = quat.Identity
+            let mutable position = vec3.Zero
+            if (mat4.Decompose(this.Matrix, &scale, &rotation, &position))
+                scale
+            else
+                vec3.Zero
+
+    Forward: vec3
+        get() = vec3.Transform(vec3.Forward, this.Rotation)
+
+    Back: vec3
+        get() = vec3.Transform(vec3.Back, this.Rotation)
+
+    Left: vec3
+        get() = vec3.Transform(vec3.Left, this.Rotation)
+
+    Right: vec3
+        get() = vec3.Transform(vec3.Right, this.Rotation)
+
+    WorldToLocalMatrix: mat4
+        get() =
+            let mutable inverted = mat4.Identity
+            let didSucceed = mat4.Invert(this.Matrix, &inverted)
+            inverted
+
+    static Create(position: vec3, rotation: quat, scale: vec3): Transform =
+        let rotationMatrix = mat4.CreateFromQuaternion(rotation)
+        let mutable scaleMatrix = mat4.CreateScale(scale)
+        scaleMatrix.Translation <- position
+        Transform(rotationMatrix * scaleMatrix)
+
+struct EntityId =
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
+
+    IsNil: bool get() = this.Version == 0
+
+class Archetype<T0> where T0: unmanaged =
+    Count: int32 get, set
+
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+
+    new(size: int32) =
+        {
+            Count = 0
+            Lookup  = Array.ZeroCreate(size)
+            EntityIds = Array.ZeroCreate(size)
+            Buffer0 = Array.ZeroCreate(size)
+        }
+
+    Add(entId: EntityId, item0: T0): () =
+        let index = this.Count
+        this.Count <- this.Count + 1
+
+        this.Lookup[entId.Index] <- index
+        this.EntityIds[index] <- entId
+        this.Buffer0[index] <- item0
+
+class Archetype<T0, T1> where T0: unmanaged 
+                        where T1: unmanaged =
+    Count: int32 get, set
+
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
+
+    new(size: int32) =
+        {
+            Count = 0
+            Lookup  = Array.ZeroCreate(size)
+            EntityIds = Array.ZeroCreate(size)
+            Buffer0 = Array.ZeroCreate(size)
+            Buffer1 = Array.ZeroCreate(size)
+        }
+
+    Add(entId: EntityId, item0: T0, item1: T1): () =
+        let index = this.Count
+        this.Count <- this.Count + 1
+
+        this.Lookup[entId.Index] <- index
+        this.EntityIds[index] <- entId
+        this.Buffer0[index] <- item0
+        this.Buffer1[index] <- item1
+
+class Archetype<T0, T1, T2> where T0: unmanaged 
+                            where T1: unmanaged 
+                            where T2: unmanaged =
+    Count: int32 get, set
+
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
+    Buffer2: mutable T2[] get
+
+    new(size: int32) =
+        {
+            Count = 0
+            Lookup  = Array.ZeroCreate(size)
+            EntityIds = Array.ZeroCreate(size)
+            Buffer0 = Array.ZeroCreate(size)
+            Buffer1 = Array.ZeroCreate(size)
+            Buffer2 = Array.ZeroCreate(size)
+        }
+
+    Add(entId: EntityId, item0: T0, item1: T1, item2: T2): () =
+        let index = this.Count
+        this.Count <- this.Count + 1
+
+        this.Lookup[entId.Index] <- index
+        this.EntityIds[index] <- entId
+        this.Buffer0[index] <- item0
+        this.Buffer1[index] <- item1
+        this.Buffer2[index] <- item2
+
+class Archetype<T0, T1, T2, T3> where T0: unmanaged 
+                                where T1: unmanaged 
+                                where T2: unmanaged 
+                                where T3: unmanaged =
+    Count: int32 get, set
+
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+    Buffer0: mutable T0[] get
+    Buffer1: mutable T1[] get
+    Buffer2: mutable T2[] get
+    Buffer3: mutable T3[] get
+
+    new(size: int32) =
+        {
+            Count = 0
+            Lookup  = Array.ZeroCreate(size)
+            EntityIds = Array.ZeroCreate(size)
+            Buffer0 = Array.ZeroCreate(size)
+            Buffer1 = Array.ZeroCreate(size)
+            Buffer2 = Array.ZeroCreate(size)
+            Buffer3 = Array.ZeroCreate(size)
+        }
+
+    Add(entId: EntityId, item0: T0, item1: T1, item2: T2, item3: T3): () =
+        let index = this.Count
+        this.Count <- this.Count + 1
+
+        this.Lookup[entId.Index] <- index
+        this.EntityIds[index] <- entId
+        this.Buffer0[index] <- item0
+        this.Buffer1[index] <- item1
+        this.Buffer2[index] <- item2
+        this.Buffer3[index] <- item3
+
+alias Color = vec4
+
+class GameState =
+
+    mutable field nextIndex: int32 = 0
+    mutable field indexQueue: Queue<int32> = Queue()
+    mutable field entityCount: int32 = 0
+    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(1024)
+
+    Archetype_StaticBox:  Archetype<Transform, Color, StaticObjectId> get              = Archetype(1024)
+    Archetype_Box:        Archetype<Transform, Color, DynamicObjectId> get             = Archetype(1024)
+    Archetype_PointLight: Archetype<Transform, Color, DynamicObjectId, PointLight> get = Archetype(1024)
+
+    Archetype_DirectionalLight: Archetype<DirectionalLight> get = Archetype(1024)
+
+    private NewEntityId(): EntityId =
+        let index =
+            if (this.indexQueue.Count == 0)
+                let index = this.nextIndex
+                this.nextIndex <- this.nextIndex + 1
+                index
+            else
+                this.indexQueue.Dequeue()
+
+        let version = this.entityVersions[index] + 1
+        this.entityVersions[index] <- version
+
+        let mutable entId = EntityId()
+        entId.Index <- index
+        entId.Version <- version
+        entId
+
+    CreateStaticBox(transform: Transform, color: Color, staticObjId: StaticObjectId): EntityId =
+        let entId = this.NewEntityId()
+        this.Archetype_StaticBox.Add(entId, transform, color, staticObjId)
+        entId
+
+    CreateBox(transform: Transform, color: Color, dynamicObjId: DynamicObjectId): EntityId =
+        let entId = this.NewEntityId()
+        this.Archetype_Box.Add(entId, transform, color, dynamicObjId)
+        entId
+
+    CreatePointLight(transform: Transform, color: Color, dynamicObjId: DynamicObjectId, pointLight: PointLight): EntityId =
+        let entId = this.NewEntityId()
+        this.Archetype_PointLight.Add(entId, transform, color, dynamicObjId, pointLight)
+        entId
+
+    CreateDirectionalLight(directionalLight: DirectionalLight): EntityId =
+        let entId = this.NewEntityId()
+        this.Archetype_DirectionalLight.Add(entId, directionalLight)
+        entId
+
