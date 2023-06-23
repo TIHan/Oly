@@ -124,6 +124,17 @@ class Archetype<T0> where T0: unmanaged =
         this.EntityIds[index] <- entId
         this.Buffer0[index] <- item0
 
+    Remove(entId: EntityId): () =
+        let index = this.Lookup[entId.Index]
+        let lastIndex = this.Count - 1
+        let lastEntId = this.EntityIds[lastIndex]
+        
+        this.Lookup[lastEntId.Index] <- index
+        this.EntityIds[lastIndex] <- entId
+        this.Buffer0[lastIndex] <- this.Buffer0[index]
+
+        this.Count <- this.Count - 1
+
 class Archetype<T0, T1> where T0: unmanaged 
                         where T1: unmanaged =
     Count: int32 get, set
@@ -150,6 +161,18 @@ class Archetype<T0, T1> where T0: unmanaged
         this.EntityIds[index] <- entId
         this.Buffer0[index] <- item0
         this.Buffer1[index] <- item1
+
+    Remove(entId: EntityId): () =
+        let index = this.Lookup[entId.Index]
+        let lastIndex = this.Count - 1
+        let lastEntId = this.EntityIds[lastIndex]
+        
+        this.Lookup[lastEntId.Index] <- index
+        this.EntityIds[lastIndex] <- entId
+        this.Buffer0[lastIndex] <- this.Buffer0[index]
+        this.Buffer1[lastIndex] <- this.Buffer1[index]
+
+        this.Count <- this.Count - 1
 
 class Archetype<T0, T1, T2> where T0: unmanaged 
                             where T1: unmanaged 
@@ -181,6 +204,19 @@ class Archetype<T0, T1, T2> where T0: unmanaged
         this.Buffer0[index] <- item0
         this.Buffer1[index] <- item1
         this.Buffer2[index] <- item2
+
+    Remove(entId: EntityId): () =
+        let index = this.Lookup[entId.Index]
+        let lastIndex = this.Count - 1
+        let lastEntId = this.EntityIds[lastIndex]
+        
+        this.Lookup[lastEntId.Index] <- index
+        this.EntityIds[lastIndex] <- entId
+        this.Buffer0[lastIndex] <- this.Buffer0[index]
+        this.Buffer1[lastIndex] <- this.Buffer1[index]
+        this.Buffer2[lastIndex] <- this.Buffer2[index]
+
+        this.Count <- this.Count - 1
 
 class Archetype<T0, T1, T2, T3> where T0: unmanaged 
                                 where T1: unmanaged 
@@ -217,20 +253,39 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
         this.Buffer2[index] <- item2
         this.Buffer3[index] <- item3
 
+    Remove(entId: EntityId): () =
+        let index = this.Lookup[entId.Index]
+        let lastIndex = this.Count - 1
+        let lastEntId = this.EntityIds[lastIndex]
+        
+        this.Lookup[lastEntId.Index] <- index
+        this.EntityIds[lastIndex] <- entId
+        this.Buffer0[lastIndex] <- this.Buffer0[index]
+        this.Buffer1[lastIndex] <- this.Buffer1[index]
+        this.Buffer2[lastIndex] <- this.Buffer2[index]
+        this.Buffer3[lastIndex] <- this.Buffer3[index]
+
+        this.Count <- this.Count - 1
+
 alias Color = vec4
 
-class GameState =
+struct Material =
+    Id: uint64 get
+
+    new(id: uint64) =
+        {
+            Id = id
+        }
+
+newtype Box =
+    internal field Value: EntityId
+
+class World =
 
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
     mutable field entityCount: int32 = 0
-    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(1024)
-
-    Archetype_StaticBox:  Archetype<Transform, Color, StaticObjectId> get              = Archetype(1024)
-    Archetype_Box:        Archetype<Transform, Color, DynamicObjectId> get             = Archetype(1024)
-    Archetype_PointLight: Archetype<Transform, Color, DynamicObjectId, PointLight> get = Archetype(1024)
-
-    Archetype_DirectionalLight: Archetype<DirectionalLight> get = Archetype(1024)
+    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(8192)
 
     private NewEntityId(): EntityId =
         let index =
@@ -249,23 +304,39 @@ class GameState =
         entId.Version <- version
         entId
 
-    CreateStaticBox(transform: Transform, color: Color, staticObjId: StaticObjectId): EntityId =
-        let entId = this.NewEntityId()
-        this.Archetype_StaticBox.Add(entId, transform, color, staticObjId)
-        entId
+    private Check(entId: EntityId): () =
+        if (!this.IsValid(entId))
+            fail("Invalid entity.")
 
-    CreateBox(transform: Transform, color: Color, dynamicObjId: DynamicObjectId): EntityId =
-        let entId = this.NewEntityId()
-        this.Archetype_Box.Add(entId, transform, color, dynamicObjId)
-        entId
+    private DeleteEntityId(entId: EntityId): () =
+        this.Check(entId)
 
-    CreatePointLight(transform: Transform, color: Color, dynamicObjId: DynamicObjectId, pointLight: PointLight): EntityId =
-        let entId = this.NewEntityId()
-        this.Archetype_PointLight.Add(entId, transform, color, dynamicObjId, pointLight)
-        entId
+        this.entityVersions[entId.Index] <- 0
+        this.indexQueue.Enqueue(entId.Index)
+        this.entityCount <- this.entityCount - 1
 
-    CreateDirectionalLight(directionalLight: DirectionalLight): EntityId =
-        let entId = this.NewEntityId()
-        this.Archetype_DirectionalLight.Add(entId, directionalLight)
-        entId
+    IsValid(entId: EntityId): bool =
+        let version = this.entityVersions[entId.Index]
+        version == 0 || version == entId.Version
 
+    // --------------------------------------------------------------------------------------------------------
+
+    field physics: Physics = Physics.Init()
+    
+    Archetype_StaticBox:  Archetype<Transform, StaticObjectId, Material> get              = Archetype(8192)
+    Archetype_Box:        Archetype<Transform, DynamicObjectId, Material> get             = Archetype(8192)
+
+    SpawnBox(position: vec3, rotation: quat, scale: vec3): Box =
+        // server
+        let objId = this.physics.AddBox(position, rotation, scale)
+        let transform = Transform.Create(position, rotation, scale)
+        
+        let entId = this.NewEntityId()
+        this.Archetype_Box.Add(entId, transform, objId, Material(0))
+        Box(entId)
+
+    Destroy(box: Box): () =
+        this.Check(box.Value)
+        
+        this.Archetype_Box.Remove(box.Value)
+        this.DeleteEntityId(box.Value)
