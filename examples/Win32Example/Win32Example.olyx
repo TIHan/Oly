@@ -318,9 +318,9 @@ class FrameTimesViewModel =
 
 main(): () =
 
-    let world = World()
-    let stagingWorld = World()
-    let clientWorld = World()
+    let world = ServerWorld()
+    let stagingWorld = SharedWorld()
+    let clientWorld = ClientWorld()
 
     let options = RenderingOptions()
     let r = Rendering.Create(options)
@@ -415,7 +415,7 @@ main(): () =
     let mutable i = 0
     while (i < 8192)
         let position = Vector3(float32(random.Next()))
-        let box = world.SpawnBox(position, quat.Identity, vec3.One)
+        let box = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
     let mutable cpuTime = Stopwatch.StartNew()
