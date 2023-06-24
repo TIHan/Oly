@@ -130,10 +130,16 @@ class Archetype<T0> where T0: unmanaged =
         let lastEntId = this.EntityIds[lastIndex]
         
         this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[lastIndex] <- entId
+        this.EntityIds[index] <- lastEntId
         this.Buffer0[lastIndex] <- this.Buffer0[index]
 
         this.Count <- this.Count - 1
+
+    CopyTo(archetype: Archetype<T0>): () =
+        archetype.Count <- this.Count
+        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
+        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
+        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
 
 class Archetype<T0, T1> where T0: unmanaged 
                         where T1: unmanaged =
@@ -168,11 +174,19 @@ class Archetype<T0, T1> where T0: unmanaged
         let lastEntId = this.EntityIds[lastIndex]
         
         this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[lastIndex] <- entId
-        this.Buffer0[lastIndex] <- this.Buffer0[index]
-        this.Buffer1[lastIndex] <- this.Buffer1[index]
+        this.EntityIds[index] <- lastEntId
+        this.Buffer0[index] <- this.Buffer0[lastIndex]
+        this.Buffer1[index] <- this.Buffer1[lastIndex]
 
         this.Count <- this.Count - 1
+
+    CopyTo(archetype: Archetype<T0, T1>): () =
+        archetype.Count <- this.Count
+        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
+        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
+        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
+        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
+
 
 class Archetype<T0, T1, T2> where T0: unmanaged 
                             where T1: unmanaged 
@@ -211,12 +225,20 @@ class Archetype<T0, T1, T2> where T0: unmanaged
         let lastEntId = this.EntityIds[lastIndex]
         
         this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[lastIndex] <- entId
-        this.Buffer0[lastIndex] <- this.Buffer0[index]
-        this.Buffer1[lastIndex] <- this.Buffer1[index]
-        this.Buffer2[lastIndex] <- this.Buffer2[index]
+        this.EntityIds[index] <- lastEntId
+        this.Buffer0[index] <- this.Buffer0[lastIndex]
+        this.Buffer1[index] <- this.Buffer1[lastIndex]
+        this.Buffer2[index] <- this.Buffer2[lastIndex]
 
         this.Count <- this.Count - 1
+
+    CopyTo(archetype: Archetype<T0, T1, T2>): () =
+        archetype.Count <- this.Count
+        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
+        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
+        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
+        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
+        Span(this.Buffer2, 0, this.Count).CopyTo(Span(archetype.Buffer2))
 
 class Archetype<T0, T1, T2, T3> where T0: unmanaged 
                                 where T1: unmanaged 
@@ -259,13 +281,22 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
         let lastEntId = this.EntityIds[lastIndex]
         
         this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[lastIndex] <- entId
-        this.Buffer0[lastIndex] <- this.Buffer0[index]
-        this.Buffer1[lastIndex] <- this.Buffer1[index]
-        this.Buffer2[lastIndex] <- this.Buffer2[index]
-        this.Buffer3[lastIndex] <- this.Buffer3[index]
+        this.EntityIds[index] <- lastEntId
+        this.Buffer0[index] <- this.Buffer0[lastIndex]
+        this.Buffer1[index] <- this.Buffer1[lastIndex]
+        this.Buffer2[index] <- this.Buffer2[lastIndex]
+        this.Buffer3[index] <- this.Buffer3[lastIndex]
 
         this.Count <- this.Count - 1
+
+    CopyTo(archetype: Archetype<T0, T1, T2, T3>): () =
+        archetype.Count <- this.Count
+        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
+        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
+        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
+        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
+        Span(this.Buffer2, 0, this.Count).CopyTo(Span(archetype.Buffer2))
+        Span(this.Buffer3, 0, this.Count).CopyTo(Span(archetype.Buffer3))
 
 alias Color = vec4
 
@@ -282,10 +313,12 @@ newtype Box =
 
 class World =
 
+    static field MaxNumberOfEntities: int32 = 8192
+
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
     mutable field entityCount: int32 = 0
-    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(8192)
+    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(MaxNumberOfEntities)
 
     private NewEntityId(): EntityId =
         let index =
@@ -322,34 +355,87 @@ class World =
     // --------------------------------------------------------------------------------------------------------
 
     field physics: Physics = Physics.Init()
-    
-    Archetype_StaticBox:  Archetype<Transform, StaticObjectId, Material> get              = Archetype(8192)
-    Archetype_Box:        Archetype<Transform, DynamicObjectId, Material> get             = Archetype(8192)
 
-    SpawnBox(position: vec3, rotation: quat, scale: vec3): Box =
+    private Archetype_SpawnBoxQueue: Archetype<vec3, quat, vec3> get = Archetype(MaxNumberOfEntities)
+    private Archetype_DestroyBoxQueue: Archetype<Box> get = Archetype(MaxNumberOfEntities)
+    
+    private Archetype_StaticBox:  Archetype<Transform, StaticObjectId, Material> get              = Archetype(MaxNumberOfEntities)
+    private Archetype_Box:        Archetype<Transform, DynamicObjectId, Material> get             = Archetype(MaxNumberOfEntities)
+
+    private SpawnBoxImmediate(entId: EntityId, position: vec3, rotation: quat, scale: vec3): () =
         // server
         let objId = this.physics.AddBox(position, rotation, scale)
         let transform = Transform.Create(position, rotation, scale)
         
-        let entId = this.NewEntityId()
         this.Archetype_Box.Add(entId, transform, objId, Material(0))
-        Box(entId)
 
-    DestroyBox(box: Box): () =
+    private DestroyBoxImmediate(box: Box, physicsObjId: DynamicObjectId): () =
         this.Check(box.Value)
         
+        this.physics.RemoveBox(physicsObjId)
         this.Archetype_Box.Remove(box.Value)
         this.DeleteEntityId(box.Value)
 
-    ForEachBox(f: (Box, byref<Transform>, DynamicObjectId, Material) -> ()): () =
-        let entIds = this.Archetype_Box.EntityIds
-        let buffer0 = this.Archetype_Box.Buffer0
-        let buffer1 = this.Archetype_Box.Buffer1
-        let buffer2 = this.Archetype_Box.Buffer2
-
-        let count = this.Archetype_Box.Count
-        
+    private System_SpawnBox(): () =
+        let entIds = this.Archetype_SpawnBoxQueue.EntityIds
+        let buffer0 = this.Archetype_SpawnBoxQueue.Buffer0
+        let buffer1 = this.Archetype_SpawnBoxQueue.Buffer1
+        let buffer2 = this.Archetype_SpawnBoxQueue.Buffer2
         let mutable i = 0
-        while (i < count)
-            f(Box(entIds[i]), &buffer0[i], buffer1[i], buffer2[i])
+        while (i < this.Archetype_SpawnBoxQueue.Count)
+            this.SpawnBoxImmediate(entIds[i], buffer0[i], buffer1[i], buffer2[i])
             i <- i + 1
+        this.Archetype_SpawnBoxQueue.Count <- 0
+
+    private System_DestroyBox(): () =
+        let objIdLookup = this.Archetype_Box.Lookup
+        let objIds = this.Archetype_Box.Buffer1
+
+        let entIds = this.Archetype_DestroyBoxQueue.EntityIds
+        let buffer0 = this.Archetype_DestroyBoxQueue.Buffer0
+        let mutable i = 0
+        while (i < this.Archetype_DestroyBoxQueue.Count)
+            this.DestroyBoxImmediate(buffer0[i], objIds[objIdLookup[buffer0[i].Value.Index]])
+            i <- i + 1
+        this.Archetype_DestroyBoxQueue.Count <- 0
+
+    SpawnBox(position: vec3, rotation: quat, scale: vec3): Box =
+        let entId = this.NewEntityId()
+        this.Archetype_SpawnBoxQueue.Add(entId, position, rotation, scale)
+        Box(entId)
+
+    DestroyBox(box: Box): () =
+        this.Archetype_DestroyBoxQueue.Add(box.Value, box)
+
+    Update(Δ: float32): () =
+        this.System_SpawnBox()
+        this.System_DestroyBox()
+
+        this.physics.Update(Δ)
+
+        static let updatePhysicsBoxes(physics: Physics, physicsBoxCount: int32, physicsBoxTransforms: mutable Transform[], physicsBoxDynamicObjectIds: mutable DynamicObjectId[]) =
+            let mutable i = 0
+            while (i < physicsBoxCount)
+                let mutable m = physicsBoxTransforms[i]
+                let mutable position = vec3.Zero
+                let mutable orientation = quat.Identity
+                physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+                let mutable scale = mat4.CreateScale(m.Scale)
+                let mutable m = mat4.CreateFromQuaternion(orientation)
+                scale.Translation <- position
+                physicsBoxTransforms[i] <- Transform(m * scale)
+                i <- i + 1
+
+        updatePhysicsBoxes(this.physics, this.Archetype_Box.Count, this.Archetype_Box.Buffer0, this.Archetype_Box.Buffer1)
+
+    CopyTo(world: World): () =
+        world.indexQueue.Clear()
+        world.entityCount <- this.entityCount
+        world.nextIndex <- this.nextIndex
+        Span(this.entityVersions).CopyTo(Span(world.entityVersions))
+        this.Archetype_Box.CopyTo(world.Archetype_Box)
+        this.Archetype_StaticBox.CopyTo(world.Archetype_StaticBox)
+        this.Archetype_SpawnBoxQueue.CopyTo(this.Archetype_SpawnBoxQueue)
+        this.Archetype_DestroyBoxQueue.CopyTo(this.Archetype_DestroyBoxQueue)
+
+    

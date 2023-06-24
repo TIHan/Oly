@@ -233,6 +233,12 @@ class Physics =
         let handle = this.Simulation.Bodies.Add(&desc)
         DynamicObjectId(handle.Value)
 
+    RemoveBox(objId: DynamicObjectId): () =
+        let handle = BodyHandle(objId.Value)
+        let mutable body = this.Simulation.Bodies.get_Item(handle)
+        this.Simulation.Shapes.Remove(body.Collidable.Shape)
+        this.Simulation.Bodies.Remove(handle)
+
     AddKinematicBox(position: Vector3, rotation: Quaternion, scale: Vector3): DynamicObjectId =
         let mutable box = Box(scale.X, scale.Y, scale.Z)
 

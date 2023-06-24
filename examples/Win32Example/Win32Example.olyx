@@ -319,11 +319,8 @@ class FrameTimesViewModel =
 main(): () =
 
     let world = World()
-    let entId = world.SpawnBox(vec3.Zero, quat.Identity, vec3.One)
-    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
-    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
-    world.DestroyBox(entId)
-    world.ForEachBox((box, transform, objId, material) -> printLine("Box"))
+    let stagingWorld = World()
+    let clientWorld = World()
 
     let options = RenderingOptions()
     let r = Rendering.Create(options)
@@ -413,41 +410,66 @@ main(): () =
     let mutable canRender = false
     let mutable renderTime = 0: int64
     let mutable lastRenderTime = 0: int64
+
+    let random = Random()
+    let mutable i = 0
+    while (i < 8192)
+        let position = Vector3(float32(random.Next()))
+        let box = world.SpawnBox(position, quat.Identity, vec3.One)
+        i <- i + 1
+
+    let mutable cpuTime = Stopwatch.StartNew()
+
+    let lockObj = Object()
+    let task =
+        System.Threading.Tasks.Task.Run(
+            () ->
+                GameLoop.Start(
+                    x -> (),
+                    x ->
+                        cpuTime.Restart()
+                        world.Update(float32(x))
+
+                        System.Threading.Monitor.Enter(lockObj)
+                        world.CopyTo(stagingWorld)
+                        System.Threading.Monitor.Exit(lockObj)
+
+                        r.Window.IsClosed,
+                    x ->
+                        r.Window.IsClosed,
+                    (frameTime, y) -> ()
+                )
+        )
+
     GameLoop.Start(
         x -> 
+            System.Threading.Monitor.Enter(lockObj)
+            stagingWorld.CopyTo(clientWorld)
+            System.Threading.Monitor.Exit(lockObj)
+
             let _ = r.Window.PumpEvents(),
         x ->
-            let mutable i = 0
-            while (i < 500000)
-                m <- m * m
-                i <- i + 1
-            canRender <- true
             r.Window.IsClosed,
         x ->
             r.Window.IsClosed,
         (mutable frameTime, y) ->
-            renderTime <- renderTime + frameTime.Ticks
+            let size = r.Window.Size
+            if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
+                renderTime <- renderTime + frameTime.Ticks
 
-            if (canRender)
-                canRender <- false
-
-                let mutable frameTime = TimeSpan.FromTicks(renderTime - lastRenderTime)
-                
-                let frameTimeMs = frameTime.TotalMilliseconds
+                let frameTimeMs = TimeSpan.FromTicks(renderTime - lastRenderTime).TotalMilliseconds
                 frameTimesVM.Offset.Value <- frame % frameTimesVM.Values.Length
                 frameTimesVM.Values[frame % frameTimesVM.Values.Length] <- float32(frameTimeMs)
                 frame <- frame + 1
 
-                let size = r.Window.Size
-                if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
-                    let mutable result = globals.AsSpan()
-                    let mutable x = &result[0]
-                    // pos <- Vector3(2, 2, pos.Z + 0.01)
-        
-                    x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
-                // gpuProgram.FragmentCode <- fragmentShaderByteCode
-                    r.Gpu.Execute(gpuCommands)     
-                    lastRenderTime <- renderTime
+                let mutable result = globals.AsSpan()
+                let mutable x = &result[0]
+                pos <- Vector3(2, 2, pos.Z + 0.01)
+    
+                x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
+            //    gpuProgram.FragmentCode <- fragmentShaderByteCode
+                r.Gpu.Execute(gpuCommands)     
+                lastRenderTime <- renderTime
     )
 
     r.Dispose()
