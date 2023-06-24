@@ -1,0 +1,48 @@
+module ClientGame
+
+open System
+open System.Text
+open System.Collections.Generic
+open System.Collections.Concurrent
+open Evergreen.Graphics
+open Evergreen.Physics
+open System.Runtime.InteropServices
+open Evergreen.Graphics.Rendering
+open static Game.Core
+
+class ClientWorld =
+    inherits SharedWorld
+
+    private Client_Box: LinkedArchetype<int32> get
+
+    Render_Box: GpuMutableArray<Transform> get
+
+    BoxCount: int32 get() = this.Client_Box.Count
+
+    new() =
+        {
+            Client_Box = LinkedArchetype<int32>(this.Shared_Box)
+            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Shared, this.Shared_Box.Capacity, i -> default)
+        }
+    
+    Update(alpha: float32): () =
+        let mutable span = Span(this.Shared_Box.Buffer0, 0, this.Shared_Box.Count)
+        span.CopyTo(this.Render_Box.AsSpan())
+
+    ForEachBox(f: (Box, transform: Transform, material: Material, int32) -> ()): () =
+        let count = this.Shared_Box.Count
+        let entIds = this.Shared_Box.EntityIds
+        let transforms = this.Shared_Box.Buffer0
+        let materials = this.Shared_Box.Buffer1
+        let renderIds = this.Client_Box.Buffer0
+
+        let mutable i = 0
+        while (i < count)
+            f(Box(entIds[i]), transforms[i], materials[i], renderIds[i])
+            i <- i + 1
+
+    protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
+        this.Client_Box.Set(index, material.Id)
+
+    protected overrides OnBoxRemoving(index: int32): () =
+        this.Client_Box.Clear(index)

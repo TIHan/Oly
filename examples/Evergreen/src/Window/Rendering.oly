@@ -25,9 +25,10 @@ enum GpuMemoryKind =
     | Shared
 
 enum GpuArrayKind =
-    | Global
+    | Uniform
     | Vertex
     | Index
+    | Storage
 
 interface IGpuArray =
 
@@ -171,7 +172,8 @@ class GpuFrame =
         }
 
 enum GpuInputKind =
-    | Array
+    | UniformArray
+    | StorageArray
     | ImageOrFrame
 
 internal struct GpuProgramInput =
@@ -188,8 +190,11 @@ internal struct GpuProgramInput =
             Frame = gpuFrame
         }
 
-    static CreateArray(gpuArray: IGpuArray): GpuProgramInput =
-        GpuProgramInput(GpuInputKind.Array, unchecked default, gpuArray, unchecked default)
+    static CreateUniformArray(gpuArray: IGpuArray): GpuProgramInput =
+        GpuProgramInput(GpuInputKind.UniformArray, unchecked default, gpuArray, unchecked default)
+
+    static CreateStorageArray(gpuArray: IGpuArray): GpuProgramInput =
+        GpuProgramInput(GpuInputKind.StorageArray, unchecked default, gpuArray, unchecked default)
 
     static CreateImage(gpuImage: GpuImage): GpuProgramInput =
         GpuProgramInput(GpuInputKind.ImageOrFrame, gpuImage, unchecked default, unchecked default)
@@ -258,8 +263,10 @@ class GpuProgram =
 
         let descriptorType =
             match (kind)
-            | GpuInputKind.Array =>
+            | GpuInputKind.UniformArray =>
                 VkDescriptorType.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+            | GpuInputKind.StorageArray =>
+                VkDescriptorType.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
             | GpuInputKind.ImageOrFrame =>
                 VkDescriptorType.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
             | _ =>
@@ -317,7 +324,7 @@ class GpuProgramReference =
     AddGlobalInput(gpuArray: IGpuArray): () =
         this.IsDirty <- true
 
-        this.Inputs.Add(GpuProgramInput.CreateArray(gpuArray))
+        this.Inputs.Add(GpuProgramInput.CreateUniformArray(gpuArray))
 
     AddGlobalInput(gpuImage: GpuImage): () =
         this.IsDirty <- true
@@ -374,18 +381,20 @@ abstract class GpuCommand =
         Vertices: IGpuArray get, set = unchecked default
         Indices: IGpuArray get, set = unchecked default
         IndexCount: int32 get, set = 0
+        InstanceCount: int32 get, set = 0
 
-    pattern DrawIndexed(cmd: GpuCommand): (programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32) when (cmd.Tag == 0) =>
+    pattern DrawIndexed(cmd: GpuCommand): (programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32, instanceCount: int32) when (cmd.Tag == 0) =>
         let cmd = Unsafe.Cast<DrawIndexed>(cmd)
-        (cmd.ProgramInstance, cmd.Vertices, cmd.Indices, cmd.IndexCount)
+        (cmd.ProgramInstance, cmd.Vertices, cmd.Indices, cmd.IndexCount, cmd.InstanceCount)
 
-    static DrawIndexed(programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32): GpuCommand =
+    static DrawIndexed(programInstance: GpuProgramInstance, vertices: IGpuArray, indices: IGpuArray, indexCount: int32, instanceCount: int32): GpuCommand =
         let cmd = DrawIndexed()
         cmd.Tag <- 0
         cmd.ProgramInstance <- programInstance
         cmd.Vertices <- vertices
         cmd.Indices <- indices
         cmd.IndexCount <- indexCount
+        cmd.InstanceCount <- instanceCount
         cmd
 
     private class DrawUI =
@@ -507,12 +516,14 @@ class Gpu =
             if (gpuArray.Buffers.Length == 0)
                 let usageFlags =
                     match (gpuArray.Kind)
-                    | GpuArrayKind.Global => 
+                    | GpuArrayKind.Uniform => 
                         VkBufferUsageFlags.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
                     | GpuArrayKind.Vertex =>
                         VkBufferUsageFlags.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
                     | GpuArrayKind.Index =>
                         VkBufferUsageFlags.VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+                    | GpuArrayKind.Storage =>
+                        VkBufferUsageFlags.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
                     | _ =>
                         fail("Invalid 'GpuArrayKind'.")
 
@@ -676,7 +687,8 @@ class Gpu =
         while (i < gpuProgramReference.Inputs.Count)
             let globalInput = gpuProgramReference.Inputs[i]
             match (globalInput.Kind)
-            | GpuInputKind.Array =>
+            | GpuInputKind.UniformArray
+            | GpuInputKind.StorageArray =>
                 this.Sync(globalInput.Array)
             | GpuInputKind.ImageOrFrame =>
                 if (globalInput.Image === unchecked default)
@@ -715,7 +727,8 @@ class Gpu =
                     let globalInput = gpuProgramReference.Inputs[i]
                     
                     match (globalInput.Kind)
-                    | GpuInputKind.Array =>
+                    | GpuInputKind.UniformArray
+                    | GpuInputKind.StorageArray =>
                         Vk.UpdateDescriptorSet(this.vk, uint32(i), descriptorSets[frame], globalInput.Array.Buffers[frame], descriptorType)
                     | GpuInputKind.ImageOrFrame =>
                         let vkImageView = 
@@ -999,7 +1012,7 @@ class Gpu =
 
                                 commandBuffer.BeginRenderPass(currentRenderPass, currentFramebuffer, currentExtent)
 
-                            | GpuCommand.DrawIndexed(gpuProgramInstance, vertices, indices, indexCount) =>
+                            | GpuCommand.DrawIndexed(gpuProgramInstance, vertices, indices, indexCount, instanceCount) =>
                                 this.Sync(gpuProgramInstance)
                                 this.Sync(vertices)
                                 this.Sync(indices)
@@ -1029,7 +1042,7 @@ class Gpu =
 
                                 commandBuffer.BindVertexBuffer(vertices.Buffers[frame])
                                 commandBuffer.BindIndexBuffer(indices.Buffers[frame])
-                                commandBuffer.DrawIndexed(uint32(indexCount), 1)
+                                commandBuffer.DrawIndexed(uint32(indexCount), uint32(instanceCount))
 
                                 currentProgramInstance <- gpuProgramInstance
 

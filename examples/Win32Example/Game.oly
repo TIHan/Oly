@@ -3,6 +3,7 @@ module Game.Core
 open System
 open System.Text
 open System.Collections.Generic
+open System.Collections.Concurrent
 open Evergreen.Graphics
 open Evergreen.Physics
 open System.Runtime.InteropServices
@@ -101,9 +102,18 @@ struct EntityId =
 
     IsNil: bool get() = this.Version == 0
 
-class Archetype<T0> where T0: unmanaged =
-    Count: int32 get, set
+interface IArchetype =
 
+    Count: int32 get
+    Capacity: int32 get
+    Lookup: mutable int32[] get
+    EntityIds: mutable EntityId[] get
+
+class Archetype<T0> where T0: unmanaged =
+    implements IArchetype
+
+    Count: int32 get, set
+    Capacity: int32 get
     Lookup: mutable int32[] get
     EntityIds: mutable EntityId[] get
     Buffer0: mutable T0[] get
@@ -111,6 +121,7 @@ class Archetype<T0> where T0: unmanaged =
     new(size: int32) =
         {
             Count = 0
+            Capacity = size
             Lookup  = Array.ZeroCreate(size)
             EntityIds = Array.ZeroCreate(size)
             Buffer0 = Array.ZeroCreate(size)
@@ -139,9 +150,12 @@ class Archetype<T0> where T0: unmanaged =
 
     Remove(entId: EntityId): () =
         this.Remove(this.Lookup[entId.Index])
+    
+    Get0(index: int32): T0 =
+        this.Buffer0[index]
 
     Get0(entId: EntityId): T0 =
-        this.Buffer0[this.Lookup[entId.Index]]
+        this.Get0(this.Lookup[entId.Index])
 
     CopyTo(archetype: Archetype<T0>): () =
         archetype.Count <- this.Count
@@ -149,10 +163,42 @@ class Archetype<T0> where T0: unmanaged =
         Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
         Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
 
+class LinkedArchetype<T0> where T0: unmanaged =
+    implements IArchetype
+
+    Link: IArchetype get
+
+    Count: int32 get() = this.Link.Count
+    Capacity: int32 get() = this.Link.Capacity
+
+    Lookup: mutable int32[] get() = this.Lookup
+    EntityIds: mutable EntityId[] get() = this.EntityIds
+    Buffer0: mutable T0[] get
+
+    new(archetype: IArchetype) =
+        {
+            Link = archetype
+            Buffer0 = Array.ZeroCreate(archetype.Capacity)
+        }
+
+    Set(index: int32, item0: T0): () =
+        this.Buffer0[index] <- item0
+
+    Clear(index: int32): () =
+        this.Buffer0[index] <- unchecked default
+
+    Get0(index: int32): T0 =
+        this.Buffer0[index]
+
+    CopyTo(archetype: LinkedArchetype<T0>): () =
+        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
+
 class Archetype<T0, T1> where T0: unmanaged 
                         where T1: unmanaged =
-    Count: int32 get, set
+    implements IArchetype
 
+    Count: int32 get, set
+    Capacity: int32 get
     Lookup: mutable int32[] get
     EntityIds: mutable EntityId[] get
     Buffer0: mutable T0[] get
@@ -161,25 +207,19 @@ class Archetype<T0, T1> where T0: unmanaged
     new(size: int32) =
         {
             Count = 0
+            Capacity = size
             Lookup  = Array.ZeroCreate(size)
             EntityIds = Array.ZeroCreate(size)
             Buffer0 = Array.ZeroCreate(size)
             Buffer1 = Array.ZeroCreate(size)
         }
 
-    Add(entId: EntityId, item0: T0, item1: T1): () =
-        let index = this.Count
-        this.Count <- this.Count + 1
-
-        this.Lookup[entId.Index] <- index
-        this.Set(index, entId, item0, item1)
-
-    Set(index: int32, entId: EntityId, item0: T0, item1: T1): () =
+    private Set(index: int32, entId: EntityId, item0: T0, item1: T1): () =
         this.EntityIds[index] <- entId
         this.Buffer0[index] <- item0
         this.Buffer1[index] <- item1
 
-    Remove(index: int32): () =
+    private SwapClear(index: int32): () =
         let lastIndex = this.Count - 1
         let lastEntId = this.EntityIds[lastIndex]
         
@@ -187,10 +227,21 @@ class Archetype<T0, T1> where T0: unmanaged
         this.Lookup[lastEntId.Index] <- index
 
         this.Set(index, lastEntId, this.Buffer0[lastIndex], this.Buffer1[lastIndex])
-        this.Count <- this.Count - 1
+    
+    NextIndex(): int32 =
+        this.Count
+
+    Add(entId: EntityId, item0: T0, item1: T1): () =
+        let index = this.NextIndex()
+
+        this.Count <- this.Count + 1
+        this.Lookup[entId.Index] <- index
+        this.Set(index, entId, item0, item1)
 
     Remove(entId: EntityId): () =
-        this.Remove(this.Lookup[entId.Index])
+        let index = this.Lookup[entId.Index]
+        this.SwapClear(index)
+        this.Count <- this.Count - 1
 
     CopyTo(archetype: Archetype<T0, T1>): () =
         archetype.Count <- this.Count
@@ -203,8 +254,10 @@ class Archetype<T0, T1> where T0: unmanaged
 class Archetype<T0, T1, T2> where T0: unmanaged 
                             where T1: unmanaged 
                             where T2: unmanaged =
-    Count: int32 get, set
+    implements IArchetype
 
+    Count: int32 get, set
+    Capacity: int32 get
     Lookup: mutable int32[] get
     EntityIds: mutable EntityId[] get
     Buffer0: mutable T0[] get
@@ -214,6 +267,7 @@ class Archetype<T0, T1, T2> where T0: unmanaged
     new(size: int32) =
         {
             Count = 0
+            Capacity = size
             Lookup  = Array.ZeroCreate(size)
             EntityIds = Array.ZeroCreate(size)
             Buffer0 = Array.ZeroCreate(size)
@@ -266,8 +320,10 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
                                 where T1: unmanaged 
                                 where T2: unmanaged 
                                 where T3: unmanaged =
-    Count: int32 get, set
+    implements IArchetype
 
+    Count: int32 get, set
+    Capacity: int32 get
     Lookup: mutable int32[] get
     EntityIds: mutable EntityId[] get
     Buffer0: mutable T0[] get
@@ -278,6 +334,7 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
     new(size: int32) =
         {
             Count = 0
+            Capacity = size
             Lookup  = Array.ZeroCreate(size)
             EntityIds = Array.ZeroCreate(size)
             Buffer0 = Array.ZeroCreate(size)
@@ -323,9 +380,9 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
 alias Color = vec4
 
 struct Material =
-    Id: uint64 get
+    Id: int32 get
 
-    new(id: uint64) =
+    new(id: int32) =
         {
             Id = id
         }
@@ -388,12 +445,6 @@ abstract default class SharedWorld =
     protected Shared_Box:       Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
     protected Shared_StaticBox: Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
 
-    protected AddBox(entId: EntityId, transform: Transform, material: Material): () =
-        this.Shared_Box.Add(entId, transform, material)
-
-    protected RemoveBox(entId: EntityId): () =
-        this.Shared_Box.Remove(entId)
-
     CopyTo(world: SharedWorld): () =
         let maxCount = Math.Max(this.Shared_Box.Count, world.Shared_Box.Count)
 
@@ -411,12 +462,12 @@ abstract default class SharedWorld =
             let entIdToCopy = entIds[i]
 
             if (entId.IsNil)
-                world.OnBoxAdded(entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
+                world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
             else if (entIdToCopy.IsNil)
-                world.OnBoxRemoved(entId)
+                world.OnBoxRemoving(i)
             else if (entId.Index == entIdToCopy.Index && entId.Version != entIdToCopy.Version)
-                world.OnBoxRemoved(entId)
-                world.OnBoxAdded(entIdToCopy, buffer0[i], buffer1[i])    
+                world.OnBoxRemoving(i)
+                world.OnBoxAdding(i, entIdToCopy, buffer0[i], buffer1[i])    
                 
             i <- i + 1
 
@@ -424,18 +475,43 @@ abstract default class SharedWorld =
         this.Shared_StaticBox.CopyTo(world.Shared_StaticBox)
         this.CopyTo(world: World)
 
-    protected abstract default OnBoxAdded(entId: EntityId, transform: Transform, material: Material): () = ()
+    protected abstract default OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () = ()
 
-    protected abstract default OnBoxRemoved(entId: EntityId): () = ()
+    protected abstract default OnBoxRemoving(index: int32): () = ()
 
 class ServerWorld =
     inherits SharedWorld
 
-    field Physics: Physics = Physics.Init()
+    field Physics: Physics
+    field DestroyBoxStagingQueue: ConcurrentQueue<Box>
+    field DestroyBoxQueue: Queue<Box>
 
-    private Server_Box: Archetype<DynamicObjectId> get = Archetype(World.MaxNumberOfEntities)
+    private Server_Box: LinkedArchetype<DynamicObjectId> get
+
+    new() =
+        {
+            Physics = Physics.Init()
+            DestroyBoxStagingQueue = ConcurrentQueue()
+            DestroyBoxQueue = Queue()
+            Server_Box = LinkedArchetype(this.Shared_Box)
+        }
+
+    private ProcessDestroyBoxQueue(): () =
+        let mutable box = default
+        while (this.DestroyBoxStagingQueue.TryDequeue(&box))
+            let entId = box.Value
+            this.Check(entId)
+            this.OnBoxRemoving(this.Shared_Box.Lookup[entId.Index])
+            this.DestroyBoxQueue.Enqueue(box)
+        
+        while (this.DestroyBoxQueue.TryDequeue(&box))
+            let entId = box.Value
+            this.DeleteEntityId(entId)
+            this.Shared_Box.Remove(entId)
 
     Update(Δ: float32): () =
+        this.ProcessDestroyBoxQueue()
+
         this.Physics.Update(Δ)
 
         static let updatePhysicsBoxes(physics: Physics, physicsBoxCount: int32, physicsBoxTransforms: mutable Transform[], physicsBoxDynamicObjectIds: mutable DynamicObjectId[]) =
@@ -458,33 +534,34 @@ class ServerWorld =
         let material = Material(0)
 
         let entId = this.NewEntityId()
-        this.AddBox(entId, transform, material)
-        this.OnBoxAdded(entId, transform, material)
+        this.OnBoxAdding(this.Shared_Box.NextIndex(), entId, transform, material)
+        this.Shared_Box.Add(entId, transform, material)
         Box(entId)
 
-    Destroy(box: Box): () =
-        let entId = box.Value
+    DestroyBox(box: Box): () =
+        this.DestroyBoxStagingQueue.Enqueue(box)
 
-        this.Check(entId)
-        this.DeleteEntityId(entId)
-        this.RemoveBox(entId)
-        this.OnBoxRemoved(entId)
+    ForEachBox(f: (Box, transform: Transform, material: Material, DynamicObjectId) -> ()): () =
+        this.ProcessDestroyBoxQueue()
 
-    protected overrides OnBoxAdded(entId: EntityId, transform: Transform, material: Material): () =
+        let count = this.Shared_Box.Count
+        let entIds = this.Shared_Box.EntityIds
+
+        let transforms = this.Shared_Box.Buffer0
+        let materials = this.Shared_Box.Buffer1
+        let physIds = this.Server_Box.Buffer0
+
+        let mutable i = 0
+        while (i < count)
+            f(Box(entIds[i]), transforms[i], materials[i], physIds[i])
+            i <- i + 1
+
+        this.ProcessDestroyBoxQueue()
+
+    protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
         let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-        this.Server_Box.Add(entId, objId)
+        this.Server_Box.Set(index, objId)
 
-    protected overrides OnBoxRemoved(entId: EntityId): () =
-        this.Physics.RemoveBox(this.Server_Box.Get0(entId))
-        this.Server_Box.Remove(entId)
-
-class ClientWorld =
-    inherits SharedWorld
-
-    private Client_Box: Archetype<Material> get = Archetype<Material>(World.MaxNumberOfEntities)
-
-    protected overrides OnBoxAdded(entId: EntityId, transform: Transform, material: Material): () =
-        this.Client_Box.Add(entId, material)
-
-    protected overrides OnBoxRemoved(entId: EntityId): () =
-        this.Client_Box.Remove(entId)
+    protected overrides OnBoxRemoving(index: int32): () =
+        this.Physics.RemoveBox(this.Server_Box.Get0(index))
+        this.Server_Box.Clear(index)
