@@ -475,16 +475,11 @@ main(): () =
     let task: Task =
         Task.Run(
             () ->
-                GameLoop.Start(
-                    x -> 
-                        let _ = sv.WaitOne()
-                        serverTick(GameLoop.FixedUpdateDeltaTimeMS)
-                        let _ = sv.Reset()
-                        let _ = cl.Set(),
-                    () ->
-                        r.Window.IsClosed,
-                    (deltaTime, alpha) -> ()
-                )
+                while (!r.Window.IsClosed)
+                    let _ = sv.WaitOne()
+                    serverTick(GameLoop.FixedUpdateDeltaTimeMS)
+                    let _ = sv.Reset()
+                    let _ = cl.Set()
         )
 
     let gpuCommands = List<GpuCommand>()
@@ -500,7 +495,7 @@ main(): () =
             System.Threading.Monitor.Exit(lockObj)
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
-       //     DotNet.GCCollect()
+            DotNet.GCCollect()
             r.Window.IsClosed,
         (mutable frameTime, y) ->
             let size = r.Window.Size
