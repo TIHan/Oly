@@ -413,6 +413,10 @@ internal class Win32Window =
         if (Evergreen.ImGui.ImGuiContext.InputContext !== unchecked default)
             Evergreen.ImGui.SetCurrentContext(Evergreen.ImGui.ImGuiContext.InputContext)
 
+
+        this.mouseInfo.RelativeX <- 0
+        this.mouseInfo.RelativeY <- 0
+
         let hwnd = this.hwnd
         let mutable msg = default: MSG
         while (PeekMessage(&&msg, hwnd, 0, 0, uint32(PM_REMOVE)) == BOOL.TRUE)

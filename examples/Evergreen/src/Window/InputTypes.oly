@@ -71,3 +71,7 @@ class InputSnapshot =
             KeyEvents = keyEvents
             MouseInfo = mouseInfo
         }
+
+    MouseDelta: System.Numerics.Vector2
+        get() =
+            System.Numerics.Vector2(float32(this.MouseInfo.RelativeX), float32(this.MouseInfo.RelativeY))

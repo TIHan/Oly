@@ -109,12 +109,12 @@ class ExternalProcess =
                 this.p.WaitForExit() // TODO: We should use the async version
                 let result = outputWaitHandle.WaitOne()
                 let result = errorWaitHandle.WaitOne()
-                let output2 = output.ToString()
+                let output = output.ToString()
                 let errors = error.ToString()
                 if (this.p.ExitCode != 0)
-                    throw Exception(errors)
+                    throw Exception(output)
 
-                (output2, errors)
+                (output, errors)
 
         System.Threading.Tasks.Task.Run(work)
 
@@ -355,12 +355,7 @@ main(): () =
 
     let globals =
         GpuMutableArray.Initialize(GpuArrayKind.Uniform, GpuMemoryKind.Shared, 1,
-            i ->
-                let mutable globals = Globals()
-                globals.Projection <- Matrix4x4.CreatePerspectiveFieldOfView(radians(45), 1, 0.1, 10)
-                globals.View <- Matrix4x4.CreateLookAt(Vector3(2, 2, 2), Vector3(0, 0, 0), Vector3(0, 0, 1))
-                globals.Model <- Matrix4x4.Identity
-                globals
+            i -> Globals()
         )
 
     let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
@@ -431,11 +426,13 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    let mutable i = 0
-    while (i < 1024)
-        let position = Vector3(float32(random.Next(1024, 4096)))
-        let _ = world.CreateBox(position, quat.Identity, vec3.One)
-        i <- i + 1
+    let _ = world.CreatePlayer(vec3.Zero)
+
+    // let mutable i = 0
+    // while (i < 1024)
+    //     let position = Vector3(float32(random.Next(1024, 4096)))
+    //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
+    //     i <- i + 1
 
     let mutable i = 0
     while (i < 1)
@@ -443,10 +440,73 @@ main(): () =
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
+    let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<InputSnapshot>()
+    let mutable is_w_pressed = false
+    let mutable is_s_pressed = false
+    let mutable is_a_pressed = false
+    let mutable is_d_pressed = false
+
     let lockObj = Object()
     let mutable cpuTimeValue = 0: float64
-    let serverTick(deltaTime: float64) =
+    let serverTick(deltaTime: float32) =
         cpuTime.Restart()
+
+        let mutable yawAcc = 0: float32
+        let mutable pitchAcc = 0: float32
+
+        let mutable inputSnapshot = unchecked default
+        while (inputSnapshots.TryDequeue(&inputSnapshot))
+            ForEach(Cast(inputSnapshot.KeyEvents),
+                (keyEvent: KeyEvent) ->
+                    if (keyEvent.Key == Key.W)
+                        is_w_pressed <- keyEvent.IsDown
+                    if (keyEvent.Key == Key.S)
+                        is_s_pressed <- keyEvent.IsDown
+                    if (keyEvent.Key == Key.A)
+                        is_a_pressed <- keyEvent.IsDown
+                    if (keyEvent.Key == Key.D)
+                        is_d_pressed <- keyEvent.IsDown
+                        
+            )
+
+            let mousePosition = inputSnapshot.MouseDelta
+
+            yawAcc <-
+                mousePosition.X * 0.0025
+
+            pitchAcc <-
+                mousePosition.Y * -0.0025
+
+        world.ForEachPlayer(
+            (player, transform, camera) ->
+                let mutable acc = Vector3.Zero
+                    
+                if (is_w_pressed)
+                    let v = camera.Transform.Forward
+                    acc <- Vector3(v.X, v.Y, v.Z)
+        
+                if (is_s_pressed)
+                    let v = camera.Transform.Back
+                    acc <- acc + Vector3(v.X, v.Y, v.Z)
+        
+                if (is_a_pressed)
+                    let v = camera.Transform.Left
+                    acc <- acc + Vector3(v.X, v.Y, v.Z)
+        
+                if (is_d_pressed)
+                    let v = camera.Transform.Right
+                    acc <- acc + Vector3(v.X, v.Y, v.Z)
+        
+                acc <-
+                    if (acc != Vector3.Zero)
+                        Vector3.Normalize(acc) * (deltaTime * 50)
+                    else
+                        acc
+
+                camera.Transform.Position <- camera.Transform.Position + acc
+
+                camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
+        )
 
         // let mutable i = 0
         // while (i < 1)
@@ -454,7 +514,7 @@ main(): () =
         //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
         //     i <- i + 1
 
-        world.Update(float32(deltaTime))
+        world.Update(deltaTime)
 
         System.Threading.Monitor.Enter(lockObj)
         world.CopyTo(stagingWorld)
@@ -467,6 +527,8 @@ main(): () =
         //             world.DestroyBox(box)
         // )
 
+        System.Threading.Thread.Sleep(15)
+
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
@@ -477,7 +539,8 @@ main(): () =
             () ->
                 while (!r.Window.IsClosed)
                     let _ = sv.WaitOne()
-                    serverTick(GameLoop.FixedUpdateDeltaTimeMS)
+                    serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
+                    
                     let _ = sv.Reset()
                     let _ = cl.Set()
         )
@@ -485,7 +548,9 @@ main(): () =
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
         x -> 
-            let _ = r.Window.PumpEvents(),
+            inputSnapshots.Enqueue(r.Window.PumpEvents())
+                
+            (),
         () ->
             let _ = cl.WaitOne()
             let _ = cl.Reset()
@@ -511,10 +576,18 @@ main(): () =
                 let mutable x = &result[0]
              //   pos <- Vector3(2, 2, pos.Z + 0.01)
     
-                x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
+              //  x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
 
                 clientWorld.ForEachBox((box, transform, material, renderId) -> ())
+                clientWorld.ForEachPlayer(
+                    (player, transform, camera) ->
+                        let mutable globals = globals.AsSpan()
+                        let globals = &globals[0]
+                        globals.Projection <- camera.Projection
+                        globals.View <- camera.Transform.WorldToLocalMatrix
+                        globals.Model <- Matrix4x4.Identity
+                )
                 clientWorld.Update(float32(y))
                          
                 gpuCommands.Add(GpuCommand.NewFrame(gpuFrame))

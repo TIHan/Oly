@@ -11,7 +11,26 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 proj;
 } ubo;
 
+vec4 ConvertLocalToWorldSpace(vec3 v_local, mat4 model)
+{
+    return model * vec4(v_local, 1);
+}
+
+vec4 ConvertWorldToViewSpace(vec4 v_world, mat4 view)
+{
+    return view * v_world;
+}
+
+vec4 ConvertViewToClipSpace(vec4 v_view, mat4 projection)
+{
+    return projection * v_view;
+}
+
 void main() {
-    gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);
+    mat4 model = ubo.model;
+    
+    vec4 position_world = ConvertLocalToWorldSpace(inPosition, model);
+
+    gl_Position = ConvertViewToClipSpace(ConvertWorldToViewSpace(position_world, ubo.view), ubo.proj); //ubo.proj * ubo.view * Instances[gl_InstanceIndex] * vec4(inPosition, 1.0);
     fragTexCoord = inTexCoord;
 }

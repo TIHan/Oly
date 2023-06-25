@@ -452,7 +452,7 @@ module UI =
 
     Show(context: UIContext, view: WindowView): () =
         MakeNode(context, view)
-        ImGui.ShowDemoWindow(context.ImGuiContext)
+     //   ImGui.ShowDemoWindow(context.ImGuiContext)
 
     Draw(context: UIContext, commandBuffer: TerraFX.Interop.Vulkan.VkCommandBuffer, pipeline: TerraFX.Interop.Vulkan.VkPipeline): () =
         ImGui.Draw(context.ImGuiContext, commandBuffer, pipeline)

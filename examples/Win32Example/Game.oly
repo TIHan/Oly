@@ -27,7 +27,7 @@ struct Camera =
     mutable field yaw: float32
     mutable field pitch: float32
 
-    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(90))
+    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(0))
 
     new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
         {
@@ -368,6 +368,9 @@ struct Material =
 newtype Box =
     internal field Value: EntityId
 
+newtype Player =
+    internal field Value: EntityId
+
 abstract class World =
 
     public static field MaxNumberOfEntities: int32 = 65536
@@ -420,6 +423,7 @@ abstract default class SharedWorld =
 
     field Physics: Physics = Physics.Init()
     
+    protected Shared_Player:    Archetype<Transform, Camera> get = Archetype(World.MaxNumberOfEntities)
     protected Shared_Box:       Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
     protected Shared_StaticBox: Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
 
@@ -449,6 +453,7 @@ abstract default class SharedWorld =
                 
             i <- i + 1
 
+        this.Shared_Player.CopyTo(world.Shared_Player)
         this.Shared_Box.CopyTo(world.Shared_Box)
         this.Shared_StaticBox.CopyTo(world.Shared_StaticBox)
         this.CopyTo(world: World)
@@ -461,22 +466,22 @@ class ServerWorld =
     inherits SharedWorld
 
     field Physics: Physics
-    field DestroyBoxStagingQueue: ConcurrentQueue<Box>
-    field DestroyBoxQueue: Queue<Box>
+    field DestroyPlayerQueue: ConcurrentQueue<Player>
+    field DestroyBoxQueue: ConcurrentQueue<Box>
 
     private Server_Box: mutable DynamicObjectId[] get
 
     new() =
         {
             Physics = Physics.Init()
-            DestroyBoxStagingQueue = ConcurrentQueue()
-            DestroyBoxQueue = Queue()
+            DestroyBoxQueue = ConcurrentQueue()
+            DestroyPlayerQueue = ConcurrentQueue()
             Server_Box = Array.ZeroCreate(this.Shared_Box.Capacity)
         }
 
-    private ProcessDestroyBoxQueue(): () =
+    private Flush(): () =
         let mutable box = default
-        while (this.DestroyBoxStagingQueue.TryDequeue(&box))
+        while (this.DestroyBoxQueue.TryDequeue(&box))
             let entId = box.Value
             this.Check(entId)
 
@@ -487,8 +492,18 @@ class ServerWorld =
             this.Shared_Box.Remove(entId)
             this.DeleteEntityId(entId)
 
+        let mutable player = default
+        while (this.DestroyPlayerQueue.TryDequeue(&player))
+            let entId = player.Value
+            this.Check(entId)
+
+            let index = this.Shared_Player.Lookup[entId.Index]
+            let lastIndex = this.Shared_Player.Count - 1
+            this.Shared_Player.Remove(entId)
+            this.DeleteEntityId(entId)
+
     Update(Δ: float32): () =
-        this.ProcessDestroyBoxQueue()
+        this.Flush()
 
         this.Physics.Update(Δ)
 
@@ -507,6 +522,33 @@ class ServerWorld =
 
         updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
 
+    CreatePlayer(position: vec3): Player =
+        let transform = Transform.Create(position, quat.Identity, vec3.One)
+        let camera = Camera(70, 1280, 720, 0.1, 1000000)
+
+        let entId = this.NewEntityId()
+        this.Shared_Player.Add(entId, transform, camera)
+        Player(entId)
+        
+    DestroyPlayer(player: Player): () =
+        this.DestroyPlayerQueue.Enqueue(player)
+
+    ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
+        this.Flush()
+
+        let count = this.Shared_Player.Count
+        let entIds = this.Shared_Player.EntityIds
+
+        let transforms = this.Shared_Player.Buffer0
+        let cameras = this.Shared_Player.Buffer1
+
+        let mutable i = 0
+        while (i < count)
+            f(Player(entIds[i]), &transforms[i], &cameras[i])
+            i <- i + 1
+
+        this.Flush()
+
     CreateBox(position: vec3, rotation: quat, scale: vec3): Box =
         let transform = Transform.Create(position, rotation, scale)
         let material = Material(0)
@@ -517,10 +559,10 @@ class ServerWorld =
         Box(entId)
 
     DestroyBox(box: Box): () =
-        this.DestroyBoxStagingQueue.Enqueue(box)
+        this.DestroyBoxQueue.Enqueue(box)
 
     ForEachBox(f: (Box, transform: Transform, material: Material, DynamicObjectId) -> ()): () =
-        this.ProcessDestroyBoxQueue()
+        this.Flush()
 
         let count = this.Shared_Box.Count
         let entIds = this.Shared_Box.EntityIds
@@ -534,7 +576,7 @@ class ServerWorld =
             f(Box(entIds[i]), transforms[i], materials[i], physIds[i])
             i <- i + 1
 
-        this.ProcessDestroyBoxQueue()
+        this.Flush()
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
         let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)

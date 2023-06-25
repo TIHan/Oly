@@ -32,6 +32,7 @@ class ClientWorld =
     ForEachBox(f: (Box, transform: Transform, material: Material, int32) -> ()): () =
         let count = this.Shared_Box.Count
         let entIds = this.Shared_Box.EntityIds
+
         let transforms = this.Shared_Box.Buffer0
         let materials = this.Shared_Box.Buffer1
         let renderIds = this.Client_Box
@@ -39,6 +40,18 @@ class ClientWorld =
         let mutable i = 0
         while (i < count)
             f(Box(entIds[i]), transforms[i], materials[i], renderIds[i])
+            i <- i + 1
+
+    ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
+        let count = this.Shared_Player.Count
+        let entIds = this.Shared_Player.EntityIds
+            
+        let transforms = this.Shared_Player.Buffer0
+        let cameras = this.Shared_Player.Buffer1
+
+        let mutable i = 0
+        while (i < count)
+            f(Player(entIds[i]), &transforms[i], &cameras[i])
             i <- i + 1
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =

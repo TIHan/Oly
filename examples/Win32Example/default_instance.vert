@@ -16,7 +16,26 @@ layout(set = 0, binding = 2) readonly buffer _InstanceData
     mat4[] Instances;
 };
 
+vec4 ConvertLocalToWorldSpace(vec3 v_local, mat4 model)
+{
+    return model * vec4(v_local, 1);
+}
+
+vec4 ConvertWorldToViewSpace(vec4 v_world, mat4 view)
+{
+    return view * v_world;
+}
+
+vec4 ConvertViewToClipSpace(vec4 v_view, mat4 projection)
+{
+    return projection * v_view;
+}
+
 void main() {
-    gl_Position = ubo.proj * ubo.view * Instances[gl_InstanceIndex] * vec4(inPosition, 1.0);
+    mat4 model = Instances[gl_InstanceIndex];
+
+    vec4 position_world = ConvertLocalToWorldSpace(inPosition, model);
+
+    gl_Position = ConvertViewToClipSpace(ConvertWorldToViewSpace(position_world, ubo.view), ubo.proj); //ubo.proj * ubo.view * Instances[gl_InstanceIndex] * vec4(inPosition, 1.0);
     fragTexCoord = inTexCoord;
 }
