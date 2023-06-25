@@ -281,6 +281,13 @@ createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): W
         view
     )
 
+    window.Children.Add(
+        let view = LabelView()
+        view.Label <- "Fixed Update Time"
+        let _ = frameTimesVM.FixedUpdateTime.Subscribe((mutable x) -> view.Text <- x.ToString())
+        view
+    )
+
     window
 
 class Subscription<T> =
@@ -314,6 +321,7 @@ class Observable<T> =
 
 class FrameTimesViewModel =
 
+    FixedUpdateTime: Observable<float64> get = Observable(0.0)
     Values: mutable float32[] get = Array.ZeroCreate(100)
     Offset: Observable<int32> get = Observable(0)
 
@@ -417,8 +425,8 @@ main(): () =
     let mutable cpuTime = Stopwatch.StartNew()
 
     let mutable i = 0
-    while (i < 1000)
-        let position = Vector3(float32(random.Next()))
+    while (i < 60000)
+        let position = Vector3(float32(random.Next(0, 100000)))
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
@@ -446,7 +454,7 @@ main(): () =
                     world.DestroyBox(box)
         )
 
-        printLine(cpuTime.Elapsed.TotalMilliseconds)
+        frameTimesVM.FixedUpdateTime.Value <- cpuTime.Elapsed.TotalMilliseconds
 
     let mutable task: System.Threading.Tasks.Task = null
     let gpuCommands = System.Collections.Generic.List<GpuCommand>()
@@ -461,7 +469,7 @@ main(): () =
                     () ->
                         serverTick(x)
                 )
-       //     serverTick(x)
+       //5     serverTick(x)
             DotNet.GCCollect()
             r.Window.IsClosed,
         x ->

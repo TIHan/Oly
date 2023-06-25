@@ -147,6 +147,8 @@ class Archetype<T0> where T0: unmanaged =
 
         this.Set(index, lastEntId, this.Buffer0[lastIndex])
         this.Count <- this.Count - 1
+        if (this.Count < 0)
+            fail("'Count' is less than zero.")
 
     Remove(entId: EntityId): () =
         this.Remove(this.Lookup[entId.Index])
@@ -212,6 +214,8 @@ class Archetype<T0, T1> where T0: unmanaged
         let index = this.Lookup[entId.Index]
         this.SwapClear(index)
         this.Count <- this.Count - 1
+        if (this.Count < 0)
+            fail("'Count' is less than zero.")
 
     CopyTo(archetype: Archetype<T0, T1>): () =
         archetype.Count <- this.Count
@@ -268,6 +272,8 @@ class Archetype<T0, T1, T2> where T0: unmanaged
         this.Buffer2[index] <- this.Buffer2[lastIndex]
 
         this.Count <- this.Count - 1
+        if (this.Count < 0)
+            fail("'Count' is less than zero.")
 
     Get0(entId: EntityId): T0 =
         this.Buffer0[this.Lookup[entId.Index]]
@@ -337,6 +343,8 @@ class Archetype<T0, T1, T2, T3> where T0: unmanaged
         this.Buffer3[index] <- this.Buffer3[lastIndex]
 
         this.Count <- this.Count - 1
+        if (this.Count < 0)
+            fail("'Count' is less than zero.")
 
     CopyTo(archetype: Archetype<T0, T1, T2, T3>): () =
         archetype.Count <- this.Count
