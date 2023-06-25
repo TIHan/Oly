@@ -11,7 +11,10 @@ open System
 open System.IO
 open System.Numerics
 open System.Diagnostics
+open System.Collections.Generic
 open System.Runtime.InteropServices
+open System.Threading.Tasks
+
 open Evergreen
 open Evergreen.Window
 open Evergreen.Graphics.Backend.Vulkan
@@ -304,20 +307,24 @@ class Subscription<T> =
 
 class Observable<T> =
 
-    field subscribers: System.Collections.Generic.HashSet<T -> ()>
+    field subscribers: System.Collections.Concurrent.ConcurrentDictionary<T -> (), ()>
     mutable field value: T
 
     Subscribe(callback: T -> ()): Subscription<T> =
-        let _ = this.subscribers.Add(callback)
-        Subscription(() -> let _ = this.subscribers.Remove(callback))
+        let _ = this.subscribers[callback] <- ()
+        Subscription(
+            () -> 
+                let mutable value = unchecked default
+                let _ = this.subscribers.TryRemove(callback, &value)
+        )
 
     Value: T
         get() = this.value
         set(value) =
             this.value <- value
-            ForEach(this.subscribers, callback -> callback(value))
+            ForEach(this.subscribers, pair -> pair.Key(value))
 
-    new(value: T) = { value = value; subscribers = System.Collections.Generic.HashSet() }
+    new(value: T) = { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
 
 class FrameTimesViewModel =
 
@@ -424,58 +431,58 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
+    // let mutable i = 0
+    // while (i < 1024)
+    //     let position = Vector3(float32(random.Next(0, 1024)))
+    //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
+    //     i <- i + 1
+
     let mutable i = 0
-    while (i < 60000)
-        let position = Vector3(float32(random.Next(0, 100000)))
+    while (i < 1)
+        let position = vec3.Zero//Vector3(float32(random.Next()))
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
-    let lockObj = Object()
-
+    let mutable cpuTimeValue = 0: float64
     let serverTick(deltaTime: float64) =
         cpuTime.Restart()
 
-        let mutable i = 0
-        while (i < 1)
-            let position = vec3.Zero//Vector3(float32(random.Next()))
-            let _ = world.CreateBox(position, quat.Identity, vec3.One)
-            i <- i + 1
+        // let mutable i = 0
+        // while (i < 1)
+        //     let position = vec3.Zero//Vector3(float32(random.Next()))
+        //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
+        //     i <- i + 1
 
         world.Update(float32(deltaTime))
 
-        System.Threading.Monitor.Enter(lockObj)
         world.CopyTo(stagingWorld)
-        System.Threading.Monitor.Exit(lockObj)
 
-        let randomIndex = random.Next(0, 1000)
-        world.ForEachBox(
-            (box, transform, material, physId) ->
-               if (box.Value.Index != randomIndex)
-                    world.DestroyBox(box)
-        )
+        // let randomIndex = random.Next(0, 1024)
+        // world.ForEachBox(
+        //     (box, transform, material, physId) ->
+        //        if (box.Value.Index != randomIndex)
+        //             world.DestroyBox(box)
+        // )
 
-        frameTimesVM.FixedUpdateTime.Value <- cpuTime.Elapsed.TotalMilliseconds
+
+      //  System.Threading.Thread.Sleep(20)
+
+        cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let mutable task: System.Threading.Tasks.Task = null
-    let gpuCommands = System.Collections.Generic.List<GpuCommand>()
+    let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
         x -> 
             let _ = r.Window.PumpEvents(),
-        x ->
+        () ->
             if (task !== null)
                 task.Wait()
-            task <-
-                System.Threading.Tasks.Task.Run(
-                    () ->
-                        serverTick(x)
-                )
-       //5     serverTick(x)
+                stagingWorld.CopyTo(clientWorld)
+                frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
+
+            task <- System.Threading.Tasks.Task.Run(() -> serverTick(GameLoop.FixedUpdateDeltaTimeMS))
+
             DotNet.GCCollect()
-            r.Window.IsClosed,
-        x ->
-            System.Threading.Monitor.Enter(lockObj)
-            stagingWorld.CopyTo(clientWorld)
-            System.Threading.Monitor.Exit(lockObj)
             r.Window.IsClosed,
         (mutable frameTime, y) ->
             let size = r.Window.Size
@@ -496,7 +503,6 @@ main(): () =
 
                 clientWorld.ForEachBox((box, transform, material, renderId) -> ())
                 clientWorld.Update(float32(y))
-
                          
                 gpuCommands.Add(GpuCommand.NewFrame(gpuFrame))
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length, 1))
@@ -506,7 +512,6 @@ main(): () =
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, quad.Indices.Length, 1))   
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, clientWorld.BoxCount))
                 gpuCommands.Add(GpuCommand.DrawUI(gpuProgramUI, Cast([uiNode])))
-                    
 
                 r.Gpu.Execute(gpuCommands)     
 

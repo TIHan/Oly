@@ -13,17 +13,16 @@ ConvertFramesPerSecondToTicks(fps: float64): int64 = ConvertSecondsToTicks(Conve
 ConvertTicksToTickRate(ticks: int64): int64 =
     int64((float64(1000) / TimeSpan.FromTicks(ticks).TotalMilliseconds))
 
-#[inline] 
-Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool, #[inline] update: float64 -> bool, #[inline] render: (frameTime: TimeSpan, float64) -> ()): () =
-    let tickRate: uint8 = 30
+FixedUpdateDeltaTime: int64 get = ConvertFramesPerSecondToTicks(30)
+FixedUpdateDeltaTimeMS: float64 get = ConvertTicksToSeconds(FixedUpdateDeltaTime)
 
+#[inline] 
+Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: () -> bool, #[inline] render: (frameTime: TimeSpan, float64) -> ()): () =
     let mutable quit = false
     let stopwatch = Stopwatch.StartNew()
     let getTicks() = stopwatch.Elapsed.Ticks
 
     let skip = ConvertFramesPerSecondToTicks(1)
-
-    let dtFixed = ConvertFramesPerSecondToTicks(float64(tickRate))
 
     let mutable currentTime = getTicks()
     let mutable accumulator = 0: int64
@@ -38,17 +37,14 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: float64 -> bool
 
         // fixed-update
         accumulator <- 
-            if (frameTime > (dtFixed * 2))
-                dtFixed
+            if (frameTime > (FixedUpdateDeltaTime * 2))
+                FixedUpdateDeltaTime
             else
                 accumulator + frameTime
-        while (accumulator >= dtFixed)
-            quit <- fixedUpdate(ConvertTicksToSeconds(dtFixed))
-            accumulator <- accumulator - dtFixed
-
-        // update
-        quit <- update(ConvertTicksToSeconds(frameTime))
+        while (accumulator >= FixedUpdateDeltaTime)
+            quit <- fixedUpdate()
+            accumulator <- accumulator - FixedUpdateDeltaTime
 
         // render
-        let alpha = System.Math.Clamp(float64(accumulator) / float64(dtFixed), 0, 1)
+        let alpha = System.Math.Clamp(float64(accumulator) / float64(FixedUpdateDeltaTime), 0, 1)
         render(TimeSpan.FromTicks(frameTime), alpha)

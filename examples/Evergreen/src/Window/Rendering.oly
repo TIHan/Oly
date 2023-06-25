@@ -560,7 +560,7 @@ class Gpu =
             else
                 let mutable i = 0
                 while (i < this.vk.MaxFramesInFlight)
-                    if (this.vk.PreviousFrame == i)
+                    if (this.vk.CurrentFrame == i)
                         if (this.delayedArrayUploadSet.TryAdd(gpuArray, ()))
                             this.delayedArrayUpload.Enqueue(DelayedArrayUploadInfo(i, gpuArray))
                     else
@@ -1220,7 +1220,7 @@ class Rendering =
 
         let vulkanAppOptions = VulkanApplicationOptions()
         vulkanAppOptions.ValidationEnabled <- true
-        vulkanAppOptions.MaxFramesInFlight <- 1
+        vulkanAppOptions.MaxFramesInFlight <- 8
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
         let gpu = Gpu(window, vulkanApp)
