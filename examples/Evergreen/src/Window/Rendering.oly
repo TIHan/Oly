@@ -460,8 +460,8 @@ class Gpu =
             }
 
     field window: IWindow
-    field delayedArrayUploadSet: ConcurrentDictionary<IGpuArray, ()>
-    field delayedArrayUpload: ConcurrentQueue<DelayedArrayUploadInfo>
+    field delayedArrayUploadSet: ConcurrentDictionary<IGpuArray, ()>[]
+    field delayedArrayUpload: ConcurrentQueue<DelayedArrayUploadInfo>[]
     field gpuArrays: ConcurrentDictionary<IGpuArray, ()>
     field gpuImages: ConcurrentDictionary<GpuImage, ()>
     field gpuFrames: ConcurrentDictionary<GpuFrame, ()>
@@ -488,8 +488,8 @@ class Gpu =
             vkCmdBuffers
         {
             window = window       
-            delayedArrayUploadSet = ConcurrentDictionary()
-            delayedArrayUpload = ConcurrentQueue()
+            delayedArrayUploadSet = Array.Initialize(vk.MaxFramesInFlight, i -> ConcurrentDictionary())
+            delayedArrayUpload = Array.Initialize(vk.MaxFramesInFlight, i -> ConcurrentQueue())
             gpuArrays = ConcurrentDictionary()
             gpuImages = ConcurrentDictionary()
             gpuFrames = ConcurrentDictionary()
@@ -560,11 +560,8 @@ class Gpu =
             else
                 let mutable i = 0
                 while (i < this.vk.MaxFramesInFlight)
-                    if (this.vk.CurrentFrame == i)
-                        if (this.delayedArrayUploadSet.TryAdd(gpuArray, ()))
-                            this.delayedArrayUpload.Enqueue(DelayedArrayUploadInfo(i, gpuArray))
-                    else
-                        gpuArray.Update(this.vk, i)
+                    if (this.delayedArrayUploadSet[i].TryAdd(gpuArray, ()))
+                        this.delayedArrayUpload[i].Enqueue(DelayedArrayUploadInfo(i, gpuArray))
                     i <- i + 1
 
     Sync(gpuImage: GpuImage): () =
@@ -963,6 +960,20 @@ class Gpu =
             let mutable value = unchecked default
             let result = this.gpuProgramUIs.TryRemove(gpuProgramUI, &value)
 
+    private Flush(): () =
+        let frame = this.vk.CurrentFrame
+        let mutable info = default
+        while (this.delayedArrayUpload[frame].TryDequeue(&info))
+            info.GpuArray.Update(this.vk, info.Frame)
+            let mutable result = unchecked default
+            let result = this.delayedArrayUploadSet[frame].TryRemove(info.GpuArray, &result)
+
+        ForEach(this.gpuProgramUIs.Keys,
+            x ->
+                if (x.ImGuiContext !== unchecked default)
+                    ImGui.Flush(x.ImGuiContext)
+        )
+
     Execute<T>(gpuCommands: T): () where T: IEnumerable<GpuCommand> =
         this.RecreateSwapChainIfNecessary()
 
@@ -1075,6 +1086,8 @@ class Gpu =
                     commandBuffer.EndRenderPass()
                     commandBuffer.End()
 
+                    this.Flush()
+
                     commandBuffer
             )
         catch (ex: VulkanSwapChainOutOfDateException) =>
@@ -1087,18 +1100,6 @@ class Gpu =
                 catch (ex: VulkanSwapChainCreationFailedException) =>
                     // swap-chain failed to create, bail out of application
                     ()
-
-        let mutable info = default
-        while (this.delayedArrayUpload.TryDequeue(&info))
-            info.GpuArray.Update(this.vk, info.Frame)
-            let mutable result = unchecked default
-            let result = this.delayedArrayUploadSet.TryRemove(info.GpuArray, &result)
-
-        ForEach(this.gpuProgramUIs.Keys,
-            x ->
-                if (x.ImGuiContext !== unchecked default)
-                    ImGui.Flush(x.ImGuiContext)
-        )
 
     Wait(): () =
         Vk.WaitForIdle(this.vk)

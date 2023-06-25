@@ -431,11 +431,11 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    // let mutable i = 0
-    // while (i < 1024)
-    //     let position = Vector3(float32(random.Next(0, 1024)))
-    //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
-    //     i <- i + 1
+    let mutable i = 0
+    while (i < 3)
+        let position = Vector3(float32(random.Next(1000, 1024)))
+        let _ = world.CreateBox(position, quat.Identity, vec3.One)
+        i <- i + 1
 
     let mutable i = 0
     while (i < 1)
