@@ -432,8 +432,8 @@ main(): () =
     let mutable cpuTime = Stopwatch.StartNew()
 
     let mutable i = 0
-    while (i < 3)
-        let position = Vector3(float32(random.Next(1000, 1024)))
+    while (i < 1024)
+        let position = Vector3(float32(random.Next(1024, 4096)))
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
@@ -443,6 +443,7 @@ main(): () =
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
+    let lockObj = Object()
     let mutable cpuTimeValue = 0: float64
     let serverTick(deltaTime: float64) =
         cpuTime.Restart()
@@ -455,7 +456,9 @@ main(): () =
 
         world.Update(float32(deltaTime))
 
+        System.Threading.Monitor.Enter(lockObj)
         world.CopyTo(stagingWorld)
+        System.Threading.Monitor.Exit(lockObj)
 
         // let randomIndex = random.Next(0, 1024)
         // world.ForEachBox(
@@ -464,25 +467,39 @@ main(): () =
         //             world.DestroyBox(box)
         // )
 
-
-      //  System.Threading.Thread.Sleep(20)
-
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
-    let mutable task: System.Threading.Tasks.Task = null
+    let semaphore = System.Threading.Semaphore(1, 1)
+    let task: Task =
+        Task.Run(
+            () ->
+                GameLoop.Start(
+                    x -> 
+                        let _ = semaphore.WaitOne()
+                        serverTick(GameLoop.FixedUpdateDeltaTimeMS)
+                        let _ = semaphore.Release(),
+                    () ->
+                        r.Window.IsClosed,
+                    (deltaTime, alpha) -> ()
+                )
+        )
+
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
         x -> 
             let _ = r.Window.PumpEvents(),
         () ->
             if (task !== null)
-                task.Wait()
+                let _ = semaphore.WaitOne()
+                let _ = semaphore.Release()
+                System.Threading.Monitor.Enter(lockObj)
                 stagingWorld.CopyTo(clientWorld)
+                System.Threading.Monitor.Exit(lockObj)
                 frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
-            task <- System.Threading.Tasks.Task.Run(() -> serverTick(GameLoop.FixedUpdateDeltaTimeMS))
+           // serverTick(GameLoop.FixedUpdateDeltaTimeMS)
 
-            DotNet.GCCollect()
+       //     DotNet.GCCollect()
             r.Window.IsClosed,
         (mutable frameTime, y) ->
             let size = r.Window.Size
