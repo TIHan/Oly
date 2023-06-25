@@ -469,15 +469,18 @@ main(): () =
 
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
-    let semaphore = System.Threading.Semaphore(1, 1)
+    let sv = System.Threading.ManualResetEvent(false)
+    let cl = System.Threading.ManualResetEvent(true)
+
     let task: Task =
         Task.Run(
             () ->
                 GameLoop.Start(
                     x -> 
-                        let _ = semaphore.WaitOne()
+                        let _ = sv.WaitOne()
                         serverTick(GameLoop.FixedUpdateDeltaTimeMS)
-                        let _ = semaphore.Release(),
+                        let _ = sv.Reset()
+                        let _ = cl.Set(),
                     () ->
                         r.Window.IsClosed,
                     (deltaTime, alpha) -> ()
@@ -489,15 +492,13 @@ main(): () =
         x -> 
             let _ = r.Window.PumpEvents(),
         () ->
-            if (task !== null)
-                let _ = semaphore.WaitOne()
-                let _ = semaphore.Release()
-                System.Threading.Monitor.Enter(lockObj)
-                stagingWorld.CopyTo(clientWorld)
-                System.Threading.Monitor.Exit(lockObj)
-                frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
-
-           // serverTick(GameLoop.FixedUpdateDeltaTimeMS)
+            let _ = cl.WaitOne()
+            let _ = cl.Reset()
+            let _ = sv.Set()
+            System.Threading.Monitor.Enter(lockObj)
+            stagingWorld.CopyTo(clientWorld)
+            System.Threading.Monitor.Exit(lockObj)
+            frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
        //     DotNet.GCCollect()
             r.Window.IsClosed,
