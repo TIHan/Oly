@@ -13,15 +13,15 @@ open static Game.Core
 class ClientWorld =
     inherits SharedWorld
 
-    private Client_Box: LinkedArchetype<int32> get
+    private Client_Box: mutable int32[] get
 
     Render_Box: GpuMutableArray<Transform> get
 
-    BoxCount: int32 get() = this.Client_Box.Count
+    BoxCount: int32 get() = this.Shared_Box.Count
 
     new() =
         {
-            Client_Box = LinkedArchetype<int32>(this.Shared_Box)
+            Client_Box = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
             Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Shared, this.Shared_Box.Capacity, i -> default)
         }
     
@@ -34,7 +34,7 @@ class ClientWorld =
         let entIds = this.Shared_Box.EntityIds
         let transforms = this.Shared_Box.Buffer0
         let materials = this.Shared_Box.Buffer1
-        let renderIds = this.Client_Box.Buffer0
+        let renderIds = this.Client_Box
 
         let mutable i = 0
         while (i < count)
@@ -42,7 +42,7 @@ class ClientWorld =
             i <- i + 1
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
-        this.Client_Box.Set(index, material.Id)
+        this.Client_Box[index] <- material.Id
 
     protected overrides OnBoxRemoving(index: int32): () =
-        this.Client_Box.Clear(index)
+        this.Client_Box[index] <- unchecked default

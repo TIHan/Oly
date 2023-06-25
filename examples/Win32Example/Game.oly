@@ -163,36 +163,6 @@ class Archetype<T0> where T0: unmanaged =
         Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
         Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
 
-class LinkedArchetype<T0> where T0: unmanaged =
-    implements IArchetype
-
-    Link: IArchetype get
-
-    Count: int32 get() = this.Link.Count
-    Capacity: int32 get() = this.Link.Capacity
-
-    Lookup: mutable int32[] get() = this.Lookup
-    EntityIds: mutable EntityId[] get() = this.EntityIds
-    Buffer0: mutable T0[] get
-
-    new(archetype: IArchetype) =
-        {
-            Link = archetype
-            Buffer0 = Array.ZeroCreate(archetype.Capacity)
-        }
-
-    Set(index: int32, item0: T0): () =
-        this.Buffer0[index] <- item0
-
-    Clear(index: int32): () =
-        this.Buffer0[index] <- unchecked default
-
-    Get0(index: int32): T0 =
-        this.Buffer0[index]
-
-    CopyTo(archetype: LinkedArchetype<T0>): () =
-        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
-
 class Archetype<T0, T1> where T0: unmanaged 
                         where T1: unmanaged =
     implements IArchetype
@@ -392,7 +362,7 @@ newtype Box =
 
 abstract class World =
 
-    public static field MaxNumberOfEntities: int32 = 8192
+    public static field MaxNumberOfEntities: int32 = 65536
 
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
@@ -467,7 +437,7 @@ abstract default class SharedWorld =
                 world.OnBoxRemoving(i)
             else if (entId.Index == entIdToCopy.Index && entId.Version != entIdToCopy.Version)
                 world.OnBoxRemoving(i)
-                world.OnBoxAdding(i, entIdToCopy, buffer0[i], buffer1[i])    
+                world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])    
                 
             i <- i + 1
 
@@ -486,14 +456,14 @@ class ServerWorld =
     field DestroyBoxStagingQueue: ConcurrentQueue<Box>
     field DestroyBoxQueue: Queue<Box>
 
-    private Server_Box: LinkedArchetype<DynamicObjectId> get
+    private Server_Box: mutable DynamicObjectId[] get
 
     new() =
         {
             Physics = Physics.Init()
             DestroyBoxStagingQueue = ConcurrentQueue()
             DestroyBoxQueue = Queue()
-            Server_Box = LinkedArchetype(this.Shared_Box)
+            Server_Box = Array.ZeroCreate(this.Shared_Box.Capacity)
         }
 
     private ProcessDestroyBoxQueue(): () =
@@ -501,13 +471,13 @@ class ServerWorld =
         while (this.DestroyBoxStagingQueue.TryDequeue(&box))
             let entId = box.Value
             this.Check(entId)
-            this.OnBoxRemoving(this.Shared_Box.Lookup[entId.Index])
-            this.DestroyBoxQueue.Enqueue(box)
-        
-        while (this.DestroyBoxQueue.TryDequeue(&box))
-            let entId = box.Value
-            this.DeleteEntityId(entId)
+
+            let index = this.Shared_Box.Lookup[entId.Index]
+            let lastIndex = this.Shared_Box.Count - 1
+            this.OnBoxRemoving(index)
+            this.OnBoxAdding(lastIndex, this.Shared_Box.EntityIds[lastIndex], this.Shared_Box.Buffer0[lastIndex], this.Shared_Box.Buffer1[lastIndex])
             this.Shared_Box.Remove(entId)
+            this.DeleteEntityId(entId)
 
     Update(Δ: float32): () =
         this.ProcessDestroyBoxQueue()
@@ -527,7 +497,7 @@ class ServerWorld =
                 physicsBoxTransforms[i] <- Transform(m * scale)
                 i <- i + 1
 
-        updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box.Buffer0)
+        updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
 
     CreateBox(position: vec3, rotation: quat, scale: vec3): Box =
         let transform = Transform.Create(position, rotation, scale)
@@ -549,7 +519,7 @@ class ServerWorld =
 
         let transforms = this.Shared_Box.Buffer0
         let materials = this.Shared_Box.Buffer1
-        let physIds = this.Server_Box.Buffer0
+        let physIds = this.Server_Box
 
         let mutable i = 0
         while (i < count)
@@ -560,8 +530,8 @@ class ServerWorld =
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
         let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-        this.Server_Box.Set(index, objId)
+        this.Server_Box[index] <- objId
 
     protected overrides OnBoxRemoving(index: int32): () =
-        this.Physics.RemoveBox(this.Server_Box.Get0(index))
-        this.Server_Box.Clear(index)
+        this.Physics.RemoveBox(this.Server_Box[index])
+        this.Server_Box[index] <- unchecked default

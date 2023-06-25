@@ -417,58 +417,57 @@ main(): () =
     let mutable cpuTime = Stopwatch.StartNew()
 
     let mutable i = 0
-    while (i < 3)
-        let position = vec3.Zero//Vector3(float32(random.Next()))
+    while (i < 1000)
+        let position = Vector3(float32(random.Next()))
         let _ = world.CreateBox(position, quat.Identity, vec3.One)
         i <- i + 1
 
     let lockObj = Object()
-    let task =
-        System.Threading.Tasks.Task.Run(
-            () ->
-                GameLoop.Start(
-                    x -> (),
-                    x ->
-                        cpuTime.Restart()
 
-                        // let mutable i = 0
-                        // while (i < 3)
-                        //     let position = vec3.Zero//Vector3(float32(random.Next()))
-                        //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
-                        //     i <- i + 1
+    let serverTick(deltaTime: float64) =
+        cpuTime.Restart()
 
-                        world.Update(float32(x))
+        let mutable i = 0
+        while (i < 1)
+            let position = vec3.Zero//Vector3(float32(random.Next()))
+            let _ = world.CreateBox(position, quat.Identity, vec3.One)
+            i <- i + 1
 
-                        System.Threading.Monitor.Enter(lockObj)
-                        world.CopyTo(stagingWorld)
-                        System.Threading.Monitor.Exit(lockObj)
+        world.Update(float32(deltaTime))
 
-                        // world.ForEachBox(
-                        //     (box, transform, material, physId) ->
-                        //         world.DestroyBox(box)
-                        // )
+        System.Threading.Monitor.Enter(lockObj)
+        world.CopyTo(stagingWorld)
+        System.Threading.Monitor.Exit(lockObj)
 
-                        printLine(cpuTime.Elapsed.TotalMilliseconds)
-
-                        r.Window.IsClosed,
-                    x ->
-                        r.Window.IsClosed,
-                    (frameTime, y) -> ()
-                )
+        let randomIndex = random.Next(0, 1000)
+        world.ForEachBox(
+            (box, transform, material, physId) ->
+               if (box.Value.Index != randomIndex)
+                    world.DestroyBox(box)
         )
 
-    let x = frame
+        printLine(cpuTime.Elapsed.TotalMilliseconds)
+
+    let mutable task: System.Threading.Tasks.Task = null
     let gpuCommands = System.Collections.Generic.List<GpuCommand>()
     GameLoop.Start(
         x -> 
+            let _ = r.Window.PumpEvents(),
+        x ->
+            if (task !== null)
+                task.Wait()
+            task <-
+                System.Threading.Tasks.Task.Run(
+                    () ->
+                        serverTick(x)
+                )
+       //     serverTick(x)
+            DotNet.GCCollect()
+            r.Window.IsClosed,
+        x ->
             System.Threading.Monitor.Enter(lockObj)
             stagingWorld.CopyTo(clientWorld)
             System.Threading.Monitor.Exit(lockObj)
-
-            let _ = r.Window.PumpEvents(),
-        x ->
-            r.Window.IsClosed,
-        x ->
             r.Window.IsClosed,
         (mutable frameTime, y) ->
             let size = r.Window.Size
