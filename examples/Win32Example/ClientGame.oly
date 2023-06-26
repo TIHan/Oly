@@ -72,12 +72,12 @@ class ClientWorld =
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
         this.Client_Box_RenderId[index] <- material.Id
 
-    protected overrides OnBoxRemoving(index: int32): () =
-        this.Client_Box_RenderId[index] <- default
+    protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
+        this.Client_Box_RenderId[index] <- this.Client_Box_RenderId[swapIndex]
+        this.Client_Box_TransformLerp[index] <- this.Client_Box_TransformLerp[swapIndex]
 
     protected overrides OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () =
-        // TODO: This isn't totally correct. OnPlayerAdding can be called just to move some memory around and we don't want to reset the lerp.
         this.Client_Player_CameraLerp[index] <- camera
 
-    protected overrides OnPlayerRemoving(index: int32): () =
-        this.Client_Player_CameraLerp[index] <- default
+    protected overrides OnPlayerRemoving(index: int32, swapIndex: int32): () =
+        this.Client_Player_CameraLerp[index] <- this.Client_Player_CameraLerp[swapIndex]

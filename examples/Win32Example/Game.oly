@@ -443,13 +443,11 @@ abstract default class SharedWorld =
             let entId = entIds[i]
             let entIdToCopy = entIdsToCopy[i]
 
-            if (entId.IsNil)
-                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
-            else if (entIdToCopy.IsNil)
-                world.OnPlayerRemoving(i)
-            else if (entId.Index == entIdToCopy.Index && entId.Version != entIdToCopy.Version)
-                world.OnPlayerRemoving(i)
-                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])    
+            if (!entId.IsNil && !this.IsValid(entId))
+                world.OnPlayerRemoving(i, maxCount - 1)
+
+            if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
+                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])   
                 
             i <- i + 1
         // ------------------------------------------------------------------------------------------
@@ -468,13 +466,13 @@ abstract default class SharedWorld =
             let entId = entIds[i]
             let entIdToCopy = entIdsToCopy[i]
 
-            if (entId.IsNil)
+            if (!entId.IsNil && !this.IsValid(entId))
+                world.OnBoxRemoving(i, maxCount - 1)
+                printLine("removing")
+
+            if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
                 world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
-            else if (entIdToCopy.IsNil)
-                world.OnBoxRemoving(i)
-            else if (entId.Index == entIdToCopy.Index && entId.Version != entIdToCopy.Version)
-                world.OnBoxRemoving(i)
-                world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])    
+                printLine("adding")  
                 
             i <- i + 1
         // ------------------------------------------------------------------------------------------
@@ -486,11 +484,11 @@ abstract default class SharedWorld =
 
     protected abstract default OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () = ()
 
-    protected abstract default OnBoxRemoving(index: int32): () = ()
+    protected abstract default OnBoxRemoving(index: int32, swapIndex: int32): () = ()
 
     protected abstract default OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () = ()
 
-    protected abstract default OnPlayerRemoving(index: int32): () = ()
+    protected abstract default OnPlayerRemoving(index: int32, swapIndex: int32): () = ()
 
 class ServerWorld =
     inherits SharedWorld
@@ -517,8 +515,7 @@ class ServerWorld =
 
             let index = this.Shared_Box.Lookup[entId.Index]
             let lastIndex = this.Shared_Box.Count - 1
-            this.OnBoxRemoving(index)
-            this.OnBoxAdding(lastIndex, this.Shared_Box.EntityIds[lastIndex], this.Shared_Box.Buffer0[lastIndex], this.Shared_Box.Buffer1[lastIndex])
+            this.OnBoxRemoving(index, lastIndex)
             this.Shared_Box.Remove(entId)
             this.DeleteEntityId(entId)
 
@@ -529,8 +526,7 @@ class ServerWorld =
 
             let index = this.Shared_Player.Lookup[entId.Index]
             let lastIndex = this.Shared_Player.Count - 1
-            this.OnPlayerRemoving(index)
-            this.OnPlayerAdding(lastIndex, this.Shared_Player.EntityIds[lastIndex], this.Shared_Player.Buffer0[lastIndex], this.Shared_Player.Buffer1[lastIndex])
+            this.OnPlayerRemoving(index, lastIndex)
             this.Shared_Player.Remove(entId)
             this.DeleteEntityId(entId)
 
@@ -613,6 +609,6 @@ class ServerWorld =
         let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
         this.Server_Box[index] <- objId
 
-    protected overrides OnBoxRemoving(index: int32): () =
+    protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
         this.Physics.RemoveBox(this.Server_Box[index])
-        this.Server_Box[index] <- unchecked default
+        this.Server_Box[index] <- this.Server_Box[swapIndex]
