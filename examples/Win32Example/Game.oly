@@ -378,7 +378,7 @@ abstract class World =
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
     mutable field entityCount: int32 = 0
-    field entityVersions: mutable uint32[] = Array.ZeroCreate<uint32>(MaxNumberOfEntities)
+    field entityVersions: mutable uint32[] = Array.InitializeMutable(MaxNumberOfEntities, i -> 1: uint32)
 
     protected NewEntityId(): EntityId =
         let index =
@@ -389,8 +389,7 @@ abstract class World =
             else
                 this.indexQueue.Dequeue()
 
-        let version = this.entityVersions[index] + 1
-        this.entityVersions[index] <- version
+        let version = this.entityVersions[index]
 
         let mutable entId = EntityId()
         entId.Index <- index
@@ -404,13 +403,13 @@ abstract class World =
     protected DeleteEntityId(entId: EntityId): () =
         this.Check(entId)
 
-        this.entityVersions[entId.Index] <- 0
+        this.entityVersions[entId.Index] <- this.entityVersions[entId.Index] + 1
         this.indexQueue.Enqueue(entId.Index)
         this.entityCount <- this.entityCount - 1
 
     IsValid(entId: EntityId): bool =
         let version = this.entityVersions[entId.Index]
-        version != 0 && version == entId.Version
+        version == entId.Version
 
     protected CopyTo(world: World): () =
         world.indexQueue.Clear()
@@ -442,7 +441,7 @@ abstract default class SharedWorld =
         let mutable i = 0
         while (i < maxCount)
             let entId = entIds[i]
-            let entIdToCopy = entIds[i]
+            let entIdToCopy = entIdsToCopy[i]
 
             if (entId.IsNil)
                 world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
@@ -467,7 +466,7 @@ abstract default class SharedWorld =
         let mutable i = 0
         while (i < maxCount)
             let entId = entIds[i]
-            let entIdToCopy = entIds[i]
+            let entIdToCopy = entIdsToCopy[i]
 
             if (entId.IsNil)
                 world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
