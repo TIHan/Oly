@@ -378,7 +378,7 @@ abstract class World =
     mutable field nextIndex: int32 = 0
     mutable field indexQueue: Queue<int32> = Queue()
     mutable field entityCount: int32 = 0
-    field entityVersions: mutable uint32[] = Array.InitializeMutable(MaxNumberOfEntities, i -> 1: uint32)
+    field entityVersions: mutable uint32[] = Array.InitializeMutable(MaxNumberOfEntities, i -> 0: uint32)
 
     protected NewEntityId(): EntityId =
         let index =
@@ -389,7 +389,8 @@ abstract class World =
             else
                 this.indexQueue.Dequeue()
 
-        let version = this.entityVersions[index]
+        let version = this.entityVersions[index] + 1
+        this.entityVersions[index] <- version
 
         let mutable entId = EntityId()
         entId.Index <- index
