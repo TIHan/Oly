@@ -13,7 +13,7 @@ ConvertFramesPerSecondToTicks(fps: float64): int64 = ConvertSecondsToTicks(Conve
 ConvertTicksToTickRate(ticks: int64): int64 =
     int64((float64(1000) / TimeSpan.FromTicks(ticks).TotalMilliseconds))
 
-FixedUpdateDeltaTime: int64 get = ConvertFramesPerSecondToTicks(30)
+FixedUpdateDeltaTime: int64 get = ConvertFramesPerSecondToTicks(60)
 FixedUpdateDeltaTimeMS: float64 get = ConvertTicksToSeconds(FixedUpdateDeltaTime)
 
 #[inline] 

@@ -239,6 +239,14 @@ createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): W
     )
 
     window.Children.Add(
+        let view = CheckboxView()
+        view.Label <- "Multi Threading Enabled"
+        view.IsChecked <- frameTimesVM.MultiThreadingEnabled.Value
+        view.OnChecked <- (x: bool) -> frameTimesVM.MultiThreadingEnabled.Value <- x
+        view
+    )
+
+    window.Children.Add(
         let displayModes = r.Window.GetDisplayModes()
         let view = ComboBoxView()
         view.Label <- "Combo Box"
@@ -267,8 +275,8 @@ createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): W
 
     window.Children.Add(
         let view = ButtonView()
-        view.Label <- "Close Window"
-        view.OnClicked <- () -> window.IsOpen <- false
+        view.Label <- "Force GC"
+        view.OnClicked <- () -> DotNet.GCCollect()
         view
     )
 
@@ -331,9 +339,10 @@ class FrameTimesViewModel =
     FixedUpdateTime: Observable<float64> get = Observable(0.0)
     Values: mutable float32[] get = Array.ZeroCreate(100)
     Offset: Observable<int32> get = Observable(0)
+    MultiThreadingEnabled: Observable<bool> get = Observable(false)
 
 main(): () =
-
+    printLine(System.Runtime.GCSettings.IsServerGC)
     let world = ServerWorld()
     let stagingWorld = SharedWorld()
     
@@ -426,7 +435,7 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    let _ = world.CreatePlayer(vec3.Zero)
+    let _ = world.SpawnPlayer(vec3.Zero)
 
     let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<InputSnapshot>()
     let mutable is_w_pressed = false
@@ -499,16 +508,16 @@ main(): () =
 
         spawnTime <- spawnTime + deltaTime
 
-        if (spawnTime > 1)
+        if (spawnTime > 0.5)
             // world.ForEachBox(
             //     (box, transform, material, physId) ->
             //         world.DestroyBox(box)
             // )
             spawnTime <- 0
             let mutable i = 0
-            while (i < 1)
+            while (i < 100)
                 let position = vec3.Zero
-                let _ = world.CreateBox(position, quat.Identity, vec3.One)
+                let _ = world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
 
         world.Update(deltaTime)
@@ -517,40 +526,55 @@ main(): () =
         world.CopyTo(stagingWorld)
         System.Threading.Monitor.Exit(lockObj)
 
-        System.Threading.Thread.Sleep(10)
-
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
     let cl = System.Threading.ManualResetEvent(true)
 
-    let task: Task =
-        Task.Run(
-            () ->
-                while (!r.Window.IsClosed)
-                    let _ = sv.WaitOne()
-                    serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
-                    
-                    let _ = sv.Reset()
-                    let _ = cl.Set()
-        )
-
+    let mutable task: Task = null
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
         x -> 
-            inputSnapshots.Enqueue(r.Window.PumpEvents())
-                
+            inputSnapshots.Enqueue(r.Window.PumpEvents())              
             (),
         () ->
-            let _ = cl.WaitOne()
-            let _ = cl.Reset()
-            let _ = sv.Set()
+            clientWorld.ForEachBox(
+                (box, transformLerp, transform, material, renderId) ->
+                    transformLerp <- transform
+            )
+            clientWorld.ForEachPlayer(
+                (player, transform, cameraLerp, camera) ->
+                    cameraLerp <- camera
+            )
+            if (frameTimesVM.MultiThreadingEnabled.Value)
+                if (task === null)
+                    let _ = sv.Reset()
+                    let _ = cl.Set()
+                    task <-
+                        Task.Run(
+                            () ->
+                                while (!r.Window.IsClosed && frameTimesVM.MultiThreadingEnabled.Value)
+                                    let _ = sv.WaitOne()
+                                    serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))                   
+                                    let _ = sv.Reset()
+                                    let _ = cl.Set()
+                        )
+                let _ = cl.WaitOne()
+                let _ = cl.Reset()
+                let _ = sv.Set()
+            else
+                (
+                    if (task !== null)
+                        let _ = sv.Set()
+                        task.Wait()
+                        task <- null
+                )
+                serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
             System.Threading.Monitor.Enter(lockObj)
             stagingWorld.CopyTo(clientWorld)
             System.Threading.Monitor.Exit(lockObj)
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
-            DotNet.GCCollect()
             r.Window.IsClosed,
         (mutable frameTime, alpha) ->
             let size = r.Window.Size
@@ -563,14 +587,13 @@ main(): () =
                 frame <- frame + 1
 
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
-
-                clientWorld.ForEachBox((box, transform, material, renderId) -> ())
+                
                 clientWorld.ForEachPlayer(
-                    (player, transform, camera) ->
+                    (player, transform, cameraLerp, camera) ->
                         let mutable globals = globals.AsSpan()
                         let globals = &globals[0]
                         globals.Projection <- camera.Projection
-                        globals.View <- camera.Transform.WorldToLocalMatrix
+                        globals.View <- Matrix4x4.Lerp(cameraLerp.Transform.WorldToLocalMatrix, camera.Transform.WorldToLocalMatrix, float32(alpha))
                         globals.Model <- Matrix4x4.Identity
                 )
                 clientWorld.Update(float32(alpha))

@@ -13,49 +13,71 @@ open static Game.Core
 class ClientWorld =
     inherits SharedWorld
 
-    private Client_Box: mutable int32[] get
+    private Client_Box_RenderId: mutable int32[] get
+    private Client_Box_TransformLerp: mutable Transform[] get
 
-    Render_Box: GpuMutableArray<Transform> get
+    private Client_Player_CameraLerp: mutable Camera[] get
+
+    Render_Box: GpuMutableArray<mat4> get
 
     BoxCount: int32 get() = this.Shared_Box.Count
 
     new() =
         {
-            Client_Box = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
-            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Shared, this.Shared_Box.Capacity, i -> default)
+            Client_Box_RenderId = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
+            Client_Box_TransformLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
+            Client_Player_CameraLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Player.Capacity)
+            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, this.Shared_Box.Capacity, i -> default)
         }
     
     Update(alpha: float32): () =
-        let mutable span = Span(this.Shared_Box.Buffer0, 0, this.Shared_Box.Count)
-        span.CopyTo(this.Render_Box.AsSpan())
+        let boxCount = this.BoxCount
+        let mutable transforms = Span(this.Shared_Box.Buffer0, 0, boxCount)
+        let mutable transformLerps = Span(this.Client_Box_TransformLerp, 0, boxCount)
 
-    ForEachBox(f: (Box, transform: Transform, material: Material, int32) -> ()): () =
+        let mutable transformRenders = this.Render_Box.AsSpan()
+
+        let mutable i = 0
+        while (i < boxCount)
+            (transformRenders[i]) <- mat4.Lerp(transformLerps[i].Matrix, transforms[i].Matrix, alpha)
+            i <- i + 1
+
+    ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>, material: Material, renderId: int32) -> ()): () =
         let count = this.Shared_Box.Count
         let entIds = this.Shared_Box.EntityIds
 
         let transforms = this.Shared_Box.Buffer0
         let materials = this.Shared_Box.Buffer1
-        let renderIds = this.Client_Box
+        let renderIds = this.Client_Box_RenderId
+        let transformLerps = this.Client_Box_TransformLerp
 
         let mutable i = 0
         while (i < count)
-            f(Box(entIds[i]), transforms[i], materials[i], renderIds[i])
+            f(Box(entIds[i]), &transformLerps[i], &transforms[i], materials[i], renderIds[i])
             i <- i + 1
 
-    ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
+    ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: inref<Camera>) -> ()): () =
         let count = this.Shared_Player.Count
         let entIds = this.Shared_Player.EntityIds
             
         let transforms = this.Shared_Player.Buffer0
         let cameras = this.Shared_Player.Buffer1
+        let cameraLerps = this.Client_Player_CameraLerp
 
         let mutable i = 0
         while (i < count)
-            f(Player(entIds[i]), &transforms[i], &cameras[i])
+            f(Player(entIds[i]), &transforms[i], &cameraLerps[i], &cameras[i])
             i <- i + 1
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
-        this.Client_Box[index] <- material.Id
+        this.Client_Box_RenderId[index] <- material.Id
 
     protected overrides OnBoxRemoving(index: int32): () =
-        this.Client_Box[index] <- unchecked default
+        this.Client_Box_RenderId[index] <- default
+
+    protected overrides OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () =
+        // TODO: This isn't totally correct. OnPlayerAdding can be called just to move some memory around and we don't want to reset the lerp.
+        this.Client_Player_CameraLerp[index] <- camera
+
+    protected overrides OnPlayerRemoving(index: int32): () =
+        this.Client_Player_CameraLerp[index] <- default

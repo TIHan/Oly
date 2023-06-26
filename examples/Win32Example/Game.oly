@@ -430,6 +430,32 @@ abstract default class SharedWorld =
     CopyTo(world: SharedWorld): () =
         let maxCount = Math.Max(this.Shared_Box.Count, world.Shared_Box.Count)
 
+        // Shared_Player -------------------------------------------------------------------------
+        let entIds = world.Shared_Player.EntityIds
+        let buffer0 = world.Shared_Player.Buffer0
+        let buffer1 = world.Shared_Player.Buffer1
+
+        let entIdsToCopy = this.Shared_Player.EntityIds
+        let buffer0ToCopy = this.Shared_Player.Buffer0
+        let buffer1ToCopy = this.Shared_Player.Buffer1
+
+        let mutable i = 0
+        while (i < maxCount)
+            let entId = entIds[i]
+            let entIdToCopy = entIds[i]
+
+            if (entId.IsNil)
+                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
+            else if (entIdToCopy.IsNil)
+                world.OnPlayerRemoving(i)
+            else if (entId.Index == entIdToCopy.Index && entId.Version != entIdToCopy.Version)
+                world.OnPlayerRemoving(i)
+                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])    
+                
+            i <- i + 1
+        // ------------------------------------------------------------------------------------------
+
+        // Shared_Box -------------------------------------------------------------------------
         let entIds = world.Shared_Box.EntityIds
         let buffer0 = world.Shared_Box.Buffer0
         let buffer1 = world.Shared_Box.Buffer1
@@ -452,6 +478,7 @@ abstract default class SharedWorld =
                 world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])    
                 
             i <- i + 1
+        // ------------------------------------------------------------------------------------------
 
         this.Shared_Player.CopyTo(world.Shared_Player)
         this.Shared_Box.CopyTo(world.Shared_Box)
@@ -461,6 +488,10 @@ abstract default class SharedWorld =
     protected abstract default OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () = ()
 
     protected abstract default OnBoxRemoving(index: int32): () = ()
+
+    protected abstract default OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () = ()
+
+    protected abstract default OnPlayerRemoving(index: int32): () = ()
 
 class ServerWorld =
     inherits SharedWorld
@@ -499,6 +530,8 @@ class ServerWorld =
 
             let index = this.Shared_Player.Lookup[entId.Index]
             let lastIndex = this.Shared_Player.Count - 1
+            this.OnPlayerRemoving(index)
+            this.OnPlayerAdding(lastIndex, this.Shared_Player.EntityIds[lastIndex], this.Shared_Player.Buffer0[lastIndex], this.Shared_Player.Buffer1[lastIndex])
             this.Shared_Player.Remove(entId)
             this.DeleteEntityId(entId)
 
@@ -522,11 +555,12 @@ class ServerWorld =
 
         updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
 
-    CreatePlayer(position: vec3): Player =
+    SpawnPlayer(position: vec3): Player =
         let transform = Transform.Create(position, quat.Identity, vec3.One)
         let camera = Camera(70, 1280, 720, 0.1, 1000000)
 
         let entId = this.NewEntityId()
+        this.OnPlayerAdding(this.Shared_Player.NextIndex(), entId, transform, camera)
         this.Shared_Player.Add(entId, transform, camera)
         Player(entId)
         
@@ -549,7 +583,7 @@ class ServerWorld =
 
         this.Flush()
 
-    CreateBox(position: vec3, rotation: quat, scale: vec3): Box =
+    SpawnBox(position: vec3, rotation: quat, scale: vec3): Box =
         let transform = Transform.Create(position, rotation, scale)
         let material = Material(0)
 
