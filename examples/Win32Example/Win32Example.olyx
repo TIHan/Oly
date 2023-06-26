@@ -428,18 +428,6 @@ main(): () =
 
     let _ = world.CreatePlayer(vec3.Zero)
 
-    // let mutable i = 0
-    // while (i < 1024)
-    //     let position = Vector3(float32(random.Next(1024, 4096)))
-    //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
-    //     i <- i + 1
-
-    let mutable i = 0
-    while (i < 1)
-        let position = vec3.Zero//Vector3(float32(random.Next()))
-        let _ = world.CreateBox(position, quat.Identity, vec3.One)
-        i <- i + 1
-
     let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<InputSnapshot>()
     let mutable is_w_pressed = false
     let mutable is_s_pressed = false
@@ -448,6 +436,7 @@ main(): () =
 
     let lockObj = Object()
     let mutable cpuTimeValue = 0: float64
+    let mutable spawnTime = 0: float32
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
@@ -508,11 +497,19 @@ main(): () =
                 camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
         )
 
-        // let mutable i = 0
-        // while (i < 1)
-        //     let position = vec3.Zero//Vector3(float32(random.Next()))
-        //     let _ = world.CreateBox(position, quat.Identity, vec3.One)
-        //     i <- i + 1
+        spawnTime <- spawnTime + deltaTime
+
+        if (spawnTime > 1)
+            // world.ForEachBox(
+            //     (box, transform, material, physId) ->
+            //         world.DestroyBox(box)
+            // )
+            spawnTime <- 0
+            let mutable i = 0
+            while (i < 1)
+                let position = vec3.Zero
+                let _ = world.CreateBox(position, quat.Identity, vec3.One)
+                i <- i + 1
 
         world.Update(deltaTime)
 
@@ -520,14 +517,7 @@ main(): () =
         world.CopyTo(stagingWorld)
         System.Threading.Monitor.Exit(lockObj)
 
-        // let randomIndex = random.Next(0, 1024)
-        // world.ForEachBox(
-        //     (box, transform, material, physId) ->
-        //        if (box.Value.Index != randomIndex)
-        //             world.DestroyBox(box)
-        // )
-
-        System.Threading.Thread.Sleep(15)
+        System.Threading.Thread.Sleep(10)
 
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
@@ -562,7 +552,7 @@ main(): () =
 
             DotNet.GCCollect()
             r.Window.IsClosed,
-        (mutable frameTime, y) ->
+        (mutable frameTime, alpha) ->
             let size = r.Window.Size
             if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
                 renderTime <- renderTime + frameTime.Ticks
@@ -572,11 +562,6 @@ main(): () =
                 frameTimesVM.Values[frame % frameTimesVM.Values.Length] <- float32(frameTimeMs)
                 frame <- frame + 1
 
-                let mutable result = globals.AsSpan()
-                let mutable x = &result[0]
-             //   pos <- Vector3(2, 2, pos.Z + 0.01)
-    
-              //  x.View <- Matrix4x4.CreateLookAt(pos, Vector3(0, 0, 0), Vector3(0, 0, 1))
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
 
                 clientWorld.ForEachBox((box, transform, material, renderId) -> ())
@@ -588,7 +573,7 @@ main(): () =
                         globals.View <- camera.Transform.WorldToLocalMatrix
                         globals.Model <- Matrix4x4.Identity
                 )
-                clientWorld.Update(float32(y))
+                clientWorld.Update(float32(alpha))
                          
                 gpuCommands.Add(GpuCommand.NewFrame(gpuFrame))
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length, 1))

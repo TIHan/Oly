@@ -534,8 +534,7 @@ class Gpu =
                     | _ =>
                         usageFlags
 
-                let bufferSize = gpuArray.DataSize * gpuArray.Length
-                let bufferSize = uint64(Math.Min(256, bufferSize))
+                let bufferSize = uint64(gpuArray.DataSize * gpuArray.Length)
 
                 let createFlags =
                     match (gpuArray.MemoryKind)
@@ -1221,7 +1220,7 @@ class Rendering =
 
         let vulkanAppOptions = VulkanApplicationOptions()
         vulkanAppOptions.ValidationEnabled <- true
-        vulkanAppOptions.MaxFramesInFlight <- 8
+        vulkanAppOptions.MaxFramesInFlight <- 2
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
         let gpu = Gpu(window, vulkanApp)

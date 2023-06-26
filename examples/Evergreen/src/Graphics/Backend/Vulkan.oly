@@ -613,6 +613,11 @@ module Vk =
                     app.PhysicalDeviceProperties.limits.minUniformBufferOffsetAlignment
                 else
                     size
+            else if (usage & VkBufferUsageFlags.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT == VkBufferUsageFlags.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
+                if (size < app.PhysicalDeviceProperties.limits.minStorageBufferOffsetAlignment)
+                    app.PhysicalDeviceProperties.limits.minStorageBufferOffsetAlignment
+                else
+                    size
             else
                 size 
 
