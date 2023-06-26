@@ -468,11 +468,9 @@ abstract default class SharedWorld =
 
             if (!entId.IsNil && !this.IsValid(entId))
                 world.OnBoxRemoving(i, maxCount - 1)
-                printLine("removing")
 
             if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
                 world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
-                printLine("adding")  
                 
             i <- i + 1
         // ------------------------------------------------------------------------------------------
