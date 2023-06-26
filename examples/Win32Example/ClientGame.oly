@@ -56,7 +56,7 @@ class ClientWorld =
             f(Box(entIds[i]), &transformLerps[i], &transforms[i], materials[i], renderIds[i])
             i <- i + 1
 
-    ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: inref<Camera>) -> ()): () =
+    ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
         let count = this.Shared_Player.Count
         let entIds = this.Shared_Player.EntityIds
             

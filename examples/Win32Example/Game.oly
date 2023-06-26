@@ -555,14 +555,13 @@ class ServerWorld =
 
         updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
 
-    SpawnPlayer(position: vec3): Player =
+    SpawnPlayer(position: vec3): () =
         let transform = Transform.Create(position, quat.Identity, vec3.One)
         let camera = Camera(70, 1280, 720, 0.1, 1000000)
 
         let entId = this.NewEntityId()
         this.OnPlayerAdding(this.Shared_Player.NextIndex(), entId, transform, camera)
         this.Shared_Player.Add(entId, transform, camera)
-        Player(entId)
         
     DestroyPlayer(player: Player): () =
         this.DestroyPlayerQueue.Enqueue(player)
@@ -583,14 +582,13 @@ class ServerWorld =
 
         this.Flush()
 
-    SpawnBox(position: vec3, rotation: quat, scale: vec3): Box =
+    SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
         let transform = Transform.Create(position, rotation, scale)
         let material = Material(0)
 
         let entId = this.NewEntityId()
         this.OnBoxAdding(this.Shared_Box.NextIndex(), entId, transform, material)
         this.Shared_Box.Add(entId, transform, material)
-        Box(entId)
 
     DestroyBox(box: Box): () =
         this.DestroyBoxQueue.Enqueue(box)

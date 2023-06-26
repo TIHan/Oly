@@ -448,9 +448,6 @@ main(): () =
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
-        let mutable yawAcc = 0: float32
-        let mutable pitchAcc = 0: float32
-
         let mutable inputSnapshot = unchecked default
         while (inputSnapshots.TryDequeue(&inputSnapshot))
             ForEach(Cast(inputSnapshot.KeyEvents),
@@ -465,17 +462,6 @@ main(): () =
                         is_d_pressed <- keyEvent.IsDown
                         
             )
-
-            let mousePosition = inputSnapshot.MouseDelta
-
-            yawAcc <-
-                yawAcc + mousePosition.X
-
-            pitchAcc <-
-                pitchAcc + mousePosition.Y
-
-        yawAcc <- yawAcc * 0.0025
-        pitchAcc <- pitchAcc * -0.0025
 
         world.ForEachPlayer(
             (player, transform, camera) ->
@@ -504,8 +490,6 @@ main(): () =
                         acc
 
                 camera.Transform.Position <- camera.Transform.Position + acc
-
-                camera.SetYawPitch(camera.Yaw + yawAcc, camera.Pitch + pitchAcc)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -517,10 +501,16 @@ main(): () =
             // )
             spawnTime <- 0
             let mutable i = 0
-            while (i < 100)
+            while (i < 10)
                 let position = vec3.Zero
                 let _ = world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
+
+        world.ForEachBox(
+            (box, transform, material, objId) ->
+                if (transform.Position.Z <= -100)
+                    world.DestroyBox(box)
+        )
 
         world.Update(deltaTime)
 
@@ -533,10 +523,14 @@ main(): () =
     let sv = System.Threading.ManualResetEvent(false)
     let cl = System.Threading.ManualResetEvent(true)
 
+    let mutable mouseInfo = default
     let mutable task: Task = null
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
-        x -> (),
+        frameTime -> 
+            let inputSnapshot = r.Window.PumpEvents()
+            mouseInfo <- inputSnapshot.MouseInfo
+            inputSnapshots.Enqueue(inputSnapshot),
         () ->
             clientWorld.ForEachBox(
                 (box, transformLerp, transform, material, renderId) ->
@@ -589,9 +583,26 @@ main(): () =
                 frame <- frame + 1
 
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
+
+                let mutable yawAcc = 0: float32
+                let mutable pitchAcc = 0: float32
+
+                let mousePosition = mouseInfo.Delta
+
+                yawAcc <-
+                    yawAcc + mousePosition.X
+    
+                pitchAcc <-
+                    pitchAcc + mousePosition.Y
+    
+                yawAcc <- yawAcc * float32(0.0025)
+                pitchAcc <- pitchAcc * -(float32(0.0025))
                 
                 clientWorld.ForEachPlayer(
                     (player, transform, cameraLerp, camera) ->
+                        cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
+                        camera.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
+
                         let mutable globals = globals.AsSpan()
                         let globals = &globals[0]
                         globals.Projection <- camera.Projection

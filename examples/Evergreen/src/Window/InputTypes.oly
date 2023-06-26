@@ -8,6 +8,10 @@ struct MouseInfo =
     RelativeX: int32 set, get = 0
     RelativeY: int32 set, get = 0
 
+    Delta: System.Numerics.Vector2
+        get() =
+            System.Numerics.Vector2(float32(this.RelativeX), float32(this.RelativeY))
+
 enum KeyEventFlags =
     | Up     = 0b001
     | Down   = 0b010
@@ -71,7 +75,3 @@ class InputSnapshot =
             KeyEvents = keyEvents
             MouseInfo = mouseInfo
         }
-
-    MouseDelta: System.Numerics.Vector2
-        get() =
-            System.Numerics.Vector2(float32(this.MouseInfo.RelativeX), float32(this.MouseInfo.RelativeY))
