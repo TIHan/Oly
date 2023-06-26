@@ -342,7 +342,6 @@ class FrameTimesViewModel =
     MultiThreadingEnabled: Observable<bool> get = Observable(false)
 
 main(): () =
-    printLine(System.Runtime.GCSettings.IsServerGC)
     let world = ServerWorld()
     let stagingWorld = SharedWorld()
     
@@ -470,10 +469,13 @@ main(): () =
             let mousePosition = inputSnapshot.MouseDelta
 
             yawAcc <-
-                mousePosition.X * 0.0025
+                yawAcc + mousePosition.X
 
             pitchAcc <-
-                mousePosition.Y * -0.0025
+                pitchAcc + mousePosition.Y
+
+        yawAcc <- yawAcc * 0.0025
+        pitchAcc <- pitchAcc * -0.0025
 
         world.ForEachPlayer(
             (player, transform, camera) ->
@@ -534,9 +536,7 @@ main(): () =
     let mutable task: Task = null
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
-        x -> 
-            inputSnapshots.Enqueue(r.Window.PumpEvents())              
-            (),
+        x -> (),
         () ->
             clientWorld.ForEachBox(
                 (box, transformLerp, transform, material, renderId) ->
@@ -561,6 +561,7 @@ main(): () =
                         )
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
+                inputSnapshots.Enqueue(r.Window.PumpEvents()) 
                 let _ = sv.Set()
             else
                 (
@@ -569,6 +570,7 @@ main(): () =
                         task.Wait()
                         task <- null
                 )
+                inputSnapshots.Enqueue(r.Window.PumpEvents()) 
                 serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
             System.Threading.Monitor.Enter(lockObj)
             stagingWorld.CopyTo(clientWorld)

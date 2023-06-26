@@ -1269,8 +1269,11 @@ module Vk =
         format == VkFormat.VK_FORMAT_D32_SFLOAT_S8_UINT || format == VkFormat.VK_FORMAT_D24_UNORM_S8_UINT
 
     private findSwapPresentMode(presentModes: VkPresentModeKHR[]): VkPresentModeKHR =
-        VkPresentModeKHR.VK_PRESENT_MODE_FIFO_KHR
-        //Array.Find(presentModes, x -> x == VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR)
+        let index = Array.TryFindIndex(presentModes, x -> x == VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR)
+        if (index == -1)
+            VkPresentModeKHR.VK_PRESENT_MODE_FIFO_KHR
+        else
+            presentModes[index]
 
     private findSwapExtent(capabilities: inref<VkSurfaceCapabilitiesKHR>): VkExtent2D =
         if (capabilities.currentExtent.width != uint32.MaxValue)
