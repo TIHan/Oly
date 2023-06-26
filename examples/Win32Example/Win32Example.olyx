@@ -434,7 +434,7 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    let _ = world.SpawnPlayer(vec3.Zero)
+    world.SpawnPlayer(vec3.Zero)
 
     let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<InputSnapshot>()
     let mutable is_w_pressed = false
@@ -501,9 +501,9 @@ main(): () =
             // )
             spawnTime <- 0
             let mutable i = 0
-            while (i < 10)
+            while (i < 100)
                 let position = vec3.Zero
-                let _ = world.SpawnBox(position, quat.Identity, vec3.One)
+                world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
 
         world.ForEachBox(

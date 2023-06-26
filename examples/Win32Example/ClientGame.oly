@@ -71,6 +71,7 @@ class ClientWorld =
 
     protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
         this.Client_Box_RenderId[index] <- material.Id
+        this.Client_Box_TransformLerp[index] <- transform
 
     protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
         this.Client_Box_RenderId[index] <- this.Client_Box_RenderId[swapIndex]

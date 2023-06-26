@@ -409,7 +409,7 @@ abstract class World =
 
     IsValid(entId: EntityId): bool =
         let version = this.entityVersions[entId.Index]
-        version == entId.Version
+        version != 0 && version == entId.Version
 
     protected CopyTo(world: World): () =
         world.indexQueue.Clear()
@@ -430,6 +430,7 @@ abstract default class SharedWorld =
         let maxCount = Math.Max(this.Shared_Box.Count, world.Shared_Box.Count)
 
         // Shared_Player -------------------------------------------------------------------------
+        let lookup = world.Shared_Box.Lookup
         let entIds = world.Shared_Player.EntityIds
         let buffer0 = world.Shared_Player.Buffer0
         let buffer1 = world.Shared_Player.Buffer1
@@ -443,16 +444,21 @@ abstract default class SharedWorld =
             let entId = entIds[i]
             let entIdToCopy = entIdsToCopy[i]
 
-            if (!entId.IsNil && !this.IsValid(entId))
-                world.OnPlayerRemoving(i, maxCount - 1)
+            if (entId.Index != entIdToCopy.Index || entId.Version != entIdToCopy.Version)
+                if (!entId.IsNil && !this.IsValid(entId))
+                    if (world.IsValid(entIdToCopy))
+                        world.OnPlayerRemoving(i, lookup[entIdToCopy.Index])
+                    else
+                        world.OnPlayerRemoving(i, i)
 
-            if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
-                world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])   
+                if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
+                    world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
                 
             i <- i + 1
         // ------------------------------------------------------------------------------------------
 
         // Shared_Box -------------------------------------------------------------------------
+        let lookup = world.Shared_Box.Lookup
         let entIds = world.Shared_Box.EntityIds
         let buffer0 = world.Shared_Box.Buffer0
         let buffer1 = world.Shared_Box.Buffer1
@@ -466,11 +472,15 @@ abstract default class SharedWorld =
             let entId = entIds[i]
             let entIdToCopy = entIdsToCopy[i]
 
-            if (!entId.IsNil && !this.IsValid(entId))
-                world.OnBoxRemoving(i, maxCount - 1)
+            if (entId.Index != entIdToCopy.Index || entId.Version != entIdToCopy.Version)
+                if (!entId.IsNil && !this.IsValid(entId))
+                    if (world.IsValid(entIdToCopy))
+                        world.OnBoxRemoving(i, lookup[entIdToCopy.Index])
+                    else
+                        world.OnBoxRemoving(i, i)
 
-            if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
-                world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
+                if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
+                    world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
                 
             i <- i + 1
         // ------------------------------------------------------------------------------------------
