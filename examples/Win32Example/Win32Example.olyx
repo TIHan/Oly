@@ -521,9 +521,6 @@ main(): () =
 
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
-    let sv = System.Threading.ManualResetEvent(false)
-    let cl = System.Threading.ManualResetEvent(true)
-
     let mutable mouseInfo = default
     let mutable task: Task = null
     let gpuCommands = List<GpuCommand>()
@@ -542,27 +539,18 @@ main(): () =
                     cameraLerp <- camera
             )
             if (frameTimesVM.MultiThreadingEnabled.Value)
-                if (task === null)
-                    let _ = sv.Reset()
-                    let _ = cl.Set()
-                    task <-
-                        Task.Run(
-                            () ->
-                                while (!r.Window.IsClosed && frameTimesVM.MultiThreadingEnabled.Value)
-                                    let _ = sv.WaitOne()
-                                    serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))                   
-                                    let _ = sv.Reset()
-                                    let _ = cl.Set()
-                        )
-                let _ = cl.WaitOne()
-                let _ = cl.Reset()
+                if (task !== null)
+                    task.Wait()
+
+                task <-
+                    Task.Run(
+                        () -> serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
+                    )
                 cameraRotationQueued <- cameraRotation
-                inputSnapshots.Enqueue(r.Window.PumpEvents()) 
-                let _ = sv.Set()
+                inputSnapshots.Enqueue(r.Window.PumpEvents())
             else
                 (
                     if (task !== null)
-                        let _ = sv.Set()
                         task.Wait()
                         task <- null
                 )
