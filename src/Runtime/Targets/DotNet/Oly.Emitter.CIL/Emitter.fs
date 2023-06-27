@@ -1439,7 +1439,7 @@ module rec ClrCodeGen =
 
             I.Label loopEndLabelId  |> emitInstruction cenv
 
-        | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, _) ->
+        | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy) ->
             let theVeryEndLabelId = cenv.NewLabel()
 
             let env = setNotReturnable env
@@ -1450,6 +1450,18 @@ module rec ClrCodeGen =
             I.Label tryStartLabelId |> emitInstruction cenv
 
             GenExpression cenv env bodyExpr
+
+            let resultLocalOpt =
+                if (resultTy.Handle = cenv.assembly.TypeReferenceVoid) then
+                    None
+                else
+                    cenv.NewLocal(resultTy)
+                    |> Some
+
+            resultLocalOpt
+            |> Option.iter (fun returnLocal ->
+                I.Stloc returnLocal |> emitInstruction cenv
+            )
 
             I.Leave theVeryEndLabelId |> emitInstruction cenv
             I.Label tryEndLabelId |> emitInstruction cenv
@@ -1468,6 +1480,11 @@ module rec ClrCodeGen =
                     // At this point, the exception is on the stack and so using a Let expression will emit a store.
                     E.Let(localName, localIndex, E.None(NoRange, catchTy), bodyExpr)
                     |> GenExpression cenv env
+
+                    resultLocalOpt
+                    |> Option.iter (fun returnLocal ->
+                        I.Stloc returnLocal |> emitInstruction cenv
+                    )
 
                     I.Leave theVeryEndLabelId |> emitInstruction cenv
                     I.Label handlerEndLabelId |> emitInstruction cenv
@@ -1499,6 +1516,10 @@ module rec ClrCodeGen =
             )
 
             I.Label theVeryEndLabelId |> emitInstruction cenv
+            resultLocalOpt
+            |> Option.iter (fun returnLocal ->
+                I.Ldloc returnLocal |> emitInstruction cenv
+            )
 
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr

@@ -437,6 +437,8 @@ main(): () =
     world.SpawnPlayer(vec3.Zero)
 
     let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<InputSnapshot>()
+    let mutable cameraRotation = Quaternion.Identity
+    let mutable cameraRotationQueued = Quaternion.Identity
     let mutable is_w_pressed = false
     let mutable is_s_pressed = false
     let mutable is_a_pressed = false
@@ -490,6 +492,7 @@ main(): () =
                         acc
 
                 camera.Transform.Position <- camera.Transform.Position + acc
+                camera.Transform <- Transform.Create(camera.Transform.Position, cameraRotationQueued, camera.Transform.Scale)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -501,7 +504,7 @@ main(): () =
             // )
             spawnTime <- 0
             let mutable i = 0
-            while (i < 100)
+            while (i < 150)
                 let position = vec3.Zero
                 world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
@@ -514,9 +517,7 @@ main(): () =
 
         world.Update(deltaTime)
 
-        System.Threading.Monitor.Enter(lockObj)
-        world.CopyTo(stagingWorld)
-        System.Threading.Monitor.Exit(lockObj)
+        lock(lockObj, () -> world.CopyTo(stagingWorld))
 
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
@@ -555,6 +556,7 @@ main(): () =
                         )
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
+                cameraRotationQueued <- cameraRotation
                 inputSnapshots.Enqueue(r.Window.PumpEvents()) 
                 let _ = sv.Set()
             else
@@ -564,11 +566,10 @@ main(): () =
                         task.Wait()
                         task <- null
                 )
+                cameraRotationQueued <- cameraRotation
                 inputSnapshots.Enqueue(r.Window.PumpEvents()) 
                 serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
-            System.Threading.Monitor.Enter(lockObj)
-            stagingWorld.CopyTo(clientWorld)
-            System.Threading.Monitor.Exit(lockObj)
+            lock(lockObj, () -> stagingWorld.CopyTo(clientWorld))
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
             r.Window.IsClosed,
@@ -603,10 +604,14 @@ main(): () =
                         cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
                         camera.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
 
+                        let worldView = Matrix4x4.Lerp(cameraLerp.Transform.Matrix, camera.Transform.Matrix, float32(alpha))
+                        let view = Matrix4x4.Lerp(cameraLerp.Transform.WorldToLocalMatrix, camera.Transform.WorldToLocalMatrix, float32(alpha))
+
+                        cameraRotation <- Quaternion.CreateFromRotationMatrix(worldView)
                         let mutable globals = globals.AsSpan()
                         let globals = &globals[0]
                         globals.Projection <- camera.Projection
-                        globals.View <- Matrix4x4.Lerp(cameraLerp.Transform.WorldToLocalMatrix, camera.Transform.WorldToLocalMatrix, float32(alpha))
+                        globals.View <- view
                         globals.Model <- Matrix4x4.Identity
                 )
                 clientWorld.Update(float32(alpha))

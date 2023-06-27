@@ -953,6 +953,15 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
     while (xse.MoveNext())
         f(xse.Current)
 
+lock<T>(lockObj: object, f: () -> T): T =
+    let mutable lockTaken = false
+    try
+        System.Threading.Monitor.Enter(lockObj, &lockTaken)
+        f()
+    finally
+        if (lockTaken)
+            System.Threading.Monitor.Exit(lockObj)
+
 // Math
 
 radians(degrees: float64): float64 = degrees * System.Math.PI / 180
