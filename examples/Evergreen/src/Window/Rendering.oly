@@ -51,9 +51,21 @@ class GpuMutableArray<T> where T: unmanaged =
     MemoryKind: GpuMemoryKind get
     Length: int32 get() = this.bufferData.Length
 
+    SyncLength: int32 get, set
+    SyncOffset: int32 get, set
+
     private Update(vk: VulkanApplication, frame: int32): () =
-        let buffer = this.Buffers[frame]
-        Vk.UpdateBuffer(vk, buffer, this.bufferData)
+        let bufferData = this.bufferData
+        let syncLength = this.SyncLength
+        let syncOffset = this.SyncOffset
+
+        let actualLength = syncOffset + syncLength
+        if (actualLength > bufferData.Length || actualLength < 0)
+            throw InvalidOperationException("'SyncOffset' and 'SyncLength' are out of range.")
+
+        if (syncLength > 0)
+            let buffer = this.Buffers[frame]
+            Vk.UpdateBuffer(vk, buffer, ReadOnlySpan(bufferData, syncOffset, syncLength))
 
     field bufferData: mutable T[]  
 
@@ -65,6 +77,8 @@ class GpuMutableArray<T> where T: unmanaged =
             bufferData = bufferData
             Buffers = mutable []
             IsDirty = true
+            SyncOffset = 0
+            SyncLength = bufferData.Length
         }
 
     get_Item(index: int32): T =
@@ -541,7 +555,7 @@ class Gpu =
                     | GpuMemoryKind.Local =>
                         VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
                     | GpuMemoryKind.Shared =>
-                        VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
+                        VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT | VmaAllocationCreateFlags.VMA_ALLOCATION_CREATE_MAPPED_BIT
                     | _ =>
                         fail("Invalid gpu memory kind.")
 

@@ -27,7 +27,7 @@ class ClientWorld =
             Client_Box_RenderId = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
             Client_Box_TransformLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
             Client_Player_CameraLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Player.Capacity)
-            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, this.Shared_Box.Capacity, i -> default)
+            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Shared, this.Shared_Box.Capacity, i -> default)
         }
     
     Update(alpha: float32): () =
@@ -41,6 +41,9 @@ class ClientWorld =
         while (i < boxCount)
             (transformRenders[i]) <- mat4.Lerp(transformLerps[i].Matrix, transforms[i].Matrix, alpha)
             i <- i + 1
+
+        this.Render_Box.SyncOffset <- 0
+        this.Render_Box.SyncLength <- boxCount
 
     ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>, material: Material, renderId: int32) -> ()): () =
         let count = this.Shared_Box.Count
