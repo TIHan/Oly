@@ -339,7 +339,7 @@ class FrameTimesViewModel =
     FixedUpdateTime: Observable<float64> get = Observable(0.0)
     Values: mutable float32[] get = Array.ZeroCreate(100)
     Offset: Observable<int32> get = Observable(0)
-    MultiThreadingEnabled: Observable<bool> get = Observable(false)
+    MultiThreadingEnabled: Observable<bool> get = Observable(true)
 
 main(): () =
     let world = ServerWorld()
@@ -542,12 +542,12 @@ main(): () =
                 if (task !== null)
                     task.Wait()
 
+                cameraRotationQueued <- cameraRotation
+                inputSnapshots.Enqueue(r.Window.PumpEvents())
                 task <-
                     Task.Run(
                         () -> serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
                     )
-                cameraRotationQueued <- cameraRotation
-                inputSnapshots.Enqueue(r.Window.PumpEvents())
             else
                 (
                     if (task !== null)
