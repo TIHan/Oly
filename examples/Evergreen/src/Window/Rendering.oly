@@ -1233,7 +1233,7 @@ class Rendering =
         window.Size <- options.InitialWindowSize
 
         let vulkanAppOptions = VulkanApplicationOptions()
-        vulkanAppOptions.ValidationEnabled <- false//true
+        vulkanAppOptions.ValidationEnabled <- true
         vulkanAppOptions.MaxFramesInFlight <- 2
         let vulkanApp = Vk.Initialize(window.HWND, window.HINSTANCE, vulkanAppOptions)
 
