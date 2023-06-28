@@ -391,6 +391,7 @@ abstract class World =
 
         let version = this.entityVersions[index] + 1
         this.entityVersions[index] <- version
+        this.entityCount <- this.entityCount + 1
 
         let mutable entId = EntityId()
         entId.Index <- index
@@ -411,6 +412,8 @@ abstract class World =
     IsValid(entId: EntityId): bool =
         let version = this.entityVersions[entId.Index]
         version != 0 && version == entId.Version
+
+    CanSpawnEntity: bool get() = this.entityCount != MaxNumberOfEntities
 
     protected CopyTo(world: World): () =
         world.indexQueue.Clear()
@@ -545,17 +548,18 @@ class ServerWorld =
         this.Physics.Update(Δ)
 
         static let updatePhysicsBoxes(physics: Physics, physicsBoxCount: int32, physicsBoxTransforms: mutable Transform[], physicsBoxDynamicObjectIds: mutable DynamicObjectId[]) =
-            let mutable i = 0
-            while (i < physicsBoxCount)
-                let mutable m = physicsBoxTransforms[i]
-                let mutable position = vec3.Zero
-                let mutable orientation = quat.Identity
-                physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
-                let mutable scale = mat4.CreateScale(m.Scale)
-                let mutable m = mat4.CreateFromQuaternion(orientation)
-                scale.Translation <- position
-                physicsBoxTransforms[i] <- Transform(m * scale)
-                i <- i + 1
+            let _ = 
+                System.Threading.Tasks.Parallel.For(0, physicsBoxCount,
+                    (i, x) ->
+                        let mutable m = physicsBoxTransforms[i]
+                        let mutable position = vec3.Zero
+                        let mutable orientation = quat.Identity
+                        physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+                        let mutable scale = mat4.CreateScale(m.Scale)
+                        let mutable m = mat4.CreateFromQuaternion(orientation)
+                        scale.Translation <- position
+                        physicsBoxTransforms[i] <- Transform(m * scale)
+                )
 
         updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
 
@@ -587,12 +591,13 @@ class ServerWorld =
         this.Flush()
 
     SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
-        let transform = Transform.Create(position, rotation, scale)
-        let material = Material(0)
+        if (this.CanSpawnEntity)
+            let transform = Transform.Create(position, rotation, scale)
+            let material = Material(0)
 
-        let entId = this.NewEntityId()
-        this.OnBoxAdding(this.Shared_Box.NextIndex(), entId, transform, material)
-        this.Shared_Box.Add(entId, transform, material)
+            let entId = this.NewEntityId()
+            this.OnBoxAdding(this.Shared_Box.NextIndex(), entId, transform, material)
+            this.Shared_Box.Add(entId, transform, material)
 
     DestroyBox(box: Box): () =
         this.DestroyBoxQueue.Enqueue(box)

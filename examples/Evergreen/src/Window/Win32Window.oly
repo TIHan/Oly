@@ -277,6 +277,7 @@ internal class Win32Window =
     mutable field mouseInfo: MouseInfo
     mutable field keyEvents: List<KeyEvent>
     mutable field keysDown: HashSet<Key>
+    mutable field keysRepeating: HashSet<Key>
     mutable field isDisposed: bool
     mutable field isClosed: bool
     mutable field currentDisplayMode: DisplayMode
@@ -341,6 +342,7 @@ internal class Win32Window =
                 title = title
                 keyEvents = List(128)
                 keysDown = HashSet(128)
+                keysRepeating = HashSet(128)
                 mouseInfo = MouseInfo()
                 isCursorHidden = false
                 hwnd = hwnd
@@ -413,6 +415,7 @@ internal class Win32Window =
         if (Evergreen.ImGui.ImGuiContext.InputContext !== unchecked default)
             Evergreen.ImGui.SetCurrentContext(Evergreen.ImGui.ImGuiContext.InputContext)
 
+        ForEach(this.keysDown, key -> let _ = this.keysRepeating.Add(key))
 
         this.mouseInfo.RelativeX <- 0
         this.mouseInfo.RelativeY <- 0
@@ -443,19 +446,16 @@ internal class Win32Window =
             | WM_SYSKEYDOWN =>
                 let key = Win32.TranslateKey(char(msg.wParam.Value))
                 if (key != Key.Unknown)
-                    let flags =
-                        if (this.keysDown.Add(key))
-                            KeyEventFlags.Down
-                        else
-                            KeyEventFlags.Repeat
-                    let keyEvent = KeyEvent(key, flags)
-                    this.keyEvents.Add(keyEvent)
+                    if (this.keysDown.Add(key))
+                        let keyEvent = KeyEvent(key, KeyEventFlags.Down)
+                        this.keyEvents.Add(keyEvent)
 
             | WM_KEYUP
             | WM_SYSKEYUP =>
                 let key = Win32.TranslateKey(char(msg.wParam.Value))
                 if (key != Key.Unknown)
-                    let result = this.keysDown.Remove(key)
+                    let _ = this.keysDown.Remove(key)
+                    let _ = this.keysRepeating.Remove(key)
                     let flags = KeyEventFlags.Up
                     let keyEvent = KeyEvent(key, flags)
                     this.keyEvents.Add(keyEvent)
@@ -483,6 +483,8 @@ internal class Win32Window =
 
             | _ =>
                 ()
+
+        ForEach(this.keysRepeating, key -> this.keyEvents.Add(KeyEvent(key, KeyEventFlags.Repeat)))
 
         InputSnapshot(getKeyEvents(), this.mouseInfo)
 
