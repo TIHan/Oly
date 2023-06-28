@@ -640,7 +640,7 @@ main(): () =
                 frameTimesVM.Values[frame % frameTimesVM.Values.Length] <- float32(frameTimeMs)
                 frame <- frame + 1
 
-             //   gpuProgram.FragmentCode <- fragmentShaderByteCode
+                gpuProgram.FragmentCode <- fragmentShaderByteCode
                 
                 clientWorld.ForEachPlayer(
                     (player, transform, cameraLerp, camera) ->
