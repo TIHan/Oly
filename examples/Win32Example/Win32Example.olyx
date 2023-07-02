@@ -588,7 +588,6 @@ main(): () =
             let _ = this.cl.Set()
 
     let start = ServerSimulation(r, frameTimesVM, sv, cl, serverTick)
-    let threadStart = System.Threading.ThreadStart(start, nint(&&start.Invoke))
 
     let mutable task: System.Threading.Thread = null
     let gpuCommands = List<GpuCommand>()
@@ -608,6 +607,7 @@ main(): () =
                 if (task === null)
                     let _ = sv.Reset()
                     let _ = cl.Set()
+                    let threadStart = System.Threading.ThreadStart(start, nint(&&start.Invoke))
                     task <- System.Threading.Thread(threadStart)
                     task.Start()
 

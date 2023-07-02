@@ -15440,3 +15440,43 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
+
+[<Fact>]
+let ``Closure over trying to get a function pointer``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("unsafe_cast")]
+nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+class Delegate =
+
+    Invoke(): () = ()
+
+main(): () =
+    // This function is necessary as the bug appeared only when there was a local function before it.
+    let test(x: int32) =
+        ()
+
+    let d = Delegate()
+    let f =
+        () ->
+            let f = nint(&&d.Invoke)
+    
+    print("passed")
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore

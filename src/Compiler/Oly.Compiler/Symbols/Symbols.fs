@@ -997,6 +997,9 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
         | TypeSymbol.Function(inputTy, returnTy) ->
             TypeSymbol.Function(instTy inputTy, instTy returnTy)
 
+        | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
+            TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
+
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
             |> ImArray.iter (fun tyPar ->
