@@ -442,7 +442,6 @@ main(): () =
     let mutable is_a_pressed = false
     let mutable is_d_pressed = false
 
-    let lockObj = Object()
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
     let serverTick(deltaTime: float32) =
@@ -526,13 +525,12 @@ main(): () =
 
         world.ForEachBox(
             (box, transform, material, objId) ->
-                if (transform.Position.Z <= -1000000)
+                if (transform.Position.Z <= -100000)
                     world.DestroyBox(box)
         )
 
         world.Update(deltaTime)
-
-        lock(lockObj, () -> world.CopyTo(stagingWorld))
+        world.CopyTo(stagingWorld)
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
@@ -613,20 +611,22 @@ main(): () =
 
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
+                stagingWorld.CopyTo(clientWorld)
                 let _ = sv.Set()
             else
                 (
                     if (task !== null)
                         let _ = cl.WaitOne()
                         let _ = cl.Reset()
+                        stagingWorld.CopyTo(clientWorld)
                         let _ = sv.Set()
                         task.Join()
                         task <- null
                     else
                         serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
+                        stagingWorld.CopyTo(clientWorld)
                 )
 
-            lock(lockObj, () -> stagingWorld.CopyTo(clientWorld))
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
             r.Window.IsClosed,

@@ -27,7 +27,7 @@ class ClientWorld =
             Client_Box_RenderId = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
             Client_Box_TransformLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
             Client_Player_CameraLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Player.Capacity)
-            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Shared, this.Shared_Box.Capacity, i -> default)
+            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, this.Shared_Box.Capacity, i -> default)
         }
     
     Update(alpha: float32): () =
