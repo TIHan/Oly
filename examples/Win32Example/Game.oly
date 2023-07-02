@@ -371,6 +371,29 @@ newtype Box =
 newtype Player =
     internal field Value: EntityId
 
+// --------------------------------------------------
+// Events -------------------------------------------
+
+enum GameEventKind =
+    | Unspecified
+    | PlayerStartedMovingForward
+    | PlayerStoppedMovingForward
+    | PlayerStartedMovingBackward
+    | PlayerStoppedMovingBackward
+    | PlayerStartedMovingLeft
+    | PlayerStoppedMovingLeft
+    | PlayerStartedMovingRight
+    | PlayerStoppedMovingRight
+
+module GameEvent =
+
+    struct PlayerStartedMovingForward =
+    
+        mutable field Kind: GameEventKind = default
+        mutable field Player: Player = default
+
+// --------------------------------------------------
+
 abstract class World =
 
     public static field MaxNumberOfEntities: int32 = 65536

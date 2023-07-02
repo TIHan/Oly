@@ -436,77 +436,55 @@ main(): () =
 
     world.SpawnPlayer(vec3.Zero)
 
-    let inputSnapshots = System.Collections.Concurrent.ConcurrentQueue<(InputSnapshot, Quaternion)>()
     let mutable is_w_pressed = false
     let mutable is_s_pressed = false
     let mutable is_a_pressed = false
     let mutable is_d_pressed = false
+    let mutable currentCameraRotation = default
+
+    let playerTick(deltaTime: float32, camera: byref<Camera>, rotation: quat) =
+        let mutable acc = Vector3.Zero
+            
+        if (is_w_pressed)
+            let v = camera.Transform.Forward
+            acc <- Vector3(v.X, v.Y, v.Z)
+
+        if (is_s_pressed)
+            let v = camera.Transform.Back
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
+
+        if (is_a_pressed)
+            let v = camera.Transform.Left
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
+
+        if (is_d_pressed)
+            let v = camera.Transform.Right
+            acc <- acc + Vector3(v.X, v.Y, v.Z)
+
+        acc <-
+            if (acc != Vector3.Zero)
+                Vector3.Normalize(acc) * (deltaTime * 5)
+            else
+                acc
+
+        camera.Transform.Position <- camera.Transform.Position + acc
+        camera.Transform <- Transform.Create(camera.Transform.Position, rotation, camera.Transform.Scale)
+
+    let clientTick(deltaTime: float32, alpha: float32) =
+        clientWorld.ForEachPlayer(
+            (player, transform, cameraLerp, camera) ->
+                playerTick(deltaTime, &camera, currentCameraRotation)
+                cameraLerp <- camera
+        )
 
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
-        let mutable is_w_repeat = true
-        let mutable is_s_repeat = true
-        let mutable is_a_repeat = true
-        let mutable is_d_repeat = true
-
-        let mutable currentCameraRotation = default
-        let mutable inputSnapshot = unchecked default
-        while (inputSnapshots.TryDequeue(&inputSnapshot))
-            let (inputSnapshot, cameraRotation) = inputSnapshot
-            currentCameraRotation <- cameraRotation
-            ForEach(Cast(inputSnapshot.KeyEvents),
-                (keyEvent: KeyEvent) ->
-                    if (keyEvent.Key == Key.W)
-                        is_w_pressed <- keyEvent.IsDown
-                        if (is_w_repeat)
-                            is_w_repeat <- keyEvent.IsRepeat
-                    if (keyEvent.Key == Key.S)
-                        is_s_pressed <- keyEvent.IsDown
-                        if (is_s_repeat)
-                            is_s_repeat <- keyEvent.IsRepeat
-                    if (keyEvent.Key == Key.A)
-                        is_a_pressed <- keyEvent.IsDown
-                        if (is_a_repeat)
-                            is_a_repeat <- keyEvent.IsRepeat
-                    if (keyEvent.Key == Key.D)
-                        is_d_pressed <- keyEvent.IsDown
-                        if (is_d_repeat)
-                            is_d_repeat <- keyEvent.IsRepeat
-                        
-            )
-
         world.ForEachPlayer(
             (player, transform, camera) ->
-                let mutable acc = Vector3.Zero
-                let mutable accBoost = Vector3.Zero
-                    
-                if (is_w_pressed)
-                    let v = camera.Transform.Forward
-                    acc <- Vector3(v.X, v.Y, v.Z)
-        
-                if (is_s_pressed)
-                    let v = camera.Transform.Back
-                    acc <- acc + Vector3(v.X, v.Y, v.Z)
-        
-                if (is_a_pressed)
-                    let v = camera.Transform.Left
-                    acc <- acc + Vector3(v.X, v.Y, v.Z)
-        
-                if (is_d_pressed)
-                    let v = camera.Transform.Right
-                    acc <- acc + Vector3(v.X, v.Y, v.Z)
-        
-                acc <-
-                    if (acc != Vector3.Zero)
-                        Vector3.Normalize(acc) * (deltaTime * 5)
-                    else
-                        acc
-
-                camera.Transform.Position <- camera.Transform.Position + acc + accBoost
-                camera.Transform <- Transform.Create(camera.Transform.Position, currentCameraRotation, camera.Transform.Scale)
+                playerTick(deltaTime, &camera, currentCameraRotation)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -543,15 +521,8 @@ main(): () =
         let mutable pitchAcc = 0: float32
 
         let mousePosition = inputSnapshot.MouseInfo.Delta
-
-        yawAcc <-
-            yawAcc + mousePosition.X
-
-        pitchAcc <-
-            pitchAcc + mousePosition.Y
-
-        yawAcc <- yawAcc * (float32(2) * deltaTime)
-        pitchAcc <- pitchAcc * (-(float32(2)) * deltaTime)
+        let yawAcc = mousePosition.X * (float32(2) * deltaTime)
+        let pitchAcc = mousePosition.Y * (-(float32(2)) * deltaTime)
         
         let mutable cameraRotation = Quaternion.Identity
         clientWorld.ForEachPlayer(
@@ -559,7 +530,22 @@ main(): () =
                 cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
                 cameraRotation <- cameraLerp.Transform.Rotation
         )
-        inputSnapshots.Enqueue((inputSnapshot, cameraRotation))
+
+        ForEach(Cast(inputSnapshot.KeyEvents),
+            (keyEvent: KeyEvent) ->
+                if (keyEvent.Key == Key.W)
+                    is_w_pressed <- keyEvent.IsDown
+
+                if (keyEvent.Key == Key.S)
+                    is_s_pressed <- keyEvent.IsDown
+
+                if (keyEvent.Key == Key.A)
+                    is_a_pressed <- keyEvent.IsDown
+
+                if (keyEvent.Key == Key.D)
+                    is_d_pressed <- keyEvent.IsDown                       
+        )
+        currentCameraRotation <- cameraRotation
 
     class ServerSimulation =
         field r: Rendering
