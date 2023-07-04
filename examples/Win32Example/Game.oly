@@ -371,28 +371,18 @@ newtype Box =
 newtype Player =
     internal field Value: EntityId
 
-// --------------------------------------------------
-// Events -------------------------------------------
+enum PlayerActions =
+    | Forward   = 0b0001
+    | Backward  = 0b0010
+    | Left      = 0b0100
+    | Right     = 0b1000
 
-enum GameEventKind =
-    | Unspecified
-    | PlayerStartedMovingForward
-    | PlayerStoppedMovingForward
-    | PlayerStartedMovingBackward
-    | PlayerStoppedMovingBackward
-    | PlayerStartedMovingLeft
-    | PlayerStoppedMovingLeft
-    | PlayerStartedMovingRight
-    | PlayerStoppedMovingRight
+struct PlayerActionSnapshot =
 
-module GameEvent =
-
-    struct PlayerStartedMovingForward =
+    public mutable field Actions: PlayerActions = default
+    public mutable field Rotation: quat         = quat.Identity
     
-        mutable field Kind: GameEventKind = default
-        mutable field Player: Player = default
-
-// --------------------------------------------------
+// ----------------------------------------------------------------------
 
 abstract class World =
 
@@ -533,6 +523,7 @@ class ServerWorld =
     field DestroyBoxQueue: ConcurrentQueue<Box>
 
     private Server_Box: mutable DynamicObjectId[] get
+    private Server_PlayerActionSnapshot: mutable PlayerActionSnapshot[] get
 
     new() =
         {
@@ -540,6 +531,7 @@ class ServerWorld =
             DestroyBoxQueue = ConcurrentQueue()
             DestroyPlayerQueue = ConcurrentQueue()
             Server_Box = Array.ZeroCreate(this.Shared_Box.Capacity)
+            Server_PlayerActionSnapshot = Array.ZeroCreate(this.Shared_Player.Capacity)
         }
 
     private Flush(): () =
