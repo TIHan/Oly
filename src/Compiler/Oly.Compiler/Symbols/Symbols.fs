@@ -214,14 +214,20 @@ type EntitySymbol() =
         | ValueSome(result) -> result
         | _ ->
             if this.IsAnyStruct then
-                if this.Fields.IsEmpty then
-                    true
-                else
-                    let result =
-                        this.Fields
-                        |> ImArray.forall (fun x -> x.Type.IsUnmanaged)
-                    isUnmanaged <- ValueSome(result)
-                    result
+                match this.RuntimeType with
+                | Some(runtimeTy) -> runtimeTy.IsUnmanaged
+                | _ ->
+                    if this.IsAlias && this.Extends.Length > 0 then
+                        this.Extends[0].IsUnmanaged
+                    else
+                        if this.Fields.IsEmpty then
+                            true
+                        else
+                            let result =
+                                this.Fields
+                                |> ImArray.forall (fun x -> x.Type.IsUnmanaged)
+                            isUnmanaged <- ValueSome(result)
+                            result
             else
                 isUnmanaged <- ValueSome(false)
                 false
