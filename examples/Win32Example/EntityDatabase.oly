@@ -556,6 +556,8 @@ class EntityDatabase =
     AddComponent<T0, T1, T>(archetypeRef: ArchetypeReference<T0, T1>, dstArchetypeRef: ArchetypeReference<T0, T1, T>, entId: EntityId, value: T): () where T0: unmanaged 
                                                                                                                                                      where T1: unmanaged 
                                                                                                                                                      where T: unmanaged =
+
+        this.Check(entId)
         let archetypedIndex = archetypeRef.ArchetypedIndex
         let dstArchetypedIndex = dstArchetypeRef.ArchetypedIndex
         let dstTypedIndex = dstArchetypeRef.TypedIndex2
@@ -571,6 +573,8 @@ class EntityDatabase =
 
         let buffer = dstArchetype.GetRawComponentBuffer<T>(dstArchetypeRef.LastTypedIndex)
         buffer[dstIndex] <- value
+        dstArchetype.EntityIds[dstIndex] <- entId
+        dstArchetype.Lookup[entId.Index] <- dstIndex
         dstArchetype.Count <- dstIndex + 1
 
         let remove = this.ArchetypeRemovers[archetypedIndex]
@@ -579,6 +583,7 @@ class EntityDatabase =
         this.entityArchetypeIndices[entId.Index] <- dstArchetypedIndex
 
     Delete(entId: EntityId): () =
+        this.Check(entId)
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
         let archetype = this.Archetypes[archetypedIndex]
         let remove = this.ArchetypeRemovers[archetypedIndex]
@@ -617,8 +622,6 @@ class EntityDatabase =
             fail("Invalid entity.")
 
     private DeleteEntityId(entId: EntityId): () =
-        this.Check(entId)
-
         this.entityVersions[entId.Index] <- this.entityVersions[entId.Index] + 1
         this.entityArchetypeIndices[entId.Index] <- -1
         this.indexQueue.Enqueue(entId.Index)
@@ -640,8 +643,5 @@ class EntityDatabase =
         let mutable i = 0
         while (i < this.Archetypes.Count)
             let archetype = this.Archetypes[i]
-            let mutable dstArchetypeIndex = -1
-            if (!dst.ArchetypeLookup.TryGetValue(archetype.Id, &dstArchetypeIndex))
-                fail("Unable to copy contents.")
-            archetype.CopyTo(dst.Archetypes[dstArchetypeIndex])
+            archetype.CopyTo(dst.Archetypes[i])
             i <- i + 1      

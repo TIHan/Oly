@@ -408,15 +408,17 @@ test(): () =
 
     let entId = edb.Create(archetypes.Player, default: Transform, default: Camera)
 
-    edb.ForEach(queries.Transform_Camera, (entId, transform, camera) -> printLine("passed"))
+    edb.ForEach(queries.Transform_Camera, (mutable entId, transform, camera) -> printLine(entId.Version.ToString()))
     edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("failed"))
 
     edb.AddComponent(archetypes.Player, archetypes.PlayerWithActionSnapshot, entId, default: PlayerActionSnapshot)
 
+    let entIdsToDelete = List()
     edb.ForEach(queries.Transform_Camera,
         (entId, transform, camera) ->
-            ()
+            entIdsToDelete.Add(entId)
     )
+    ForEach(entIdsToDelete, entId -> edb.Delete(entId))
     edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("passed"))
 
     let stagingWorld = createWorld()
