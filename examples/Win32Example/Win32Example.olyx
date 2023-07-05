@@ -342,28 +342,85 @@ class FrameTimesViewModel =
     Offset: Observable<int32> get = Observable(0)
     MultiThreadingEnabled: Observable<bool> get = Observable(true)
 
+class EntityArchetypes =
+
+    Player: ArchetypeReference<Transform, Camera> get
+    PlayerWithActionSnapshot: ArchetypeReference<Transform, Camera, PlayerActionSnapshot> get
+
+    new(
+        player: ArchetypeReference<Transform, Camera>, 
+        playerWithActionSnapshot: ArchetypeReference<Transform, Camera, PlayerActionSnapshot>
+    ) =
+        {
+            Player = player
+            PlayerWithActionSnapshot = playerWithActionSnapshot
+        }
+
+class EntityQueries =
+
+    Transform_Camera: EntityQuery<Transform, Camera> get
+    Transform_Camera_PlayerActionSnapshot: EntityQuery<Transform, Camera, PlayerActionSnapshot> get
+
+    new(
+        transform_camera: EntityQuery<Transform, Camera>,
+        transform_camera_playerActionSnapshot: EntityQuery<Transform, Camera, PlayerActionSnapshot>
+    ) =
+        {
+            Transform_Camera = transform_camera
+            Transform_Camera_PlayerActionSnapshot = transform_camera_playerActionSnapshot
+        }
+
+class EntityWorld =
+
+    Database: EntityDatabase get
+    Archetypes: EntityArchetypes get
+    Queries: EntityQueries get
+
+    new(database: EntityDatabase, archetypes: EntityArchetypes, queries: EntityQueries) =
+        {
+            Database = database
+            Archetypes = archetypes
+            Queries = queries
+        }
+
+createWorld(): EntityWorld =
+    let edb = EntityDatabase()
+
+    let archetypes =
+        EntityArchetypes(
+            edb.RegisterArchetype<_, _>(), // TODO: Fix language bug, we should be able to use 'edb.RegisterArchetype()' and it should pick the right overload since we know how many type arguments we need.
+            edb.RegisterArchetype<_, _, _>()
+        )
+
+    let queries =
+        EntityQueries(
+            edb.CreateQuery<_, _>(),
+            edb.CreateQuery<_, _, _>()
+        )
+
+    EntityWorld(edb, archetypes, queries)
 
 test(): () =
-    let edb = EntityDatabase()
-    let archetypedIndex = edb.GetArchetypedIndex<Transform, Camera>()
-    let typedIndex0 = edb.GetTypedIndex<Transform>(archetypedIndex)
-    let typedIndex1 = edb.GetTypedIndex<Camera>(archetypedIndex)
-    let archetypedIndex2 = edb.GetArchetypedIndex<Transform, Camera, PlayerActionSnapshot>()
-    let typedIndex2 = edb.GetTypedIndex<PlayerActionSnapshot>(archetypedIndex2)
+    let world = createWorld()
+    let edb = world.Database
+    let archetypes = world.Archetypes
+    let queries = world.Queries
 
-    let entId = edb.Spawn(archetypedIndex, typedIndex0, typedIndex1, default: Transform, default: Camera)
+    let entId = edb.Create(archetypes.Player, default: Transform, default: Camera)
 
-    edb.ForEach<Transform, Camera>((entId, transform, camera) -> printLine("passed"))
-    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> print("failed"))
+    edb.ForEach(queries.Transform_Camera, (entId, transform, camera) -> printLine("passed"))
+    edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("failed"))
 
-    edb.Add(archetypedIndex, archetypedIndex2, typedIndex2, entId, default: PlayerActionSnapshot)
+    edb.AddComponent(archetypes.Player, archetypes.PlayerWithActionSnapshot, entId, default: PlayerActionSnapshot)
 
-    edb.ForEach<Transform, Camera>((entId, transform, camera) -> printLine("passed"))
-    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> print("passed"))
+    edb.ForEach(queries.Transform_Camera,
+        (entId, transform, camera) ->
+            ()
+    )
+    edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("passed"))
 
-    let stagingEdb = EntityDatabase()
-    let archetypedIndex = stagingEdb.GetArchetypedIndex<Transform, Camera>()
-    let archetypedIndex2 = stagingEdb.GetArchetypedIndex<Transform, Camera, PlayerActionSnapshot>()
+    let stagingWorld = createWorld()
+    let stagingEdb = stagingWorld.Database
     edb.Replicate(stagingEdb)
 
 main(): () =
