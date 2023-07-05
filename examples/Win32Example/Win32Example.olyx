@@ -27,6 +27,7 @@ open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
 open static Game.Core
+open static Game.Database
 open static ClientGame
 
 private alias Array = OlyPrelude.Array
@@ -356,6 +357,14 @@ test(): () =
     edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> print("failed"))
 
     edb.Add(archetypedIndex, archetypedIndex2, typedIndex2, entId, default: PlayerActionSnapshot)
+
+    edb.ForEach<Transform, Camera>((entId, transform, camera) -> printLine("passed"))
+    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> print("passed"))
+
+    let stagingEdb = EntityDatabase()
+    let archetypedIndex = stagingEdb.GetArchetypedIndex<Transform, Camera>()
+    let archetypedIndex2 = stagingEdb.GetArchetypedIndex<Transform, Camera, PlayerActionSnapshot>()
+    edb.Replicate(stagingEdb)
 
 main(): () =
     test()
