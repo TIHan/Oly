@@ -883,6 +883,36 @@ module Array =
             j <- j + 3
         newArr
 
+    Exists<T>(arr: mutable T[], f: T -> bool): bool =
+        let mutable isEqual = false
+
+        let mutable i = 0
+        while (i < arr.Length && !isEqual)
+            isEqual <- f(arr[i])
+            i <- i + 1
+
+        isEqual
+
+    Exists<T>(arr: T[], f: T -> bool): bool =
+        let mutable isEqual = false
+
+        let mutable i = 0
+        while (i < arr.Length && !isEqual)
+            isEqual <- f(arr[i])
+            i <- i + 1
+
+        isEqual
+
+    ForAll<T>(arr: T[], f: T -> bool): bool =
+        let mutable isEqual = true
+
+        let mutable i = 0
+        while (i < arr.Length && isEqual)
+            isEqual <- f(arr[i])
+            i <- i + 1
+
+        isEqual
+
 // DotNet Specific
 
 module DotNet =
@@ -895,22 +925,27 @@ module DotNet =
         System.GC.WaitForPendingFinalizers()
 
 #[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 

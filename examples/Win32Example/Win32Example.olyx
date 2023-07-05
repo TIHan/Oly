@@ -341,7 +341,24 @@ class FrameTimesViewModel =
     Offset: Observable<int32> get = Observable(0)
     MultiThreadingEnabled: Observable<bool> get = Observable(true)
 
+
+test(): () =
+    let edb = EntityDatabase()
+    let archetypedIndex = edb.GetArchetypedIndex<Transform, Camera>()
+    let typedIndex0 = edb.GetTypedIndex<Transform>(archetypedIndex)
+    let typedIndex1 = edb.GetTypedIndex<Camera>(archetypedIndex)
+    let archetypedIndex2 = edb.GetArchetypedIndex<Transform, Camera, PlayerActionSnapshot>()
+    let typedIndex2 = edb.GetTypedIndex<PlayerActionSnapshot>(archetypedIndex2)
+
+    let entId = edb.Spawn(archetypedIndex, typedIndex0, typedIndex1, default: Transform, default: Camera)
+
+    edb.ForEach<Transform, Camera>((entId, transform, camera) -> printLine("passed"))
+    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> print("failed"))
+
+    edb.Add(archetypedIndex, archetypedIndex2, typedIndex2, entId, default: PlayerActionSnapshot)
+
 main(): () =
+    test()
     let world = ServerWorld()
     let stagingWorld = SharedWorld()
     
