@@ -342,91 +342,59 @@ class FrameTimesViewModel =
     Offset: Observable<int32> get = Observable(0)
     MultiThreadingEnabled: Observable<bool> get = Observable(true)
 
-class EntityArchetypes =
-
-    Player: ArchetypeReference<Transform, Camera> get
-    PlayerWithActionSnapshot: ArchetypeReference<Transform, Camera, PlayerActionSnapshot> get
-
-    new(
-        player: ArchetypeReference<Transform, Camera>, 
-        playerWithActionSnapshot: ArchetypeReference<Transform, Camera, PlayerActionSnapshot>
-    ) =
-        {
-            Player = player
-            PlayerWithActionSnapshot = playerWithActionSnapshot
-        }
-
-class EntityQueries =
-
-    Transform_Camera: EntityQuery<Transform, Camera> get
-    Transform_Camera_PlayerActionSnapshot: EntityQuery<Transform, Camera, PlayerActionSnapshot> get
-
-    new(
-        transform_camera: EntityQuery<Transform, Camera>,
-        transform_camera_playerActionSnapshot: EntityQuery<Transform, Camera, PlayerActionSnapshot>
-    ) =
-        {
-            Transform_Camera = transform_camera
-            Transform_Camera_PlayerActionSnapshot = transform_camera_playerActionSnapshot
-        }
-
-class EntityWorld =
-
-    Database: EntityDatabase get
-    Archetypes: EntityArchetypes get
-    Queries: EntityQueries get
-
-    new(database: EntityDatabase, archetypes: EntityArchetypes, queries: EntityQueries) =
-        {
-            Database = database
-            Archetypes = archetypes
-            Queries = queries
-        }
-
-createWorld(): EntityWorld =
-    let edb = EntityDatabase()
-
-    let archetypes =
-        EntityArchetypes(
-            edb.RegisterArchetype<_, _>(), // TODO: Fix language bug, we should be able to use 'edb.RegisterArchetype()' and it should pick the right overload since we know how many type arguments we need.
-            edb.RegisterArchetype<_, _, _>()
-        )
-
-    let queries =
-        EntityQueries(
-            edb.CreateQuery<_, _>(),
-            edb.CreateQuery<_, _, _>()
-        )
-
-    EntityWorld(edb, archetypes, queries)
-
 test(): () =
-    let world = createWorld()
-    let edb = world.Database
-    let archetypes = world.Archetypes
-    let queries = world.Queries
+    let edb = EntityDatabase()
+    let stagingEdb = EntityDatabase()
 
-    let entId = edb.Create(archetypes.Player, default: Transform, default: Camera)
-
-    edb.ForEach(queries.Transform_Camera, (mutable entId, transform, camera) -> printLine(entId.Version.ToString()))
-    edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("failed"))
-
-    edb.AddComponent(archetypes.Player, archetypes.PlayerWithActionSnapshot, entId, default: PlayerActionSnapshot)
-
-    let entIdsToDelete = List()
-    edb.ForEach(queries.Transform_Camera,
-        (entId, transform, camera) ->
-            entIdsToDelete.Add(entId)
+    edb.EntityCreated.Add(
+        entId ->
+            let result = edb.HasComponent<Camera>(entId)
+            let result = edb.HasComponent<Transform>(entId)
+            let result = edb.HasComponent<Camera>(entId)
+            let result = edb.HasComponent<Transform>(entId)
     )
-    ForEach(entIdsToDelete, entId -> edb.Delete(entId))
-    edb.ForEach(queries.Transform_Camera_PlayerActionSnapshot, (entId, transform, camera, playerActionSnapshot) -> printLine("passed"))
 
-    let stagingWorld = createWorld()
-    let stagingEdb = stagingWorld.Database
+    let s = Stopwatch.StartNew()
+    let mutable i = 0
+    while (i < 65000)
+        let entId = edb.Create(default: Transform, default: Camera)
+        i <- i + 1
+    s.Stop()
+    printLine(s.Elapsed.TotalMilliseconds)
+
+    let entId = edb.Create(default: Transform, default: Camera)
+    let entId = edb.Create(default: Transform, default: Camera)
+
+    let s = Stopwatch.StartNew()
+    edb.ForEach<Transform, Camera>((mutable entId, transform, camera) -> ())
+    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> printLine("failed"))
+
+    let playerActionSnapshot = edb.AddComponent<PlayerActionSnapshot>(entId)
+
+    // let entIdsToDelete = List()
+    // edb.ForEach<Transform, Camera>(
+    //     (entId, transform, camera) ->
+    //         entIdsToDelete.Add(entId)
+    // )
+   // ForEach(entIdsToDelete, entId -> edb.Delete(entId))
+    edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> ())
+
     edb.Replicate(stagingEdb)
 
+    s.Stop()
+    printLine(s.Elapsed.TotalMilliseconds)
+    let s = Stopwatch.StartNew()
+    edb.Replicate(stagingEdb)
+    s.Stop()
+    printLine(s.Elapsed.TotalMilliseconds)
+
 main(): () =
-    test()
+    let mutable i = 0
+    while (i < 100)
+        test()
+        DotNet.GCCollect()
+        i <- i + 1
+
     let world = ServerWorld()
     let stagingWorld = SharedWorld()
     
@@ -652,7 +620,7 @@ main(): () =
             while (!this.r.Window.IsClosed && this.frameTimesVM.MultiThreadingEnabled.Value) 
                 let _ = this.sv.WaitOne()
                 let _ = this.sv.Reset()
-                this.tick(float32(GameLoop.FixedUpdateDeltaTimeMS))
+                this.tick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
                 let _ = this.cl.Set()
             let _ = this.cl.Set()
 
@@ -684,6 +652,15 @@ main(): () =
                 let _ = cl.Reset()
                 stagingWorld.CopyTo(clientWorld)
                 let _ = sv.Set()
+
+                // prediction
+                clientWorld.ForEachPlayer(
+                    (player, transform, cameraLerp, camera) ->
+                        printLine("------")
+                        printLine(cameraLerp.Transform.Position)
+                        printLine(camera.Transform.Position)
+                        playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &camera, currentCameraRotation)
+                )
             else
                 (
                     if (task !== null)
@@ -694,7 +671,7 @@ main(): () =
                         task.Join()
                         task <- null
                     else
-                        serverTick(float32(GameLoop.FixedUpdateDeltaTimeMS))
+                        serverTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
                         stagingWorld.CopyTo(clientWorld)
                 )
 
@@ -702,6 +679,7 @@ main(): () =
 
             r.Window.IsClosed,
         (mutable frameTime, alpha) ->
+            
             let size = r.Window.Size
             if (!r.Window.IsClosed && !r.Window.IsHidden && size.X != 0 && size.Y != 0)
                 renderTime <- renderTime + frameTime.Ticks

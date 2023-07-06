@@ -14,7 +14,7 @@ ConvertTicksToTickRate(ticks: int64): int64 =
     int64((float64(1000) / TimeSpan.FromTicks(ticks).TotalMilliseconds))
 
 FixedUpdateDeltaTime: int64 get = ConvertFramesPerSecondToTicks(30)
-FixedUpdateDeltaTimeMS: float64 get = ConvertTicksToSeconds(FixedUpdateDeltaTime)
+FixedUpdateDeltaTimeInSeconds: float64 get = ConvertTicksToSeconds(FixedUpdateDeltaTime)
 
 #[inline] 
 Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: () -> bool, #[inline] render: (frameTime: TimeSpan, float64) -> ()): () =
