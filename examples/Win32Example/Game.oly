@@ -129,6 +129,56 @@ struct PlayerActionSnapshot =
 
 struct BoxTag
 struct PlayerTag
+
+// Component for regsitration
+
+#[open]
+extension CameraComponent =
+    inherits Camera
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1
+    static overrides GetSize(): int32 = sizeof<Camera>
+
+#[open]
+extension TransformComponent =
+    inherits Transform
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 1
+    static overrides GetSize(): int32 = sizeof<Transform>
+
+#[open]
+extension MaterialComponent =
+    inherits Material
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 2
+    static overrides GetSize(): int32 = sizeof<Material>
+
+#[open]
+extension PlayerActionSnapshotComponent =
+    inherits PlayerActionSnapshot
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 3
+    static overrides GetSize(): int32 = sizeof<Material>
+
+#[open]
+extension PlayerTagComponent =
+    inherits PlayerTag
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 4
+    static overrides GetSize(): int32 = sizeof<PlayerTag>
+
+#[open]
+extension BoxTagComponent =
+    inherits BoxTag
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 5
+    static overrides GetSize(): int32 = sizeof<BoxTag>
     
 // ----------------------------------------------------------------------
 
@@ -168,6 +218,13 @@ abstract default class SharedWorld =
 
     protected field Physics: Physics = Physics.Init()
 
+    abstract default Initialize(): () =
+        this.Database.Register<Camera>()
+        this.Database.Register<Transform>()
+        this.Database.Register<Material>()
+        this.Database.Register<PlayerActionSnapshot>()
+        this.Database.Register<PlayerTag>()
+        this.Database.Register<BoxTag>()
 
 class ServerWorld =
     inherits SharedWorld

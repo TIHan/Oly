@@ -16,6 +16,17 @@ private alias Array = OlyPrelude.Array
 struct CameraLerp =
     public mutable field Camera: Camera = default
 
+// Components
+
+#[open]
+extension CameraLerpComponent =
+    inherits CameraLerp
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 47
+
+    static overrides GetSize(): int32 = sizeof<CameraLerp>
+
 class ClientWorld =
     inherits SharedWorld
     
@@ -29,10 +40,10 @@ class ClientWorld =
             BoxCount = 0
         }
 
-    Initialize(): () =
-        let db = this.Database
-
-        db.RegisterDependency<Camera, CameraLerp>()
+    overrides Initialize(): () =
+        base.Initialize()
+        this.Database.Register<CameraLerp>()
+        this.Database.RegisterDependency<Camera, CameraLerp>()
     
     Update(alpha: float32): () =
         ()

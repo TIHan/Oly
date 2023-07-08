@@ -15480,3 +15480,62 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
+
+[<Fact>]
+let ``Passing witnesses to ctor type arguments by only by function type arguments``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+    LastTypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get
+    TypedIndex0: int32 get
+    LastTypedIndex: int32 get() = this.TypedIndex0
+
+    new(archetypedIndex: int32, typedIndex0: int32) =
+        {
+            ArchetypedIndex = archetypedIndex
+            TypedIndex0 = typedIndex0
+        }
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+    let r = ArchetypeReference<T>(1, 0)
+    r.ArchetypedIndex
+
+main(): () =
+    let value1 = GetIndex<S1>()
+    let value2 = GetIndex<S2>()
+    print(value1)
+    print(value2)
+    """
+    |> Oly
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "11"
+    |> ignore

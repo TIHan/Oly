@@ -1766,10 +1766,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | _ ->
                 name
         else
-            if flags.SignatureUsesNewType then
-                name + "__oly_unique_" + (newUniqueId().ToString())
-            else if flags.AreGenericsErased then
-                name + "__oly_erased_" + tyPars.Length.ToString()
+            if flags.SignatureUsesNewType || flags.AreGenericsErased then
+                name + newUniquePrivateTypeName()
             else
                 match originalOverridesOpt with
                 | Some originalOverrides when originalOverrides.specialKind = ClrMethodSpecialKind.External ->
