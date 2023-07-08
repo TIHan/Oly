@@ -6,6 +6,7 @@
 #reference "../Evergreen/src/Graphics/Evergreen.Graphics.olyx"
 #reference "../Evergreen/src/Window/Evergreen.Window.olyx"
 #reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
+#reference "../Evergreen/src/Collections/Evergreen.Collections.olyx"
 
 open System
 open System.IO
@@ -17,6 +18,7 @@ open System.Threading.Tasks
 
 open Evergreen
 open Evergreen.Window
+open Evergreen.Collections
 open Evergreen.Graphics.Backend.Vulkan
 open Evergreen.Graphics.Rendering
 open Evergreen.Graphics.Rendering.UI
@@ -27,7 +29,6 @@ open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
 open static Game.Core
-open static Game.Database
 open static ClientGame
 
 private alias Array = OlyPrelude.Array

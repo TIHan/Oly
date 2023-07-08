@@ -1,0 +1,6 @@
+#target "dotnet: net7"
+#library
+
+#load "*.oly"
+
+#reference "../../../core/Prelude.olyx"

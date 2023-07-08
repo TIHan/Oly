@@ -4,10 +4,10 @@ open System
 open System.Text
 open System.Collections.Generic
 open System.Collections.Concurrent
+open Evergreen.Collections
 open Evergreen.Graphics
 open Evergreen.Physics
 open System.Runtime.InteropServices
-open static Game.Database
 
 private alias Array = OlyPrelude.Array
 
@@ -96,12 +96,6 @@ struct Transform =
         let mutable scaleMatrix = mat4.CreateScale(scale)
         scaleMatrix.Translation <- position
         Transform(rotationMatrix * scaleMatrix)
-
-struct EntityId =
-    public mutable field Index: int32 = 0
-    public mutable field Version: uint32 = 0
-
-    IsNil: bool get() = this.Version == 0
 
 alias Color = vec4
 
