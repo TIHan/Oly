@@ -1698,6 +1698,18 @@ type InterpreterRuntimeEmitter() =
                 if flags.IsEntryPoint then
                     entryPoint <- ValueSome func
 
+                let alreadyExists =
+                    funcs
+                    |> Seq.exists (
+                        fun func ->
+                            match func.SignatureKey with
+                            | Some(sigKey2) -> sigKey.Equals(sigKey2)
+                            | _ -> false
+                    )
+
+                if alreadyExists then
+                    failwith $"Function '{name}' already exists on type."
+
                 funcs.Add(func)
                 func
             | _ ->
