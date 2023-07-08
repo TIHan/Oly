@@ -9,79 +9,101 @@ open Evergreen.Physics
 open System.Runtime.InteropServices
 open Evergreen.Graphics.Rendering
 open static Game.Core
+open static Game.Database
+
+private alias Array = OlyPrelude.Array
+
+struct CameraLerp =
+    public mutable field Camera: Camera = default
 
 class ClientWorld =
     inherits SharedWorld
-
-    private Client_Box_RenderId: mutable int32[] get
-    private Client_Box_TransformLerp: mutable Transform[] get
-
-    private Client_Player_CameraLerp: mutable Camera[] get
-
+    
     Render_Box: GpuMutableArray<mat4> get
 
-    BoxCount: int32 get() = this.Shared_Box.Count
+    BoxCount: int32 get, set
 
-    new() =
+    new(renderBox: GpuMutableArray<mat4>) =
         {
-            Client_Box_RenderId = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
-            Client_Box_TransformLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Box.Capacity)
-            Client_Player_CameraLerp = OlyPrelude.Array.ZeroCreate(this.Shared_Player.Capacity)
-            Render_Box = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, this.Shared_Box.Capacity, i -> default)
+            Render_Box = renderBox
+            BoxCount = 0
         }
+
+    Initialize(): () =
+        let db = this.Database
+
+        db.RegisterDependency<Camera, CameraLerp>()
     
     Update(alpha: float32): () =
-        let boxCount = this.BoxCount
-        let mutable transforms = Span(this.Shared_Box.Buffer0, 0, boxCount)
-        let mutable transformLerps = Span(this.Client_Box_TransformLerp, 0, boxCount)
+        ()
+        // let boxCount = this.BoxCount
+        // let mutable transforms = Span(this.Shared_Box.Buffer0, 0, boxCount)
+        // let mutable transformLerps = Span(this.Client_Box_TransformLerp, 0, boxCount)
 
-        let mutable transformRenders = this.Render_Box.AsSpan()
+        // let mutable transformRenders = this.Render_Box.AsSpan()
 
-        let mutable i = 0
-        while (i < boxCount)
-            (transformRenders[i]) <- mat4.Lerp(transformLerps[i].Matrix, transforms[i].Matrix, alpha)
-            i <- i + 1
+        // let mutable i = 0
+        // while (i < boxCount)
+        //     (transformRenders[i]) <- mat4.Lerp(transformLerps[i].Matrix, transforms[i].Matrix, alpha)
+        //     i <- i + 1
 
-        this.Render_Box.SyncOffset <- 0
-        this.Render_Box.SyncLength <- boxCount
+        // this.Render_Box.SyncOffset <- 0
+        // this.Render_Box.SyncLength <- boxCount
 
     ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>, material: Material, renderId: int32) -> ()): () =
-        let count = this.Shared_Box.Count
-        let entIds = this.Shared_Box.EntityIds
+        ()
+        // let count = this.Shared_Box.Count
+        // let entIds = this.Shared_Box.EntityIds
 
-        let transforms = this.Shared_Box.Buffer0
-        let materials = this.Shared_Box.Buffer1
-        let renderIds = this.Client_Box_RenderId
-        let transformLerps = this.Client_Box_TransformLerp
+        // let transforms = this.Shared_Box.Buffer0
+        // let materials = this.Shared_Box.Buffer1
+        // let renderIds = this.Client_Box_RenderId
+        // let transformLerps = this.Client_Box_TransformLerp
 
-        let mutable i = 0
-        while (i < count)
-            f(Box(entIds[i]), &transformLerps[i], &transforms[i], materials[i], renderIds[i])
-            i <- i + 1
+        // let mutable i = 0
+        // while (i < count)
+        //     f(Box(entIds[i]), &transformLerps[i], &transforms[i], materials[i], renderIds[i])
+        //     i <- i + 1
 
     ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
-        let count = this.Shared_Player.Count
-        let entIds = this.Shared_Player.EntityIds
+        this.Database.ForEach<PlayerTag, Transform, CameraLerp, Camera>(
+            (entId, tag, transform, cameraLerp, camera) ->
+                f(Player(entId), &transform, &cameraLerp.Camera, &camera)
+        )
+        ()
+        // let count = this.Shared_Player.Count
+        // let entIds = this.Shared_Player.EntityIds
             
-        let transforms = this.Shared_Player.Buffer0
-        let cameras = this.Shared_Player.Buffer1
-        let cameraLerps = this.Client_Player_CameraLerp
+        // let transforms = this.Shared_Player.Buffer0
+        // let cameras = this.Shared_Player.Buffer1
+        // let cameraLerps = this.Client_Player_CameraLerp
 
-        let mutable i = 0
-        while (i < count)
-            f(Player(entIds[i]), &transforms[i], &cameraLerps[i], &cameras[i])
-            i <- i + 1
+        // let mutable i = 0
+        // while (i < count)
+        //     f(Player(entIds[i]), &transforms[i], &cameraLerps[i], &cameras[i])
+        //     i <- i + 1
 
-    protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
-        this.Client_Box_RenderId[index] <- material.Id
-        this.Client_Box_TransformLerp[index] <- transform
+    protected overrides OnEntitySpawned(entId: EntityId): () =
+        if (this.Database.HasComponent<Camera>(entId))
+            let camera = &this.Database.GetComponent<Camera>(entId)
+            let cameraLerp = &this.Database.GetComponent<CameraLerp>(entId)
+            cameraLerp.Camera <- camera
+            printLine(camera.Transform.Matrix)
+            printLine(cameraLerp.Camera.Transform.Matrix)
 
-    protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
-        this.Client_Box_RenderId[index] <- this.Client_Box_RenderId[swapIndex]
-        this.Client_Box_TransformLerp[index] <- this.Client_Box_TransformLerp[swapIndex]
+    protected overrides OnEntityDestroying(entId: EntityId): () =
+        ()
 
-    protected overrides OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () =
-        this.Client_Player_CameraLerp[index] <- camera
+    // protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
+    //     this.Client_Box_RenderId[index] <- material.Id
+    //     this.Client_Box_TransformLerp[index] <- transform
 
-    protected overrides OnPlayerRemoving(index: int32, swapIndex: int32): () =
-        this.Client_Player_CameraLerp[index] <- this.Client_Player_CameraLerp[swapIndex]
+    // protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
+    //     this.Client_Box_RenderId[index] <- this.Client_Box_RenderId[swapIndex]
+    //     this.Client_Box_TransformLerp[index] <- this.Client_Box_TransformLerp[swapIndex]
+
+    // protected overrides OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () =
+    //     this.Client_Player_CameraLerp[index] <- camera
+
+    // protected overrides OnPlayerRemoving(index: int32, swapIndex: int32): () =
+    //     this.Client_Player_CameraLerp[index] <- this.Client_Player_CameraLerp[swapIndex]

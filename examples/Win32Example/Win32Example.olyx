@@ -395,14 +395,8 @@ main(): () =
         DotNet.GCCollect()
         i <- i + 1
 
-    let world = ServerWorld()
-    let stagingWorld = SharedWorld()
-    
-
     let options = RenderingOptions()
     let r = Rendering.Create(options)
-
-    let clientWorld = ClientWorld()
 
     let deviceName = r.Gpu.DeviceName
 
@@ -467,6 +461,13 @@ main(): () =
     gpuProgram.VertexCode <- vertexShaderByteCode2
     gpuProgram.FragmentCode <- fragmentShaderByteCode2
 
+    let renderBox = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, EntityDatabase.MaxNumberOfEntities, i -> default: mat4)
+
+    let world = ServerWorld()
+    let stagingWorld = SharedWorld()
+    let clientWorld = ClientWorld(renderBox)
+    clientWorld.Initialize()
+
     let gpuProgramReference3 = GpuProgramReference(gpuProgram)
     gpuProgramReference3.AddGlobalInput(globals)
     gpuProgramReference3.AddGlobalInput(image)
@@ -487,7 +488,7 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    world.SpawnPlayer(vec3.Zero)
+    world.SpawnPlayer(Vector3(0, 0, 5))
 
     let mutable is_w_pressed = false
     let mutable is_s_pressed = false
@@ -523,13 +524,6 @@ main(): () =
         camera.Transform.Position <- camera.Transform.Position + acc
         camera.Transform <- Transform.Create(camera.Transform.Position, rotation, camera.Transform.Scale)
 
-    let clientTick(deltaTime: float32, alpha: float32) =
-        clientWorld.ForEachPlayer(
-            (player, transform, cameraLerp, camera) ->
-                playerTick(deltaTime, &camera, currentCameraRotation)
-                cameraLerp <- camera
-        )
-
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
     let serverTick(deltaTime: float32) =
@@ -543,10 +537,6 @@ main(): () =
         spawnTime <- spawnTime + deltaTime
 
         if (spawnTime >= 0.5)
-            // world.ForEachBox(
-            //     (box, transform, material, physId) ->
-            //         world.DestroyBox(box)
-            // )
             spawnTime <- 0
             let mutable i = 0
             while (i < 4096)
@@ -556,7 +546,7 @@ main(): () =
 
         world.ForEachBox(
             (box, transform, material, objId) ->
-                if (transform.Position.Z <= -100000)
+                if (transform.Position.Z <= -100)
                     world.DestroyBox(box)
         )
 
@@ -711,7 +701,7 @@ main(): () =
                 gpuCommands.Add(GpuCommand.EndFrame())
 
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, quad.Indices.Length, 1))   
-                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, clientWorld.BoxCount))
+                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, 4096))
                 gpuCommands.Add(GpuCommand.DrawUI(gpuProgramUI, Cast([uiNode])))
 
                 r.Gpu.Execute(gpuCommands)     

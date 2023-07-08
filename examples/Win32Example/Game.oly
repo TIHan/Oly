@@ -7,6 +7,7 @@ open System.Collections.Concurrent
 open Evergreen.Graphics
 open Evergreen.Physics
 open System.Runtime.InteropServices
+open static Game.Database
 
 private alias Array = OlyPrelude.Array
 
@@ -102,262 +103,6 @@ struct EntityId =
 
     IsNil: bool get() = this.Version == 0
 
-interface IArchetype =
-
-    Count: int32 get
-    Capacity: int32 get
-    Lookup: mutable int32[] get
-    EntityIds: mutable EntityId[] get
-
-class Archetype<T0> where T0: unmanaged =
-    implements IArchetype
-
-    Count: int32 get, set
-    Capacity: int32 get
-    Lookup: mutable int32[] get
-    EntityIds: mutable EntityId[] get
-    Buffer0: mutable T0[] get
-
-    new(size: int32) =
-        {
-            Count = 0
-            Capacity = size
-            Lookup  = Array.ZeroCreate(size)
-            EntityIds = Array.ZeroCreate(size)
-            Buffer0 = Array.ZeroCreate(size)
-        }
-
-    Add(entId: EntityId, item0: T0): () =
-        let index = this.Count
-        this.Count <- this.Count + 1
-
-        this.Lookup[entId.Index] <- index
-        this.Set(index, entId, item0)
-
-    Set(index: int32, entId: EntityId, item0: T0): () =
-        this.EntityIds[index] <- entId
-        this.Buffer0[index] <- item0
-
-    Remove(index: int32): () =
-        let lastIndex = this.Count - 1
-        let lastEntId = this.EntityIds[lastIndex]
-        
-        this.EntityIds[lastIndex] <- EntityId()
-        this.Lookup[lastEntId.Index] <- index
-
-        this.Set(index, lastEntId, this.Buffer0[lastIndex])
-        this.Count <- this.Count - 1
-        if (this.Count < 0)
-            fail("'Count' is less than zero.")
-
-    Remove(entId: EntityId): () =
-        this.Remove(this.Lookup[entId.Index])
-    
-    Get0(index: int32): T0 =
-        this.Buffer0[index]
-
-    Get0(entId: EntityId): T0 =
-        this.Get0(this.Lookup[entId.Index])
-
-    CopyTo(archetype: Archetype<T0>): () =
-        archetype.Count <- this.Count
-        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
-        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
-        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
-
-class Archetype<T0, T1> where T0: unmanaged 
-                        where T1: unmanaged =
-    implements IArchetype
-
-    Count: int32 get, set
-    Capacity: int32 get
-    Lookup: mutable int32[] get
-    EntityIds: mutable EntityId[] get
-    Buffer0: mutable T0[] get
-    Buffer1: mutable T1[] get
-
-    new(size: int32) =
-        {
-            Count = 0
-            Capacity = size
-            Lookup  = Array.ZeroCreate(size)
-            EntityIds = Array.ZeroCreate(size)
-            Buffer0 = Array.ZeroCreate(size)
-            Buffer1 = Array.ZeroCreate(size)
-        }
-
-    private Set(index: int32, entId: EntityId, item0: T0, item1: T1): () =
-        this.EntityIds[index] <- entId
-        this.Buffer0[index] <- item0
-        this.Buffer1[index] <- item1
-
-    private SwapClear(index: int32): () =
-        let lastIndex = this.Count - 1
-        let lastEntId = this.EntityIds[lastIndex]
-        
-        this.EntityIds[lastIndex] <- EntityId()
-        this.Lookup[lastEntId.Index] <- index
-
-        this.Set(index, lastEntId, this.Buffer0[lastIndex], this.Buffer1[lastIndex])
-    
-    NextIndex(): int32 =
-        this.Count
-
-    Add(entId: EntityId, item0: T0, item1: T1): () =
-        let index = this.NextIndex()
-
-        this.Count <- this.Count + 1
-        this.Lookup[entId.Index] <- index
-        this.Set(index, entId, item0, item1)
-
-    Remove(entId: EntityId): () =
-        let index = this.Lookup[entId.Index]
-        this.SwapClear(index)
-        this.Count <- this.Count - 1
-        if (this.Count < 0)
-            fail("'Count' is less than zero.")
-
-    CopyTo(archetype: Archetype<T0, T1>): () =
-        archetype.Count <- this.Count
-        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
-        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
-        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
-        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
-
-
-class Archetype<T0, T1, T2> where T0: unmanaged 
-                            where T1: unmanaged 
-                            where T2: unmanaged =
-    implements IArchetype
-
-    Count: int32 get, set
-    Capacity: int32 get
-    Lookup: mutable int32[] get
-    EntityIds: mutable EntityId[] get
-    Buffer0: mutable T0[] get
-    Buffer1: mutable T1[] get
-    Buffer2: mutable T2[] get
-
-    new(size: int32) =
-        {
-            Count = 0
-            Capacity = size
-            Lookup  = Array.ZeroCreate(size)
-            EntityIds = Array.ZeroCreate(size)
-            Buffer0 = Array.ZeroCreate(size)
-            Buffer1 = Array.ZeroCreate(size)
-            Buffer2 = Array.ZeroCreate(size)
-        }
-
-    Add(entId: EntityId, item0: T0, item1: T1, item2: T2): () =
-        let index = this.Count
-        this.Count <- this.Count + 1
-
-        this.Lookup[entId.Index] <- index
-        this.EntityIds[index] <- entId
-        this.Buffer0[index] <- item0
-        this.Buffer1[index] <- item1
-        this.Buffer2[index] <- item2
-
-    Remove(entId: EntityId): () =
-        let index = this.Lookup[entId.Index]
-        let lastIndex = this.Count - 1
-        let lastEntId = this.EntityIds[lastIndex]
-        
-        this.EntityIds[lastIndex] <- EntityId()
-        this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[index] <- lastEntId
-        this.Buffer0[index] <- this.Buffer0[lastIndex]
-        this.Buffer1[index] <- this.Buffer1[lastIndex]
-        this.Buffer2[index] <- this.Buffer2[lastIndex]
-
-        this.Count <- this.Count - 1
-        if (this.Count < 0)
-            fail("'Count' is less than zero.")
-
-    NextIndex(): int32 =
-        this.Count
-
-    Get0(entId: EntityId): T0 =
-        this.Buffer0[this.Lookup[entId.Index]]
-
-    Get1(entId: EntityId): T1 =
-        this.Buffer1[this.Lookup[entId.Index]]
-
-    Get2(entId: EntityId): T2 =
-        this.Buffer2[this.Lookup[entId.Index]]
-
-    CopyTo(archetype: Archetype<T0, T1, T2>): () =
-        archetype.Count <- this.Count
-        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
-        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
-        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
-        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
-        Span(this.Buffer2, 0, this.Count).CopyTo(Span(archetype.Buffer2))
-
-class Archetype<T0, T1, T2, T3> where T0: unmanaged 
-                                where T1: unmanaged 
-                                where T2: unmanaged 
-                                where T3: unmanaged =
-    implements IArchetype
-
-    Count: int32 get, set
-    Capacity: int32 get
-    Lookup: mutable int32[] get
-    EntityIds: mutable EntityId[] get
-    Buffer0: mutable T0[] get
-    Buffer1: mutable T1[] get
-    Buffer2: mutable T2[] get
-    Buffer3: mutable T3[] get
-
-    new(size: int32) =
-        {
-            Count = 0
-            Capacity = size
-            Lookup  = Array.ZeroCreate(size)
-            EntityIds = Array.ZeroCreate(size)
-            Buffer0 = Array.ZeroCreate(size)
-            Buffer1 = Array.ZeroCreate(size)
-            Buffer2 = Array.ZeroCreate(size)
-            Buffer3 = Array.ZeroCreate(size)
-        }
-
-    Add(entId: EntityId, item0: T0, item1: T1, item2: T2, item3: T3): () =
-        let index = this.Count
-        this.Count <- this.Count + 1
-
-        this.Lookup[entId.Index] <- index
-        this.EntityIds[index] <- entId
-        this.Buffer0[index] <- item0
-        this.Buffer1[index] <- item1
-        this.Buffer2[index] <- item2
-        this.Buffer3[index] <- item3
-
-    Remove(entId: EntityId): () =
-        let index = this.Lookup[entId.Index]
-        let lastIndex = this.Count - 1
-        let lastEntId = this.EntityIds[lastIndex]
-        
-        this.Lookup[lastEntId.Index] <- index
-        this.EntityIds[index] <- lastEntId
-        this.Buffer0[index] <- this.Buffer0[lastIndex]
-        this.Buffer1[index] <- this.Buffer1[lastIndex]
-        this.Buffer2[index] <- this.Buffer2[lastIndex]
-        this.Buffer3[index] <- this.Buffer3[lastIndex]
-
-        this.Count <- this.Count - 1
-        if (this.Count < 0)
-            fail("'Count' is less than zero.")
-
-    CopyTo(archetype: Archetype<T0, T1, T2, T3>): () =
-        archetype.Count <- this.Count
-        Span(this.Lookup).CopyTo(Span(archetype.Lookup))
-        Span(this.EntityIds, 0, this.Count).CopyTo(Span(archetype.EntityIds))
-        Span(this.Buffer0, 0, this.Count).CopyTo(Span(archetype.Buffer0))
-        Span(this.Buffer1, 0, this.Count).CopyTo(Span(archetype.Buffer1))
-        Span(this.Buffer2, 0, this.Count).CopyTo(Span(archetype.Buffer2))
-        Span(this.Buffer3, 0, this.Count).CopyTo(Span(archetype.Buffer3))
-
 alias Color = vec4
 
 struct Material =
@@ -384,229 +129,107 @@ struct PlayerActionSnapshot =
 
     public mutable field Actions: PlayerActions = default
     public mutable field Rotation: quat         = quat.Identity
+
+
+// Tags
+
+struct BoxTag
+struct PlayerTag
     
 // ----------------------------------------------------------------------
 
 abstract class World =
 
-    public static field MaxNumberOfEntities: int32 = 65536
+    new() =
+        let db = EntityDatabase()
 
-    mutable field nextIndex: int32 = 0
-    mutable field indexQueue: Queue<int32> = Queue()
-    mutable field entityCount: int32 = 0
-    field entityVersions: mutable uint32[] = Array.InitializeMutable(MaxNumberOfEntities, i -> 0: uint32)
+        db.EntityCreated.Add(
+            entId -> this.OnEntitySpawned(entId)
+        )
 
-    protected NewEntityId(): EntityId =
-        let index =
-            if (this.indexQueue.Count == 0)
-                let index = this.nextIndex
-                this.nextIndex <- this.nextIndex + 1
-                index
-            else
-                this.indexQueue.Dequeue()
+        db.EntityDeleting.Add(
+            entId -> this.OnEntityDestroying(entId)
+        )
 
-        let version = this.entityVersions[index] + 1
-        this.entityVersions[index] <- version
-        this.entityCount <- this.entityCount + 1
+        {
+            Database = db
+        }
 
-        let mutable entId = EntityId()
-        entId.Index <- index
-        entId.Version <- version
-        entId
-
-    protected Check(entId: EntityId): () =
-        if (!this.IsValid(entId))
-            fail("Invalid entity.")
-
-    protected DeleteEntityId(entId: EntityId): () =
-        this.Check(entId)
-
-        this.entityVersions[entId.Index] <- this.entityVersions[entId.Index] + 1
-        this.indexQueue.Enqueue(entId.Index)
-        this.entityCount <- this.entityCount - 1
+    protected Database: EntityDatabase get
 
     IsValid(entId: EntityId): bool =
-        let version = this.entityVersions[entId.Index]
-        version != 0 && version == entId.Version
+        this.Database.IsValid(entId)
 
-    CanSpawnEntity: bool get() = this.entityCount != MaxNumberOfEntities
+    CanSpawnEntity: bool get() = this.Database.CanSpawnEntity
 
-    protected CopyTo(world: World): () =
-        world.indexQueue.Clear()
-        world.entityCount <- this.entityCount
-        world.nextIndex <- this.nextIndex
-        Span(this.entityVersions).CopyTo(Span(world.entityVersions))
+    CopyTo(world: World): () =
+        this.Database.Replicate(world.Database) 
 
-    
+    protected abstract default OnEntitySpawned(entId: EntityId): () = ()
+
+    protected abstract default OnEntityDestroying(entId: EntityId): () = ()
 
 abstract default class SharedWorld =
     inherits World
 
-    field Physics: Physics = Physics.Init()
-    
-    protected Shared_Player:    Archetype<Transform, Camera, PlayerActionSnapshot> get = Archetype(World.MaxNumberOfEntities)
-    protected Shared_Box:       Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
-    protected Shared_StaticBox: Archetype<Transform, Material> get = Archetype(World.MaxNumberOfEntities)
+    protected field Physics: Physics = Physics.Init()
 
-    CopyTo(world: SharedWorld): () =
-        let maxCount = Math.Max(this.Shared_Box.Count, world.Shared_Box.Count)
-
-        // Shared_Player -------------------------------------------------------------------------
-        let lookup = world.Shared_Box.Lookup
-        let entIds = world.Shared_Player.EntityIds
-        let buffer0 = world.Shared_Player.Buffer0
-        let buffer1 = world.Shared_Player.Buffer1
-
-        let entIdsToCopy = this.Shared_Player.EntityIds
-        let buffer0ToCopy = this.Shared_Player.Buffer0
-        let buffer1ToCopy = this.Shared_Player.Buffer1
-
-        let mutable i = 0
-        while (i < maxCount)
-            let entId = entIds[i]
-            let entIdToCopy = entIdsToCopy[i]
-
-            if (entId.Index != entIdToCopy.Index || entId.Version != entIdToCopy.Version)
-                if (!entId.IsNil && !this.IsValid(entId))
-                    if (world.IsValid(entIdToCopy))
-                        world.OnPlayerRemoving(i, lookup[entIdToCopy.Index])
-                    else
-                        world.OnPlayerRemoving(i, i)
-
-                if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
-                    world.OnPlayerAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
-                
-            i <- i + 1
-        // ------------------------------------------------------------------------------------------
-
-        // Shared_Box -------------------------------------------------------------------------
-        let lookup = world.Shared_Box.Lookup
-        let entIds = world.Shared_Box.EntityIds
-        let buffer0 = world.Shared_Box.Buffer0
-        let buffer1 = world.Shared_Box.Buffer1
-
-        let entIdsToCopy = this.Shared_Box.EntityIds
-        let buffer0ToCopy = this.Shared_Box.Buffer0
-        let buffer1ToCopy = this.Shared_Box.Buffer1
-
-        let mutable i = 0
-        while (i < maxCount)
-            let entId = entIds[i]
-            let entIdToCopy = entIdsToCopy[i]
-
-            if (entId.Index != entIdToCopy.Index || entId.Version != entIdToCopy.Version)
-                if (!entId.IsNil && !this.IsValid(entId))
-                    if (world.IsValid(entIdToCopy))
-                        world.OnBoxRemoving(i, lookup[entIdToCopy.Index])
-                    else
-                        world.OnBoxRemoving(i, i)
-
-                if (!entIdToCopy.IsNil && !world.IsValid(entIdToCopy))
-                    world.OnBoxAdding(i, entIdToCopy, buffer0ToCopy[i], buffer1ToCopy[i])
-                
-            i <- i + 1
-        // ------------------------------------------------------------------------------------------
-
-        this.Shared_Player.CopyTo(world.Shared_Player)
-        this.Shared_Box.CopyTo(world.Shared_Box)
-        this.Shared_StaticBox.CopyTo(world.Shared_StaticBox)
-        this.CopyTo(world: World)
-
-    protected abstract default OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () = ()
-
-    protected abstract default OnBoxRemoving(index: int32, swapIndex: int32): () = ()
-
-    protected abstract default OnPlayerAdding(index: int32, entId: EntityId, transform: Transform, camera: Camera): () = ()
-
-    protected abstract default OnPlayerRemoving(index: int32, swapIndex: int32): () = ()
 
 class ServerWorld =
     inherits SharedWorld
 
-    field Physics: Physics
-    field DestroyPlayerQueue: ConcurrentQueue<Player>
-    field DestroyBoxQueue: ConcurrentQueue<Box>
+    field DestroyEntityQueue: ConcurrentQueue<EntityId>
 
     private Server_Box: mutable DynamicObjectId[] get
-    private Server_PlayerActionSnapshot: mutable PlayerActionSnapshot[] get
 
     new() =
+        let boxes = Array.ZeroCreate(EntityDatabase.MaxNumberOfEntities)
+
         {
-            Physics = Physics.Init()
-            DestroyBoxQueue = ConcurrentQueue()
-            DestroyPlayerQueue = ConcurrentQueue()
-            Server_Box = Array.ZeroCreate(this.Shared_Box.Capacity)
-            Server_PlayerActionSnapshot = Array.ZeroCreate(this.Shared_Player.Capacity)
+            DestroyEntityQueue = ConcurrentQueue()
+            Server_Box = boxes
         }
 
     private Flush(): () =
-        let mutable box = default
-        while (this.DestroyBoxQueue.TryDequeue(&box))
-            let entId = box.Value
-            this.Check(entId)
-
-            let index = this.Shared_Box.Lookup[entId.Index]
-            let lastIndex = this.Shared_Box.Count - 1
-            this.OnBoxRemoving(index, lastIndex)
-            this.Shared_Box.Remove(entId)
-            this.DeleteEntityId(entId)
-
-        let mutable player = default
-        while (this.DestroyPlayerQueue.TryDequeue(&player))
-            let entId = player.Value
-            this.Check(entId)
-
-            let index = this.Shared_Player.Lookup[entId.Index]
-            let lastIndex = this.Shared_Player.Count - 1
-            this.OnPlayerRemoving(index, lastIndex)
-            this.Shared_Player.Remove(entId)
-            this.DeleteEntityId(entId)
+        let mutable entId = default
+        while (this.DestroyEntityQueue.TryDequeue(&entId))
+            this.Database.Delete(entId)
 
     Update(Δ: float32): () =
         this.Flush()
 
         this.Physics.Update(Δ)
 
-        static let updatePhysicsBoxes(physics: Physics, physicsBoxCount: int32, physicsBoxTransforms: mutable Transform[], physicsBoxDynamicObjectIds: mutable DynamicObjectId[]) =
-            let _ = 
-                System.Threading.Tasks.Parallel.For(0, physicsBoxCount,
-                    (i, x) ->
-                        let mutable m = physicsBoxTransforms[i]
-                        let mutable position = vec3.Zero
-                        let mutable orientation = quat.Identity
-                        physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
-                        let mutable scale = mat4.CreateScale(m.Scale)
-                        let mutable m = mat4.CreateFromQuaternion(orientation)
-                        scale.Translation <- position
-                        physicsBoxTransforms[i] <- Transform(m * scale)
-                )
-
-        updatePhysicsBoxes(this.Physics, this.Shared_Box.Count, this.Shared_Box.Buffer0, this.Server_Box)
+        this.Database.ForEach<BoxTag, Transform>(
+            (entId, tag, transform) ->
+                let physObjId = this.Server_Box[entId.Index]
+                let mutable position = vec3.Zero
+                let mutable orientation = quat.Identity
+                this.Physics.GetPositionAndOrientation(physObjId, &position, &orientation)
+                let mutable scale = mat4.CreateScale(transform.Scale)
+                let mutable m = mat4.CreateFromQuaternion(orientation)
+                scale.Translation <- position
+                transform <- Transform(m * scale)
+        )
 
     SpawnPlayer(position: vec3): () =
+      //  let character = this.Physics.AddCharacter(position, quat.Identity, 0.5, 1, 1)
         let transform = Transform.Create(position, quat.Identity, vec3.One)
-        let camera = Camera(70, 1280, 720, 0.1, 1000000)
+        let mutable camera = Camera(70, 1280, 720, 0.1, 1000000)
+        camera.Transform.Position <- position
 
-        let entId = this.NewEntityId()
-        this.OnPlayerAdding(this.Shared_Player.NextIndex(), entId, transform, camera)
-        this.Shared_Player.Add(entId, transform, camera, default)
+        let entId = this.Database.Create(PlayerTag(), transform, camera)
         
     DestroyPlayer(player: Player): () =
-        this.DestroyPlayerQueue.Enqueue(player)
+        this.DestroyEntityQueue.Enqueue(player.Value)
 
     ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
         this.Flush()
 
-        let count = this.Shared_Player.Count
-        let entIds = this.Shared_Player.EntityIds
-
-        let transforms = this.Shared_Player.Buffer0
-        let cameras = this.Shared_Player.Buffer1
-
-        let mutable i = 0
-        while (i < count)
-            f(Player(entIds[i]), &transforms[i], &cameras[i])
-            i <- i + 1
+        this.Database.ForEach<PlayerTag, Transform, Camera>(
+            (entId, tag, transform, camera) -> 
+                f(Player(entId), &transform, &camera)
+        )
 
         this.Flush()
 
@@ -615,34 +238,29 @@ class ServerWorld =
             let transform = Transform.Create(position, rotation, scale)
             let material = Material(0)
 
-            let entId = this.NewEntityId()
-            this.OnBoxAdding(this.Shared_Box.NextIndex(), entId, transform, material)
-            this.Shared_Box.Add(entId, transform, material)
+            let entId = this.Database.Create(BoxTag(), transform, material)
 
     DestroyBox(box: Box): () =
-        this.DestroyBoxQueue.Enqueue(box)
+        this.DestroyEntityQueue.Enqueue(box.Value)
 
     ForEachBox(f: (Box, transform: Transform, material: Material, DynamicObjectId) -> ()): () =
         this.Flush()
 
-        let count = this.Shared_Box.Count
-        let entIds = this.Shared_Box.EntityIds
-
-        let transforms = this.Shared_Box.Buffer0
-        let materials = this.Shared_Box.Buffer1
-        let physIds = this.Server_Box
-
-        let mutable i = 0
-        while (i < count)
-            f(Box(entIds[i]), transforms[i], materials[i], physIds[i])
-            i <- i + 1
+        this.Database.ForEach<BoxTag, Transform, Material>(
+            (entId, tag, transform, material) -> 
+                let physObjId = this.Server_Box[entId.Index]
+                f(Box(entId), transform, material, physObjId)
+        )
 
         this.Flush()
 
-    protected overrides OnBoxAdding(index: int32, entId: EntityId, transform: Transform, material: Material): () =
-        let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-        this.Server_Box[index] <- objId
+    protected overrides OnEntitySpawned(entId: EntityId): () =
+        if (this.Database.HasComponent<BoxTag>(entId))
+            let transform = this.Database.GetComponent<Transform>(entId)
+            let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
+            this.Server_Box[entId.Index] <- objId
 
-    protected overrides OnBoxRemoving(index: int32, swapIndex: int32): () =
-        this.Physics.RemoveBox(this.Server_Box[index])
-        this.Server_Box[index] <- this.Server_Box[swapIndex]
+    protected overrides OnEntityDestroying(entId: EntityId): () =
+        if (this.Database.HasComponent<BoxTag>(entId))
+            this.Physics.RemoveBox(this.Server_Box[entId.Index])
+            this.Server_Box[entId.Index] <- default

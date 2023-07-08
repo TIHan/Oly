@@ -4,7 +4,7 @@ open System
 open System.IO
 
 /// A self-normalizing path for files and directories.
-[<Struct;NoEquality;NoComparison>]
+[<Struct;CustomEquality;NoComparison>]
 type OlyPath private (path: string) =
 
     static let empty = OlyPath("")
@@ -13,6 +13,13 @@ type OlyPath private (path: string) =
 
     /// Does no computation, just simply returns the underlying path as a string.
     override _.ToString() = path
+
+    override _.GetHashCode() = path.GetHashCode()
+
+    override this.Equals(o) =
+        match o with
+        | :? OlyPath as o -> OlyPath.Equals(this, o)
+        | _ -> false
 
     /// Not case sensitive.
     member this.StartsWith(str: string) =

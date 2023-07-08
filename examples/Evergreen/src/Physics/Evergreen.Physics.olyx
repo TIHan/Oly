@@ -4,7 +4,8 @@
 #load "*.oly"
 
 #reference "../../../core/Prelude.olyx"
-#package "BepuPhysics,2.4.0"
+#reference "Backend/Bepu/Evergreen.Physics.Backend.Bepu.CharacterController.csproj"
+#package "BepuPhysics,2.5.0-beta.13"
 
 namespace Evergreen.Physics
 
@@ -17,6 +18,7 @@ open BepuPhysics.Constraints
 open BepuPhysics.Trees
 open BepuUtilities
 open BepuUtilities.Memory
+open Evergreen.Physics.Backend.Bepu
 
 //The simulation has a variety of extension points that must be defined. 
 //The demos tend to reuse a few types like the DemoNarrowPhaseCallbacks, but this demo will provide its own (super simple) versions.
@@ -207,13 +209,15 @@ class Physics =
 
     field ThreadDispatcher: ThreadDispatcher
     field Simulation: Simulation
+    field CharacterControllers: CharacterControllers
 
-    internal new(sim: Simulation) =
+    internal new(sim: Simulation, characterControllers: CharacterControllers) =
         //Any IThreadDispatcher implementation can be used for multithreading. Here, we use the BepuUtilities.ThreadDispatcher implementation.
         let threadDispatcher = ThreadDispatcher(Environment.ProcessorCount, 16384)
         {
             ThreadDispatcher = threadDispatcher
             Simulation = sim
+            CharacterControllers = characterControllers
         }
 
     private GetBodyReference(objId: DynamicObjectId): BodyReference =
@@ -328,24 +332,24 @@ class Physics =
 
         AllowTest(mutable collidable: CollidableReference, childIndex: int32): bool = collidable.BodyHandle.Value >= 0 || collidable.StaticHandle.Value > 0
 
-        mutable OnRayHit(ray: inref<RayData>, maximumT: byref<float32>, t: float32, normal: inref<Vector3>, mutable collidable: CollidableReference, childIndex: int32): () =
+        mutable OnRayHit(ray: inref<RayData>, maximumT: byref<float32>, t: float32, normal: Vector3, mutable collidable: CollidableReference, childIndex: int32): () =
             if (t < this.closestDistance)
                 this.closestDistance <- t
                 this.obj <- Physics.CreatePhysicsObjectFromCollidableReference(collidable)
 
-    TryRayCast(mutable origin: Vector3, mutable direction: Vector3, distance: float32, hitObj: byref<PhysicsObject>): bool =
+    TryRayCast(origin: Vector3, direction: Vector3, distance: float32, hitObj: byref<PhysicsObject>): bool =
         let mutable hitHandler = Physics.RayHitHandler()
-        this.Simulation.RayCast(&origin, &direction, distance, &hitHandler, 0)
+        this.Simulation.RayCast(origin, direction, distance, &hitHandler, 0)
         if (hitHandler.obj.HasInvalidTag)
             false
         else
             hitObj <- hitHandler.obj
             true
 
-    ApplyImpulse(objId: DynamicObjectId, mutable impulse: Vector3): () =
+    ApplyImpulse(objId: DynamicObjectId, impulse: Vector3): () =
         let mutable bodyRef = this.GetBodyReference(objId)
         bodyRef.Awake <- true
-        bodyRef.ApplyLinearImpulse(&impulse)
+        bodyRef.ApplyLinearImpulse(impulse)
 
     Update(deltaTime: float32): () =
         this.Simulation.Timestep(deltaTime, this.ThreadDispatcher)
@@ -354,9 +358,55 @@ class Physics =
         //The buffer pool is a source of raw memory blobs for the engine to use.
         let bufferPool = BufferPool(131072, 16)
 
+        // Setup character controllers, not part of the Bepu Physics library, but is a demo in the Bepu Physics repo.
+        let characterControllers = CharacterControllers(bufferPool, 4096, 4096)
+        let narrowPhaseCallbacks = CharacterNarrowphaseCallbacks(characterControllers)
+
         //The following sets up a simulation with the callbacks defined above, and tells it to use 8 velocity iterations per substep and only one substep per solve.
         //It uses the default SubsteppingTimestepper. You could use a custom ITimestepper implementation to customize when stages run relative to each other, or to insert more callbacks.     
         let solveDesc = SolveDescription(1, 8, SolveDescription.DefaultFallbackBatchThreshold)
-        let sim = Simulation.Create(bufferPool, NarrowPhaseCallbacks(), PoseIntegratorCallbacks(Vector3(0, 0, -10)), solveDesc, null, default)
+        let sim = Simulation.Create(bufferPool, narrowPhaseCallbacks, PoseIntegratorCallbacks(Vector3(0, 0, -10)), solveDesc, null, default)
 
-        Physics(sim)
+        Physics(sim, characterControllers)
+
+    // ---------------
+
+    AddCharacter(position: Vector3, rotation: Quaternion, radius: float32, length: float32, mass: float32): DynamicObjectId = 
+        let minimumSpeculativeMargin = 0.1: float32
+        let maximumHorizontalGlueForce = 20: float32
+        let maximumVerticalGlueForce = 100: float32
+        let jumpVelocity = 6: float32
+        let maximumSlope = MathF.PI * 0.4f // consider: MathF.PI * 0.25
+        // TODO: speed = 4 ?
+
+        let mutable capsule = Capsule(radius, length)
+
+        //Because characters are dynamic, they require a defined BodyInertia. For the purposes of the demos, we don't want them to rotate or fall over, so the inverse inertia tensor is left at its default value of all zeroes.
+        //This is effectively equivalent to giving it an infinite inertia tensor- in other words, no torque will cause it to rotate.
+
+        let shapeIndex = this.CharacterControllers.Simulation.Shapes.Add(&capsule)
+
+        let mutable bodyDesc =
+            let pose = RigidPose(position, rotation)
+
+            let mutable bodyInertia = default: BodyInertia
+            bodyInertia.InverseMass <- 1 / mass
+
+            let collidableDesc = CollidableDescription(shapeIndex, minimumSpeculativeMargin, float32.MaxValue, ContinuousDetection.Passive)
+            let bodyActivityDesc = BodyActivityDescription.op_Implicit(capsule.Radius * 0.02f)
+
+            BodyDescription.CreateDynamic(pose, bodyInertia, collidableDesc, bodyActivityDesc)
+
+        let bodyHandle = this.CharacterControllers.Simulation.Bodies.Add(&bodyDesc)
+
+        let characterController = &this.CharacterControllers.AllocateCharacter(bodyHandle)
+
+        characterController.LocalUp <- Vector3(0, 1, 0)
+        characterController.CosMaximumSlope <- MathF.Cos(maximumSlope)
+        characterController.JumpVelocity <- jumpVelocity
+        characterController.MaximumVerticalForce <- maximumVerticalGlueForce
+        characterController.MaximumHorizontalForce <- maximumHorizontalGlueForce
+        characterController.MinimumSupportDepth <- capsule.Radius * -0.01
+        characterController.MinimumSupportContinuationDepth <- -minimumSpeculativeMargin
+        
+        DynamicObjectId(bodyHandle.Value)

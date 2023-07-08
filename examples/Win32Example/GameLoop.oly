@@ -25,7 +25,7 @@ Start(#[inline] preUpdate: float64 -> (), #[inline] fixedUpdate: () -> bool, #[i
     let skip = ConvertFramesPerSecondToTicks(1)
 
     let mutable currentTime = getTicks()
-    let mutable accumulator = 0: int64
+    let mutable accumulator = FixedUpdateDeltaTime: int64
 
     while (!quit)
         let newTime = getTicks()

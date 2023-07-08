@@ -885,14 +885,26 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 |> Seq.distinctBy (fun x -> x.Text)
                 |> ImArray.ofSeq
 
+            let transitiveProjectReferences =
+                getTransitiveProjectReferences solution projectReferencesInWorkspace ct
+
+            let transitiveReferenceInfos =            
+                transitiveProjectReferences
+                |> ImArray.map (fun x -> x.References)
+                |> ImArray.concat
+                |> ImArray.map (fun x -> OlyReferenceInfo(x.Path, OlyTextSpan.Create(0, 0))) // TODO: TextSpan is not right.
+                |> ImArray.append referenceInfos
+                |> ImArray.distinctBy (fun x ->
+                    x.Path
+                )
+
             let referenceInfos =
-                referenceInfos
+                transitiveReferenceInfos
                 |> ImArray.filter (fun x -> 
                     not(x.Path.HasExtension(".olyx")) &&
                     not(x.Path.HasExtension(".oly"))
                 )
             
-            // TODO: We should include the transitive references to make it consistent with the packages.
             let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
 
             resInfo.Diagnostics

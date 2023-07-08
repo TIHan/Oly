@@ -10,7 +10,7 @@ open static Game.Core
 private alias Array = OlyPrelude.Array
 
 #[open]
-module Helpers =
+private module Helpers =
 
     GetArrayElementType(o: System.Object): System.Type =
         let ty = o.GetType()
@@ -19,6 +19,9 @@ module Helpers =
         else
             fail("Expected array.")
 
+interface IComponent =
+
+    static abstract GetBitFlag(): uint64
 
 alias TypeId = System.Type
 internal alias ArchetypeId = TypeId[]
@@ -53,12 +56,26 @@ internal class Archetype =
     Buffers: ComponentBuffer[] get
     BufferLookup: ConcurrentDictionary<TypeId, int32> get
 
+    IsValid(entId: EntityId): bool =
+        if (entId.IsNil) false
+        else
+            this.Lookup[entId.Index] != -1
+
     CopyTo(dst: Archetype): () =
         let count = this.Count
 
         dst.Count <- count
-        Span(this.Lookup, 0, count).CopyTo(Span(dst.Lookup, 0, count))
-        Span(this.EntityIds, 0, count).CopyTo(Span(dst.EntityIds, 0, count))
+        
+       // Span(this.Lookup).CopyTo(Span(dst.Lookup))
+        Span(this.EntityIds, 0, count).CopyTo(Span(dst.EntityIds))
+
+        // fix-up lookup
+        let entIds = dst.EntityIds
+        let lookup = dst.Lookup
+        let mutable i = 0
+        while (i < count)
+            lookup[entIds[i].Index] <- i
+            i <- i + 1
 
         let mutable i = 0
         while (i < this.Buffers.Length)
@@ -66,7 +83,7 @@ internal class Archetype =
             let mutable dstBufferIndex = unchecked default
             if (!dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
                 fail("Unable to copy contents.")
-            buffer.CopyTo(dst.Buffers[dstBufferIndex], count)
+            buffer.CopyTo(dst.Buffers[dstBufferIndex], count * buffer.TypeSize)
             i <- i + 1 
 
     CopyOne(srcIndex: int32, dst: Archetype, dstIndex: int32): () =
@@ -100,7 +117,7 @@ internal class Archetype =
             Id = archetypeId
             Count = 0
             Capacity = size
-            Lookup  = Array.ZeroCreate(size)
+            Lookup  = Array.InitializeMutable(size, i -> -1)
             EntityIds = Array.ZeroCreate(size)
             Buffers = buffers
             BufferLookup = bufferLookup
@@ -230,11 +247,23 @@ internal class EntityQuery<T0, T1, T2> where T0: unmanaged
     BufferGroup1: List<ComponentBuffer> get       = List()
     BufferGroup2: List<ComponentBuffer> get       = List()
 
+internal class EntityQuery<T0, T1, T2, T3> where T0: unmanaged
+                              where T1: unmanaged
+                              where T2: unmanaged 
+                              where T3: unmanaged =
+    
+    internal CountGroup  : List<Archetype> get = List()
+    EntIdGroup  : List<mutable EntityId[]> get = List()
+    BufferGroup0: List<ComponentBuffer> get       = List()
+    BufferGroup1: List<ComponentBuffer> get       = List()
+    BufferGroup2: List<ComponentBuffer> get       = List()
+    BufferGroup3: List<ComponentBuffer> get       = List()
+
 interface IEntityEvent<T> =
 
     Add(subscriber: T -> ()): ()
 
-class EntityEvent<T> =
+internal class EntityEvent<T> =
     implements IEntityEvent<T>
 
     field subscribers: List<T -> ()> = List()
@@ -250,11 +279,9 @@ class EntityEvent<T> =
             subscriber(eventData)
             i <- i + 1
 
-class EntityEventAggregator =
-
-    field lookup: ConcurrentDictionary<System.Type, object> = ConcurrentDictionary()
-
 class EntityDatabase =
+
+    public static field MaxNumberOfEntities: int32 = 65536
 
     class CommandBuffer =
         field cmds: List<EntityDatabase -> ()> = List()
@@ -301,9 +328,16 @@ class EntityDatabase =
     internal field entityCreated: EntityEvent<EntityId> = EntityEvent()
     EntityCreated: IEntityEvent<EntityId> get() = this.entityCreated
 
+    internal field entityDeleting: EntityEvent<EntityId> = EntityEvent()
+    EntityDeleting: IEntityEvent<EntityId> get() = this.entityDeleting
+
+    internal field entityDeleted: EntityEvent<EntityId> = EntityEvent()
+    EntityDeleted: IEntityEvent<EntityId> get() = this.entityDeleted
+
     internal Archetypes: List<Archetype> get = List()
     internal ArchetypeRemovers: List<int32 -> ()> get = List()
     internal ArchetypeLookup: ConcurrentDictionary<ArchetypeId, int32> get = ConcurrentDictionary(ArchetypeIdEqualityComparer())
+    internal DependencyLookup: Dictionary<TypeId, TypeId[]> get = Dictionary()
 
     private GetArchetypedIndex<T0>(): int32 where T0: unmanaged =
         let archetypeId = [typeof<T0>]
@@ -325,7 +359,17 @@ class EntityDatabase =
         if (this.ArchetypeLookup.TryGetValue(archetypeId, &result))
             result
         else
-            let archetypeId = Array.DistinctBy(archetypeId, typeId -> typeId)
+            let origArchetypeId = Array.DistinctBy(archetypeId, typeId -> typeId)
+
+            let archetypeId =
+                let deps = List<Type>()
+                let mutable i = 0
+                while (i < archetypeId.Length)
+                    let mutable result = unchecked default
+                    if (this.DependencyLookup.TryGetValue(archetypeId[i], &result))
+                        deps.AddRange(Cast(result))
+                    i <- i + 1
+                Array.DistinctBy(Array.Add(archetypeId, Unsafe.AsImmutable(deps.ToArray())), typeId -> typeId)
                 
             result <- this.Archetypes.Count
 
@@ -333,9 +377,9 @@ class EntityDatabase =
                 Array.Map(archetypeId, ty -> Marshal.SizeOf(ty))
 
             let buffers =
-                Array.Map(archetypeId, ty -> ComponentBuffer(Array.ZeroCreate<byte>(World.MaxNumberOfEntities * Marshal.SizeOf(ty)), ty, Marshal.SizeOf(ty)))
+                Array.Map(archetypeId, ty -> ComponentBuffer(Array.ZeroCreate<byte>(EntityDatabase.MaxNumberOfEntities * Marshal.SizeOf(ty)), ty, Marshal.SizeOf(ty)))
 
-            let archetype = Archetype(World.MaxNumberOfEntities, buffers)
+            let archetype = Archetype(EntityDatabase.MaxNumberOfEntities, buffers)
 
             this.Archetypes.Add(archetype)
             this.ArchetypeRemovers.Add(
@@ -355,7 +399,7 @@ class EntityDatabase =
                     archetype.Count <- lastIndex
             )
 
-            this.ArchetypeLookup[archetypeId] <- result
+            this.ArchetypeLookup[origArchetypeId] <- result
             result
 
     private GetTypedIndex<T>(archetypedIndex: int32): int32 where T: unmanaged =
@@ -410,7 +454,7 @@ class EntityDatabase =
         query
 
     private CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: unmanaged 
-                                               where T1: unmanaged =
+                                                       where T1: unmanaged =
         let indices = this.GetArchetypedIndices([typeof<T0>;typeof<T1>])
 
         let query = EntityQuery<T0, T1>()
@@ -430,8 +474,8 @@ class EntityDatabase =
         query
 
     private CreateQuery<T0, T1, T2>(): EntityQuery<T0, T1, T2> where T0: unmanaged 
-                                                       where T1: unmanaged
-                                                       where T2: unmanaged =
+                                                               where T1: unmanaged
+                                                               where T2: unmanaged =
         let indices = this.GetArchetypedIndices([typeof<T0>;typeof<T1>;typeof<T2>])
 
         let query = EntityQuery<T0, T1, T2>()
@@ -450,6 +494,34 @@ class EntityDatabase =
             i <- i + 1
 
         query
+
+    private CreateQuery<T0, T1, T2, T3>(): EntityQuery<T0, T1, T2, T3> where T0: unmanaged 
+                                                                       where T1: unmanaged
+                                                                       where T2: unmanaged 
+                                                                       where T3: unmanaged =
+        let indices = this.GetArchetypedIndices([typeof<T0>;typeof<T1>;typeof<T2>;typeof<T3>])
+
+        let query = EntityQuery<T0, T1, T2, T3>()
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let index = indices[i]
+            let archetype = this.Archetypes[index]
+            
+            query.CountGroup.Add(archetype)
+            query.EntIdGroup.Add(archetype.EntityIds)
+            query.BufferGroup0.Add(archetype.GetComponentBuffer(archetype.BufferLookup[typeof<T0>]))
+            query.BufferGroup1.Add(archetype.GetComponentBuffer(archetype.BufferLookup[typeof<T1>]))
+            query.BufferGroup2.Add(archetype.GetComponentBuffer(archetype.BufferLookup[typeof<T2>]))
+            query.BufferGroup3.Add(archetype.GetComponentBuffer(archetype.BufferLookup[typeof<T3>]))
+
+            i <- i + 1
+
+        query
+
+    RegisterDependency<T, TDependency>(): () where T: unmanaged
+                                             where TDependency: unmanaged =
+        this.DependencyLookup.Add(typeof<T>, [typeof<TDependency>])
 
     ForEach<T0>(f: (EntityId, byref<T0>) -> ()): () where T0: unmanaged =
         let indices = this.GetArchetypedIndices([typeof<T0>])
@@ -519,6 +591,36 @@ class EntityDatabase =
             let mutable j = 0
             while (j < count)
                 f(entIds[j], &buffer0[j], &buffer1[j], &buffer2[j])
+                j <- j + 1
+
+            i <- i + 1  
+
+    ForEach<T0, T1, T2, T3>(f: (EntityId, byref<T0>, byref<T1>, byref<T2>, byref<T3>) -> ()): () where T0: unmanaged 
+                                                                                                 where T1: unmanaged 
+                                                                                                 where T2: unmanaged 
+                                                                                                 where T3: unmanaged =
+        let indices = this.GetArchetypedIndices([typeof<T0>;typeof<T1>;typeof<T2>;typeof<T3>])
+
+        let query = this.CreateQuery<T0, T1, T2, T3>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+        let bufferGroup2 = query.BufferGroup2
+        let bufferGroup3 = query.BufferGroup3
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+            let entIds = entIdGroup[i]
+            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer))
+            let mutable buffer1 = MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer))
+            let mutable buffer2 = MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer))
+            let mutable buffer3 = MemoryMarshal.Cast(Span(bufferGroup3[i].Buffer))
+
+            let mutable j = 0
+            while (j < count)
+                f(entIds[j], &buffer0[j], &buffer1[j], &buffer2[j], &buffer3[j])
                 j <- j + 1
 
             i <- i + 1  
@@ -625,21 +727,30 @@ class EntityDatabase =
         let archetype = this.Archetypes[this.entityArchetypeIndices[entId.Index]]
         Array.Exists(archetype.Id, ty -> ty == targetTy)
 
+    GetComponent<T>(entId: EntityId): byref<T> where T: unmanaged =
+        let archetypedIndex = this.entityArchetypeIndices[entId.Index]
+        let typedIndex = this.GetTypedIndex<T>(archetypedIndex)
+        let archetype = this.Archetypes[archetypedIndex]
+        let mutable result = archetype.GetRawComponentBuffer<T>(typedIndex)
+        &result[archetype.Lookup[entId.Index]]
+
     Delete(entId: EntityId): () =
         this.Check(entId)
+        this.entityDeleting.Trigger(entId)
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
         let archetype = this.Archetypes[archetypedIndex]
         let remove = this.ArchetypeRemovers[archetypedIndex]
         remove(archetype.Lookup[entId.Index])
         this.DeleteEntityId(entId)
+        this.entityDeleted.Trigger(entId)
 
     // ----------------------------------------------
 
     internal mutable field nextIndex: int32 = 0
     internal mutable field indexQueue: Queue<int32> = Queue()
     internal mutable field entityCount: int32 = 0
-    internal field entityArchetypeIndices: mutable int32[] = Array.InitializeMutable(World.MaxNumberOfEntities, i -> -1)
-    internal field entityVersions: mutable uint32[] = Array.InitializeMutable(World.MaxNumberOfEntities, i -> 0: uint32)
+    internal field entityArchetypeIndices: mutable int32[] = Array.InitializeMutable(EntityDatabase.MaxNumberOfEntities, i -> -1)
+    internal field entityVersions: mutable uint32[] = Array.InitializeMutable(EntityDatabase.MaxNumberOfEntities, i -> 0: uint32)
 
     internal NewEntityId(archetypedIndex: int32): EntityId =
         let index =
@@ -674,15 +785,11 @@ class EntityDatabase =
         let version = this.entityVersions[entId.Index]
         version != 0 && version == entId.Version
 
-    CanSpawnEntity: bool get() = this.entityCount != World.MaxNumberOfEntities
+    CanSpawnEntity: bool get() = this.entityCount != EntityDatabase.MaxNumberOfEntities
+
+    EntityCount: int32 get() = this.entityCount
 
     Replicate(dst: EntityDatabase): () =
-        dst.indexQueue.Clear()
-        dst.entityCount <- this.entityCount
-        dst.nextIndex <- this.nextIndex
-        Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
-        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
-
         if (this.Archetypes.Count != dst.Archetypes.Count)
             let mutable i = 0
             while (i < this.Archetypes.Count)
@@ -690,8 +797,44 @@ class EntityDatabase =
                 let _ = dst.GetArchetypedIndex(archetype.Id)
                 i <- i + 1
 
+        let createdEntities = Queue<EntityId>()
+        let maxCount = Math.Max(this.EntityCount, dst.EntityCount)
+
+        let mutable i = 0
+        while (i < maxCount)
+            let version = this.entityVersions[i]
+            let archetypedIndex = this.entityArchetypeIndices[i]
+
+            let dstVersion = dst.entityVersions[i]
+            let dstArchetypedIndex = dst.entityArchetypeIndices[i]
+
+            if (version != dstVersion)
+                if (version != 0)
+                    let mutable entId = EntityId()
+                    entId.Index <- i
+                    entId.Version <- version
+                    createdEntities.Enqueue(entId)
+
+                if (dstVersion != 0)
+                    let mutable entId = EntityId()
+                    entId.Index <- i
+                    entId.Version <- dstVersion
+                    dst.entityDeleting.Trigger(entId)
+                    
+            i <- i + 1
+
+        dst.indexQueue.Clear()
+        dst.entityCount <- this.entityCount
+        dst.nextIndex <- this.nextIndex
+        Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
+        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
+
         let mutable i = 0
         while (i < this.Archetypes.Count)
             let archetype = this.Archetypes[i]
             archetype.CopyTo(dst.Archetypes[i])
-            i <- i + 1      
+            i <- i + 1
+            
+        let mutable entId = default
+        while (createdEntities.TryDequeue(&entId))
+            dst.entityCreated.Trigger(entId)
