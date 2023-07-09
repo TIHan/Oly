@@ -1840,6 +1840,38 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         tyDef
 
+    let isByRefLike (x: ClrTypeInfo) =
+        if x.IsByRef then
+            true
+        else
+            let result =
+                match asmBuilder.tr_Span with
+                | Some(tr) ->
+                    match x with
+                    | ClrTypeInfo.TypeDefinition _ ->                
+                        x.Handle = tr
+                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                        handle = tr
+                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
+                        info.Handle = tr                  
+                | _ ->
+                    false
+
+            if result then
+                true
+            else
+                match asmBuilder.tr_ReadOnlySpan with
+                | Some(tr) ->
+                    match x with
+                    | ClrTypeInfo.TypeDefinition _ ->                
+                        x.Handle = tr
+                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                        handle = tr
+                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
+                        info.Handle = tr
+                | _ ->
+                    false
+
     member this.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
 
@@ -1848,6 +1880,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.Initialize(vm) =
             asmBuilder.tr_InAttribute <- vm.TryFindType("System.Runtime.InteropServices.InAttribute") |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_IsReadOnlyAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsReadOnlyAttribute") |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_Span <- vm.TryFindType("System.Span", 1) |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_ReadOnlySpan <- vm.TryFindType("System.ReadOnlySpan", 1) |> Option.map (fun x -> x.Handle)
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
@@ -1979,7 +2013,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let argTyHandles =
                 inputTys
                 |> ImArray.map (fun x -> 
-                    if x.IsByRef then
+                    if isByRefLike x then
                         mustCreateDelegate <- true
                     x.Handle
                 )

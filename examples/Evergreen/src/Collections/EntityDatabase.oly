@@ -69,12 +69,14 @@ internal class ComponentBuffer =
         let dstBuffer = (Unsafe.Cast(dst): ComponentBuffer).Buffer
         Span(this.Buffer, 0, lengthInBytes).CopyTo(Span(dstBuffer, 0, lengthInBytes))
 
-    CopyOne(size: int32, srcIndex: int32, dst: ComponentBuffer, dstIndex: int32): () =
-        Span(this.Buffer, srcIndex * size, size).CopyTo(Span(dst.Buffer, dstIndex * size, size))
+    CopyOne(srcIndex: int32, dst: ComponentBuffer, dstIndex: int32): () =
+        Span(this.Buffer, srcIndex * this.TypeSize, this.TypeSize).CopyTo(Span(dst.Buffer, dstIndex * this.TypeSize, this.TypeSize))
 
 internal class Archetype =
     
     Id: ArchetypeId get
+    DependencyId: ArchetypeId get
+    FullId: ArchetypeId get
     Count: int32 get, set
     Capacity: int32 get
     Lookup: mutable int32[] get
@@ -107,9 +109,8 @@ internal class Archetype =
         while (i < this.Buffers.Length)
             let buffer = this.Buffers[i]
             let mutable dstBufferIndex = unchecked default
-            if (!dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
-                fail("Unable to copy contents.")
-            buffer.CopyTo(dst.Buffers[dstBufferIndex], count * buffer.TypeSize)
+            if (dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
+                buffer.CopyTo(dst.Buffers[dstBufferIndex], count * buffer.TypeSize)
             i <- i + 1 
 
     CopyOne(srcIndex: int32, dst: Archetype, dstIndex: int32): () =
@@ -117,9 +118,8 @@ internal class Archetype =
         while (i < this.Buffers.Length)
             let buffer = this.Buffers[i]
             let mutable dstBufferIndex = unchecked default
-            if (!dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
-                fail("Unable to copy contents.")
-            buffer.CopyOne(buffer.TypeSize, srcIndex, dst.Buffers[dstBufferIndex], dstIndex)
+            if (dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
+                buffer.CopyOne(srcIndex, dst.Buffers[dstBufferIndex], dstIndex)
             i <- i + 1 
             
     GetRawComponentBuffer<T>(typedIndex: int32): Span<T> where T: unmanaged =
@@ -128,7 +128,7 @@ internal class Archetype =
     GetComponentBuffer(typedIndex: int32): ComponentBuffer =
         this.Buffers[typedIndex]
 
-    new(size: int32, buffers: ComponentBuffer[]) =
+    new(size: int32, buffers: ComponentBuffer[], archetypeId: ArchetypeId, dependencyId: ArchetypeId) =
         let bufferLookup = ConcurrentDictionary()
 
         let mutable i = 0
@@ -137,17 +137,13 @@ internal class Archetype =
             bufferLookup[buffer.TypeId] <- i 
             i <- i + 1
 
-        let mutable archetypeId = 0: uint64
-        let mutable i = 0
-        while (i < buffers.Length)
-            archetypeId <- archetypeId | buffers[i].TypeId
-            i <- i + 1
-
         {
             Id = archetypeId
+            DependencyId = dependencyId
+            FullId = archetypeId | dependencyId
             Count = 0
             Capacity = size
-            Lookup  = Array.InitializeMutable(size, i -> -1)
+            Lookup  = Array.ZeroCreate(size)
             EntityIds = Array.ZeroCreate(size)
             Buffers = buffers
             BufferLookup = bufferLookup
@@ -158,7 +154,7 @@ internal interface IArchetypeReference =
     ArchetypedIndex: int32 get
     LastTypedIndex: int32 get
 
-internal class ArchetypeReference<T0> where T0: unmanaged =
+internal class ArchetypeReference1 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -171,8 +167,7 @@ internal class ArchetypeReference<T0> where T0: unmanaged =
             TypedIndex0 = typedIndex0
         }
 
-internal class ArchetypeReference<T0, T1> where T0: unmanaged
-                                 where T1: unmanaged =
+internal class ArchetypeReference2 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -187,9 +182,7 @@ internal class ArchetypeReference<T0, T1> where T0: unmanaged
             TypedIndex1 = typedIndex1
         }
 
-internal class ArchetypeReference<T0, T1, T2> where T0: unmanaged
-                                     where T1: unmanaged
-                                     where T2: unmanaged =
+internal class ArchetypeReference3 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -206,10 +199,7 @@ internal class ArchetypeReference<T0, T1, T2> where T0: unmanaged
             TypedIndex2 = typedIndex2
         }
 
-internal class ArchetypeReference<T0, T1, T2, T3> where T0: unmanaged
-                                         where T1: unmanaged
-                                         where T2: unmanaged 
-                                         where T3: unmanaged =
+internal class ArchetypeReference4 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -293,49 +283,7 @@ class EntityDatabase =
     
         Equals(x: ArchetypeId, y: ArchetypeId): bool = x == y
 
-    public static field MaxNumberOfEntities: int32 = 65536
-
-    // class CommandBuffer =
-    //     field cmds: List<EntityDatabase -> ()> = List()
-
-    //     Spawn<T0>(value0: T0): () where T0: unmanaged =
-    //         let cmd =
-    //             (edb: EntityDatabase) ->
-    //                 let archetypeRef = edb.RegisterArchetype<T0>()
-    //                 let archetypedIndex = archetypeRef.ArchetypedIndex
-    //                 let typedIndex0 = archetypeRef.TypedIndex0
-            
-    //                 let entId = edb.NewEntityId(archetypedIndex)
-            
-    //                 let archetype = edb.Archetypes[archetypedIndex]
-    //                 let index = archetype.Count
-    //                 archetype.Lookup[entId.Index] <- index
-    //                 archetype.EntityIds[index] <- entId
-            
-    //                 (archetype.GetRawComponentBuffer(typedIndex0)[index]) <- value0
-            
-    //                 archetype.Count <- index + 1
-    //         this.cmds.Add(cmd)
-
-    //     AddComponent<T>(entId: EntityId): () where T: unmanaged =
-    //         let cmd =
-    //             (edb: EntityDatabase) ->
-    //                 edb.Check(entId)
-
-    //                 let srcArchetypedIndex = edb.entityArchetypeIndices[entId.Index]
-    //                 let srcArchetype = edb.Archetypes[srcArchetypedIndex]
-
-    //                 let dstArchetypeId = Array.Add(srcArchetype.Id, typeof<T>)
-    //                 let dstArchetypedIndex = edb.GetArchetypedIndex(dstArchetypeId)
-    //                 let dstArchetype = edb.Archetypes[dstArchetypedIndex]
-
-    //                 srcArchetype.CopyTo(dstArchetype)
-
-    //                 let remove = edb.ArchetypeRemovers[srcArchetypedIndex]
-    //                 remove(srcArchetype.Lookup[entId.Index])
-
-    //                 edb.entityArchetypeIndices[entId.Index] <- dstArchetypedIndex
-    //         this.cmds.Add(cmd)       
+    public static field MaxNumberOfEntities: int32 = 65536  
 
     internal field entityCreated: EntityEvent<EntityId> = EntityEvent()
     EntityCreated: IEntityEvent<EntityId> get() = this.entityCreated
@@ -351,7 +299,6 @@ class EntityDatabase =
     GetTypeSize(tyId: TypeId): int32                 = this.Registered[tyId]
     
     internal Archetypes: List<Archetype> get = List()
-    internal ArchetypeRemovers: List<int32 -> ()> get = List()
     internal ArchetypeLookup: ConcurrentDictionary<ArchetypeId, int32> get = ConcurrentDictionary(ArchetypeIdEqualityComparer())
     internal DependencyLookup: Dictionary<TypeId, ArchetypeId> get = Dictionary()
 
@@ -377,6 +324,8 @@ class EntityDatabase =
             let origArchetypeId = archetypeId
             let origTyIds = GetTypeIds(origArchetypeId)
 
+            let mutable dependencyId = 0: ArchetypeId
+
             let archetypeId =
                 let mutable archetypeId = archetypeId
                 let mutable i = 0
@@ -384,6 +333,7 @@ class EntityDatabase =
                     let mutable result = unchecked default
                     if (this.DependencyLookup.TryGetValue(origTyIds[i], &result))
                         archetypeId <- archetypeId | result
+                        dependencyId <- dependencyId | result
                     i <- i + 1
                 archetypeId
 
@@ -392,26 +342,9 @@ class EntityDatabase =
             let sizes = Array.Map(tyIds, tyId -> this.GetTypeSize(tyId))
             let buffers = Array.MapIndex(tyIds, (i, tyId) -> ComponentBuffer(Array.ZeroCreate<byte>(EntityDatabase.MaxNumberOfEntities * sizes[i]), tyId, sizes[i]))
 
-            let archetype = Archetype(EntityDatabase.MaxNumberOfEntities, buffers)
+            let archetype = Archetype(EntityDatabase.MaxNumberOfEntities, buffers, origArchetypeId, dependencyId)
 
             this.Archetypes.Add(archetype)
-            this.ArchetypeRemovers.Add(
-                index ->
-                    let lastIndex = archetype.Count - 1
-                    let lastEntId = archetype.EntityIds[lastIndex]
-
-                    archetype.Lookup[lastEntId.Index] <- index
-                    archetype.EntityIds[index] <- archetype.EntityIds[lastIndex]
-
-                    let mutable i = 0
-                    while (i < tyIds.Length)
-                        let buffer = buffers[i]
-                        buffer.CopyOne(sizes[i], index, buffer, lastIndex)
-                        i <- i + 1
-
-                    archetype.Count <- lastIndex
-            )
-
             this.ArchetypeLookup[origArchetypeId] <- archetypedIndex
             archetypedIndex
 
@@ -425,27 +358,27 @@ class EntityDatabase =
         while (i < this.Archetypes.Count)
             let archetype = this.Archetypes[i]
 
-            if ((archetype.Id & archetypeId) == archetypeId)
+            if ((archetype.FullId & archetypeId) == archetypeId)
                 indices.Add(i)
             
             i <- i + 1
 
         Unsafe.AsImmutable(indices.ToArray())
 
-    internal RegisterArchetype<T0>(): ArchetypeReference<T0> where T0: unmanaged, IComponent =
+    internal RegisterArchetype<T0>(): ArchetypeReference1 where T0: unmanaged, IComponent =
         let archetypedIndex = this.GetArchetypedIndex<T0>()
-        ArchetypeReference(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex))
+        ArchetypeReference1(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex))
 
-    private RegisterArchetype<T0, T1>(): ArchetypeReference<T0, T1> where T0: unmanaged, IComponent 
-                                                                    where T1: unmanaged, IComponent  =
+    private RegisterArchetype<T0, T1>(): ArchetypeReference2 where T0: unmanaged, IComponent 
+                                                             where T1: unmanaged, IComponent  =
         let archetypedIndex = this.GetArchetypedIndex<T0, T1>()
-        ArchetypeReference(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex), this.GetTypedIndex<T1>(archetypedIndex))
+        ArchetypeReference2(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex), this.GetTypedIndex<T1>(archetypedIndex))
 
-    private RegisterArchetype<T0, T1, T2>(): ArchetypeReference<T0, T1, T2> where T0: unmanaged, IComponent 
-                                                                            where T1: unmanaged, IComponent  
-                                                                            where T2: unmanaged, IComponent  =
+    private RegisterArchetype<T0, T1, T2>(): ArchetypeReference3 where T0: unmanaged, IComponent 
+                                                                 where T1: unmanaged, IComponent  
+                                                                 where T2: unmanaged, IComponent  =
         let archetypedIndex = this.GetArchetypedIndex<T0, T1, T2>()
-        ArchetypeReference(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex), this.GetTypedIndex<T1>(archetypedIndex), this.GetTypedIndex<T2>(archetypedIndex))
+        ArchetypeReference3(archetypedIndex, this.GetTypedIndex<T0>(archetypedIndex), this.GetTypedIndex<T1>(archetypedIndex), this.GetTypedIndex<T2>(archetypedIndex))
         
     private CreateQuery<T0>(): EntityQuery<T0> where T0: unmanaged, IComponent  =
         let indices = this.GetArchetypedIndices(GetArchetypeId<T0>())
@@ -535,6 +468,81 @@ class EntityDatabase =
                                              where TDependency: unmanaged, IComponent =
         this.DependencyLookup.Add(T.GetTypeId(), TDependency.GetTypeId())
 
+    ForEachSpan<T0, T1>(f: (ReadOnlySpan<EntityId>, Span<T0>, Span<T1>) -> ()): () where T0: unmanaged, IComponent 
+                                                                                   where T1: unmanaged, IComponent =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1>())
+
+        let query = this.CreateQuery<T0, T1>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+
+            f(
+                ReadOnlySpan(entIdGroup[i], 0, count),
+                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count)
+            )
+
+            i <- i + 1
+
+    ForEachSpan<T0, T1, T2>(f: (ReadOnlySpan<EntityId>, Span<T0>, Span<T1>, Span<T2>) -> ()): () where T0: unmanaged, IComponent 
+                                                                                                 where T1: unmanaged, IComponent 
+                                                                                                 where T2: unmanaged, IComponent =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2>())
+
+        let query = this.CreateQuery<T0, T1, T2>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+        let bufferGroup2 = query.BufferGroup2
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+
+            f(
+                ReadOnlySpan(entIdGroup[i], 0, count),
+                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer)).Slice(0, count)
+            )
+
+            i <- i + 1
+
+    ForEachSpan<T0, T1, T2, T3>(f: (ReadOnlySpan<EntityId>, Span<T0>, Span<T1>, Span<T2>, Span<T3>) -> ()): () where T0: unmanaged, IComponent 
+                                                                                                               where T1: unmanaged, IComponent 
+                                                                                                               where T2: unmanaged, IComponent 
+                                                                                                               where T3: unmanaged, IComponent =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2, T3>())
+
+        let query = this.CreateQuery<T0, T1, T2, T3>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+        let bufferGroup2 = query.BufferGroup2
+        let bufferGroup3 = query.BufferGroup3
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+
+            f(
+                ReadOnlySpan(entIdGroup[i], 0, count),
+                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup3[i].Buffer)).Slice(0, count)
+            )
+
+            i <- i + 1
+
     ForEach<T0>(f: (EntityId, byref<T0>) -> ()): () where T0: unmanaged, IComponent =
         let indices = this.GetArchetypedIndices(GetArchetypeId<T0>())
 
@@ -558,84 +566,40 @@ class EntityDatabase =
 
     ForEach<T0, T1>(f: (EntityId, byref<T0>, byref<T1>) -> ()): () where T0: unmanaged, IComponent 
                                                                    where T1: unmanaged, IComponent =
-        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1>())
-
-        let query = this.CreateQuery<T0, T1>()
-        let countGroup   = query.CountGroup
-        let entIdGroup   = query.EntIdGroup
-        let bufferGroup0 = query.BufferGroup0
-        let bufferGroup1 = query.BufferGroup1
-
-        let mutable i = 0
-        while (i < indices.Length)
-            let count = countGroup[i].Count
-            let entIds = entIdGroup[i]
-            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer))
-            let mutable buffer1 = MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer))
-
-            let mutable j = 0
-            while (j < count)
-                f(entIds[j], &buffer0[j], &buffer1[j])
-                j <- j + 1
-
-            i <- i + 1
+        this.ForEachSpan<T0, T1>(
+            (mutable entIds, mutable buffer0, mutable buffer1) ->
+                let count = entIds.Length
+                let mutable i = 0
+                while (i < count)
+                    f(entIds[i], &buffer0[i], &buffer1[i])
+                    i <- i + 1
+        )
             
     ForEach<T0, T1, T2>(f: (EntityId, byref<T0>, byref<T1>, byref<T2>) -> ()): () where T0: unmanaged, IComponent 
                                                                                   where T1: unmanaged, IComponent 
                                                                                   where T2: unmanaged, IComponent =
-        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2>())
-
-        let query = this.CreateQuery<T0, T1, T2>()
-        let countGroup   = query.CountGroup
-        let entIdGroup   = query.EntIdGroup
-        let bufferGroup0 = query.BufferGroup0
-        let bufferGroup1 = query.BufferGroup1
-        let bufferGroup2 = query.BufferGroup2
-
-        let mutable i = 0
-        while (i < indices.Length)
-            let count = countGroup[i].Count
-            let entIds = entIdGroup[i]
-            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer))
-            let mutable buffer1 = MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer))
-            let mutable buffer2 = MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer))
-
-            let mutable j = 0
-            while (j < count)
-                f(entIds[j], &buffer0[j], &buffer1[j], &buffer2[j])
-                j <- j + 1
-
-            i <- i + 1  
+        this.ForEachSpan<T0, T1, T2>(
+            (mutable entIds, mutable buffer0, mutable buffer1, mutable buffer2) ->
+                let count = entIds.Length
+                let mutable i = 0
+                while (i < count)
+                    f(entIds[i], &buffer0[i], &buffer1[i], &buffer2[i])
+                    i <- i + 1
+        )
 
     ForEach<T0, T1, T2, T3>(f: (EntityId, byref<T0>, byref<T1>, byref<T2>, byref<T3>) -> ()): () where T0: unmanaged, IComponent 
                                                                                                  where T1: unmanaged, IComponent 
                                                                                                  where T2: unmanaged, IComponent 
                                                                                                  where T3: unmanaged, IComponent =
-        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2, T3>())
 
-        let query = this.CreateQuery<T0, T1, T2, T3>()
-        let countGroup   = query.CountGroup
-        let entIdGroup   = query.EntIdGroup
-        let bufferGroup0 = query.BufferGroup0
-        let bufferGroup1 = query.BufferGroup1
-        let bufferGroup2 = query.BufferGroup2
-        let bufferGroup3 = query.BufferGroup3
-
-        let mutable i = 0
-        while (i < indices.Length)
-            let count = countGroup[i].Count
-            let entIds = entIdGroup[i]
-            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer))
-            let mutable buffer1 = MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer))
-            let mutable buffer2 = MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer))
-            let mutable buffer3 = MemoryMarshal.Cast(Span(bufferGroup3[i].Buffer))
-
-            let mutable j = 0
-            while (j < count)
-                f(entIds[j], &buffer0[j], &buffer1[j], &buffer2[j], &buffer3[j])
-                j <- j + 1
-
-            i <- i + 1  
+        this.ForEachSpan<T0, T1, T2, T3>(
+            (mutable entIds, mutable buffer0, mutable buffer1, mutable buffer2, mutable buffer3) ->
+                let count = entIds.Length
+                let mutable i = 0
+                while (i < count)
+                    f(entIds[i], &buffer0[i], &buffer1[i], &buffer2[i], &buffer3[i])
+                    i <- i + 1
+        )
             
     Create<T0>(value0: T0): EntityId where T0: unmanaged, IComponent =
         let archetypeRef = this.RegisterArchetype<T0>()
@@ -721,9 +685,6 @@ class EntityDatabase =
             dstArchetype.EntityIds[dstIndex] <- entId
             dstArchetype.Count <- dstIndex + 1
 
-            let remove = this.ArchetypeRemovers[srcArchetypedIndex]
-            remove(srcArchetype.Lookup[entId.Index])
-
             this.entityArchetypeIndices[entId.Index] <- dstArchetypedIndex
 
             dstArchetype
@@ -735,9 +696,10 @@ class EntityDatabase =
         &buffer[archetype.Lookup[entId.Index]]
 
     HasComponent<T>(entId: EntityId): bool where T: unmanaged, IComponent =
-        let archetype = this.Archetypes[this.entityArchetypeIndices[entId.Index]]
+        let index = this.entityArchetypeIndices[entId.Index]
+        let archetype = this.Archetypes[index]
         let tyId = T.GetTypeId()
-        (archetype.Id & tyId) == tyId
+        (archetype.FullId & tyId) == tyId
 
     GetComponent<T>(entId: EntityId): byref<T> where T: unmanaged, IComponent =
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
@@ -751,8 +713,26 @@ class EntityDatabase =
         this.entityDeleting.Trigger(entId)
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
         let archetype = this.Archetypes[archetypedIndex]
-        let remove = this.ArchetypeRemovers[archetypedIndex]
-        remove(archetype.Lookup[entId.Index])
+
+        let index = archetype.Lookup[entId.Index]
+        // ---
+        let lastIndex = archetype.Count - 1
+        let lastEntId = archetype.EntityIds[lastIndex]
+
+        if (lastIndex != index)
+            archetype.Lookup[lastEntId.Index] <- index
+            archetype.EntityIds[index] <- archetype.EntityIds[lastIndex]
+
+            // TODO: Optimize this.
+            let tyIds = GetTypeIds(archetype.FullId)
+            let mutable i = 0
+            while (i < tyIds.Length)
+                let buffer = archetype.Buffers[archetype.BufferLookup[tyIds[i]]]
+                buffer.CopyOne(lastIndex, buffer, index)
+                i <- i + 1
+
+        archetype.Count <- lastIndex
+        // ---
         this.DeleteEntityId(entId)
         this.entityDeleted.Trigger(entId)
 
@@ -821,25 +801,45 @@ class EntityDatabase =
             let dstArchetypedIndex = dst.entityArchetypeIndices[i]
 
             if (version != dstVersion)
-                if (version != 0)
+                if (archetypedIndex != -1)
                     let mutable entId = EntityId()
                     entId.Index <- i
                     entId.Version <- version
                     createdEntities.Enqueue(entId)
 
-                if (dstVersion != 0)
+                if (dstVersion != 0 && dstArchetypedIndex != -1)
                     let mutable entId = EntityId()
                     entId.Index <- i
                     entId.Version <- dstVersion
-                    dst.entityDeleting.Trigger(entId)
+                    dst.Delete(entId)
+
+                dst.entityArchetypeIndices[i] <- archetypedIndex
+                dst.entityVersions[i] <- version
+
+            // This handles when an entity has had components added or removed.
+            // This also takes dependencies into account and will move the data to the new archetype.
+            else if (archetypedIndex != -1 && dstArchetypedIndex != -1 && archetypedIndex != dstArchetypedIndex)
+                dst.entityArchetypeIndices[i] <- archetypedIndex
+
+                let archetype = this.Archetypes[archetypedIndex]
+                let depId = archetype.DependencyId
+
+                let dstArchetype = dst.Archetypes[dstArchetypedIndex]
+                let dstDepId = dstArchetype.DependencyId
+                
+                // Do we have any dependencies to copy?
+                if ((dstDepId & ~depId) != 0)
+                    let archetypeId = this.Archetypes[archetypedIndex].Id
+                    let dstNewArchetypedIndex = dst.GetArchetypedIndex(archetypeId)
+                    let dstNewArchetype = dst.Archetypes[dstNewArchetypedIndex]
+
+                    dstArchetype.CopyOne(dstArchetype.Lookup[i], dstNewArchetype, dstNewArchetype.Count)
                     
             i <- i + 1
 
         dst.indexQueue.Clear()
         dst.entityCount <- this.entityCount
         dst.nextIndex <- this.nextIndex
-        Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
-        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
 
         let mutable i = 0
         while (i < this.Archetypes.Count)

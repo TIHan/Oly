@@ -866,12 +866,14 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceAction`2`` = sysTy "Action`2" false
     member val ``TypeReferenceAction`3`` = sysTy "Action`3" false
     member val ``TypeReferenceAction`4`` = sysTy "Action`4" false
+    member val ``TypeReferenceAction`5`` = sysTy "Action`5" false
 
     member val ``TypeReferenceFunc`1`` = sysTy "Func`1" false
     member val ``TypeReferenceFunc`2`` = sysTy "Func`2" false
     member val ``TypeReferenceFunc`3`` = sysTy "Func`3" false
     member val ``TypeReferenceFunc`4`` = sysTy "Func`4" false
     member val ``TypeReferenceFunc`5`` = sysTy "Func`5" false
+    member val ``TypeReferenceFunc`6`` = sysTy "Func`6" false
 
     member val ``TypeReferenceTuple`2`` = sysTy "Tuple`2" false
     member val ``TypeReferenceTuple`3`` = sysTy "Tuple`3" false
@@ -899,6 +901,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member val tr_InAttribute: ClrTypeHandle option = None with get, set
     member val tr_IsReadOnlyAttribute: ClrTypeHandle option = None with get, set
+
+    member val tr_Span: ClrTypeHandle option = None with get, set
+    member val tr_ReadOnlySpan: ClrTypeHandle option = None with get, set
 
     member val ``ConsoleWriteMethod`` = lazy createConsoleWriteMethod()
     member val ``ConsoleWriteMethod_Int32`` = lazy createConsoleWriteMethod_Int32()
@@ -1248,6 +1253,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | 2 -> this.AddGenericInstanceType(this.``TypeReferenceAction`2``, argTys), argTys
             | 3 -> this.AddGenericInstanceType(this.``TypeReferenceAction`3``, argTys), argTys
             | 4 -> this.AddGenericInstanceType(this.``TypeReferenceAction`4``, argTys), argTys
+            | 5 -> this.AddGenericInstanceType(this.``TypeReferenceAction`5``, argTys), argTys
             | _ ->
                 raise(System.NotImplementedException())
         else
@@ -1267,6 +1273,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | 4 ->
                 let tyInst = argTys.Add(returnTy)
                 this.AddGenericInstanceType(this.``TypeReferenceFunc`5``, tyInst), tyInst
+            | 5 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`6``, tyInst), tyInst
             | _ ->
                 raise(System.NotImplementedException())
 

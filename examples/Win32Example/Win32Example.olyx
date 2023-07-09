@@ -347,6 +347,14 @@ test(): () =
     let edb = EntityDatabase()
     let stagingEdb = EntityDatabase()
 
+    edb.Register<Camera>()
+    edb.Register<Transform>()
+    edb.Register<PlayerActionSnapshot>()
+
+    stagingEdb.Register<Camera>()
+    stagingEdb.Register<Transform>()
+    stagingEdb.Register<PlayerActionSnapshot>()
+
     edb.EntityCreated.Add(
         entId ->
             let result = edb.HasComponent<Camera>(entId)
@@ -465,7 +473,9 @@ main(): () =
     let renderBox = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, EntityDatabase.MaxNumberOfEntities, i -> default: mat4)
 
     let world = ServerWorld()
+    world.Initialize()
     let stagingWorld = SharedWorld()
+    stagingWorld.Initialize()
     let clientWorld = ClientWorld(renderBox)
     clientWorld.Initialize()
 
@@ -537,17 +547,17 @@ main(): () =
 
         spawnTime <- spawnTime + deltaTime
 
-        if (spawnTime >= 0.5)
+        if (spawnTime >= 1)
             spawnTime <- 0
             let mutable i = 0
-            while (i < 4096)
-                let position = Vector3(float32(i) * 2, 0, 0)
+            while (i < 2)//4096)
+                let position = Vector3(float32(i + 1) * 2, 0, 0)
                 world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
 
         world.ForEachBox(
             (box, transform, material, objId) ->
-                if (transform.Position.Z <= -100)
+                if (transform.Position.Z <= -10)
                     world.DestroyBox(box)
         )
 
@@ -624,7 +634,7 @@ main(): () =
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
             clientWorld.ForEachBox(
-                (box, transformLerp, transform, material, renderId) ->
+                (box, transformLerp, transform) ->
                     transformLerp <- transform
             )
             clientWorld.ForEachPlayer(
@@ -647,9 +657,9 @@ main(): () =
                 // prediction
                 clientWorld.ForEachPlayer(
                     (player, transform, cameraLerp, camera) ->
-                        printLine("------")
-                        printLine(cameraLerp.Transform.Position)
-                        printLine(camera.Transform.Position)
+                        // printLine("------")
+                        // printLine(cameraLerp.Transform.Position)
+                        // printLine(camera.Transform.Position)
                         playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &camera, currentCameraRotation)
                 )
             else
@@ -702,7 +712,7 @@ main(): () =
                 gpuCommands.Add(GpuCommand.EndFrame())
 
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, quad.Indices.Length, 1))   
-                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, 4096))
+                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, clientWorld.Render_Box.SyncLength))
                 gpuCommands.Add(GpuCommand.DrawUI(gpuProgramUI, Cast([uiNode])))
 
                 r.Gpu.Execute(gpuCommands)     

@@ -92,6 +92,10 @@ class GpuMutableArray<T> where T: unmanaged =
         this.IsDirty <- true
         Span(this.bufferData)
 
+    AsMemory(): Memory<T> =
+        this.IsDirty <- true
+        Memory(this.bufferData)
+
     AsReadOnlySpan(): ReadOnlySpan<T> =
         ReadOnlySpan(this.bufferData)
 

@@ -162,7 +162,7 @@ extension PlayerActionSnapshotComponent =
     implements IComponent
 
     static overrides GetTypeId(): TypeId = 1 << 3
-    static overrides GetSize(): int32 = sizeof<Material>
+    static overrides GetSize(): int32 = sizeof<PlayerActionSnapshot>
 
 #[open]
 extension PlayerTagComponent =
@@ -283,6 +283,9 @@ class ServerWorld =
         )
 
         this.Flush()
+
+    AddPlayerActionSnapshot(player: Player, actionSnapshot: PlayerActionSnapshot): () =
+        (this.Database.AddComponent<PlayerActionSnapshot>(player.Value)) <- actionSnapshot
 
     SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
         if (this.CanSpawnEntity)

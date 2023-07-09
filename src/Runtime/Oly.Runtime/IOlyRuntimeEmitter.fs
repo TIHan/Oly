@@ -17,6 +17,7 @@ type OlyIRFunctionTier =
 type IOlyVirtualMachine<'Type, 'Function, 'Field> =
 
     abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
+    abstract TryFindType : fullyQualifiedTypeName: string * tyParCount: int32 -> 'Type option
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 

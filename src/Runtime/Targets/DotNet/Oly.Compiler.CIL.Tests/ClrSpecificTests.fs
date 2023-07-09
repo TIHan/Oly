@@ -4809,3 +4809,53 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Span used as a parameter for a lambda``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(never)]
+test(f: Span<byte> -> ()): () =
+    let s = Span(mutable []: mutable byte[])
+    f(s)
+
+main(): () =
+    test(s -> ())
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``ReadOnlySpan used as a parameter for a lambda``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(never)]
+test(f: ReadOnlySpan<byte> -> ()): () =
+    let s = ReadOnlySpan(mutable []: mutable byte[])
+    f(s)
+
+main(): () =
+    test(s -> ())
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
