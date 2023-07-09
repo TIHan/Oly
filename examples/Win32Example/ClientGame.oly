@@ -68,12 +68,6 @@ class ClientWorld =
                 let mutable boxRenders = boxRenders.Span
                 let mutable i = 0
                 while (i < length)
-                    let posLerp = transformLerps[i].Transform.Position
-                    let pos = transforms[i].Position
-                        
-                    if (posLerp.X != pos.X)
-                        printLine("blip")
-
                     (boxRenders[i]) <- mat4.Lerp(transformLerps[i].Transform.Matrix, transforms[i].Matrix, alpha)
                     i <- i + 1
                 boxCount <- boxCount + length

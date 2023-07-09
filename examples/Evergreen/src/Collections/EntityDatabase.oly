@@ -38,7 +38,7 @@ internal module Helpers =
 
     GetArchetypeId<T0, T1>(): ArchetypeId where T0: IComponent where T1: IComponent = T0.GetTypeId() | T1.GetTypeId()
 
-    GetArchetypeId<T0, T1, T2>(): ArchetypeId where T0: IComponent where T1: IComponent where T2: IComponent = T0.GetTypeId()| T1.GetTypeId() | T2.GetTypeId()
+    GetArchetypeId<T0, T1, T2>(): ArchetypeId where T0: IComponent where T1: IComponent where T2: IComponent = T0.GetTypeId() | T1.GetTypeId() | T2.GetTypeId()
 
     GetArchetypeId<T0, T1, T2, T3>(): ArchetypeId where T0: IComponent where T1: IComponent where T2: IComponent where T3: IComponent = T0.GetTypeId() | T1.GetTypeId() | T2.GetTypeId() | T3.GetTypeId()
 
@@ -69,7 +69,7 @@ internal class ComponentBuffer =
         let dstBuffer = (Unsafe.Cast(dst): ComponentBuffer).Buffer
         Span(this.Buffer, 0, lengthInBytes).CopyTo(Span(dstBuffer, 0, lengthInBytes))
 
-    CopyOne(srcIndex: int32, dst: ComponentBuffer, dstIndex: int32): () =
+    CopyOneTo(srcIndex: int32, dst: ComponentBuffer, dstIndex: int32): () =
         Span(this.Buffer, srcIndex * this.TypeSize, this.TypeSize).CopyTo(Span(dst.Buffer, dstIndex * this.TypeSize, this.TypeSize))
 
 internal class Archetype =
@@ -84,17 +84,10 @@ internal class Archetype =
     Buffers: ComponentBuffer[] get
     BufferLookup: ConcurrentDictionary<TypeId, int32> get
 
-    IsValid(entId: EntityId): bool =
-        if (entId.IsNil) false
-        else
-            this.Lookup[entId.Index] != -1
-
     CopyTo(dst: Archetype): () =
         let count = this.Count
-
-        dst.Count <- count
         
-       // Span(this.Lookup).CopyTo(Span(dst.Lookup))
+        //Span(this.Lookup).CopyTo(Span(dst.Lookup))
         Span(this.EntityIds, 0, count).CopyTo(Span(dst.EntityIds))
 
         // fix-up lookup
@@ -105,6 +98,9 @@ internal class Archetype =
             lookup[entIds[i].Index] <- i
             i <- i + 1
 
+        Span(this.EntityIds, 0, count).CopyTo(Span(dst.EntityIds))
+        dst.Count <- count
+
         let mutable i = 0
         while (i < this.Buffers.Length)
             let buffer = this.Buffers[i]
@@ -113,13 +109,13 @@ internal class Archetype =
                 buffer.CopyTo(dst.Buffers[dstBufferIndex], count * buffer.TypeSize)
             i <- i + 1 
 
-    CopyOne(srcIndex: int32, dst: Archetype, dstIndex: int32): () =
+    CopyOneTo(srcIndex: int32, dst: Archetype, dstIndex: int32): () =
         let mutable i = 0
         while (i < this.Buffers.Length)
             let buffer = this.Buffers[i]
             let mutable dstBufferIndex = unchecked default
             if (dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
-                buffer.CopyOne(srcIndex, dst.Buffers[dstBufferIndex], dstIndex)
+                buffer.CopyOneTo(srcIndex, dst.Buffers[dstBufferIndex], dstIndex)
             i <- i + 1 
             
     GetRawComponentBuffer<T>(typedIndex: int32): Span<T> where T: unmanaged =
@@ -680,7 +676,7 @@ class EntityDatabase =
 
             let srcIndex = srcArchetype.Lookup[entId.Index]
             let dstIndex = dstArchetype.Count
-            srcArchetype.CopyOne(srcIndex, dstArchetype, dstIndex)
+            srcArchetype.CopyOneTo(srcIndex, dstArchetype, dstIndex)
             dstArchetype.Lookup[entId.Index] <- dstIndex
             dstArchetype.EntityIds[dstIndex] <- entId
             dstArchetype.Count <- dstIndex + 1
@@ -714,9 +710,17 @@ class EntityDatabase =
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
         let archetype = this.Archetypes[archetypedIndex]
 
-        let index = archetype.Lookup[entId.Index]
         // ---
+        let index = archetype.Lookup[entId.Index]
         let lastIndex = archetype.Count - 1
+        this.Swap(archetype, index, lastIndex)
+        archetype.Count <- lastIndex
+        // ---
+
+        this.DeleteEntityId(entId)
+        this.entityDeleted.Trigger(entId)
+
+    private Swap(archetype: Archetype, index: int32, lastIndex: int32): () =
         let lastEntId = archetype.EntityIds[lastIndex]
 
         if (lastIndex != index)
@@ -728,13 +732,8 @@ class EntityDatabase =
             let mutable i = 0
             while (i < tyIds.Length)
                 let buffer = archetype.Buffers[archetype.BufferLookup[tyIds[i]]]
-                buffer.CopyOne(lastIndex, buffer, index)
+                buffer.CopyOneTo(lastIndex, buffer, index)
                 i <- i + 1
-
-        archetype.Count <- lastIndex
-        // ---
-        this.DeleteEntityId(entId)
-        this.entityDeleted.Trigger(entId)
 
     // ----------------------------------------------
 
@@ -811,7 +810,7 @@ class EntityDatabase =
                     let mutable entId = EntityId()
                     entId.Index <- i
                     entId.Version <- dstVersion
-                    dst.Delete(entId)
+                    dst.entityDeleting.Trigger(entId)
 
                 dst.entityArchetypeIndices[i] <- archetypedIndex
                 dst.entityVersions[i] <- version
@@ -833,7 +832,7 @@ class EntityDatabase =
                     let dstNewArchetypedIndex = dst.GetArchetypedIndex(archetypeId)
                     let dstNewArchetype = dst.Archetypes[dstNewArchetypedIndex]
 
-                    dstArchetype.CopyOne(dstArchetype.Lookup[i], dstNewArchetype, dstNewArchetype.Count)
+                    dstArchetype.CopyOneTo(dstArchetype.Lookup[i], dstNewArchetype, dstNewArchetype.Count)
                     
             i <- i + 1
 
