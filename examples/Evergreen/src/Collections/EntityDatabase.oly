@@ -270,6 +270,91 @@ internal class EntityEvent<T> =
             subscriber(eventData)
             i <- i + 1
 
+class ByteStream =
+    mutable field buffer: mutable byte[] = Array.ZeroCreate(65536)
+    mutable field position: int32 = 0
+    mutable field count: int32 = 0
+    public mutable field IsReading: bool = false
+
+    Count: int32 get() = this.count
+    Position: int32 get() = this.position
+
+    ResetPosition(): () =
+        this.position <- 0
+
+    Reset(): () =
+        this.ResetPosition()
+        this.count <- 0
+
+    private WriteCore<T>(value: byref<T>): int32 where T: unmanaged =
+        let size = sizeof<T>
+        if (size >= 65536)
+            fail("Value too big.")
+
+        let currentPosition = this.position
+        let nextPosition = currentPosition + size
+
+        let mutable buffer = this.buffer
+
+        if (this.IsReading)
+            let mutable span = MemoryMarshal.Cast<_, T>(Span(buffer, currentPosition, size))
+            let result = span[0]
+            value <- result
+        else
+            ()
+            if (nextPosition >= buffer.Length)
+                let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
+                System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
+                buffer <- newBuffer
+                this.buffer <- buffer
+
+            if (this.count < nextPosition)
+                this.count <- nextPosition
+
+            (MemoryMarshal.Cast(Span(buffer, currentPosition, size))[0]) <- value
+
+        this.position <- nextPosition
+        size
+
+    Write<T>(mutable value: T): () where T: unmanaged = let _ = this.WriteCore<T>(&value)
+    Peek<T>(): T where T: unmanaged =
+        let oldPosition = this.Position
+        let value = this.Read<T>()
+        this.position <- oldPosition
+        value
+    Read<T>(): T where T: unmanaged =
+        let mutable value = unchecked default
+        let _ = this.WriteCore(&value)
+        value
+
+    CopyExactTo(bstream: ByteStream): () =
+        bstream.position <- this.position
+        bstream.count <- this.count
+
+        if (bstream.buffer.Length < this.buffer.Length)
+            bstream.buffer <- Array.ZeroCreate(this.buffer.Length)
+
+        Span(this.buffer, 0, this.count).CopyTo(Span(bstream.buffer))
+
+internal module EntityEvent =
+
+    EntityCreated(eventStream: ByteStream, entId: EntityId, archetypeId: ArchetypeId): () =
+        eventStream.Write<byte>(1)
+        eventStream.Write(entId)
+        eventStream.Write(archetypeId)
+
+    pattern EntityCreated(eventStream: ByteStream): (entId: EntityId, archetypeId: ArchetypeId) when (eventStream.Peek<byte>() == 1) =>
+        let _ = eventStream.Read<byte>()
+        (eventStream.Read(), eventStream.Read())
+
+    EntityDeleted(eventStream: ByteStream, entId: EntityId): () =
+        eventStream.Write<byte>(2)
+        eventStream.Write(entId)
+
+    pattern EntityDeleted(eventStream: ByteStream): EntityId when (eventStream.Peek<byte>() == 2) =>
+        let _ = eventStream.Read<byte>()
+        eventStream.Read()
+
 class EntityDatabase =
 
     private class ArchetypeIdEqualityComparer =
@@ -297,6 +382,9 @@ class EntityDatabase =
     internal Archetypes: List<Archetype> get = List()
     internal ArchetypeLookup: ConcurrentDictionary<ArchetypeId, int32> get = ConcurrentDictionary(ArchetypeIdEqualityComparer())
     internal DependencyLookup: Dictionary<TypeId, ArchetypeId> get = Dictionary()
+
+    private snapshot: ByteStream get = ByteStream()
+    private eventStream: ByteStream get = ByteStream()
 
     private GetArchetypedIndex<T0>(): int32 where T0: unmanaged, IComponent =
         this.GetArchetypedIndex(GetArchetypeId<T0>())
@@ -613,6 +701,7 @@ class EntityDatabase =
 
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
+        EntityEvent.EntityCreated(this.eventStream, entId, archetype.Id)
         entId
 
     Create<T0, T1>(value0: T0, value1: T1): EntityId where T0: unmanaged, IComponent
@@ -634,6 +723,7 @@ class EntityDatabase =
 
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
+        EntityEvent.EntityCreated(this.eventStream, entId, archetype.Id)
         entId
 
     Create<T0, T1, T2>(value0: T0, value1: T1, value2: T2): EntityId where T0: unmanaged, IComponent
@@ -658,6 +748,7 @@ class EntityDatabase =
 
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
+        EntityEvent.EntityCreated(this.eventStream, entId, archetype.Id)
         entId
 
     private AddComponentCore(entId: EntityId, typeId: TypeId): Archetype =
@@ -719,6 +810,7 @@ class EntityDatabase =
 
         this.DeleteEntityId(entId)
         this.entityDeleted.Trigger(entId)
+        EntityEvent.EntityDeleted(this.eventStream, entId)
 
     private Swap(archetype: Archetype, index: int32, lastIndex: int32): () =
         let lastEntId = archetype.EntityIds[lastIndex]
@@ -780,7 +872,7 @@ class EntityDatabase =
 
     EntityCount: int32 get() = this.entityCount
 
-    Replicate(dst: EntityDatabase): () =
+    CopyTo(dst: EntityDatabase): () =
         if (this.Archetypes.Count != dst.Archetypes.Count)
             let mutable i = 0
             while (i < this.Archetypes.Count)
@@ -788,53 +880,8 @@ class EntityDatabase =
                 let _ = dst.GetArchetypedIndex(archetype.Id)
                 i <- i + 1
 
-        let createdEntities = Queue<EntityId>()
-        let maxCount = Math.Max(this.EntityCount, dst.EntityCount)
-
-        let mutable i = 0
-        while (i < maxCount)
-            let version = this.entityVersions[i]
-            let archetypedIndex = this.entityArchetypeIndices[i]
-
-            let dstVersion = dst.entityVersions[i]
-            let dstArchetypedIndex = dst.entityArchetypeIndices[i]
-
-            if (version != dstVersion)
-                if (archetypedIndex != -1)
-                    let mutable entId = EntityId()
-                    entId.Index <- i
-                    entId.Version <- version
-                    createdEntities.Enqueue(entId)
-
-                if (dstVersion != 0 && dstArchetypedIndex != -1)
-                    let mutable entId = EntityId()
-                    entId.Index <- i
-                    entId.Version <- dstVersion
-                    dst.entityDeleting.Trigger(entId)
-
-                dst.entityArchetypeIndices[i] <- archetypedIndex
-                dst.entityVersions[i] <- version
-
-            // This handles when an entity has had components added or removed.
-            // This also takes dependencies into account and will move the data to the new archetype.
-            else if (archetypedIndex != -1 && dstArchetypedIndex != -1 && archetypedIndex != dstArchetypedIndex)
-                dst.entityArchetypeIndices[i] <- archetypedIndex
-
-                let archetype = this.Archetypes[archetypedIndex]
-                let depId = archetype.DependencyId
-
-                let dstArchetype = dst.Archetypes[dstArchetypedIndex]
-                let dstDepId = dstArchetype.DependencyId
-                
-                // Do we have any dependencies to copy?
-                if ((dstDepId & ~depId) != 0)
-                    let archetypeId = this.Archetypes[archetypedIndex].Id
-                    let dstNewArchetypedIndex = dst.GetArchetypedIndex(archetypeId)
-                    let dstNewArchetype = dst.Archetypes[dstNewArchetypedIndex]
-
-                    dstArchetype.CopyOneTo(dstArchetype.Lookup[i], dstNewArchetype, dstNewArchetype.Count)
-                    
-            i <- i + 1
+        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
+        Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
 
         dst.indexQueue.Clear()
         dst.entityCount <- this.entityCount
@@ -845,7 +892,111 @@ class EntityDatabase =
             let archetype = this.Archetypes[i]
             archetype.CopyTo(dst.Archetypes[i])
             i <- i + 1
+
+        this.eventStream.CopyExactTo(dst.eventStream)
+
+    Replicate(dst: EntityDatabase): () =
+        // // ---
+        dst.eventStream.Reset()
+
+        let deletedEntsTable = HashSet<EntityId>()
+        let deletedEnts = Queue<EntityId>()
+        let createdEnts = Queue<EntityId>()
+
+        let eventStream = this.eventStream
+        eventStream.ResetPosition()
+        eventStream.IsReading <- true
+        while (eventStream.Position < eventStream.Count)
+            match (eventStream)
+            | EntityEvent.EntityCreated(entId, archetypeId) =>
+                createdEnts.Enqueue(entId)
+                let _ = dst.GetArchetypedIndex(archetypeId)
+
+            | EntityEvent.EntityDeleted(entId) =>
+                let _ = deletedEntsTable.Add(entId)
+                if (dst.IsValid(entId))
+                    dst.entityDeleting.Trigger(entId)
+                    deletedEnts.Enqueue(entId)
+                
+            | _ =>
+                fail("Invalid event.")
+
+        eventStream.Reset()
+        eventStream.IsReading <- false
+        // // ---
+
+        // if (this.Archetypes.Count != dst.Archetypes.Count)
+        //     let mutable i = 0
+        //     while (i < this.Archetypes.Count)
+        //         let archetype = this.Archetypes[i]
+        //         let _ = dst.GetArchetypedIndex(archetype.Id)
+        //         i <- i + 1
+
+        // let maxCount = Math.Max(this.EntityCount, dst.EntityCount)
+
+        // let mutable i = 0
+        // while (i < maxCount)
+        //     let version = this.entityVersions[i]
+        //     let archetypedIndex = this.entityArchetypeIndices[i]
+
+        //     let dstVersion = dst.entityVersions[i]
+        //     let dstArchetypedIndex = dst.entityArchetypeIndices[i]
+
+        //     if (version != dstVersion)
+        //         if (archetypedIndex != -1)
+        //             let mutable entId = EntityId()
+        //             entId.Index <- i
+        //             entId.Version <- version
+        //             createdEntities.Enqueue(entId)
+
+        //         if (dstVersion != 0 && dstArchetypedIndex != -1)
+        //             let mutable entId = EntityId()
+        //             entId.Index <- i
+        //             entId.Version <- dstVersion
+        //             dst.entityDeleting.Trigger(entId)
+
+        //         dst.entityArchetypeIndices[i] <- archetypedIndex
+        //         dst.entityVersions[i] <- version
+
+        //     // This handles when an entity has had components added or removed.
+        //     // This also takes dependencies into account and will move the data to the new archetype.
+        //     else if (archetypedIndex != -1 && dstArchetypedIndex != -1 && archetypedIndex != dstArchetypedIndex)
+        //         dst.entityArchetypeIndices[i] <- archetypedIndex
+
+        //         let archetype = this.Archetypes[archetypedIndex]
+        //         let depId = archetype.DependencyId
+
+        //         let dstArchetype = dst.Archetypes[dstArchetypedIndex]
+        //         let dstDepId = dstArchetype.DependencyId
+                
+        //         // Do we have any dependencies to copy?
+        //         if ((dstDepId & ~depId) != 0)
+        //             let archetypeId = this.Archetypes[archetypedIndex].Id
+        //             let dstNewArchetypedIndex = dst.GetArchetypedIndex(archetypeId)
+        //             let dstNewArchetype = dst.Archetypes[dstNewArchetypedIndex]
+
+        //             dstArchetype.CopyOneTo(dstArchetype.Lookup[i], dstNewArchetype, dstNewArchetype.Count)
+                    
+        //     i <- i + 1
+
+        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
+        Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
+
+        dst.indexQueue.Clear()
+        dst.entityCount <- this.entityCount
+        dst.nextIndex <- this.nextIndex
+
+        let mutable i = 0
+        while (i < this.Archetypes.Count)
+            let archetype = this.Archetypes[i]
+            archetype.CopyTo(dst.Archetypes[i])
+            i <- i + 1
+
+        // let mutable entId = default
+        // while (deletedEnts.TryDequeue(&entId))
+        //     dst.entityDeleted.Trigger(entId)
             
         let mutable entId = default
-        while (createdEntities.TryDequeue(&entId))
-            dst.entityCreated.Trigger(entId)
+        while (createdEnts.TryDequeue(&entId))
+            if (!deletedEntsTable.Contains(entId))
+                dst.entityCreated.Trigger(entId)

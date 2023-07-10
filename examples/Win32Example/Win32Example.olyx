@@ -400,7 +400,7 @@ test(): () =
 main(): () =
     let mutable i = 0
     while (i < 100)
-        test()
+      //  test()
         DotNet.GCCollect()
         i <- i + 1
 
@@ -651,7 +651,7 @@ main(): () =
 
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
-                stagingWorld.CopyTo(clientWorld)
+                stagingWorld.Replicate(clientWorld)
                 let _ = sv.Set()
 
                 // prediction
@@ -667,7 +667,7 @@ main(): () =
                     if (task !== null)
                         let _ = cl.WaitOne()
                         let _ = cl.Reset()
-                        stagingWorld.CopyTo(clientWorld)
+                        stagingWorld.Replicate(clientWorld)
                         let _ = sv.Set()
                         task.Join()
                         task <- null
