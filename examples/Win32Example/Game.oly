@@ -207,10 +207,12 @@ abstract class World =
     CanSpawnEntity: bool get() = this.Database.CanSpawnEntity
 
     Replicate(world: World): () =
-        this.Database.Replicate(world.Database) 
+        this.Database.Replicate(world.Database)
+        this.Database.Flush()
 
     CopyTo(world: World): () =
-        this.Database.CopyTo(world.Database) 
+        this.Database.CopyTo(world.Database)
+        this.Database.Flush()
 
     protected abstract default OnEntitySpawned(entId: EntityId): () = ()
 

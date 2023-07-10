@@ -389,18 +389,20 @@ test(): () =
     edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> ())
 
     edb.Replicate(stagingEdb)
+    edb.Flush()
 
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
     let s = Stopwatch.StartNew()
     edb.Replicate(stagingEdb)
+    edb.Flush()
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
 
 main(): () =
     let mutable i = 0
     while (i < 100)
-      //  test()
+        test()
         DotNet.GCCollect()
         i <- i + 1
 
@@ -673,7 +675,7 @@ main(): () =
                         task <- null
                     else
                         serverTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
-                        stagingWorld.CopyTo(clientWorld)
+                        stagingWorld.Replicate(clientWorld)
                 )
 
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
