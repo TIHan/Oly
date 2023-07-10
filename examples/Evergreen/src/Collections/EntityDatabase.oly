@@ -355,6 +355,15 @@ internal module EntityEvent =
         let _ = eventStream.Read<byte>()
         eventStream.Read()
 
+    ComponentAdded(eventStream: ByteStream, entId: EntityId, compId: TypeId): () =
+        eventStream.Write<byte>(3)
+        eventStream.Write(entId)
+        eventStream.Write(compId)
+
+    pattern ComponentAdded(eventStream: ByteStream): (entId: EntityId, compId: TypeId) when (eventStream.Peek<byte>() == 3) =>
+        let _ = eventStream.Read<byte>()
+        (eventStream.Read(), eventStream.Read())
+
 class EntityDatabase =
 
     private class ArchetypeIdEqualityComparer =
@@ -751,7 +760,7 @@ class EntityDatabase =
         EntityEvent.EntityCreated(this.eventStream, entId, archetype.Id)
         entId
 
-    private AddComponentCore(entId: EntityId, typeId: TypeId): Archetype =
+    private AddCore(entId: EntityId, typeId: TypeId): Archetype =
         this.Check(entId)
 
         let srcArchetypedIndex = this.entityArchetypeIndices[entId.Index]
@@ -773,22 +782,23 @@ class EntityDatabase =
             dstArchetype.Count <- dstIndex + 1
 
             this.entityArchetypeIndices[entId.Index] <- dstArchetypedIndex
+            EntityEvent.ComponentAdded(this.eventStream, entId, typeId)
 
             dstArchetype
 
-    AddComponent<T>(entId: EntityId): byref<T> where T: unmanaged, IComponent =
+    Add<T>(entId: EntityId): byref<T> where T: unmanaged, IComponent =
         let tyId: TypeId = T.GetTypeId()
-        let archetype = this.AddComponentCore(entId, tyId)
+        let archetype = this.AddCore(entId, tyId)
         let mutable buffer = archetype.GetRawComponentBuffer(archetype.BufferLookup[tyId])
         &buffer[archetype.Lookup[entId.Index]]
 
-    HasComponent<T>(entId: EntityId): bool where T: unmanaged, IComponent =
+    Has<T>(entId: EntityId): bool where T: unmanaged, IComponent =
         let index = this.entityArchetypeIndices[entId.Index]
         let archetype = this.Archetypes[index]
         let tyId = T.GetTypeId()
         (archetype.FullId & tyId) == tyId
 
-    GetComponent<T>(entId: EntityId): byref<T> where T: unmanaged, IComponent =
+    Get<T>(entId: EntityId): byref<T> where T: unmanaged, IComponent =
         let archetypedIndex = this.entityArchetypeIndices[entId.Index]
         let typedIndex = this.GetTypedIndex<T>(archetypedIndex)
         let archetype = this.Archetypes[archetypedIndex]
@@ -904,6 +914,7 @@ class EntityDatabase =
 
         let deletedEntsTable = HashSet<EntityId>()
         let createdEnts = Queue<(EntityId, ArchetypeId)>()
+        let addedComps = Queue<(EntityId, TypeId)>()
 
         let eventStream = this.eventStream
         eventStream.ResetPosition()
@@ -912,6 +923,9 @@ class EntityDatabase =
             match (eventStream)
             | EntityEvent.EntityCreated(entId, archetypeId) =>
                 createdEnts.Enqueue((entId, archetypeId))
+
+            | EntityEvent.ComponentAdded(entId, compId) =>
+                addedComps.Enqueue((entId, compId))
 
             | EntityEvent.EntityDeleted(entId) =>
                 let _ = deletedEntsTable.Add(entId)
@@ -943,3 +957,9 @@ class EntityDatabase =
                 dst.entityVersions[entId.Index] <- entId.Version
                 dst.entityArchetypeIndices[entId.Index] <- dst.GetArchetypedIndex(archetypeId)
                 dst.entityCreated.Trigger(entId)
+
+        let mutable result = unchecked default
+        while (addedComps.TryDequeue(&result))
+            let (entId, compId) = result
+            if (!deletedEntsTable.Contains(entId))
+                let _ = dst.AddCore(entId, compId)

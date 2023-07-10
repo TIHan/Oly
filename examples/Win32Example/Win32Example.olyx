@@ -357,10 +357,10 @@ test(): () =
 
     edb.EntityCreated.Add(
         entId ->
-            let result = edb.HasComponent<Camera>(entId)
-            let result = edb.HasComponent<Transform>(entId)
-            let result = edb.HasComponent<Camera>(entId)
-            let result = edb.HasComponent<Transform>(entId)
+            let result = edb.Has<Camera>(entId)
+            let result = edb.Has<Transform>(entId)
+            let result = edb.Has<Camera>(entId)
+            let result = edb.Has<Transform>(entId)
     )
 
     let s = Stopwatch.StartNew()
@@ -378,7 +378,7 @@ test(): () =
     edb.ForEach<Transform, Camera>((mutable entId, transform, camera) -> ())
     edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> printLine("failed"))
 
-    let playerActionSnapshot = edb.AddComponent<PlayerActionSnapshot>(entId)
+    let playerActionSnapshot = edb.Add<PlayerActionSnapshot>(entId)
 
     // let entIdsToDelete = List()
     // edb.ForEach<Transform, Camera>(
@@ -552,8 +552,8 @@ main(): () =
         if (spawnTime >= 1)
             spawnTime <- 0
             let mutable i = 0
-            while (i < 2)//4096)
-                let position = Vector3(float32(i + 1) * 2, 0, 0)
+            while (i < 1024)//4096)
+                let position = Vector3(float32(i + 1) * 0.5, 0, 0)
                 world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
 

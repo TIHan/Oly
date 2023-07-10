@@ -89,14 +89,14 @@ class ClientWorld =
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =
-        if (this.Database.HasComponent<Transform>(entId))
-            let transform = &this.Database.GetComponent<Transform>(entId)
-            let transformLerp = &this.Database.GetComponent<TransformLerp>(entId)
+        if (this.Database.Has<Transform>(entId))
+            let transform = &this.Database.Get<Transform>(entId)
+            let transformLerp = &this.Database.Get<TransformLerp>(entId)
             transformLerp.Transform <- transform
 
-        if (this.Database.HasComponent<Camera>(entId))
-            let camera = &this.Database.GetComponent<Camera>(entId)
-            let cameraLerp = &this.Database.GetComponent<CameraLerp>(entId)
+        if (this.Database.Has<Camera>(entId))
+            let camera = &this.Database.Get<Camera>(entId)
+            let cameraLerp = &this.Database.Get<CameraLerp>(entId)
             cameraLerp.Camera <- camera
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
