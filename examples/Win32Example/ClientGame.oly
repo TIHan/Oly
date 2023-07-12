@@ -57,6 +57,12 @@ class ClientWorld =
 
         this.Database.Register<TransformLerp>()
         this.Database.RegisterDependency<Transform, TransformLerp>()
+
+        this.StagingDatabase.Register<CameraLerp>()
+        this.StagingDatabase.RegisterDependency<Camera, CameraLerp>()
+
+        this.StagingDatabase.Register<TransformLerp>()
+        this.StagingDatabase.RegisterDependency<Transform, TransformLerp>()
     
     Update(alpha: float32): () =
         let mutable boxCount = 0
@@ -89,15 +95,17 @@ class ClientWorld =
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =
-        if (this.Database.Has<Transform>(entId))
-            let transform = &this.Database.Get<Transform>(entId)
-            let transformLerp = &this.Database.Get<TransformLerp>(entId)
-            transformLerp.Transform <- transform
+        let _ =
+            this.Database.TryGet<Transform, TransformLerp>(entId,
+                (transform, transformLerp) ->
+                    transformLerp.Transform <- transform
+            )
 
-        if (this.Database.Has<Camera>(entId))
-            let camera = &this.Database.Get<Camera>(entId)
-            let cameraLerp = &this.Database.Get<CameraLerp>(entId)
-            cameraLerp.Camera <- camera
+        let _ =
+            this.Database.TryGet<Camera, CameraLerp>(entId,
+                (camera, cameraLerp) ->
+                    cameraLerp.Camera <- camera
+            )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
         ()

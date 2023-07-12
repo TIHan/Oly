@@ -213,11 +213,9 @@ abstract class World =
     Replicate(world: World): () =
         world.Database.CopyTo(world.StagingDatabase)
         this.Database.Replicate(world.Database, world.StagingDatabase)
-        this.Database.Flush()
 
     CopyTo(world: World): () =
         this.Database.CopyTo(world.Database)
-        this.Database.Flush()
 
     protected abstract default OnEntitySpawned(entId: EntityId): () = ()
 
@@ -298,7 +296,7 @@ class ServerWorld =
         this.Flush()
 
     AddPlayerActionSnapshot(player: Player, actionSnapshot: PlayerActionSnapshot): () =
-        (this.Database.Add<PlayerActionSnapshot>(player.Value)) <- actionSnapshot
+        this.Database.AddOrUpdate<PlayerActionSnapshot>(player.Value, actionSnapshot)
 
     SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
         if (this.CanSpawnEntity)
@@ -323,9 +321,12 @@ class ServerWorld =
 
     protected overrides OnEntitySpawned(entId: EntityId): () =
         if (this.Database.Has<BoxTag>(entId))
-            let transform = this.Database.Get<Transform>(entId)
-            let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-            this.Server_Box[entId.Index] <- objId
+            let _ =
+                this.Database.TryGet<Transform>(entId,
+                    transform ->
+                        let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
+                        this.Server_Box[entId.Index] <- objId
+                )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
         if (this.Database.Has<BoxTag>(entId))
