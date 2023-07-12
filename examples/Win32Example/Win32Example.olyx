@@ -557,7 +557,7 @@ main(): () =
                 i <- i + 1
 
         world.ForEachBox(
-            (box, transform, material, objId) ->
+            (box, transform, material) ->
                 if (transform.Position.Z <= -10000)
                     world.DestroyBox(box)
         )

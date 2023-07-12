@@ -179,6 +179,14 @@ extension BoxTagComponent =
 
     static overrides GetTypeId(): TypeId = 1 << 5
     static overrides GetSize(): int32 = sizeof<BoxTag>
+
+#[open]
+extension DynamicObjectIdComponent =
+    inherits DynamicObjectId
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 6
+    static overrides GetSize(): int32 = sizeof<DynamicObjectId>
     
 // ----------------------------------------------------------------------
 
@@ -242,15 +250,16 @@ class ServerWorld =
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
 
-    private Server_Box: mutable DynamicObjectId[] get
-
     new() =
-        let boxes = Array.ZeroCreate(EntityDatabase.MaxNumberOfEntities)
-
         {
             DestroyEntityQueue = ConcurrentQueue()
-            Server_Box = boxes
         }
+
+    overrides Initialize(): () =
+        base.Initialize()
+
+        this.Database.Register<DynamicObjectId>()
+        this.Database.RegisterDependency<BoxTag, DynamicObjectId>()
 
     private Flush(): () =
         let mutable entId = default
@@ -262,16 +271,12 @@ class ServerWorld =
 
         this.Physics.Update(Δ)
 
-        this.Database.ForEach<BoxTag, Transform>(
-            (entId, tag, transform) ->
-                let physObjId = this.Server_Box[entId.Index]
+        this.Database.ParallelForEach<Transform, DynamicObjectId>(
+            (entId, transform, physObjId) ->
                 let mutable position = vec3.Zero
                 let mutable orientation = quat.Identity
                 this.Physics.GetPositionAndOrientation(physObjId, &position, &orientation)
-                let mutable scale = mat4.CreateScale(transform.Scale)
-                let mutable m = mat4.CreateFromQuaternion(orientation)
-                scale.Translation <- position
-                transform <- Transform(m * scale)
+                transform <- Transform.Create(position, orientation, transform.Scale)
         )
 
     SpawnPlayer(position: vec3): () =
@@ -308,27 +313,26 @@ class ServerWorld =
     DestroyBox(box: Box): () =
         this.DestroyEntityQueue.Enqueue(box.Value)
 
-    ForEachBox(f: (Box, transform: Transform, material: Material, DynamicObjectId) -> ()): () =
+    ForEachBox(f: (Box, transform: Transform, material: Material) -> ()): () =
         this.Flush()
 
         this.Database.ForEach<BoxTag, Transform, Material>(
             (entId, tag, transform, material) -> 
-                let physObjId = this.Server_Box[entId.Index]
-                f(Box(entId), transform, material, physObjId)
+                f(Box(entId), transform, material)
         )
 
         this.Flush()
 
     protected overrides OnEntitySpawned(entId: EntityId): () =
-        if (this.Database.Has<BoxTag>(entId))
-            let _ =
-                this.Database.TryGet<Transform>(entId,
-                    transform ->
-                        let objId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-                        this.Server_Box[entId.Index] <- objId
-                )
+        let _ =
+            this.Database.TryGet<Transform, DynamicObjectId>(entId,
+                (transform, physObjId) ->
+                    physObjId <- this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
+            )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
-        if (this.Database.Has<BoxTag>(entId))
-            this.Physics.RemoveBox(this.Server_Box[entId.Index])
-            this.Server_Box[entId.Index] <- default
+        let _ =
+            this.Database.TryGet<DynamicObjectId>(entId,
+                physObjId ->
+                    this.Physics.RemoveBox(physObjId)
+            )

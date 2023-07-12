@@ -675,6 +675,34 @@ class EntityDatabase =
 
             i <- i + 1  
 
+    ParallelForEach<T0, T1>(f: (EntityId, byref<T0>, byref<T1>) -> ()): () where T0: unmanaged, IComponent 
+                                                                   where T1: unmanaged, IComponent =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1>())
+
+        let query = this.CreateQuery<T0, T1>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+            
+            let entIds = entIdGroup[i]
+            let mutable buffer0Mem = Memory(bufferGroup0[i].RawBuffer)
+            let mutable buffer1Mem = Memory(bufferGroup1[i].RawBuffer)
+
+            let _ =
+                System.Threading.Tasks.Parallel.For(0, count, 
+                    (j, state) ->
+                        let mutable buffer0: Span<T0> = MemoryMarshal.Cast(buffer0Mem.Span)
+                        let mutable buffer1: Span<T1> = MemoryMarshal.Cast(buffer1Mem.Span)
+                        f(entIds[j], &buffer0[j], &buffer1[j])
+                )
+
+            i <- i + 1
+
     ForEach<T0, T1>(f: (EntityId, byref<T0>, byref<T1>) -> ()): () where T0: unmanaged, IComponent 
                                                                    where T1: unmanaged, IComponent =
         this.ForEachSpan<T0, T1>(
