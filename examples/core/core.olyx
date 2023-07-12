@@ -8,6 +8,7 @@ module OlyCore
 
 open System
 open System.Numerics
+open System.Runtime.InteropServices
 
 alias vec2 = Vector2
 alias vec3 = Vector3
@@ -28,3 +29,41 @@ extension Vector3Extensions =
 alias quat = Quaternion
 
 alias mat4 = Matrix4x4
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    AsSpan(): Span<T> = Span(this)
+    AsSpan(start: int32): Span<T> = Span(this, start, this.Length)
+    AsSpan(start: int32, length: int32): Span<T> = Span(this, start, length)
+    AsReadOnlySpan(): ReadOnlySpan<T> = ReadOnlySpan(this)
+    AsReadOnlySpan(start: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, this.Length)
+    AsReadOnlySpan(start: int32, length: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, length)
+
+#[open]
+extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+    inherits mutable T[]
+
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32, length: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsReadOnlySpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this))
+    AsReadOnlySpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, this.Length))
+    AsReadOnlySpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, length))
+
+#[open]
+extension ArrayExtensions<T> =
+    inherits T[]
+
+    AsSpan(): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan()
+    AsSpan(start: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start)
+    AsSpan(start: int32, length: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start, length)
+
+#[open]
+extension ArrayCastExtensions<T> where T: struct, ValueType =
+    inherits T[]
+
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
+    AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
+    AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)

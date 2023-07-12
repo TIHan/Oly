@@ -195,11 +195,15 @@ abstract class World =
             entId -> this.OnEntityDestroying(entId)
         )
 
+        let stagingDb = EntityDatabase()
+
         {
             Database = db
+            StagingDatabase = stagingDb
         }
 
     protected Database: EntityDatabase get
+    protected StagingDatabase: EntityDatabase get
 
     IsValid(entId: EntityId): bool =
         this.Database.IsValid(entId)
@@ -207,7 +211,8 @@ abstract class World =
     CanSpawnEntity: bool get() = this.Database.CanSpawnEntity
 
     Replicate(world: World): () =
-        this.Database.Replicate(world.Database)
+        world.Database.CopyTo(world.StagingDatabase)
+        this.Database.Replicate(world.Database, world.StagingDatabase)
         this.Database.Flush()
 
     CopyTo(world: World): () =
@@ -224,12 +229,15 @@ abstract default class SharedWorld =
     protected field Physics: Physics = Physics.Init()
 
     abstract default Initialize(): () =
-        this.Database.Register<Camera>()
-        this.Database.Register<Transform>()
-        this.Database.Register<Material>()
-        this.Database.Register<PlayerActionSnapshot>()
-        this.Database.Register<PlayerTag>()
-        this.Database.Register<BoxTag>()
+        let init(db: EntityDatabase): () =
+            db.Register<Camera>()
+            db.Register<Transform>()
+            db.Register<Material>()
+            db.Register<PlayerActionSnapshot>()
+            db.Register<PlayerTag>()
+            db.Register<BoxTag>()
+        init(this.Database)
+        init(this.StagingDatabase)
 
 class ServerWorld =
     inherits SharedWorld

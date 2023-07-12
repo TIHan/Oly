@@ -4859,3 +4859,77 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Span extension should not have an ambiguous overload``() =
+    let src =
+        """
+open System
+open System.Runtime.InteropServices
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+    field value: byte = 1
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    AsSpan(): Span<T> = Span(this)
+
+#[open]
+extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+    inherits mutable T[]
+
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+
+main(): () =
+    let xs = mutable [S()]
+    let span = xs.AsSpan()
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Span extension should not have an ambiguous overload 2``() =
+    let src =
+        """
+open System
+open System.Runtime.InteropServices
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    AsSpan(): Span<T> = Span(this)
+
+#[open]
+extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+    inherits mutable T[]
+
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+
+test(xs: Span<byte>): () = ()
+test<T>(xs: T): () = ()
+
+main(): () =
+    let xs = mutable [1: byte]
+    test(xs.AsSpan())
+    print("passed")
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"

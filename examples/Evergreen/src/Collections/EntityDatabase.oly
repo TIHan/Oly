@@ -54,23 +54,23 @@ internal module Helpers =
 
 internal class ComponentBuffer =
 
-    public field Buffer: mutable byte[]
+    public field RawBuffer: mutable byte[]
     TypeId: TypeId get
     TypeSize: int32 get
 
-    new(buffer: mutable byte[], typeId: TypeId, typeSize: int32) =
+    new(rawBuffer: mutable byte[], typeId: TypeId, typeSize: int32) =
         {          
-            Buffer = buffer
+            RawBuffer = rawBuffer
             TypeId = typeId
             TypeSize = typeSize
         }
 
     CopyTo(dst: ComponentBuffer, lengthInBytes: int32): () =
-        let dstBuffer = (Unsafe.Cast(dst): ComponentBuffer).Buffer
-        Span(this.Buffer, 0, lengthInBytes).CopyTo(Span(dstBuffer, 0, lengthInBytes))
+        let dstBuffer = (Unsafe.Cast(dst): ComponentBuffer).RawBuffer
+        Span(this.RawBuffer, 0, lengthInBytes).CopyTo(Span(dstBuffer, 0, lengthInBytes))
 
     CopyOneTo(srcIndex: int32, dst: ComponentBuffer, dstIndex: int32): () =
-        Span(this.Buffer, srcIndex * this.TypeSize, this.TypeSize).CopyTo(Span(dst.Buffer, dstIndex * this.TypeSize, this.TypeSize))
+        Span(this.RawBuffer, srcIndex * this.TypeSize, this.TypeSize).CopyTo(Span(dst.RawBuffer, dstIndex * this.TypeSize, this.TypeSize))
 
 internal class Archetype =
     
@@ -116,10 +116,11 @@ internal class Archetype =
             let mutable dstBufferIndex = unchecked default
             if (dst.BufferLookup.TryGetValue(buffer.TypeId, &dstBufferIndex))
                 buffer.CopyOneTo(srcIndex, dst.Buffers[dstBufferIndex], dstIndex)
+
             i <- i + 1 
             
     GetRawComponentBuffer<T>(typedIndex: int32): Span<T> where T: unmanaged =
-        MemoryMarshal.Cast<byte, T>(Span(this.Buffers[typedIndex].Buffer))
+        MemoryMarshal.Cast<byte, T>(Span(this.Buffers[typedIndex].RawBuffer))
 
     GetComponentBuffer(typedIndex: int32): ComponentBuffer =
         this.Buffers[typedIndex]
@@ -274,7 +275,6 @@ class ByteStream =
     mutable field buffer: mutable byte[] = Array.ZeroCreate(65536)
     mutable field position: int32 = 0
     mutable field count: int32 = 0
-    public mutable field IsReading: bool = false
 
     Count: int32 get() = this.count
     Position: int32 get() = this.position
@@ -286,7 +286,7 @@ class ByteStream =
         this.ResetPosition()
         this.count <- 0
 
-    private WriteCore<T>(value: byref<T>): int32 where T: unmanaged =
+    private WriteCore<T>(isReading: bool, value: byref<T>): int32 where T: unmanaged =
         let size = sizeof<T>
         if (size >= 65536)
             fail("Value too big.")
@@ -296,7 +296,7 @@ class ByteStream =
 
         let mutable buffer = this.buffer
 
-        if (this.IsReading)
+        if (isReading)
             let mutable span = MemoryMarshal.Cast<_, T>(Span(buffer, currentPosition, size))
             let result = span[0]
             value <- result
@@ -316,7 +316,7 @@ class ByteStream =
         this.position <- nextPosition
         size
 
-    Write<T>(mutable value: T): () where T: unmanaged = let _ = this.WriteCore<T>(&value)
+    Write<T>(mutable value: T): () where T: unmanaged = let _ = this.WriteCore<T>(false, &value)
     Peek<T>(): T where T: unmanaged =
         let oldPosition = this.Position
         let value = this.Read<T>()
@@ -324,7 +324,7 @@ class ByteStream =
         value
     Read<T>(): T where T: unmanaged =
         let mutable value = unchecked default
-        let _ = this.WriteCore(&value)
+        let _ = this.WriteCore(true, &value)
         value
 
     CopyExactTo(bstream: ByteStream): () =
@@ -335,6 +335,58 @@ class ByteStream =
             bstream.buffer <- Array.ZeroCreate(this.buffer.Length)
 
         Span(this.buffer, 0, this.count).CopyTo(Span(bstream.buffer))
+
+    Write(mutable value: ReadOnlySpan<byte>): () =
+        let currentPosition = this.position
+        let nextPosition = currentPosition + value.Length
+
+        let buffer = this.buffer
+
+        if (nextPosition >= buffer.Length)
+            let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
+            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
+            this.buffer <- newBuffer
+            this.Write(value)
+        else
+            value.CopyTo(Span(this.buffer, currentPosition, value.Length))
+
+        this.position <- nextPosition
+
+    Write<T>(mutable value: ReadOnlySpan<T>): () where T: unmanaged =
+        let size = sizeof<T>
+        let totalByteLength = size * value.Length           
+        let currentPosition = this.position
+        let nextPosition = currentPosition + totalByteLength
+
+        let buffer = this.buffer
+
+        if (nextPosition >= buffer.Length)
+            let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
+            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
+            this.buffer <- newBuffer
+            this.Write(value)
+        else
+            MemoryMarshal.Cast(value).CopyTo(Span(this.buffer, currentPosition, totalByteLength))
+
+        this.position <- nextPosition
+
+    Read(mutable dst: Span<byte>): () =
+        let currentPosition = this.position
+        let nextPosition = currentPosition + dst.Length
+
+        Span(this.buffer, currentPosition, dst.Length).CopyTo(dst)
+
+        this.position <- nextPosition
+
+    Read<T>(mutable dst: Span<T>): () where T: unmanaged =
+        let size = sizeof<T>
+        let totalByteLength = size * dst.Length  
+        let currentPosition = this.position
+        let nextPosition = currentPosition + totalByteLength
+
+        Span(this.buffer, currentPosition, totalByteLength).CopyTo(MemoryMarshal.Cast(dst))
+
+        this.position <- nextPosition
 
 internal module EntityEvent =
 
@@ -577,8 +629,8 @@ class EntityDatabase =
 
             f(
                 ReadOnlySpan(entIdGroup[i], 0, count),
-                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count)
+                MemoryMarshal.Cast(Span(bufferGroup0[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].RawBuffer)).Slice(0, count)
             )
 
             i <- i + 1
@@ -601,9 +653,9 @@ class EntityDatabase =
 
             f(
                 ReadOnlySpan(entIdGroup[i], 0, count),
-                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer)).Slice(0, count)
+                MemoryMarshal.Cast(Span(bufferGroup0[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup2[i].RawBuffer)).Slice(0, count)
             )
 
             i <- i + 1
@@ -628,10 +680,10 @@ class EntityDatabase =
 
             f(
                 ReadOnlySpan(entIdGroup[i], 0, count),
-                MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup1[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup2[i].Buffer)).Slice(0, count),
-                MemoryMarshal.Cast(Span(bufferGroup3[i].Buffer)).Slice(0, count)
+                MemoryMarshal.Cast(Span(bufferGroup0[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup2[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup3[i].RawBuffer)).Slice(0, count)
             )
 
             i <- i + 1
@@ -648,7 +700,7 @@ class EntityDatabase =
         while (i < indices.Length)
             let count = countGroup[i].Count
             let entIds = entIdGroup[i]
-            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].Buffer))
+            let mutable buffer0 = MemoryMarshal.Cast(Span(bufferGroup0[i].RawBuffer))
 
             let mutable j = 0
             while (j < count)
@@ -708,6 +760,8 @@ class EntityDatabase =
 
         (archetype.GetRawComponentBuffer(typedIndex0)[index]) <- value0
 
+        this.entityArchetypeIds[entId.Index] <- archetype.Id
+
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
         EntityEvent.EntityCreated(this.eventStream, entId, archetype.Id)
@@ -729,6 +783,8 @@ class EntityDatabase =
 
         (archetype.GetRawComponentBuffer(typedIndex0)[index]) <- value0
         (archetype.GetRawComponentBuffer(typedIndex1)[index]) <- value1
+
+        this.entityArchetypeIds[entId.Index] <- archetype.Id
 
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
@@ -754,6 +810,8 @@ class EntityDatabase =
         (archetype.GetRawComponentBuffer(typedIndex0)[index]) <- value0
         (archetype.GetRawComponentBuffer(typedIndex1)[index]) <- value1
         (archetype.GetRawComponentBuffer(typedIndex2)[index]) <- value2
+
+        this.entityArchetypeIds[entId.Index] <- archetype.Id
 
         archetype.Count <- index + 1
         this.entityCreated.Trigger(entId)
@@ -782,6 +840,7 @@ class EntityDatabase =
             dstArchetype.Count <- dstIndex + 1
 
             this.entityArchetypeIndices[entId.Index] <- dstArchetypedIndex
+            this.entityArchetypeIds[entId.Index] <- dstArchetypeId
             EntityEvent.ComponentAdded(this.eventStream, entId, typeId)
 
             dstArchetype
@@ -818,6 +877,7 @@ class EntityDatabase =
         archetype.Count <- lastIndex
         // ---
 
+        this.entityArchetypeIds[entId.Index] <- 0
         this.DeleteEntityId(entId)
         this.entityDeleted.Trigger(entId)
         EntityEvent.EntityDeleted(this.eventStream, entId)
@@ -842,6 +902,7 @@ class EntityDatabase =
     internal mutable field nextIndex: int32 = 0
     internal mutable field indexQueue: Queue<int32> = Queue()
     internal mutable field entityCount: int32 = 0
+    internal field entityArchetypeIds: mutable ArchetypeId[] = Array.ZeroCreate(EntityDatabase.MaxNumberOfEntities)
     internal field entityArchetypeIndices: mutable int32[] = Array.InitializeMutable(EntityDatabase.MaxNumberOfEntities, i -> -1)
     internal field entityVersions: mutable uint32[] = Array.ZeroCreate(EntityDatabase.MaxNumberOfEntities)
 
@@ -892,6 +953,7 @@ class EntityDatabase =
 
         Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
         Span(this.entityArchetypeIndices).CopyTo(Span(dst.entityArchetypeIndices))
+        Span(this.entityArchetypeIds).CopyTo(Span(dst.entityArchetypeIds))
 
         dst.indexQueue.Clear()
         dst.entityCount <- this.entityCount
@@ -908,35 +970,163 @@ class EntityDatabase =
     Flush(): () =
         this.eventStream.Reset()
 
-    Replicate(dst: EntityDatabase): () =
+    Serialize(bstream: ByteStream): () =
+        let archetypes = this.Archetypes
+
+        bstream.Write(this.Registered.Count)
+        ForEach(this.Registered,
+            (mutable pair) ->
+                bstream.Write(pair.Key)
+                bstream.Write(pair.Value)
+        )
+
+        bstream.Write(this.entityCount)
+
+        let mutable i = 0
+        while (i < archetypes.Count)
+            let archetype = archetypes[i]
+            let count = archetype.Count
+            let buffers = archetype.Buffers
+
+            bstream.Write(archetype.Id)
+            bstream.Write(count)
+            bstream.Write(buffers.Length)
+            bstream.Write(archetype.EntityIds.AsReadOnlySpan(0, count): ReadOnlySpan<EntityId>) // TODO: language bug, we should not need to annotate with 'ReadOnlySpan<EntityId>'.
+
+            let mutable j = 0
+            while (j < buffers.Length)
+                let buffer = buffers[j]
+                let length = buffer.TypeSize * count
+                let mutable rawBufferSpan = buffer.RawBuffer.AsReadOnlySpan<byte>(0, length)
+                bstream.Write(buffer.TypeId)
+                bstream.Write(length)
+                bstream.Write(rawBufferSpan) // TODO: language bug, we should be able to use '.AsReadOnlySpan()' without the type argument.
+                j <- j + 1
+
+            i <- i + 1
+
+    static DeserializeInto(bstream: ByteStream, db: EntityDatabase): () =
+        let registerCount = bstream.Read<int32>()
+        let mutable i = 0
+        while (i < registerCount)
+            let key = bstream.Read<uint64>()
+            let value = bstream.Read<int32>()
+            db.Registered[key] <- value
+            i <- i + 1
+        
+        db.entityCount <- bstream.Read()
+
+        while (bstream.Position < bstream.Count)
+            let archetypeId = bstream.Read<ArchetypeId>()
+            let count = bstream.Read<int32>()
+            let bufferCount = bstream.Read<int32>()
+            
+            let archetypedIndex = db.GetArchetypedIndex(archetypeId)
+            let archetype = db.Archetypes[archetypedIndex]
+            let buffers = archetype.Buffers
+            let bufferLookup = archetype.BufferLookup
+
+            let entIds = archetype.EntityIds
+            bstream.Read(entIds.AsSpan(0, count): Span<EntityId>) // TODO: language bug, we should not need to annotate with 'Span<EntityId>'.
+
+            let mutable i = 0
+            while (i < bufferCount)
+                let compId = bstream.Read<uint64>()
+                let length = bstream.Read<int32>()
+
+                let mutable bufferIndex = unchecked default
+                if (archetype.BufferLookup.TryGetValue(compId, &bufferIndex))
+                    let rawBuffer = buffers[bufferIndex].RawBuffer
+                    bstream.Read(rawBuffer.AsSpan(0, length): Span<byte>) // TODO: language bug, we should not need to annotate with 'Span<byte>'.
+                else
+                    fail("Unable to find component buffer. Was the component registered?")
+                i <- i + 1
+
+            archetype.Count <- count
+
+            // Fix-ups
+            let lookup = archetype.Lookup
+            let entVersions = db.entityVersions 
+            let entArchetypeIndices = db.entityArchetypeIndices
+            let mutable i = 0
+            while (i < count)
+                let entId = entIds[i]
+                let index = entId.Index
+                entArchetypeIndices[index] <- archetypedIndex
+                entVersions[index] <- entId.Version
+                lookup[index] <- i
+                i <- i + 1
+
+    Replicate(dst: EntityDatabase, prev: EntityDatabase): () =
         // // ---
         dst.eventStream.Reset()
 
-        let deletedEntsTable = HashSet<EntityId>()
+    //    let deletedEntsTable = HashSet<EntityId>()
         let createdEnts = Queue<(EntityId, ArchetypeId)>()
-        let addedComps = Queue<(EntityId, TypeId)>()
+    //    let addedComps = Queue<(EntityId, TypeId)>()
 
         let eventStream = this.eventStream
         eventStream.ResetPosition()
-        eventStream.IsReading <- true
-        while (eventStream.Position < eventStream.Count)
-            match (eventStream)
-            | EntityEvent.EntityCreated(entId, archetypeId) =>
-                createdEnts.Enqueue((entId, archetypeId))
+        // while (eventStream.Position < eventStream.Count)
+        //     match (eventStream)
+        //     | EntityEvent.EntityCreated(entId, archetypeId) =>
+        //         createdEnts.Enqueue((entId, archetypeId))
 
-            | EntityEvent.ComponentAdded(entId, compId) =>
-                addedComps.Enqueue((entId, compId))
+        //     | EntityEvent.ComponentAdded(entId, compId) =>
+        //         addedComps.Enqueue((entId, compId))
 
-            | EntityEvent.EntityDeleted(entId) =>
-                let _ = deletedEntsTable.Add(entId)
-                if (dst.IsValid(entId))
-                    dst.Delete(entId)
+        //     | EntityEvent.EntityDeleted(entId) =>
+        //         let _ = deletedEntsTable.Add(entId)
+        //         if (dst.IsValid(entId))
+        //             dst.Delete(entId)
                 
-            | _ =>
-                fail("Invalid event.")
+        //     | _ =>
+        //         fail("Invalid event.")
+        // // // ---
 
-        eventStream.IsReading <- false
-        // // ---
+      //  let createdEnts = Queue<EntityId>()
+        // --
+        let prevVersions = dst.entityVersions
+        let versions = this.entityVersions
+        let mutable i = 0
+        while (i < EntityDatabase.MaxNumberOfEntities)
+            let prevVersion = prevVersions[i]
+            let version = versions[i]
+
+            let prevArchetypeId = dst.entityArchetypeIds[i]
+            let archetypeId = this.entityArchetypeIds[i]
+
+            if (prevVersion != version)
+              //  if (prevArchetypeId != archetypeId)
+                    if (prevArchetypeId != 0)
+                        let mutable entId = EntityId()
+                        entId.Index <- i
+                        entId.Version <- prevVersion
+                        dst.entityDeleting.Trigger(entId)
+            //            dst.Delete(entId)
+
+                    if (archetypeId != 0)
+                        let mutable entId = EntityId()
+                        entId.Index <- i
+                        entId.Version <- version
+                        createdEnts.Enqueue((entId, archetypeId))
+
+            // if (prevArchetypeId != 0 && prevArchetypeId == archetypeId)
+            //     let prevArchetype = prev.Archetypes[prev.entityArchetypeIndices[i]]
+            //     let dstArchetype = dst.Archetypes[dst.entityArchetypeIndices[i]]
+            //     let archetype = this.Archetypes[this.entityArchetypeIndices[i]]
+
+            //     let prevIndex = prevArchetype.Lookup[i]
+            //     let index = archetype.Lookup[i]
+                
+            //     if (prevIndex != index)
+            //         prevArchetype.CopyOneTo(prevIndex, dstArchetype, index)
+
+            i <- i + 1
+        // --
+
+        Span(this.entityVersions).CopyTo(Span(dst.entityVersions))
+        Span(this.entityArchetypeIds).CopyTo(Span(dst.entityArchetypeIds))
 
         dst.indexQueue.Clear()
         dst.entityCount <- this.entityCount
@@ -949,17 +1139,35 @@ class EntityDatabase =
             if (dst.ArchetypeLookup.TryGetValue(archetype.Id, &dstArchetypedIndex))
                 archetype.CopyTo(dst.Archetypes[dstArchetypedIndex])
             i <- i + 1
+
+        let mutable i = 0
+        while (i < EntityDatabase.MaxNumberOfEntities)
+            let prevArchetypeId = prev.entityArchetypeIds[i]
+            let archetypeId = this.entityArchetypeIds[i]
+
+            if (prevArchetypeId != 0 && prevArchetypeId == archetypeId)
+                let prevArchetype = prev.Archetypes[prev.entityArchetypeIndices[i]]
+                let dstArchetype = dst.Archetypes[dst.entityArchetypeIndices[i]]
+                let archetype = this.Archetypes[this.entityArchetypeIndices[i]]
+
+                let prevIndex = prevArchetype.Lookup[i]
+                let index = archetype.Lookup[i]
+                
+                if (prevIndex != index)
+                    prevArchetype.CopyOneTo(prevIndex, dstArchetype, index)
+                    archetype.CopyOneTo(index, dstArchetype, index)
+                    
+            i <- i + 1
             
         let mutable result = unchecked default
         while (createdEnts.TryDequeue(&result))
             let (entId, archetypeId) = result
-            if (!deletedEntsTable.Contains(entId))
-                dst.entityVersions[entId.Index] <- entId.Version
-                dst.entityArchetypeIndices[entId.Index] <- dst.GetArchetypedIndex(archetypeId)
-                dst.entityCreated.Trigger(entId)
+            dst.entityVersions[entId.Index] <- entId.Version
+            dst.entityArchetypeIndices[entId.Index] <- dst.GetArchetypedIndex(archetypeId)
+            dst.entityCreated.Trigger(entId)
 
-        let mutable result = unchecked default
-        while (addedComps.TryDequeue(&result))
-            let (entId, compId) = result
-            if (!deletedEntsTable.Contains(entId))
-                let _ = dst.AddCore(entId, compId)
+        // let mutable result = unchecked default
+        // while (addedComps.TryDequeue(&result))
+        //     let (entId, compId) = result
+        //     if (!deletedEntsTable.Contains(entId))
+        //         let _ = dst.AddCore(entId, compId)

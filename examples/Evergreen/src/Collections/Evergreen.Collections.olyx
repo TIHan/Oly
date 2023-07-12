@@ -3,4 +3,4 @@
 
 #load "*.oly"
 
-#reference "../../../core/Prelude.olyx"
+#reference "../../../core/core.olyx"

@@ -229,15 +229,13 @@ let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget:
 let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 
     let ty =
-        if target.IsShape then
-            // Built-in types can never fit shapes,
-            // so try to use an entity that is type equivelant.
-            if ty.IsBuiltIn then
-                match env.benv.TryFindEntityByIntrinsicType ty with
-                | ValueSome ent -> ent.AsType
-                | _ -> ty
-            else
-                ty
+        // Built-in types themselves are not entities, but an entity can be equivelant to a built-in type.
+        // These entities might inherit or implement types, or contain functions that will make solving
+        // the constraint pass.
+        if ty.IsBuiltIn then
+            match env.benv.TryFindEntityByIntrinsicType ty with
+            | ValueSome ent -> ent.AsType
+            | _ -> ty
         else
             ty
 

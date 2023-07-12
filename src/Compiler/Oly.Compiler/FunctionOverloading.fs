@@ -195,6 +195,7 @@ let private filterFunctionsForOverloadingFinalPhase (funcs: IFunctionSymbol imar
         let filteredFuncs = 
             filterMostSpecificFunctionsByEnclosing scoredResult
             |> filterFunctionsForOverloadingByLeastGenericReturnType
+            |> filterFunctionsForOverloadingLeastGeneric
 
         if filteredFuncs.IsEmpty || filteredFuncs.Length = 1 then filteredFuncs
         else filteredFuncs

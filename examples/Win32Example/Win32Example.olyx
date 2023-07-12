@@ -345,15 +345,10 @@ class FrameTimesViewModel =
 
 test(): () =
     let edb = EntityDatabase()
-    let stagingEdb = EntityDatabase()
 
     edb.Register<Camera>()
     edb.Register<Transform>()
     edb.Register<PlayerActionSnapshot>()
-
-    stagingEdb.Register<Camera>()
-    stagingEdb.Register<Transform>()
-    stagingEdb.Register<PlayerActionSnapshot>()
 
     edb.EntityCreated.Add(
         entId ->
@@ -388,21 +383,28 @@ test(): () =
    // ForEach(entIdsToDelete, entId -> edb.Delete(entId))
     edb.ForEach<Transform, Camera, PlayerActionSnapshot>((entId, transform, camera, playerActionSnapshot) -> ())
 
-    edb.Replicate(stagingEdb)
+    let bstream = ByteStream()
+    edb.Serialize(bstream)
+
+    let stagingEdb = EntityDatabase()
+    bstream.ResetPosition()
+    EntityDatabase.DeserializeInto(bstream, stagingEdb)
+
     edb.Flush()
 
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
     let s = Stopwatch.StartNew()
-    edb.Replicate(stagingEdb)
+    bstream.ResetPosition()
+    EntityDatabase.DeserializeInto(bstream, stagingEdb)
     edb.Flush()
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
 
 main(): () =
     let mutable i = 0
-    while (i < 100)
-        test()
+    while (i < 1)
+      //  test()
         DotNet.GCCollect()
         i <- i + 1
 
@@ -552,8 +554,8 @@ main(): () =
         if (spawnTime >= 1)
             spawnTime <- 0
             let mutable i = 0
-            while (i < 1024)//4096)
-                let position = Vector3(float32(i + 1) * 0.5, 0, 0)
+            while (i < 2)//1024)//4096)
+                let position = Vector3(float32(i + 1) * 2, 0, 0)
                 world.SpawnBox(position, quat.Identity, vec3.One)
                 i <- i + 1
 
