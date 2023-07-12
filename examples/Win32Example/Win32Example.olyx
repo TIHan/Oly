@@ -423,7 +423,7 @@ main(): () =
             i -> Globals()
         )
 
-    let quad = Evergreen.Graphics.MeshDescription.CreateQuad(1)
+    let quad = Evergreen.Graphics.MeshDescription.CreateCube()
     let vertices = 
         GpuMutableArray.Initialize(GpuArrayKind.Vertex, GpuMemoryKind.Local, quad.Vertices.Length,
             i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
