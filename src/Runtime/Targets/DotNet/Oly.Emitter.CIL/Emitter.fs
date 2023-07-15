@@ -283,6 +283,38 @@ module rec ClrCodeGen =
             spb: SequencePointBehavior
         }
 
+    let isByRefLike (asmBuilder: ClrAssemblyBuilder) (x: ClrTypeInfo) =
+        if x.IsByRef then
+            true
+        else
+            let result =
+                match asmBuilder.tr_Span with
+                | Some(tr) ->
+                    match x with
+                    | ClrTypeInfo.TypeDefinition _ ->                
+                        x.Handle = tr
+                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                        handle = tr
+                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
+                        info.Handle = tr                  
+                | _ ->
+                    false
+
+            if result then
+                true
+            else
+                match asmBuilder.tr_ReadOnlySpan with
+                | Some(tr) ->
+                    match x with
+                    | ClrTypeInfo.TypeDefinition _ ->                
+                        x.Handle = tr
+                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                        handle = tr
+                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
+                        info.Handle = tr
+                | _ ->
+                    false
+
     let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
         tyDef.Attributes <- TypeAttributes.Sealed
@@ -1016,8 +1048,8 @@ module rec ClrCodeGen =
     let canTailCall cenv (func: ClrMethodInfo) =
         cenv.emitTailCalls && 
       //  func.ReturnType.Handle <> cenv.assembly.TypeReferenceVoid && 
-        not(func.Parameters |> ImArray.exists (fun (_, x) -> x.IsByRef)) &&
-        not func.ReturnType.IsByRef
+        not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x)) &&
+        not(isByRefLike cenv.assembly func.ReturnType)
 
     let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual =
         match func.specialKind with
@@ -1840,38 +1872,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         tyDef
 
-    let isByRefLike (x: ClrTypeInfo) =
-        if x.IsByRef then
-            true
-        else
-            let result =
-                match asmBuilder.tr_Span with
-                | Some(tr) ->
-                    match x with
-                    | ClrTypeInfo.TypeDefinition _ ->                
-                        x.Handle = tr
-                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
-                        handle = tr
-                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
-                        info.Handle = tr                  
-                | _ ->
-                    false
-
-            if result then
-                true
-            else
-                match asmBuilder.tr_ReadOnlySpan with
-                | Some(tr) ->
-                    match x with
-                    | ClrTypeInfo.TypeDefinition _ ->                
-                        x.Handle = tr
-                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
-                        handle = tr
-                    | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
-                        info.Handle = tr
-                | _ ->
-                    false
-
     member this.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
 
@@ -2013,7 +2013,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let argTyHandles =
                 inputTys
                 |> ImArray.map (fun x -> 
-                    if isByRefLike x then
+                    if ClrCodeGen.isByRefLike asmBuilder x then
                         mustCreateDelegate <- true
                     x.Handle
                 )

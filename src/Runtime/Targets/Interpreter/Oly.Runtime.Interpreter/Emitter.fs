@@ -1698,17 +1698,23 @@ type InterpreterRuntimeEmitter() =
                 if flags.IsEntryPoint then
                     entryPoint <- ValueSome func
 
-                let alreadyExists =
+                let overrideAlreadyExists =
                     funcs
                     |> Seq.exists (
                         fun func ->
-                            match func.SignatureKey with
-                            | Some(sigKey2) -> sigKey.Equals(sigKey2)
-                            | _ -> false
+                            match func.Overrides, overridesOpt with
+                            | Some(overrides1), Some(overrides2) -> 
+                                match overrides1.SignatureKey, overrides2.SignatureKey with
+                                | Some(sigKey1), Some(sigKey2) ->
+                                    sigKey1.Equals(sigKey2)
+                                | _ ->
+                                    false
+                            | _ -> 
+                                false
                     )
 
-                if alreadyExists then
-                    failwith $"Function '{name}' already exists on type."
+                if overrideAlreadyExists then
+                    failwith $"Function '{name}' is overriding a function that is already overridden."
 
                 funcs.Add(func)
                 func

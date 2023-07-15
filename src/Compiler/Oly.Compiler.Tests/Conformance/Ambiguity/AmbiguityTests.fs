@@ -1782,3 +1782,19 @@ module Unsafe =
     |> Oly
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Static function signature should work even when inheriting a class with the same static function signature``() =
+    """
+abstract default class A =
+    
+    static M(): () = ()
+
+class B =
+    inherits A
+
+    static M(): () = ()
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore

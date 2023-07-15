@@ -500,3 +500,6 @@ internal class Win32Window =
     private ThrowIfDisposed(): () =
         if (this.isDisposed)
             throw ObjectDisposedException("Win32Window")
+
+    static IgnoreDpiScaling(): () =
+        let _ = SetProcessDpiAwareness(PROCESS_DPI_AWARENESS.PROCESS_PER_MONITOR_DPI_AWARE)

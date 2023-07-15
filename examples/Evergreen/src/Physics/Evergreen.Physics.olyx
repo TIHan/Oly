@@ -278,13 +278,19 @@ class Physics =
         let poseRef = bodyRef.Pose
         poseRef <- RigidPose(position)
 
-    GetPositionAndOrientation(objId: DynamicObjectId, position: byref<Vector3>, orientation: byref<Quaternion>): () =
+    GetPositionAndOrientationAndVelocity(objId: DynamicObjectId, position: byref<Vector3>, orientation: byref<Quaternion>, linearVelocity: byref<Vector3>, angularVelocity: byref<Vector3>): () =
         let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
-        let poseRef = bodyRef.Pose
-        let pose = poseRef
+        let pose = bodyRef.Pose
+        let pose = pose
 
         position <- pose.Position
         orientation <- pose.Orientation
+
+        let velocity = bodyRef.Velocity
+        let velocity = velocity
+        
+        linearVelocity <- velocity.Linear
+        angularVelocity <- velocity.Angular
 
     GetPositionAndOrientation(objId: StaticObjectId, position: byref<Vector3>, orientation: byref<Quaternion>): () =
         let mutable bodyRef = this.Simulation.Statics.get_Item(StaticHandle(objId.Value))

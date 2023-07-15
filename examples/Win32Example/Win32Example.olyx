@@ -398,6 +398,8 @@ test(): () =
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
 
+class Marker
+
 main(): () =
     let mutable i = 0
     while (i < 100)
@@ -434,12 +436,15 @@ main(): () =
             i -> quad.Indices[i]
         )
 
-    let gpuProgramUI = GpuProgramUI()
+    let markerTy = typeof<Marker>
+    let fontPath = Path.Combine(Path.GetDirectoryName(markerTy.Assembly.Location), "DroidSans.ttf")
+
+    let gpuProgramUI = GpuProgramUI(fontPath)
     r.Gpu.Sync(gpuProgramUI)
 
     let gpuFrame = GpuFrame()
 
-    let gpuProgramUI2 = GpuProgramUI(gpuFrame)
+    let gpuProgramUI2 = GpuProgramUI(gpuFrame, fontPath)
     r.Gpu.Sync(gpuProgramUI2)
 
     let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
@@ -474,11 +479,14 @@ main(): () =
     let renderBox = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, EntityDatabase.MaxNumberOfEntities, i -> default: mat4)
 
     let world = ServerWorld()
-    world.Initialize()
     let stagingWorld = SharedWorld()
-    stagingWorld.Initialize()
     let clientWorld = ClientWorld(renderBox)
-    clientWorld.Initialize()
+    let prevClientWorld = World()
+
+    ServerWorld.SetupComponents(world)
+    SharedWorld.SetupComponents(stagingWorld)
+    ClientWorld.SetupComponents(clientWorld)
+    ClientWorld.SetupComponents(prevClientWorld)
 
     let gpuProgramReference3 = GpuProgramReference(gpuProgram)
     gpuProgramReference3.AddGlobalInput(globals)
@@ -538,6 +546,7 @@ main(): () =
 
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
+    let mutable serverToClientEvents = EntityDatabase.Events()
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
@@ -563,6 +572,7 @@ main(): () =
         )
 
         world.Update(deltaTime)
+        serverToClientEvents <- world.GetReplicatingEvents(stagingWorld)
         world.CopyTo(stagingWorld)
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
@@ -631,7 +641,7 @@ main(): () =
     let mutable task: System.Threading.Thread = null
     let gpuCommands = List<GpuCommand>()
     GameLoop.Start(
-        frameTime -> 
+        frameTime ->
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
             clientWorld.ForEachBox(
@@ -642,6 +652,7 @@ main(): () =
                 (player, transform, cameraLerp, camera) ->
                     cameraLerp <- camera
             )
+            clientWorld.CopyTo(prevClientWorld)
             if (frameTimesVM.MultiThreadingEnabled.Value)
                 if (task === null)
                     let _ = sv.Reset()
@@ -652,7 +663,7 @@ main(): () =
 
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
-                stagingWorld.Replicate(clientWorld)
+                stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                 let _ = sv.Set()
 
                 // prediction
@@ -668,13 +679,13 @@ main(): () =
                     if (task !== null)
                         let _ = cl.WaitOne()
                         let _ = cl.Reset()
-                        stagingWorld.Replicate(clientWorld)
+                        stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                         let _ = sv.Set()
                         task.Join()
                         task <- null
                     else
                         serverTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
-                        stagingWorld.Replicate(clientWorld)
+                        stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                 )
 
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue

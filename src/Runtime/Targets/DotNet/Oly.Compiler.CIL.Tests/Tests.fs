@@ -15484,30 +15484,27 @@ main(): () =
 [<Fact>]
 let ``Passing witnesses to ctor type arguments by only by function type arguments``() =
     """
+namespace Test
+
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("print")]
-print(__oly_object): ()
+interface IComponent =
 
-interface IComponent
+    static abstract GetValue(): int32
 
 interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
-    LastTypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged =
+class ArchetypeReference<T0> where T0: unmanaged, IComponent =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
-    TypedIndex0: int32 get
-    LastTypedIndex: int32 get() = this.TypedIndex0
 
-    new(archetypedIndex: int32, typedIndex0: int32) =
+    new() =
         {
-            ArchetypedIndex = archetypedIndex
-            TypedIndex0 = typedIndex0
+            ArchetypedIndex = T0.GetValue()
         }
 
 struct S1
@@ -15519,23 +15516,313 @@ extension S1Component =
     inherits S1
     implements IComponent
 
+    static overrides GetValue(): int32 = 11
+
 #[open]
 extension S2Component =
     inherits S2
     implements IComponent
 
-GetIndex<T>(): int32 where T: unmanaged, IComponent =
-    // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
-    let r = ArchetypeReference<T>(1, 0)
-    r.ArchetypedIndex
+    static overrides GetValue(): int32 = 22
 
-main(): () =
-    let value1 = GetIndex<S1>()
-    let value2 = GetIndex<S2>()
-    print(value1)
-    print(value2)
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
     """
     |> Oly
     |> shouldCompile
-    |> shouldRunWithExpectedOutput "11"
+    |> shouldRunWithExpectedOutput "1122"
+    |> ignore
+
+[<Fact>]
+let ``Passing witnesses to ctor type arguments by only by function type arguments 2``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = T0.GetValue()
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+    static overrides GetValue(): int32 = 11
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+    static overrides GetValue(): int32 = 22
+
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
+    """
+    |> Oly
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "1122"
+    |> ignore
+
+[<Fact>]
+let ``Passing witnesses to ctor type arguments by only by function type arguments 3``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent2 =
+
+    static abstract GetValue2(): int32
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, IComponent, IComponent2 =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get
+
+    new() =
+        {
+            ArchetypedIndex = __oly_add(T0.GetValue(), T0.GetValue2())
+        }
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+    static overrides GetValue(): int32 = 11
+
+#[open]
+extension S1Component2 =
+    inherits S1
+    implements IComponent2
+
+    static overrides GetValue2(): int32 = 22
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+    static overrides GetValue(): int32 = 22
+
+#[open]
+extension S2Component2 =
+    inherits S2
+    implements IComponent2
+
+    static overrides GetValue2(): int32 = 33
+
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, IComponent, IComponent2 =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
+    """
+    |> Oly
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "3355"
+    |> ignore
+
+[<Fact>]
+let ``Passing witnesses to ctor type arguments by only by function type arguments 4``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent2 =
+
+    static abstract GetValue2(): int32
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, IComponent, IComponent2 =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = __oly_add(T0.GetValue(), T0.GetValue2())
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+    static overrides GetValue(): int32 = 11
+
+#[open]
+extension S1Component2 =
+    inherits S1
+    implements IComponent2
+
+    static overrides GetValue2(): int32 = 22
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+    static overrides GetValue(): int32 = 22
+
+#[open]
+extension S2Component2 =
+    inherits S2
+    implements IComponent2
+
+    static overrides GetValue2(): int32 = 33
+
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, IComponent, IComponent2 =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
+    """
+    |> Oly
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "3355"
+    |> ignore
+
+[<Fact>]
+let ``Passing witnesses to ctor type arguments by only by function type arguments - generic``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IArchetypeReference<T> =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+    implements IArchetypeReference<T0>
+
+    ArchetypedIndex: int32 get
+
+    new() =
+        {
+            ArchetypedIndex = T0.GetValue()
+        }
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+    static overrides GetValue(): int32 = 11
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+    static overrides GetValue(): int32 = 22
+
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
+    """
+    |> Oly
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "1122"
     |> ignore

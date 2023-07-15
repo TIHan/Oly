@@ -4095,6 +4095,9 @@ module SymbolExtensions =
     
             member this.IsInstance =
                 this.MemberFlags &&& MemberFlags.Instance = MemberFlags.Instance
+
+            member this.IsStatic =
+                this.MemberFlags &&& MemberFlags.Instance <> MemberFlags.Instance
     
             member this.IsOverridable =
                 this.IsVirtual && not this.IsFinal

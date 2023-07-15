@@ -47,7 +47,9 @@ main(): () =
                 let mutable m = physicsBoxTransforms[i]
                 let mutable position = Vector3.Zero
                 let mutable orientation = Quaternion.Identity
-                physics.GetPositionAndOrientation(physicsBoxDynamicObjectIds[i], &position, &orientation)
+                let mutable linearVelocity = Vector3.Zero
+                let mutable angularVelocity = Vector3.Zero
+                physics.GetPositionAndOrientationAndVelocity(physicsBoxDynamicObjectIds[i], &position, &orientation, &linearVelocity, &angularVelocity)
                 let mutable scale = Matrix4x4.CreateScale(m.Scale)
                 let mutable m = Matrix4x4.CreateFromQuaternion(orientation)
                 scale.Translation <- position

@@ -202,9 +202,8 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         failwith "Expected non-built-in type."
 
     let enclosing = RuntimeEnclosing.Type(enclosingTy)
-    let enclosingTyParCount = enclosingTy.TypeParameters.Length
 
-    let returnTy = runtime.ResolveType(enclosingTyParCount, ilAsm, ilFuncSpec.ReturnType, GenericContext.Default)
+    let returnTy = runtime.ResolveType(ilAsm, ilFuncSpec.ReturnType, GenericContext.Default)
 
     let isExternal =
         ilFuncDef.Attributes
@@ -224,7 +223,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 
     let irFlags =
         match ilAsm.EntryPoint with
-        | Some(ilEnclosingTy, ilFuncDefHandle2) ->
+        | Some(_, ilFuncDefHandle2) ->
             if ilFuncDefHandle = ilFuncDefHandle2 then
                 irFlags ||| RuntimeFunctionFlags.EntryPoint
             else
@@ -261,7 +260,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         |> ImArray.map (fun ilPar ->
             { 
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
-                Type = runtime.ResolveType(enclosingTyParCount, ilAsm, ilPar.Type, GenericContext.Default)
+                Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
                 IsMutable = ilPar.IsMutable
                 CanInlineClosure = ilPar.CanInlineClosure
             } : RuntimeParameter
@@ -330,11 +329,11 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 [<Sealed>]
 type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 'Function, 'Field>) =
 
-    member inline _.ResolveType(enclosingTyParCount, ilAsm, ilTy, genericContext): RuntimeType =
-        vm.ResolveType(enclosingTyParCount, ilAsm, ilTy, genericContext)
+    member inline _.ResolveType(ilAsm, ilTy, genericContext): RuntimeType =
+        vm.ResolveType(ilAsm, ilTy, genericContext)
 
-    member inline _.ResolveTypes(enclosingTyParCount: int, ilAsm: OlyILReadOnlyAssembly, ilTys: OlyILType imarray, genericContext: GenericContext) =
-        vm.ResolveTypes(enclosingTyParCount, ilAsm, ilTys, genericContext)
+    member inline _.ResolveTypes(ilAsm: OlyILReadOnlyAssembly, ilTys: OlyILType imarray, genericContext: GenericContext) =
+        vm.ResolveTypes(ilAsm, ilTys, genericContext)
 
     member inline _.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle): RuntimeFunction =
         vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
@@ -572,7 +571,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILValue.ConstantEnum(ilConstant, ilEnumTy) ->
             let irConstant, _ = cenv.EmitILConstant(env.ILAssembly, ilConstant, env.GenericContext)
-            let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilEnumTy, env.GenericContext)
+            let resultTy = cenv.ResolveType(env.ILAssembly, ilEnumTy, env.GenericContext)
 
             if not resultTy.IsEnum then
                 failwith "Expected enum type."
@@ -580,11 +579,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             V.Constant(irConstant, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILValue.Null(ilTy) ->
-            let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilTy, env.GenericContext)
+            let resultTy = cenv.ResolveType(env.ILAssembly, ilTy, env.GenericContext)
             V.Null(cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILValue.Default(ilTy) ->
-            let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilTy, env.GenericContext)
+            let resultTy = cenv.ResolveType(env.ILAssembly, ilTy, env.GenericContext)
             createDefaultExpression irTextRange (resultTy, cenv.EmitType(resultTy)), resultTy
 
         | OlyILValue.Argument(argIndex) ->
@@ -606,7 +605,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             V.ArgumentAddress(argIndex, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILValue.Local(localIndex) ->
-            let localTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
+            let localTy = cenv.ResolveType(env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
 
             let localTy =
                 if localTy.IsNewtype then
@@ -625,7 +624,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             | _ ->
                 ()
 
-            let localTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
+            let localTy = cenv.ResolveType(env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
 
             let localTy =
                 if localTy.IsNewtype then
@@ -720,8 +719,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
     | OlyILExpression.Operation(ilTextRange, OlyILOperation.Witness(ilBody, ilWitnessTy, ilReturnTy)) ->
         let irTextRange = readTextRange env.ILAssembly ilTextRange
 
-        let witnessTy = cenv.ResolveType(ilWitnessTy.TypeArguments.Length, env.ILAssembly, ilWitnessTy, env.GenericContext)
-        let returnTy = cenv.ResolveType(ilReturnTy.TypeArguments.Length, env.ILAssembly, ilReturnTy, env.GenericContext)
+        let witnessTy = cenv.ResolveType(env.ILAssembly, ilWitnessTy, env.GenericContext)
+        let returnTy = cenv.ResolveType(env.ILAssembly, ilReturnTy, env.GenericContext)
 
         let irBody, _ = importExpression cenv env (Some witnessTy) ilBody
 
@@ -1017,12 +1016,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.Negate(irArg, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.LoadRefCellContents(ilElementTy, ilArg) ->
-            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let elementTy = cenv.ResolveType( env.ILAssembly, ilElementTy, env.GenericContext)
             let irArg, _ = importExpression cenv env None ilArg
             O.LoadRefCellContents(irArg, cenv.EmitType(elementTy)) |> asExpr, elementTy
 
         | OlyILOperation.LoadRefCellContentsAddress(ilElementTy, ilArg, ilByRefKind) ->
-            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irArg, _ = importExpression cenv env None ilArg
 
             let irByRefKind =
@@ -1040,17 +1039,17 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.StoreRefCellContents(irArg1, irArg2, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.Print(ilArg) ->
-            let irArg = importArgumentExpression cenv env (cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, OlyILTypeBaseObject, env.GenericContext)) ilArg
+            let irArg = importArgumentExpression cenv env (cenv.ResolveType(env.ILAssembly, OlyILTypeBaseObject, env.GenericContext)) ilArg
             O.Print(irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.Cast(ilArgExpr, ilResultTy) ->
             let irArgExpr, _ = importExpression cenv env None ilArgExpr
-            let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilResultTy, env.GenericContext)
+            let resultTy = cenv.ResolveType( env.ILAssembly, ilResultTy, env.GenericContext)
             O.Cast(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.Throw(ilArgExpr, ilResultTy) ->
             let irArgExpr, _ = importExpression cenv env None ilArgExpr
-            let resultTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilResultTy, env.GenericContext)
+            let resultTy = cenv.ResolveType(env.ILAssembly, ilResultTy, env.GenericContext)
             O.Throw(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.Ignore(ilArg) ->
@@ -1182,7 +1181,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.LoadFromAddress(irArg, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewTuple(ilElementTys, ilArgs, ilNameHandles) ->
-            let elementTys = cenv.ResolveTypes(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTys, env.GenericContext)
+            let elementTys = cenv.ResolveTypes(env.ILAssembly, ilElementTys, env.GenericContext)
             let irArgs =
                 if elementTys.Length = ilArgs.Length then
                     (elementTys, ilArgs)
@@ -1202,7 +1201,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.NewTuple(emittedElementTys, irArgs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewMutableArray(ilElementTy, ilSizeArgExpr) ->
-            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irSizeArgExpr = importArgumentExpression cenv env RuntimeType.Int32 ilSizeArgExpr
                 
             let emittedElementTy = cenv.EmitType(elementTy)
@@ -1211,7 +1210,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.NewMutableArray(emittedElementTy, irSizeArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs) ->
-            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irArgExprs =
                 ilArgExprs
                 |> ImArray.map (fun ilArgExpr -> importArgumentExpression cenv env elementTy ilArgExpr)
@@ -1228,7 +1227,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.NewArray(emittedElementTy, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewRefCell(ilElementTy, ilArg) ->
-            let elementTy = cenv.ResolveType(env.EnclosingTypeParameterCount, env.ILAssembly, ilElementTy, env.GenericContext)
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irArg = importArgumentExpression cenv env elementTy ilArg
                 
             let emittedElementTy = cenv.EmitType(elementTy)
@@ -1520,7 +1519,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     let resolveWitness (ilAsm: OlyILReadOnlyAssembly) (ilWitness: OlyILWitness) (genericContext: GenericContext) =
         match ilWitness with
         | OlyILWitness.Implementation(index, ilKind, ilEntInst, ilSpecificAbstractFuncInstOpt) ->
-            let implTy = this.ResolveType(ilEntInst.TypeArguments.Length, ilAsm, ilEntInst.AsType, genericContext)
+            let implTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
             if implTy.IsIntrinsic then
                 OlyAssert.True(ilSpecificAbstractFuncInstOpt.IsNone)
                 RuntimeWitness(index, implTy, implTy, None)
@@ -1647,7 +1646,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let enclosingTyParCount1 = enclosing.TypeParameters.Length
         let funcTyArgs =
             ilFuncTyArgs
-            |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount1, ilAsm1, x, genericContext))
+            |> ImArray.map (fun x -> this.ResolveType(ilAsm1, x, genericContext))
         let funcs, funcTyArgs = 
             tryResolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) funcTyArgs enclosing.AsType genericContext
 
@@ -1766,7 +1765,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | OlyILConstant.Char16(value) -> C.Char16(value), RuntimeType.Char16
         | OlyILConstant.Utf16(value) -> C.Utf16(value), RuntimeType.Utf16
         | OlyILConstant.Array(ilTy, elements) ->
-            let elementTy = this.ResolveType(0, ilAsm, ilTy, GenericContext.Default)
+            let elementTy = this.ResolveType(ilAsm, ilTy, GenericContext.Default)
             let emittedTy = this.EmitType(elementTy)
             C.Array(emittedTy, elements |> ImArray.map (fun x -> emitConstant ilAsm x genericContext |> fst)), RuntimeType.Array(elementTy, 1, false)
         | OlyILConstant.TypeVariable(index, ilKind) ->
@@ -2135,7 +2134,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         emitter.EmitExportedProperty(
                             this.EmitType(tyDef),
                             ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
-                            this.EmitType(this.ResolveType(0, ilAsm, ilPropDef.Type, GenericContext.Default)),
+                            this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, GenericContext.Default)),
                             irAttrs,
                             getterOpt,
                             setterOpt                           
@@ -2207,7 +2206,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match ty with
             | RuntimeType.ForAll _ ->
                 if isTopLevelTyArg then
-                    raise(System.NotImplementedException("Top-level ForAll type."))
+                    raise(NotSupportedException("Top-level ForAll type."))
                 else
                     failwith "Invalid use of ForAll type."
 
@@ -2360,6 +2359,21 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     member internal this.Assemblies: ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
 
+    member this.TryResolveAttribute(ilAsm: OlyILReadOnlyAssembly, ilAttr: OlyILAttribute, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray): RuntimeAttribute option =
+        match ilAttr with
+        | OlyILAttribute.Constructor(ilFuncInst, ilArgs, ilNamedArgs) ->
+            let func = this.ResolveFunction(ilAsm, ilFuncInst, genericContext, passedWitnesses)
+            if not func.Flags.IsConstructor && not func.Flags.IsInstance then
+                failwith "Expected an instance constructor."
+            {
+                RuntimeAttribute.Constructor = func
+                RuntimeAttribute.Arguments = ilArgs
+                RuntimeAttribute.NamedArguments = ilNamedArgs
+            }
+            |> Some
+        | _ ->
+            None
+
     member this.InitializeEmitter() =
         emitter.Initialize(this)
 
@@ -2405,7 +2419,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith "Invalid primitive IL type."
             | _ ->
                 let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle)
-                addPrimitiveType (this.ResolveType(0, ilAsm, ilTy, GenericContext.Default)) ty
+                addPrimitiveType (this.ResolveType(ilAsm, ilTy, GenericContext.Default)) ty
         )
 
     member this.FindEntryPoint() =
@@ -2415,7 +2429,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ilAsm = pair.Value.ilAsm
                 match ilAsm.EntryPoint with
                 | Some(ilEnclosingTy, ilFuncDefHandle) ->
-                    let ty = this.ResolveType(0, ilAsm, ilEnclosingTy, GenericContext.Default)
+                    let ty = this.ResolveType(ilAsm, ilEnclosingTy, GenericContext.Default)
                     Some(this.ResolveFunctionDefinition(ty.Formal, ilFuncDefHandle))
                 | _ ->
                     None
@@ -2471,7 +2485,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 {
                     RuntimeField.Formal = Unchecked.defaultof<_>
                     RuntimeField.Name = ilAsm.GetStringOrEmpty(ilFieldDef.NameHandle)
-                    RuntimeField.Type = this.ResolveType(enclosingTy.TypeArguments.Length, ilAsm, ilFieldDef.Type, GenericContext.Default)
+                    RuntimeField.Type = this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.Default)
                     RuntimeField.EnclosingType = enclosingTy
                     RuntimeField.Flags = OlyIRFieldFlags(ilFieldFlags, ilFieldDef.MemberFlags, enclosingTy.IsExported)
                     RuntimeField.Index = index
@@ -2487,7 +2501,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member internal this.ResolveField(ilAsm: OlyILReadOnlyAssembly, ilFieldRef: OlyILFieldReference, genericContext: GenericContext) : RuntimeField =
         match ilFieldRef with
         | OlyILFieldReference(ilEnclosing, ilName, ilFieldTy) ->
-            let enclosingTy = (this.ResolveEnclosing(0, ilAsm, ilEnclosing, genericContext, ImArray.empty)).AsType
+            let enclosingTy = (this.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, ImArray.empty)).AsType
             let name = ilAsm.GetStringOrEmpty(ilName)
 
             let fields =
@@ -2512,7 +2526,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let vm = this
         match ilFuncInst with
         | OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) ->
-            let enclosing = vm.ResolveEnclosing(0, ilAsm, ilEnclosing, genericContext, passedWitnesses)
+            let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
             let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncSpecHandle)
             let funcInst = vm.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext)
 
@@ -2603,23 +2617,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member _.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext) =
         resolveFunction ilAsm ilFuncSpec ilFuncTyArgs enclosing genericContext
 
-    member this.TryResolveAttribute(ilAsm: OlyILReadOnlyAssembly, ilAttr: OlyILAttribute, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray) =
-        match ilAttr with
-        | OlyILAttribute.Constructor(ilFuncInst, ilArgs, ilNamedArgs) ->
-            let func = this.ResolveFunction(ilAsm, ilFuncInst, genericContext, passedWitnesses)
-            if not func.Flags.IsConstructor && not func.Flags.IsInstance then
-                failwith "Expected an instance constructor."
-            {
-                RuntimeAttribute.Constructor = func
-                RuntimeAttribute.Arguments = ilArgs
-                RuntimeAttribute.NamedArguments = ilNamedArgs
-            }
-            |> Some
-        | _ ->
-            None
-
     member this.ResolveFunction(ilAsm: OlyILReadOnlyAssembly, ilFuncRef: OlyILFunctionReference, genericContext: GenericContext) : RuntimeFunction =
-        let enclosingTy = this.ResolveType(0, ilAsm, ilFuncRef.GetEnclosingType(), genericContext)
+        let enclosingTy = this.ResolveType(ilAsm, ilFuncRef.GetEnclosingType(), genericContext)
         let ilFuncSpecHandle = ilFuncRef.SpecificationHandle
         let enclosingTyParCount = enclosingTy.TypeArguments.Length
 
@@ -2668,12 +2667,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             |> ImArray.ofSeq
 
     member private this.AreFunctionSpecificationParametersEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
-        let returnTy1 = this.ResolveType(enclosingTyParCount1, ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
-        let returnTy2 = this.ResolveType(enclosingTyParCount2, ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
+        let returnTy1 = this.ResolveType(ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
+        let returnTy2 = this.ResolveType(ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
         if returnTy1 = returnTy2 then
             (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
             ||> ImArray.forall2 (fun x1 x2 ->
-                this.ResolveType(enclosingTyParCount1, ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(enclosingTyParCount2, ilAsm2, x2.Type, scopeTyArgs2)
+                this.ResolveType(ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(ilAsm2, x2.Type, scopeTyArgs2)
             )
         else
             false
@@ -2701,8 +2700,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member private this.AreILEnclosingsEqual(ilAsm1: OlyILReadOnlyAssembly, ilEnclosing1: OlyILEnclosing, ilAsm2: OlyILReadOnlyAssembly, ilEnclosing2: OlyILEnclosing) =
         match ilEnclosing1, ilEnclosing2 with
         | OlyILEnclosing.Witness(ilTy1, _), OlyILEnclosing.Witness(ilTy2, _) ->
-            let ty1 = this.ResolveType(0, ilAsm1, ilTy1, GenericContext.Default)
-            let ty2 = this.ResolveType(0, ilAsm2, ilTy2, GenericContext.Default)
+            let ty1 = this.ResolveType(ilAsm1, ilTy1, GenericContext.Default)
+            let ty2 = this.ResolveType(ilAsm2, ilTy2, GenericContext.Default)
             ty1 = ty2
         | OlyILEnclosing.Namespace(path1, _), OlyILEnclosing.Namespace(path2, _) ->
             if path1.Length = path2.Length then
@@ -2736,8 +2735,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if this.AreILEnclosingsEqual(ilAsm1, ilEnclosing1, ilAsm2, ilEnclosing2) then
                             (ilTyArgs1, ilTyArgs2)
                             ||> ImArray.forall2 (fun ilTy1 ilTy2 ->
-                                let ty1 = this.ResolveType(0, ilAsm1, ilTy1, GenericContext.Default)
-                                let ty2 = this.ResolveType(0, ilAsm2, ilTy2, GenericContext.Default)
+                                let ty1 = this.ResolveType(ilAsm1, ilTy1, GenericContext.Default)
+                                let ty2 = this.ResolveType(ilAsm2, ilTy2, GenericContext.Default)
                                 ty1 = ty2
                             )
                         else
@@ -2872,16 +2871,19 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         foundFuncOpt
 
-    member this.ResolveEnclosing(enclosingTyParCount: int, ilAsm: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, genericContext: GenericContext, witnesses) : RuntimeEnclosing =
+    member this.ResolveEnclosing(ilAsm: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, genericContext: GenericContext, witnesses: RuntimeWitness imarray) : RuntimeEnclosing =
         match ilEnclosing with
         | OlyILEnclosing.Entity(ilEntInst) ->
-            this.ResolveType(ilEntInst.TypeArguments.Length, ilAsm, ilEntInst.AsType, genericContext)
-            |> RuntimeEnclosing.Type
+            let ty = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)     
+            Verifier.VerifyEnclosingType(ilEntInst, ty, genericContext, witnesses) this
+            RuntimeEnclosing.Type ty
+
         | OlyILEnclosing.Namespace(path, _) ->
             RuntimeEnclosing.Namespace(path |> ImArray.map ilAsm.GetStringOrEmpty)
+
         | OlyILEnclosing.Witness(ilTy, ilEntInst) ->
-            let ty = this.ResolveType(enclosingTyParCount, ilAsm, ilTy, genericContext)
-            let abstractTy = this.ResolveType(ilEntInst.TypeArguments.Length, ilAsm, ilEntInst.AsType, genericContext)
+            let ty = this.ResolveType(ilAsm, ilTy, genericContext)
+            let abstractTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
             let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, witnesses)
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
@@ -2908,7 +2910,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefOrRefHandle)
                 verify ilEntDef               
 
-                let enclosing = this.ResolveEnclosing(0, ilAsm, ilEntDef.Enclosing, GenericContext.Default, ImArray.empty)
+                let enclosing = this.ResolveEnclosing(ilAsm, ilEntDef.Enclosing, GenericContext.Default, ImArray.empty)
 
                 let enclosingTyPars = enclosing.TypeParameters
 
@@ -2956,14 +2958,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let runtimeTyOpt =
                     ilEntDef.RuntimeType
-                    |> Option.map (fun x -> this.ResolveType(0, ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    |> Option.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
 
                 // Set RuntimeType first before Extends and Implements.
                 ent.RuntimeType <- runtimeTyOpt
 
                 let extends =
                     ilEntDef.Extends
-                    |> ImArray.map (fun x -> this.ResolveType(0, ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
 
                 let extends =
                     if extends.IsEmpty then
@@ -2983,7 +2985,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let implements =
                     ilEntDef.Implements
-                    |> ImArray.map (fun x -> this.ResolveType(0, ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
 
                 ent.Extends <- extends
                 ent.Implements <- implements
@@ -3044,14 +3046,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     asm.entRefCache.[ilEntDefOrRefHandle] <- ty
                     ty
 
-    member this.ResolveType(enclosingTyParCount, ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) : RuntimeType =
+    member this.ResolveType(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) : RuntimeType =
         match ilTy with
         | OlyILTypeVariable(index, ilKind) when genericContext.CanErase(index, ilKind) ->
             genericContext.GetErasedTypeArgument(index, ilKind)
         | OlyILTypeHigherVariable(index, ilTyArgs, ilKind) when genericContext.CanErase(index, ilKind) ->
             let tyArgs =
                 ilTyArgs
-                |> ImArray.map (fun x -> this.ResolveType(x.TypeArguments.Length, ilAsm, x, genericContext))
+                |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
 
             let ty = genericContext.GetErasedTypeArgument(index, ilKind)
             if ty.IsTypeConstructor then
@@ -3071,7 +3073,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if ilTyArgs.IsEmpty then
                     ty
                 else
-                    let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount, ilAsm, x, genericContext))
+                    let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
                     asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
@@ -3087,7 +3089,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         IsVariadic = ilTyPar.IsVariadic
                     } : RuntimeTypeParameter
                 )
-            let innerTy = this.ResolveType(enclosingTyParCount, ilAsm, ilInnerTy, GenericContext.Default)
+            let innerTy = this.ResolveType(ilAsm, ilInnerTy, GenericContext.Default)
             RuntimeType.ForAll(tyPars, innerTy)
 
         | _ ->
@@ -3122,15 +3124,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeUtf16 -> RuntimeType.Utf16
             | OlyILTypeNativeInt -> RuntimeType.NativeInt
             | OlyILTypeNativeUInt -> RuntimeType.NativeUInt
-            | OlyILTypeNativePtr(ilElementTy) -> RuntimeType.NativePtr(this.ResolveType(enclosingTyParCount, ilAsm, ilElementTy, genericContext))
+            | OlyILTypeNativePtr(ilElementTy) -> RuntimeType.NativePtr(this.ResolveType(ilAsm, ilElementTy, genericContext))
             | OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy) ->
-                let argTys = this.ResolveTypes(enclosingTyParCount, ilAsm, ilArgTys, genericContext)
-                let returnTy = this.ResolveType(enclosingTyParCount, ilAsm, ilReturnTy, genericContext)
+                let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
+                let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
                 RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy)
             | OlyILTypeTuple(ilTyArgs, ilNameHandles) ->
                 let tyArgs =
                     ilTyArgs
-                    |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount, ilAsm, x, genericContext))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                 let names =
                     ilNameHandles
                     |> ImArray.map (fun x ->
@@ -3138,13 +3140,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     )
                 RuntimeType.Tuple(tyArgs, names)
             | OlyILTypeRefCell(ilElementTy) ->
-                RuntimeType.ReferenceCell(this.ResolveType(enclosingTyParCount, ilAsm, ilElementTy, genericContext))
+                RuntimeType.ReferenceCell(this.ResolveType(ilAsm, ilElementTy, genericContext))
             | OlyILTypeArray(ilElementTy, rank, ilKind) ->
                 let isMutable = ilKind = OlyILArrayKind.Mutable
-                RuntimeType.Array(this.ResolveType(enclosingTyParCount, ilAsm, ilElementTy, genericContext), rank, isMutable)
+                RuntimeType.Array(this.ResolveType(ilAsm, ilElementTy, genericContext), rank, isMutable)
             | OlyILTypeFunction(ilArgTys, ilReturnTy) ->
-                let argTys = this.ResolveTypes(enclosingTyParCount, ilAsm, ilArgTys, genericContext)
-                let returnTy = this.ResolveType(enclosingTyParCount, ilAsm, ilReturnTy, genericContext)
+                let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
+                let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
                 RuntimeType.Function(argTys, returnTy)
 
             | OlyILTypeVariable(index, ilKind) ->
@@ -3155,20 +3157,20 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     match ilKind with
                     | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
                     | OlyILByRefKind.Read -> OlyIRByRefKind.Read
-                RuntimeType.ByRef(this.ResolveType(enclosingTyParCount, ilAsm, ilElementTy, genericContext), kind)
+                RuntimeType.ByRef(this.ResolveType(ilAsm, ilElementTy, genericContext), kind)
 
             | OlyILTypeHigherVariable(index, ilTyArgs, ilKind) ->
                 let tyArgs =
                     ilTyArgs
-                    |> ImArray.map (fun x -> this.ResolveType(enclosingTyParCount, ilAsm, x, genericContext))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                 RuntimeType.HigherVariable(index, tyArgs, ilKind)
 
             | OlyILTypeEntity _
             | OlyILTypeForAll _ -> failwith "Invalid type."
 
-    member this.ResolveTypes(enclosingTyParCount, ilAsm: OlyILReadOnlyAssembly, ilTys: OlyILType imarray, genericContext: GenericContext) : RuntimeType imarray =
+    member this.ResolveTypes(ilAsm: OlyILReadOnlyAssembly, ilTys: OlyILType imarray, genericContext: GenericContext) : RuntimeType imarray =
         ilTys
-        |> ImArray.map (fun ilTy -> this.ResolveType(enclosingTyParCount, ilAsm, ilTy, genericContext))
+        |> ImArray.map (fun ilTy -> this.ResolveType(ilAsm, ilTy, genericContext))
 
     member private this.FindTypes(ilAsmOrig: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, ilAsmIdentity: OlyILAssemblyIdentity, name: string, arity: int) : RuntimeType imarray =
         let builder = ImArray.builder()
@@ -3218,7 +3220,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let enclosingTy = 
             let tyArgs = ImArray.init ilEntDef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
             let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs))
-            (this.ResolveEnclosing(tyArgs.Length, asm.ilAsm, ilEnclosing, GenericContext.Default, ImArray.empty)).AsType
+            (this.ResolveEnclosing(asm.ilAsm, ilEnclosing, GenericContext.Default, ImArray.empty)).AsType
 
         ilEntDef.FunctionHandles
         |> ImArray.map (fun x ->
@@ -3238,7 +3240,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let enclosing = 
             let tyArgs = ImArray.init ilEntDef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
             let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs))
-            this.ResolveEnclosing(tyArgs.Length, asm.ilAsm, ilEnclosing, genericContext, ImArray.empty)
+            this.ResolveEnclosing(asm.ilAsm, ilEnclosing, genericContext, ImArray.empty)
 
         let enclosingTy2 = enclosing.AsType
 
@@ -3787,7 +3789,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let localTys =
             ilLocals
             |> ImArray.map (fun x -> 
-                this.ResolveType(enclosingTyParCount, ilAsm, x.Type, genericContext)
+                this.ResolveType(ilAsm, x.Type, genericContext)
             )
 
         let localCount = ilLocals.Length
@@ -3981,4 +3983,50 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         member this.TryFindType(fullyQualifiedTypeName): 'Type option =
             (this: IOlyVirtualMachine<'Type, 'Function, 'Field>).TryFindType(fullyQualifiedTypeName, 0)
+
+[<RequireQualifiedAccess>]
+module Verifier =
+    let private NotSupported msg =
+        raise(NotSupportedException(msg))
+
+    let VerifyEnclosingType<'Type, 'Function, 'Field>
+            (
+                ilEntInst: OlyILEntityInstance, 
+                ty: RuntimeType, 
+                genericContext: GenericContext, 
+                witnesses: RuntimeWitness imarray
+            ) 
+            (vm: OlyRuntime<'Type, 'Function, 'Field>) : unit =
+        if not witnesses.IsEmpty then
+            let witnessExistsOnType =
+                ilEntInst.TypeArguments
+                |> ImArray.existsi (fun i ilTyArg ->
+                    match ilTyArg with
+                    | OlyILType.OlyILTypeVariable(index, OlyILTypeVariableKind.Function)
+                    | OlyILType.OlyILTypeHigherVariable(index, _, OlyILTypeVariableKind.Function) ->
+                        witnesses
+                        |> ImArray.exists (fun witness -> 
+                            witness.TypeParameterIndex = index && witness.Type = ty.TypeArguments[i] &&
+                            (
+                                let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
+                                let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
+                                let ilTyPar = ilEntDef.TypeParameters[i]
+                                match ilTyPar with
+                                | OlyILTypeParameter(constrs=ilConstrs) ->
+                                    ilConstrs
+                                    |> ImArray.exists (function
+                                        | OlyILConstraint.SubtypeOf(ilTy) ->
+                                            let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
+                                            witness.TypeExtension.Implements
+                                            |> ImArray.exists (fun extendTy -> extendTy = ty2)
+                                        | _ ->
+                                            false
+                                    )
+                            )
+                        )
+                    | _ ->
+                        false
+                )
+            if witnessExistsOnType then
+                NotSupported "Witness passing on type constructors."
         

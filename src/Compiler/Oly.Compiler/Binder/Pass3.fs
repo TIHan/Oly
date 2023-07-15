@@ -61,7 +61,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     let funcs = 
         ent.FindMostSpecificIntrinsicFunctions(env.benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
         |> ImArray.filter (fun x ->
-            if x.IsConstructor then
+            if x.IsConstructor || (x.IsStatic && not x.IsNewSlot) then
                 false
             else
                 match x.Enclosing.TryEntity with

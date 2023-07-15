@@ -170,6 +170,9 @@ internal struct ImGui_ImplVulkan_InitInfo =
 
 private alias ImGuiCond = int32
 
+private newtype ImGuiStylePtr =
+    field value: nint
+
 #[import("C", "imgui.dll", "igCreateContext")]
 private igCreateContext(shared_font_atlas: void*): nint
 
@@ -250,6 +253,13 @@ private igSetWindowPos_WindowPtr(window: nuint, pos: Vector2, cond: ImGuiCond): 
 
 #[import("C", "imgui.dll", "igSetWindowSize_WindowPtr")]
 private igSetWindowSize_WindowPtr(window: nuint, size: Vector2, cond: ImGuiCond): ()
+
+#[import("C", "imgui.dll", "ImGuiStyle_ScaleAllSizes")]
+private ImGuiStyle_ScaleAllSizes(self: ImGuiStylePtr, scale_factor: float32): ()
+//void ImGuiStyle_ScaleAllSizes(ImGuiStyle* self,float scale_factor)
+
+#[import("C", "imgui.dll", "igGetStyle")]
+private igGetStyle(): ImGuiStylePtr
 
 #[import("C", "imgui.dll", "igGetCurrentWindow")]
 private igGetCurrentWindow(): nuint
@@ -362,6 +372,7 @@ class ImGuiContext =
     internal VkDescriptorSets: System.Collections.Concurrent.ConcurrentDictionary<VkDescriptorSet, () -> ()> get
     Frame: int32 get, set
     internal DestroyTextureQueue: System.Collections.Concurrent.ConcurrentQueue<VkDescriptorSet> get
+    internal ScaleFactor: float32 get, set
 
     internal new(context: nint, hwnd: nint, info: ImGui_ImplVulkan_InitInfo) =
         {
@@ -371,6 +382,7 @@ class ImGuiContext =
             Frame = 0
             VkDescriptorSets = System.Collections.Concurrent.ConcurrentDictionary()
             DestroyTextureQueue = System.Collections.Concurrent.ConcurrentQueue()
+            ScaleFactor = 1
         }
 
     internal static InputContext: ImGuiContext get, set = unchecked default
@@ -443,6 +455,9 @@ CreateContext(window: IWindow, app: Evergreen.Graphics.Backend.Vulkan.VulkanAppl
     if (ImGui_ImplVulkan_Init(&&info, renderPass) != true)
         fail("Failed to initialize ImGui for Vulkan.")
 
+    let style = igGetStyle()
+    ImGuiStyle_ScaleAllSizes(style, 1)
+
     ImGuiContext(context, hwnd, info)
 
 DestroyContext(context: ImGuiContext): () =
@@ -459,6 +474,18 @@ DestroyContext(context: ImGuiContext): () =
     ImGui_ImplWin32_Shutdown()
     vkDestroyDescriptorPool(context.VulkanInfo.Device, context.VulkanInfo.DescriptorPool, nullptr)
     igDestroyContext(context.Context)
+
+SetScaleFactor(context: ImGuiContext, scaleFactor: float32): () =
+    igSetCurrentContext(context.Context)
+
+    context.ScaleFactor <- scaleFactor
+    let style = igGetStyle()
+    ImGuiStyle_ScaleAllSizes(style, scaleFactor)
+
+GetScaleFactor(context: ImGuiContext): float32 = 
+    igSetCurrentContext(context.Context)
+    
+    context.ScaleFactor
 
 AddFontDefault(context: ImGuiContext): ImFont* =
     igSetCurrentContext(context.Context)

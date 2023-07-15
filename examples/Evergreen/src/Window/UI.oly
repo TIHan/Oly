@@ -410,9 +410,7 @@ module UI =
             view.OnTextChanged(prevText, view.Text)
 
     private MakeLabel(context: UIContext, view: LabelView): () =
-        ImGui.PushItemWidth(context.ImGuiContext, float32(view.Text.Length * 8))
         ImGui.LabelText(context.ImGuiContext, view.LabelSpan, view.TextSpan)
-        ImGui.PopItemWidth(context.ImGuiContext)
 
     private MakeImage(context: UIContext, view: ImageView): () =
         if (view.isDirty || view.descriptorSet == Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
@@ -428,7 +426,8 @@ module UI =
                 )
 
         if (view.descriptorSet != Evergreen.Graphics.Backend.Vulkan.VkDescriptorSet.NULL)
-            ImGui.Image(context.ImGuiContext, view.descriptorSet, view.Size, Vector2.Zero, Vector2.One)
+            let scaleFactor = ImGui.GetScaleFactor(context.ImGuiContext)
+            ImGui.Image(context.ImGuiContext, view.descriptorSet, view.Size * scaleFactor, Vector2.Zero, Vector2.One)
 
     private MakeCheckbox(context: UIContext, view: CheckboxView): () =
         let mutable isChecked = view.IsChecked
@@ -445,7 +444,8 @@ module UI =
             view.OnSelectedItemIndexChanged(prevSelectedItemIndex, selectedItemIndex)
 
     private MakeLinePlot(context: UIContext, view: LinePlotView): () =
-        ImGui.PlotLines(context.ImGuiContext, view.LabelSpan, ReadOnlySpan(view.Values), view.Offset, view.ScaleMin, view.ScaleMax, view.Size)
+        let scaleFactor = ImGui.GetScaleFactor(context.ImGuiContext)
+        ImGui.PlotLines(context.ImGuiContext, view.LabelSpan, ReadOnlySpan(view.Values), view.Offset, view.ScaleMin, view.ScaleMax, view.Size * scaleFactor)
 
     NewFrame(context: UIContext): () =
         ImGui.NewFrame(context.ImGuiContext)

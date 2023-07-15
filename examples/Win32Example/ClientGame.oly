@@ -49,20 +49,16 @@ class ClientWorld =
             Render_Box = renderBox
         }
 
-    overrides Initialize(): () =
-        base.Initialize()
+    static SetupComponents(world: World): () =
+        SharedWorld.SetupComponents(world)
 
-        this.Database.Register<CameraLerp>()
-        this.Database.RegisterDependency<Camera, CameraLerp>()
+        let db = world.Database
 
-        this.Database.Register<TransformLerp>()
-        this.Database.RegisterDependency<Transform, TransformLerp>()
+        db.Register<CameraLerp>()
+        db.RegisterDependency<Camera, CameraLerp>()
 
-        this.StagingDatabase.Register<CameraLerp>()
-        this.StagingDatabase.RegisterDependency<Camera, CameraLerp>()
-
-        this.StagingDatabase.Register<TransformLerp>()
-        this.StagingDatabase.RegisterDependency<Transform, TransformLerp>()
+        db.Register<TransformLerp>()
+        db.RegisterDependency<Transform, TransformLerp>()
     
     Update(alpha: float32): () =
         let mutable boxCount = 0

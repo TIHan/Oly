@@ -124,6 +124,11 @@ struct PlayerActionSnapshot =
     public mutable field Actions: PlayerActions = default
     public mutable field Rotation: quat         = quat.Identity
 
+struct Collidable
+
+struct Velocity =
+    public mutable field Linear: vec3 = vec3.Zero
+    public mutable field Angular: vec3 = vec3.Zero
 
 // Tags
 
@@ -187,10 +192,26 @@ extension DynamicObjectIdComponent =
 
     static overrides GetTypeId(): TypeId = 1 << 6
     static overrides GetSize(): int32 = sizeof<DynamicObjectId>
+
+#[open]
+extension CollidableComponent =
+    inherits Collidable
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 7
+    static overrides GetSize(): int32 = sizeof<Collidable>
+
+#[open]
+extension VelocityComponent =
+    inherits Velocity
+    implements IComponent
+
+    static overrides GetTypeId(): TypeId = 1 << 8
+    static overrides GetSize(): int32 = sizeof<Velocity>
     
 // ----------------------------------------------------------------------
 
-abstract class World =
+abstract default class World =
 
     new() =
         let db = EntityDatabase()
@@ -207,23 +228,20 @@ abstract class World =
 
         {
             Database = db
-            StagingDatabase = stagingDb
         }
 
     protected Database: EntityDatabase get
-    protected StagingDatabase: EntityDatabase get
 
     IsValid(entId: EntityId): bool =
         this.Database.IsValid(entId)
 
     CanSpawnEntity: bool get() = this.Database.CanSpawnEntity
 
-    Replicate(world: World): () =
-        world.Database.CopyTo(world.StagingDatabase)
-        this.Database.Replicate(world.Database, world.StagingDatabase)
+    Replicate(dstWorld: World, prevWorld: World, events: EntityDatabase.Events): () =
+        this.Database.Replicate(dstWorld.Database, prevWorld.Database, events)
 
-    CopyTo(world: World): () =
-        this.Database.CopyTo(world.Database)
+    CopyTo(dstWorld: World): () =
+        this.Database.CopyTo(dstWorld.Database)
 
     protected abstract default OnEntitySpawned(entId: EntityId): () = ()
 
@@ -232,21 +250,29 @@ abstract class World =
 abstract default class SharedWorld =
     inherits World
 
-    protected field Physics: Physics = Physics.Init()
+    static SetupComponents(world: World): () =
+        let db = world.Database
 
-    abstract default Initialize(): () =
-        let init(db: EntityDatabase): () =
-            db.Register<Camera>()
-            db.Register<Transform>()
-            db.Register<Material>()
-            db.Register<PlayerActionSnapshot>()
-            db.Register<PlayerTag>()
-            db.Register<BoxTag>()
-        init(this.Database)
-        init(this.StagingDatabase)
+        db.Register<Camera>()
+        db.Register<Transform>()
+        db.Register<Material>()
+        db.Register<PlayerActionSnapshot>()
+        db.Register<PlayerTag>()
+        db.Register<BoxTag>()
+
+    protected field Physics: Physics = Physics.Init()
 
 class ServerWorld =
     inherits SharedWorld
+
+    static SetupComponents(world: World): () =
+        SharedWorld.SetupComponents(world)
+
+        let db = world.Database
+
+        db.Register<DynamicObjectId>()
+        db.Register<Velocity>()
+        db.Register<Collidable>()
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
 
@@ -255,27 +281,26 @@ class ServerWorld =
             DestroyEntityQueue = ConcurrentQueue()
         }
 
-    overrides Initialize(): () =
-        base.Initialize()
-
-        this.Database.Register<DynamicObjectId>()
-        this.Database.RegisterDependency<BoxTag, DynamicObjectId>()
-
     private Flush(): () =
         let mutable entId = default
         while (this.DestroyEntityQueue.TryDequeue(&entId))
             this.Database.Delete(entId)
 
+    GetReplicatingEvents(prevWorld: World): EntityDatabase.Events =
+        this.Database.GetReplicatingEvents(prevWorld.Database)
+
     Update(Δ: float32): () =
         this.Flush()
 
-        this.Physics.Update(Δ)
+        let physics = this.Physics
 
-        this.Database.ParallelForEach<Transform, DynamicObjectId>(
-            (entId, transform, physObjId) ->
+        physics.Update(Δ)
+
+        this.Database.ParallelForEach<Transform, Velocity, DynamicObjectId>(
+            (entId, transform, velocity, physObjId) ->
                 let mutable position = vec3.Zero
                 let mutable orientation = quat.Identity
-                this.Physics.GetPositionAndOrientation(physObjId, &position, &orientation)
+                physics.GetPositionAndOrientationAndVelocity(physObjId, &position, &orientation, &velocity.Linear, &velocity.Angular)
                 transform <- Transform.Create(position, orientation, transform.Scale)
         )
 
@@ -307,8 +332,9 @@ class ServerWorld =
         if (this.CanSpawnEntity)
             let transform = Transform.Create(position, rotation, scale)
             let material = Material(0)
+            let physObjId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
 
-            let entId = this.Database.Create(BoxTag(), transform, material)
+            let entId = this.Database.Create(BoxTag(), transform, material, physObjId, Velocity())
 
     DestroyBox(box: Box): () =
         this.DestroyEntityQueue.Enqueue(box.Value)
@@ -322,13 +348,6 @@ class ServerWorld =
         )
 
         this.Flush()
-
-    protected overrides OnEntitySpawned(entId: EntityId): () =
-        let _ =
-            this.Database.TryGet<Transform, DynamicObjectId>(entId,
-                (transform, physObjId) ->
-                    physObjId <- this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
-            )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
         let _ =

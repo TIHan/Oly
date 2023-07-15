@@ -296,6 +296,11 @@ module ImArray =
         let rec loop i = i < len && (predicate arr.[i] || loop (i+1))
         len > 0 && loop 0
 
+    let inline existsi predicate (arr: imarray<'T>) =
+        let len = arr.Length
+        let rec loop i = i < len && (predicate i arr.[i] || loop (i+1))
+        len > 0 && loop 0
+
     let inline choose (chooser: 'T -> 'U option) (arr: imarray<'T>) : imarray<'U> =
         let builder = ImmutableArray.CreateBuilder(arr.Length)
         for i = 0 to arr.Length - 1 do

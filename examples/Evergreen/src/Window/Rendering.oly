@@ -375,18 +375,22 @@ class GpuProgramInstance =
         }
 
 class GpuProgramUI =
+    FontPath: string get
     internal Frame: GpuFrame get, set
     internal ImGuiContext: ImGui.ImGuiContext get, set
     internal CanInitializeWindow: bool get, set
+    internal FontHandle: ImGui.ImFont* get, set
 
-    new() =
-        GpuProgramUI(unchecked default)
+    new(fontPath: string) =
+        GpuProgramUI(unchecked default, fontPath)
 
-    new(gpuFrame: GpuFrame) =
+    new(gpuFrame: GpuFrame, fontPath: string) =
         {
+            FontPath = fontPath
             Frame = gpuFrame
             ImGuiContext = unchecked default
             CanInitializeWindow = true
+            FontHandle = nullptr
         }
 
 abstract class GpuCommand =
@@ -838,18 +842,18 @@ class Gpu =
             let enableInput = gpuProgramUI.Frame === unchecked default
             gpuProgramUI.ImGuiContext <- ImGui.CreateContext(this.window, this.vk, minImageCount, imageCount, renderPass)
     
+            let defaultFontSize = 16: float32
             if (enableInput)
                 ImGui.EnableInput(gpuProgramUI.ImGuiContext)
-
-            //  let fullPath = Path.Combine(Environment.CurrentDirectory, "Win32Example/bin/dotnet/Win32Example.olyx/DroidSans.ttf")
     
-            // Must do this first before NewFrame!
-            let fontSize =
+                // Must do this first before NewFrame!
                 let size = this.window.Size
                 let ratio = (size.Y / 720)
-                ratio * 16
-            //fontHandle <- ImGui.AddFont(imguiContext, fullPath, fontSize)
-
+                let fontSize = ratio * defaultFontSize
+                let _ = ImGui.AddFont(gpuProgramUI.ImGuiContext, gpuProgramUI.FontPath, fontSize)
+                ImGui.SetScaleFactor(gpuProgramUI.ImGuiContext, ratio)
+            else
+                let _ = ImGui.AddFont(gpuProgramUI.ImGuiContext, gpuProgramUI.FontPath, defaultFontSize)
             let commandBuffer = Vk.CreateTransferCommandBuffer(this.vk)
             ImGui.UploadFonts(gpuProgramUI.ImGuiContext, this.vk.TransferCommandPool, commandBuffer)
 
