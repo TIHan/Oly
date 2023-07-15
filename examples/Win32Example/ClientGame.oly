@@ -14,10 +14,10 @@ open static Game.Core
 private alias Array = OlyPrelude.Array
 
 struct CameraLerp =
-    public mutable field Camera: Camera = default
+    public mutable field Value: Camera = default
 
 struct TransformLerp =
-    public mutable field Transform: Transform = default
+    public mutable field Value: Transform = default
 
 // Components
 
@@ -59,18 +59,32 @@ class ClientWorld =
 
         db.Register<TransformLerp>()
         db.RegisterDependency<Transform, TransformLerp>()
+
+    FixedUpdate(deltaTime: float32): () =
+        this.Database.ForEach<TransformLerp, Transform>(
+            (entId, transformLerp, transform) ->
+                transformLerp.Value <- transform
+        )
+
+        this.Database.ForEach<CameraLerp, Camera>(
+            (entId, cameraLerp, camera) ->
+                cameraLerp.Value <- camera
+        )
+
+    LateFixedUpdate(deltaTime: float32): () =
+        ()
     
     Update(alpha: float32): () =
+        let mutable boxRenders = this.Render_Box.AsMemory()
         let mutable boxCount = 0
 
-        let mutable boxRenders = this.Render_Box.AsMemory()
         this.Database.ForEachSpan<BoxTag, TransformLerp, Transform>(
             (mutable entIds, tags, mutable transformLerps, mutable transforms) ->
                 let length = entIds.Length
                 let mutable boxRenders = boxRenders.Span
                 let mutable i = 0
                 while (i < length)
-                    (boxRenders[i]) <- mat4.Lerp(transformLerps[i].Transform.Matrix, transforms[i].Matrix, alpha)
+                    (boxRenders[boxCount + i]) <- mat4.Lerp(transformLerps[i].Value.Matrix, transforms[i].Matrix, alpha)
                     i <- i + 1
                 boxCount <- boxCount + length
         )
@@ -81,26 +95,26 @@ class ClientWorld =
     ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>) -> ()): () =
         this.Database.ForEach<BoxTag, TransformLerp, Transform>(
             (entId, tag, transformLerp, transform) ->
-                f(Box(entId), &transformLerp.Transform, &transform)
+                f(Box(entId), &transformLerp.Value, &transform)
         )
 
     ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
         this.Database.ForEach<PlayerTag, Transform, CameraLerp, Camera>(
             (entId, tag, transform, cameraLerp, camera) ->
-                f(Player(entId), &transform, &cameraLerp.Camera, &camera)
+                f(Player(entId), &transform, &cameraLerp.Value, &camera)
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =
         let _ =
             this.Database.TryGet<Transform, TransformLerp>(entId,
                 (transform, transformLerp) ->
-                    transformLerp.Transform <- transform
+                    transformLerp.Value <- transform
             )
 
         let _ =
             this.Database.TryGet<Camera, CameraLerp>(entId,
                 (camera, cameraLerp) ->
-                    cameraLerp.Camera <- camera
+                    cameraLerp.Value <- camera
             )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =

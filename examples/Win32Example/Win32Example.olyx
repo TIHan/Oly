@@ -644,14 +644,8 @@ main(): () =
         frameTime ->
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
-            clientWorld.ForEachBox(
-                (box, transformLerp, transform) ->
-                    transformLerp <- transform
-            )
-            clientWorld.ForEachPlayer(
-                (player, transform, cameraLerp, camera) ->
-                    cameraLerp <- camera
-            )
+            clientWorld.FixedUpdate(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
+    
             clientWorld.CopyTo(prevClientWorld)
             if (frameTimesVM.MultiThreadingEnabled.Value)
                 if (task === null)
@@ -687,6 +681,8 @@ main(): () =
                         serverTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
                         stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                 )
+
+            clientWorld.LateFixedUpdate(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
 
             frameTimesVM.FixedUpdateTime.Value <- cpuTimeValue
 
