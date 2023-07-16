@@ -130,9 +130,16 @@ struct Velocity =
     public mutable field Linear: vec3 = vec3.Zero
     public mutable field Angular: vec3 = vec3.Zero
 
+enum MeshKind =
+    | Custom
+    | Cube
+
+struct Mesh =
+    public mutable field Kind: MeshKind = MeshKind.Custom
+    public mutable field Index: int32 = 0
+
 // Tags
 
-struct BoxTag
 struct PlayerTag
 
 // Component for regsitration
@@ -183,21 +190,12 @@ extension PlayerTagComponent =
     static overrides GetSize(): int32 = sizeof<PlayerTag>
 
 #[open]
-extension BoxTagComponent =
-    inherits BoxTag
-    implements IComponent
-
-    static overrides GetName(): string = "box"
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(5)
-    static overrides GetSize(): int32 = sizeof<BoxTag>
-
-#[open]
 extension DynamicObjectIdComponent =
     inherits DynamicObjectId
     implements IComponent
 
     static overrides GetName(): string = "physics-dynamic-id"
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(65)
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(511)
     static overrides GetSize(): int32 = sizeof<DynamicObjectId>
 
 #[open]
@@ -217,6 +215,15 @@ extension VelocityComponent =
     static overrides GetName(): string = "velocity"
     static overrides GetId(): ComponentId = BitSet512.FromIndex(8)
     static overrides GetSize(): int32 = sizeof<Velocity>
+
+#[open]
+extension MeshComponent =
+    inherits Mesh
+    implements IComponent
+
+    static overrides GetName(): string = "mesh"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(9)
+    static overrides GetSize(): int32 = sizeof<Mesh>
     
 // ----------------------------------------------------------------------
 
@@ -267,9 +274,20 @@ abstract default class SharedWorld =
         db.Register<Material>()
         db.Register<PlayerInput>()
         db.Register<PlayerTag>()
-        db.Register<BoxTag>()
+        db.Register<Mesh>()
 
     protected field Physics: Physics = Physics.Init()
+
+module WorldEvent =
+
+    PlayerInputUpdated(entId: EntityId, playerInput: PlayerInput, bstream: ByteStream): () =
+        bstream.Write<byte>(1)
+        bstream.Write<EntityId>(entId)
+        bstream.Write<PlayerInput>(playerInput)
+
+    pattern PlayerInputUpdated(bstream: ByteStream): (entId: EntityId, playerInput: PlayerInput) when (bstream.Peek<byte>() == 1) =>
+        bstream.Seek(bstream.Position + 1)
+        (bstream.Read(), bstream.Read())
 
 class ServerWorld =
     inherits SharedWorld
@@ -284,10 +302,12 @@ class ServerWorld =
         db.Register<Collidable>()
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
+    field EventStream: ByteStream
 
     new() =
         {
             DestroyEntityQueue = ConcurrentQueue()
+            EventStream = ByteStream()
         }
 
     private Flush(): () =
@@ -339,11 +359,14 @@ class ServerWorld =
 
     SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
         if (this.CanSpawnEntity)
+            let mutable mesh = Mesh()
+            mesh.Kind <- MeshKind.Cube
+
             let transform = Transform.Create(position, rotation, scale)
             let material = Material(0)
             let physObjId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
 
-            let entId = this.Database.Create(BoxTag(), transform, material, physObjId, Velocity())
+            let entId = this.Database.Create(mesh, transform, material, physObjId, Velocity())
 
     DestroyBox(box: Box): () =
         this.DestroyEntityQueue.Enqueue(box.Value)
@@ -351,9 +374,10 @@ class ServerWorld =
     ForEachBox(f: (Box, transform: Transform, material: Material) -> ()): () =
         this.Flush()
 
-        this.Database.ForEach<BoxTag, Transform, Material>(
-            (entId, tag, transform, material) -> 
-                f(Box(entId), transform, material)
+        this.Database.ForEach<Mesh, Transform, Material>(
+            (entId, mesh, transform, material) -> 
+                if (mesh.Kind == MeshKind.Cube)
+                    f(Box(entId), transform, material)
         )
 
         this.Flush()

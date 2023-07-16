@@ -221,134 +221,7 @@ internal class EntityEvent<T> =
             subscriber(eventData)
             i <- i + 1
 
-class ByteStream =
-    mutable field buffer: mutable byte[] = Array.ZeroCreate(65536)
-    mutable field position: int32 = 0
-    mutable field count: int32 = 0
-
-    Count: int32 get() = this.count
-    Position: int32 get() = this.position
-
-    ResetPosition(): () =
-        this.position <- 0
-
-    Reset(): () =
-        this.ResetPosition()
-        this.count <- 0
-
-    Read<T>(): T where T: unmanaged =
-        let size = sizeof<T>
-        let currentPosition = this.position
-        let nextPosition = currentPosition + size
-
-        if (nextPosition > this.count)
-            throw ArgumentOutOfRangeException()
-
-        let mutable span = MemoryMarshal.Cast<_, T>(Span(this.buffer, currentPosition, size))
-        let result = span[0]
-        let value = result
-
-        this.position <- nextPosition
-
-        value
-
-    Peek<T>(): T where T: unmanaged =
-        let oldPosition = this.Position
-        let value = this.Read<T>()
-        this.position <- oldPosition
-        value
-
-    Write<T>(value: T): () where T: unmanaged =
-        this.Write(&value)
-    Write<T>(value: inref<T>): () where T: unmanaged =
-        let size = sizeof<T>
-        let currentPosition = this.position
-        let nextPosition = currentPosition + size
-        let buffer = this.buffer
-
-        if (nextPosition >= buffer.Length)
-            let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
-            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
-            this.buffer <- buffer
-            this.Write(&value)
-        else
-            (MemoryMarshal.Cast(Span(buffer, currentPosition, size))[0]) <- value
-            this.position <- nextPosition
-            this.count <- this.count + size
-
-    CopyExactTo(bstream: ByteStream): () =
-        bstream.position <- this.position
-        bstream.count <- this.count
-
-        if (bstream.buffer.Length < this.buffer.Length)
-            bstream.buffer <- Array.ZeroCreate(this.buffer.Length)
-
-        Span(this.buffer, 0, this.count).CopyTo(Span(bstream.buffer))
-
-    Write(mutable value: ReadOnlySpan<byte>): () =
-        let currentPosition = this.position
-        let totalByteLength = value.Length
-        let nextPosition = currentPosition + totalByteLength
-
-        let buffer = this.buffer
-
-        if (nextPosition >= buffer.Length)
-            let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
-            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
-            this.buffer <- newBuffer
-            this.Write(value)
-        else
-            value.CopyTo(Span(this.buffer, currentPosition, totalByteLength))
-            this.position <- nextPosition
-            this.count <- this.count + totalByteLength
-
-    Write<T>(mutable value: ReadOnlySpan<T>): () where T: unmanaged =
-        let size = sizeof<T>
-        let totalByteLength = size * value.Length           
-        let currentPosition = this.position
-        let nextPosition = currentPosition + totalByteLength
-
-        let buffer = this.buffer
-
-        if (nextPosition >= buffer.Length)
-            let newBuffer = Array.ZeroCreate<byte>(buffer.Length * 2)
-            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
-            this.buffer <- newBuffer
-            this.Write(value)
-        else
-            MemoryMarshal.Cast(value).CopyTo(Span(this.buffer, currentPosition, totalByteLength))
-            this.position <- nextPosition
-            this.count <- this.count + totalByteLength
-
-    Read(mutable dst: Span<byte>): () =
-        let currentPosition = this.position
-        let nextPosition = currentPosition + dst.Length
-
-        if (nextPosition > this.count)
-            throw ArgumentOutOfRangeException("dst")
-
-        Span(this.buffer, currentPosition, dst.Length).CopyTo(dst)
-
-        this.position <- nextPosition
-
-    Read<T>(mutable dst: Span<T>): () where T: unmanaged =
-        let size = sizeof<T>
-        let totalByteLength = size * dst.Length  
-        let currentPosition = this.position
-        let nextPosition = currentPosition + totalByteLength
-
-        if (nextPosition > this.count)
-            throw ArgumentOutOfRangeException("dst")
-
-        Span(this.buffer, currentPosition, totalByteLength).CopyTo(MemoryMarshal.Cast(dst))
-
-        this.position <- nextPosition
-
-    Seek(position: int32): () =
-        if (position > this.count)
-            throw ArgumentOutOfRangeException("position")
-        this.position <- position
-
+/// Not concurrency safe.
 class EntityDatabase =
 
     public static field MaxNumberOfEntities: int32 = 65536
@@ -365,32 +238,16 @@ class EntityDatabase =
     
     internal Archetypes: List<Archetype> get = List()
     internal ArchetypeLookup: ConcurrentDictionary<ArchetypeId, int32> get = ConcurrentDictionary(BitSet512EqualityComparer())
-    internal DependencyLookup: Dictionary<ComponentId, ArchetypeId> get = Dictionary(BitSet512EqualityComparer())
+    internal AttachmentLookup: Dictionary<ComponentId, ArchetypeId> get = Dictionary(BitSet512EqualityComparer())
 
-    private GetArchetypedIndex<T0>(): int32 where T0: unmanaged, IComponent =
-        this.GetArchetypedIndex(GetArchetypeId<T0>())
-
-    private GetArchetypedIndex<T0, T1>(): int32 where T0: unmanaged, IComponent
-                                                where T1: unmanaged, IComponent =
-        this.GetArchetypedIndex(GetArchetypeId<T0, T1>())
-
-    private GetArchetypedIndex<T0, T1, T2>(): int32 where T0: unmanaged, IComponent
-                                                    where T1: unmanaged, IComponent
-                                                    where T2: unmanaged, IComponent =
-        this.GetArchetypedIndex(GetArchetypeId<T0, T1, T2>())
-
-    private GetArchetypedIndex<T0, T1, T2, T3>(): int32 where T0: unmanaged, IComponent
-                                                        where T1: unmanaged, IComponent
-                                                        where T2: unmanaged, IComponent 
-                                                        where T3: unmanaged, IComponent =
-        this.GetArchetypedIndex(GetArchetypeId<T0, T1, T2, T3>())
-
-    private GetArchetypedIndex<T0, T1, T2, T3, T4>(): int32 where T0: unmanaged, IComponent
-                                                            where T1: unmanaged, IComponent
-                                                            where T2: unmanaged, IComponent 
-                                                            where T3: unmanaged, IComponent
-                                                            where T4: unmanaged, IComponent =
-        this.GetArchetypedIndex(GetArchetypeId<T0, T1, T2, T3, T4>())
+    // For caching purposes
+    mutable field lastArchetypeId: ArchetypeId = default
+    mutable field lastArchetypedIndex: int32 = 0
+    mutable field lastTypedIndex0: int32 = 0
+    mutable field lastTypedIndex1: int32 = 0
+    mutable field lastTypedIndex2: int32 = 0
+    mutable field lastTypedIndex3: int32 = 0
+    mutable field lastTypedIndex4: int32 = 0
 
     internal GetArchetypedIndex(archetypeId: ArchetypeId): int32 =
         let mutable archetypedIndex = default
@@ -409,7 +266,7 @@ class EntityDatabase =
                 let mutable i = 0
                 while (i < origTyIds.Length)
                     let mutable result = unchecked default
-                    if (this.DependencyLookup.TryGetValue(origTyIds[i], &result))
+                    if (this.AttachmentLookup.TryGetValue(origTyIds[i], &result))
                         archetypeId <- archetypeId | result
                         dependencyId <- dependencyId | result
                     i <- i + 1
@@ -535,9 +392,9 @@ class EntityDatabase =
 
         query
 
-    RegisterDependency<T, TDependency>(): () where T: unmanaged, IComponent
-                                             where TDependency: unmanaged, IComponent =
-        this.DependencyLookup.Add(T.GetId(), TDependency.GetId())
+    RegisterAttachment<T, TAttachment>(): () where T: unmanaged, IComponent
+                                             where TAttachment: unmanaged, IComponent =
+        this.AttachmentLookup.Add(T.GetId(), TAttachment.GetId())
 
     ForEachSpan<T0, T1>(f: (ReadOnlySpan<EntityId>, Span<T0>, Span<T1>) -> ()): () where T0: unmanaged, IComponent 
                                                                                    where T1: unmanaged, IComponent =
@@ -733,8 +590,19 @@ class EntityDatabase =
     Create<T0>(value0: T0): EntityId where T0: unmanaged, IComponent =
         this.Create(&value0)
     Create<T0>(value0: inref<T0>): EntityId where T0: unmanaged, IComponent =
-        let archetypedIndex = this.GetArchetypedIndex<T0>()
-        let typedIndex0 = this.GetTypedIndex<T0>(archetypedIndex)
+        let archetypeId = GetArchetypeId<T0>()
+        let mutable archetypedIndex = 0
+        let mutable typedIndex0 = 0
+        if (this.lastArchetypeId == archetypeId)
+            archetypedIndex <- this.lastArchetypedIndex
+            typedIndex0 <- this.lastTypedIndex0
+        else
+            archetypedIndex <- this.GetArchetypedIndex(archetypeId)
+            typedIndex0 <- this.GetTypedIndex<T0>(archetypedIndex)
+
+            this.lastArchetypeId <- archetypeId
+            this.lastArchetypedIndex <- archetypedIndex
+            this.lastTypedIndex0 <- typedIndex0
 
         let entId = this.NewEntityId(archetypedIndex)
 
@@ -756,9 +624,23 @@ class EntityDatabase =
         this.Create(&value0, &value1)
     Create<T0, T1>(value0: inref<T0>, value1: inref<T1>): EntityId where T0: unmanaged, IComponent
                                                                    where T1: unmanaged, IComponent =
-        let archetypedIndex = this.GetArchetypedIndex<T0, T1>()
-        let typedIndex0 = this.GetTypedIndex<T0>(archetypedIndex)
-        let typedIndex1 = this.GetTypedIndex<T1>(archetypedIndex)
+        let archetypeId = GetArchetypeId<T0, T1>()
+        let mutable archetypedIndex = 0
+        let mutable typedIndex0 = 0
+        let mutable typedIndex1 = 0
+        if (this.lastArchetypeId == archetypeId)
+            archetypedIndex <- this.lastArchetypedIndex
+            typedIndex0 <- this.lastTypedIndex0
+            typedIndex1 <- this.lastTypedIndex1
+        else
+            archetypedIndex <- this.GetArchetypedIndex(archetypeId)
+            typedIndex0 <- this.GetTypedIndex<T0>(archetypedIndex)
+            typedIndex1 <- this.GetTypedIndex<T1>(archetypedIndex)
+
+            this.lastArchetypeId <- archetypeId
+            this.lastArchetypedIndex <- archetypedIndex
+            this.lastTypedIndex0 <- typedIndex0
+            this.lastTypedIndex1 <- typedIndex1
 
         let entId = this.NewEntityId(archetypedIndex)
 
@@ -783,10 +665,27 @@ class EntityDatabase =
     Create<T0, T1, T2>(value0: inref<T0>, value1: inref<T1>, value2: inref<T2>): EntityId where T0: unmanaged, IComponent
                                                                                           where T1: unmanaged, IComponent 
                                                                                           where T2: unmanaged, IComponent =                                                                
-        let archetypedIndex = this.GetArchetypedIndex<T0, T1, T2>()
-        let typedIndex0 = this.GetTypedIndex<T0>(archetypedIndex)
-        let typedIndex1 = this.GetTypedIndex<T1>(archetypedIndex)
-        let typedIndex2 = this.GetTypedIndex<T2>(archetypedIndex)
+        let archetypeId = GetArchetypeId<T0, T1, T2>()
+        let mutable archetypedIndex = 0
+        let mutable typedIndex0 = 0
+        let mutable typedIndex1 = 0
+        let mutable typedIndex2 = 0
+        if (this.lastArchetypeId == archetypeId)
+            archetypedIndex <- this.lastArchetypedIndex
+            typedIndex0 <- this.lastTypedIndex0
+            typedIndex1 <- this.lastTypedIndex1
+            typedIndex2 <- this.lastTypedIndex2
+        else
+            archetypedIndex <- this.GetArchetypedIndex(archetypeId)
+            typedIndex0 <- this.GetTypedIndex<T0>(archetypedIndex)
+            typedIndex1 <- this.GetTypedIndex<T1>(archetypedIndex)
+            typedIndex2 <- this.GetTypedIndex<T2>(archetypedIndex)
+
+            this.lastArchetypeId <- archetypeId
+            this.lastArchetypedIndex <- archetypedIndex
+            this.lastTypedIndex0 <- typedIndex0
+            this.lastTypedIndex1 <- typedIndex1
+            this.lastTypedIndex2 <- typedIndex2
 
         let entId = this.NewEntityId(archetypedIndex)
 
@@ -814,11 +713,31 @@ class EntityDatabase =
                                                                                                                  where T1: unmanaged, IComponent 
                                                                                                                  where T2: unmanaged, IComponent
                                                                                                                  where T3: unmanaged, IComponent =                                                                
-        let archetypedIndex = this.GetArchetypedIndex<T0, T1, T2, T3>()
-        let typedIndex0 = this.GetTypedIndex<T0>(archetypedIndex)
-        let typedIndex1 = this.GetTypedIndex<T1>(archetypedIndex)
-        let typedIndex2 = this.GetTypedIndex<T2>(archetypedIndex)
-        let typedIndex3 = this.GetTypedIndex<T3>(archetypedIndex)
+        let archetypeId = GetArchetypeId<T0, T1, T2, T3>()
+        let mutable archetypedIndex = 0
+        let mutable typedIndex0 = 0
+        let mutable typedIndex1 = 0
+        let mutable typedIndex2 = 0
+        let mutable typedIndex3 = 0
+        if (this.lastArchetypeId == archetypeId)
+            archetypedIndex <- this.lastArchetypedIndex
+            typedIndex0 <- this.lastTypedIndex0
+            typedIndex1 <- this.lastTypedIndex1
+            typedIndex2 <- this.lastTypedIndex2
+            typedIndex3 <- this.lastTypedIndex3
+        else
+            archetypedIndex <- this.GetArchetypedIndex(archetypeId)
+            typedIndex0 <- this.GetTypedIndex<T0>(archetypedIndex)
+            typedIndex1 <- this.GetTypedIndex<T1>(archetypedIndex)
+            typedIndex2 <- this.GetTypedIndex<T2>(archetypedIndex)
+            typedIndex3 <- this.GetTypedIndex<T3>(archetypedIndex)
+
+            this.lastArchetypeId <- archetypeId
+            this.lastArchetypedIndex <- archetypedIndex
+            this.lastTypedIndex0 <- typedIndex0
+            this.lastTypedIndex1 <- typedIndex1
+            this.lastTypedIndex2 <- typedIndex2
+            this.lastTypedIndex3 <- typedIndex3
 
         let entId = this.NewEntityId(archetypedIndex)
 
@@ -849,12 +768,35 @@ class EntityDatabase =
                                                                                                                                         where T2: unmanaged, IComponent
                                                                                                                                         where T3: unmanaged, IComponent
                                                                                                                                         where T4: unmanaged, IComponent =                                                                
-        let archetypedIndex = this.GetArchetypedIndex<T0, T1, T2, T3, T4>()
-        let typedIndex0 = this.GetTypedIndex<T0>(archetypedIndex)
-        let typedIndex1 = this.GetTypedIndex<T1>(archetypedIndex)
-        let typedIndex2 = this.GetTypedIndex<T2>(archetypedIndex)
-        let typedIndex3 = this.GetTypedIndex<T3>(archetypedIndex)
-        let typedIndex4 = this.GetTypedIndex<T4>(archetypedIndex)
+        let archetypeId = GetArchetypeId<T0, T1, T2, T3, T4>()
+        let mutable archetypedIndex = 0
+        let mutable typedIndex0 = 0
+        let mutable typedIndex1 = 0
+        let mutable typedIndex2 = 0
+        let mutable typedIndex3 = 0
+        let mutable typedIndex4 = 0
+        if (this.lastArchetypeId == archetypeId)
+            archetypedIndex <- this.lastArchetypedIndex
+            typedIndex0 <- this.lastTypedIndex0
+            typedIndex1 <- this.lastTypedIndex1
+            typedIndex2 <- this.lastTypedIndex2
+            typedIndex3 <- this.lastTypedIndex3
+            typedIndex4 <- this.lastTypedIndex4
+        else
+            archetypedIndex <- this.GetArchetypedIndex(archetypeId)
+            typedIndex0 <- this.GetTypedIndex<T0>(archetypedIndex)
+            typedIndex1 <- this.GetTypedIndex<T1>(archetypedIndex)
+            typedIndex2 <- this.GetTypedIndex<T2>(archetypedIndex)
+            typedIndex3 <- this.GetTypedIndex<T3>(archetypedIndex)
+            typedIndex4 <- this.GetTypedIndex<T4>(archetypedIndex)
+
+            this.lastArchetypeId <- archetypeId
+            this.lastArchetypedIndex <- archetypedIndex
+            this.lastTypedIndex0 <- typedIndex0
+            this.lastTypedIndex1 <- typedIndex1
+            this.lastTypedIndex2 <- typedIndex2
+            this.lastTypedIndex3 <- typedIndex3
+            this.lastTypedIndex4 <- typedIndex4
 
         let entId = this.NewEntityId(archetypedIndex)
 

@@ -620,7 +620,7 @@ main(): () =
                         globals.View <- view
                         globals.Model <- Matrix4x4.Identity
                 )
-                clientWorld.Update(float32(alpha))
+                clientWorld.LateUpdate(float32(frameTime.TotalSeconds), float32(alpha))
                          
                 gpuCommands.Add(GpuCommand.NewFrame(gpuFrame))
                 gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length, 1))

@@ -60,10 +60,10 @@ class ClientWorld =
         let db = world.Database
 
         db.Register<CameraLerp>()
-        db.RegisterDependency<Camera, CameraLerp>()
+        db.RegisterAttachment<Camera, CameraLerp>()
 
         db.Register<TransformLerp>()
-        db.RegisterDependency<Transform, TransformLerp>()
+        db.RegisterAttachment<Transform, TransformLerp>()
 
     FixedUpdate(deltaTime: float32): () =
         this.Database.ForEach<TransformLerp, Transform>(
@@ -78,18 +78,23 @@ class ClientWorld =
 
     LateFixedUpdate(deltaTime: float32): () =
         ()
+
+    Update(deltaTime: float32): () =
+        ()
     
-    Update(alpha: float32): () =
+    LateUpdate(deltaTime: float32, alpha: float32): () =
         let mutable boxRenders = this.Render_Box.AsMemory()
         let mutable boxCount = 0
 
-        this.Database.ForEachSpan<BoxTag, TransformLerp, Transform>(
-            (mutable entIds, tags, mutable transformLerps, mutable transforms) ->
+        this.Database.ForEachSpan<Game.Core.Mesh, TransformLerp, Transform>(
+            (mutable entIds, mutable meshes, mutable transformLerps, mutable transforms) ->
                 let length = entIds.Length
                 let mutable boxRenders = boxRenders.Span
                 let mutable i = 0
                 while (i < length)
-                    (boxRenders[boxCount + i]) <- mat4.Lerp(transformLerps[i].Value.Matrix, transforms[i].Matrix, alpha)
+                    let mesh = meshes[i]
+                    if (mesh.Kind == MeshKind.Cube)
+                        (boxRenders[boxCount + i]) <- mat4.Lerp(transformLerps[i].Value.Matrix, transforms[i].Matrix, alpha)
                     i <- i + 1
                 boxCount <- boxCount + length
         )
