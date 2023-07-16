@@ -1,4 +1,4 @@
-module ClientGame
+module Game.Client.World
 
 open System
 open System.Text
@@ -9,40 +9,14 @@ open Evergreen.Graphics
 open Evergreen.Physics
 open System.Runtime.InteropServices
 open Evergreen.Graphics.Rendering
-open static Game.Core
+open static Game.Types
+open static Game.Components
+open static Game.World
+open static Game.Client.Types
+open static Game.Client.Components
 
 private alias Array = OlyPrelude.Array
-
-newtype CameraLerp =
-    public field Value: Camera
-
-newtype TransformLerp =
-    public field Value: Transform
-
-// Components
-
-#[open]
-extension CameraLerpComponent =
-    inherits CameraLerp
-    implements IComponent
-
-    static overrides GetName(): string = "camera-lerp"
-
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(47)
-
-    static overrides GetSize(): int32 =
-        sizeof<CameraLerp>
-
-#[open]
-extension TransformLerpComponent =
-    inherits TransformLerp
-    implements IComponent
-
-    static overrides GetName(): string = "transform-lerp"
-
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(48)
-
-    static overrides GetSize(): int32 = sizeof<TransformLerp>
+private alias Mesh = Game.Types.Mesh
 
 class ClientWorld =
     inherits SharedWorld
@@ -88,7 +62,7 @@ class ClientWorld =
         let mutable boxRenders = this.Render_Box.AsMemory()
         let mutable boxCount = 0
 
-        this.Database.ForEachSpan<Game.Core.Mesh, TransformLerp, Transform>(
+        this.Database.ForEachSpan<Mesh, TransformLerp, Transform>(
             (mutable entIds, mutable meshes, mutable transformLerps, mutable transforms) ->
                 let length = entIds.Length
                 let mutable boxRenders = boxRenders.Span
@@ -104,10 +78,10 @@ class ClientWorld =
         this.Render_Box.SyncOffset <- 0
         this.Render_Box.SyncLength <- boxCount
 
-    ForEachPlayer(f: (Player, playerInput: byref<PlayerInput>, transformLerp: byref<Transform>, transform: byref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
+    ForEachPlayer(f: (EntityId, playerInput: byref<PlayerInput>, transformLerp: byref<Transform>, transform: byref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
         this.Database.ForEach<PlayerInput, TransformLerp, Transform, CameraLerp, Camera>(
             (entId, playerInput, transformLerp, transform, cameraLerp, camera) ->
-                f(Player(entId), &playerInput, &Unsafe.AsByRef(&transformLerp), &transform, &Unsafe.AsByRef(&cameraLerp), &camera)
+                f(entId, &playerInput, &Unsafe.AsByRef(&transformLerp), &transform, &Unsafe.AsByRef(&cameraLerp), &camera)
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =

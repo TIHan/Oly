@@ -1,0 +1,89 @@
+module Game.Components
+
+open Evergreen.Collections
+open Evergreen.Graphics
+open Evergreen.Physics
+open static Game.Types
+
+private alias Mesh = Game.Types.Mesh
+
+#[open]
+extension CameraComponent =
+    inherits Camera
+    implements IComponent
+
+    static overrides GetName(): string = "camera"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(0)
+    static overrides GetSize(): int32 = sizeof<Camera>
+
+#[open]
+extension TransformComponent =
+    inherits Transform
+    implements IComponent
+
+    static overrides GetName(): string = "transform"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(1)
+    static overrides GetSize(): int32 = sizeof<Transform>
+
+#[open]
+extension MaterialComponent =
+    inherits Material
+    implements IComponent
+
+    static overrides GetName(): string = "material"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(2)
+    static overrides GetSize(): int32 = sizeof<Material>
+
+#[open]
+extension PlayerInputComponent =
+    inherits PlayerInput
+    implements IComponent
+
+    static overrides GetName(): string = "player-input"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(3)
+    static overrides GetSize(): int32 = sizeof<PlayerInput>
+
+#[open]
+extension PhysicsStaticComponent =
+    inherits PhysicsStatic
+    implements IComponent
+
+    static overrides GetName(): string = "physics-static"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(4)
+    static overrides GetSize(): int32 = sizeof<PhysicsStatic>
+
+#[open]
+extension PhysicsCharacterComponent =
+    inherits PhysicsCharacter
+    implements IComponent
+
+    static overrides GetName(): string = "physics-character"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(5)
+    static overrides GetSize(): int32 = sizeof<PhysicsCharacter>
+
+#[open]
+extension DynamicObjectIdComponent =
+    inherits DynamicObjectId
+    implements IComponent
+
+    static overrides GetName(): string = "internal-physics-dynamic-id"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(6)
+    static overrides GetSize(): int32 = sizeof<DynamicObjectId>
+
+#[open]
+extension StaticObjectIdComponent =
+    inherits StaticObjectId
+    implements IComponent
+
+    static overrides GetName(): string = "internal-physics-static-id"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(7)
+    static overrides GetSize(): int32 = sizeof<DynamicObjectId>
+
+#[open]
+extension MeshComponent =
+    inherits Game.Types.Mesh
+    implements IComponent
+
+    static overrides GetName(): string = "mesh"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(8)
+    static overrides GetSize(): int32 = sizeof<Mesh>

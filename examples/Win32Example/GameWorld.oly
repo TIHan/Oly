@@ -1,0 +1,66 @@
+module Game.World
+
+open Evergreen.Physics
+open Evergreen.Collections
+open static Game.Types
+open static Game.Components
+
+module WorldEvent =
+
+    PlayerInputUpdated(entId: EntityId, playerInput: PlayerInput, bstream: ByteStream): () =
+        bstream.Write<byte>(1)
+        bstream.Write<EntityId>(entId)
+        bstream.Write<PlayerInput>(playerInput)
+
+    pattern PlayerInputUpdated(bstream: ByteStream): (entId: EntityId, playerInput: PlayerInput) when (bstream.Peek<byte>() == 1) =>
+        bstream.Seek(bstream.Position + 1)
+        (bstream.Read(), bstream.Read())
+
+abstract default class World =
+
+    new() =
+        let db = EntityDatabase()
+
+        db.EntityCreated.Add(
+            entId -> this.OnEntitySpawned(entId)
+        )
+
+        db.EntityDeleting.Add(
+            entId -> this.OnEntityDestroying(entId)
+        )
+
+        {
+            Database = db
+        }
+
+    protected Database: EntityDatabase get
+
+    IsValid(entId: EntityId): bool =
+        this.Database.IsValid(entId)
+
+    CanSpawnEntity: bool get() = this.Database.CanSpawnEntity
+
+    Replicate(dstWorld: World, prevWorld: World, events: EntityDatabase.Events): () =
+        this.Database.Replicate(dstWorld.Database, prevWorld.Database, events)
+
+    CopyTo(dstWorld: World): () =
+        this.Database.CopyTo(dstWorld.Database)
+
+    protected abstract default OnEntitySpawned(entId: EntityId): () = ()
+
+    protected abstract default OnEntityDestroying(entId: EntityId): () = ()
+
+abstract default class SharedWorld =
+    inherits World
+
+    static SetupComponents(world: World): () =
+        let db = world.Database
+
+        db.Register<Camera>()
+        db.Register<Transform>()
+        db.Register<Material>()
+        db.Register<Mesh>()
+        db.Register<PhysicsStatic>()
+        db.Register<PhysicsCharacter>()
+
+    protected field Physics: Physics = Physics.Init()

@@ -28,8 +28,11 @@ open SixLabors.ImageSharp.Advanced
 open SixLabors.ImageSharp.PixelFormats
 open SixLabors.ImageSharp.Processing
 
-open static Game.Core
-open static ClientGame
+open static Game.Types
+open static Game.Components
+open static Game.World
+open static Game.Client.World
+open static Game.Server.World
 
 private alias Array = OlyPrelude.Array
 
@@ -477,9 +480,9 @@ main(): () =
                 i <- i + 1
 
         world.ForEachBox(
-            (box, transform, material) ->
+            (entId, transform, material) ->
                 if (transform.Position.Z <= -10000)
-                    world.DestroyBox(box)
+                    world.Destroy(entId)
         )
 
         world.Update(deltaTime)

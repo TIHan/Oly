@@ -1,0 +1,5 @@
+module Game.Server.Types
+
+struct PhysicsDynamic =
+    public mutable field LinearVelocity: vec3 = vec3.Zero
+    public mutable field AngularVelocity: vec3 = vec3.Zero

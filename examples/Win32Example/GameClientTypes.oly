@@ -1,0 +1,9 @@
+module Game.Client.Types
+
+open static Game.Types
+
+newtype CameraLerp =
+    public field Value: Camera
+
+newtype TransformLerp =
+    public field Value: Transform

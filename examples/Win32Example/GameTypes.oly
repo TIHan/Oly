@@ -1,0 +1,153 @@
+module Game.Types
+
+open System
+open System.Text
+open System.Collections.Generic
+open System.Collections.Concurrent
+open Evergreen.Collections
+open Evergreen.Graphics
+open Evergreen.Physics
+open System.Runtime.InteropServices
+
+struct PointLight =
+    public mutable field Position: vec3 = vec3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: vec4 = vec4.Zero
+
+struct DirectionalLight =
+    public mutable field Direction: vec3 = vec3.Zero
+    public field Padding: float32 = 0
+    public mutable field Color: vec4 = vec4.Zero
+
+struct Camera =
+    public mutable field Transform: Transform
+    public mutable field Projection: mat4
+
+    mutable field yaw: float32
+    mutable field pitch: float32
+
+    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(-90))
+
+    new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
+        {
+            Transform = Transform(mat4.CreateFromQuaternion(Camera.DefaultRotation))
+            Projection = mat4.CreatePerspectiveFieldOfView(radians(fov), float32(width) / float32(height), nearPlaneDistance, farPlaneDistance)
+            yaw = 0
+            pitch = 0
+        }
+
+    Yaw: float32
+        get() = this.yaw
+        
+    Pitch: float32
+        get() = this.pitch
+
+    mutable SetYawPitch(yaw: float32, pitch: float32): () =
+        this.yaw <- yaw
+        this.pitch <- pitch
+        let position = this.Transform.Position
+        let rotation = Camera.DefaultRotation * quat.CreateFromYawPitchRoll(-yaw, -pitch, 0)
+        this.Transform <- Transform.Create(position, rotation, vec3.One)
+
+struct Transform =
+    public mutable field Matrix: mat4
+
+    new(matrix: mat4) = { Matrix = matrix }
+
+    Position: vec3
+        get() = this.Matrix.Translation
+        set(value) = this.Matrix.Translation <- value
+
+    Rotation: quat
+        get() = quat.CreateFromRotationMatrix(this.Matrix)
+
+    Scale: vec3
+        get() = 
+            let mutable scale = vec3.Zero
+            let mutable rotation = quat.Identity
+            let mutable position = vec3.Zero
+            if (mat4.Decompose(this.Matrix, &scale, &rotation, &position))
+                scale
+            else
+                vec3.Zero
+
+    Forward: vec3
+        get() = vec3.Transform(vec3.Forward, this.Rotation)
+
+    Back: vec3
+        get() = vec3.Transform(vec3.Back, this.Rotation)
+
+    Left: vec3
+        get() = vec3.Transform(vec3.Left, this.Rotation)
+
+    Right: vec3
+        get() = vec3.Transform(vec3.Right, this.Rotation)
+
+    WorldToLocalMatrix: mat4
+        get() =
+            let mutable inverted = mat4.Identity
+            let didSucceed = mat4.Invert(this.Matrix, &inverted)
+            inverted
+
+    static Create(position: vec3, rotation: quat, scale: vec3): Transform =
+        let rotationMatrix = mat4.CreateFromQuaternion(rotation)
+        let mutable scaleMatrix = mat4.CreateScale(scale)
+        scaleMatrix.Translation <- position
+        Transform(rotationMatrix * scaleMatrix)
+
+struct Material =
+    Id: int32 get
+
+    new(id: int32) =
+        {
+            Id = id
+        }
+
+enum PlayerActions =
+    | None      = 0b0000
+    | Forward   = 0b0001
+    | Backward  = 0b0010
+    | Left      = 0b0100
+    | Right     = 0b1000
+
+struct PlayerInput =
+
+    public mutable field Actions: PlayerActions = default
+    public mutable field Yaw: float32 = 0
+    public mutable field Pitch: float32 = 0
+
+    mutable SetForward(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Forward
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Forward
+
+    mutable SetBackward(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Backward
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Backward
+
+    mutable SetLeft(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Left
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Left
+
+    mutable SetRight(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Right
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Right
+
+enum MeshKind =
+    | Custom
+    | Cube
+
+struct Mesh =
+    public mutable field Kind: MeshKind = MeshKind.Custom
+    public mutable field Index: int32 = 0
+
+struct PhysicsStatic
+
+struct PhysicsCharacter
