@@ -138,8 +138,12 @@ struct BitSet512 =
             fail("should not happen")
             &this.value0
 
-    #[inline(always)]
-    static FromIndex(index: int32): BitSet512 =
+    static field CachedIndices: BitSet512[] =
+        OlyPrelude.Array.Initialize(512,
+            i -> FromIndexCore(i)
+        )
+
+    private static FromIndexCore(index: int32): BitSet512 =
         if (index < 0 || index >= 512)
             throw IndexOutOfRangeException()
         
@@ -149,6 +153,9 @@ struct BitSet512 =
         let bitIndex = index % 64
         value <- ((1: uint64) << bitIndex)
         bitSet
+
+    #[inline(always)]
+    static FromIndex(index: int32): BitSet512 = CachedIndices[index]
 
     #[inline(always)]
     IsSupersetOf(bitSet: BitSet512): bool =

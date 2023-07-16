@@ -220,12 +220,14 @@ type EntitySymbol() =
                     if this.IsAlias && this.Extends.Length > 0 then
                         this.Extends[0].IsUnmanaged
                     else
-                        if this.Fields.IsEmpty then
+                        let fields = this.Fields
+                        if fields.IsEmpty || (fields |> ImArray.exists (fun x -> x.IsInstance) |> not) then
                             true
                         else
+                            isUnmanaged <- ValueSome(false) // We do this to potentially prevent an infinite loop.
                             let result =
-                                this.Fields
-                                |> ImArray.forall (fun x -> x.Type.IsUnmanaged)
+                                fields
+                                |> ImArray.forall (fun x -> x.IsStatic || x.Type.IsUnmanaged)
                             isUnmanaged <- ValueSome(result)
                             result
             else
