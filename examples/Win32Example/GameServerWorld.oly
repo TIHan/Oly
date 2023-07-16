@@ -17,17 +17,6 @@ open static Game.Server.Components
 private alias Array = OlyPrelude.Array
 private alias Mesh = Game.Types.Mesh
 
-module WorldEvent =
-
-    PlayerInputUpdated(entId: EntityId, playerInput: PlayerInput, bstream: ByteStream): () =
-        bstream.Write<byte>(1)
-        bstream.Write<EntityId>(entId)
-        bstream.Write<PlayerInput>(playerInput)
-
-    pattern PlayerInputUpdated(bstream: ByteStream): (entId: EntityId, playerInput: PlayerInput) when (bstream.Peek<byte>() == 1) =>
-        bstream.Seek(bstream.Position + 1)
-        (bstream.Read(), bstream.Read())
-
 class ServerWorld =
     inherits SharedWorld
 
