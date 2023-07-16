@@ -284,6 +284,14 @@ class Physics =
         let poseRef = bodyRef.Pose
         poseRef <- RigidPose(position)
 
+    GetPositionAndOrientation(objId: DynamicObjectId, position: byref<Vector3>, orientation: byref<Quaternion>): () =
+        let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+        let pose = bodyRef.Pose
+        let pose = pose
+
+        position <- pose.Position
+        orientation <- pose.Orientation
+
     GetPositionAndOrientationAndVelocity(objId: DynamicObjectId, position: byref<Vector3>, orientation: byref<Quaternion>, linearVelocity: byref<Vector3>, angularVelocity: byref<Vector3>): () =
         let mutable bodyRef = this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
         let pose = bodyRef.Pose
@@ -326,7 +334,7 @@ class Physics =
         let bodyVelocity = bodyRef.get_Velocity()
         bodyVelocity.Angular
 
-    static CreatePhysicsObjectFromCollidableReference(mutable collidable: CollidableReference): PhysicsObject =
+    private static CreatePhysicsObjectFromCollidableReference(mutable collidable: CollidableReference): PhysicsObject =
         if (collidable.StaticHandle.Value >= 0 && (collidable.Mobility == CollidableMobility.Static))
             PhysicsObject(1, collidable.StaticHandle.Value)
         else if (collidable.BodyHandle.Value >= 0 && (collidable.Mobility == CollidableMobility.Dynamic))
@@ -347,7 +355,7 @@ class Physics =
         mutable OnRayHit(ray: inref<RayData>, maximumT: byref<float32>, t: float32, normal: Vector3, mutable collidable: CollidableReference, childIndex: int32): () =
             if (t < this.closestDistance)
                 this.closestDistance <- t
-                this.obj <- Physics.CreatePhysicsObjectFromCollidableReference(collidable)
+                this.obj <- CreatePhysicsObjectFromCollidableReference(collidable)
 
     TryRayCast(origin: Vector3, direction: Vector3, distance: float32, hitObj: byref<PhysicsObject>): bool =
         let mutable hitHandler = Physics.RayHitHandler()

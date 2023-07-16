@@ -139,6 +139,8 @@ struct PhysicsDynamic =
 
 struct PhysicsStatic
 
+struct PhysicsCharacter
+
 // Component for regsitration
 
 #[open]
@@ -221,6 +223,15 @@ extension MeshComponent =
     static overrides GetName(): string = "mesh"
     static overrides GetId(): ComponentId = BitSet512.FromIndex(9)
     static overrides GetSize(): int32 = sizeof<Mesh>
+
+#[open]
+extension PhysicsCharacterComponent =
+    inherits PhysicsCharacter
+    implements IComponent
+
+    static overrides GetName(): string = "physics-character"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(10)
+    static overrides GetSize(): int32 = sizeof<PhysicsCharacter>
     
 // ----------------------------------------------------------------------
 
@@ -270,6 +281,7 @@ abstract default class SharedWorld =
         db.Register<PlayerInput>()
         db.Register<Mesh>()
         db.Register<PhysicsStatic>()
+        db.Register<PhysicsCharacter>()
 
     protected field Physics: Physics = Physics.Init()
 
@@ -297,6 +309,7 @@ class ServerWorld =
         db.Register<DynamicObjectId>()
 
         db.RegisterAttachment<PhysicsDynamic, DynamicObjectId>()
+        db.RegisterAttachment<PhysicsCharacter, DynamicObjectId>()
         db.RegisterAttachment<PhysicsStatic, StaticObjectId>()
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
@@ -331,13 +344,21 @@ class ServerWorld =
                 transform <- Transform.Create(position, orientation, transform.Scale)
         )
 
+        this.Database.ParallelForEach<Transform, PhysicsCharacter, DynamicObjectId>(
+            (entId, transform, phys, physObjId) ->
+                let mutable position = vec3.Zero
+                let mutable orientation = quat.Identity
+                physics.GetPositionAndOrientation(physObjId, &position, &orientation)
+                transform <- Transform.Create(position, orientation, transform.Scale)
+        )
+
     SpawnPlayer(position: vec3): () =
       //  let character = this.Physics.AddCharacter(position, quat.Identity, 0.5, 1, 1)
         let transform = Transform.Create(position, quat.Identity, vec3.One)
         let mutable camera = Camera(70, 1280, 720, 0.1, 1000000)
         camera.Transform.Position <- position
 
-        let entId = this.Database.Create(PlayerInput(), transform, camera)
+        let entId = this.Database.Create(PlayerInput(), transform, camera, PhysicsCharacter())
         
     DestroyPlayer(player: Player): () =
         this.DestroyEntityQueue.Enqueue(player.Value)
@@ -399,6 +420,12 @@ class ServerWorld =
                         physics.SetVelocity(physObjId, phys.LinearVelocity, phys.AngularVelocity)
                     else
                         throw NotSupportedException("mesh kind")
+            )
+
+        let _ =
+            this.Database.TryGet<PhysicsCharacter, DynamicObjectId, Transform>(entId,
+                (phys, physObjId, transform) ->
+                    physObjId <- physics.AddCharacter(transform.Position, transform.Rotation, 1, 1, 1)
             )
 
         let _ =
