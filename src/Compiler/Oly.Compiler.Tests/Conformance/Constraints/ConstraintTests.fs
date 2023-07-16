@@ -1259,3 +1259,19 @@ test<T>(): () where T: ITest<T> = ()
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Shape constraint can have a constructor``() =
+    let src =
+        """
+class A
+
+test<T>(): () where T: { new() } =
+    let _ = T()
+
+main(): () =
+    test<A>()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

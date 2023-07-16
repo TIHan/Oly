@@ -15,6 +15,19 @@ internal class OnConnectionRequestDelegate =
     Invoke(request: ConnectionRequest): () =
         this.f(request)
 
+
+// module Helpers =
+
+//     CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): T where T: { Invoke(TArg0): TReturn } =
+//         class Delegate =
+//             field f: TArg0 -> TReturn
+//             new(f: TArg0 -> TReturn) = { f = f }
+
+//             Invoke(arg0: TArg0): TReturn =
+//                 this.f(arg0)
+
+        
+
 class Server =
 
     field listener: EventBasedNetListener
@@ -32,7 +45,7 @@ class Server =
 
         Server(listener, server)
 
-    Start(mutable port: int32): () =
+    Start(mutable port: int32, connectionKey: string): () =
         if (!this.server.Start(port))
             fail("Unable to start server at port: " + port.ToString())
 
@@ -41,7 +54,7 @@ class Server =
                 request ->
                     printLine("connection requested")
                     if (this.server.ConnectedPeersCount < 10)
-                        let _ = request.Accept()
+                        let _ = request.AcceptIfKey(connectionKey)
                     else
                         request.Reject()
             )
