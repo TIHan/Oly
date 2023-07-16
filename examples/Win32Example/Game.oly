@@ -138,10 +138,6 @@ struct Mesh =
     public mutable field Kind: MeshKind = MeshKind.Custom
     public mutable field Index: int32 = 0
 
-// Tags
-
-struct PlayerTag
-
 // Component for regsitration
 
 #[open]
@@ -179,15 +175,6 @@ extension PlayerInputComponent =
     static overrides GetName(): string = "player-input"
     static overrides GetId(): ComponentId = BitSet512.FromIndex(3)
     static overrides GetSize(): int32 = sizeof<PlayerInput>
-
-#[open]
-extension PlayerTagComponent =
-    inherits PlayerTag
-    implements IComponent
-
-    static overrides GetName(): string = "player"
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(4)
-    static overrides GetSize(): int32 = sizeof<PlayerTag>
 
 #[open]
 extension DynamicObjectIdComponent =
@@ -273,7 +260,6 @@ abstract default class SharedWorld =
         db.Register<Transform>()
         db.Register<Material>()
         db.Register<PlayerInput>()
-        db.Register<PlayerTag>()
         db.Register<Mesh>()
 
     protected field Physics: Physics = Physics.Init()
@@ -339,7 +325,7 @@ class ServerWorld =
         let mutable camera = Camera(70, 1280, 720, 0.1, 1000000)
         camera.Transform.Position <- position
 
-        let entId = this.Database.Create(PlayerTag(), transform, camera)
+        let entId = this.Database.Create(PlayerInput(), transform, camera)
         
     DestroyPlayer(player: Player): () =
         this.DestroyEntityQueue.Enqueue(player.Value)
@@ -347,8 +333,8 @@ class ServerWorld =
     ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
         this.Flush()
 
-        this.Database.ForEach<PlayerTag, Transform, Camera>(
-            (entId, tag, transform, camera) -> 
+        this.Database.ForEach<PlayerInput, Transform, Camera>(
+            (entId, playerInput, transform, camera) -> 
                 f(Player(entId), &transform, &camera)
         )
 
