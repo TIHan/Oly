@@ -139,6 +139,9 @@ struct Mesh =
     public mutable field Kind: MeshKind = MeshKind.Custom
     public mutable field Index: int32 = 0
 
+struct PhysicsDynamic
+struct PhysicsStatic
+
 // Component for regsitration
 
 #[open]
@@ -178,12 +181,39 @@ extension PlayerInputComponent =
     static overrides GetSize(): int32 = sizeof<PlayerInput>
 
 #[open]
-extension DynamicObjectIdComponent =
+extension PhysicsDynamicComponent =
+    inherits PhysicsDynamic
+    implements IComponent
+
+    static overrides GetName(): string = "physics-dynamic"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(4)
+    static overrides GetSize(): int32 = sizeof<PhysicsDynamic>
+
+#[open]
+extension PhysicsStaticComponent =
+    inherits PhysicsStatic
+    implements IComponent
+
+    static overrides GetName(): string = "physics-static"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(5)
+    static overrides GetSize(): int32 = sizeof<PhysicsStatic>
+
+#[open]
+extension PhysicsDynamicIdComponent =
     inherits DynamicObjectId
     implements IComponent
 
-    static overrides GetName(): string = "physics-dynamic-id"
+    static overrides GetName(): string = "internal-physics-dynamic-id"
     static overrides GetId(): ComponentId = BitSet512.FromIndex(511)
+    static overrides GetSize(): int32 = sizeof<DynamicObjectId>
+
+#[open]
+extension PhysicsStaticIdComponent =
+    inherits StaticObjectId
+    implements IComponent
+
+    static overrides GetName(): string = "internal-physics-static-id"
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(510)
     static overrides GetSize(): int32 = sizeof<DynamicObjectId>
 
 #[open]
@@ -228,8 +258,6 @@ abstract default class World =
             entId -> this.OnEntityDestroying(entId)
         )
 
-        let stagingDb = EntityDatabase()
-
         {
             Database = db
         }
@@ -262,6 +290,7 @@ abstract default class SharedWorld =
         db.Register<Material>()
         db.Register<PlayerInput>()
         db.Register<Mesh>()
+        db.Register<PhysicsStatic>()
 
     protected field Physics: Physics = Physics.Init()
 
@@ -284,9 +313,14 @@ class ServerWorld =
 
         let db = world.Database
 
+        db.Register<PhysicsDynamic>()
+        db.Register<StaticObjectId>()
         db.Register<DynamicObjectId>()
         db.Register<Velocity>()
         db.Register<Collidable>()
+
+        db.RegisterAttachment<PhysicsDynamic, DynamicObjectId>()
+        db.RegisterAttachment<PhysicsStatic, StaticObjectId>()
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
     field EventStream: ByteStream
@@ -368,6 +402,13 @@ class ServerWorld =
         )
 
         this.Flush()
+
+    protected overrides OnEntitySpawned(entId: EntityId): () =
+        let _ =
+            this.Database.TryGet<PhysicsDynamic, DynamicObjectId>(entId,
+                (phys, physObjId) ->
+                    ()
+            )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
         let _ =
