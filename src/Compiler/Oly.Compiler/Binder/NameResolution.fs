@@ -1755,7 +1755,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
         let constrTy =
             match constrTy.TryEntity with
             | ValueSome(ent) when ent.IsShape && ent.IsAnonymous ->
-                OlyAssert.False(ent.TypeParameters.IsEmpty)
+                OlyAssert.True(ent.TypeParameters.IsEmpty)
 
                 let freeTyPars = constrTy.GetFreeTypeParameters()
 
