@@ -15,11 +15,9 @@ private alias Array = OlyPrelude.Array
 
 newtype CameraLerp =
     public field Value: Camera
-   // new(camera: Camera) = { Value = camera }
 
 newtype TransformLerp =
     public field Value: Transform
-  //  new(transform: Transform) = { Value = transform }
 
 // Components
 
@@ -28,14 +26,19 @@ extension CameraLerpComponent =
     inherits CameraLerp
     implements IComponent
 
+    static overrides GetName(): string = "camera-lerp"
+
     static overrides GetId(): ComponentId = BitSet512.FromIndex(47)
 
-    static overrides GetSize(): int32 = sizeof<CameraLerp>
+    static overrides GetSize(): int32 =
+        sizeof<CameraLerp>
 
 #[open]
 extension TransformLerpComponent =
     inherits TransformLerp
     implements IComponent
+
+    static overrides GetName(): string = "transform-lerp"
 
     static overrides GetId(): ComponentId = BitSet512.FromIndex(48)
 

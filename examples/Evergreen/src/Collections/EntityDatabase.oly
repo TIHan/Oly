@@ -18,6 +18,8 @@ alias ComponentId = BitSet512
 
 interface IComponent =
 
+    static abstract GetName(): string
+
     static abstract GetId(): ComponentId
 
     static abstract GetSize(): int32
