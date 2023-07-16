@@ -114,6 +114,7 @@ newtype Player =
     internal field Value: EntityId
 
 enum PlayerActions =
+    | None      = 0b0000
     | Forward   = 0b0001
     | Backward  = 0b0010
     | Left      = 0b0100
@@ -124,6 +125,30 @@ struct PlayerInput =
     public mutable field Actions: PlayerActions = default
     public mutable field Yaw: float32 = 0
     public mutable field Pitch: float32 = 0
+
+    mutable SetForward(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Forward
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Forward
+
+    mutable SetBackward(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Backward
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Backward
+
+    mutable SetLeft(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Left
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Left
+
+    mutable SetRight(value: bool): () =
+        if (value)
+            this.Actions <- this.Actions | PlayerActions.Right
+        else
+            this.Actions <- this.Actions & ~PlayerActions.Right
 
 enum MeshKind =
     | Custom
@@ -278,7 +303,6 @@ abstract default class SharedWorld =
         db.Register<Camera>()
         db.Register<Transform>()
         db.Register<Material>()
-        db.Register<PlayerInput>()
         db.Register<Mesh>()
         db.Register<PhysicsStatic>()
         db.Register<PhysicsCharacter>()
@@ -304,6 +328,7 @@ class ServerWorld =
 
         let db = world.Database
 
+        db.Register<PlayerInput>()
         db.Register<PhysicsDynamic>()
         db.Register<StaticObjectId>()
         db.Register<DynamicObjectId>()
@@ -358,17 +383,17 @@ class ServerWorld =
         let mutable camera = Camera(70, 1280, 720, 0.1, 1000000)
         camera.Transform.Position <- position
 
-        let entId = this.Database.Create(PlayerInput(), transform, camera, PhysicsCharacter())
+        let entId = this.Database.Create(PlayerInput(), transform, camera)
         
     DestroyPlayer(player: Player): () =
         this.DestroyEntityQueue.Enqueue(player.Value)
 
-    ForEachPlayer(f: (Player, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
+    ForEachPlayer(f: (Player, playerInput: byref<PlayerInput>, transform: byref<Transform>, camera: byref<Camera>) -> ()): () =
         this.Flush()
 
         this.Database.ForEach<PlayerInput, Transform, Camera>(
             (entId, playerInput, transform, camera) -> 
-                f(Player(entId), &transform, &camera)
+                f(Player(entId), &playerInput, &transform, &camera)
         )
 
         this.Flush()

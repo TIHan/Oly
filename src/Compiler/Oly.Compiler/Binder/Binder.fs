@@ -290,34 +290,34 @@ type PassState =
 [<Sealed>]
 type BinderPass4(state: PassState) =
 
-    let cachedValue =
-        CacheValue(fun ct ->
-            let diagLogger = OlyDiagnosticLogger.Create()
+    let compute ct =
+        let diagLogger = OlyDiagnosticLogger.Create()
 
-            let cenv =
-                {
-                    bindAnonymousShapeTypeHole = bindAnonymousShapeType
-                    declTable = ref state.declTable
-                    asm = state.asm
-                    syntaxTree = state.syntaxTree
-                    diagnostics = diagLogger
-                    pass = Pass4
-                    ct = ct
-                    entryPoint = None
-                    entityDefIndex = 0
-                    memberDefIndex = 0
-                }
-            let boundTree = bindSyntaxTreePass4 cenv state.env state.entBuilder state.syntaxTree
+        let cenv =
+            {
+                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                declTable = ref state.declTable
+                asm = state.asm
+                syntaxTree = state.syntaxTree
+                diagnostics = diagLogger
+                pass = Pass4
+                ct = ct
+                entryPoint = None
+                entityDefIndex = 0
+                memberDefIndex = 0
+            }
+        let boundTree = bindSyntaxTreePass4 cenv state.env state.entBuilder state.syntaxTree
 
-            if diagLogger.HasAnyErrors then
-                // Suppress errors from post-inference analysis if we already have errors.
-                let diags = diagLogger.GetDiagnostics()
-                PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
-                boundTree, diags
-            else
-                PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
-                boundTree, diagLogger.GetDiagnostics()
-        )
+        if diagLogger.HasAnyErrors then
+            // Suppress errors from post-inference analysis if we already have errors.
+            let diags = diagLogger.GetDiagnostics()
+            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+            boundTree, diags
+        else
+            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+            boundTree, diagLogger.GetDiagnostics()
+
+    let cachedValue = CacheValue(compute)
 
     member _.PartialDeclarationTable = state.declTable
 
@@ -331,7 +331,7 @@ type BinderPass4(state: PassState) =
 [<Sealed>]
 type BinderPass3(state: PassState) =
 
-    let cachedValue = CacheValue(fun ct ->
+    let compute ct =
         let declTable = state.declTable
         let diagLogger = OlyDiagnosticLogger.Create()
 
@@ -360,7 +360,8 @@ type BinderPass3(state: PassState) =
                 diags = diags
             }
         ), diags
-    )
+
+    let cachedValue = CacheValue(compute)
     
     member _.Bind(ct) = 
         cachedValue.GetValue(ct)
@@ -368,7 +369,7 @@ type BinderPass3(state: PassState) =
 [<Sealed>]
 type BinderPass2(state: PassState) =
 
-    let cachedValue = CacheValue(fun ct ->
+    let compute ct =
         let diagLogger = OlyDiagnosticLogger.Create()
 
         let cenv =
@@ -392,15 +393,16 @@ type BinderPass2(state: PassState) =
                 diags = state.diags.AddRange(diagLogger.GetDiagnostics())
             }
         )
-    )
+
+    let cachedValue = CacheValue(compute)
     
-    member _.Bind(ct) = 
+    member _.Bind(ct) =
         cachedValue.GetValue(ct)
 
 [<Sealed>]
 type BinderPass1(state: PassState) =
 
-    let cachedValue = CacheValueWithArg<CompilerImports, _>(fun imports ct ->
+    let compute imports ct =
         let diagLogger = OlyDiagnosticLogger.Create()
 
         let env2 = 
@@ -434,46 +436,47 @@ type BinderPass1(state: PassState) =
                 diags = state.diags.AddRange(diagLogger.GetDiagnostics())
             }
         )
-    )
+
+    let cachedValue = CacheValueWithArg<CompilerImports, _>(compute)
 
     member _.Entity = state.entBuilder.Entity
     
-    member _.Bind(env, ct) = 
-        cachedValue.GetValue(env, ct)
+    member _.Bind(imports, ct) = 
+        cachedValue.GetValue(imports, ct)
 
 [<Sealed>]
 type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>, syntaxTree: OlySyntaxTree) =
 
-    let cachedValue =
-        CacheValue(fun ct ->
-            let env, declTable, diags = prePassEnv.GetValue(ct)
-            let nmsEnv = NamespaceEnvironment.Create()
-            let diagLogger = OlyDiagnosticLogger.Create()
-            let cenv =
-                {
-                    bindAnonymousShapeTypeHole = bindAnonymousShapeType
-                    declTable = ref declTable
-                    asm = asm
-                    syntaxTree = syntaxTree
-                    diagnostics = diagLogger
-                    pass = Pass0
-                    ct = ct
-                    entryPoint = None
-                    entityDefIndex = 0
-                    memberDefIndex = 0
-                }
-            let env, entBuilder = bindSyntaxTreePass0 cenv nmsEnv env syntaxTree
-            BinderPass1(
-                {
-                    asm = asm
-                    env = env
-                    diags = diags.AddRange(diagLogger.GetDiagnostics())
-                    declTable = cenv.declTable.contents
-                    entBuilder = entBuilder
-                    syntaxTree = syntaxTree
-                }
-            )
+    let compute ct =
+        let env, declTable, diags = prePassEnv.GetValue(ct)
+        let nmsEnv = NamespaceEnvironment.Create()
+        let diagLogger = OlyDiagnosticLogger.Create()
+        let cenv =
+            {
+                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                declTable = ref declTable
+                asm = asm
+                syntaxTree = syntaxTree
+                diagnostics = diagLogger
+                pass = Pass0
+                ct = ct
+                entryPoint = None
+                entityDefIndex = 0
+                memberDefIndex = 0
+            }
+        let env, entBuilder = bindSyntaxTreePass0 cenv nmsEnv env syntaxTree
+        BinderPass1(
+            {
+                asm = asm
+                env = env
+                diags = diags.AddRange(diagLogger.GetDiagnostics())
+                declTable = cenv.declTable.contents
+                entBuilder = entBuilder
+                syntaxTree = syntaxTree
+            }
         )
+
+    let cachedValue = CacheValue(compute)
 
     member _.PrePassEnvironment = prePassEnv
 

@@ -421,27 +421,26 @@ main(): () =
     world.SpawnPlayer(Vector3(0, 0, 5))
     world.SpawnStaticCube(Vector3(0, 0, -10), Quaternion.Identity, Vector3(100, 100, 0.1))
 
-    let mutable is_w_pressed = false
-    let mutable is_s_pressed = false
-    let mutable is_a_pressed = false
-    let mutable is_d_pressed = false
+    let mutable playerInput = default: PlayerInput
 
-    let playerTick(deltaTime: float32, transform: byref<Transform>, camera: byref<Camera>) =
+    let playerTick(deltaTime: float32, playerInput: byref<PlayerInput>, transform: byref<Transform>, camera: byref<Camera>) =
+        camera.SetYawPitch(playerInput.Yaw, playerInput.Pitch)
+
         let mutable acc = Vector3.Zero
             
-        if (is_w_pressed)
+        if (playerInput.Actions & PlayerActions.Forward != PlayerActions.None)
             let v = camera.Transform.Forward
             acc <- Vector3(v.X, v.Y, v.Z)
 
-        if (is_s_pressed)
+        if (playerInput.Actions & PlayerActions.Backward != PlayerActions.None)
             let v = camera.Transform.Back
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        if (is_a_pressed)
+        if (playerInput.Actions & PlayerActions.Left != PlayerActions.None)
             let v = camera.Transform.Left
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
-        if (is_d_pressed)
+        if (playerInput.Actions & PlayerActions.Right != PlayerActions.None)
             let v = camera.Transform.Right
             acc <- acc + Vector3(v.X, v.Y, v.Z)
 
@@ -453,8 +452,7 @@ main(): () =
 
         transform.Position <- transform.Position + acc
 
-    let mutable serverYaw = 0: float32
-    let mutable serverPitch = 0: float32
+    let mutable serverPlayerInput = default: PlayerInput
 
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
@@ -463,9 +461,9 @@ main(): () =
         cpuTime.Restart()
 
         world.ForEachPlayer(
-            (player, transform, camera) ->
-                camera.SetYawPitch(serverYaw, serverPitch)
-                playerTick(deltaTime, &transform, &camera)
+            (player, playerInput, transform, camera) ->
+                playerInput <- serverPlayerInput
+                playerTick(deltaTime, &playerInput, &transform, &camera)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -494,32 +492,39 @@ main(): () =
 
     let Client_UpdatePlayerInput(deltaTime: float32): () =
         let inputSnapshot = r.Window.PumpEvents()
+        let keyEvents = inputSnapshot.KeyEvents
+        let mouseInfo = inputSnapshot.MouseInfo
 
-        let mutable yawAcc = 0: float32
-        let mutable pitchAcc = 0: float32
-
-        let mousePosition = inputSnapshot.MouseInfo.Delta
-        let yawAcc = mousePosition.X * (float32(2) * deltaTime)
-        let pitchAcc = mousePosition.Y * (-(float32(2)) * deltaTime)
-        
+        // TODO: We should only do this for the active player.
         clientWorld.ForEachPlayer(
-            (player, transformLerp, transform, cameraLerp, camera) ->
-                cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
-        )
+            (player, playerInput, transformLerp, transform, cameraLerp, camera) ->
 
-        ForEach(Cast(inputSnapshot.KeyEvents),
-            (keyEvent: KeyEvent) ->
-                if (keyEvent.Key == Key.W)
-                    is_w_pressed <- keyEvent.IsDown
+                let mutable i = 0
+                while (i < keyEvents.Length)
+                    let keyEvent = keyEvents[i]
+                    match (keyEvent.Key)
+                    | Key.W =>
+                        playerInput.SetForward(keyEvent.IsDown)
+                    | Key.S =>
+                        playerInput.SetBackward(keyEvent.IsDown)
+                    | Key.A =>
+                        playerInput.SetLeft(keyEvent.IsDown)
+                    | Key.D =>
+                        playerInput.SetRight(keyEvent.IsDown)
+                    | _ =>
+                        ()
+                    i <- i + 1
+            
+                let mousePosition = inputSnapshot.MouseInfo.Delta
+                let yawAcc = mousePosition.X * (float32(2) * deltaTime)
+                let pitchAcc = mousePosition.Y * (-(float32(2)) * deltaTime)
 
-                if (keyEvent.Key == Key.S)
-                    is_s_pressed <- keyEvent.IsDown
+                playerInput.Yaw <- playerInput.Yaw + yawAcc
+                playerInput.Pitch <- playerInput.Pitch + pitchAcc
 
-                if (keyEvent.Key == Key.A)
-                    is_a_pressed <- keyEvent.IsDown
+                // Immediately update the previous camera rotation.
+                cameraLerp.SetYawPitch(playerInput.Yaw, playerInput.Pitch)
 
-                if (keyEvent.Key == Key.D)
-                    is_d_pressed <- keyEvent.IsDown                       
         )
 
     class ServerSimulation =
@@ -553,16 +558,14 @@ main(): () =
 
     let sendPlayerInput() =
         clientWorld.ForEachPlayer(
-            (player, transformLerp, transform, cameraLerp, camera) ->
-                serverYaw <- cameraLerp.Yaw
-                serverPitch <- cameraLerp.Pitch
+            (player, playerInput, transformLerp, transform, cameraLerp, camera) ->
+                serverPlayerInput <- playerInput
         )
 
     let predictPlayerInput() =
         clientWorld.ForEachPlayer(
-            (player, transformLerp, transform, cameraLerp, camera) ->
-                camera.SetYawPitch(cameraLerp.Yaw, cameraLerp.Pitch)
-                playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &transform, &camera)
+            (player, playerInput, transformLerp, transform, cameraLerp, camera) ->
+                playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &playerInput, &transform, &camera)
         )
 
     GameLoop.Start(
@@ -621,7 +624,7 @@ main(): () =
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
                 
                 clientWorld.ForEachPlayer(
-                    (player, transformLerp, transform, cameraLerp, camera) ->
+                    (player, playerInput, transformLerp, transform, cameraLerp, camera) ->
                         camera.SetYawPitch(cameraLerp.Yaw, cameraLerp.Pitch)
 
                         let prev = Transform.Create(transformLerp.Position, camera.Transform.Rotation, transformLerp.Scale)
