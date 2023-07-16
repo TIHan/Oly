@@ -26,7 +26,7 @@ extension CameraLerpComponent =
     inherits CameraLerp
     implements IComponent
 
-    static overrides GetTypeId(): TypeId = 1 << 47
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(47)
 
     static overrides GetSize(): int32 = sizeof<CameraLerp>
 
@@ -35,7 +35,7 @@ extension TransformLerpComponent =
     inherits TransformLerp
     implements IComponent
 
-    static overrides GetTypeId(): TypeId = 1 << 48
+    static overrides GetId(): ComponentId = BitSet512.FromIndex(48)
 
     static overrides GetSize(): int32 = sizeof<TransformLerp>
 

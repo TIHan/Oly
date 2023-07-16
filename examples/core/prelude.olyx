@@ -688,6 +688,9 @@ module Unsafe =
     #[intrinsic("unsafe_cast")]
     AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
 
+    #[intrinsic("unsafe_cast")]
+    AsByRef<T>(valueRef: inref<T>): byref<T>
+
 module Array =
 
     #[intrinsic("new_array")]
@@ -957,6 +960,7 @@ module DotNet =
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 (!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
 (-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
 
 #[intrinsic("constant")]
 #[import("intrinsic-CLR", "", "typeof")]

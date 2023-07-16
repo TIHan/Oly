@@ -8,7 +8,11 @@ module OlyCore
 
 open System
 open System.Numerics
+open System.Diagnostics
 open System.Runtime.InteropServices
+open System.Collections.Generic
+
+// Math
 
 alias vec2 = Vector2
 alias vec3 = Vector3
@@ -29,6 +33,8 @@ extension Vector3Extensions =
 alias quat = Quaternion
 
 alias mat4 = Matrix4x4
+
+// Collections
 
 #[open]
 extension MutableArrayExtensions<T> =
@@ -82,3 +88,208 @@ ParallelFor(count: int32, f: int32 -> ()): () =
             (i, state) ->
                 f(i)
         )
+
+struct BitSet512 =
+    mutable field value0: uint64
+    mutable field value1: uint64 // 128
+    mutable field value2: uint64
+    mutable field value3: uint64 // 256
+    mutable field value4: uint64
+    mutable field value5: uint64
+    mutable field value6: uint64
+    mutable field value7: uint64 // 512
+    new(value: uint64) =
+        {
+            value0 = value
+            value1 = 0
+            value2 = 0
+            value3 = 0
+            value4 = 0
+            value5 = 0
+            value6 = 0
+            value7 = 0
+        }
+
+    new(value0: uint64, value1: uint64, value2: uint64, value3: uint64, value4: uint64, value5: uint64, value6: uint64, value7: uint64) =
+        {
+            value0 = value0
+            value1 = value1
+            value2 = value2
+            value3 = value3
+            value4 = value4
+            value5 = value5
+            value6 = value6
+            value7 = value7
+        }
+
+    #[inline(always)]
+    private mutable Get(index: int32): byref<uint64> =
+        match (index / 64)
+        | 0 => &this.value0
+        | 1 => &this.value1
+        | 2 => &this.value2
+        | 3 => &this.value3
+        | 4 => &this.value4
+        | 5 => &this.value5
+        | 6 => &this.value6
+        | 7 => &this.value7
+        | _ => 
+            fail("should not happen")
+            &this.value0
+
+    #[inline(always)]
+    static FromIndex(index: int32): BitSet512 =
+        if (index < 0 || index >= 512)
+            throw IndexOutOfRangeException()
+        
+        let mutable bitSet = default: BitSet512
+        let value = &bitSet.Get(index)
+
+        let bitIndex = index % 64
+        value <- ((1: uint64) << bitIndex)
+        bitSet
+
+    #[inline(always)]
+    IsSupersetOf(bitSet: BitSet512): bool =
+        let bits0 = bitSet.value0
+        let bits1 = bitSet.value1
+        let bits2 = bitSet.value2
+        let bits3 = bitSet.value3
+        let bits4 = bitSet.value4
+        let bits5 = bitSet.value5
+        let bits6 = bitSet.value6
+        let bits7 = bitSet.value7
+        (this.value0 & bits0 == bits0) && (this.value1 & bits1 == bits1) && (this.value2 & bits2 == bits2) && (this.value3 & bits3 == bits3) && (this.value4 & bits4 == bits4) && (this.value5 & bits5 == bits5) && (this.value6 & bits6 == bits6) && (this.value7 & bits7 == bits7)
+
+    IsZero: bool 
+        #[inline(always)]
+        get() = this.value0 == 0 && this.value1 == 0 && this.value2 == 0 && this.value3 == 0 && this.value4 == 0 && this.value5 == 0 && this.value6 == 0 && this.value7 == 0
+
+    #[inline(always)]
+    GetHash(): int32 =
+        0
+
+    #[inline(always)]
+    static op_Equality(bitSet1: BitSet512, bitSet2: BitSet512): bool =
+        bitSet1.value0 == bitSet2.value0 &&
+         bitSet1.value1 == bitSet2.value1 &&
+          bitSet1.value2 == bitSet2.value2 &&
+           bitSet1.value3 == bitSet2.value3 &&
+            bitSet1.value4 == bitSet2.value4 &&
+             bitSet1.value5 == bitSet2.value5 &&
+              bitSet1.value6 == bitSet2.value6 &&
+               bitSet1.value7 == bitSet2.value7
+
+    #[inline(always)]
+    static op_BitwiseOr(bitSet1: BitSet512, bitSet2: BitSet512): BitSet512 =
+        BitSet512(
+            bitSet1.value0 | bitSet2.value0,
+            bitSet1.value1 | bitSet2.value1,
+            bitSet1.value2 | bitSet2.value2,
+            bitSet1.value3 | bitSet2.value3,
+            bitSet1.value4 | bitSet2.value4,
+            bitSet1.value5 | bitSet2.value5,
+            bitSet1.value6 | bitSet2.value6,
+            bitSet1.value7 | bitSet2.value7
+        )
+
+class BitSet512EqualityComparer =
+    implements IEqualityComparer<BitSet512>
+
+    GetHashCode(x: BitSet512): int32 = x.GetHash()
+
+    Equals(x: BitSet512, y: BitSet512): bool = x == y
+
+// IO
+
+class ExternalProcess =
+    implements IDisposable
+
+    field p: Process
+
+    new(filePath: string, args: string) =
+        ExternalProcess(filePath, args, Environment.CurrentDirectory)
+
+    new(filePath: string, args: string, workingDirectory: string) =
+        let startInfo = ProcessStartInfo()
+        startInfo.FileName <- filePath
+        startInfo.Arguments <- args
+        startInfo.RedirectStandardError <- true
+        startInfo.RedirectStandardOutput <- true
+        startInfo.WorkingDirectory <- workingDirectory
+        startInfo.UseShellExecute <- false
+        startInfo.CreateNoWindow <- true
+
+        {
+            p =
+                let p = Process()
+                p.StartInfo <- startInfo
+                p
+        }
+
+    RunAsync(ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<(output: string, errors: string)> =
+        class DataReceived =
+
+            field f: DataReceivedEventArgs -> ()
+            new(f: DataReceivedEventArgs -> ()) =
+                {
+                    f  = f
+                }
+
+            Invoke(sender: object, e: DataReceivedEventArgs): () =
+                this.f(e)
+
+        let work =
+            () ->
+                let output = System.Text.StringBuilder()
+                let error = System.Text.StringBuilder()
+                let outputWaitHandle = System.Threading.AutoResetEvent(false)
+                let errorWaitHandle = System.Threading.AutoResetEvent(false)
+
+                let outputDataReceived = 
+                    DataReceived(
+                        e ->
+                            if (e.Data === unchecked default)
+                                let result = outputWaitHandle.Set()
+                            else
+                                let result = output.AppendLine(e.Data)
+
+                    )
+                this.p.add_OutputDataReceived(
+                    DataReceivedEventHandler(outputDataReceived, nint(&&outputDataReceived.Invoke))
+                )
+
+                let errorDataReceived = 
+                    DataReceived(
+                        e ->
+                            if (e.Data === unchecked default)
+                                let result = errorWaitHandle.Set()
+                            else
+                                let result = error.AppendLine(e.Data)
+
+                    )
+                this.p.add_ErrorDataReceived(
+                    DataReceivedEventHandler(errorDataReceived, nint(&&errorDataReceived.Invoke))
+                )
+
+                let result = this.p.Start()
+
+                this.p.BeginOutputReadLine()
+                this.p.BeginErrorReadLine()
+
+                this.p.WaitForExit() // TODO: We should use the async version
+                let result = outputWaitHandle.WaitOne()
+                let result = errorWaitHandle.WaitOne()
+                let output = output.ToString()
+                let errors = error.ToString()
+                if (this.p.ExitCode != 0)
+                    throw Exception(output)
+
+                (output, errors)
+
+        System.Threading.Tasks.Task.Run(work)
+
+    Dispose(): () =
+        this.p.Dispose()
+
+// **********************************************************************************************************************************
