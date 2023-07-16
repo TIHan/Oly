@@ -8,6 +8,8 @@
 #reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
 #reference "../Evergreen/src/Collections/Evergreen.Collections.olyx"
 
+#package "LiteNetLib,1.1.0"
+
 open System
 open System.IO
 open System.Numerics
@@ -22,6 +24,7 @@ open Evergreen.Collections
 open Evergreen.Graphics.Backend.Vulkan
 open Evergreen.Graphics.Rendering
 open Evergreen.Graphics.Rendering.UI
+open Evergreen.Networking
 
 open SixLabors.ImageSharp
 open SixLabors.ImageSharp.Advanced
@@ -314,9 +317,18 @@ test(): () =
 class Marker
 
 main(): () =
+    let server = Server.Create()
+    let client = Client.Create()
+
+    server.Start(1234)
+    client.Start()
+    client.Connect("localhost", 1234, unchecked default)
+    server.PollEvents()
+   // client.PollEvents()
+    
     let mutable i = 0
     while (i < 100)
-        test()
+     //   test()
         DotNet.GCCollect()
         i <- i + 1
 
