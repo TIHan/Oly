@@ -422,9 +422,8 @@ main(): () =
     let mutable is_s_pressed = false
     let mutable is_a_pressed = false
     let mutable is_d_pressed = false
-    let mutable currentCameraRotation = default
 
-    let playerTick(deltaTime: float32, camera: byref<Camera>, rotation: quat) =
+    let playerTick(deltaTime: float32, camera: byref<Camera>) =
         let mutable acc = Vector3.Zero
             
         if (is_w_pressed)
@@ -450,7 +449,9 @@ main(): () =
                 acc
 
         camera.Transform.Position <- camera.Transform.Position + acc
-        camera.Transform <- Transform.Create(camera.Transform.Position, rotation, camera.Transform.Scale)
+
+    let mutable serverYaw = 0: float32
+    let mutable serverPitch = 0: float32
 
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
@@ -460,7 +461,8 @@ main(): () =
 
         world.ForEachPlayer(
             (player, transform, camera) ->
-                playerTick(deltaTime, &camera, currentCameraRotation)
+                camera.SetYawPitch(serverYaw, serverPitch)
+                playerTick(deltaTime, &camera)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -497,11 +499,9 @@ main(): () =
         let yawAcc = mousePosition.X * (float32(2) * deltaTime)
         let pitchAcc = mousePosition.Y * (-(float32(2)) * deltaTime)
         
-        let mutable cameraRotation = Quaternion.Identity
         clientWorld.ForEachPlayer(
             (player, transform, cameraLerp, camera) ->
                 cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
-                cameraRotation <- cameraLerp.Transform.Rotation
         )
 
         ForEach(Cast(inputSnapshot.KeyEvents),
@@ -518,7 +518,6 @@ main(): () =
                 if (keyEvent.Key == Key.D)
                     is_d_pressed <- keyEvent.IsDown                       
         )
-        currentCameraRotation <- cameraRotation
 
     class ServerSimulation =
         field r: Rendering
@@ -548,6 +547,21 @@ main(): () =
 
     let mutable task: System.Threading.Thread = null
     let gpuCommands = List<GpuCommand>()
+
+    let sendPlayerInput() =
+        clientWorld.ForEachPlayer(
+            (player, transform, cameraLerp, camera) ->
+                serverYaw <- cameraLerp.Yaw
+                serverPitch <- cameraLerp.Pitch
+        )
+
+    let predictPlayerInput() =
+        clientWorld.ForEachPlayer(
+            (player, transform, cameraLerp, camera) ->
+                camera.SetYawPitch(cameraLerp.Yaw, cameraLerp.Pitch)
+                playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &camera)
+        )
+
     GameLoop.Start(
         frameTime ->
             Client_UpdatePlayerInput(float32(frameTime)),
@@ -565,27 +579,22 @@ main(): () =
 
                 let _ = cl.WaitOne()
                 let _ = cl.Reset()
+                sendPlayerInput()
                 stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                 let _ = sv.Set()
-
-                // prediction
-                clientWorld.ForEachPlayer(
-                    (player, transform, cameraLerp, camera) ->
-                        // printLine("------")
-                        // printLine(cameraLerp.Transform.Position)
-                        // printLine(camera.Transform.Position)
-                        playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &camera, currentCameraRotation)
-                )
+                predictPlayerInput()
             else
                 (
                     if (task !== null)
                         let _ = cl.WaitOne()
                         let _ = cl.Reset()
+                        sendPlayerInput()
                         stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                         let _ = sv.Set()
                         task.Join()
                         task <- null
                     else
+                        sendPlayerInput()
                         serverTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))
                         stagingWorld.Replicate(clientWorld, prevClientWorld, serverToClientEvents)
                 )

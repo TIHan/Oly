@@ -122,7 +122,8 @@ enum PlayerActions =
 struct PlayerInput =
 
     public mutable field Actions: PlayerActions = default
-    public mutable field Rotation: quat         = quat.Identity
+    public mutable field Yaw: float32 = 0
+    public mutable field Pitch: float32 = 0
 
 struct Collidable
 
