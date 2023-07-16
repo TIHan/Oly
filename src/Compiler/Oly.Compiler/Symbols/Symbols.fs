@@ -4730,6 +4730,11 @@ module OtherExtensions =
 
     type TypeSymbol with
 
+        member this.IsNewtype =
+            match stripTypeEquations this with
+            | TypeSymbol.Entity(ent) -> ent.IsNewtype
+            | _ -> false
+
         member this.IsNullable =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.IsNullable

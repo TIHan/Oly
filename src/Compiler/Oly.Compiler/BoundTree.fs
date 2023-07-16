@@ -1069,7 +1069,9 @@ module EntitySymbolExtensions =
     type EntitySymbol with
 
         member this.ExtendsAndImplementsForMemberOverriding =
-            if this.IsTypeExtension then
+            if this.IsNewtype then
+                ImArray.empty
+            elif this.IsTypeExtension then
                 this.Implements
             elif this.IsInterface then
                 this.Extends
@@ -1268,24 +1270,26 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
-        let inheritedFuncs = ImArray.builder()
+        if ent.IsNewtype then Seq.empty
+        else
+            let inheritedFuncs = ImArray.builder()
 
-        ent.Extends
-        |> ImArray.iter (fun x ->
-            inheritedFuncs.AddRange(findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-        )
+            ent.Extends
+            |> ImArray.iter (fun x ->
+                inheritedFuncs.AddRange(findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            )
 
-        inheritedFuncs.ToImmutable()
-        |> ImArray.filter (fun (x: IFunctionSymbol) -> 
-            not x.IsConstructor &&
-            let isOverriden =
-                overridenFuncs
-                |> ImArray.exists (fun y ->
-                    x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
-                )
-            not isOverriden
-        )
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
+            inheritedFuncs.ToImmutable()
+            |> ImArray.filter (fun (x: IFunctionSymbol) -> 
+                not x.IsConstructor &&
+                let isOverriden =
+                    overridenFuncs
+                    |> ImArray.exists (fun y ->
+                        x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
+                    )
+                not isOverriden
+            )
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
 
     let nestedCtors =
         if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then

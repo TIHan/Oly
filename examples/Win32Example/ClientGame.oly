@@ -14,10 +14,12 @@ open static Game.Core
 private alias Array = OlyPrelude.Array
 
 struct CameraLerp =
-    public mutable field Value: Camera = default
+    public field Value: Camera
+    new(camera: Camera) = { Value = camera }
 
 struct TransformLerp =
-    public mutable field Value: Transform = default
+    public field Value: Transform
+    new(transform: Transform) = { Value = transform }
 
 // Components
 
@@ -63,12 +65,12 @@ class ClientWorld =
     FixedUpdate(deltaTime: float32): () =
         this.Database.ForEach<TransformLerp, Transform>(
             (entId, transformLerp, transform) ->
-                transformLerp.Value <- transform
+                transformLerp <- TransformLerp(transform)
         )
 
         this.Database.ForEach<CameraLerp, Camera>(
             (entId, cameraLerp, camera) ->
-                cameraLerp.Value <- camera
+                cameraLerp <- CameraLerp(camera)
         )
 
     LateFixedUpdate(deltaTime: float32): () =
@@ -95,26 +97,26 @@ class ClientWorld =
     ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>) -> ()): () =
         this.Database.ForEach<BoxTag, TransformLerp, Transform>(
             (entId, tag, transformLerp, transform) ->
-                f(Box(entId), &transformLerp.Value, &transform)
+                f(Box(entId), &Unsafe.AsByRef(&transformLerp.Value), &transform)
         )
 
     ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
         this.Database.ForEach<PlayerTag, Transform, CameraLerp, Camera>(
             (entId, tag, transform, cameraLerp, camera) ->
-                f(Player(entId), &transform, &cameraLerp.Value, &camera)
+                f(Player(entId), &transform, &Unsafe.AsByRef(&cameraLerp.Value), &camera)
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =
         let _ =
             this.Database.TryGet<Transform, TransformLerp>(entId,
                 (transform, transformLerp) ->
-                    transformLerp.Value <- transform
+                    transformLerp <- TransformLerp(transform)
             )
 
         let _ =
             this.Database.TryGet<Camera, CameraLerp>(entId,
                 (camera, cameraLerp) ->
-                    cameraLerp.Value <- camera
+                    cameraLerp <- CameraLerp(camera)
             )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =

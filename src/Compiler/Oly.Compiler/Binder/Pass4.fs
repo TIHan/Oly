@@ -335,7 +335,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
             |> filterTypesAsAbstract
             |> filterMostSpecificTypes
             |> ImArray.iter (fun super ->
-                checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super boundExpr
+                checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxIdent ent.AsType super
             )
 
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)

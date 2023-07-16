@@ -368,7 +368,7 @@ let rec checkConstraintClauses (env: SolverEnvironment) (syntaxConstrClauses: Ol
             ()
     )
 
-and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super: TypeSymbol) expr =
+and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super: TypeSymbol) =
     let funcsNotImplemented =
         super.FindIntrinsicFunctions(env.benv, QueryMemberFlags.Overridable, FunctionFlags.None)
         |> ImArray.filter (fun func -> func.IsAbstract)
