@@ -1401,16 +1401,19 @@ let getAllDistinctExtends (ty: RuntimeType) : RuntimeType imarray =
     |> ImArray.ofSeq
 
 let getAllDistinctInheritsAndImplements (ty: RuntimeType) : RuntimeType imarray =
-    let result = ty.Extends.AddRange(ty.Implements)
-    let result2 =
-        result
-        |> ImArray.map (fun x ->
-            getAllDistinctInheritsAndImplements x
-        )
-        |> Seq.concat
-    Seq.append result result2
-    |> Seq.distinct
-    |> ImArray.ofSeq
+    if ty.IsNewtype then
+        ImArray.empty
+    else
+        let result = ty.Extends.AddRange(ty.Implements)
+        let result2 =
+            result
+            |> ImArray.map (fun x ->
+                getAllDistinctInheritsAndImplements x
+            )
+            |> Seq.concat
+        Seq.append result result2
+        |> Seq.distinct
+        |> ImArray.ofSeq
 
 let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
     if superTy.StripAlias().IsObjectType then true

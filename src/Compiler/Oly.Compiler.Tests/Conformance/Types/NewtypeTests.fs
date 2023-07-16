@@ -40,3 +40,48 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype should never allow getting address of field``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+newtype A =
+    public field Value: int32
+
+main(): () =
+    let mutable a = A(1)
+    let value = &a.Value
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            // TODO: Fix compiler to not duplicate the error.
+            ("Newtypes do not allow getting the address of its field.",
+                """
+    let value = &a.Value
+                ^^^^^^^^
+"""
+            )
+            ("Newtypes do not allow getting the address of its field.",
+                """
+    let value = &a.Value
+                ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

@@ -13,13 +13,13 @@ open static Game.Core
 
 private alias Array = OlyPrelude.Array
 
-struct CameraLerp =
+newtype CameraLerp =
     public field Value: Camera
-    new(camera: Camera) = { Value = camera }
+   // new(camera: Camera) = { Value = camera }
 
-struct TransformLerp =
+newtype TransformLerp =
     public field Value: Transform
-    new(transform: Transform) = { Value = transform }
+  //  new(transform: Transform) = { Value = transform }
 
 // Components
 
@@ -94,16 +94,10 @@ class ClientWorld =
         this.Render_Box.SyncOffset <- 0
         this.Render_Box.SyncLength <- boxCount
 
-    ForEachBox(f: (Box, transformLerp: byref<Transform>, transform: inref<Transform>) -> ()): () =
-        this.Database.ForEach<BoxTag, TransformLerp, Transform>(
-            (entId, tag, transformLerp, transform) ->
-                f(Box(entId), &Unsafe.AsByRef(&transformLerp.Value), &transform)
-        )
-
     ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
         this.Database.ForEach<PlayerTag, Transform, CameraLerp, Camera>(
             (entId, tag, transform, cameraLerp, camera) ->
-                f(Player(entId), &transform, &Unsafe.AsByRef(&cameraLerp.Value), &camera)
+                f(Player(entId), &transform, &Unsafe.AsByRef(&cameraLerp), &camera)
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =

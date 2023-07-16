@@ -689,7 +689,7 @@ module Unsafe =
     AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
 
     #[intrinsic("unsafe_cast")]
-    AsByRef<T>(valueRef: inref<T>): byref<T>
+    AsByRef<T, TResult>(valueRef: inref<T>): byref<TResult>
 
 module Array =
 
