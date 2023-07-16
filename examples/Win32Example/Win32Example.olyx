@@ -35,11 +35,13 @@ private alias Array = OlyPrelude.Array
 
 struct Vertex =
     public field Position: Vector3
+    public field Normal: Vector3
     public field TexCoord: Vector2
 
-    new(position: Vector3, texCoord: Vector2) =
+    new(position: Vector3, normal: Vector3, texCoord: Vector2) =
         {
             Position = position
+            Normal = normal
             TexCoord = texCoord
         }
 
@@ -333,15 +335,15 @@ main(): () =
             i -> Globals()
         )
 
-    let quad = Evergreen.Graphics.MeshDescription.CreateCube()
+    let cube = Evergreen.Graphics.MeshDescription.CreateCube()
     let vertices = 
-        GpuMutableArray.Initialize(GpuArrayKind.Vertex, GpuMemoryKind.Local, quad.Vertices.Length,
-            i -> Vertex(quad.Vertices[i], quad.TexCoords[i])
+        GpuMutableArray.Initialize(GpuArrayKind.Vertex, GpuMemoryKind.Local, cube.Vertices.Length,
+            i -> Vertex(cube.Vertices[i], cube.Normals[i], cube.TexCoords[i])
         )
 
     let indices =
-        GpuMutableArray.Initialize(GpuArrayKind.Index, GpuMemoryKind.Local, quad.Indices.Length,
-            i -> quad.Indices[i]
+        GpuMutableArray.Initialize(GpuArrayKind.Index, GpuMemoryKind.Local, cube.Indices.Length,
+            i -> cube.Indices[i]
         )
 
     let markerTy = typeof<Marker>
@@ -417,13 +419,14 @@ main(): () =
     let mutable cpuTime = Stopwatch.StartNew()
 
     world.SpawnPlayer(Vector3(0, 0, 5))
+    world.SpawnStaticCube(Vector3(0, 0, -10), Quaternion.Identity, Vector3(100, 100, 0.1))
 
     let mutable is_w_pressed = false
     let mutable is_s_pressed = false
     let mutable is_a_pressed = false
     let mutable is_d_pressed = false
 
-    let playerTick(deltaTime: float32, camera: byref<Camera>) =
+    let playerTick(deltaTime: float32, transform: byref<Transform>, camera: byref<Camera>) =
         let mutable acc = Vector3.Zero
             
         if (is_w_pressed)
@@ -448,7 +451,7 @@ main(): () =
             else
                 acc
 
-        camera.Transform.Position <- camera.Transform.Position + acc
+        transform.Position <- transform.Position + acc
 
     let mutable serverYaw = 0: float32
     let mutable serverPitch = 0: float32
@@ -462,7 +465,7 @@ main(): () =
         world.ForEachPlayer(
             (player, transform, camera) ->
                 camera.SetYawPitch(serverYaw, serverPitch)
-                playerTick(deltaTime, &camera)
+                playerTick(deltaTime, &transform, &camera)
         )
 
         spawnTime <- spawnTime + deltaTime
@@ -470,9 +473,9 @@ main(): () =
         if (spawnTime >= 1)
             spawnTime <- 0
             let mutable i = 0
-            while (i < 4096)
+            while (i < 10)
                 let position = Vector3(float32(i + 1) * 2, 0, 0)
-                world.SpawnBox(position, quat.Identity, vec3.One)
+                world.SpawnCube(position, quat.Identity, vec3.One)
                 i <- i + 1
 
         world.ForEachBox(
@@ -500,7 +503,7 @@ main(): () =
         let pitchAcc = mousePosition.Y * (-(float32(2)) * deltaTime)
         
         clientWorld.ForEachPlayer(
-            (player, transform, cameraLerp, camera) ->
+            (player, transformLerp, transform, cameraLerp, camera) ->
                 cameraLerp.SetYawPitch(cameraLerp.Yaw + yawAcc, cameraLerp.Pitch + pitchAcc)
         )
 
@@ -550,16 +553,16 @@ main(): () =
 
     let sendPlayerInput() =
         clientWorld.ForEachPlayer(
-            (player, transform, cameraLerp, camera) ->
+            (player, transformLerp, transform, cameraLerp, camera) ->
                 serverYaw <- cameraLerp.Yaw
                 serverPitch <- cameraLerp.Pitch
         )
 
     let predictPlayerInput() =
         clientWorld.ForEachPlayer(
-            (player, transform, cameraLerp, camera) ->
+            (player, transformLerp, transform, cameraLerp, camera) ->
                 camera.SetYawPitch(cameraLerp.Yaw, cameraLerp.Pitch)
-                playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &camera)
+                playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &transform, &camera)
         )
 
     GameLoop.Start(
@@ -618,10 +621,13 @@ main(): () =
                 gpuProgram.FragmentCode <- fragmentShaderByteCode
                 
                 clientWorld.ForEachPlayer(
-                    (player, transform, cameraLerp, camera) ->
+                    (player, transformLerp, transform, cameraLerp, camera) ->
                         camera.SetYawPitch(cameraLerp.Yaw, cameraLerp.Pitch)
 
-                        let view = Matrix4x4.Lerp(cameraLerp.Transform.WorldToLocalMatrix, camera.Transform.WorldToLocalMatrix, float32(alpha))
+                        let prev = Transform.Create(transformLerp.Position, camera.Transform.Rotation, transformLerp.Scale)
+                        let curr = Transform.Create(transform.Position, camera.Transform.Rotation, transform.Scale)
+
+                        let view = Matrix4x4.Lerp(prev.WorldToLocalMatrix, curr.WorldToLocalMatrix, float32(alpha))
 
                         let mutable globals = globals.AsSpan()
                         let globals = &globals[0]
@@ -632,12 +638,12 @@ main(): () =
                 clientWorld.LateUpdate(float32(frameTime.TotalSeconds), float32(alpha))
                          
                 gpuCommands.Add(GpuCommand.NewFrame(gpuFrame))
-                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, quad.Indices.Length, 1))
+                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance2, vertices, indices, cube.Indices.Length, 1))
                 gpuCommands.Add(GpuCommand.DrawUI(gpuProgramUI2, Cast([uiNode2])))
                 gpuCommands.Add(GpuCommand.EndFrame())
 
-                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, quad.Indices.Length, 1))   
-                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, quad.Indices.Length, clientWorld.Render_Box.SyncLength))
+                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance1, vertices, indices, cube.Indices.Length, 1))   
+                gpuCommands.Add(GpuCommand.DrawIndexed(gpuProgramInstance3, vertices, indices, cube.Indices.Length, clientWorld.Render_Box.SyncLength))
                 gpuCommands.Add(GpuCommand.DrawUI(gpuProgramUI, Cast([uiNode])))
 
                 r.Gpu.Execute(gpuCommands)     

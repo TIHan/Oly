@@ -28,7 +28,7 @@ struct Camera =
     mutable field yaw: float32
     mutable field pitch: float32
 
-    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(0))
+    private static DefaultRotation: quat get = quat.CreateFromAxisAngle(vec3.UnitX, radians(-90))
 
     new(fov: float32, width: int32, height: int32, nearPlaneDistance: float32, farPlaneDistance: float32) =
         {
@@ -125,12 +125,6 @@ struct PlayerInput =
     public mutable field Yaw: float32 = 0
     public mutable field Pitch: float32 = 0
 
-struct Collidable
-
-struct Velocity =
-    public mutable field Linear: vec3 = vec3.Zero
-    public mutable field Angular: vec3 = vec3.Zero
-
 enum MeshKind =
     | Custom
     | Cube
@@ -139,7 +133,10 @@ struct Mesh =
     public mutable field Kind: MeshKind = MeshKind.Custom
     public mutable field Index: int32 = 0
 
-struct PhysicsDynamic
+struct PhysicsDynamic =
+    public mutable field LinearVelocity: vec3 = vec3.Zero
+    public mutable field AngularVelocity: vec3 = vec3.Zero
+
 struct PhysicsStatic
 
 // Component for regsitration
@@ -199,7 +196,7 @@ extension PhysicsStaticComponent =
     static overrides GetSize(): int32 = sizeof<PhysicsStatic>
 
 #[open]
-extension PhysicsDynamicIdComponent =
+extension DynamicObjectIdComponent =
     inherits DynamicObjectId
     implements IComponent
 
@@ -208,31 +205,13 @@ extension PhysicsDynamicIdComponent =
     static overrides GetSize(): int32 = sizeof<DynamicObjectId>
 
 #[open]
-extension PhysicsStaticIdComponent =
+extension StaticObjectIdComponent =
     inherits StaticObjectId
     implements IComponent
 
     static overrides GetName(): string = "internal-physics-static-id"
     static overrides GetId(): ComponentId = BitSet512.FromIndex(510)
     static overrides GetSize(): int32 = sizeof<DynamicObjectId>
-
-#[open]
-extension CollidableComponent =
-    inherits Collidable
-    implements IComponent
-
-    static overrides GetName(): string = "collidable"
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(7)
-    static overrides GetSize(): int32 = sizeof<Collidable>
-
-#[open]
-extension VelocityComponent =
-    inherits Velocity
-    implements IComponent
-
-    static overrides GetName(): string = "velocity"
-    static overrides GetId(): ComponentId = BitSet512.FromIndex(8)
-    static overrides GetSize(): int32 = sizeof<Velocity>
 
 #[open]
 extension MeshComponent =
@@ -316,8 +295,6 @@ class ServerWorld =
         db.Register<PhysicsDynamic>()
         db.Register<StaticObjectId>()
         db.Register<DynamicObjectId>()
-        db.Register<Velocity>()
-        db.Register<Collidable>()
 
         db.RegisterAttachment<PhysicsDynamic, DynamicObjectId>()
         db.RegisterAttachment<PhysicsStatic, StaticObjectId>()
@@ -346,11 +323,11 @@ class ServerWorld =
 
         physics.Update(Δ)
 
-        this.Database.ParallelForEach<Transform, Velocity, DynamicObjectId>(
-            (entId, transform, velocity, physObjId) ->
+        this.Database.ParallelForEach<Transform, PhysicsDynamic, DynamicObjectId>(
+            (entId, transform, phys, physObjId) ->
                 let mutable position = vec3.Zero
                 let mutable orientation = quat.Identity
-                physics.GetPositionAndOrientationAndVelocity(physObjId, &position, &orientation, &velocity.Linear, &velocity.Angular)
+                physics.GetPositionAndOrientationAndVelocity(physObjId, &position, &orientation, &phys.LinearVelocity, &phys.AngularVelocity)
                 transform <- Transform.Create(position, orientation, transform.Scale)
         )
 
@@ -378,16 +355,25 @@ class ServerWorld =
     AddPlayerInput(player: Player, playerInput: PlayerInput): () =
         this.Database.AddOrUpdate<PlayerInput>(player.Value, playerInput)
 
-    SpawnBox(position: vec3, rotation: quat, scale: vec3): () =
+    SpawnCube(position: vec3, rotation: quat, scale: vec3): () =
         if (this.CanSpawnEntity)
             let mutable mesh = Mesh()
             mesh.Kind <- MeshKind.Cube
 
             let transform = Transform.Create(position, rotation, scale)
             let material = Material(0)
-            let physObjId = this.Physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
 
-            let entId = this.Database.Create(mesh, transform, material, physObjId, Velocity())
+            let _ = this.Database.Create(PhysicsDynamic(), mesh, transform, material)
+
+    SpawnStaticCube(position: vec3, rotation: quat, scale: vec3): () =
+        if (this.CanSpawnEntity)
+            let mutable mesh = Mesh()
+            mesh.Kind <- MeshKind.Cube
+
+            let transform = Transform.Create(position, rotation, scale)
+            let material = Material(0)
+
+            let _ = this.Database.Create(PhysicsStatic(), mesh, transform, material)
 
     DestroyBox(box: Box): () =
         this.DestroyEntityQueue.Enqueue(box.Value)
@@ -404,10 +390,24 @@ class ServerWorld =
         this.Flush()
 
     protected overrides OnEntitySpawned(entId: EntityId): () =
+        let physics = this.Physics
         let _ =
-            this.Database.TryGet<PhysicsDynamic, DynamicObjectId>(entId,
-                (phys, physObjId) ->
-                    ()
+            this.Database.TryGet<PhysicsDynamic, DynamicObjectId, Transform, Mesh>(entId,
+                (phys, physObjId, transform, mesh) ->
+                    if (mesh.Kind == MeshKind.Cube)
+                        physObjId <- physics.AddBox(transform.Position, transform.Rotation, transform.Scale)
+                        physics.SetVelocity(physObjId, phys.LinearVelocity, phys.AngularVelocity)
+                    else
+                        throw NotSupportedException("mesh kind")
+            )
+
+        let _ =
+            this.Database.TryGet<PhysicsStatic, StaticObjectId, Transform, Mesh>(entId,
+                (phys, physObjId, transform, mesh) ->
+                    if (mesh.Kind == MeshKind.Cube)
+                        physObjId <- physics.AddStaticBox(transform.Position, transform.Rotation, transform.Scale)
+                    else
+                        throw NotSupportedException("mesh kind")
             )
 
     protected overrides OnEntityDestroying(entId: EntityId): () =
@@ -415,4 +415,10 @@ class ServerWorld =
             this.Database.TryGet<DynamicObjectId>(entId,
                 physObjId ->
                     this.Physics.RemoveBox(physObjId)
+            )
+
+        let _ =
+            this.Database.TryGet<StaticObjectId>(entId,
+                physObjId ->
+                    this.Physics.RemoveStaticBox(physObjId)
             )

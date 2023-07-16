@@ -201,6 +201,20 @@ internal class EntityQuery<T0, T1, T2, T3> where T0: unmanaged
     BufferGroup2: List<ComponentBuffer> get       = List()
     BufferGroup3: List<ComponentBuffer> get       = List()
 
+internal class EntityQuery<T0, T1, T2, T3, T4> where T0: unmanaged
+                              where T1: unmanaged
+                              where T2: unmanaged 
+                              where T3: unmanaged
+                              where T4: unmanaged =
+    
+    internal CountGroup  : List<Archetype> get = List()
+    EntIdGroup  : List<mutable EntityId[]> get = List()
+    BufferGroup0: List<ComponentBuffer> get       = List()
+    BufferGroup1: List<ComponentBuffer> get       = List()
+    BufferGroup2: List<ComponentBuffer> get       = List()
+    BufferGroup3: List<ComponentBuffer> get       = List()
+    BufferGroup4: List<ComponentBuffer> get       = List()
+
 interface IEntityEvent<T> =
 
     Add(subscriber: T -> ()): ()
@@ -383,6 +397,32 @@ class EntityDatabase =
 
         query
 
+    private CreateQuery<T0, T1, T2, T3, T4>(): EntityQuery<T0, T1, T2, T3, T4> where T0: unmanaged, IComponent  
+                                                                       where T1: unmanaged, IComponent 
+                                                                       where T2: unmanaged, IComponent  
+                                                                       where T3: unmanaged, IComponent
+                                                                       where T4: unmanaged, IComponent  =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2, T3, T4>())
+
+        let query = EntityQuery<T0, T1, T2, T3, T4>()
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let index = indices[i]
+            let archetype = this.Archetypes[index]
+            
+            query.CountGroup.Add(archetype)
+            query.EntIdGroup.Add(archetype.EntityIds)
+            query.BufferGroup0.Add(archetype.GetComponentBuffer(archetype.BufferLookup[T0.GetId()]))
+            query.BufferGroup1.Add(archetype.GetComponentBuffer(archetype.BufferLookup[T1.GetId()]))
+            query.BufferGroup2.Add(archetype.GetComponentBuffer(archetype.BufferLookup[T2.GetId()]))
+            query.BufferGroup3.Add(archetype.GetComponentBuffer(archetype.BufferLookup[T3.GetId()]))
+            query.BufferGroup4.Add(archetype.GetComponentBuffer(archetype.BufferLookup[T4.GetId()]))
+
+            i <- i + 1
+
+        query
+
     RegisterAttachment<T, TAttachment>(): () where T: unmanaged, IComponent
                                              where TAttachment: unmanaged, IComponent =
         this.AttachmentLookup.Add(T.GetId(), TAttachment.GetId())
@@ -458,6 +498,37 @@ class EntityDatabase =
                 MemoryMarshal.Cast(Span(bufferGroup1[i].RawBuffer)).Slice(0, count),
                 MemoryMarshal.Cast(Span(bufferGroup2[i].RawBuffer)).Slice(0, count),
                 MemoryMarshal.Cast(Span(bufferGroup3[i].RawBuffer)).Slice(0, count)
+            )
+
+            i <- i + 1
+
+    ForEachSpan<T0, T1, T2, T3, T4>(f: (ReadOnlySpan<EntityId>, Span<T0>, Span<T1>, Span<T2>, Span<T3>, Span<T4>) -> ()): () where T0: unmanaged, IComponent 
+                                                                                                                             where T1: unmanaged, IComponent 
+                                                                                                                             where T2: unmanaged, IComponent 
+                                                                                                                             where T3: unmanaged, IComponent
+                                                                                                                             where T4: unmanaged, IComponent =
+        let indices = this.GetArchetypedIndices(GetArchetypeId<T0, T1, T2, T3, T4>())
+
+        let query = this.CreateQuery<T0, T1, T2, T3, T4>()
+        let countGroup   = query.CountGroup
+        let entIdGroup   = query.EntIdGroup
+        let bufferGroup0 = query.BufferGroup0
+        let bufferGroup1 = query.BufferGroup1
+        let bufferGroup2 = query.BufferGroup2
+        let bufferGroup3 = query.BufferGroup3
+        let bufferGroup4 = query.BufferGroup4
+
+        let mutable i = 0
+        while (i < indices.Length)
+            let count = countGroup[i].Count
+
+            f(
+                ReadOnlySpan(entIdGroup[i], 0, count),
+                MemoryMarshal.Cast(Span(bufferGroup0[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup1[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup2[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup3[i].RawBuffer)).Slice(0, count),
+                MemoryMarshal.Cast(Span(bufferGroup4[i].RawBuffer)).Slice(0, count)
             )
 
             i <- i + 1
@@ -575,6 +646,21 @@ class EntityDatabase =
                 let mutable i = 0
                 while (i < count)
                     f(entIds[i], &buffer0[i], &buffer1[i], &buffer2[i], &buffer3[i])
+                    i <- i + 1
+        )
+
+    ForEach<T0, T1, T2, T3, T4>(f: (EntityId, byref<T0>, byref<T1>, byref<T2>, byref<T3>, byref<T4>) -> ()): () where T0: unmanaged, IComponent 
+                                                                                                                where T1: unmanaged, IComponent 
+                                                                                                                where T2: unmanaged, IComponent 
+                                                                                                                where T3: unmanaged, IComponent
+                                                                                                                where T4: unmanaged, IComponent =
+
+        this.ForEachSpan<T0, T1, T2, T3, T4>(
+            (mutable entIds, mutable buffer0, mutable buffer1, mutable buffer2, mutable buffer3, mutable buffer4) ->
+                let count = entIds.Length
+                let mutable i = 0
+                while (i < count)
+                    f(entIds[i], &buffer0[i], &buffer1[i], &buffer2[i], &buffer3[i], &buffer4[i])
                     i <- i + 1
         )
             
@@ -790,6 +876,49 @@ class EntityDatabase =
             callback(
                 &buffer0[archetype.Lookup[entId.Index]],
                 &buffer1[archetype.Lookup[entId.Index]]
+            )
+            true
+        else
+            false
+
+    TryGet<T0, T1, T2>(entId: EntityId, callback: (byref<T0>, byref<T1>, byref<T2>) -> ()): bool where T0: unmanaged, IComponent where T1: unmanaged, IComponent where T2: unmanaged, IComponent =
+        let index = this.entityArchetypeIndices[entId.Index]
+        let archetype = this.Archetypes[index]
+        let tyId0 = T0.GetId()
+        let tyId1 = T1.GetId()
+        let tyId2 = T2.GetId()
+        let tyId = tyId0 | tyId1 | tyId2
+        if (archetype.FullId.IsSupersetOf(tyId))
+            let mutable buffer0 = archetype.GetRawComponentBuffer<T0>(archetype.BufferLookup[tyId0])
+            let mutable buffer1 = archetype.GetRawComponentBuffer<T1>(archetype.BufferLookup[tyId1])
+            let mutable buffer2 = archetype.GetRawComponentBuffer<T2>(archetype.BufferLookup[tyId2])
+            callback(
+                &buffer0[archetype.Lookup[entId.Index]],
+                &buffer1[archetype.Lookup[entId.Index]],
+                &buffer2[archetype.Lookup[entId.Index]]
+            )
+            true
+        else
+            false
+
+    TryGet<T0, T1, T2, T3>(entId: EntityId, callback: (byref<T0>, byref<T1>, byref<T2>, byref<T3>) -> ()): bool where T0: unmanaged, IComponent where T1: unmanaged, IComponent where T2: unmanaged, IComponent where T3: unmanaged, IComponent =
+        let index = this.entityArchetypeIndices[entId.Index]
+        let archetype = this.Archetypes[index]
+        let tyId0 = T0.GetId()
+        let tyId1 = T1.GetId()
+        let tyId2 = T2.GetId()
+        let tyId3 = T3.GetId()
+        let tyId = tyId0 | tyId1 | tyId2 | tyId3
+        if (archetype.FullId.IsSupersetOf(tyId))
+            let mutable buffer0 = archetype.GetRawComponentBuffer<T0>(archetype.BufferLookup[tyId0])
+            let mutable buffer1 = archetype.GetRawComponentBuffer<T1>(archetype.BufferLookup[tyId1])
+            let mutable buffer2 = archetype.GetRawComponentBuffer<T2>(archetype.BufferLookup[tyId2])
+            let mutable buffer3 = archetype.GetRawComponentBuffer<T3>(archetype.BufferLookup[tyId3])
+            callback(
+                &buffer0[archetype.Lookup[entId.Index]],
+                &buffer1[archetype.Lookup[entId.Index]],
+                &buffer2[archetype.Lookup[entId.Index]],
+                &buffer3[archetype.Lookup[entId.Index]]
             )
             true
         else

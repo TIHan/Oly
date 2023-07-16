@@ -102,10 +102,10 @@ class ClientWorld =
         this.Render_Box.SyncOffset <- 0
         this.Render_Box.SyncLength <- boxCount
 
-    ForEachPlayer(f: (Player, transform: inref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
-        this.Database.ForEach<PlayerInput, Transform, CameraLerp, Camera>(
-            (entId, playerInput, transform, cameraLerp, camera) ->
-                f(Player(entId), &transform, &Unsafe.AsByRef(&cameraLerp), &camera)
+    ForEachPlayer(f: (Player, transformLerp: byref<Transform>, transform: byref<Transform>, cameraLerp: byref<Camera>, camera: byref<Camera>) -> ()): () =
+        this.Database.ForEach<PlayerInput, TransformLerp, Transform, CameraLerp, Camera>(
+            (entId, playerInput, transformLerp, transform, cameraLerp, camera) ->
+                f(Player(entId), &Unsafe.AsByRef(&transformLerp), &transform, &Unsafe.AsByRef(&cameraLerp), &camera)
         )
 
     protected overrides OnEntitySpawned(mutable entId: EntityId): () =
