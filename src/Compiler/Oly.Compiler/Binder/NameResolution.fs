@@ -1723,7 +1723,7 @@ let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPar
         | _ ->
             env1, env1.EnclosingTypeParameters.AddRange(tyPars)
 
-let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSymbol) (resTyArity: ResolutionTypeArity) (delayed: Queue<unit -> unit>) syntaxConstr =
+let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit -> unit>) (tyPar: TypeParameterSymbol) (resTyArity: ResolutionTypeArity) syntaxConstr : ConstraintSymbol option =
     match syntaxConstr with
     | OlySyntaxConstraint.Type(syntaxConstrTy) ->
 
@@ -1755,8 +1755,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
         let constrTy =
             match constrTy.TryEntity with
             | ValueSome(ent) when ent.IsShape && ent.IsAnonymous ->
-                if ent.TypeParameters.IsEmpty |> not then
-                    failwith "Did not expect type parameters for anonymous shape"
+                OlyAssert.False(ent.TypeParameters.IsEmpty)
 
                 let freeTyPars = constrTy.GetFreeTypeParameters()
 
@@ -1781,7 +1780,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
                                 |> Dictionary
                                 |> System.Collections.ObjectModel.ReadOnlyDictionary
 
-                            delayed.Enqueue(fun () -> 
+                            delayed.Enqueue(fun () ->
                                 (tyPars, freeTyPars)
                                 ||> ImArray.iter2 (fun tyPar oldTyPar ->
                                     let constrs =
@@ -1808,9 +1807,10 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
 
         if env.EnclosingTypeParameters |> Seq.exists (fun tyPar2 -> tyPar2.Index = tyPar.Index) then
             cenv.diagnostics.Error(sprintf "Cannot add additional constraints to the captured type parameter '%s'." tyPar.DisplayName, 10, syntaxConstr)
+            None
         else
-            let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
-            tyPar.AddConstraint(constr)
+            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
+            |> Some
 
     | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
         let resTyArity2 =
@@ -1825,32 +1825,33 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (tyPar: TypeParameterSy
         let constr = ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(constTy))
         match stripTypeEquations constTy with
         | TypeSymbol.Int32 ->
-            tyPar.AddConstraint(constr)
+            Some constr
         | _ ->
-            cenv.diagnostics.Error($"'{printType env.benv constTy}' is not a supported constant type.", 10, syntaxTy)         
+            cenv.diagnostics.Error($"'{printType env.benv constTy}' is not a supported constant type.", 10, syntaxTy)
+            None
 
     | OlySyntaxConstraint.NotStruct _ ->
-        tyPar.AddConstraint(ConstraintSymbol.NotStruct)
+        Some ConstraintSymbol.NotStruct
 
     | OlySyntaxConstraint.Struct _ ->
-        tyPar.AddConstraint(ConstraintSymbol.Struct)
+        Some ConstraintSymbol.Struct
 
     | OlySyntaxConstraint.Null _ ->
-        tyPar.AddConstraint(ConstraintSymbol.Null)
+        Some ConstraintSymbol.Null
 
     | OlySyntaxConstraint.Unmanaged _ ->
-        tyPar.AddConstraint(ConstraintSymbol.Unmanaged)
+        Some ConstraintSymbol.Unmanaged
 
     | OlySyntaxConstraint.Scoped _ ->
-        tyPar.AddConstraint(ConstraintSymbol.Scoped)
+        Some ConstraintSymbol.Scoped
 
     | OlySyntaxConstraint.Error _ ->
-        ()
+        None
 
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>) (delayed: Queue<_>) (syntaxConstrClause: OlySyntaxConstraintClause) =
+let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit -> unit>) (lookup: Dictionary<TypeParameterSymbol, ConstraintSymbol imarray>) (hash: HashSet<_>) (syntaxConstrClause: OlySyntaxConstraintClause) =
     match syntaxConstrClause with
     | OlySyntaxConstraintClause.ConstraintClause(_, syntaxTy, _, syntaxConstrList) ->
         let ty, isTyCtor = 
@@ -1889,8 +1890,15 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
                 else
                     ResolutionTypeArity.Any
 
-            syntaxConstrList.ChildrenOfType
-            |> ImArray.iter (fun syntaxConstr -> bindConstraint cenv { env with isInConstraint = true } tyPar resTyArity delayed syntaxConstr)
+            let constrs =
+                syntaxConstrList.ChildrenOfType
+                |> ImArray.choose (fun syntaxConstr -> bindConstraint cenv { env with isInConstraint = true } delayed tyPar resTyArity syntaxConstr)
+
+            match lookup.TryGetValue(tyPar) with
+            | true, existingConstrs ->
+                lookup[tyPar] <- existingConstrs.AddRange(constrs)
+            | _ ->
+                lookup[tyPar] <- constrs
 
     | OlySyntaxConstraintClause.Error _ ->
         ()
@@ -1900,16 +1908,22 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (hash: HashSet<_>
 
 let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) =
     let hash = HashSet() // TODO: Cache this allocation.
-    let delayed = Queue() // TODO: Cache this allocation.
+    let lookup = Dictionary<TypeParameterSymbol, ConstraintSymbol imarray>(TypeParameterSymbolComparer()) // TODO: Cache this allocation.
+    let delayed = Queue<unit -> unit>() // TODO: Cache this allocation.
 
     syntaxConstrClauses
     |> ImArray.iter (fun syntaxConstrClause ->
         // Binding a constraint clause will not check the type constructors of the constraints.
-        bindConstraintClause cenv env hash delayed syntaxConstrClause
+        bindConstraintClause cenv env delayed lookup hash syntaxConstrClause
+    )
+
+    lookup
+    |> Seq.iter (fun pair ->
+        pair.Key.SetConstraints(pair.Value)
     )
 
     let mutable f = Unchecked.defaultof<_>
-    while delayed.TryDequeue &f do
+    while delayed.TryDequeue(&f) do
         f()
 
 /// Determine member flags and value explicitness based on the modifiers and kind.

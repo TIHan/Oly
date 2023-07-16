@@ -59,9 +59,9 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                     | None -> solution.Constraints |> ImArray.ofSeq
                     | Some tyPar -> tyPar.Constraints
 
-                oldConstrs
-                |> ImArray.iter (fun constr ->
-                    let newConstr =
+                let newConstrs =
+                    oldConstrs
+                    |> ImArray.map (fun constr ->
                         match constr with
                         | ConstraintSymbol.Null
                         | ConstraintSymbol.Struct
@@ -73,8 +73,9 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                         | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
                             ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                    newTyPar.AddConstraint(newConstr)
-                )
+                    )
+
+                newTyPar.SetConstraints(newConstrs)
 
                 solution.Solution <- TypeSymbol.Variable(newTyPar)
                 generalizedTyPars.Add(newTyPar)

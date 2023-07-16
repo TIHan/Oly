@@ -2741,10 +2741,6 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
     member _.HiddenLink = hiddenLinkOpt
 
     /// Mutability
-    member this.AddConstraint(constr) =
-        constrs.contents <- ImArray.append constrs.contents (ImArray.createOne constr)
-
-    /// Mutability
     member this.SetConstraints(newConstrs) =
         constrs.contents <- newConstrs
 
