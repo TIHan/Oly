@@ -144,7 +144,7 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
                 )
 
             match witnessArgOpt with
-            | None -> () // REVIEW: Should we report an error? If this happens, then there is probably an error reported elsewhere.
+            | None -> ()// REVIEW: Should we report an error? If this happens, then there is probably an error reported elsewhere.
             | Some witnessArg ->
                 let freshAbstractFunc = freshenValue env.benv abstractFunc :?> IFunctionSymbol
 

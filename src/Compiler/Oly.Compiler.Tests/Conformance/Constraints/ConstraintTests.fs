@@ -1264,9 +1264,12 @@ test<T>(): () where T: ITest<T> = ()
 let ``Shape constraint can have a constructor``() =
     let src =
         """
-class A
+class A =
 
-test<T>(): () where T: { new() } =
+    static Test(): () = ()
+
+test<T>(): () where T: { new(); static Test(): () } =
+    T.Test()
     let _ = T()
 
 main(): () =
@@ -1275,3 +1278,32 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Shape constraint can have a constructor 2``() =
+    let src =
+        """
+CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Invoke(TArg0): TReturn } =
+    ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Shape constraint can have a constructor with the right signature``() =
+    let src =
+        """
+test<T>(): () where T: { new() } =
+    let ~^~x = T()
+        """
+    src |> hasSymbolSignatureTextByCursor "x: T"
+
+[<Fact>]
+let ``Shape constraint can have a constructor with the right signature 2``() =
+    let src =
+        """
+CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Invoke(TArg0): TReturn } =
+    let ~^~x = T()
+        """
+    src |> hasSymbolSignatureTextByCursor "x: T"

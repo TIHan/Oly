@@ -1039,10 +1039,15 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
     let funcs = ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc) |> ImArray.ofSeq
     superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
     |> Seq.map (fun superFunc ->
+        let superFunc =
+            if superFunc.IsInstanceConstructor then
+                superFunc.MorphShapeConstructor(ty, superShapeTy).AsFunction
+            else
+                superFunc
         let results =
             funcs
             |> ImArray.filter (fun func ->
-                if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
+                if func.IsInstance = superFunc.IsInstance && (func.Name = superFunc.Name || (func.IsInstanceConstructor && superFunc.IsInstanceConstructor)) && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                     // TODO: This really isn't right.
                     let isInstance = func.IsInstance
                     if not isInstance || not ty.IsAnyStruct || (if superFunc.IsReadOnly then func.IsReadOnly else true) then

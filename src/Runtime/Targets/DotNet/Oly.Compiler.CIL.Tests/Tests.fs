@@ -15826,3 +15826,27 @@ module TestModule =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "1122"
     |> ignore
+
+
+[<Fact>]
+let ``Shape constraint can have a constructor``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    Test(): () = print("passed")
+
+test<T>(): () where T: { new(); Test(): () } =
+    let t = T()
+    t.Test()
+
+main(): () =
+    test<A>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore

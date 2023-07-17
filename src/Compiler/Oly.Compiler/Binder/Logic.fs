@@ -127,7 +127,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
     let isCtor = syntaxBindingDecl.Identifier.IsNew
 
     if isCtor && not enclosing.CanDeclareConstructor then
-        cenv.diagnostics.Error(sprintf "'%s' can only be declared on a class or struct." syntaxBindingDecl.Identifier.ValueText, 10, syntaxBindingDecl.Identifier)
+        cenv.diagnostics.Error(sprintf "'%s' can only be declared on a class, struct or shape." syntaxBindingDecl.Identifier.ValueText, 10, syntaxBindingDecl.Identifier)
         None
     elif enclosing.IsNamespace then
         cenv.diagnostics.Error("Values cannot be declared on a namespace.", 10, syntaxBindingDecl.Identifier)
@@ -461,7 +461,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             cenv.diagnostics.Error("Constructors cannot be marked as mutable.", 10, syntaxNewToken)
 
         match enclosing with
-        | EnclosingSymbol.Entity(ent) when not ent.IsInterface && not ent.IsModule && not ent.IsTypeExtension && not ent.IsShape && not ent.IsAlias ->
+        | EnclosingSymbol.Entity(ent) when not ent.IsInterface && not ent.IsModule && not ent.IsTypeExtension && not ent.IsAlias ->
             let returnTy = TypeSymbol.Entity(ent)
             let env1, pars = bindParameters cenv env onlyBindAsType syntaxPars
 

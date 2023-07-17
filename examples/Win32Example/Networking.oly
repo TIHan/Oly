@@ -18,13 +18,17 @@ internal class OnConnectionRequestDelegate =
 
 // module Helpers =
 
-//     CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): T where T: { Invoke(TArg0): TReturn } =
-//         class Delegate =
-//             field f: TArg0 -> TReturn
-//             new(f: TArg0 -> TReturn) = { f = f }
+//     class Delegate<TArg0, TReturn> =
+//         field f: TArg0 -> TReturn
+//         new(f: TArg0 -> TReturn) = { f = f }
 
-//             Invoke(arg0: TArg0): TReturn =
-//                 this.f(arg0)
+//         Invoke(arg0: TArg0): TReturn =
+//             this.f(arg0)
+
+//     CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): T where T: { new(object, nint); Invoke(TArg0): TReturn } =
+//         let del = Delegate(f)
+//         let result: T = Unsafe.Cast(T(del, nint(&&del.Invoke)))
+//         result
 
         
 
@@ -42,7 +46,6 @@ class Server =
     static Create(): Server =
         let listener = EventBasedNetListener()
         let server = NetManager(listener, null)
-
         Server(listener, server)
 
     Start(mutable port: int32, connectionKey: string): () =
@@ -51,7 +54,7 @@ class Server =
 
         let onConnectionRequest = 
             OnConnectionRequestDelegate(
-                request ->
+                (request: ConnectionRequest) ->
                     printLine("connection requested")
                     if (this.server.ConnectedPeersCount < 10)
                         let _ = request.AcceptIfKey(connectionKey)
@@ -92,7 +95,8 @@ class Client =
 
     Connect(ipOrHostName: string, port: int32, connectionKey: string): () =
         this.currentConnection <- this.client.Connect(ipOrHostName, port, connectionKey)
-        let _ = this.currentConnection.ConnectionState
+        let x = this.currentConnection.ConnectionState
+        printLine(x)
 
     PollEvents(): () =
         this.client.PollEvents()

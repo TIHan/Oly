@@ -320,11 +320,11 @@ main(): () =
     let server = Server.Create()
     let client = Client.Create()
 
-    server.Start(1234)
+    server.Start(1235, "oly")
     client.Start()
-    client.Connect("localhost", 1234, unchecked default)
+    client.Connect("localhost", 1235, "oly")
     server.PollEvents()
-   // client.PollEvents()
+    client.PollEvents()
     
     let mutable i = 0
     while (i < 100)

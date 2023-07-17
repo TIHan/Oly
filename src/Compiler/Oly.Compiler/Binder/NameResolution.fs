@@ -236,7 +236,44 @@ type ResolutionFormalItem =
 let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (resInfo: ResolutionInfo) (ident: string) =
     match tryBindIdentifierAsTypeParameter cenv env syntaxNode resInfo.resTyArity ident with
     | Some tyPar ->
-        ResolutionFormalItem.Type(tyPar.AsType)
+
+        let ctorsOpt =
+            if resInfo.InTypeOnlyContext then
+                ValueNone
+            else
+                match resInfo.resArgs with
+                | ResolutionArguments.NotAFunctionCall -> 
+                    ValueNone
+                | _ ->
+                    let ctors =
+                        tyPar.Constraints
+                        |> ImArray.map (function
+                            | ConstraintSymbol.SubtypeOf(lazyTy) ->
+                                let ty = lazyTy.Value
+                                if ty.IsShape then
+                                    ty.Functions
+                                    |> ImArray.filter (fun func -> func.IsInstanceConstructor)
+                                    |> ImArray.map (fun func ->
+                                        OlyAssert.False(func.IsFunctionGroup)
+                                        func.MorphShapeConstructor(tyPar.AsType, ty).AsFunction
+                                    )
+                                else
+                                    ImArray.empty
+                            | _ ->
+                                ImArray.empty
+                        )
+                        |> ImArray.concat
+                    if ctors.IsEmpty then
+                        ValueNone
+                    else
+                        ValueSome(ctors)
+
+        match ctorsOpt with
+        | ValueSome ctors ->
+            let func = FunctionGroupSymbol.CreateIfPossible(ctors)
+            ResolutionFormalItem.Value(None, func)
+        | _ ->
+            ResolutionFormalItem.Type(tyPar.AsType)
     | _ ->
         if resInfo.InTypeOnlyContext then
             match env.benv.TryGetNamespace(ident) with

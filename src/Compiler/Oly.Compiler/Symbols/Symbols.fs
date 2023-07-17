@@ -4145,6 +4145,75 @@ module SymbolExtensions =
             member this.AsFunction = this :?> IFunctionSymbol
 
             member this.AsProperty = this :?> IPropertySymbol
+
+            member this.MorphShapeConstructor(concreteTy, shapeTy: TypeSymbol) =
+                OlyAssert.True(shapeTy.IsShape)
+                OlyAssert.True(this.IsInstanceConstructor)
+                match this with
+                | :? IFunctionSymbol as func when func.IsInstanceConstructor ->
+                    let id = newId()
+                    let enclosing = EnclosingSymbol.Witness(concreteTy, shapeTy.AsEntity)
+                    let returnTy = concreteTy
+                    let parTys =
+                        func.Parameters 
+                        |> ImArray.mapi (fun i x -> 
+                            if i = 0 then
+                                concreteTy
+                            else
+                                x.Type
+                        )
+                    let funcTy = TypeSymbol.CreateFunction(func.TypeParameters, parTys, returnTy)
+                    { new IFunctionSymbol with
+    
+                        member _.Enclosing = enclosing
+    
+                        member _.Name = func.Name
+    
+                        member _.Type = funcTy
+    
+                        member _.Id = id
+    
+                        member _.TypeParameters = func.TypeParameters
+    
+                        member _.TypeArguments = func.TypeArguments
+    
+                        member _.IsFunction = func.IsFunction
+    
+                        member _.IsField = func.IsField
+    
+                        member _.MemberFlags = func.MemberFlags
+    
+                        member _.FunctionFlags = func.FunctionFlags
+    
+                        member _.FunctionOverrides = func.FunctionOverrides
+
+                        member _.IsProperty = func.IsProperty
+
+                        member _.IsPattern = false
+    
+                        member this.Formal = func
+    
+                        member _.Parameters = func.Parameters
+    
+                        member _.ReturnType = returnTy
+    
+                        member _.Attributes = func.Attributes
+    
+                        member _.ValueFlags = func.ValueFlags
+
+                        member _.IsThis = func.IsThis
+                        
+                        member _.IsBase = func.IsBase
+
+                        member _.Semantic = func.Semantic
+
+                        member _.WellKnownFunction = func.WellKnownFunction
+
+                        member _.AssociatedFormalPattern = func.AssociatedFormalPattern
+
+                    } :> IValueSymbol
+                | _ ->
+                    OlyAssert.Fail("Invalid constructor.")
     
             member this.WithEnclosing(enclosing) =
                 let id = newId()
@@ -4608,7 +4677,7 @@ module SymbolExtensions =
                 this.TryCompilerIntrinsic.IsSome
 
             member this.CanDeclareConstructor = 
-                (this.IsClass || this.IsAnyStruct) && not this.IsAlias
+                (this.IsClass || this.IsAnyStruct || this.IsShape) && not this.IsAlias
 
         type EnclosingSymbol with
 
