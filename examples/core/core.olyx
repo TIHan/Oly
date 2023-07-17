@@ -209,10 +209,32 @@ class BitSet512EqualityComparer =
     Equals(x: BitSet512, y: BitSet512): bool = x == y
 
 class ByteStream =
-    mutable field buffer: mutable byte[] = OlyPrelude.Array.ZeroCreate(65536)
-    mutable field position: int32 = 0
-    mutable field count: int32 = 0
+    mutable field buffer: mutable byte[]
+    mutable field position: int32
+    mutable field count: int32
 
+    new() =
+        {
+            buffer = OlyPrelude.Array.ZeroCreate(65536)
+            position = 0
+            count = 0
+        }
+
+    new(buffer: mutable byte[]) =
+        {
+            buffer = buffer
+            position = 0
+            count = 0
+        }
+
+    new(buffer: mutable byte[], position: int32, count: int32) =
+        {
+            buffer = buffer
+            position = position
+            count = count
+        }
+
+    Raw: mutable byte[] get() = this.buffer
     Count: int32 get() = this.count
     Position: int32 get() = this.position
 
@@ -335,6 +357,9 @@ class ByteStream =
         if (position > this.count)
             throw ArgumentOutOfRangeException("position")
         this.position <- position
+
+    AsReadOnlySpan(): ReadOnlySpan<byte> =
+        ReadOnlySpan(this.buffer, 0, this.count)
 
 // IO
 

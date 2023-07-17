@@ -33,7 +33,7 @@ abstract default class World =
             Database = db
         }
 
-    protected Database: EntityDatabase get
+    Database: EntityDatabase get
 
     IsValid(entId: EntityId): bool =
         this.Database.IsValid(entId)
@@ -45,6 +45,9 @@ abstract default class World =
 
     CopyTo(dstWorld: World): () =
         this.Database.CopyTo(dstWorld.Database)
+
+    GetReplicatingEvents(prevWorld: World): EntityDatabase.Events =
+        this.Database.GetReplicatingEvents(prevWorld.Database)
 
     protected abstract default OnEntitySpawned(entId: EntityId): () = ()
 
@@ -64,3 +67,5 @@ abstract default class SharedWorld =
         db.Register<PhysicsCharacter>()
 
     protected field Physics: Physics = Physics.Init()
+
+    

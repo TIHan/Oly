@@ -316,19 +316,10 @@ test(): () =
 
 class Marker
 
-main(): () =
-    let server = Server.Create()
-    let client = Client.Create()
-
-    server.Start(1235, "oly")
-    client.Start()
-    client.Connect("localhost", 1235, "oly")
-    server.PollEvents()
-    client.PollEvents()
-    
+main(): () =    
     let mutable i = 0
     while (i < 100)
-     //   test()
+        test()
         DotNet.GCCollect()
         i <- i + 1
 
@@ -404,14 +395,31 @@ main(): () =
     let renderBox = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, EntityDatabase.MaxNumberOfEntities, i -> default: mat4)
 
     let world = ServerWorld()
+    let clientReceivedWorld = SharedWorld()
     let stagingWorld = SharedWorld()
     let clientWorld = ClientWorld(renderBox)
     let prevClientWorld = World()
 
     ServerWorld.SetupComponents(world)
+    SharedWorld.SetupComponents(clientReceivedWorld)
     SharedWorld.SetupComponents(stagingWorld)
     ClientWorld.SetupComponents(clientWorld)
     ClientWorld.SetupComponents(prevClientWorld)
+
+    let netServer = NetworkServer.Create()
+    let netClient = NetworkClient.Create()
+
+    netServer.Start(1235, "oly",
+        (peer, packet, channel) ->
+            ()
+    )
+
+    netClient.Start(
+        (packet, channel) ->
+            EntityDatabase.DeserializeInto(packet, clientReceivedWorld.Database)
+            printLine("client received snapshot")
+    )
+    netClient.Connect("localhost", 1235, "oly")
 
     let gpuProgramReference3 = GpuProgramReference(gpuProgram)
     gpuProgramReference3.AddGlobalInput(globals)
@@ -469,11 +477,16 @@ main(): () =
 
     let mutable serverPlayerInput = default: PlayerInput
 
+    let isListenServer = true
+
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
     let mutable serverToClientEvents = EntityDatabase.Events()
+    let serverStream = ByteStream()
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
+
+        netServer.PollEvents()
 
         world.ForEachPlayer(
             (player, playerInput, transform, camera) ->
@@ -486,7 +499,7 @@ main(): () =
         if (spawnTime >= 1)
             spawnTime <- 0
             let mutable i = 0
-            while (i < 10)
+            while (i < 4096)
                 let position = Vector3(float32(i + 1) * 2, 0, 0)
                 world.SpawnCube(position, quat.Identity, vec3.One)
                 i <- i + 1
@@ -498,8 +511,18 @@ main(): () =
         )
 
         world.Update(deltaTime)
-        serverToClientEvents <- world.GetReplicatingEvents(stagingWorld)
-        world.CopyTo(stagingWorld)
+
+     //   world.Database.Serialize(serverStream)
+      //  netServer.Send(serverStream.Raw, 0, serverStream.Count)
+
+        if (isListenServer)
+        //    serverStream.ResetPosition()
+         //   EntityDatabase.DeserializeInto(serverStream, clientReceivedWorld.Database)
+            world.CopyTo(clientReceivedWorld)
+            serverToClientEvents <- clientReceivedWorld.GetReplicatingEvents(stagingWorld)
+            clientReceivedWorld.CopyTo(stagingWorld)
+
+        serverStream.Reset()
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
@@ -585,6 +608,7 @@ main(): () =
 
     GameLoop.Start(
         frameTime ->
+            netClient.PollEvents()
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
             clientWorld.FixedUpdate(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))

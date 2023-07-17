@@ -75,9 +75,6 @@ class ServerWorld =
         while (this.DestroyEntityQueue.TryDequeue(&entId))
             this.Database.Delete(entId)
 
-    GetReplicatingEvents(prevWorld: World): EntityDatabase.Events =
-        this.Database.GetReplicatingEvents(prevWorld.Database)
-
     Update(Δ: float32): () =
         this.Flush()
 

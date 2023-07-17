@@ -1066,7 +1066,7 @@ class EntityDatabase =
         while (i < registerCount)
             let key = bstream.Read<ComponentId>()
             let value = bstream.Read<int32>()
-            db.Registered[key] <- value
+        //    db.Registered[key] <- value
             i <- i + 1
         
         db.entityCount <- bstream.Read()
@@ -1094,8 +1094,8 @@ class EntityDatabase =
                     let rawBuffer = buffers[bufferIndex].RawBuffer
                     bstream.Read(rawBuffer.AsSpan(0, length): Span<byte>) // TODO: language bug, we should not need to annotate with 'Span<byte>'.
                 else
-                   // bstream.Seek(bstream.Position + length)
-                    fail("Unable to find component buffer. Was the component registered?")
+                    bstream.Seek(bstream.Position + length)
+                    //fail("Unable to find component buffer. Was the component registered?")
                 i <- i + 1
 
             archetype.Count <- count

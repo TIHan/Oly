@@ -1,11 +1,12 @@
 namespace Evergreen.Networking
 
+open System
+
 open LiteNetLib
 open LiteNetLib.Layers
 open LiteNetLib.Utils
 
 internal class OnConnectionRequestDelegate =
-
     field f: ConnectionRequest -> ()
     new(f: ConnectionRequest -> ()) =
         {
@@ -15,6 +16,15 @@ internal class OnConnectionRequestDelegate =
     Invoke(request: ConnectionRequest): () =
         this.f(request)
 
+internal class PeerConnectedDelegate =
+    field f: NetPeer -> ()
+    new(f: NetPeer -> ()) =
+        {
+            f = f
+        }
+
+    Invoke(peer: NetPeer): () =
+        this.f(peer)
 
 // module Helpers =
 
@@ -30,9 +40,33 @@ internal class OnConnectionRequestDelegate =
 //         let result: T = Unsafe.Cast(T(del, nint(&&del.Invoke)))
 //         result
 
-        
+// class Delegate<TArg0, TReturn> =
+//     field f: TArg0 -> TReturn
+//     new(f: TArg0 -> TReturn) = { f = f }
 
-class Server =
+//     Invoke(arg0: TArg0): TReturn =
+//         this.f(arg0)
+
+// internal module Helpers =
+
+//     CreateDelegate<T, TArg0, TReturn>(f: (object, nint) -> T): T where T: { Invoke(TArg0): TReturn } =
+//         let x= 
+        
+internal class OnNetworkReceiveDelegate =
+    field f: (NetPeer, NetPacketReader, channel: byte, DeliveryMethod) -> ()
+    new(f: (NetPeer, NetPacketReader, channel: byte, DeliveryMethod) -> ()) =
+        {
+            f = f
+        }
+
+    Invoke(peer: NetPeer, packet: NetPacketReader, channel: byte, deliveryMethod: DeliveryMethod): () =
+        this.f(peer, packet, channel, deliveryMethod)
+
+
+newtype NetworkPeer =
+    field value: NetPeer
+
+class NetworkServer =
 
     field listener: EventBasedNetListener
     field server: NetManager
@@ -43,26 +77,47 @@ class Server =
             server = server
         }
 
-    static Create(): Server =
+    static Create(): NetworkServer =
         let listener = EventBasedNetListener()
         let server = NetManager(listener, null)
-        Server(listener, server)
+        NetworkServer(listener, server)
 
-    Start(mutable port: int32, connectionKey: string): () =
+    Start(mutable port: int32, connectionKey: string, onClientDataReceived: (NetworkPeer, ByteStream, channel: byte) -> ()): () =
         if (!this.server.Start(port))
             fail("Unable to start server at port: " + port.ToString())
 
         let onConnectionRequest = 
             OnConnectionRequestDelegate(
                 (request: ConnectionRequest) ->
-                    printLine("connection requested")
-                    if (this.server.ConnectedPeersCount < 10)
-                        let _ = request.AcceptIfKey(connectionKey)
+                    if (this.server.ConnectedPeersCount < 8)
+                        let peer = request.AcceptIfKey(connectionKey)
                     else
                         request.Reject()
+                        printLine(request.RemoteEndPoint.ToString() + " rejected")
             )
         let onConnectionRequest = EventBasedNetListener.OnConnectionRequest(onConnectionRequest, nint(&&onConnectionRequest.Invoke))
         this.listener.add_ConnectionRequestEvent(onConnectionRequest)
+
+        let peerConnectedEvent =
+            PeerConnectedDelegate(
+                peer ->
+                    printLine(peer.EndPoint.ToString() + " " + peer.ConnectionState.ToString())
+            )
+        let peerConnectedEvent = EventBasedNetListener.OnPeerConnected(peerConnectedEvent, nint(&&peerConnectedEvent.Invoke))
+        this.listener.add_PeerConnectedEvent(peerConnectedEvent)
+
+        let onNetworkReceive =
+            OnNetworkReceiveDelegate(
+                (peer, reader, channel, deliveryMethod) ->
+                    let bstream = ByteStream(reader.RawData, reader.UserDataOffset, reader.RawDataSize)
+                    onClientDataReceived(NetworkPeer(peer), bstream, channel)
+                    reader.Recycle()
+            )
+        let onNetworkReceive = EventBasedNetListener.OnNetworkReceive(onNetworkReceive, nint(&&onNetworkReceive.Invoke))
+        this.listener.add_NetworkReceiveEvent(onNetworkReceive)
+
+    Send(buffer: mutable byte[], offset: int32, length: int32): () =
+        this.server.SendToAll(buffer, offset, length, DeliveryMethod.ReliableOrdered)
 
     PollEvents(): () =
         this.server.PollEvents()
@@ -70,7 +125,7 @@ class Server =
     Stop(): () =
         this.server.Stop()
 
-class Client =
+class NetworkClient =
 
     field listener: EventBasedNetListener
     field client: NetManager
@@ -84,19 +139,27 @@ class Client =
             currentConnection = null
         }
 
-    static Create(): Client =
+    static Create(): NetworkClient =
         let listener = EventBasedNetListener()
         let client = NetManager(listener, null)
-        Client(listener, client)
+        NetworkClient(listener, client)
 
-    Start(): () =
+    Start(onServerDataReceived: (ByteStream, channel: byte) -> ()): () =
         if (!this.client.Start())
             fail("Unable to start client.")
 
+        let onNetworkReceive =
+            OnNetworkReceiveDelegate(
+                (peer, reader, channel, deliveryMethod) ->
+                    let bstream = ByteStream(reader.RawData, reader.UserDataOffset, reader.RawDataSize)
+                    onServerDataReceived(bstream, channel)
+                    reader.Recycle()
+            )
+        let onNetworkReceive = EventBasedNetListener.OnNetworkReceive(onNetworkReceive, nint(&&onNetworkReceive.Invoke))
+        this.listener.add_NetworkReceiveEvent(onNetworkReceive)
+
     Connect(ipOrHostName: string, port: int32, connectionKey: string): () =
         this.currentConnection <- this.client.Connect(ipOrHostName, port, connectionKey)
-        let x = this.currentConnection.ConnectionState
-        printLine(x)
 
     PollEvents(): () =
         this.client.PollEvents()
