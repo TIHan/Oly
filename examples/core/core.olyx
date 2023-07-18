@@ -75,13 +75,15 @@ extension ArrayCastExtensions<T> where T: struct, ValueType =
     AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
     AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
 
-For(count: int32, f: int32 -> ()): () =
+#[inline]
+For(count: int32, #[inline] f: int32 -> ()): () =
     let mutable i = 0
     while (i < count)
         f(i)
         i <- i + 1
 
-ParallelFor(count: int32, f: int32 -> ()): () =
+#[inline]
+ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
     let options = System.Threading.Tasks.ParallelOptions()
     options.MaxDegreeOfParallelism <- Environment.ProcessorCount
     let _ =

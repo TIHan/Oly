@@ -8,8 +8,6 @@
 #reference "../Evergreen/src/Physics/Evergreen.Physics.olyx"
 #reference "../Evergreen/src/Collections/Evergreen.Collections.olyx"
 
-#package "LiteNetLib,1.1.0"
-
 open System
 open System.IO
 open System.Numerics
@@ -300,28 +298,28 @@ test(): () =
     edb.ForEach<Transform, Camera, PlayerInput>((entId, transform, camera, playerActionSnapshot) -> ())
 
     let bstream = ByteStream()
-    edb.Serialize(bstream)
+    EntityDatabase.Serialize(edb, bstream)
 
     let stagingEdb = EntityDatabase()
     bstream.ResetPosition()
-    EntityDatabase.DeserializeInto(bstream, stagingEdb)
+    EntityDatabase.Deserialize(bstream, stagingEdb)
 
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
     let s = Stopwatch.StartNew()
     bstream.ResetPosition()
-    EntityDatabase.DeserializeInto(bstream, stagingEdb)
+    EntityDatabase.Deserialize(bstream, stagingEdb)
     s.Stop()
     printLine(s.Elapsed.TotalMilliseconds)
 
 class Marker
 
 main(): () =    
-    let mutable i = 0
-    while (i < 100)
-        test()
-        DotNet.GCCollect()
-        i <- i + 1
+    // let mutable i = 0
+    // while (i < 100)
+    //     test()
+    //     DotNet.GCCollect()
+    //     i <- i + 1
 
     let options = RenderingOptions()
     let r = Rendering.Create(options)
@@ -406,18 +404,20 @@ main(): () =
     ClientWorld.SetupComponents(clientWorld)
     ClientWorld.SetupComponents(prevClientWorld)
 
+    let lockObj = System.Object()
+    let mutable serverToClientEvents = EntityDatabase.Events()
+
     let netServer = NetworkServer.Create()
     let netClient = NetworkClient.Create()
 
     netServer.Start(1235, "oly",
-        (peer, packet, channel) ->
+        (peer, bstream, channel) ->
             ()
     )
 
     netClient.Start(
-        (packet, channel) ->
-            EntityDatabase.DeserializeInto(packet, clientReceivedWorld.Database)
-            printLine("client received snapshot")
+        (bstream, channel) ->
+            clientReceivedWorld.Deserialize(bstream)
     )
     netClient.Connect("localhost", 1235, "oly")
 
@@ -477,11 +477,10 @@ main(): () =
 
     let mutable serverPlayerInput = default: PlayerInput
 
-    let isListenServer = true
+    let isClient = true
 
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
-    let mutable serverToClientEvents = EntityDatabase.Events()
     let serverStream = ByteStream()
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
@@ -511,14 +510,14 @@ main(): () =
         )
 
         world.Update(deltaTime)
+        world.Serialize(serverStream)
+        netServer.Send(serverStream.Raw, 0, serverStream.Count)
+        netServer.Flush()
 
-     //   world.Database.Serialize(serverStream)
-      //  netServer.Send(serverStream.Raw, 0, serverStream.Count)
-
-        if (isListenServer)
-        //    serverStream.ResetPosition()
-         //   EntityDatabase.DeserializeInto(serverStream, clientReceivedWorld.Database)
-            world.CopyTo(clientReceivedWorld)
+        if (isClient)
+            //serverStream.ResetPosition()
+           // clientReceivedWorld.Deserialize(serverStream)
+            netClient.PollEvents()
             serverToClientEvents <- clientReceivedWorld.GetReplicatingEvents(stagingWorld)
             clientReceivedWorld.CopyTo(stagingWorld)
 
@@ -608,7 +607,6 @@ main(): () =
 
     GameLoop.Start(
         frameTime ->
-            netClient.PollEvents()
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
             clientWorld.FixedUpdate(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))

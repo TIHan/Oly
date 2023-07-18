@@ -46,6 +46,12 @@ abstract default class World =
     CopyTo(dstWorld: World): () =
         this.Database.CopyTo(dstWorld.Database)
 
+    Serialize(bstream: ByteStream): () =
+        EntityDatabase.Serialize(this.Database, bstream)
+
+    Deserialize(bstream: ByteStream): () =
+        EntityDatabase.Deserialize(bstream, this.Database)
+
     GetReplicatingEvents(prevWorld: World): EntityDatabase.Events =
         this.Database.GetReplicatingEvents(prevWorld.Database)
 
@@ -65,7 +71,4 @@ abstract default class SharedWorld =
         db.Register<Mesh>()
         db.Register<PhysicsStatic>()
         db.Register<PhysicsCharacter>()
-
-    protected field Physics: Physics = Physics.Init()
-
     

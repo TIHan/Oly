@@ -1,218 +1,281 @@
 namespace Evergreen.Networking
 
 open System
+open System.IO
+open System.Net
+open System.Net.Sockets
+open System.Collections.Generic
+open System.Collections.Concurrent
+open System.Runtime.InteropServices
 
-open LiteNetLib
-open LiteNetLib.Layers
-open LiteNetLib.Utils
+internal enum PacketKind =
+    | Invalid
 
-internal class OnConnectionRequestDelegate =
-    field f: ConnectionRequest -> ()
-    new(f: ConnectionRequest -> ()) =
-        {
-            f = f
-        }
+    | ConnectionRequested
+    | ConnectionAcknowledged
+    | ConnectionAccepted
 
-    Invoke(request: ConnectionRequest): () =
-        this.f(request)
+    | Unreliable
+    | UnreliableSequenced
+    | Reliable
+    | ReliableSequenced
+    | ReliableOrdered
 
-internal class PeerConnectedDelegate =
-    field f: NetPeer -> ()
-    new(f: NetPeer -> ()) =
-        {
-            f = f
-        }
+internal struct ConnectionPacketHeader =
+    public mutable field Kind: PacketKind = PacketKind.Invalid
+    
+internal struct PacketHeader =
+    public mutable field Kind: PacketKind = PacketKind.Invalid
+    public mutable field SequenceId: uint32 = 0
+    public mutable field FragmentIndex: int32 = 0
+    public mutable field FragmentCount: int32 = 0
+    public mutable field TotalDataSize: int32 = 0
 
-    Invoke(peer: NetPeer): () =
-        this.f(peer)
+internal class PacketManager =
+    field maxDataSizeBeforeFragmentation: int32 = 1024
+    field maxDataSizeBeforeFragmentationWithHeader: int32 = 1024 + sizeof<PacketHeader>
+    
+    mutable field nextSequenceId: uint32 = 1
 
-// module Helpers =
+    CreatePackets(packetKind: PacketKind, mutable largeData: ReadOnlyMemory<byte>): (mutable byte[])[] =
+        let sequenceId = this.nextSequenceId
+        this.nextSequenceId <- (this.nextSequenceId + 1) % uint32.MaxValue
 
-//     class Delegate<TArg0, TReturn> =
-//         field f: TArg0 -> TReturn
-//         new(f: TArg0 -> TReturn) = { f = f }
+        let largeDataLength = largeData.Length
+        if (largeDataLength > this.maxDataSizeBeforeFragmentation)
+            let chunkCount = (largeDataLength / this.maxDataSizeBeforeFragmentation) + 1
+            OlyPrelude.Array.Initialize(chunkCount,
+                i ->
+                    let bytes = OlyPrelude.Array.ZeroCreate(this.maxDataSizeBeforeFragmentationWithHeader)
+                    let headerSpan = Span(bytes).Slice(0, sizeof<PacketHeader>)
+                    let dataSpan = Span(bytes).Slice(sizeof<PacketHeader>)
 
-//         Invoke(arg0: TArg0): TReturn =
-//             this.f(arg0)
+                    let mutable header = PacketHeader()
+                    header.Kind <- packetKind
+                    header.SequenceId <- sequenceId
+                    header.FragmentIndex <- i
+                    header.FragmentCount <- chunkCount
+                    header.TotalDataSize <- largeDataLength
 
-//     CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): T where T: { new(object, nint); Invoke(TArg0): TReturn } =
-//         let del = Delegate(f)
-//         let result: T = Unsafe.Cast(T(del, nint(&&del.Invoke)))
-//         result
+                    (MemoryMarshal.Cast(headerSpan)[0]) <- header
 
-// class Delegate<TArg0, TReturn> =
-//     field f: TArg0 -> TReturn
-//     new(f: TArg0 -> TReturn) = { f = f }
+                    let mutable largeData = largeData.Span
+                    if (i == (chunkCount - 1))
+                        largeData.Slice(i * this.maxDataSizeBeforeFragmentation, largeData.Length - (i * this.maxDataSizeBeforeFragmentation)).CopyTo(dataSpan)
+                    else
+                        largeData.Slice(i * this.maxDataSizeBeforeFragmentation, this.maxDataSizeBeforeFragmentation).CopyTo(dataSpan)
+                    bytes
+            )
+        else
+            let bytes = OlyPrelude.Array.ZeroCreate(this.maxDataSizeBeforeFragmentationWithHeader)
+            let headerSpan = Span(bytes).Slice(0, sizeof<PacketHeader>)
+            let dataSpan = Span(bytes).Slice(sizeof<PacketHeader>)
 
-//     Invoke(arg0: TArg0): TReturn =
-//         this.f(arg0)
+            let mutable header = PacketHeader()
+            header.Kind <- packetKind
+            header.SequenceId <- sequenceId
+            header.FragmentIndex <- 0
+            header.FragmentCount <- 1
+            header.TotalDataSize <- largeDataLength
 
-// internal module Helpers =
+            (MemoryMarshal.Cast(headerSpan)[0]) <- header
 
-//     CreateDelegate<T, TArg0, TReturn>(f: (object, nint) -> T): T where T: { Invoke(TArg0): TReturn } =
-//         let x= 
+            let mutable largeData = largeData.Span
+            largeData.CopyTo(dataSpan)
+
+            [bytes]
+
+internal class Defragmenter =
+    field lookup: Dictionary<uint32, (HashSet<int32>, mutable byte[])> = Dictionary()
+    HandlePacket(mutable packet: ReadOnlySpan<byte>, callback: (ByteStream, channel: byte) -> ()): () =
+        let headerSpan = packet.Slice(0, sizeof<PacketHeader>)
+        let mutable dataSpan = packet.Slice(sizeof<PacketHeader>)
+
+        let mutable headerSpan: ReadOnlySpan<PacketHeader> = MemoryMarshal.Cast<_, PacketHeader>(headerSpan)
+        let header = headerSpan[0]
+
+        if (header.FragmentIndex < 0 || header.FragmentCount <= 0)
+            ()
+        else if (header.FragmentCount == 1)
+            let callbackData = OlyPrelude.Array.ZeroCreate(dataSpan.Length)
+            dataSpan.CopyTo(Span(callbackData))
+            callback(ByteStream(callbackData, 0, header.TotalDataSize), 0)
+        else    
+            let mutable result = unchecked default
+            if (!this.lookup.TryGetValue(header.SequenceId, &result))
+                let reassembledData = OlyPrelude.Array.ZeroCreate<byte>(header.TotalDataSize)
+                result <- (HashSet(), reassembledData)
+                this.lookup[header.SequenceId] <- result
+
+            let (hashSet, reassembledData) = result
+            if (hashSet.Add(header.FragmentIndex))
+                let mutable reassembledDataSpan = Span(reassembledData)
+                let lastIndex = header.TotalDataSize / 1024
+                if (header.FragmentIndex == lastIndex)
+                    let position = lastIndex * 1024
+                    let remaining = header.TotalDataSize - position
+                    let mutable dst = reassembledDataSpan.Slice(position)
+                    dataSpan.Slice(0, dst.Length).CopyTo(dst)
+                else
+                    dataSpan.CopyTo(reassembledDataSpan.Slice(header.FragmentIndex * 1024))
+
+            if (hashSet.Count == header.FragmentCount)
+                callback(ByteStream(reassembledData, 0, header.TotalDataSize), 0)
+                let _ = this.lookup.Remove(header.SequenceId)
+            else if (hashSet.Count > header.FragmentCount)
+                let _ = this.lookup.Remove(header.SequenceId)
+            
+            
+            // TODO
         
-internal class OnNetworkReceiveDelegate =
-    field f: (NetPeer, NetPacketReader, channel: byte, DeliveryMethod) -> ()
-    new(f: (NetPeer, NetPacketReader, channel: byte, DeliveryMethod) -> ()) =
-        {
-            f = f
-        }
-
-    Invoke(peer: NetPeer, packet: NetPacketReader, channel: byte, deliveryMethod: DeliveryMethod): () =
-        this.f(peer, packet, channel, deliveryMethod)
-
-
-newtype NetworkPeer =
-    field value: NetPeer
 
 class NetworkServer =
 
-    field listener: EventBasedNetListener
-    field server: NetManager
+    field receiveBuffer: mutable byte[]
+    field socket: Socket
+    field connections: ConcurrentDictionary<EndPoint, (float32, PacketManager)>
+    mutable field onClientMessageReceived: (EndPoint, ByteStream, channel: byte) -> ()
+    mutable field connectionKey: string 
+    mutable field port: int32
 
-    private new(listener: EventBasedNetListener, server: NetManager) =
-        {
-            listener = listener
-            server = server
+    private new(socket: Socket) = 
+        { 
+            socket = socket
+            connections = ConcurrentDictionary()
+            receiveBuffer = GC.AllocateArray<byte>(51_200_000, true)
+            onClientMessageReceived = (endPoint, bstream, channel) -> ()
+            connectionKey = ""
+            port = 0
         }
 
     static Create(): NetworkServer =
-        let listener = EventBasedNetListener()
-        let server = NetManager(listener, null)
-        NetworkServer(listener, server)
+        let socket = Socket(SocketType.Dgram, ProtocolType.Udp)
+        socket.Blocking <- false
+        NetworkServer(socket)
 
-    Start(mutable port: int32, connectionKey: string, onClientDataReceived: (NetworkPeer, ByteStream, channel: byte) -> ()): () =
-        if (!this.server.Start(port))
-            fail("Unable to start server at port: " + port.ToString())
-
-        let onConnectionRequest = 
-            OnConnectionRequestDelegate(
-                (request: ConnectionRequest) ->
-                    if (this.server.ConnectedPeersCount < 8)
-                        let peer = request.AcceptIfKey(connectionKey)
-                    else
-                        request.Reject()
-                        printLine(request.RemoteEndPoint.ToString() + " rejected")
-            )
-        let onConnectionRequest = EventBasedNetListener.OnConnectionRequest(onConnectionRequest, nint(&&onConnectionRequest.Invoke))
-        this.listener.add_ConnectionRequestEvent(onConnectionRequest)
-
-        let peerConnectedEvent =
-            PeerConnectedDelegate(
-                peer ->
-                    printLine(peer.EndPoint.ToString() + " " + peer.ConnectionState.ToString())
-            )
-        let peerConnectedEvent = EventBasedNetListener.OnPeerConnected(peerConnectedEvent, nint(&&peerConnectedEvent.Invoke))
-        this.listener.add_PeerConnectedEvent(peerConnectedEvent)
-
-        let onNetworkReceive =
-            OnNetworkReceiveDelegate(
-                (peer, reader, channel, deliveryMethod) ->
-                    let bstream = ByteStream(reader.RawData, reader.UserDataOffset, reader.RawDataSize)
-                    onClientDataReceived(NetworkPeer(peer), bstream, channel)
-                    reader.Recycle()
-            )
-        let onNetworkReceive = EventBasedNetListener.OnNetworkReceive(onNetworkReceive, nint(&&onNetworkReceive.Invoke))
-        this.listener.add_NetworkReceiveEvent(onNetworkReceive)
+    Start(mutable port: int32, connectionKey: string, onClientMessageReceived: (EndPoint, ByteStream, channel: byte) -> ()): () =
+        let endPoint = IPEndPoint(IPAddress.Parse("127.0.0.1"), port)
+        this.socket.Bind(endPoint)
+        this.onClientMessageReceived <- onClientMessageReceived
+        this.connectionKey <- connectionKey
+        this.port <- port
 
     Send(buffer: mutable byte[], offset: int32, length: int32): () =
-        this.server.SendToAll(buffer, offset, length, DeliveryMethod.ReliableOrdered)
-
+        printLine(length)
+        ForEach(this.connections,
+            (mutable pair) ->
+                let (time, packetManager) = pair.Value
+                if (time >= 0)
+                    let endPoint = pair.Key
+                    let packets = packetManager.CreatePackets(PacketKind.UnreliableSequenced, ReadOnlyMemory(buffer, offset, length))
+                    let mutable i = 0
+                    while (i < packets.Length)
+                        let packet = packets[i]
+                        let _ = this.socket.SendTo(ReadOnlySpan(packet, 0, packet.Length), SocketFlags.None, endPoint)
+                        i <- i + 1
+        )
+        
     PollEvents(): () =
-        this.server.PollEvents()
-
-    Stop(): () =
-        this.server.Stop()
+        while (this.socket.Available > 0)
+            let mutable endPoint = IPEndPoint(IPAddress.Any, this.port): EndPoint
+            let packetLength = this.socket.ReceiveFrom(this.receiveBuffer, 0, 1024, SocketFlags.None, &endPoint)
+            
+            let mutable heartbeat = unchecked default
+            if (this.connections.TryGetValue(endPoint, &heartbeat))
+                let (time, packetManager) = heartbeat
+                if (time >= 0)
+                    () // client message
+                else
+                    let msg = System.Text.Encoding.Default.GetString(this.receiveBuffer, 0, packetLength)
+                    if (msg == "ACK")
+                        this.connections[endPoint] <- ((0: float32), PacketManager())
+                        printLine("connection accepted")
+                        let bytes = System.Text.Encoding.Default.GetBytes("SUCCESS")
+                        let _ = this.socket.SendTo(bytes, 0, bytes.Length, SocketFlags.None, endPoint)
+                    else if (msg != this.connectionKey)
+                        let _ = this.connections.TryRemove(endPoint, &heartbeat)
+                        printLine("connection refused")
+            else
+                printLine("connection requested")
+                let connectionKey = System.Text.Encoding.Default.GetString(this.receiveBuffer, 0, packetLength)
+                if (connectionKey == this.connectionKey)
+                    this.connections[endPoint] <- ((-1: float32), unchecked default)
+                    let bytes = System.Text.Encoding.Default.GetBytes(this.connectionKey)
+                    let _ = this.socket.SendTo(bytes, 0, bytes.Length, SocketFlags.None, endPoint)
+                else
+                    printLine("connection refused")
+                
+    Flush(): () = ()
+        
 
 class NetworkClient =
 
-    field listener: EventBasedNetListener
-    field client: NetManager
+    field receiveBuffer: mutable byte[]
+    field socket: Socket
+    field defrag: Defragmenter
+    mutable field onServerMessageReceived: (ByteStream, channel: byte) -> ()
+    mutable field connectionKey: string 
+    mutable field port: int32
+    mutable field isConnected: bool
 
-    mutable field currentConnection: NetPeer
-
-    private new(listener: EventBasedNetListener, client: NetManager) =
-        {
-            listener = listener
-            client = client
-            currentConnection = null
+    private new(socket: Socket) = 
+        { 
+            socket = socket
+            defrag = Defragmenter()
+            receiveBuffer = GC.AllocateArray<byte>(51_200_000, true)
+            onServerMessageReceived = (bstream, channel) -> ()
+            connectionKey = ""
+            port = 0
+            isConnected = false
         }
 
     static Create(): NetworkClient =
-        let listener = EventBasedNetListener()
-        let client = NetManager(listener, null)
-        NetworkClient(listener, client)
+        let socket = Socket(SocketType.Dgram, ProtocolType.Udp)
+        socket.Blocking <- false
+        socket.ReceiveBufferSize <- Int32.MaxValue
+        NetworkClient(socket)
 
-    Start(onServerDataReceived: (ByteStream, channel: byte) -> ()): () =
-        if (!this.client.Start())
-            fail("Unable to start client.")
+    private SendString(str: string): () =
+        let endPoint = IPEndPoint(IPAddress.Parse("127.0.0.1"), this.port)
+        let bytes = System.Text.Encoding.Default.GetBytes(str)
+        let _ = this.socket.SendTo(bytes, 0, bytes.Length, SocketFlags.None, endPoint)
 
-        let onNetworkReceive =
-            OnNetworkReceiveDelegate(
-                (peer, reader, channel, deliveryMethod) ->
-                    let bstream = ByteStream(reader.RawData, reader.UserDataOffset, reader.RawDataSize)
-                    onServerDataReceived(bstream, channel)
-                    reader.Recycle()
-            )
-        let onNetworkReceive = EventBasedNetListener.OnNetworkReceive(onNetworkReceive, nint(&&onNetworkReceive.Invoke))
-        this.listener.add_NetworkReceiveEvent(onNetworkReceive)
+    Start(onServerMessageReceived: (ByteStream, channel: byte) -> ()): () =
+        this.onServerMessageReceived <- onServerMessageReceived
 
     Connect(ipOrHostName: string, port: int32, connectionKey: string): () =
-        this.currentConnection <- this.client.Connect(ipOrHostName, port, connectionKey)
+        let ipOrHostName =
+            if (ipOrHostName == "localhost")
+                "127.0.0.1"
+            else
+                ipOrHostName
+        let endPoint = IPEndPoint(IPAddress.Parse(ipOrHostName), port)
+        this.connectionKey <- connectionKey
+        this.port <- port
+
+        this.SendString(connectionKey)
 
     PollEvents(): () =
-        this.client.PollEvents()
+        while (this.socket.Available > 0)
+            let mutable endPoint = IPEndPoint(IPAddress.Any, this.port): EndPoint
+            let packetLength = this.socket.ReceiveFrom(this.receiveBuffer, 0, 1024 + sizeof<PacketHeader>, SocketFlags.None, &endPoint)
+            
+            if (this.isConnected)
+                this.defrag.HandlePacket(ReadOnlySpan(this.receiveBuffer, 0, packetLength), this.onServerMessageReceived)
+            else
+                let connectionKey = System.Text.Encoding.Default.GetString(this.receiveBuffer, 0, packetLength)
+                if (connectionKey == this.connectionKey)
+                    this.SendString("ACK")
+                else if (connectionKey == "SUCCESS")
+                    printLine("connected to server")
+                    this.isConnected <- true
+    
+    Flush(): () =
+        ()
 
     Disconnect(): () =
-        this.client.DisconnectAll()
+        ()
 
     Stop(): () =
-        this.client.Stop()
-        
-        
-
-    // EventBasedNetListener listener = new EventBasedNetListener();
-    //     NetManager client = new NetManager(listener);
-    //     client.Start();
-    //     client.Connect("localhost" /* host ip or name */, 9050 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
-    //     listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
-    //     {
-    //         Console.WriteLine("We got: {0}", dataReader.GetString(100 /* max length of string */));
-    //         dataReader.Recycle();
-    //     };
-        
-    //     while (!Console.KeyAvailable)
-    //     {
-    //         client.PollEvents();
-    //         Thread.Sleep(15);
-    //     }
-        
-    //     client.Stop();
-
-// EventBasedNetListener listener = new EventBasedNetListener();
-//     NetManager server = new NetManager(listener);
-//     server.Start(9050 /* port */);
+        ()
     
-//     listener.ConnectionRequestEvent += request =>
-//     {
-//         if(server.ConnectedPeersCount < 10 /* max connections */)
-//             request.AcceptIfKey("SomeConnectionKey");
-//         else
-//             request.Reject();
-//     };
-    
-//     listener.PeerConnectedEvent += peer =>
-//     {
-//         Console.WriteLine("We got connection: {0}", peer.EndPoint); // Show peer ip
-//         NetDataWriter writer = new NetDataWriter();                 // Create writer class
-//         writer.Put("Hello client!");                                // Put some string
-//         peer.Send(writer, DeliveryMethod.ReliableOrdered);             // Send with reliability
-//     };
-    
-//     while (!Console.KeyAvailable)
-//     {
-//         server.PollEvents();
-//         Thread.Sleep(15);
-//     }
-//     server.Stop();

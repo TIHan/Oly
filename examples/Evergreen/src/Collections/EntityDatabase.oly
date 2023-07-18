@@ -238,7 +238,7 @@ internal class EntityEvent<T> =
 /// Not concurrency safe.
 class EntityDatabase =
 
-    public static field MaxNumberOfEntities: int32 = 65536
+    public static field MaxNumberOfEntities: int32 = 16384
 
     internal field entityCreated: EntityEvent<EntityId> = EntityEvent()
     EntityCreated: IEntityEvent<EntityId> get() = this.entityCreated
@@ -1025,18 +1025,10 @@ class EntityDatabase =
             archetype.CopyTo(dst.Archetypes[i])
             i <- i + 1
 
-    Serialize(bstream: ByteStream): () =
-        let archetypes = this.Archetypes
+    static Serialize(db: EntityDatabase, bstream: ByteStream): () =
+        bstream.Write<int32>(db.entityCount)
 
-        bstream.Write<int32>(this.Registered.Count)
-        ForEach(this.Registered,
-            (mutable pair) ->
-                bstream.Write<ComponentId>(pair.Key)
-                bstream.Write<int32>(pair.Value)
-        )
-
-        bstream.Write<int32>(this.entityCount)
-
+        let archetypes = db.Archetypes
         let mutable i = 0
         while (i < archetypes.Count)
             let archetype = archetypes[i]
@@ -1060,15 +1052,7 @@ class EntityDatabase =
 
             i <- i + 1
 
-    static DeserializeInto(bstream: ByteStream, db: EntityDatabase): () =
-        let registerCount = bstream.Read<int32>()
-        let mutable i = 0
-        while (i < registerCount)
-            let key = bstream.Read<ComponentId>()
-            let value = bstream.Read<int32>()
-        //    db.Registered[key] <- value
-            i <- i + 1
-        
+    static Deserialize(bstream: ByteStream, db: EntityDatabase): () =
         db.entityCount <- bstream.Read()
 
         while (bstream.Position < bstream.Count)
@@ -1104,11 +1088,13 @@ class EntityDatabase =
             let lookup = archetype.Lookup
             let entVersions = db.entityVersions 
             let entArchetypeIndices = db.entityArchetypeIndices
+            let entArchetypeIds = db.entityArchetypeIds
             let mutable i = 0
             while (i < count)
                 let entId = entIds[i]
                 let index = entId.Index
                 entArchetypeIndices[index] <- archetypedIndex
+                entArchetypeIds[index] <- archetypeId
                 entVersions[index] <- entId.Version
                 lookup[index] <- i
                 i <- i + 1
@@ -1136,46 +1122,46 @@ class EntityDatabase =
         let prevVersions = prev.entityVersions
         let versions = this.entityVersions
 
-        For(EntityDatabase.MaxNumberOfEntities,
-            i ->
-                let prevVersion = prevVersions[i]
-                let version = versions[i]
+        let mutable i = 0
+        while (i < MaxNumberOfEntities)
+            let prevVersion = prevVersions[i]
+            let version = versions[i]
 
-                let prevArchetypeId = prev.entityArchetypeIds[i]
-                let archetypeId = this.entityArchetypeIds[i]
+            let prevArchetypeId = prev.entityArchetypeIds[i]
+            let archetypeId = this.entityArchetypeIds[i]
 
-                if (prevVersion != version)
-                    if (!prevArchetypeId.IsZero)
-                        let mutable entId = EntityId()
-                        entId.Index <- i
-                        entId.Version <- prevVersion
-                        let mutable info = DeletingEntityInfo()
-                        info.EntityId <- entId
-                        events.DeletingEntities.Enqueue(info)
+            if (prevVersion != version)
+                if (!prevArchetypeId.IsZero)
+                    let mutable entId = EntityId()
+                    entId.Index <- i
+                    entId.Version <- prevVersion
+                    let mutable info = DeletingEntityInfo()
+                    info.EntityId <- entId
+                    events.DeletingEntities.Enqueue(info)
 
-                    if (!archetypeId.IsZero)
-                        let mutable entId = EntityId()
-                        entId.Index <- i
-                        entId.Version <- version
-                        let mutable info = CreatedEntityInfo()
-                        info.EntityId <- entId
-                        info.ArchetypeId <- archetypeId
-                        events.CreatedEntities.Enqueue(info)
+                if (!archetypeId.IsZero)
+                    let mutable entId = EntityId()
+                    entId.Index <- i
+                    entId.Version <- version
+                    let mutable info = CreatedEntityInfo()
+                    info.EntityId <- entId
+                    info.ArchetypeId <- archetypeId
+                    events.CreatedEntities.Enqueue(info)
 
-                else if (!prevArchetypeId.IsZero && !archetypeId.IsZero)
-                    let prevArchetype = prev.Archetypes[prev.entityArchetypeIndices[i]]
-                    let archetype = this.Archetypes[this.entityArchetypeIndices[i]]
+            else if (!prevArchetypeId.IsZero && !archetypeId.IsZero)
+                let prevArchetype = prev.Archetypes[prev.entityArchetypeIndices[i]]
+                let archetype = this.Archetypes[this.entityArchetypeIndices[i]]
 
-                    let prevIndex = prevArchetype.Lookup[i]
-                    let index = archetype.Lookup[i]
-                    
-                    if (prevIndex != index)
-                        let mutable info = ArchetypeChangedEntityInfo()
-                        info.EntityIndex <- i
-                        info.PreviousIndex <- prevIndex
-                        info.Index <- index
-                        events.ArchetypeChangedEntities.Enqueue(info)
-        )
+                let prevIndex = prevArchetype.Lookup[i]
+                let index = archetype.Lookup[i]
+                
+                if (prevIndex != index)
+                    let mutable info = ArchetypeChangedEntityInfo()
+                    info.EntityIndex <- i
+                    info.PreviousIndex <- prevIndex
+                    info.Index <- index
+                    events.ArchetypeChangedEntities.Enqueue(info)
+            i <- i + 1
         // --
         events
 

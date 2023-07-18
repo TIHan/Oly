@@ -63,11 +63,13 @@ class ServerWorld =
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
     field EventStream: ByteStream
+    field Physics: Physics
 
     new() =
         {
             DestroyEntityQueue = ConcurrentQueue()
             EventStream = ByteStream()
+            Physics = Physics.Init()
         }
 
     private Flush(): () =
