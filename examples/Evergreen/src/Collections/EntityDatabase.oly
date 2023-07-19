@@ -94,7 +94,7 @@ internal class ComponentBuffer =
 internal class Archetype =
     
     Id: ArchetypeId get
-    DependencyId: ArchetypeId get
+    AttachmentId: ArchetypeId get
     FullId: ArchetypeId get
     Count: int32 get, set
     Capacity: int32 get
@@ -144,7 +144,7 @@ internal class Archetype =
     GetComponentBuffer(typedIndex: int32): ComponentBuffer =
         this.Buffers[typedIndex]
 
-    new(size: int32, buffers: ComponentBuffer[], archetypeId: ArchetypeId, dependencyId: ArchetypeId) =
+    new(size: int32, buffers: ComponentBuffer[], archetypeId: ArchetypeId, attachmentId: ArchetypeId) =
         let bufferLookup = ConcurrentDictionary(BitSet512EqualityComparer())
 
         let mutable i = 0
@@ -155,8 +155,8 @@ internal class Archetype =
 
         {
             Id = archetypeId
-            DependencyId = dependencyId
-            FullId = archetypeId | dependencyId
+            AttachmentId = attachmentId
+            FullId = archetypeId | attachmentId
             Count = 0
             Capacity = size
             Lookup  = Array.ZeroCreate(size)
@@ -235,10 +235,21 @@ internal class EntityEvent<T> =
             subscriber(eventData)
             i <- i + 1
 
+class ComponentRegistry =
+    private Registered: Dictionary<ComponentId, int32> get = Dictionary(BitSet512EqualityComparer())
+
+    internal GetSize(compId: ComponentId): int32 = this.Registered[compId]
+
+    Contains(compId: ComponentId): bool = this.Registered.ContainsKey(compId)
+    Contains<T>(): bool where T: unmanaged, IComponent = this.Contains(T.GetId())
+    Register<T>(): () where T: unmanaged, IComponent = this.Registered.Add(T.GetId(), T.GetSize())
+
 /// Not concurrency safe.
 class EntityDatabase =
 
-    public static field MaxNumberOfEntities: int32 = 16384
+    public static field MaxNumberOfEntities: int32 = 8192
+
+    private field registry: ComponentRegistry = ComponentRegistry()
 
     internal field entityCreated: EntityEvent<EntityId> = EntityEvent()
     EntityCreated: IEntityEvent<EntityId> get() = this.entityCreated
@@ -246,9 +257,7 @@ class EntityDatabase =
     internal field entityDeleting: EntityEvent<EntityId> = EntityEvent()
     EntityDeleting: IEntityEvent<EntityId> get() = this.entityDeleting
 
-    private Registered: Dictionary<ComponentId, int32> get = Dictionary(BitSet512EqualityComparer())
-    Register<T>(): () where T: unmanaged, IComponent = this.Registered.Add(T.GetId(), T.GetSize())
-    GetTypeSize(tyId: ComponentId): int32                 = this.Registered[tyId]
+    Register<T>(): () where T: unmanaged, IComponent = this.registry.Register<T>()
     
     internal Archetypes: List<Archetype> get = List()
     internal ArchetypeLookup: ConcurrentDictionary<ArchetypeId, int32> get = ConcurrentDictionary(BitSet512EqualityComparer())
@@ -262,34 +271,34 @@ class EntityDatabase =
             archetypedIndex <- this.Archetypes.Count
 
             let origArchetypeId = archetypeId
-            let origTyIds = GetComponentIds(origArchetypeId)
+            let origCompIds = GetComponentIds(origArchetypeId)
 
-            let mutable dependencyId = BitSet512(0): ArchetypeId
+            let mutable attachmentId = BitSet512(0): ArchetypeId
 
             let archetypeId =
                 let mutable archetypeId = archetypeId
                 let mutable i = 0
-                while (i < origTyIds.Length)
+                while (i < origCompIds.Length)
                     let mutable result = unchecked default
-                    if (this.AttachmentLookup.TryGetValue(origTyIds[i], &result))
+                    if (this.AttachmentLookup.TryGetValue(origCompIds[i], &result))
                         archetypeId <- archetypeId | result
-                        dependencyId <- dependencyId | result
+                        attachmentId <- attachmentId | result
                     i <- i + 1
                 archetypeId
 
-            let tyIds = GetComponentIds(archetypeId)
+            let compIds = GetComponentIds(archetypeId)
 
-            let buffers = List(tyIds.Length)
+            let buffers = List(compIds.Length)
             let mutable i = 0
-            while (i < tyIds.Length)
-                let tyId = tyIds[i]
-                if (this.Registered.ContainsKey(tyId))
-                    let size = this.GetTypeSize(tyId)
-                    let buffer = ComponentBuffer(Array.ZeroCreate<byte>(EntityDatabase.MaxNumberOfEntities * size), tyId, size)
+            while (i < compIds.Length)
+                let compId = compIds[i]
+                if (this.registry.Contains(compId))
+                    let size = this.registry.GetSize(compId)
+                    let buffer = ComponentBuffer(Array.ZeroCreate<byte>(EntityDatabase.MaxNumberOfEntities * size), compId, size)
                     buffers.Add(buffer)
                 i <- i + 1
 
-            let archetype = Archetype(EntityDatabase.MaxNumberOfEntities, Unsafe.AsImmutable(buffers.ToArray()), origArchetypeId, dependencyId)
+            let archetype = Archetype(EntityDatabase.MaxNumberOfEntities, Unsafe.AsImmutable(buffers.ToArray()), origArchetypeId, attachmentId)
 
             this.Archetypes.Add(archetype)
             this.ArchetypeLookup[origArchetypeId] <- archetypedIndex
@@ -1037,18 +1046,28 @@ class EntityDatabase =
 
             bstream.Write<ArchetypeId>(archetype.Id)
             bstream.Write<int32>(count)
-            bstream.Write<int32>(buffers.Length)
+            let bufferCountFixUpPosition = bstream.Position
+            bstream.Write<int32>(0)
             bstream.Write(archetype.EntityIds.AsReadOnlySpan(0, count): ReadOnlySpan<EntityId>) // TODO: language bug, we should not need to annotate with 'ReadOnlySpan<EntityId>'.
 
+            let mutable bufferCount = 0
             let mutable j = 0
             while (j < buffers.Length)
                 let buffer = buffers[j]
-                let length = buffer.TypeSize * count
-                let mutable rawBufferSpan = buffer.RawBuffer.AsReadOnlySpan<byte>(0, length)
-                bstream.Write<ComponentId>(buffer.ComponentId)
-                bstream.Write<int32>(length)
-                bstream.Write(rawBufferSpan) // TODO: language bug, we should be able to use '.AsReadOnlySpan()' without the type argument.
+                // We never serialize attachments.
+                if (buffer.ComponentId & archetype.AttachmentId != buffer.ComponentId)
+                    let length = buffer.TypeSize * count
+                    let mutable rawBufferSpan = buffer.RawBuffer.AsReadOnlySpan<byte>(0, length)
+                    bstream.Write<ComponentId>(buffer.ComponentId)
+                    bstream.Write<int32>(length)
+                    bstream.Write(rawBufferSpan) // TODO: language bug, we should be able to use '.AsReadOnlySpan()' without the type argument.
+                    bufferCount <- bufferCount + 1
                 j <- j + 1
+
+            let position = bstream.Position
+            bstream.Seek(bufferCountFixUpPosition)
+            bstream.Write<int32>(bufferCount)
+            bstream.Seek(position)
 
             i <- i + 1
 

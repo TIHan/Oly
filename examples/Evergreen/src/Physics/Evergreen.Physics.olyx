@@ -213,7 +213,7 @@ class Physics =
 
     internal new(sim: Simulation, characterControllers: CharacterControllers) =
         //Any IThreadDispatcher implementation can be used for multithreading. Here, we use the BepuUtilities.ThreadDispatcher implementation.
-        let threadDispatcher = ThreadDispatcher(Environment.ProcessorCount, 16384)
+        let threadDispatcher = ThreadDispatcher(1, 16384) // TODO: More than one causes dead-lock
         {
             ThreadDispatcher = threadDispatcher
             Simulation = sim

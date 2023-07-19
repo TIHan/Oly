@@ -169,7 +169,14 @@ struct BitSet512 =
         let bits5 = bitSet.value5
         let bits6 = bitSet.value6
         let bits7 = bitSet.value7
-        (this.value0 & bits0 == bits0) && (this.value1 & bits1 == bits1) && (this.value2 & bits2 == bits2) && (this.value3 & bits3 == bits3) && (this.value4 & bits4 == bits4) && (this.value5 & bits5 == bits5) && (this.value6 & bits6 == bits6) && (this.value7 & bits7 == bits7)
+        (this.value0 & bits0 == bits0) && 
+            (this.value1 & bits1 == bits1) && 
+                (this.value2 & bits2 == bits2) && 
+                    (this.value3 & bits3 == bits3) && 
+                        (this.value4 & bits4 == bits4) && 
+                            (this.value5 & bits5 == bits5) && 
+                                (this.value6 & bits6 == bits6) && 
+                                    (this.value7 & bits7 == bits7)
 
     IsZero: bool 
         #[inline(always)]
@@ -191,6 +198,17 @@ struct BitSet512 =
                bitSet1.value7 == bitSet2.value7
 
     #[inline(always)]
+    static op_Inequality(bitSet1: BitSet512, bitSet2: BitSet512): bool =
+        bitSet1.value0 != bitSet2.value0 ||
+         bitSet1.value1 != bitSet2.value1 ||
+          bitSet1.value2 != bitSet2.value2 ||
+           bitSet1.value3 != bitSet2.value3 ||
+            bitSet1.value4 != bitSet2.value4 ||
+             bitSet1.value5 != bitSet2.value5 ||
+              bitSet1.value6 != bitSet2.value6 ||
+               bitSet1.value7 != bitSet2.value7
+
+    #[inline(always)]
     static op_BitwiseOr(bitSet1: BitSet512, bitSet2: BitSet512): BitSet512 =
         BitSet512(
             bitSet1.value0 | bitSet2.value0,
@@ -201,6 +219,19 @@ struct BitSet512 =
             bitSet1.value5 | bitSet2.value5,
             bitSet1.value6 | bitSet2.value6,
             bitSet1.value7 | bitSet2.value7
+        )
+
+    #[inline(always)]
+    static op_BitwiseAnd(bitSet1: BitSet512, bitSet2: BitSet512): BitSet512 =
+        BitSet512(
+            bitSet1.value0 & bitSet2.value0,
+            bitSet1.value1 & bitSet2.value1,
+            bitSet1.value2 & bitSet2.value2,
+            bitSet1.value3 & bitSet2.value3,
+            bitSet1.value4 & bitSet2.value4,
+            bitSet1.value5 & bitSet2.value5,
+            bitSet1.value6 & bitSet2.value6,
+            bitSet1.value7 & bitSet2.value7
         )
 
 class BitSet512EqualityComparer =
@@ -285,7 +316,8 @@ class ByteStream =
         else
             (MemoryMarshal.Cast(Span(buffer, currentPosition, size))[0]) <- value
             this.position <- nextPosition
-            this.count <- this.count + size
+            if (nextPosition > this.count)
+                this.count <- this.count + size
 
     CopyExactTo(bstream: ByteStream): () =
         bstream.position <- this.position

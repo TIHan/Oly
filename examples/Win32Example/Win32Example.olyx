@@ -22,7 +22,7 @@ open Evergreen.Collections
 open Evergreen.Graphics.Backend.Vulkan
 open Evergreen.Graphics.Rendering
 open Evergreen.Graphics.Rendering.UI
-open Evergreen.Networking
+open Evergreen.Network
 
 open SixLabors.ImageSharp
 open SixLabors.ImageSharp.Advanced
@@ -98,7 +98,7 @@ createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): W
     let image = ImageView()
     window.Children.Add(
         let view = image
-        view.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf068.png")
+        view.GpuImage <- createImageByFile("C:/work/Oly/examples/GameExample/Textures/flats/aqf068.png")
         view.Size <- Vector2(64, 64)
         view
     )
@@ -120,10 +120,10 @@ createUI(deviceName: string, r: Rendering, frameTimesVM: FrameTimesViewModel): W
         view.Label <- "Add Image"
         view.OnClicked <- 
             () ->
-                image.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf066.png")
+                image.GpuImage <- createImageByFile("C:/work/Oly/examples/GameExample/Textures/flats/aqf066.png")
                 window.Children.Add(
                     let view = ImageView()
-                    view.GpuImage <- createImageByFile("GameExample/Textures/flats/aqf067.png")
+                    view.GpuImage <- createImageByFile("C:/work/Oly/examples/GameExample/Textures/flats/aqf067.png")
                     view.Size <- Vector2(64, 64)
                     view
                 )
@@ -274,7 +274,7 @@ test(): () =
 
     let s = Stopwatch.StartNew()
     let mutable i = 0
-    while (i < 65000)
+    while (i < 8000)
         let entId = edb.Create(default: Transform, default: Camera)
         i <- i + 1
     s.Stop()
@@ -315,18 +315,18 @@ test(): () =
 class Marker
 
 main(): () =    
-    // let mutable i = 0
-    // while (i < 100)
-    //     test()
-    //     DotNet.GCCollect()
-    //     i <- i + 1
+    let mutable i = 0
+    while (i < 100)
+        test()
+        DotNet.GCCollect()
+        i <- i + 1
 
     let options = RenderingOptions()
     let r = Rendering.Create(options)
 
     let deviceName = r.Gpu.DeviceName
 
-    let image = createImageByFile("GameExample/Textures/flats/aqf068.png")
+    let image = createImageByFile("C:/work/Oly/examples/GameExample/Textures/flats/aqf068.png")
     r.Gpu.Sync(image)
 
     let frameTimesVM = FrameTimesViewModel()
@@ -361,8 +361,8 @@ main(): () =
     let gpuProgramUI2 = GpuProgramUI(gpuFrame, fontPath)
     r.Gpu.Sync(gpuProgramUI2)
 
-    let mutable vertexShaderByteCode = compileShaderByFile("Win32Example/default_vert.vert")
-    let mutable fragmentShaderByteCode = compileShaderByFile("Win32Example/default_frag.frag")
+    let mutable vertexShaderByteCode = compileShaderByFile("C:/work/Oly/examples/Win32Example/default_vert.vert")
+    let mutable fragmentShaderByteCode = compileShaderByFile("C:/work/Oly/examples/Win32Example/default_frag.frag")
     let gpuProgram = GpuProgram()
     gpuProgram.AddGlobalInput(GpuInputKind.UniformArray, GpuStageFlags.Vertex)
     gpuProgram.AddGlobalInput(GpuInputKind.ImageOrFrame, GpuStageFlags.Fragment)
@@ -380,8 +380,8 @@ main(): () =
     gpuProgramReference2.AddGlobalInput(image)
     let gpuProgramInstance2 = GpuProgramInstance(gpuProgramReference2, gpuFrame)
 
-    let mutable vertexShaderByteCode2 = compileShaderByFile("Win32Example/default_instance.vert")
-    let mutable fragmentShaderByteCode2 = compileShaderByFile("Win32Example/default_instance.frag")
+    let mutable vertexShaderByteCode2 = compileShaderByFile("C:/work/Oly/examples/Win32Example/default_instance.vert")
+    let mutable fragmentShaderByteCode2 = compileShaderByFile("C:/work/Oly/examples/Win32Example/default_instance.frag")
     let gpuProgram = GpuProgram()
     gpuProgram.AddGlobalInput(GpuInputKind.UniformArray, GpuStageFlags.Vertex)
     gpuProgram.AddGlobalInput(GpuInputKind.ImageOrFrame, GpuStageFlags.Fragment)
@@ -410,16 +410,34 @@ main(): () =
     let netServer = NetworkServer.Create()
     let netClient = NetworkClient.Create()
 
-    netServer.Start(1235, "oly",
-        (peer, bstream, channel) ->
-            ()
-    )
+    let isServer =
+        netServer.Start(27015, "oly",
+            endPoint ->
+                printLine("Client Connection Requested: " + endPoint.ToString())
+                true,
+            endPoint ->
+                printLine("Client Connection Refused: " + endPoint.ToString()),
+            endPoint ->
+                printLine("Client Connected: " + endPoint.ToString()),
+            endPoint ->
+                printLine("Client Disconnected: " + endPoint.ToString()),
+            (endPoint, bstream, channel) ->
+                ()
+        )
 
     netClient.Start(
+        () ->
+            printLine("Connecting To Server"),
+        () ->
+            printLine("Failed To Connect"),
+        () ->
+            printLine("Connected"),
+        () ->
+            printLine("Disconnected"),
         (bstream, channel) ->
             clientReceivedWorld.Deserialize(bstream)
     )
-    netClient.Connect("localhost", 1235, "oly")
+    netClient.Connect("localhost", 27015, "oly")
 
     let gpuProgramReference3 = GpuProgramReference(gpuProgram)
     gpuProgramReference3.AddGlobalInput(globals)
@@ -441,8 +459,9 @@ main(): () =
 
     let mutable cpuTime = Stopwatch.StartNew()
 
-    world.SpawnPlayer(Vector3(0, 0, 5))
-    world.SpawnStaticCube(Vector3(0, 0, -10), Quaternion.Identity, Vector3(100, 100, 0.1))
+    if (isServer)
+        world.SpawnPlayer(Vector3(0, 0, 5))
+        world.SpawnStaticCube(Vector3(0, 0, -10), Quaternion.Identity, Vector3(100, 100, 0.1))
 
     let mutable playerInput = default: PlayerInput
 
@@ -485,43 +504,44 @@ main(): () =
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
-        netServer.PollEvents()
+        if (isServer)
+            netServer.Heartbeat(deltaTime)
 
-        world.ForEachPlayer(
-            (player, playerInput, transform, camera) ->
-                playerInput <- serverPlayerInput
-                playerTick(deltaTime, &playerInput, &transform, &camera)
-        )
+            world.ForEachPlayer(
+                (player, playerInput, transform, camera) ->
+                    playerInput <- serverPlayerInput
+                    playerTick(deltaTime, &playerInput, &transform, &camera)
+            )
 
-        spawnTime <- spawnTime + deltaTime
+            spawnTime <- spawnTime + deltaTime
 
-        if (spawnTime >= 1)
-            spawnTime <- 0
-            let mutable i = 0
-            while (i < 4096)
-                let position = Vector3(float32(i + 1) * 2, 0, 0)
-                world.SpawnCube(position, quat.Identity, vec3.One)
-                i <- i + 1
+            if (spawnTime >= 1)
+                spawnTime <- 0
+                let mutable i = 0
+                while (i < 128)
+                    let position = Vector3(float32(i + 1), 0, 0)
+                    world.SpawnCube(position, quat.Identity, vec3.One)
+                    i <- i + 1
 
-        world.ForEachBox(
-            (entId, transform, material) ->
-                if (transform.Position.Z <= -10000)
-                    world.Destroy(entId)
-        )
+            world.ForEachBox(
+                (entId, transform, material) ->
+                    if (transform.Position.Z <= -10000)
+                        world.Destroy(entId)
+            )
 
-        world.Update(deltaTime)
-        world.Serialize(serverStream)
-        netServer.Send(serverStream.Raw, 0, serverStream.Count)
-        netServer.Flush()
+            world.Update(deltaTime)
+            world.Serialize(serverStream)
+            netServer.SendToAll(serverStream.Raw, 0, serverStream.Count)
 
         if (isClient)
             //serverStream.ResetPosition()
            // clientReceivedWorld.Deserialize(serverStream)
-            netClient.PollEvents()
+            netClient.Heartbeat(deltaTime)
             serverToClientEvents <- clientReceivedWorld.GetReplicatingEvents(stagingWorld)
             clientReceivedWorld.CopyTo(stagingWorld)
 
-        serverStream.Reset()
+        if (isServer)
+            serverStream.Reset()
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
