@@ -121,20 +121,24 @@ internal module DataCompression =
     Compress(buffer: mutable byte[], offset: int32, length: int32): mutable byte[] =
       //  Memory(buffer, offset, length).ToArray()
         let ms = MemoryStream()
-        let compressedStream = GZipStream(ms, CompressionMode.Compress)
+        let compressedStream = ZLibStream(ms, CompressionLevel.Fastest)
         let stream = MemoryStream(buffer, offset, length)
+        let s = System.Diagnostics.Stopwatch.StartNew()
         stream.CopyTo(compressedStream)
+        s.Stop()
         compressedStream.Close()
         let bytes = ms.ToArray()
         compressedStream.Dispose()
         ms.Dispose()
-        stream.Dispose()     
+        stream.Dispose()
+        printLine(s.Elapsed.TotalMilliseconds)
+        printLine("size: " + bytes.Length.ToString())
         bytes
 
     Decompress(buffer: mutable byte[], offset: int32, length: int32): mutable byte[] =
 //        Memory(buffer, offset, length).ToArray()
         let ms = MemoryStream(buffer, offset, length)
-        let decompressedStream = GZipStream(ms, CompressionMode.Decompress)
+        let decompressedStream = ZLibStream(ms, CompressionMode.Decompress)
         let stream = MemoryStream()
         decompressedStream.CopyTo(stream)
         let bytes = stream.ToArray()
@@ -262,6 +266,7 @@ class NetworkServer =
             port = 0
             isStarted = false
             clientTimeout = 5 // seconds
+            task = null
         }
 
     private SendPacket(packet: Packet, endPoint: EndPoint): () =
@@ -344,10 +349,14 @@ class NetworkServer =
         // TODO: Send messages to clients saying the server stopped.
         this.isStarted <- false
 
+    mutable field task: System.Threading.Tasks.Task 
     SendToAll(buffer: mutable byte[], offset: int32, length: int32): () =
         if (!this.isStarted)
             throw InvalidOperationException("Server not started.")
 
+        if (this.task !== null)
+            this.task.Wait()
+            
         let msgPayload = ReadOnlyMemory(DataCompression.Compress(buffer, offset, length))
         ForEach(this.connections,
             (mutable pair) ->

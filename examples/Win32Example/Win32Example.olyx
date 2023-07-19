@@ -518,14 +518,14 @@ main(): () =
             if (spawnTime >= 1)
                 spawnTime <- 0
                 let mutable i = 0
-                while (i < 128)
-                    let position = Vector3(float32(i + 1), 0, 0)
+                while (i < 4096)
+                    let position = Vector3(float32(i + 1) * 0.5, 0, 0)
                     world.SpawnCube(position, quat.Identity, vec3.One)
                     i <- i + 1
 
             world.ForEachBox(
                 (entId, transform, material) ->
-                    if (transform.Position.Z <= -10000)
+                    if (transform.Position.Z <= -100)
                         world.Destroy(entId)
             )
 
