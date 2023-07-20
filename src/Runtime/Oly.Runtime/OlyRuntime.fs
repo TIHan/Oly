@@ -1152,8 +1152,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.LoadFieldAddress(ilFieldRef, ilArg, ilByRefKind) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
-            OlyAssert.True(field.ILConstant.IsNone)
-            OlyAssert.False(field.EnclosingType.IsNewtype)
+
+            if field.ILConstant.IsSome then
+                failwith "Cannot take the address of a constant."
+
+            if field.EnclosingType.IsNewtype then
+                failwith "Cannot take the address of a field from a newtype."
 
             let irByRefKind =
                 match ilByRefKind with

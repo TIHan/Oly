@@ -63,7 +63,7 @@ class ServerWorld =
 
     field DestroyEntityQueue: ConcurrentQueue<EntityId>
     field EventStream: ByteStream
-    field Physics: Physics
+    mutable field Physics: Physics
 
     new() =
         {
@@ -125,7 +125,7 @@ class ServerWorld =
         this.Database.AddOrUpdate<PlayerInput>(entId, playerInput)
 
     SpawnCube(position: vec3, rotation: quat, scale: vec3): () =
-        if (this.CanSpawnEntity)
+        if (this.CanSpawnEntity && this.Physics.DynamicCount < 1024)
             let mutable mesh = Mesh()
             mesh.Kind <- MeshKind.Cube
 

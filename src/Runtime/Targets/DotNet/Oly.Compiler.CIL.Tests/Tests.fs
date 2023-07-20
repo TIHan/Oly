@@ -1381,6 +1381,35 @@ main() : () =
     |> ignore
 
 [<Fact>]
+let ``Mutate field value on nested struct on struct with chained call 2``() =
+    let src =
+        """
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct Test2 =
+    public mutable field test: Test
+    new(test: Test) = { test = test }
+
+struct Test =
+    public mutable field x: int32
+    new(x: int32) = { x = x }
+
+main() : () =
+    let mutable t = Test2(Test(1))
+    let result = &t.test.x
+    result <- 3
+    print(t.test.x)
+        """
+    OlySharp src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "3"
+    |> ignore
+
+[<Fact>]
 let ``Nested class instantiation``() =
     let src =
         """

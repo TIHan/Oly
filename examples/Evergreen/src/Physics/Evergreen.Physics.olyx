@@ -210,18 +210,23 @@ class Physics =
     field ThreadDispatcher: ThreadDispatcher
     field Simulation: Simulation
     field CharacterControllers: CharacterControllers
+    mutable field dynamicCount: int32
 
     internal new(sim: Simulation, characterControllers: CharacterControllers) =
         //Any IThreadDispatcher implementation can be used for multithreading. Here, we use the BepuUtilities.ThreadDispatcher implementation.
-        let threadDispatcher = ThreadDispatcher(Environment.ProcessorCount, 16384)
+        let threadDispatcher = ThreadDispatcher(1, 16384)
         {
             ThreadDispatcher = threadDispatcher
             Simulation = sim
             CharacterControllers = characterControllers
+            dynamicCount = 0
         }
 
     private GetBodyReference(objId: DynamicObjectId): BodyReference =
         this.Simulation.Bodies.get_Item(BodyHandle(objId.Value))
+
+    DynamicCount: int32 get() = this.dynamicCount
+    StaticCount: int32 get() = this.Simulation.Statics.Count
 
     AddBox(position: Vector3, rotation: Quaternion, scale: Vector3): DynamicObjectId =
         let mutable box = Box(scale.X, scale.Y, scale.Z)
@@ -235,6 +240,7 @@ class Physics =
         let mutable desc = BodyDescription.CreateDynamic(pose, inertia, collidableDesc, bodyActivityDesc)
 
         let handle = this.Simulation.Bodies.Add(&desc)
+        this.dynamicCount <- this.dynamicCount + 1
         DynamicObjectId(handle.Value)
 
     RemoveBox(objId: DynamicObjectId): () =
@@ -242,6 +248,7 @@ class Physics =
         let mutable body = this.Simulation.Bodies.get_Item(handle)
         this.Simulation.Shapes.Remove(body.Collidable.Shape)
         this.Simulation.Bodies.Remove(handle)
+        this.dynamicCount <- this.dynamicCount - 1
 
     RemoveStaticBox(objId: StaticObjectId): () =
         let handle = StaticHandle(objId.Value)

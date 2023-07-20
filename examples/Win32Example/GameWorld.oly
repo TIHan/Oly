@@ -52,6 +52,12 @@ abstract default class World =
     Deserialize(bstream: ByteStream): () =
         EntityDatabase.Deserialize(bstream, this.Database)
 
+    SerializeDelta(bstream: ByteStream, prev: World): () =
+        EntityDatabase.SerializeDelta(prev.Database, this.Database, bstream)
+
+    DeserializeDelta(bstream: ByteStream): () =
+        EntityDatabase.DeserializeDelta(bstream, this.Database)
+
     GetReplicatingEvents(prevWorld: World): EntityDatabase.Events =
         this.Database.GetReplicatingEvents(prevWorld.Database)
 

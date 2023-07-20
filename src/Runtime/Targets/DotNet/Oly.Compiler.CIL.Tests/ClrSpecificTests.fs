@@ -4998,3 +4998,163 @@ module TestModule =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "1122"
+
+[<Fact>]
+let ``Transform should work``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
+(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
+(-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[open]
+extension Vector3Extensions =
+    inherits Vector3
+
+    static Forward: Vector3 get() = -Vector3.UnitZ
+    static Back: Vector3 get() = Vector3.UnitZ
+    static Left: Vector3 get() = -Vector3.UnitX
+    static Right: Vector3 get() = Vector3.UnitX
+
+struct Transform =
+    public mutable field Matrix: Matrix4x4
+
+    new(matrix: Matrix4x4) = { Matrix = matrix }
+
+    Position: Vector3
+        get() = this.Matrix.Translation
+        set(value) = this.Matrix.Translation <- value
+
+    Rotation: Quaternion
+        get() = Quaternion.CreateFromRotationMatrix(this.Matrix)
+
+    Scale: Vector3
+        get() = 
+            let mutable scale = Vector3.Zero
+            let mutable rotation = Quaternion.Identity
+            let mutable position = Vector3.Zero
+            if (Matrix4x4.Decompose(this.Matrix, &scale, &rotation, &position))
+                scale
+            else
+                Vector3.Zero
+
+    Forward: Vector3
+        get() = Vector3.Transform(Vector3.Forward, this.Rotation)
+
+    Back: Vector3
+        get() = Vector3.Transform(Vector3.Back, this.Rotation)
+
+    Left: Vector3
+        get() = Vector3.Transform(Vector3.Left, this.Rotation)
+
+    Right: Vector3
+        get() = Vector3.Transform(Vector3.Right, this.Rotation)
+
+    WorldToLocalMatrix: Matrix4x4
+        get() =
+            let mutable inverted = Matrix4x4.Identity
+            let didSucceed = Matrix4x4.Invert(this.Matrix, &inverted)
+            inverted
+
+    static Create(position: Vector3, rotation: Quaternion, scale: Vector3): Transform =
+        let rotationMatrix = Matrix4x4.CreateFromQuaternion(rotation)
+        let mutable scaleMatrix = Matrix4x4.CreateScale(scale)
+        scaleMatrix.Translation <- position
+        Transform(rotationMatrix * scaleMatrix)
+
+struct Camera =
+    public mutable field Transform: Transform = default
+    public mutable field Projection: Matrix4x4 = default
+
+    mutable field yaw: float32 = default
+    mutable field pitch: float32 = default
+
+interface IComponent =
+
+    static abstract GetSize(): int32
+
+#[open]
+extension TransformComponent =
+    inherits Transform
+    implements IComponent
+
+    static overrides GetSize(): int32 = sizeof<Transform>
+
+#[open]
+extension CameraComponent =
+    inherits Camera
+    implements IComponent
+
+    static overrides GetSize(): int32 = sizeof<Camera>
+
+sizeof<require T>: int32 =
+    System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
+
+GetComponentSize<T>(): int32 where T: unmanaged, IComponent =
+    T.GetSize()
+
+class ComponentRegistry =
+    Register<T>(): () where T: unmanaged, IComponent = 
+        print(T.GetSize())
+
+newtype TransformLerp =
+    public field Value: Transform
+
+class Database =
+
+    field registry: ComponentRegistry = ComponentRegistry()
+
+    Register<T>(): () where T: unmanaged, IComponent =
+        this.registry.Register<T>()
+
+main(): () =
+    let db = Database()
+    let x = sizeof<TransformLerp>
+    let x = Transform.Create(default, default, default)
+    let a = x.Position
+    let b = x.Rotation
+    let c = x.Scale
+    let l = x.WorldToLocalMatrix
+    let g = Camera()
+    let z = sizeof<Transform>
+    let y = sizeof<Camera>
+    print(z)
+    print(y)
+    print(GetComponentSize<Camera>())
+    print(GetComponentSize<Transform>())
+    db.Register<Transform>()
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "641361366464"

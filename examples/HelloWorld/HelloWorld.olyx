@@ -3,5 +3,4 @@
 #reference "../core/core.olyx"
 
 main(): () =
-    print("Hello World!")
-
+    printLine("Hello World!")

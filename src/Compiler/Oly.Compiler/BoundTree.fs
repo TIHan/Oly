@@ -1508,7 +1508,7 @@ let createBridgeLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     ), bridge
 
 let createMutableLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
-    let local = createMutableLocalValue "mlocal" rhsExpr.Type
+    let local = createMutableLocalGeneratedValue "mlocal" rhsExpr.Type
     let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
     BoundExpression.Let(
         syntaxInfo,

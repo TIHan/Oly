@@ -477,7 +477,7 @@ module private CompilationPhases =
                     |> RefCellLowering.Lower
                    // |> outputTree
                     |> LambdaLifting.Lower
-                 //   |> outputTree
+                   // |> outputTree
                 loweredBoundTree, diags
             )
 

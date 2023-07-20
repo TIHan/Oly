@@ -294,13 +294,27 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
             failwith "Invalid expression."
         else
             match expr with
+            // Cannot take the address of a constant.
             | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
                 if value.IsReadOnly then
                     AddressOf expr
                 else
                     AddressOfMutable expr
-            | BoundExpression.GetField(receiver=receiver;field=field) -> 
-                if field.IsReadOnly then
+            | BoundExpression.GetField(syntaxInfo, receiver, field) -> 
+                let expr = 
+                    if field.Enclosing.IsType then
+                        let newReceiver = AddressOfReceiverIfPossible receiver.Type receiver
+                        if newReceiver = receiver then
+                            expr
+                        else
+                            BoundExpression.GetField(syntaxInfo, newReceiver, field)
+                    else
+                        expr
+
+                if field.Enclosing.IsNewtype then
+                    // Cannot take the address of a field from a newtype.
+                    expr
+                elif field.IsReadOnly then
                     AddressOf expr
                 else
                     match stripTypeEquations receiver.Type with

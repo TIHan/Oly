@@ -300,6 +300,24 @@ class ByteStream =
         this.position <- oldPosition
         value
 
+    #[inline(always)]
+    Write(value: byte): () =
+        let size = 1
+        let currentPosition = this.position
+        let nextPosition = currentPosition + size
+        let buffer = this.buffer
+
+        if (nextPosition >= buffer.Length)
+            let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
+            Span(buffer, 0, buffer.Length).CopyTo(Span(newBuffer))
+            this.buffer <- newBuffer
+            this.Write(value)
+        else
+            (MemoryMarshal.Cast(Span(buffer, currentPosition, size))[0]) <- value
+            this.position <- nextPosition
+            if (nextPosition > this.count)
+                this.count <- this.count + size
+
     Write<T>(value: T): () where T: unmanaged, ValueType =
         this.Write(&value)
     Write<T>(value: inref<T>): () where T: unmanaged, ValueType =
@@ -310,8 +328,8 @@ class ByteStream =
 
         if (nextPosition >= buffer.Length)
             let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
-            System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
-            this.buffer <- buffer
+            Span(buffer, 0, buffer.Length).CopyTo(Span(newBuffer))
+            this.buffer <- newBuffer
             this.Write(&value)
         else
             (MemoryMarshal.Cast(Span(buffer, currentPosition, size))[0]) <- value

@@ -119,7 +119,7 @@ internal module DataCrypto =
 internal module DataCompression =
 
     Compress(buffer: mutable byte[], offset: int32, length: int32): mutable byte[] =
-      //  Memory(buffer, offset, length).ToArray()
+      //  let bytes = MemoryStream(buffer, offset, length).ToArray()
         let ms = MemoryStream()
         let compressedStream = ZLibStream(ms, CompressionLevel.Fastest)
         let stream = MemoryStream(buffer, offset, length)
@@ -131,12 +131,10 @@ internal module DataCompression =
         compressedStream.Dispose()
         ms.Dispose()
         stream.Dispose()
-        printLine(s.Elapsed.TotalMilliseconds)
-        printLine("size: " + bytes.Length.ToString())
         bytes
 
     Decompress(buffer: mutable byte[], offset: int32, length: int32): mutable byte[] =
-//        Memory(buffer, offset, length).ToArray()
+    //    Memory(buffer, offset, length).ToArray()
         let ms = MemoryStream(buffer, offset, length)
         let decompressedStream = ZLibStream(ms, CompressionMode.Decompress)
         let stream = MemoryStream()
@@ -266,7 +264,6 @@ class NetworkServer =
             port = 0
             isStarted = false
             clientTimeout = 5 // seconds
-            task = null
         }
 
     private SendPacket(packet: Packet, endPoint: EndPoint): () =
@@ -349,14 +346,10 @@ class NetworkServer =
         // TODO: Send messages to clients saying the server stopped.
         this.isStarted <- false
 
-    mutable field task: System.Threading.Tasks.Task 
     SendToAll(buffer: mutable byte[], offset: int32, length: int32): () =
         if (!this.isStarted)
             throw InvalidOperationException("Server not started.")
 
-        if (this.task !== null)
-            this.task.Wait()
-            
         let msgPayload = ReadOnlyMemory(DataCompression.Compress(buffer, offset, length))
         ForEach(this.connections,
             (mutable pair) ->
@@ -474,6 +467,8 @@ class NetworkClient =
             isStarted = false
             remoteEndPoint = null
         }
+
+    IsConnected: bool get() = this.isConnected
 
     private SendPacket(packet: Packet): () =
         let _ = this.socket.SendTo(packet.SendingSpan, SocketFlags.None, this.remoteEndPoint)

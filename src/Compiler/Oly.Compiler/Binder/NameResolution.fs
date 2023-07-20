@@ -444,17 +444,8 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
     | :? IFieldSymbol as field ->
         match receiverInfoOpt with
         | Some({ expr = Some receiver }) ->
-            let receiver2 =
-                // We are only interested in taking the address of the receiver if it's a value.
-                match receiver with
-                | E.Value _ ->
-                    if field.Enclosing.IsType then
-                        AddressOfReceiverIfPossible field.Enclosing.AsType receiver
-                    else
-                        receiver
-                | _ ->
-                    receiver
-            E.GetField(syntaxInfo, receiver2, field)
+            let receiver = AddressOfReceiverIfPossible receiver.Type receiver
+            E.GetField(syntaxInfo, receiver, field)
         | _ ->
             createValueExpr syntaxInfo field
 

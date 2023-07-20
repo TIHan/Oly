@@ -1,4 +1,4 @@
-#target "dotnet: net7"
+#target "dotnet: net8"
 
 #load "*.oly"
 
@@ -317,7 +317,7 @@ class Marker
 main(): () =    
     let mutable i = 0
     while (i < 100)
-        test()
+        //test()
         DotNet.GCCollect()
         i <- i + 1
 
@@ -392,12 +392,14 @@ main(): () =
 
     let renderBox = GpuMutableArray.Initialize(GpuArrayKind.Storage, GpuMemoryKind.Local, EntityDatabase.MaxNumberOfEntities, i -> default: mat4)
 
-    let world = ServerWorld()
+    let prevWorld = SharedWorld()
+    let mutable world: ServerWorld = ServerWorld()
     let clientReceivedWorld = SharedWorld()
     let stagingWorld = SharedWorld()
     let clientWorld = ClientWorld(renderBox)
     let prevClientWorld = World()
 
+    SharedWorld.SetupComponents(prevWorld)
     ServerWorld.SetupComponents(world)
     SharedWorld.SetupComponents(clientReceivedWorld)
     SharedWorld.SetupComponents(stagingWorld)
@@ -425,6 +427,7 @@ main(): () =
                 ()
         )
 
+    let mutable isClientInit = false
     netClient.Start(
         () ->
             printLine("Connecting To Server"),
@@ -435,7 +438,11 @@ main(): () =
         () ->
             printLine("Disconnected"),
         (bstream, channel) ->
-            clientReceivedWorld.Deserialize(bstream)
+            // if (isClientInit)
+            //     clientReceivedWorld.DeserializeDelta(bstream)
+            // else
+                clientReceivedWorld.Deserialize(bstream)
+                isClientInit <- true
     )
     netClient.Connect("localhost", 27015, "oly")
 
@@ -498,9 +505,12 @@ main(): () =
 
     let isClient = true
 
+    
     let mutable cpuTimeValue = 0: float64
     let mutable spawnTime = 0: float32
     let serverStream = ByteStream()
+    let stagingStream = ByteStream()
+    let mutable sendTask: Task = null
     let serverTick(deltaTime: float32) =
         cpuTime.Restart()
 
@@ -518,7 +528,7 @@ main(): () =
             if (spawnTime >= 1)
                 spawnTime <- 0
                 let mutable i = 0
-                while (i < 4096)
+                while (i < 256)
                     let position = Vector3(float32(i + 1) * 0.5, 0, 0)
                     world.SpawnCube(position, quat.Identity, vec3.One)
                     i <- i + 1
@@ -530,18 +540,38 @@ main(): () =
             )
 
             world.Update(deltaTime)
-            world.Serialize(serverStream)
-            netServer.SendToAll(serverStream.Raw, 0, serverStream.Count)
+
+            if (isServer && isClient && netClient.IsConnected)
+                // if (isClientInit)
+                //     world.SerializeDelta(serverStream, prevWorld)
+                // else
+                world.Serialize(serverStream)
+                if (sendTask !== null)
+                    sendTask.Wait()
+
+                serverStream.CopyExactTo(stagingStream)
+                sendTask <-
+                    Task.Run(
+                        () ->
+                            netServer.SendToAll(stagingStream.Raw, 0, stagingStream.Count)
+                    )
+                sendTask.Wait()
 
         if (isClient)
+            netClient.Heartbeat(deltaTime)
+
+        if (isClient && netClient.IsConnected)
             //serverStream.ResetPosition()
            // clientReceivedWorld.Deserialize(serverStream)
-            netClient.Heartbeat(deltaTime)
             serverToClientEvents <- clientReceivedWorld.GetReplicatingEvents(stagingWorld)
             clientReceivedWorld.CopyTo(stagingWorld)
 
         if (isServer)
             serverStream.Reset()
+
+        // if (isServer && isClient && netClient.IsConnected && isClientInit)
+        //     world.CopyTo(prevWorld)
+
         cpuTimeValue <- cpuTime.Elapsed.TotalMilliseconds
 
     let sv = System.Threading.ManualResetEvent(false)
@@ -601,6 +631,7 @@ main(): () =
             }
 
         Invoke(): () =
+            let world = ServerWorld()
             while (!this.r.Window.IsClosed && this.frameTimesVM.MultiThreadingEnabled.Value) 
                 let _ = this.sv.WaitOne()
                 let _ = this.sv.Reset()
@@ -625,8 +656,10 @@ main(): () =
                 playerTick(float32(GameLoop.FixedUpdateDeltaTimeInSeconds), &playerInput, &transform, &camera)
         )
 
+    System.Runtime.GCSettings.LatencyMode <- System.Runtime.GCLatencyMode.SustainedLowLatency
     GameLoop.Start(
         frameTime ->
+            DotNet.GCCollect() // GC stress
             Client_UpdatePlayerInput(float32(frameTime)),
         () ->
             clientWorld.FixedUpdate(float32(GameLoop.FixedUpdateDeltaTimeInSeconds))

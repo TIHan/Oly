@@ -387,7 +387,7 @@ let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: B
         else
             { aenv with isMemberSig = true }
 
-    if value.IsLocal && not(value.IsFunction) then
+    if value.IsLocal && not(value.IsFunction) && not value.IsGenerated then
         let scope =
             if value.Type.IsByRef_t then
                 match rhsExprOpt with

@@ -247,7 +247,7 @@ class ComponentRegistry =
 /// Not concurrency safe.
 class EntityDatabase =
 
-    public static field MaxNumberOfEntities: int32 = 8192
+    public static field MaxNumberOfEntities: int32 = 65536
 
     private field registry: ComponentRegistry = ComponentRegistry()
 
@@ -1071,6 +1071,69 @@ class EntityDatabase =
 
             i <- i + 1
 
+    static SerializeDelta(prevDb: EntityDatabase, db: EntityDatabase, bstream: ByteStream): () =
+        bstream.Write<int32>(db.entityCount)
+
+        let archetypes = db.Archetypes
+        let mutable i = 0
+        while (i < archetypes.Count)
+            let archetype = archetypes[i]
+            let count = archetype.Count
+            let buffers = archetype.Buffers
+
+            let prevArchetypedIndex = prevDb.GetArchetypedIndex(archetype.Id)
+            let prevArchetype = prevDb.Archetypes[prevArchetypedIndex]
+            let prevBuffers = prevArchetype.Buffers
+
+            bstream.Write<ArchetypeId>(archetype.Id)
+            bstream.Write<int32>(count)
+            let bufferCountFixUpPosition = bstream.Position
+            bstream.Write<int32>(0)
+            bstream.Write(archetype.EntityIds.AsReadOnlySpan(0, count): ReadOnlySpan<EntityId>) // TODO: language bug, we should not need to annotate with 'ReadOnlySpan<EntityId>'.
+
+            let mutable bufferCount = 0
+            let mutable j = 0
+            while (j < buffers.Length)
+                let buffer = buffers[j]
+                // We never serialize attachments.
+                if (buffer.ComponentId & archetype.AttachmentId != buffer.ComponentId)
+                    let mutable prevBufferIndex = unchecked default
+                    if (prevArchetype.BufferLookup.TryGetValue(buffer.ComponentId, &prevBufferIndex))
+                        let length = buffer.TypeSize * count
+                        let mutable rawBufferSpan = buffer.RawBuffer.AsReadOnlySpan<byte>(0, length)
+                        bstream.Write<ComponentId>(buffer.ComponentId)
+
+                        let lengthFixUpPosition = bstream.Position
+                        bstream.Write<int32>(0)
+                
+                        let mutable prevRawBufferSpan = prevBuffers[prevBufferIndex].RawBuffer.AsReadOnlySpan<byte>(0, length)
+
+                        let mutable k = 0
+                        while (k < count)
+                            let slice = rawBufferSpan.Slice(buffer.TypeSize * k, buffer.TypeSize)
+                            if (System.MemoryExtensions.SequenceEqual(prevRawBufferSpan.Slice(buffer.TypeSize * k, buffer.TypeSize), slice))
+                                bstream.Write(0: byte)
+                            else
+                                bstream.Write(1: byte)
+                                bstream.Write(slice)
+                            k <- k + 1
+
+                        let position = bstream.Position
+                        let length = position - lengthFixUpPosition - 4
+                        bstream.Seek(lengthFixUpPosition)
+                        bstream.Write<int32>(length)
+                        bstream.Seek(position)
+
+                        bufferCount <- bufferCount + 1
+                j <- j + 1
+
+            let position = bstream.Position
+            bstream.Seek(bufferCountFixUpPosition)
+            bstream.Write<int32>(bufferCount)
+            bstream.Seek(position)
+
+            i <- i + 1
+
     static Deserialize(bstream: ByteStream, db: EntityDatabase): () =
         db.entityCount <- bstream.Read()
 
@@ -1096,6 +1159,63 @@ class EntityDatabase =
                 if (archetype.BufferLookup.TryGetValue(compId, &bufferIndex))
                     let rawBuffer = buffers[bufferIndex].RawBuffer
                     bstream.Read(rawBuffer.AsSpan(0, length): Span<byte>) // TODO: language bug, we should not need to annotate with 'Span<byte>'.
+                else
+                    bstream.Seek(bstream.Position + length)
+                    //fail("Unable to find component buffer. Was the component registered?")
+                i <- i + 1
+
+            archetype.Count <- count
+
+            // Fix-ups
+            let lookup = archetype.Lookup
+            let entVersions = db.entityVersions 
+            let entArchetypeIndices = db.entityArchetypeIndices
+            let entArchetypeIds = db.entityArchetypeIds
+            let mutable i = 0
+            while (i < count)
+                let entId = entIds[i]
+                let index = entId.Index
+                entArchetypeIndices[index] <- archetypedIndex
+                entArchetypeIds[index] <- archetypeId
+                entVersions[index] <- entId.Version
+                lookup[index] <- i
+                i <- i + 1
+
+    static DeserializeDelta(bstream: ByteStream, db: EntityDatabase): () =
+        db.entityCount <- bstream.Read()
+
+        while (bstream.Position < bstream.Count)
+            let archetypeId = bstream.Read<ArchetypeId>()
+            let count = bstream.Read<int32>()
+            let bufferCount = bstream.Read<int32>()
+            
+            let archetypedIndex = db.GetArchetypedIndex(archetypeId)
+            let archetype = db.Archetypes[archetypedIndex]
+            let buffers = archetype.Buffers
+            let bufferLookup = archetype.BufferLookup
+
+            let entIds = archetype.EntityIds
+            bstream.Read(entIds.AsSpan(0, count): Span<EntityId>) // TODO: language bug, we should not need to annotate with 'Span<EntityId>'.
+
+            let mutable i = 0
+            while (i < bufferCount)
+                let compId = bstream.Read<ComponentId>()
+                let length = bstream.Read<int32>()
+
+                let mutable bufferIndex = unchecked default
+                if (archetype.BufferLookup.TryGetValue(compId, &bufferIndex))
+                    let buffer = buffers[bufferIndex]
+                    let rawBuffer = buffer.RawBuffer
+
+                    let mutable k = 0
+                    while (k < count)
+                     //   bstream.Read(rawBuffer.AsSpan(buffer.TypeSize * k, buffer.TypeSize): Span<byte>)
+                        let fullUpdate = bstream.Read<byte>()
+                        if (fullUpdate == 1)
+                            bstream.Read(rawBuffer.AsSpan(buffer.TypeSize * k, buffer.TypeSize): Span<byte>)
+                        k <- k + 1
+
+                 //   bstream.Read(rawBuffer.AsSpan(0, length): Span<byte>) // TODO: language bug, we should not need to annotate with 'Span<byte>'.
                 else
                     bstream.Seek(bstream.Position + length)
                     //fail("Unable to find component buffer. Was the component registered?")
