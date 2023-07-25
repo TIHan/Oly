@@ -371,7 +371,16 @@ let substitute
                             ||> ImArray.map2 (fun tyPar tyArg -> 
                                 mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
                             )
-                        let appliedValue = value.Formal.Substitute(allTyArgs)
+                        
+                        let appliedValue = 
+                            let appliedValue = value.Formal.Substitute(allTyArgs)
+                            match value.Enclosing with
+                            | EnclosingSymbol.Witness(concreteTy, tyExt) ->
+                                let concreteTy = concreteTy.Substitute(tyParLookup)
+                                let tyExt = tyExt.Substitute(tyParLookup)
+                                appliedValue.WithEnclosing(EnclosingSymbol.Witness(concreteTy, tyExt))
+                            | _ ->
+                                appliedValue
 
                         let newArgExprs =
                             BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)

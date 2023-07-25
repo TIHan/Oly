@@ -15856,7 +15856,6 @@ module TestModule =
     |> shouldRunWithExpectedOutput "1122"
     |> ignore
 
-
 [<Fact>]
 let ``Shape constraint can have a constructor``() =
     let src =
@@ -15874,6 +15873,128 @@ test<T>(): () where T: { new(); Test(): () } =
 
 main(): () =
     test<A>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Static abstract for witness should work``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    static abstract default M(): () = print("failed")
+
+struct S
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    static overrides M(): () = print("passed")
+
+Test<T>(): () where T: IA =
+    T.M()
+
+main(): () =
+    Test<S>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Static abstract for witness should work 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    static abstract default M(): () = print("failed")
+
+struct S
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    static overrides M(): () = print("passed")
+
+Test<T>(): () where T: IA =
+    let f = () -> T.M()
+    f()
+
+main(): () =
+    Test<S>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Abstract for witness should work``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    default M(): () = print("failed")
+
+struct S
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    M(): () = print("passed")
+
+Test<T>(s: T): () where T: IA =
+    s.M()
+
+main(): () =
+    Test<S>(S())
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Abstract for witness should work 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    default M(): () = print("failed")
+
+struct S
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    M(): () = print("passed")
+
+Test<T>(s: T): () where T: IA =
+    let f = () -> s.M()
+    f()
+
+main(): () =
+    Test<S>(S())
         """
     Oly src
     |> shouldCompile
