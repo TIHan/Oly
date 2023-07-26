@@ -668,6 +668,18 @@ let tryInlineFunction optenv irExpr =
 
         match tryGetFunctionBody optenv func with
         | Some(irFuncBody) ->
+//#if DEBUG
+//            Log(
+//                let witnesses = func.Witnesses
+//                let witnessText = 
+//                    if witnesses.IsEmpty then
+//                        ""
+//                    else
+//                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+//                        $" - Witnesses: {text}"
+//                $"Inlining Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+//            )
+//#endif
             let pars = func.Parameters
             let parCount =
                 if func.Flags.IsStatic then
@@ -2238,12 +2250,24 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
 let OptimizeFunctionBody<'Type, 'Function, 'Field> 
         (tryGetFunctionBody: RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option) 
         (emitFunction: RuntimeFunction * RuntimeFunction -> 'Function)
-        func 
+        (func: RuntimeFunction) 
         (irArgFlags: OlyIRLocalFlags imarray)
         (irLocalFlags: OlyIRLocalFlags imarray)
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
         (irTier: OlyIRFunctionTier) =
+//#if DEBUG
+//    Log(
+//        let witnesses = func.Witnesses
+//        let witnessText = 
+//            if witnesses.IsEmpty then
+//                ""
+//            else
+//                let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+//                $" - Witnesses: {text}"
+//        $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+//    )
+//#endif
     let localManager =
         LocalManager(ResizeArray irLocalFlags)
 

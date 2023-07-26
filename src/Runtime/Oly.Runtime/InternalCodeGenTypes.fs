@@ -1352,7 +1352,12 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             match o with
             | :? RuntimeFunction as func ->
                 this.EnclosingType = func.EnclosingType &&
-                (this.ComputeSignatureKey() = func.ComputeSignatureKey())
+                (this.ComputeSignatureKey() = func.ComputeSignatureKey()) &&
+                this.Witnesses.Length = func.Witnesses.Length &&
+                (
+                    (this.Witnesses, func.Witnesses)
+                    ||> ImArray.forall2 (=)
+                )
             | _ ->
                 false
 

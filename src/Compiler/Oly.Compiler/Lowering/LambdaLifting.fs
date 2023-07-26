@@ -747,6 +747,16 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let tyParLookup = tyParLookup |> ReadOnlyDictionary
         let closureTyParLookup = closureTyParLookup |> ReadOnlyDictionary
 
+        (freeTyVars.AddRange(tyPars), (closureTyPars.AddRange(invokeTyPars)))
+        ||> ImArray.iter2 (fun (oldTyPar: TypeParameterSymbol) (newTyPar: TypeParameterSymbol) ->
+            let constrs =
+                oldTyPar.Constraints
+                |> ImArray.map (fun oldConstr ->
+                    oldConstr.Substitute(tyParLookup)
+                )
+            newTyPar.SetConstraints(constrs)
+        )
+
         // ------------------------------------------------------------------------
         
         let funcTy = funcTy.Substitute(closureTyParLookup)        

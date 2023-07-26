@@ -14,7 +14,23 @@ open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
 
+let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) : OlyILTypeParameter imarray =
+    let enclosingTyPars =
+        match ilEntDef.Enclosing with
+        | OlyILEnclosing.Entity(ilEntInst) ->
+            getAllILTypeParameters ilAsm (ilAsm.GetEntityDefinition(ilEntInst.DefinitionOrReferenceHandle))
+        | _ ->
+            ImArray.empty
+    enclosingTyPars.AddRange(ilEntDef.TypeParameters)
+
 let passWitnessesToTypeByArguments (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (ilTyArgs: OlyILType imarray) (witnesses: RuntimeWitness imarray) genericContext =
+    if witnesses.IsEmpty then
+        ImArray.empty
+    else
+
+    let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
+    let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
+    let ilTyPars = getAllILTypeParameters ilAsm ilEntDef
     ilTyArgs
     |> ImArray.mapi (fun i ilTyArg ->
         match ilTyArg with
@@ -24,24 +40,22 @@ let passWitnessesToTypeByArguments (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (
                 match witness.TypeVariableKind, kind with
                 | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
                 | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
-                    //let exists =
-                    //    (
-                    //        let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
-                    //        let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
-                    //        let ilTyPar = ilEntDef.TypeParameters[i]
-                    //        match ilTyPar with
-                    //        | OlyILTypeParameter(constrs=ilConstrs) ->
-                    //            ilConstrs
-                    //            |> ImArray.exists (function
-                    //                | OlyILConstraint.SubtypeOf(ilTy) ->
-                    //                    let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
-                    //                    witness.TypeExtension.Implements
-                    //                    |> ImArray.exists (fun extendTy -> extendTy = ty2)
-                    //                | _ ->
-                    //                    false
-                    //            )
-                    //    )
-                    let exists = true
+                    let exists =
+                        (
+                            let ilTyPar = ilTyPars[i]
+                            match ilTyPar with
+                            | OlyILTypeParameter(constrs=ilConstrs) ->
+                                ilConstrs
+                                |> ImArray.exists (function
+                                    | OlyILConstraint.SubtypeOf(ilTy) ->
+                                        let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
+                                        witness.TypeExtension.Implements
+                                        |> ImArray.exists (fun extendTy -> extendTy = ty2)
+                                    | _ ->
+                                        false
+                                )
+                        )
+                 //   let exists = true
                     if exists then
                         RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
                         |> Some
@@ -105,38 +119,18 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFun
             failwith "Unexpected formal function."
 
         let filteredWitnesses =
-            let enclosingWitnesses =
-                this.EnclosingType.TypeArguments
-                |> ImArray.mapi (fun i tyArg ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            match witness.TypeVariableKind with
-                            | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
-                                Some witness
-                            | _ ->
-                                None
-                        else
-                            None
-                    )
+            this.TypeArguments
+            |> ImArray.mapi (fun i tyArg ->
+                witnesses
+                |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                    if witness.Type.StripAlias() = tyArg.StripAlias() then
+                        RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                        |> Some
+                    else
+                        None
                 )
-                |> ImArray.concat
-
-            let funcWitnesses =
-                this.TypeArguments
-                |> ImArray.mapi (fun i tyArg ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                            |> Some
-                        else
-                            None
-                    )
-                )
-                |> ImArray.concat
-
-            enclosingWitnesses.AddRange(funcWitnesses)
+            )
+            |> ImArray.concat
             |> ImArray.distinct
         if filteredWitnesses.IsEmpty then
             this
@@ -969,6 +963,18 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 let irFunc = OlyIRFunction(emittedFunc, func)
 
                 let handle() =
+//#if DEBUG
+//                    Log(
+//                        let witnesses = func.Witnesses
+//                        let witnessText = 
+//                            if witnesses.IsEmpty then
+//                                ""
+//                            else
+//                                let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+//                                $" - Witnesses: {text}"
+//                        $"Devirtualized Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+//                    )
+//#endif
                     let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
                     irExpr, func.ReturnType
 
@@ -1442,12 +1448,36 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.Call(ilFuncInst, ilArgs) ->
             let func = resolveFunction ilFuncInst
+#if DEBUG
+            Log(
+                let witnesses = func.Witnesses
+                let witnessText = 
+                    if witnesses.IsEmpty then
+                        ""
+                    else
+                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                        $" - Witnesses: {text}"
+                $"Calling Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+            )
+#endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
             let irArgs = resolveFunctionArgs func ilArgs false
             handleCall func irArgs false
 
         | OlyILOperation.CallVirtual(ilFuncInst, ilArgs) ->
             let func = resolveFunction ilFuncInst
+#if DEBUG
+            Log(
+                let witnesses = func.Witnesses
+                let witnessText = 
+                    if witnesses.IsEmpty then
+                        ""
+                    else
+                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                        $" - Witnesses: {text}"
+                $"Calling Virtual Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+            )
+#endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
             let irArgs = resolveFunctionArgs func ilArgs true
             handleCall func irArgs true
@@ -1503,9 +1533,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
 
     if argTy.Formal = expectedArgTy.Formal then
         if argTy <> expectedArgTy then
-            // TODO: This is kind of a hack with the witnesses.
-            if (argTy.SetWitnesses(ImArray.empty) <> expectedArgTy.SetWitnesses(ImArray.empty)) then
-                failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
+            failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
         irArg
     else
         if expectedArgTy.IsVoid_t && argTy.IsUnit_t then
@@ -3052,8 +3080,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member this.ResolveEnclosing(ilAsm: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, genericContext: GenericContext, witnesses: RuntimeWitness imarray) : RuntimeEnclosing =
         match ilEnclosing with
         | OlyILEnclosing.Entity(ilEntInst) ->
-            let ty = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)  
-            Verifier.VerifyEnclosingType(ilEntInst, ty, genericContext, witnesses) this
+            let ty = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
             RuntimeEnclosing.Type ty
 
         | OlyILEnclosing.Namespace(path, _) ->
@@ -3701,6 +3728,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let emittedFunc = this.Emitter.EmitFunctionDefinition(externalInfoOpt, emittedEnclosingTy, flags, func.Name, tyPars, pars, returnTy, overrides, sigKey, irAttrs)
                 emitted.[key] <- emittedFunc
 
+#if DEBUG
+                Log(
+                    let witnessText = 
+                        if witnesses.IsEmpty then
+                            ""
+                        else
+                            let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                            $" - Witnesses: {text}"
+                    $"Emitting Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+                )
+#endif
+
                 if func.HasILFunctionBody then
                     emitFunctionBody func emittedFunc genericContext
                 else
@@ -3895,7 +3934,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         func.Formal.EnclosingType.AssemblyIdentity
                         func.Formal.EnclosingType.ILEntityDefinitionHandle
                         func.Formal.ILFunctionDefinitionHandle
-                        (genericContext.SetPassedWitnesses(func.Witnesses))
+                        (genericContext.SetPassedWitnesses(func.EnclosingType.Witnesses.AddRange(func.Witnesses)))
 
                 if func.Flags.IsInlineable then
                     inlineFunctionBodyCache.SetItem(func, body)
@@ -4161,50 +4200,4 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         member this.TryFindType(fullyQualifiedTypeName): 'Type option =
             (this: IOlyVirtualMachine<'Type, 'Function, 'Field>).TryFindType(fullyQualifiedTypeName, 0)
-
-[<RequireQualifiedAccess>]
-module Verifier =
-    let private NotSupported msg =
-        raise(NotSupportedException(msg))
-
-    let VerifyEnclosingType<'Type, 'Function, 'Field>
-            (
-                ilEntInst: OlyILEntityInstance, 
-                ty: RuntimeType, 
-                genericContext: GenericContext, 
-                witnesses: RuntimeWitness imarray
-            ) 
-            (vm: OlyRuntime<'Type, 'Function, 'Field>) : unit =
-        if not witnesses.IsEmpty then
-            let witnessExistsOnType =
-                ilEntInst.TypeArguments
-                |> ImArray.existsi (fun i ilTyArg ->
-                    match ilTyArg with
-                    | OlyILType.OlyILTypeVariable(index, OlyILTypeVariableKind.Function)
-                    | OlyILType.OlyILTypeHigherVariable(index, _, OlyILTypeVariableKind.Function) ->
-                        witnesses
-                        |> ImArray.exists (fun witness -> 
-                            witness.TypeVariableIndex = index && witness.Type = ty.TypeArguments[i] &&
-                            (
-                                let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
-                                let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
-                                let ilTyPar = ilEntDef.TypeParameters[i]
-                                match ilTyPar with
-                                | OlyILTypeParameter(constrs=ilConstrs) ->
-                                    ilConstrs
-                                    |> ImArray.exists (function
-                                        | OlyILConstraint.SubtypeOf(ilTy) ->
-                                            let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
-                                            witness.TypeExtension.Implements
-                                            |> ImArray.exists (fun extendTy -> extendTy = ty2)
-                                        | _ ->
-                                            false
-                                    )
-                            )
-                        )
-                    | _ ->
-                        false
-                )
-            if witnessExistsOnType then
-                NotSupported "Witness passing on type constructors."
         

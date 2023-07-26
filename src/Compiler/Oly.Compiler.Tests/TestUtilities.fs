@@ -241,12 +241,12 @@ let shouldCompile (c: TestCompilation) =
     let c = 
         c
         |> withNoSyntaxDiagnostics
-    let ilAsm =
-        match c.c.GetILAssembly(CancellationToken.None) with
-        | Ok ilAsm -> ilAsm
-        | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     let ilAsmDebug =
         match c.debugc.GetILAssembly(CancellationToken.None) with
+        | Ok ilAsm -> ilAsm
+        | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
+    let ilAsm =
+        match c.c.GetILAssembly(CancellationToken.None) with
         | Ok ilAsm -> ilAsm
         | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     {

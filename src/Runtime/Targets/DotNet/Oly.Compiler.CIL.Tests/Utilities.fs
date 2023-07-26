@@ -29,8 +29,14 @@ let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutp
             | Ok ilAsm -> ilAsm
             | Error diags -> raise(System.Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
         )
-    TestPlatform.run(emitAssembly refAsms output.ilAsm, expectedOutput)
+#if DEBUG
+    Log($"Testing - Debug Build")
+#endif
     TestPlatform.run(emitAssembly refAsms output.ilAsmDebug, expectedOutput)
+#if DEBUG
+    Log($"Testing - Optimized Build")
+#endif
+    TestPlatform.run(emitAssembly refAsms output.ilAsm, expectedOutput)
 
 let shouldRunWithExpectedOutput expectedOutput result =
     runWithExpectedOutputAux expectedOutput result
