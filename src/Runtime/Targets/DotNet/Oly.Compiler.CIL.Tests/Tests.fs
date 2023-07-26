@@ -15941,6 +15941,56 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Static abstract for witness should work 3``() =
+    let src =
+        """
+module Prelude
+
+open extension Prelude.SA2
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    static abstract default M(): () = print("failed")
+
+struct S
+
+extension SA =
+    inherits S
+    implements IA
+
+    static overrides M(): () = print("passed")
+
+extension SA2 =
+    inherits S
+    implements IA
+
+    static overrides M(): () = print("passed2")
+
+Test<T>(): () where T: IA =
+    let f = () -> T.M()
+    f()
+
+Test2(): () =
+    Test<S>()
+        """
+    let src2 =
+        """
+open static Prelude
+
+open extension Prelude.SA
+
+main(): () =
+    Test<S>()
+    Test2()
+        """
+    OlyTwo src2 src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passedpassed2"
+    |> ignore
+
+[<Fact>]
 let ``Abstract for witness should work``() =
     let src =
         """
@@ -15999,4 +16049,60 @@ main(): () =
     Oly src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Witness passing regression``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+    static abstract GetSize(): int32
+
+class EntityQuery<T0, T1> =
+
+    SayHello(): () = print("hello")
+
+class EntityDb =
+
+    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: IComponent where T1: IComponent =
+        let query = EntityQuery<T0, T1>()
+        query.SayHello()
+        print(this.GetSize<T0>())
+        print(this.GetSize<T1>())
+        query
+
+    GetSize<T>(): int32 where T: IComponent =
+        T.GetSize()
+
+struct S
+
+struct S2
+
+#[open]
+extension SComponent =
+    inherits S
+    implements IComponent
+
+    static overrides GetSize(): int32 = 123
+
+#[open]
+extension SComponent2 =
+    inherits S2
+    implements IComponent
+
+    static overrides GetSize(): int32 = 456
+
+main(): () =
+    let db = EntityDb()
+    let _ = db.CreateQuery<S, S2>()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "hello123456"
     |> ignore

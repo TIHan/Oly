@@ -14,6 +14,107 @@ open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
 
+let passWitnessesToTypeByArguments (ilTyArgs: OlyILType imarray) (witnesses: RuntimeWitness imarray) =
+    ilTyArgs
+    |> ImArray.mapi (fun i ilTyArg ->
+        match ilTyArg with
+        | OlyILTypeVariable(index, kind) ->
+            witnesses
+            |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                match witness.TypeVariableKind, kind with
+                | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
+                | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
+                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                    |> Some
+                | _ ->
+                    None
+            )
+        | _ ->
+            ImArray.empty
+    )
+    |> ImArray.concat
+
+let passWitnessesToType (ty: RuntimeType) (witnesses: RuntimeWitness imarray) =
+    ty.TypeArguments
+    |> ImArray.mapi (fun i tyArg ->
+        match tyArg with
+        | RuntimeType.Variable(index, kind) ->
+            witnesses
+            |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                match witness.TypeVariableKind, kind with
+                | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
+                | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
+                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                    |> Some
+                | _ ->
+                    None
+            )
+        | _ ->
+            ImArray.empty
+    )
+    |> ImArray.concat
+
+let setWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFunction) =
+    if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
+        // If the function is not generic, then we do not need to set its witnesses
+        //    since witnesses require that a function has at least one type parameter.
+        this
+    else
+        if this.IsFormal then
+            failwith "Unexpected formal function."
+
+        let filteredWitnesses =
+            let enclosingWitnesses =
+                this.EnclosingType.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            match witness.TypeVariableKind with
+                            | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
+                                Some witness
+                            | _ ->
+                                None
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+
+            let funcWitnesses =
+                this.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                            |> Some
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+
+            enclosingWitnesses.AddRange(funcWitnesses)
+            |> ImArray.distinct
+        if filteredWitnesses.IsEmpty then
+            this
+        else
+            let state = this.State
+
+
+            let returnTyWitnesses =
+                passWitnessesToType state.Formal.ReturnType filteredWitnesses
+
+            { state with 
+                Witnesses = filteredWitnesses
+                Parameters = 
+                    state.Parameters 
+                    |> ImArray.map (fun x -> { x with Type = x.Type.SetWitnesses(filteredWitnesses) })
+                ReturnType = state.ReturnType.SetWitnesses(returnTyWitnesses)
+            }
+            |> RuntimeFunction
+
 let createGenericContextFromFunction canErase (func: RuntimeFunction) =
     let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal
     let isFuncErased = canErase && func.CanGenericsBeErased
@@ -175,7 +276,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
 type internal RuntimeAssembly<'Type, 'Function, 'Field> =
     private {
         ilAsm: OlyILReadOnlyAssembly
-        EntityDefinitionCache: ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeType * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>>
+        EntityDefinitionCache: ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeType * RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Type>>
         EntityInstanceCache: ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>>
         entRefCache: ConcurrentDictionary<OlyILEntityReferenceHandle, RuntimeType>
 
@@ -394,7 +495,6 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
 [<NoEquality;NoComparison>]
 type env<'Type, 'Function, 'Field> =
     {
-        PassedWitnesses: RuntimeWitness imarray
         GenericContext: GenericContext
         ILAssembly: OlyILReadOnlyAssembly
         EnclosingTypeParameterCount: int
@@ -403,6 +503,8 @@ type env<'Type, 'Function, 'Field> =
         ILLocals: OlyILLocal imarray
         Function: RuntimeFunction
     }
+
+    member this.PassedWitnesses = this.GenericContext.PassedWitnesses
 
     member env.HandleReceiver(cenv: cenv<'Type, 'Function, 'Field>, expectedArgTy: RuntimeType, irArg: E<'Type, 'Function, 'Field>, argTy: RuntimeType, isVirtual) : E<'Type, 'Function, 'Field> * RuntimeType =
         let expectedArgTy = expectedArgTy.StripAlias()
@@ -624,7 +726,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             | _ ->
                 ()
 
-            let localTy = cenv.ResolveType(env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
+            let localTy = cenv.ResolveType(env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext).SetWitnesses(env.PassedWitnesses)
 
             let localTy =
                 if localTy.IsNewtype then
@@ -1360,7 +1462,9 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
 
     if argTy.Formal = expectedArgTy.Formal then
         if argTy <> expectedArgTy then
-            failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
+            // TODO: This is kind of a hack with the witnesses.
+            if (argTy.SetWitnesses(ImArray.empty) <> expectedArgTy.SetWitnesses(ImArray.empty)) then
+                failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
         irArg
     else
         if expectedArgTy.IsVoid_t && argTy.IsUnit_t then
@@ -1419,7 +1523,6 @@ let importFunctionBody
         (asmIdentity: OlyILAssemblyIdentity)
         (ilEntDefHandle: OlyILEntityDefinitionHandle)
         (ilFuncDefHandle: OlyILFunctionDefinitionHandle) 
-        (witnesses: RuntimeWitness imarray)
         (genericContext: GenericContext) : OlyIRFunctionBody<'Type, 'Function, 'Field> =
 
     let asm = vm.Assemblies[asmIdentity]
@@ -1443,7 +1546,7 @@ let importFunctionBody
         func.TypeArguments
         |> ImArray.map (fun x -> x.Substitute(genericContext))
 
-    let func = func.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses)
+    let func = func.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction genericContext.PassedWitnesses
     let enclosingTy = enclosingTy.StripExtension()
 
     let instanceTy =
@@ -1472,8 +1575,7 @@ let importFunctionBody
         ilFuncBody, 
         argTys, 
         func.ReturnType, 
-        genericContext, 
-        func.Witnesses
+        genericContext.SetPassedWitnesses(func.Witnesses)
     )
 
 [<NoEquality;NoComparison>]
@@ -1526,25 +1628,25 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let implTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
             if implTy.IsIntrinsic then
                 OlyAssert.True(ilSpecificAbstractFuncInstOpt.IsNone)
-                RuntimeWitness(index, implTy, implTy, None)
+                RuntimeWitness(index, ilKind, implTy, implTy, None)
             else
                 let ty = genericContext.GetErasedTypeArgument(index, ilKind)
                 let funcOpt =
                     ilSpecificAbstractFuncInstOpt
                     |> Option.map (fun x -> this.ResolveFunction(ilAsm, x, GenericContext.Default))
-                RuntimeWitness(index, ty, implTy, funcOpt)
+                RuntimeWitness(index, ilKind, ty, implTy, funcOpt)
 
     let trySolveWitness enclosingTyParCount ilAsm ilFuncSpecHandle enclosing name (funcTyArgs: RuntimeType imarray) (genericContext: GenericContext) (passedWitnesses: RuntimeWitness imarray) =
         match enclosing with
         | RuntimeEnclosing.Witness(_, _, Some witness) ->
-            let tyParIndex = witness.TypeParameterIndex
+            let tyParIndex = witness.TypeVariableIndex
             let enclosingTy = witness.Type
             let tyExt = witness.TypeExtension
             let fixedGenericContext = genericContext.Set(tyExt.TypeArguments, funcTyArgs)
 
             let witnessFormalFuncs =
                 passedWitnesses
-                |> ImArray.filter (fun witness -> witness.TypeParameterIndex = tyParIndex && witness.Type = enclosingTy)
+                |> ImArray.filter (fun witness -> witness.TypeVariableIndex = tyParIndex && witness.Type = enclosingTy)
                 |> ImArray.map (fun witness ->
                     this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, witness.TypeExtension, funcTyArgs, genericContext)
                     |> ImArray.map (fun func -> (witness.TypeExtension, func))
@@ -1919,7 +2021,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         
         match asm.EntityDefinitionCache.TryGetValue(tyDef.ILEntityDefinitionHandle) with
         | true, (_, emitted) ->
-            match emitted.TryGetValue tyDef.TypeArguments with
+            let key = struct(tyDef.TypeArguments, tyDef.Witnesses)
+            match emitted.TryGetValue key with
             | ValueSome res -> res
             | _ ->
                 let mustDelayFuncs = isEmittingTypeDefinition
@@ -1962,7 +2065,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         tyFlags
 
-                match emitted.TryGetValue tyDef.TypeArguments with
+                match emitted.TryGetValue key with
                 | ValueSome res -> res
                 | _ ->
 
@@ -1977,7 +2080,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         tyDef.TypeParameters.Length
 
                 let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyParCount)
-                emitted.[tyDef.TypeArguments] <- res
+                emitted.[key] <- res
 
                 let irAttrs = 
                     match tyDef with
@@ -2156,7 +2259,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         
         match asm.EntityDefinitionCache.TryGetValue(ty.ILEntityDefinitionHandle) with
         | true, (_, emitted) ->
-            match emitted.TryGetValue ImArray.empty with
+            let key = struct(ImArray.empty, ImArray.empty)
+            match emitted.TryGetValue key with
             | ValueSome res -> res
             | _ ->
                 let ilAsm = asm.ilAsm
@@ -2174,7 +2278,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
 
                 let res = this.Emitter.EmitExternalType(externalPlatform, externalPath, externalName, enclosingChoice, ilEntDef.Kind, flags, ty.Name, tyParCount)
-                emitted.[ImArray.empty] <- res
+                emitted.[key] <- res
 
                 res
         | _ ->
@@ -2535,7 +2639,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let funcInst = vm.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext)
 
             let witnessFuncOpt =
-                vm.TryFindWitnessFunction(ilAsm, ilFuncSpecHandle, enclosing, funcInst, genericContext, passedWitnesses)
+                match ilEnclosing with
+                | OlyILEnclosing.Witness(ilTy, _) ->
+                    let possibleWitnesses = this.FilterWitnesses(ilTy, passedWitnesses)
+                    vm.TryFindWitnessFunction(ilAsm, ilFuncSpecHandle, enclosing, funcInst, genericContext, possibleWitnesses)
+                | _ ->
+                    None
 
             let findFuncs (ty: RuntimeType) =
                 vm.FindFormalFunctionsByTypeAndFunctionSignature(ty, funcInst)
@@ -2544,7 +2653,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let witnessFuncOpt2 =
                     match enclosing with
                     | RuntimeEnclosing.Witness(realTy, enclosingTy, None) ->
-                        vm.TryFindWitnessFunctionByAbstractFunction(realTy, enclosingTy, funcInst, passedWitnesses)
+                        let possibleWitnesses =
+                            match ilEnclosing with
+                            | OlyILEnclosing.Witness(ilTy, _) ->
+                                this.FilterWitnesses(ilTy, passedWitnesses)
+                            | _ ->
+                                ImArray.empty
+                        vm.TryFindWitnessFunctionByAbstractFunction(realTy, enclosingTy, funcInst, possibleWitnesses)
                     | _ ->
                         None
                 match witnessFuncOpt, witnessFuncOpt2 with
@@ -2616,7 +2731,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let passedAndFilteredWitnesses =
                 vm.ResolveWitnesses(ilAsm, ilWitnesses, funcInst, passedWitnesses, genericContext)
 
-            func.SetWitnesses(passedAndFilteredWitnesses)
+            func |> setWitnessesToFunction passedAndFilteredWitnesses
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext) =
         resolveFunction ilAsm ilFuncSpec ilFuncTyArgs enclosing genericContext
@@ -2666,7 +2781,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     resolveWitness ilAsm x fixedGenericContext
                 )
 
-            witnesses.AddRange(passedWitnesses)
+            func.EnclosingType.Witnesses.AddRange(witnesses.AddRange(passedWitnesses))
             |> Seq.distinct
             |> ImArray.ofSeq
 
@@ -2806,7 +2921,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             // The type extension itself is a type constructor and the
                             // concrete type is not - therefore, apply the type arguments
                             // to instantiate the proper witness.
-                            RuntimeWitness(x.TypeParameterIndex,
+                            RuntimeWitness(
+                                x.TypeVariableIndex,
+                                x.TypeVariableKind,
                                 x.Type.Apply(ty.TypeArguments),
                                 x.TypeExtension.Apply(ty.TypeArguments),
                                 None
@@ -2875,10 +2992,26 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         foundFuncOpt
 
+    member this.FilterWitnesses(ilTy: OlyILType, witnesses: RuntimeWitness imarray) =
+        witnesses
+        |> ImArray.filter (fun witness ->
+            match ilTy with
+            | OlyILTypeVariable(tyVarIndex, tyVarKind) ->
+                witness.TypeVariableIndex = tyVarIndex &&
+                (
+                    match witness.TypeVariableKind, tyVarKind with
+                    | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
+                    | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function -> true
+                    | _ -> false
+                )
+            | _ ->
+                false
+        )
+
     member this.ResolveEnclosing(ilAsm: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, genericContext: GenericContext, witnesses: RuntimeWitness imarray) : RuntimeEnclosing =
         match ilEnclosing with
         | OlyILEnclosing.Entity(ilEntInst) ->
-            let ty = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)     
+            let ty = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)  
             Verifier.VerifyEnclosingType(ilEntInst, ty, genericContext, witnesses) this
             RuntimeEnclosing.Type ty
 
@@ -2886,9 +3019,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             RuntimeEnclosing.Namespace(path |> ImArray.map ilAsm.GetStringOrEmpty)
 
         | OlyILEnclosing.Witness(ilTy, ilEntInst) ->
+            let possibleWitnesses = this.FilterWitnesses(ilTy, witnesses)
             let ty = this.ResolveType(ilAsm, ilTy, genericContext)
             let abstractTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
-            let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, witnesses)
+            let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
     member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
@@ -2942,6 +3076,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeEntity.Name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
                         RuntimeEntity.TypeParameters = fullTyPars
                         RuntimeEntity.TypeArguments = fullTyArgs
+                        RuntimeEntity.Witnesses = ImArray.empty
                         RuntimeEntity.Extends = ImArray.empty
                         RuntimeEntity.Implements = ImArray.empty
                         RuntimeEntity.RuntimeType = None
@@ -2958,7 +3093,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     }
                 ent.Formal <- ent
                 let ty = RuntimeType.Entity(ent)
-                asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeTypeArgumentListTable())
+                asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeEntityDefinitionTypeArgumentWitnessListTable())
 
                 let runtimeTyOpt =
                     ilEntDef.RuntimeType
@@ -3077,9 +3212,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if ilTyArgs.IsEmpty then
                     ty
                 else
+                    let filteredWitnesses = passWitnessesToTypeByArguments ilTyArgs genericContext.PassedWitnesses
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
-                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs)
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(filteredWitnesses)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
                 this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
 
@@ -3452,7 +3588,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let funcTyArgs =
                                 x.TypeArguments
                                 |> ImArray.map (fun x -> x.Substitute(genericContext))
-                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses))
+                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses)
                         else
                             // We should not have witnesses to pass here.
                             if not witnesses.IsEmpty then
@@ -3589,7 +3725,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                         overridenFunc.MakeInstance(ty, funcTyArgs)
                                     else
                                         overridenFunc.MakeReference(ty)
-                                let funcInst = funcInst.SetWitnesses(witnesses)
+                                let funcInst = funcInst |> setWitnessesToFunction witnesses
                                 this.EmitFunction(funcInst) |> ignore
                     )
 
@@ -3718,8 +3854,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         func.Formal.EnclosingType.AssemblyIdentity
                         func.Formal.EnclosingType.ILEntityDefinitionHandle
                         func.Formal.ILFunctionDefinitionHandle
-                        func.Witnesses
-                        genericContext
+                        (genericContext.SetPassedWitnesses(func.Witnesses))
 
                 if func.Flags.IsInlineable then
                     inlineFunctionBodyCache.SetItem(func, body)
@@ -3737,8 +3872,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 ilFuncBody: OlyILFunctionBody, 
                 bodyArgTys: RuntimeType imarray, 
                 returnTy: RuntimeType, 
-                genericContext: GenericContext, 
-                passedWitnesses: RuntimeWitness imarray
+                genericContext: GenericContext
             ) : OlyIRFunctionBody<'Type, 'Function, 'Field> =
 
         let setStaticFieldsToDefaultValueExprsOpt =
@@ -3814,7 +3948,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 EnclosingTypeParameterCount = enclosingTyParCount
                 Function = bodyFunc
                 GenericContext = genericContext
-                PassedWitnesses = passedWitnesses
             }
 
         let irExpr = importArgumentExpression cenv env returnTy ilExpr
@@ -4010,7 +4143,7 @@ module Verifier =
                     | OlyILType.OlyILTypeHigherVariable(index, _, OlyILTypeVariableKind.Function) ->
                         witnesses
                         |> ImArray.exists (fun witness -> 
-                            witness.TypeParameterIndex = index && witness.Type = ty.TypeArguments[i] &&
+                            witness.TypeVariableIndex = index && witness.Type = ty.TypeArguments[i] &&
                             (
                                 let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
                                 let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)

@@ -18,6 +18,7 @@ type GenericContext =
         funcTyArgs: RuntimeType imarray
         isTyErasing: bool
         isFuncErasing: bool
+        passedWitnesses: RuntimeWitness imarray
     }
 
     static member Default =
@@ -26,6 +27,7 @@ type GenericContext =
             funcTyArgs = ImArray.empty
             isTyErasing = false
             isFuncErasing = false
+            passedWitnesses = ImArray.empty
         }
 
     static member Create(enclosingTyArgs: _ imarray) =
@@ -37,6 +39,7 @@ type GenericContext =
                 funcTyArgs = ImArray.empty
                 isTyErasing = false
                 isFuncErasing = false
+                passedWitnesses = ImArray.empty
             }
 
     static member Create(enclosingTyArgs: _ imarray, funcTyArgs: _ imarray) =
@@ -48,6 +51,7 @@ type GenericContext =
                 funcTyArgs = funcTyArgs
                 isTyErasing = false
                 isFuncErasing = false
+                passedWitnesses = ImArray.empty
             }
 
     static member CreateErasing(enclosingTyArgs: _ imarray) =
@@ -59,7 +63,16 @@ type GenericContext =
                 funcTyArgs = ImArray.empty
                 isTyErasing = true
                 isFuncErasing = false
+                passedWitnesses = ImArray.empty
             }
+
+    member this.PassedWitnesses = this.passedWitnesses
+
+    member this.SetPassedWitnesses(witnesses: RuntimeWitness imarray) =
+        if witnesses.IsEmpty then
+            this
+        else
+            { this with passedWitnesses = witnesses }
 
     member this.FunctionTypeArguments =
         this.funcTyArgs
@@ -258,6 +271,7 @@ type RuntimeEntity =
         Name: string
         TypeParameters: RuntimeTypeParameter imarray
         TypeArguments: RuntimeType imarray
+        Witnesses: RuntimeWitness imarray
         mutable Extends: RuntimeType imarray
         mutable Implements: RuntimeType imarray
         mutable RuntimeType: RuntimeType option
@@ -272,6 +286,42 @@ type RuntimeEntity =
         ILEntityKind: OlyILEntityKind
         ILEntityFlags: OlyILEntityFlags
     }
+
+    member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
+        // Imported types do not support witnesses.
+        if ((witnesses.IsEmpty && this.Witnesses.IsEmpty) || this.TypeArguments.IsEmpty || this.IsImported) then
+            this
+        else
+            let filteredWitnesses =
+                this.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            match witness.TypeVariableKind with
+                            | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
+                                Some witness
+                            | _ ->
+                                None
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+                |> ImArray.distinct
+
+            let entNew =
+                { this with Witnesses = filteredWitnesses }
+
+            let fields =
+                let enclosingTy = RuntimeType.Entity(entNew)
+                this.Fields
+                |> ImArray.map (fun x ->
+                    x.Substitute(enclosingTy)
+                )
+
+            entNew.Fields <- fields
+            entNew
 
     member this.AssemblyIdentity = this.ILAssembly.Identity
 
@@ -448,6 +498,10 @@ type RuntimeEntity =
             (
                 (this.TypeArguments, o.TypeArguments)
                 ||> ImArray.forall2 (=)
+            ) && this.Witnesses.Length = o.Witnesses.Length &&
+            (
+                (this.Witnesses, o.Witnesses)
+                ||> ImArray.forall2 (=)
             )
         | _ ->
             false
@@ -491,6 +545,14 @@ type RuntimeType =
     // TODO: We should generalize constant types.
     | ConstantInt32 of value: int32
 
+    member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
+        OlyAssert.False(this.IsAlias)
+        match this with
+        | Entity(ent) ->
+            RuntimeType.Entity(ent.SetWitnesses(witnesses))
+        | _ ->
+            this
+
     member this.TryGetStaticConstructor() =
         match this with
         | Entity(ent) -> ent.StaticConstructor
@@ -531,6 +593,11 @@ type RuntimeType =
         match this.StripAlias() with
         | ByRef(_, OlyIRByRefKind.ReadWrite) -> true
         | _ -> false
+
+    member this.Witnesses =
+        match this.StripAlias() with
+        | Entity(ent) -> ent.Witnesses
+        | _ -> ImArray.empty
 
     member this.IsExported =
         match this with
@@ -980,11 +1047,13 @@ type RuntimeType =
             false
 
 [<Sealed;DebuggerDisplay("(witness) {Type} {TypeExtension}")>]
-type RuntimeWitness(tyParIndex: int, ty: RuntimeType, tyExt: RuntimeType, abstractFuncOpt: RuntimeFunction option) =
+type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: RuntimeType, tyExt: RuntimeType, abstractFuncOpt: RuntimeFunction option) =
 
-    member _.TypeParameterIndex = tyParIndex
+    member _.TypeVariableIndex = tyVarIndex
 
-    member _.Type = ty
+    member _.TypeVariableKind = tyVarKind
+
+    member _.Type: RuntimeType = ty
 
     member _.TypeExtension = tyExt
 
@@ -995,6 +1064,13 @@ type RuntimeWitness(tyParIndex: int, ty: RuntimeType, tyExt: RuntimeType, abstra
     override this.Equals(o) =
         match o with
         | :? RuntimeWitness as witness ->
+            this.TypeVariableIndex = witness.TypeVariableIndex &&
+            (
+                match this.TypeVariableKind, witness.TypeVariableKind with
+                | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
+                | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function -> true
+                | _ -> false
+            ) &&
             witness.Type = this.Type &&
             witness.TypeExtension = this.TypeExtension
         | _ ->
@@ -1029,6 +1105,7 @@ type internal RuntimeFunctionState =
 [<DebuggerDisplay("'{Name}' - {Kind}")>]
 type RuntimeFunction internal (state: RuntimeFunctionState) =
 
+    member _.State = state
     member _.Formal = state.Formal
     member _.Enclosing = state.Enclosing
     member _.Name = state.Name
@@ -1237,18 +1314,6 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             resultState.Formal <- result
             result
 
-    member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
-        if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
-            // If the function is not generic, then we do not need to set its witnesses
-            //    since witnesses require that a function has at least one type parameter.
-            this
-        else
-            if this.IsFormal then
-                failwith "Unexpected formal function."
-
-            { state with Witnesses = witnesses }
-            |> RuntimeFunction
-
     member this.EnclosingType: RuntimeType = this.Enclosing.AsType
 
     member this.IsOverridesExternal =
@@ -1418,6 +1483,7 @@ let getAllDistinctInheritsAndImplements (ty: RuntimeType) : RuntimeType imarray 
 let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
     if superTy.StripAlias().IsObjectType then true
     else
+        let superTy = superTy.SetWitnesses(ImArray.empty) // TODO: We do this so the subsumption passes. We should instead not use 'subsumesType' at the site where the types have witnesses.
         if superTy = ty then true
         else
             let possibleTys = getAllDistinctInheritsAndImplements ty
@@ -1440,6 +1506,41 @@ type RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Value>() =
         }
 
     let table = ConcurrentDictionary<RuntimeType imarray, 'Value>(comparer)
+
+    member this.Item 
+        with get key = table.[key]
+        and set key value =
+            table.[key] <- value
+
+    member this.TryGetValue(key) =
+        match table.TryGetValue(key) with
+        | true, res -> ValueSome res
+        | _ -> ValueNone
+
+[<Sealed>]
+type RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Value>() =  
+    let comparer =
+        { new IEqualityComparer<struct(RuntimeType imarray * RuntimeWitness imarray)> with
+            member _.GetHashCode((tyArgs, witnesses)) = tyArgs.Length + witnesses.Length
+            member _.Equals((tyArgs1, witnesses1), (tyArgs2, witnesses2)) =
+                if tyArgs1.Length = tyArgs2.Length && witnesses1.Length = witnesses2.Length then
+                    let tyArgsAreEqual =
+                        (tyArgs1, tyArgs2)
+                        ||> ImArray.forall2 (=)
+
+                    let witnessesAreEqual =
+                        (witnesses1, witnesses2)
+                        ||> ImArray.forall2 (fun witness1 witness2 ->
+                            witness1.Type = witness2.Type &&
+                            witness1.TypeExtension = witness2.TypeExtension
+                        )
+
+                    tyArgsAreEqual && witnessesAreEqual
+                else
+                    false
+        }
+
+    let table = ConcurrentDictionary<struct(RuntimeType imarray * RuntimeWitness imarray), 'Value>(comparer)
 
     member this.Item 
         with get key = table.[key]
