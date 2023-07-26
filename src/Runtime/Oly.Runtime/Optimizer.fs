@@ -668,18 +668,18 @@ let tryInlineFunction optenv irExpr =
 
         match tryGetFunctionBody optenv func with
         | Some(irFuncBody) ->
-//#if DEBUG
-//            Log(
-//                let witnesses = func.Witnesses
-//                let witnessText = 
-//                    if witnesses.IsEmpty then
-//                        ""
-//                    else
-//                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
-//                        $" - Witnesses: {text}"
-//                $"Inlining Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
-//            )
-//#endif
+#if DEBUG
+            Log(
+                let witnesses = func.Witnesses
+                let witnessText = 
+                    if witnesses.IsEmpty then
+                        ""
+                    else
+                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                        $" - Witnesses: {text}"
+                $"Inlining Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+            )
+#endif
             let pars = func.Parameters
             let parCount =
                 if func.Flags.IsStatic then
@@ -1054,7 +1054,16 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
         | _ ->
             OlyAssert.Fail("Expected opertion")
 
+//#if DEBUG
     and optimizeExpression irExpr : E<_, _, _> =
+        DebugStackGuard.Do(fun () ->
+            optimizeExpressionCore irExpr
+        )
+
+    and optimizeExpressionCore irExpr : E<_, _, _> =
+//#else
+//    and optimizeExpression irExpr : E<_, _, _> =
+//#endif
         match irExpr with
         // Normalize sequential expressions
         | E.Let(name, localIndex, E.Sequential(expr1, expr2), bodyExpr) ->
@@ -1399,6 +1408,10 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
             OlyAssert.Fail("Expected operation")
 
     let rec handleExpression irExpr : E<_, _, _> =
+        DebugStackGuard.Do(fun () ->
+            handleExpressionCore irExpr
+        )
+    and handleExpressionCore irExpr : E<_, _, _> =
         let irExpr = copyPropagationOptimizeExpression optenv items irExpr
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
@@ -2256,18 +2269,18 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
         (irTier: OlyIRFunctionTier) =
-//#if DEBUG
-//    Log(
-//        let witnesses = func.Witnesses
-//        let witnessText = 
-//            if witnesses.IsEmpty then
-//                ""
-//            else
-//                let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
-//                $" - Witnesses: {text}"
-//        $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
-//    )
-//#endif
+#if DEBUG
+    Log(
+        let witnesses = func.Witnesses
+        let witnessText = 
+            if witnesses.IsEmpty then
+                ""
+            else
+                let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                $" - Witnesses: {text}"
+        $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+    )
+#endif
     let localManager =
         LocalManager(ResizeArray irLocalFlags)
 

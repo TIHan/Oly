@@ -765,11 +765,16 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let fields =
             freeLocals
             |> ImArray.mapi (fun i x ->
+                let name =
+                    if System.String.IsNullOrWhiteSpace(x.Name) then
+                        ($"__oly_state{i}")
+                    else
+                        x.Name
                 let field =
                     createFieldValue
                         closureBuilder.Entity.AsEnclosing
                         ImArray.empty
-                        ($"__oly_state{i}")
+                        name
                         (x.Type.Substitute(closureTyParLookup))
                         (MemberFlags.Instance ||| MemberFlags.Public)
                         ValueFlags.None
