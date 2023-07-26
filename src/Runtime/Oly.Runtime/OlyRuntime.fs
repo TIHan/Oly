@@ -14,7 +14,7 @@ open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
 
-let passWitnessesToTypeByArguments (ilTyArgs: OlyILType imarray) (witnesses: RuntimeWitness imarray) =
+let passWitnessesToTypeByArguments (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (ilTyArgs: OlyILType imarray) (witnesses: RuntimeWitness imarray) genericContext =
     ilTyArgs
     |> ImArray.mapi (fun i ilTyArg ->
         match ilTyArg with
@@ -24,8 +24,29 @@ let passWitnessesToTypeByArguments (ilTyArgs: OlyILType imarray) (witnesses: Run
                 match witness.TypeVariableKind, kind with
                 | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
                 | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
-                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                    |> Some
+                    //let exists =
+                    //    (
+                    //        let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
+                    //        let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
+                    //        let ilTyPar = ilEntDef.TypeParameters[i]
+                    //        match ilTyPar with
+                    //        | OlyILTypeParameter(constrs=ilConstrs) ->
+                    //            ilConstrs
+                    //            |> ImArray.exists (function
+                    //                | OlyILConstraint.SubtypeOf(ilTy) ->
+                    //                    let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
+                    //                    witness.TypeExtension.Implements
+                    //                    |> ImArray.exists (fun extendTy -> extendTy = ty2)
+                    //                | _ ->
+                    //                    false
+                    //            )
+                    //    )
+                    let exists = true
+                    if exists then
+                        RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                        |> Some
+                    else
+                        None
                 | _ ->
                     None
             )
@@ -34,7 +55,7 @@ let passWitnessesToTypeByArguments (ilTyArgs: OlyILType imarray) (witnesses: Run
     )
     |> ImArray.concat
 
-let passWitnessesToType (ty: RuntimeType) (witnesses: RuntimeWitness imarray) =
+let passWitnessesToType (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (witnesses: RuntimeWitness imarray) genericContext =
     ty.TypeArguments
     |> ImArray.mapi (fun i tyArg ->
         match tyArg with
@@ -44,8 +65,28 @@ let passWitnessesToType (ty: RuntimeType) (witnesses: RuntimeWitness imarray) =
                 match witness.TypeVariableKind, kind with
                 | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
                 | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
-                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                    |> Some
+                    let exists =
+                        (
+                            let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
+                            let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
+                            let ilTyPar = ilEntDef.TypeParameters[i]
+                            match ilTyPar with
+                            | OlyILTypeParameter(constrs=ilConstrs) ->
+                                ilConstrs
+                                |> ImArray.exists (function
+                                    | OlyILConstraint.SubtypeOf(ilTy) ->
+                                        let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
+                                        witness.TypeExtension.Implements
+                                        |> ImArray.exists (fun extendTy -> extendTy = ty2)
+                                    | _ ->
+                                        false
+                                )
+                        )
+                    if exists then
+                        RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                        |> Some
+                    else
+                        None
                 | _ ->
                     None
             )
@@ -103,15 +144,15 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFun
             let state = this.State
 
 
-            let returnTyWitnesses =
-                passWitnessesToType state.Formal.ReturnType filteredWitnesses
+         //   let returnTyWitnesses =
+           //     passWitnessesToType state.Formal.ReturnType filteredWitnesses
 
             { state with 
                 Witnesses = filteredWitnesses
                 Parameters = 
                     state.Parameters 
                     |> ImArray.map (fun x -> { x with Type = x.Type.SetWitnesses(filteredWitnesses) })
-                ReturnType = state.ReturnType.SetWitnesses(returnTyWitnesses)
+                ReturnType = state.ReturnType.SetWitnesses(filteredWitnesses)
             }
             |> RuntimeFunction
 
@@ -3212,7 +3253,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if ilTyArgs.IsEmpty then
                     ty
                 else
-                    let filteredWitnesses = passWitnessesToTypeByArguments ilTyArgs genericContext.PassedWitnesses
+                    let filteredWitnesses = passWitnessesToTypeByArguments this ty ilTyArgs genericContext.PassedWitnesses genericContext
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
                     asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(filteredWitnesses)

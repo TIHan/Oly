@@ -16106,3 +16106,87 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "hello123456"
     |> ignore
+
+[<Fact>]
+let ``Witness passing regression 2``() =
+    let src =
+        """
+module Prelude
+
+open extension Prelude.SComponent
+open extension Prelude.SComponent2
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+    static abstract GetSize(): int32
+
+class EntityQuery<T0, T1> =
+
+    SayHello(): () = print("hello")
+
+class EntityDb =
+
+    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: IComponent where T1: IComponent =
+        let query = EntityQuery<T0, T1>()
+        query.SayHello()
+        print(this.GetSize<T0>())
+        print(this.GetSize<T1>())
+        query
+
+    GetSize<T>(): int32 where T: IComponent =
+        T.GetSize()
+
+struct S
+
+struct S2
+
+
+extension SComponent =
+    inherits S
+    implements IComponent
+
+    static overrides GetSize(): int32 = 123
+
+
+extension SComponent2 =
+    inherits S2
+    implements IComponent
+
+    static overrides GetSize(): int32 = 456
+
+testComponents(): () =
+    let db = EntityDb()
+    let _ = db.CreateQuery<S, S2>()
+        """
+    let src2 =
+        """
+open static Prelude
+
+#[open]
+extension SComponent3 =
+    inherits S
+    implements IComponent
+
+    static overrides GetSize(): int32 = 899
+
+#[open]
+extension SComponent4 =
+    inherits S2
+    implements IComponent
+
+    static overrides GetSize(): int32 = 988
+
+main(): () =
+    testComponents()
+    let db = EntityDb()
+    let _ = db.CreateQuery<S, S2>()
+        """
+    OlyTwo src2 src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "hello123456hello899988"
+    |> ignore
