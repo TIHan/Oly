@@ -602,6 +602,7 @@ let private lateCheckCalleeExpression cenv env expr =
     | _ ->
         ()
 
+    checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =

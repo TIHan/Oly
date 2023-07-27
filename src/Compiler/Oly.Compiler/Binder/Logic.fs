@@ -25,7 +25,7 @@ let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: Enc
             if ty.IsAnyStruct && enclosing.IsReadOnly then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxNode)
 
-        if ty.IsAnyStruct then
+        if ty.IsAnyStruct || ty.IsShape then
             let kind = 
                 if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
                     ByRefKind.ReadWrite

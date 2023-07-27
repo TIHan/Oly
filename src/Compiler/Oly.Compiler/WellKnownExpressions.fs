@@ -323,7 +323,10 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                         | ByRefKind.ReadWrite -> AddressOfMutable expr
                         | ByRefKind.Read -> AddressOf expr
                     | _ ->
-                        AddressOf expr
+                        if field.IsMutable then
+                            AddressOfMutable expr
+                        else
+                            AddressOf expr
             | GetArrayElement(expr1, _) ->
                 let expr1Ty = expr1.Type
                 match stripTypeEquations expr1Ty with

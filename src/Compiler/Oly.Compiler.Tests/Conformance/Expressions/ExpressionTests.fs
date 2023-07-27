@@ -8567,3 +8567,103 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Extension method not marked as mutable and therefore should fail``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Test =
+
+    public mutable field X: __oly_int32 = 1
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+
+#[open]
+extension TestSetItemExtension =
+    inherits Test
+
+    set_Item(index: __oly_int32, value: __oly_int32): () =
+        this.get_Item(index) <- value
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'this' is not mutable.",
+            """
+        this.get_Item(index) <- value
+        ^^^^
+"""
+            )
+            ("Function call 'get_Item' is not read-only and cannot be called on an immutable struct instance.",
+            """
+        this.get_Item(index) <- value
+             ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of mutable shape method should not compile as the value is not mutable``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(x: T): () where T: { mutable GetSomething(): () } =
+    x.GetSomething()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'x' is not mutable.",
+            """
+    x.GetSomething()
+    ^
+"""
+            )
+            ("Function call 'GetSomething' is not read-only and cannot be called on an immutable struct instance.",
+            """
+    x.GetSomething()
+      ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

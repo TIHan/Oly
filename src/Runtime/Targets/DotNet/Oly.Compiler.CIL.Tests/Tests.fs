@@ -11591,9 +11591,9 @@ struct Test =
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 main(): () =
     let mutable s = Test()
@@ -11635,17 +11635,16 @@ struct Test =
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 #[open]
 extension TestSetItemExtension =
     inherits Test
 
-    set_Item(index: __oly_int32, value: __oly_int32): () =
-        //(this[index]) <- value
-        this.get_Item(index) <- value
+    mutable set_Item(index: __oly_int32, value: __oly_int32): () =
+        (this[index]) <- value
 
 main(): () =
     let mutable s = Test()
@@ -11687,9 +11686,9 @@ struct Test =
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 #[open]
 extension TestSetItemExtension =
@@ -16189,4 +16188,152 @@ main(): () =
     OlyTwo src2 src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "hello123456hello899988"
+    |> ignore
+
+[<Fact>]
+let ``Call getter of class property that returns a struct``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Vector2 =
+    public mutable field X: int32
+    new(x: int32) = { X = x }
+
+struct MouseInfo =
+    X: int32 set, get = 123
+    Y: int32 set, get = 0
+    RelativeX: int32 set, get = 0
+    RelativeY: int32 set, get = 0
+
+    Delta: Vector2 get() = Vector2(this.X)
+
+class InputSnapshot =
+    MouseInfo: MouseInfo get = MouseInfo()
+
+Test(snapshot: InputSnapshot): int32 =
+    snapshot.MouseInfo.X <- 456
+    let v = snapshot.MouseInfo.Delta
+    v.X
+
+main(): () =
+    let value = Test(InputSnapshot())
+    print(value)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Call getter of class property that returns a struct who has a field of a function``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct MouseInfo =
+    mutable field X: () -> () = () -> print("passed")
+    mutable Delta: () -> () get() = this.X
+
+class InputSnapshot =
+    MouseInfo: MouseInfo get = MouseInfo()
+
+Test(snapshot: InputSnapshot): () =
+    snapshot.MouseInfo.Delta()
+
+main(): () =
+    Test(InputSnapshot())
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "passed"
+    |> ignore
+
+[<Fact>]
+let ``Get field of class that returns a struct``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct Vector2 =
+    public mutable field X: int32
+    new(x: int32) = { X = x }
+
+struct MouseInfo =
+    X: int32 set, get = 123
+    Y: int32 set, get = 0
+    RelativeX: int32 set, get = 0
+    RelativeY: int32 set, get = 0
+
+    Delta: Vector2 get() = Vector2(this.X)
+
+class InputSnapshot =
+    public mutable field MouseInfo: MouseInfo = MouseInfo()
+
+Test(snapshot: InputSnapshot): int32 =
+    snapshot.MouseInfo.X <- 456
+    let v = snapshot.MouseInfo.Delta
+    v.X
+
+main(): () =
+    let value = Test(InputSnapshot())
+    print(value)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "456"
     |> ignore

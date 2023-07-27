@@ -1353,12 +1353,13 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let resultTy = RuntimeType.Tuple(elementTys, names)
             O.NewTuple(emittedElementTys, irArgs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
+        // TODO: Get rid of 'NewMutableArray' in favor of 'NewArray'?
         | OlyILOperation.NewMutableArray(ilElementTy, ilSizeArgExpr) ->
             let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irSizeArgExpr = importArgumentExpression cenv env RuntimeType.Int32 ilSizeArgExpr
                 
             let emittedElementTy = cenv.EmitType(elementTy)
-            let resultTy = RuntimeType.Array(elementTy, 1, false)
+            let resultTy = RuntimeType.Array(elementTy, 1, true)
 
             O.NewMutableArray(emittedElementTy, irSizeArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -1367,9 +1368,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irArgExprs =
                 ilArgExprs
                 |> ImArray.map (fun ilArgExpr -> importArgumentExpression cenv env elementTy ilArgExpr)
-                
-            let emittedElementTy = cenv.EmitType(elementTy)
-            let resultTy = RuntimeType.Array(elementTy, 1, false)
 
             let kind =
                 match ilKind with
@@ -1377,6 +1375,17 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     OlyIRArrayKind.Immutable
                 | OlyILArrayKind.Mutable ->
                     OlyIRArrayKind.Mutable
+
+            let isMutable =
+                // TODO: Get rid of 'isMutable' on RuntimeType.Array.
+                match ilKind with
+                | OlyILArrayKind.Mutable ->
+                    true
+                | _ ->
+                    false
+                
+            let emittedElementTy = cenv.EmitType(elementTy)
+            let resultTy = RuntimeType.Array(elementTy, 1, isMutable)
             O.NewArray(emittedElementTy, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewRefCell(ilElementTy, ilArg) ->
@@ -1576,9 +1585,23 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                 if argTy.IsAnyStruct && not expectedArgTy.IsAnyStruct then
                     E.Operation(NoRange, O.Box(irArg, cenv.EmitType(expectedArgTy)))
                 else
-                    irArg
-                    // TODO: Add this check.
-                    //failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                    match argTy, expectedArgTy with
+                    | RuntimeType.ByRef(argTy, kind), RuntimeType.ByRef(expectedArgTy, expectedKind)
+                    | RuntimeType.ByRef(argTy, kind), RuntimeType.ByRef(expectedArgTy, expectedKind) 
+                    | RuntimeType.ByRef(argTy, kind), RuntimeType.ByRef(expectedArgTy, expectedKind) when argTy.StripAliasAndNewtype() = expectedArgTy.StripAliasAndNewtype() ->
+                        match kind, expectedKind with
+                        | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.ReadWrite
+                        | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.Read
+                        | OlyIRByRefKind.Read, OlyIRByRefKind.Read ->
+                            irArg
+                        | OlyIRByRefKind.Read, OlyIRByRefKind.ReadWrite ->
+                            let currentFunction = env.Function
+                            let dumpExpr = Dump.DumpExpression irArg
+                            failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.Name}.{currentFunction.Name}:\n{dumpExpr}"
+                    | _ ->
+                        irArg
+                        // TODO: Add this check.
+                        //failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
 
 // TODO: We should try to replace 'importArgumentExpression' with just 'importExpression'.
 let importArgumentExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedArgTy: RuntimeType) (ilArg: OlyILExpression) =

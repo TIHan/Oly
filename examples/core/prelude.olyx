@@ -939,7 +939,7 @@ module DotNet =
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -949,7 +949,7 @@ module DotNet =
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
@@ -971,7 +971,7 @@ typeof<require T>: System.Type
 sizeof<require T>: int32 =
     System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
 
-printLine<T>(value: T): () where T: { mutable ToString(): string } =
+printLine<T>(mutable value: T): () where T: { mutable ToString(): string } =
     print(value.ToString() + "\n")
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)

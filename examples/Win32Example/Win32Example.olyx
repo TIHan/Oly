@@ -246,7 +246,7 @@ class Observable<T> =
         get() = this.value
         set(value) =
             this.value <- value
-            ForEach(this.subscribers, pair -> pair.Key(value))
+            ForEach(this.subscribers, (mutable pair) -> pair.Key(value))
 
     new(value: T) = { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
 

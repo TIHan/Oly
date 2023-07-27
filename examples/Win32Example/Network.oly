@@ -51,8 +51,8 @@ internal struct Packet =
 
     Header: byref<PacketHeader> 
         get() =
-            let headerSpan = MemoryMarshal.Cast(Span(this.Buffer, 0, sizeof<PacketHeader>))
-            &headerSpan.get_Item(0) // TODO: language-bug, issue with using '&headerSpan[0]'
+            let mutable headerSpan = MemoryMarshal.Cast(Span(this.Buffer, 0, sizeof<PacketHeader>))
+            &headerSpan.get_Item(0)
 
     DataString: string get() = System.Text.Encoding.Default.GetString(this.Buffer, sizeof<PacketHeader>, this.DataSize)
 

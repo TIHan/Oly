@@ -599,6 +599,8 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 value.AsProperty
             )
 
+        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) getPropertyExpr
+
         let bridge = createLocalBridgeValue value.Type
 
         let callExpr = 

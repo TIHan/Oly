@@ -444,7 +444,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -470,7 +470,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -498,15 +498,15 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private field item: T
+    private mutable field item: T
 
     new(item: T) = { item = item }
 
-    GetValue(): int32 =
+    mutable GetValue(): int32 =
         this.item.GetHashCode()
 
 main(): () =
-    let h = Hash<System.Int32>(123)
+    let mutable h = Hash<System.Int32>(123)
     print(h.GetValue())
         """
 
@@ -531,15 +531,15 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private field item: T
+    private mutable field item: T
 
     new(item: T) = { item = item }
 
-    GetValue(): int32 =
+    mutable GetValue(): int32 =
         this.item.GetHashCode()
 
 main(): () =
-    let h = Hash(123)
+    let mutable h = Hash(123)
     print(h.GetValue())
         """
 
@@ -564,27 +564,27 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private field item: T
+    private mutable field item: T
 
     new(item: T) = { item = item }
 
     #[inline(never)]
-    GetValue(): int32 =
+    mutable GetValue(): int32 =
         this.item.GetHashCode()
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private field item: Hash<T>
+    private mutable field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
     #[inline(never)]
-    GetValue(): int32 =
+    mutable GetValue(): int32 =
         this.item.GetValue().GetHashCode()
 
 main(): () =
     let h = Hash(123)
-    let h2 = Hash2(h)
+    let mutable h2 = Hash2(h)
     print(h2.GetValue())
         """
 
@@ -609,13 +609,13 @@ print(object): ()
 
 interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 
-    default GetValue(x: T): int32 =
+    default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    private field item: T
+    private mutable field item: T
 
     new(item: T) = { item = item }
 
@@ -626,7 +626,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private field item: Hash<T>
+    private mutable field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -661,13 +661,13 @@ print(object): ()
 
 interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 
-    default GetValue(x: T): int32 =
+    default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    public field item: T
+    public mutable field item: T
 
     new(item: T) = { item = item }
 
@@ -679,7 +679,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
 
-    public field item: Hash<T>
+    public mutable field item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -715,7 +715,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -4109,13 +4109,13 @@ extension ArrayExtensions =
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 #[inline]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
@@ -4508,7 +4508,7 @@ print(__oly_object): ()
     x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
     x.get_Item(key)
 
 main(): () =
@@ -5158,3 +5158,113 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "641361366464"
+
+[<Fact>]
+let ``Basic Observable``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+shape DotNetIndexGetter<TKey, TValue> =
+
+    get_Item(TKey): TValue
+
+(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: DotNetIndexGetter<TKey, TValue> = x.get_Item(key)
+
+shape DotNetIndexSetter<TKey, TValue> =
+
+    set_Item(TKey, TValue): ()
+
+(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
+
+#[intrinsic("equal")]
+(==)(int32, int32) : bool
+
+#[inline(always)]
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    while (xse.MoveNext())
+        f(xse.Current)
+
+class Subscription<T> =
+    implements IDisposable
+
+    private Unsubscribe: () -> () get
+
+    new(unsubscribe: () -> ()) =
+        {
+            Unsubscribe = unsubscribe
+        }
+
+    Dispose(): () = this.Unsubscribe()
+
+class Observable<T> =
+
+    field subscribers: System.Collections.Concurrent.ConcurrentDictionary<T -> (), ()>
+    mutable field value: T
+
+    Subscribe(callback: T -> ()): Subscription<T> =
+        let _ = this.subscribers[callback] <- ()
+        Subscription(
+            () -> 
+                let mutable value = unchecked default
+                let _ = this.subscribers.TryRemove(callback, &value)
+        )
+
+    Value: T
+        get() = this.value
+        set(value) =
+            this.value <- value
+            ForEach(this.subscribers, (mutable pair) -> pair.Key(value))
+
+    new(value: T) = { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
+
+main(): () =
+    let var = Observable<int32>(0)
+    let subscription = var.Subscribe(x -> if (x == 123) print("passed") else print("failed"))
+    var.Value <- 123
+    subscription.Dispose()
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "passed"
+
+[<Fact>]
+let ``Span get_Item simple test``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let mutable span = Span(mutable [567])
+    let value = span.get_Item(0)
+    print(value)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "567"

@@ -1596,6 +1596,11 @@ type EnclosingSymbol =
         | Entity(ent) -> ent.IsShape
         | _ -> false
 
+    member this.IsWitnessShape =
+        match this with
+        | Witness(_, ent) -> ent.IsShape
+        | _ -> false
+
     member this.IsFinal =
         match this with
         | Entity(ent) -> ent.IsSealed
@@ -4629,6 +4634,7 @@ module SymbolExtensions =
                     | _ -> false
                 | EntityKind.Newtype when this.Extends.Length = 1 -> this.Extends.[0].IsAnyStruct
                 | EntityKind.Enum when this.RuntimeType.IsSome -> this.RuntimeType.Value.IsAnyStruct
+                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
                 | _ ->
                     false
     

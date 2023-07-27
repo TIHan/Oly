@@ -691,31 +691,31 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     
     let rec checkCall syntax (receiverOpt: BoundExpression option) (value: IValueSymbol) =
         match receiverOpt with
-        | Some receiver when value.Enclosing.IsAnyStruct ->
+        | Some receiver when (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) ->
             if not value.IsReadOnly then
-                if check receiver |> not then
+                if check value.Enclosing.IsWitnessShape receiver |> not then
                     env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntax)
         | _ ->
             ()
 
-    and checkAddressOf (receiver: BoundExpression) =
+    and checkAddressOf isWitnessShape (receiver: BoundExpression) =
         match receiver with
         | BoundExpression.Call(value=value;args=args) 
                 when value.IsAddressOf ->
-            check args.[0]
+            check isWitnessShape args.[0]
         | _ ->
             true
 
-    and check (receiver: BoundExpression) =
+    and check (isWitnessShape: bool) (receiver: BoundExpression) : bool =
         match receiver with
         | BoundExpression.Value(value=value) ->
-            if (not value.IsMutable && value.Type.IsAnyStruct) || value.Type.IsReadOnlyByRef then
+            if (not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRef then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
-            if check receiver then
+            if check false receiver then
                 if field.Type.IsAnyStruct && not field.IsMutable then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
@@ -733,9 +733,10 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
             true
 
         | BoundExpression.Sequential(expr2=expr2) ->
-            check expr2
+            check false expr2
+
         | _ ->
-            checkAddressOf receiver
+            checkAddressOf isWitnessShape receiver
 
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
@@ -745,13 +746,13 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env field.Type rhs
-        if check receiver then
+        if check false receiver then
             if not field.IsMutable then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
         if not lhsExpr.Type.IsReadWriteByRef then
-            env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)                
+            env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)  
 
     | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
         match prop.Setter with
@@ -866,7 +867,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved (expr: BoundExpr
 
 and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
     match expr with
-    | BoundExpression.Call(syntaxInfo, receiverOpt, _, argExprs, value, _) ->
+    | BoundExpression.Call(syntaxInfo, _, _, argExprs, value, _) ->
         OlyAssert.False(value.IsFunctionGroup)
 
         let syntaxNode =
@@ -903,9 +904,6 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
 
         if not isReturnable && value.IsInstanceConstructor && value.IsBase then
             env.diagnostics.Error("The base constructor call is only allowed as the last expression of a branch.", 10, syntaxNode)
-
-        if receiverOpt.IsSome then
-            checkReceiverOfExpression env expr
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
@@ -941,12 +939,6 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
             checkReceiverOfExpression env expr
         else
             env.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.Syntax)
-
-    | BoundExpression.SetValue _
-    | BoundExpression.SetContentsOfAddress _
-    | BoundExpression.SetField _
-    | BoundExpression.SetProperty _ ->
-        checkReceiverOfExpression env expr
 
     | BoundExpression.Lambda _ ->
         checkImmediateLambdaExpression env expr
