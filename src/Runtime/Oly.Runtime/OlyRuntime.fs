@@ -1599,9 +1599,15 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                             let dumpExpr = Dump.DumpExpression irArg
                             failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.Name}.{currentFunction.Name}:\n{dumpExpr}"
                     | _ ->
-                        if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) && expectedArgTy.IsAbstract then
-                            // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
-                            //       Example, this is basically I.Constrained on the Clr.
+                        // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
+                        if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) then
+                            if expectedArgTy.IsAbstract || expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt then
+                                irArg
+                            else
+                                failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                        elif (argTy.IsAnyPtr || argTy.IsAnyNativeInt) && (expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt) then
+                            irArg
+                        elif (argTy.IsEnum && argTy.RuntimeType.Value = expectedArgTy) || (expectedArgTy.IsEnum && expectedArgTy.RuntimeType.Value = argTy) then
                             irArg
                         else
                             failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."

@@ -574,6 +574,13 @@ type RuntimeType =
         | NativeFunctionPtr _ -> true
         | _ -> false
 
+    /// NativeInt or NativeUInt
+    member this.IsAnyNativeInt =
+        match this.StripAlias() with
+        | NativeInt
+        | NativeUInt -> true
+        | _ -> false
+
     member this.IsUnit_t =
         match this.StripAlias() with
         | Unit -> true
