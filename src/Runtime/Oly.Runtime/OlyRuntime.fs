@@ -1599,9 +1599,12 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                             let dumpExpr = Dump.DumpExpression irArg
                             failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.Name}.{currentFunction.Name}:\n{dumpExpr}"
                     | _ ->
-                        irArg
-                        // TODO: Add this check.
-                        //failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                        if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) && expectedArgTy.IsAbstract then
+                            // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
+                            //       Example, this is basically I.Constrained on the Clr.
+                            irArg
+                        else
+                            failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
 
 // TODO: We should try to replace 'importArgumentExpression' with just 'importExpression'.
 let importArgumentExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedArgTy: RuntimeType) (ilArg: OlyILExpression) =
