@@ -1254,6 +1254,27 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.IsExported
             | _ -> false
 
+        member this.IsUnmanaged =
+            match stripTypeEquations this with
+            | TypeSymbol.Int8
+            | TypeSymbol.UInt8
+            | TypeSymbol.Int16
+            | TypeSymbol.UInt16
+            | TypeSymbol.Int32
+            | TypeSymbol.UInt32 
+            | TypeSymbol.Int64
+            | TypeSymbol.UInt64
+            | TypeSymbol.Float32 
+            | TypeSymbol.Float64 
+            | TypeSymbol.Bool
+            | TypeSymbol.Char16
+            | TypeSymbol.NativeInt
+            | TypeSymbol.NativeUInt
+            | TypeSymbol.NativePtr _
+            | TypeSymbol.NativeFunctionPtr _ -> true
+            | TypeSymbol.Entity(ent) -> ent.IsUnmanaged
+            | _ -> false
+
 type EntitySymbol with
 
     member this.IsAggregatedNamespace =
@@ -1474,6 +1495,50 @@ type EntitySymbol with
     member this.AllLogicalFunctions: _ seq =
         this.AllLogicallyInheritedAndImplementedFunctions
         |> Seq.append (this.Functions)
+
+    static member private CheckUnmanaged(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+        let ty: TypeSymbol = stripTypeEquations ty
+        match ty.TryEntity with
+        | ValueSome(ent) ->
+            ent.CheckUnmanaged(hash)
+        | _ ->
+            ty.IsUnmanaged
+
+    member private this.CheckUnmanaged(hash: HashSet<EntitySymbol>) =
+        if this.IsAnyStruct then
+            if hash.Add(this) then
+                match this.RuntimeType with
+                | Some(runtimeTy) -> EntitySymbol.CheckUnmanaged(hash, runtimeTy)
+                | _ ->
+                    if this.IsAlias && this.Extends.Length > 0 then
+                        EntitySymbol.CheckUnmanaged(hash, this.Extends[0])
+                    else
+                        let fields = this.Fields
+                        if fields.IsEmpty || (fields |> ImArray.exists (fun x -> x.IsInstance) |> not) then
+                            true
+                        else
+                            let result =
+                                fields
+                                |> ImArray.forall (fun x -> x.IsStatic || EntitySymbol.CheckUnmanaged(hash, x.Type))
+                            result
+            else
+                true
+        else
+            false
+
+    member this.IsUnmanaged =
+        match this.LazyIsUnmanaged with
+        | ValueSome(result) -> result
+        | _ ->
+            if this.IsAnyStruct then
+                let hash = HashSet<EntitySymbol>(EntitySymbolComparer()) // TODO: allocation, maybe a an object pool would be better?
+                let result = this.CheckUnmanaged(hash)
+                this.LazyIsUnmanaged <- ValueSome(result)
+                result
+            else
+                this.LazyIsUnmanaged <- ValueSome(false)
+                false
+
 
 let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
     if ent.Formal.Id = super.Formal.Id then

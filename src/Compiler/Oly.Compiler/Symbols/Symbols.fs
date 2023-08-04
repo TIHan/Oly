@@ -209,31 +209,10 @@ type EntitySymbol() =
 
     abstract Flags : EntityFlags
 
-    member this.IsUnmanaged =
-        match isUnmanaged with
-        | ValueSome(result) -> result
-        | _ ->
-            if this.IsAnyStruct then
-                match this.RuntimeType with
-                | Some(runtimeTy) -> runtimeTy.IsUnmanaged
-                | _ ->
-                    if this.IsAlias && this.Extends.Length > 0 then
-                        this.Extends[0].IsUnmanaged
-                    else
-                        let fields = this.Fields
-                        if fields.IsEmpty || (fields |> ImArray.exists (fun x -> x.IsInstance) |> not) then
-                            true
-                        else
-                            isUnmanaged <- ValueSome(false) // We do this to potentially prevent an infinite loop.
-                            let result =
-                                fields
-                                |> ImArray.forall (fun x -> x.IsStatic || x.Type.IsUnmanaged)
-                            isUnmanaged <- ValueSome(result)
-                            result
-            else
-                isUnmanaged <- ValueSome(false)
-                false
-            
+    /// Mutability
+    /// Do not use directly! Use the extension member 'IsUnmanaged'.
+    /// This is just meant for storage.
+    member val LazyIsUnmanaged: bool voption = ValueNone with get, set           
 
     interface ISymbol
 
@@ -3604,27 +3583,6 @@ type TypeSymbol =
         | NativeUInt
         | NativePtr _
         | NativeFunctionPtr _ -> true
-        | _ -> false
-
-    member this.IsUnmanaged =
-        match stripTypeEquations this with
-        | Int8
-        | UInt8
-        | Int16
-        | UInt16
-        | Int32
-        | UInt32 
-        | Int64
-        | UInt64
-        | Float32 
-        | Float64 
-        | Bool
-        | Char16
-        | NativeInt
-        | NativeUInt
-        | NativePtr _
-        | NativeFunctionPtr _ -> true
-        | Entity(ent) -> ent.IsUnmanaged
         | _ -> false
 
     member this.IsAnyStruct =
