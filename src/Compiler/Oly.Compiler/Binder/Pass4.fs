@@ -665,7 +665,11 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOp
             checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxNode expectedTy TypeSymbol.Unit
         | _ ->
             ()
-        env, BoundExpression.Unit(syntaxNode, env.benv)
+        match expectedTyOpt with
+        | Some(expectedTy) when expectedTy.IsRealUnit ->
+            env, BoundExpression.Unit(BoundSyntaxInfo.User(syntaxNode, env.benv))
+        | _ ->
+            env, BoundExpression.None(BoundSyntaxInfo.User(syntaxNode, env.benv))
 
     // Body
     elif syntaxExprList.ChildrenOfType.Length = 1 then
@@ -1838,7 +1842,11 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv)
             BoundExpression.Witness(syntaxInfo, env.benv, castFunc, argExpr, ref None, expr.Type)
         | _ ->
-            expr
+            match expectedTyOpt with
+            | Some(expectedTy) when expectedTy.IsUnit_t && not expectedTy.IsRealUnit && expr.Type.IsRealUnit ->
+                Ignore expr
+            | _ ->
+                expr
 
     env, expr
 

@@ -368,8 +368,12 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         let env = setLocalContextWithEnclosing env ent.Enclosing
         OlyILTypeEntity(GenEntityAsILEntityInstanceOrConstructor cenv env ent)
     | TypeSymbol.Tuple(tyArgs, names) ->
-        let ilNameHandles = GenTupleNames cenv names
-        OlyILTypeTuple(tyArgs |> ImArray.map (emitILType cenv env), ilNameHandles)
+        OlyAssert.True(tyArgs.Length >= 1)
+        if tyArgs.Length = 1 then
+            emitILType cenv env tyArgs[0]
+        else
+            let ilNameHandles = GenTupleNames cenv names
+            OlyILTypeTuple(tyArgs |> ImArray.map (emitILType cenv env), ilNameHandles)
     | TypeSymbol.RefCell(ty) ->
         OlyILTypeRefCell(emitILType cenv env ty)
     | TypeSymbol.Function(inputTy, outputTy) ->

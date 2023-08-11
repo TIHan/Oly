@@ -298,7 +298,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | SetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol * rhs: BoundExpression
     | Lambda of syntaxInfo: BoundSyntaxInfo * flags: LambdaFlags * tyPars: TypeParameterSymbol imarray * pars: ImmutableArray<ILocalParameterSymbol> * body: LazyExpression * cachedLambdaTy: LazyExpressionType * freeLocals: ReadOnlyFreeLocals voption ref * freeVars: ReadOnlyFreeTypeVariables voption ref
     | Typed of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ty: TypeSymbol
-    | Unit of syntax: OlySyntaxExpression * benv: BoundEnvironment
+    | Unit of syntaxInfo: BoundSyntaxInfo
 
     | NewTuple of syntaxInfo: BoundSyntaxInfo * ImmutableArray<BoundExpression> * ty: TypeSymbol
     | NewArray of syntax: OlySyntaxExpression * benv: BoundEnvironment * ImmutableArray<BoundExpression> * ty: TypeSymbol
@@ -368,6 +368,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewArray(benv=benv) -> Some benv
         | While(syntaxInfo=syntaxInfo)
         | None(syntaxInfo=syntaxInfo)
+        | Unit(syntaxInfo=syntaxInfo)
         | Error(syntaxInfo=syntaxInfo)
         | Call(syntaxInfo=syntaxInfo)
         | SetValue(syntaxInfo=syntaxInfo)
@@ -389,13 +390,13 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Try(syntaxInfo=syntaxInfo) -> syntaxInfo.TryEnvironment
         | ErrorWithNamespace(benv=benv)
         | ErrorWithType(benv=benv) -> Some benv
-        | Unit(benv=benv) -> Some benv
         | Witness(benv=benv) -> Some benv
 
     member this.Syntax =
         match this with
         | While(syntaxInfo=syntaxInfo)
         | None(syntaxInfo=syntaxInfo)
+        | Unit(syntaxInfo=syntaxInfo)
         | Error(syntaxInfo=syntaxInfo)
         | Call(syntaxInfo=syntaxInfo)
         | SetValue(syntaxInfo=syntaxInfo)
@@ -419,13 +420,13 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewArray(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
-        | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
         | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
 
     member this.SyntaxNameOrDefault =
         match this with
         | While(syntaxInfo=syntaxInfo)
         | None(syntaxInfo=syntaxInfo)
+        | Unit(syntaxInfo=syntaxInfo)
         | Error(syntaxInfo=syntaxInfo)
         | Call(syntaxInfo=syntaxInfo)
         | SetValue(syntaxInfo=syntaxInfo)
@@ -449,7 +450,6 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewArray(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithNamespace(syntax=syntax) -> syntax :> OlySyntaxNode
         | ErrorWithType(syntax=syntax) -> syntax :> OlySyntaxNode
-        | Unit(syntax=syntax) -> syntax :> OlySyntaxNode
         | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.SyntaxNameOrDefault
 
     member this.FirstReturnExpression =
@@ -513,8 +513,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetContentsOfAddress _
         | SetField _
         | SetProperty _
-        | EntityDefinition _
-        | Unit _ -> TypeSymbol.Unit
+        | EntityDefinition _ -> TypeSymbol.Unit
+        | Unit _ -> TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty) // Real unit
         | Lambda(cachedLambdaTy=cachedLambdaTy) -> cachedLambdaTy.Type
         | None _ -> TypeSymbol.Unit
         | Error _

@@ -3370,6 +3370,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
                 RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy)
             | OlyILTypeTuple(ilTyArgs, ilNameHandles) ->
+                if ilTyArgs.Length < 2 then
+                    OlyAssert.Fail("Invalid tuple type")
                 let tyArgs =
                     ilTyArgs
                     |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))

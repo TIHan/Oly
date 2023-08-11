@@ -454,7 +454,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
         let checkLambdaArguments() =
             let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
             argExprs
-            |> ImArray.iter (fun x ->
+            |> ImArray.iter (fun x ->           
                 x.ForEachReturningTargetExpression(fun x ->
                     match x with
                     | E.Lambda _ ->
@@ -703,7 +703,33 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
                     argExpr
             | _ ->
                 argExpr
+
         checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) parTy argExpr
+
+        let argExpr =
+            match parTy.TryFunction, argExpr.Type.TryFunction with
+            | ValueSome(_, outputTy), ValueSome(_, argTy) when caller.TryWellKnownFunction.IsNone ->
+                if outputTy.IsRealUnit && argTy.IsUnit_t && not argTy.IsRealUnit then
+                    match argExpr with
+                    | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
+                        E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
+                            LazyExpression.CreateNonLazy(
+                                lazyLambdaBodyExpr.TrySyntax,
+                                fun _ ->
+                                    E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                                        lazyLambdaBodyExpr.Expression,
+                                        E.Unit(BoundSyntaxInfo.Generated(cenv.syntaxTree)),
+                                        BoundSequentialSemantic.NormalSequential
+                                    )
+                            )
+                        )
+                    | _ ->
+                        OlyAssert.Fail("Expected lambda expression.")
+                else
+                    argExpr
+            | _ ->
+                argExpr
+
         argExpr
 
     | _ ->

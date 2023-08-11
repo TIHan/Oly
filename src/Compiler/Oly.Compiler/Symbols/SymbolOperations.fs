@@ -106,12 +106,12 @@ type TypeVariableRigidity =
 
     | NumberGeneralizable
 
-let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymbol) : bool =
-    if obj.ReferenceEquals(ty1, ty2) then true
+let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
+    if obj.ReferenceEquals(origTy1, origTy2) then true
     else
 
-    let ty1 = stripTypeEquationsAndBuiltIn ty1
-    let ty2 = stripTypeEquationsAndBuiltIn ty2
+    let ty1 = stripTypeEquationsAndBuiltIn origTy1
+    let ty2 = stripTypeEquationsAndBuiltIn origTy2
 
     if obj.ReferenceEquals(ty1, ty2) then true
     else
@@ -445,7 +445,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (ty1: TypeSymbol) (ty2: TypeSymb
             rigidity = Generalizable && not solution.HasSolution
 
         | _ ->
-            false
+            if origTy1.IsRealUnit then
+                origTy2.IsRealUnit
+            else
+                false
     res
 
 // **********************************************************************

@@ -2994,7 +2994,9 @@ type TypeSymbol =
         | TypeSymbol.Tuple(tyArgs, _) when tyArgs.Length = 1 ->
             (match stripTypeEquations tyArgs.[0] with TypeSymbol.Unit -> true | _ -> false)
         | _ ->
-            false
+            match this.TryImmedateTypeParameter with
+            | ValueSome _ when this.IsUnit_t -> true
+            | _ -> false
 
     member this.Formal =
         match stripTypeEquations this with
