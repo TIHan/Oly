@@ -69,7 +69,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 | Some ent -> OlyAssert.False(ent.IsShape)
                 | _ -> ()
 #endif
-                retargetFunction currentAsmIdent importer x.Enclosing x
+                retargetFunction currentAsmIdent importer x.Enclosing x.Formal.AsFunction
             )
 
     let lazyAssociatedFormalPatOpt =

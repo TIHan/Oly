@@ -5268,3 +5268,120 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "567"
+
+[<Fact>]
+let ``Observer example``() =
+    let src =
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("throw")]
+(throw)<TResult>(Exception): TResult
+
+#[inline(always)]
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    while (xse.MoveNext())
+        f(xse.Current)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+private class Subscription =
+    implements IDisposable
+
+    private Unsubscribe: () -> () get
+
+    new(unsubscribe: () -> ()) =
+        {
+            Unsubscribe = unsubscribe
+        }
+
+    Dispose(): () = this.Unsubscribe()
+
+private class Observer<T> =
+    implements IObserver<T>
+
+    field callback: T -> ()
+
+    new(callback: T -> ()) = { callback = callback }
+
+    OnCompleted(): () = ()
+
+    OnError(error: Exception): () =
+        throw error
+
+    OnNext(value: T): () =
+        this.callback(value)
+
+class Observable<T> =
+    implements IObservable<T>
+
+    field subscribers: ConcurrentDictionary<IObserver<T>, ()>
+    mutable field value: T
+
+    Subscribe(callback: T -> ()): IDisposable =
+        this.Subscribe(Observer(callback))
+
+    Subscribe(observer: IObserver<T>): IDisposable =
+        this.subscribers[observer] <- ()
+        Subscription(
+            () -> 
+                let mutable value = unchecked default
+                let _ = this.subscribers.TryRemove(observer, &value)
+        )
+
+    Value: T
+        get() = this.value
+        set(value) =
+            this.value <- value
+            ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
+
+    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+
+main(): () =
+    let o = Observable(123)
+    o.Value <- 456
+    print(o.Value)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "456"
