@@ -5385,3 +5385,44 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "456"
+
+[<Fact>]
+let ``Lock example``() =
+    let src =
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+lock<T>(lockObj: Object, f: () -> T): T =
+    let mutable lockTaken = false
+    try
+        System.Threading.Monitor.Enter(lockObj, &lockTaken)
+        f()
+    finally
+        if (lockTaken)
+            System.Threading.Monitor.Exit(lockObj)
+
+main(): () =
+    let o = Object()
+    lock(o,
+        () -> print("hello")
+    )
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "hello"
