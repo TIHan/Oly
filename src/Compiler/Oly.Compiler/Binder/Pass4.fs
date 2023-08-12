@@ -1601,8 +1601,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                 env,
                 E.Sequential(
                     BoundSyntaxInfo.User(syntaxExpr, env.benv),
+                    bodyExpr, // IMPORTANT: Call base constructor first!
                     bindConstructType cenv env1 syntaxExpr syntaxConstructTy,
-                    bodyExpr,
                     ConstructorInitSequential
                 )
             | _ ->
