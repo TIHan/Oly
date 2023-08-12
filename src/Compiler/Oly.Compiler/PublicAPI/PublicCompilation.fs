@@ -257,6 +257,14 @@ type internal InitialState =
         env: BoundEnv
     }
 
+let private importCompilations (ilAsmIdent: OlyILAssemblyIdentity) (importer: Importer) (comps: OlyCompilation seq) ct =
+    for comp in comps do
+        let refBinders = CompilationPhases.signature comp.State ct
+        refBinders
+        |> ImArray.iter (fun (x: BinderPass4, _) ->
+            importer.ImportAndRetargetEntity(ilAsmIdent, x.Entity)
+        )
+
 let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
     let sharedImportCache = SharedImportCache.Create()
     let imports = CompilerImports(sharedImportCache)
@@ -284,12 +292,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
             else
                 comps.Add(comp)
 
-    for comp in comps do
-        let refBinders = CompilationPhases.signature comp.State ct
-        refBinders
-        |> ImArray.iter (fun (x: BinderPass4, _) ->
-            importer.ImportAndRetargetEntity(ilAsmIdent, x.Entity)
-        )
+    importCompilations ilAsmIdent importer comps ct
 
     let importDiagnostics = OlyDiagnosticLogger.Create()
     let env = 
