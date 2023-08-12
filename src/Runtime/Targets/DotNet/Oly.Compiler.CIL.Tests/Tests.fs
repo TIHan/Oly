@@ -16337,3 +16337,40 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
+
+[<Fact>]
+let ``Base constructor is called before setting rest of the fields``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class A =
+
+    new() =
+        print("A")
+        {}
+
+class B =
+    inherits A
+
+    field X: int32
+
+    new() =
+        print("before ")
+        base() with {
+            X =
+                print(" after")
+                1
+        }
+
+main(): () =
+    let _ = B()
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "before A after"
+    |> ignore
