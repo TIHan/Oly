@@ -36,11 +36,14 @@ type ProjectBuildInfo =
     {
         ProjectPath: OlyPath
         OutputPath: string
+
         References: OlyPath imarray
         ReferenceNames: ImmutableHashSet<string>
-        NonFrameworkReferenceNames: ImmutableHashSet<string>
+        DepsJson: string
+        RuntimeconfigJson: string option
     }
 
+// TODO: This needs alot more work.
 [<Sealed>]
 type MSBuild() =
 
@@ -97,45 +100,74 @@ type MSBuild() =
 </Project>
         """
     
-    let getInfo (projectDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
+    let getInfo (outputPath: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             let stub = createProjStub isExe targetName referenceInfos projReferenceInfos packageInfos
-            let location = Directory.CreateDirectory(projectDir.ToString())
+            try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
+            let dir = Directory.CreateDirectory(outputPath.ToString())
             ct.ThrowIfCancellationRequested()
 
-            let projectPath = Path.Combine(location.FullName, $"{projectName}.csproj")
-    
             try
-                File.WriteAllText(Path.Combine(location.FullName, "Program.cs"), programCs)
-                File.WriteAllText(projectPath, stub)
+                File.WriteAllText(Path.Combine(dir.FullName, "Program.cs"), programCs)
+                File.WriteAllText(Path.Combine(dir.FullName, $"{projectName}.csproj"), stub)
                 ct.ThrowIfCancellationRequested()
-                use p = new ExternalProcess("dotnet", $"build -c Release {projectName}.csproj", workingDirectory = location.FullName)
-                //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
-                let! _result = p.RunAsync(ct)
-                let refs =
-                    File.ReadAllText(Path.Combine(location.FullName, "FrameworkReferences.txt")).Split("\n")
-                    |> ImArray.ofSeq
-                    |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
-                    |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
-    
+
                 let publishDir = 
-                    Path.Combine(Path.Combine(Path.Combine(location.FullName, "bin"), "Release"), targetName)
+                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
                     //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
-    
-                let minimalRefs =
-                    Directory.EnumerateFiles(publishDir, "*.dll")
-                    |> Seq.map (fun x -> Path.GetFileName(x))
-                    |> ImmutableHashSet.CreateRange
-    
-                let refNames =
-                    refs
-                    |> Seq.map (fun x -> OlyPath.GetFileName(x))
-                    |> ImmutableHashSet.CreateRange
-    
-                return { ProjectPath = OlyPath.Create(projectPath); OutputPath = publishDir; References = refs; ReferenceNames = refNames; NonFrameworkReferenceNames = minimalRefs }
+
+                let cleanup() =
+                    try File.Delete(Path.Combine(publishDir, $"{projectName}.deps.json")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, $"{projectName}.runtimeconfig.json")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, $"{projectName}.dll")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, $"{projectName}.exe")) with | _ -> ()
+                    try File.Delete(Path.Combine(publishDir, $"{projectName}.pdb")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, "FrameworkReferences.txt")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, $"{projectName}.csproj")) with | _ -> ()
+                    try File.Delete(Path.Combine(dir.FullName, "Program.cs")) with | _ -> ()
+                    try Directory.Delete(Path.Combine(dir.FullName, "obj"), true) with | _ -> ()
+
+                let projectPath = Path.Combine(dir.FullName, $"{projectName}.csproj")
+
+                try
+                    try Directory.Delete(publishDir) with | _ -> ()
+
+                    use p = new ExternalProcess("dotnet", $"build -c Release {projectName}.csproj", workingDirectory = dir.FullName)
+                    //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
+                    let! _result = p.RunAsync(ct)
+                    let refs =
+                        File.ReadAllText(Path.Combine(dir.FullName, "FrameworkReferences.txt")).Split("\n")
+                        |> ImArray.ofSeq
+                        |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
+                        |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
+
+                    let depsJson = 
+                        try
+                            File.ReadAllText(Path.Combine(publishDir, $"{projectName}.deps.json"))
+                        with
+                        | _ -> ""
+                    let runtimeconfigJson = 
+                        if isExe then
+                            try
+                                File.ReadAllText(Path.Combine(publishDir, $"{projectName}.runtimeconfig.json"))
+                                |> Some
+                            with
+                            | _ -> None
+                        else
+                            None
+
+                    let refNames =
+                        refs
+                        |> Seq.map (fun x -> OlyPath.GetFileName(x))
+                        |> ImmutableHashSet.CreateRange
+
+                    return { ProjectPath = OlyPath.Create(projectPath); OutputPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
+                finally
+                    cleanup()
             finally
                 ()
+                //try Directory.Delete(dir.FullName, true) with | _ -> ()
         }
 
     member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, isExe: bool, targetName, references, projectReferences, packages, ct) =

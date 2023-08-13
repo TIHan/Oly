@@ -35,18 +35,21 @@ module Helpers =
             value
 
 [<Sealed>]
+[<System.Diagnostics.DebuggerDisplay("{Path}")>]
 type OlyReferenceInfo(path: OlyPath, textSpan: OlyTextSpan) =
 
     member _.Path = path
     member _.TextSpan = textSpan
 
 [<Sealed>]
+[<System.Diagnostics.DebuggerDisplay("{Text}")>]
 type OlyPackageInfo(text: string, textSpan: OlyTextSpan) =
 
     member _.Text = text
     member _.TextSpan = textSpan
 
 [<Sealed>]
+[<System.Diagnostics.DebuggerDisplay("{Path}")>]
 type OlyCopyFileInfo(path: OlyPath, textSpan: OlyTextSpan) =
 
     member _.Path = path

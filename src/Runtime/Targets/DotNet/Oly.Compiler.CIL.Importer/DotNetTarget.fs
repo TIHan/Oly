@@ -26,14 +26,7 @@ open Microsoft.CodeAnalysis.Text
 open Microsoft.CodeAnalysis.MSBuild
 open Microsoft.CodeAnalysis.CSharp
 
-type private DotNetInfo =
-    {
-        StubPath: string
-        References: OlyPath imarray
-        ReferenceNames: ImmutableHashSet<string>
-        DepsJson: string
-        RuntimeconfigJson: string option
-    }
+open Oly.Runtime.Target.DotNet.MSBuild
 
 [<AutoOpen>]
 module private Helpers2 =
@@ -63,127 +56,9 @@ module private Helpers2 =
 
 module private DotNetReferences =
 
-    let private programCs = """
-static class Program
-{
-	static void Main()
-	{
-	}
-}
-"""
-
-    let private createProjStub isExe targetName (referenceInfos: string seq) (projReferenceInfos: string seq) (packageInfos: string seq) =
-        let outputType =
-            if isExe then
-                "<OutputType>Exe</OutputType>"
-            else
-                ""
-        let references =
-            referenceInfos
-            |> Seq.map (fun x ->
-                let includeName = Path.GetFileNameWithoutExtension(x)
-                $"<Reference Include=\"{includeName}\"><HintPath>{x}</HintPath></Reference>"
-            )
-            |> String.concat Environment.NewLine
-        let projReferences =
-            projReferenceInfos
-            |> Seq.map (fun x ->
-                $"<ProjectReference Include=\"{x}\" />"
-            )
-            |> String.concat Environment.NewLine
-        let packages =
-            packageInfos
-            |> Seq.map (fun x ->
-                let index = x.IndexOf(',')
-                if index = -1 || (index + 1 = x.Length) then
-                    $"<PackageReference Include=\"{x}\" />"
-                else
-                    $"<PackageReference Include=\"{x.Substring(0, index)}\" Version=\"{x.Substring(index + 1)}\" />"
-            )
-            |> String.concat Environment.NewLine
-        $"""
-<Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup>
-    {outputType}
-	<TargetFramework>{targetName}</TargetFramework>
-</PropertyGroup>
-<ItemGroup>
-{references}
-{projReferences}
-{packages}
-</ItemGroup>
-<Target Name="WriteFrameworkReferences" AfterTargets="AfterBuild">
-	<WriteLinesToFile File="FrameworkReferences.txt" Lines="@(ReferencePath)" Overwrite="true" WriteOnlyWhenDifferent="true" />
-</Target>
-</Project>
-        """
-
     let getDotNetInfo (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
-        backgroundTask {
-            ct.ThrowIfCancellationRequested()
-            let stub = createProjStub isExe targetName referenceInfos projReferenceInfos packageInfos
-            let dir = Directory.CreateDirectory(cacheDir.ToString())
-            ct.ThrowIfCancellationRequested()
-
-            try
-                File.WriteAllText(Path.Combine(dir.FullName, "Program.cs"), programCs)
-                File.WriteAllText(Path.Combine(dir.FullName, "__oly_placeholder.csproj"), stub)
-                ct.ThrowIfCancellationRequested()
-
-                let publishDir = 
-                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
-                    //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
-
-                let cleanup() =
-                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.deps.json")) with | _ -> ()
-                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json")) with | _ -> ()
-                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.dll")) with | _ -> ()
-                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.exe")) with | _ -> ()
-                    try File.Delete(Path.Combine(publishDir, "__oly_placeholder.pdb")) with | _ -> ()
-                    try File.Delete(Path.Combine(dir.FullName, "FrameworkReferences.txt")) with | _ -> ()
-                    try File.Delete(Path.Combine(dir.FullName, "__oly_placeholder.csproj")) with | _ -> ()
-                    try File.Delete(Path.Combine(dir.FullName, "Program.cs")) with | _ -> ()
-                    try Directory.Delete(Path.Combine(dir.FullName, "obj"), true) with | _ -> ()
-
-                try
-                    try Directory.Delete(publishDir) with | _ -> ()
-
-                    use p = new ExternalProcess("dotnet", "build -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
-                    //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
-                    let! _result = p.RunAsync(ct)
-                    let refs =
-                        File.ReadAllText(Path.Combine(dir.FullName, "FrameworkReferences.txt")).Split("\n")
-                        |> ImArray.ofSeq
-                        |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
-                        |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
-
-                    let depsJson = 
-                        try
-                            File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.deps.json"))
-                        with
-                        | _ -> ""
-                    let runtimeconfigJson = 
-                        if isExe then
-                            try
-                                File.ReadAllText(Path.Combine(publishDir, "__oly_placeholder.runtimeconfig.json"))
-                                |> Some
-                            with
-                            | _ -> None
-                        else
-                            None
-
-                    let refNames =
-                        refs
-                        |> Seq.map (fun x -> OlyPath.GetFileName(x))
-                        |> ImmutableHashSet.CreateRange
-
-                    return { StubPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
-                finally
-                    cleanup()
-            finally
-                ()
-                //try Directory.Delete(dir.FullName, true) with | _ -> ()
-        }
+        let msbuild = MSBuild()
+        msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
 
 type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb: bool) =
     inherit OlyBuild(platformName)
@@ -254,9 +129,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
     let csOutputsGate = obj()
     let csOutputs = ConcurrentDictionary<OlyPath, MemoryStream>()
 
-    let netInfos = ConcurrentDictionary<OlyPath, DotNetInfo>()
+    let netInfos = ConcurrentDictionary<OlyPath, ProjectBuildInfo>()
 
-    let frameworkRefs = ConcurrentDictionary<string, DotNetInfo>()
+    let frameworkRefs = ConcurrentDictionary<string, ProjectBuildInfo>()
 
     member _.GetCSharpOutput(path) =
         match csOutputs.TryGetValue path with
@@ -559,7 +434,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             let exePath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
 
-            copyDir netInfo.StubPath outputPath
+            copyDir netInfo.OutputPath outputPath
 
             let exeFile = new System.IO.FileStream(exePath, IO.FileMode.Create)
             let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
