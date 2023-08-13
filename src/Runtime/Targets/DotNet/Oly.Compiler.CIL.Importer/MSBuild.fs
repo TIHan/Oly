@@ -32,6 +32,16 @@ module private Helpers2 =
             let newDestinationDir = Path.Combine(dstDir, subDir.Name)
             copyDir subDir.FullName newDestinationDir
 
+    let getFiles dir =
+        let files = ImArray.builder()
+        let dir = DirectoryInfo(dir)
+
+        // Get the files in the source directory and copy to the destination directory
+        for file in dir.GetFiles() do
+            files.Add(file.FullName)
+
+        files.ToImmutable()
+
 type ProjectBuildInfo =
     {
         ProjectPath: OlyPath
@@ -41,6 +51,7 @@ type ProjectBuildInfo =
         ReferenceNames: ImmutableHashSet<string>
         DepsJson: string
         RuntimeconfigJson: string option
+        FilesToCopy: OlyPath imarray
     }
 
 // TODO: This needs alot more work.
@@ -157,17 +168,45 @@ type MSBuild() =
                         else
                             None
 
+                    let hashRefs = System.Collections.Generic.HashSet<string>()
+
                     let refNames =
                         refs
-                        |> Seq.map (fun x -> OlyPath.GetFileName(x))
+                        |> Seq.map (fun x -> 
+                            hashRefs.Add(x.ToString()) |> ignore
+                            OlyPath.GetFileName(x)
+                        )
                         |> ImmutableHashSet.CreateRange
 
-                    return { ProjectPath = OlyPath.Create(projectPath); OutputPath = publishDir; References = refs; ReferenceNames = refNames; DepsJson = depsJson; RuntimeconfigJson = runtimeconfigJson }
-                finally
                     cleanup()
+                    copyDir publishDir (outputPath.ToString())
+
+                    // TODO: Use 'try Directory.Delete(Path.Combine(dir.FullName, "bin"), true) with | _ -> ()'
+                    //       We don't do this because something else is depending on the publishDir which we do not want.
+
+                    let filesToCopy =
+                        getFiles (outputPath.ToString())
+                        |> ImArray.choose (fun x ->
+                            if hashRefs.Contains(x) then
+                                None
+                            else
+                                Some(OlyPath.Create(x))
+                        )
+
+                    return 
+                        { 
+                            ProjectPath = OlyPath.Create(projectPath)
+                            OutputPath = publishDir
+                            References = refs
+                            ReferenceNames = refNames
+                            DepsJson = depsJson
+                            RuntimeconfigJson = runtimeconfigJson
+                            FilesToCopy = filesToCopy
+                        }
+                finally
+                    () // TODO: ??
             finally
-                ()
-                //try Directory.Delete(dir.FullName, true) with | _ -> ()
+                () // TODO: ??
         }
 
     member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, isExe: bool, targetName, references, projectReferences, packages, ct) =

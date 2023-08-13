@@ -56,9 +56,10 @@ type OlyCopyFileInfo(path: OlyPath, textSpan: OlyTextSpan) =
     member _.TextSpan = textSpan
 
 [<Sealed>]
-type OlyReferenceResolutionInfo(paths: OlyPath imarray, diags: OlyDiagnostic imarray) = 
+type OlyReferenceResolutionInfo(paths: OlyPath imarray, filesToCopy: OlyPath imarray, diags: OlyDiagnostic imarray) = 
 
     member _.Paths = paths
+    member _.FilesToCopy = filesToCopy
     member _.Diagnostics = diags
 
 [<RequireQualifiedAccess>]
@@ -915,7 +916,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
             let resolvedReferences =
                 resInfo.Paths
-                |> ImArray.map (fun x -> (OlyTextSpan.Create(0, 0), x))
+                |> ImArray.map (fun x -> (OlyTextSpan.Create(0, 0), x)) // TODO: TextSpan not right.
                 |> Seq.distinctBy (fun (_, x) -> x.ToString())
                 |> Seq.sortBy (fun (_, x) -> x.ToString())
                 |> ImArray.ofSeq
@@ -932,6 +933,14 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 projectReferences
                 |> Seq.choose id
                 |> ImArray.ofSeq
+
+            let copyFileInfos =
+                resInfo.FilesToCopy
+                |> ImArray.map (fun x ->
+                    OlyCopyFileInfo(x, OlyTextSpan.Create(0, 0)) // TODO: TextSpan not right.
+                )
+                |> ImArray.append copyFileInfos
+                |> ImArray.distinct
 
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 

@@ -75,6 +75,6 @@ type InterpreterTarget() =
     override _.ResolveReferencesAsync(_, _, _, _, ct) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty)
+            return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.empty)
         }
 

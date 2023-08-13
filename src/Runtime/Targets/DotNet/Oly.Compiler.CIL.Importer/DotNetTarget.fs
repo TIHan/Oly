@@ -264,11 +264,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                 let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
                 let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
-                return OlyReferenceResolutionInfo(netInfo.References, ImArray.empty)
+                return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
             | ex ->
                 let diag = OlyDiagnostic.CreateError($"Unable to resolve references: {ex.Message}")
-                return OlyReferenceResolutionInfo(ImArray.empty, ImArray.createOne diag)
+                return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
     override this.BuildProjectAsync(proj, ct) = backgroundTask {

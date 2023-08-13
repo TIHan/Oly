@@ -35,9 +35,10 @@ type OlyCopyFileInfo =
 [<Sealed>]
 type OlyReferenceResolutionInfo =
 
-    new : paths: OlyPath imarray * diags: OlyDiagnostic imarray -> OlyReferenceResolutionInfo 
+    new : paths: OlyPath imarray * filesToCopy: OlyPath imarray * diags: OlyDiagnostic imarray -> OlyReferenceResolutionInfo 
 
     member Paths: OlyPath imarray
+    member FilesToCopy: OlyPath imarray
     member Diagnostics: OlyDiagnostic imarray
 
 [<RequireQualifiedAccess>]
