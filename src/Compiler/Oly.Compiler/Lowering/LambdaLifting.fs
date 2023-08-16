@@ -1047,7 +1047,7 @@ type Rewriter(cenv: cenv, core) =
 
     override this.Rewrite(expr) =
         match expr with
-        | E.EntityDefinition(ent=ent) when ent.IsClosure ->
+        | E.EntityDefinition(ent=ent) ->
             let prevEnclosingTyPars = cenv.enclosingTyPars
             cenv.enclosingTyPars <- ent.TypeParameters
             let result = base.Rewrite(expr)
