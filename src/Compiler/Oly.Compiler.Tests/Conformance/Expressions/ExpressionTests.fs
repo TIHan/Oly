@@ -8667,3 +8667,25 @@ M<T>(x: T): () where T: { mutable GetSomething(): () } =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Generic class that has an inner lambda should compile``() =
+    let src =
+        """
+module TestModule
+
+#[intrinsic("bool")]
+alias bool
+
+Filter<T>(arr: T[], f: T -> bool): T[] = []
+
+class Manager<T> =
+
+    GetSomething(): () =
+        let xs = [""]
+        let xs = Filter(xs, x -> true)
+
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
