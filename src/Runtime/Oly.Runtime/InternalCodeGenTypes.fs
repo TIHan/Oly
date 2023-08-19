@@ -285,6 +285,7 @@ type RuntimeEntity =
         ILEntityDefinitionHandle: OlyILEntityDefinitionHandle
         ILEntityKind: OlyILEntityKind
         ILEntityFlags: OlyILEntityFlags
+        ILPropertyDefinitionLookup: ImmutableDictionary<OlyILFunctionDefinitionHandle, OlyILPropertyDefinitionHandle>
     }
 
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =

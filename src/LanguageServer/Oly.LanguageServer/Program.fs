@@ -546,17 +546,21 @@ let getLocationsBySymbol symbol doc ct =
 [<Sealed>]
 type OlyLspSourceTextManager() =
 
-    let openedTexts = ConcurrentDictionary<OlyPath, IOlySourceText * Nullable<int>>()
+    let lockObj = obj()
+    let openedTexts = Dictionary<OlyPath, IOlySourceText * Nullable<int>>()
 
     member _.OnOpen(path: OlyPath, version) =
+        lock lockObj <| fun _ ->
         let sourceText = OlySourceText.FromFile(path.ToString())
         openedTexts[path] <- sourceText, version
 
     member _.OnClose(path: OlyPath) =
-        match openedTexts.TryRemove(path) with
+        lock lockObj <| fun _ ->
+        match openedTexts.Remove(path) with
         | _ -> ()
 
     member _.OnChange(path: OlyPath, version, textChanges: OlyTextChangeWithRange seq) =
+        lock lockObj <| fun _ ->
         match openedTexts.TryGetValue(path) with
         | true, (sourceText, _) ->
             let newSourceText = sourceText.ApplyTextChanges(textChanges)
@@ -566,11 +570,13 @@ type OlyLspSourceTextManager() =
             None
 
     member _.TryGet(path: OlyPath) =
+        lock lockObj <| fun _ ->
         match openedTexts.TryGetValue(path) with
         | true, sourceText -> Some sourceText
         | _ -> None
 
     member _.TrySet(path, sourceText) =
+        lock lockObj <| fun _ ->
         match openedTexts.TryGetValue(path) with
         | true, _ -> 
             openedTexts[path] <- sourceText
@@ -634,7 +640,7 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
         Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
         |> OlyPath.Create
 
-    member this.GetWorkspaceStateAsync(ct: CancellationToken) =
+    member this.GetWorkspaceStateAsync(ct: CancellationToken): Task<LspWorkspaceState> =
         backgroundTask {
             return! wstateStore.Value.GetContentsAsync(ct)
         }
@@ -650,55 +656,55 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
 
         member _.FindSubPaths(dirPath) = rs.FindSubPaths(dirPath)
 
-        member this.LoadProjectConfigurationAsync(projectConfigPath, ct) = 
-            backgroundTask {
-                try                 
-                    // TODO: Use 'ct' instead of CancellationToken.None.
-                    let! state = this.GetWorkspaceStateAsync(CancellationToken.None)
+        member this.LoadProjectConfigurationAsync(projectConfigPath, ct) : Task<OlyProjectConfiguration> = 
+            backgroundTask {         
+                // TODO: Use 'ct' instead of CancellationToken.None.
+                let! state = this.GetWorkspaceStateAsync(CancellationToken.None)
 
-                    editorDirWatch.WatchFiles(OlyPath.GetDirectory(projectConfigPath).ToString(), OlyPath.GetFileName(projectConfigPath))
+                editorDirWatch.WatchFiles(OlyPath.GetDirectory(projectConfigPath).ToString(), OlyPath.GetFileName(projectConfigPath))
 
-                    let mutable configs = LspProjectConfigurations.Default
+                let mutable configs = LspProjectConfigurations.Default
+
+                try
+                    let fs = File.OpenText(projectConfigPath.ToString())
                     try
-                        let fs = File.OpenText(projectConfigPath.ToString())
-                        try
-                            let jsonOptions = System.Text.Json.JsonSerializerOptions()
-                            jsonOptions.PropertyNameCaseInsensitive <- true
-                            let! result = System.Text.Json.JsonSerializer.DeserializeAsync<LspProjectConfigurations>(fs.BaseStream, jsonOptions, cancellationToken = ct)
-                            configs <- result
-                        finally
-                            fs.Dispose()
-                    with
-                    | _ ->
-                        let fs = File.OpenWrite(projectConfigPath.ToString())
+                        let jsonOptions = System.Text.Json.JsonSerializerOptions()
+                        jsonOptions.PropertyNameCaseInsensitive <- true
+                        let! result = System.Text.Json.JsonSerializer.DeserializeAsync<LspProjectConfigurations>(fs.BaseStream, jsonOptions, cancellationToken = ct)
+                        configs <- result
+                    finally
+                        fs.Dispose()
+                with
+                | :? OperationCanceledException as ex ->
+                    raise ex
+                | _ ->
+                    let fs = File.OpenWrite(projectConfigPath.ToString())
+                    try
                         let jsonOptions = System.Text.Json.JsonSerializerOptions()
                         jsonOptions.PropertyNameCaseInsensitive <- true
                         jsonOptions.WriteIndented <- true
                         do! System.Text.Json.JsonSerializer.SerializeAsync(fs, configs, jsonOptions, cancellationToken = ct)
-                        do! fs.DisposeAsync()
+                    finally
+                        fs.Dispose()
 
-                    let configOpt =
-                        configs.configurations
-                        |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.name))) && x.name.Equals(state.activeConfiguration, StringComparison.OrdinalIgnoreCase))
+                let configOpt =
+                    configs.configurations
+                    |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.name))) && x.name.Equals(state.activeConfiguration, StringComparison.OrdinalIgnoreCase))
 
-                    let config =
-                        match configOpt with
-                        | None ->
-                            match configs.configurations |> Array.tryHead with
-                            | Some config -> config
-                            | _ -> LspProjectConfigurations.Default.configurations[0]
-                        | Some config ->
-                            config
+                let config =
+                    match configOpt with
+                    | None ->
+                        match configs.configurations |> Array.tryHead with
+                        | Some config -> config
+                        | _ -> LspProjectConfigurations.Default.configurations[0]
+                    | Some config ->
+                        config
 
-                    let name = config.name
-                    let conditionalDefines = config.defines |> ImArray.ofSeq
-                    let isDebuggable = config.debuggable
+                let name = config.name
+                let conditionalDefines = config.defines |> ImArray.ofSeq
+                let isDebuggable = config.debuggable
 
-
-                    return OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
-                with
-                | _ ->
-                    return! rs.LoadProjectConfigurationAsync(projectConfigPath, ct)
+                return OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
             }
         
 type ITextDocumentIdentifierParams with
@@ -719,21 +725,12 @@ type ITextDocumentIdentifierParams with
             backgroundTask {
                 match textManager.TryGet(documentPath) with
                 | Some (sourceText, _) ->
-                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-
-                    if docs.IsEmpty then
-                        let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
-                        if docs.Length >= 1 then
-                            let doc = docs.[0]
-                            return! f doc ct
-                        else
-                            return Unchecked.defaultof<_>
+                    let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
+                    if docs.Length >= 1 then
+                        let doc = docs.[0]
+                        return! f doc ct
                     else
-                        if docs.Length >= 1 then
-                            let doc = docs.[0]
-                            return! f doc ct
-                        else
-                            return Unchecked.defaultof<_>
+                        return Unchecked.defaultof<_>
                 | _ ->
                     return Unchecked.defaultof<_>
             }
@@ -887,21 +884,21 @@ module ExtensionHelpers =
 
                 match textManager.TryGet(documentPath) with
                 | Some (sourceText, _) ->
-                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+                    let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
 
-                    if docs.IsEmpty then
-                        let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
-                        if docs.Length >= 1 then
-                            let doc = docs.[0]
-                            return! f doc ct
-                        else
-                            return raise(OperationCanceledException())
+                    //if docs.IsEmpty then
+                    //    let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
+                    //    if docs.Length >= 1 then
+                    //        let doc = docs.[0]
+                    //        return! f doc ct
+                    //    else
+                    //        return raise(OperationCanceledException())
+                    //else
+                    if docs.Length >= 1 then
+                        let doc = docs.[0]
+                        return! f doc ct
                     else
-                        if docs.Length >= 1 then
-                            let doc = docs.[0]
-                            return! f doc ct
-                        else
-                            return raise(OperationCanceledException())
+                        return raise(OperationCanceledException())
                 | _ ->
                     return raise(OperationCanceledException())
             }
@@ -1238,8 +1235,11 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
               
             match textManager.OnChange(documentPath, request.TextDocument.Version, textChanges) with
             | Some(sourceText) ->
-                this.OnDidChangeDocumentAsync(documentPath, request.TextDocument.Version, sourceText).Result
-                |> ignore
+                try
+                    this.OnDidChangeDocumentAsync(documentPath, request.TextDocument.Version, sourceText).Result
+                    |> ignore
+                with
+                | _ -> ()
             | _ ->
                 ()
             Task.FromResult(MediatR.Unit.Value)
@@ -1797,21 +1797,25 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             backgroundTask {
                 try
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                    if docs.IsEmpty then
+                    match textManager.TryGet(documentPath) with
+                    | Some (sourceText, _) ->
+                        let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
+                        if docs.IsEmpty then
+                            return null
+                        else
+                            let doc = docs[0]
+                            let items =
+                                doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
+                                |> Seq.distinctBy (fun x -> x.Label)
+                                |> Seq.map (fun x ->
+                                    ct.ThrowIfCancellationRequested()
+                                    let kind = x.ClassificationKind.ToLspCompletionItemKind()
+                                    CompletionItem(Label = x.Label, Detail = x.Detail, InsertText = x.InsertText, Kind = kind)
+                                )
+                                |> ImArray.ofSeq
+                            return CompletionList(items)
+                    | _ ->
                         return null
-                    else
-                        let doc = docs[0]
-                        let items =
-                            doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
-                            |> Seq.distinctBy (fun x -> x.Label)
-                            |> Seq.map (fun x ->
-                                ct.ThrowIfCancellationRequested()
-                                let kind = x.ClassificationKind.ToLspCompletionItemKind()
-                                CompletionItem(Label = x.Label, Detail = x.Detail, InsertText = x.InsertText, Kind = kind)
-                            )
-                            |> ImArray.ofSeq
-                        return CompletionList(items)
                 with
                 | _ ->
                     return null

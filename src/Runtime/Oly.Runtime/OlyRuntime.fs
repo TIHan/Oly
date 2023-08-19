@@ -3170,6 +3170,22 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeType.Variable(i, OlyILTypeVariableKind.Type)
                     )
 
+                let ilPropDefLookup =
+                    // TODO: Use a builder instead.
+                    (ImmutableDictionary.Empty, ilEntDef.PropertyDefinitionHandles)
+                    ||> ImArray.fold (fun ilPropDefLookup ilPropDefHandle ->
+                        let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
+                        let ilPropDefLookup =
+                            if ilPropDef.Getter.IsNil then
+                                ilPropDefLookup
+                            else
+                                ilPropDefLookup.Add(ilPropDef.Getter, ilPropDefHandle)
+                        if ilPropDef.Setter.IsNil then
+                            ilPropDefLookup
+                        else
+                            ilPropDefLookup.Add(ilPropDef.Setter, ilPropDefHandle)
+                    )
+
                 let ent =
                     {
                         RuntimeEntity.Enclosing = enclosing
@@ -3190,6 +3206,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeEntity.ILEntityDefinitionHandle = ilEntDefOrRefHandle
                         RuntimeEntity.ILEntityKind = ilEntDef.Kind
                         RuntimeEntity.ILEntityFlags = ilEntDef.Flags
+                        RuntimeEntity.ILPropertyDefinitionLookup = ilPropDefLookup
                     }
                 ent.Formal <- ent
                 let ty = RuntimeType.Entity(ent)

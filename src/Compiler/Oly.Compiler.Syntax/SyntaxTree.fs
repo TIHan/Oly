@@ -420,6 +420,7 @@ type OlyParsingOptions =
     static member AreEqual(options1, options2) =
         options1.CompilationUnitConfigurationEnabled = options2.CompilationUnitConfigurationEnabled &&
         options1.AnonymousModuleDefinitionAllowed = options2.AnonymousModuleDefinitionAllowed &&
+        options1.ConditionalDefines.Length = options2.ConditionalDefines.Length &&
         (options1.ConditionalDefines, options2.ConditionalDefines)
         ||> ImArray.forall2 (fun x y -> x = y)
 
