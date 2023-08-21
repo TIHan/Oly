@@ -294,6 +294,7 @@ type ClrInstruction =
     | Ldnull
     | Ldobj of ClrTypeHandle
     | Ldftn of ClrMethodHandle
+    | Sizeof of ClrTypeHandle
 
     | Not
     | And

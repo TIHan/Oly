@@ -1616,6 +1616,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             il.OpCode(ILOpCode.Ldtoken)
             emitTypeToken asmBuilder &il handle
 
+        | I.Sizeof(handle) ->
+            il.OpCode(ILOpCode.Sizeof)
+            emitTypeToken asmBuilder &il handle
+
         | I.Initobj(handle) ->
             match handle with
             | ClrTypeHandle.NativePointer _
@@ -1867,7 +1871,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Ldlen ->
             1
 
-        | I.Ldtoken _ ->
+        | I.Ldtoken _
+        | I.Sizeof _ ->
             1 + 4
 
         | I.Initobj _ ->

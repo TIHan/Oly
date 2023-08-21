@@ -18,6 +18,7 @@ type ClrMethodSpecialKind =
     | None
     | External
     | TypeOf
+    | SizeOf
     | FunctionPointer
 
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
@@ -1080,6 +1081,9 @@ module rec ClrCodeGen =
             I.Ldtoken func.tyInst.[0].Handle |> emitInstruction cenv
             I.Call(cenv.assembly.GetTypeFromHandleMethod.Value, 1) |> emitInstruction cenv
 
+        | ClrMethodSpecialKind.SizeOf ->
+            I.Sizeof func.tyInst.[0].Handle |> emitInstruction cenv
+
         | _ ->
             failwith "Invalid special method."
 
@@ -1705,6 +1709,13 @@ type BlobBuilder with
                 else
                     ClrElementTypes.Class
                     |> b.WriteByte
+            | ClrMethodSpecialKind.SizeOf ->
+                if func.tyInst.Length = 1 && func.tyInst[0].IsStruct then
+                    raise(System.NotSupportedException("sizeof constant"))
+                    //ClrElementTypes.ValueType
+                    //|> b.WriteByte
+                else
+                    failwith "Invalid use of SizeOf."
             | ClrMethodSpecialKind.FunctionPointer ->
                 SignatureTypeCode.FunctionPointer
                 |> byte
@@ -1743,6 +1754,8 @@ type BlobBuilder with
             | ClrMethodSpecialKind.TypeOf when func.tyInst.Length = 1 ->
                 let ty = func.tyInst.[0]
                 b.WriteSerializedString(ty.FullyQualifiedName)
+            | ClrMethodSpecialKind.SizeOf when func.tyInst.Length = 1 ->
+                raise(System.NotSupportedException("constant sizeof"))
             | _ ->
                 failwith "Invalid external constant."
 
@@ -2670,6 +2683,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     match externalInfo.Name with
                     | "typeof" when pars.Length = 0 && tyPars.Length = 1 ->
                         ClrMethodSpecialKind.TypeOf
+                    | "sizeof" when pars.Length = 0 && tyPars.Length = 1 ->
+                        ClrMethodSpecialKind.SizeOf
                     | "__ldftn" ->
                         ClrMethodSpecialKind.FunctionPointer
                     | _ ->
