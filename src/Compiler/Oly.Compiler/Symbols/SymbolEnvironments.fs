@@ -164,6 +164,28 @@ type BoundEnvironment =
             implicitExtendsForEnum = None
         }
 
+    member this.ClearLocals_unused() =
+        let senv = this.senv
+        let unqualifiedSymbols = senv.unqualifiedSymbols
+
+        let previousCount = unqualifiedSymbols.Count
+
+        let unqualifiedSymbols =
+            (unqualifiedSymbols, unqualifiedSymbols)
+            ||> Seq.fold (fun unqualifiedSymbols pair ->
+                match pair.Value with
+                | UnqualifiedSymbol.Local _ ->
+                    unqualifiedSymbols.Remove(pair.Key)
+                | _ ->
+                    unqualifiedSymbols
+            )
+
+        // If unchanged, do not construct a new one.
+        if previousCount = unqualifiedSymbols.Count then
+            this
+        else
+            { this with senv = { senv with unqualifiedSymbols = unqualifiedSymbols } }
+
     member this.AddOpenDeclaration(ent: EntitySymbol) =
         { this with
             openDecls = this.openDecls.Add(ent)

@@ -71,6 +71,15 @@ type BinderEnvironment =
         else
             this
 
+    member this.ClearLocals_unused() =
+        let benv = this.benv.ClearLocals_unused()
+
+        // If unchanged, do not construct a new one.
+        if obj.ReferenceEquals(this.benv, benv) then
+            this
+        else
+            { this with benv = benv }
+
     /// Context type is not the enclosing type, but rather using certain expressions like "let!"
     /// will be understood by the given type.
     /// The context type will be set with the formal type of the given type.

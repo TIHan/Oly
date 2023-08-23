@@ -946,19 +946,28 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
     | _ ->
         ()
 
+let checkStaticContextForFreeLocals env (expr: BoundExpression) (pars: ILocalParameterSymbol imarray) =
+    let freeLocals = 
+        match expr with
+        | BoundExpression.EntityDefinition _ ->
+            // This could be expensive when checking locally defined types.
+            expr.GetFreeLocals()
+        | _ ->
+            expr.GetImmediateFreeLocals()
+    freeLocals
+    |> Seq.iter (fun pair ->
+        let syntaxOpt, value = pair.Value
+        if pars |> ImArray.exists (fun x -> value.Id = x.Id) |> not then
+            match syntaxOpt with
+            | Some syntax ->
+                env.diagnostics.Error(sprintf "The free local value '%s' cannot be used in a static context." value.Name, 10, syntax)
+            | _ ->
+                env.diagnostics.Error(sprintf "A free local value cannot be used in a static context.", 10, expr.Syntax)
+    )
+
 let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterSymbol imarray) isStatic =
     if isStatic then
-        let freeLocals = bodyExpr.GetImmediateFreeLocals()
-        freeLocals
-        |> Seq.iter (fun pair ->
-            let syntaxOpt, value = pair.Value
-            if pars |> ImArray.exists (fun x -> value.Id = x.Id) |> not then
-                match syntaxOpt with
-                | Some syntax ->
-                    env.diagnostics.Error(sprintf "The free local value '%s' cannot be used in the context of a static local function." value.Name, 10, syntax)
-                | _ ->
-                    env.diagnostics.Error(sprintf "A free local value has been used in the context of a static local function.", 10, bodyExpr.Syntax)
-        )
+        checkStaticContextForFreeLocals env bodyExpr pars
 
 let freshenAndCheckValue env (argExprs: BoundExpression imarray) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
     let valueTy = value.LogicalType

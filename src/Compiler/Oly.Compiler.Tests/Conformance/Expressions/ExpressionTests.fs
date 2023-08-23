@@ -1010,7 +1010,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The free local value 'x' cannot be used in the context of a static local function."
+        "The free local value 'x' cannot be used in a static context."
     ]
     |> ignore
 
@@ -1026,7 +1026,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The free local value 'g' cannot be used in the context of a static local function."
+        "The free local value 'g' cannot be used in a static context."
     ]
     |> ignore
 
@@ -1039,7 +1039,7 @@ test(z: __oly_int32) : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The free local value 'z' cannot be used in the context of a static local function."
+        "The free local value 'z' cannot be used in a static context."
     ]
     |> ignore
 
@@ -1053,7 +1053,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The free local value 'x' cannot be used in the context of a static local function."
+        "The free local value 'x' cannot be used in a static context."
     ]
     |> ignore
 
@@ -1068,7 +1068,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "The free local value 'x' cannot be used in the context of a static local function."
+        "The free local value 'x' cannot be used in a static context."
     ]
     |> ignore
 
@@ -8688,4 +8688,60 @@ class Manager<T> =
         """
     Oly src
     |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Should not access outside local in local type``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Test(): () =
+    let cannotAccess = 100
+
+    class LocalType =
+
+        field X: int32
+
+        new() =
+            {
+                X = cannotAccess
+            }
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The free local value 'cannotAccess' cannot be used in a static context.",
+                """
+                X = cannotAccess
+                    ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not access outside local in static lambda``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Test(): () =
+    let cannotAccess = 100
+
+    static let innerLambda() =
+        let _ = cannotAccess
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The free local value 'cannotAccess' cannot be used in a static context.",
+                """
+        let _ = cannotAccess
+                ^^^^^^^^^^^^
+"""
+            )
+        ]
     |> ignore
