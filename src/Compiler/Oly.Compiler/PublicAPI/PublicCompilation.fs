@@ -61,22 +61,15 @@ type private CompilationUnitImplementationState =
         let boundTree =
             CacheValue(fun ct -> 
                 let binder, diags = lazyImplPass.GetValue(ct)
-                let boundTree, diags2 = binder.Bind(ct)
-
-                let diags =
-                    diags.AddRange(diags2)
-                    |> ImArray.ofSeq
-
-                boundTree, diags
+                let boundTree = binder.Bind(ct)
+                boundTree.PrependDiagnostics(diags)
             )
 
-        let getResult =
-            fun ct ->
-                let boundTree, diags = boundTree.GetValue(ct)
-                { BoundTree = boundTree; SemanticDiagnostics = diags }
+        let getBoundTree =
+            fun ct -> boundTree.GetValue(ct)
 
         let boundModel =
-            OlyBoundModel(asm, syntaxTree, tryGetLocation, getPartialDeclTable, getResult)
+            OlyBoundModel(asm, syntaxTree, tryGetLocation, getPartialDeclTable, getBoundTree)
 
         let lazySyntaxDiagnostics =
             CacheValue(fun ct -> syntaxTree.GetDiagnostics(ct))
@@ -446,8 +439,8 @@ module private CompilationPhases =
 
         binders4
         |> map (fun (x, diags) ->
-            let boundTree, diags2 = x.Bind(ct)
-            boundTree, diags.AddRange(diags2)
+            let boundTree = x.Bind(ct)
+            boundTree, diags.AddRange(boundTree.Diagnostics)
         )
 
     let lowering (state: CompilationState) (boundTrees: (BoundTree * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =

@@ -15,13 +15,6 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.PrettyPrint
 
-[<NoEquality;NoComparison>]
-type internal FullyBoundResult =
-    {
-        BoundTree: BoundTree
-        SemanticDiagnostics: OlyDiagnostic imarray
-    }
-
 [<AbstractClass>]
 type OlySymbol internal (syntax: OlySyntaxNode) =
 
@@ -1073,7 +1066,7 @@ type OlyBoundModel internal (
         syntaxTree: OlySyntaxTree, 
         tryGetLocation: (OlyILAssemblyIdentity * ISymbol * CancellationToken -> OlySourceLocation option), 
         getPartialDeclTable: (CancellationToken -> BoundDeclarationTable), 
-        getResult: (CancellationToken -> FullyBoundResult)) as this =
+        getBoundTree: (CancellationToken -> BoundTree)) as this =
 
     let rec getParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (logicalPars: ILocalParameterSymbol romem) =
         (syntaxPars.Values.AsMemory(), logicalPars)
@@ -1839,8 +1832,7 @@ type OlyBoundModel internal (
         |> Option.map (fun (boundNode, benv) -> OlyBoundSubModel(this, boundNode, benv))
 
     member internal this.GetBoundTree(ct: CancellationToken): BoundTree =
-        let result = getResult ct
-        result.BoundTree
+        getBoundTree ct
 
     member this.GetSymbols(node: OlySyntaxNode, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -1863,8 +1855,7 @@ type OlyBoundModel internal (
     /// Gets the semantic diagnostics.
     member this.GetDiagnostics(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        let result = getResult ct
-        result.SemanticDiagnostics
+        this.GetBoundTree(ct).Diagnostics
 
     member _.SyntaxTree: OlySyntaxTree = syntaxTree
 

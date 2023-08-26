@@ -454,7 +454,7 @@ and emitILEnclosingNamespace cenv env asmIdentity (ent: EntitySymbol) =
     let rec loop (enclosing: EnclosingSymbol) acc =
             match enclosing with
             | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-                loop enclosing.Enclosing (cenv.assembly.AddString(ent.Name) :: acc)
+                loop enclosing.Enclosing ((GenString cenv ent.Name) :: acc)
             | EnclosingSymbol.RootNamespace -> acc |> ImArray.ofSeq
             | _ ->
                 failwith "Invalid enclosing."

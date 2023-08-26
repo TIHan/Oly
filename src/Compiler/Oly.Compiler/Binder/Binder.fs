@@ -274,7 +274,7 @@ let bindSyntaxTreePass3 cenv env (entBuilder: EntitySymbolBuilder) (syntaxTree: 
 let bindSyntaxTreePass4 cenv env (entBuilder: EntitySymbolBuilder) (syntaxTree: OlySyntaxTree) =
     let syntaxRoot = syntaxTree.GetRoot(cenv.ct) :?> OlySyntaxCompilationUnit
     let _, boundRoot = bindRootPass4 cenv env entBuilder syntaxRoot
-    BoundTree(cenv.asm, cenv.declTable.contents, syntaxTree, boundRoot)
+    BoundTree(cenv.asm, cenv.declTable.contents, syntaxTree, boundRoot, cenv.diagnostics.GetDiagnostics())
 
 [<NoEquality;NoComparison>]
 type PassState =
@@ -310,12 +310,11 @@ type BinderPass4(state: PassState) =
 
         if diagLogger.HasAnyErrors then
             // Suppress errors from post-inference analysis if we already have errors.
-            let diags = diagLogger.GetDiagnostics()
             PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
-            boundTree, diags
+            boundTree
         else
             PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
-            boundTree, diagLogger.GetDiagnostics()
+            boundTree.AppendDiagnostics(diagLogger.GetDiagnostics())
 
     let cachedValue = CacheValue(compute)
 

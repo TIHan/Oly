@@ -1073,7 +1073,6 @@ type OlyILPropertyDefinitionDocumentation() = class end
 [<NoComparison;ReferenceEquality>]
 type OlyILAssembly =
     private {
-        stringSet: ConcurrentDictionary<string, OlyILStringHandle> // this is a helper, not serialized
         entDefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
         entRefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
         funcDefSet: ConcurrentDictionary<OlyILEntityDefinitionHandle, ConcurrentDictionary<string, ConcurrentDictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
@@ -1119,23 +1118,13 @@ type OlyILAssembly =
         if System.String.IsNullOrWhiteSpace str then
             invalidArg (nameof(str)) "String cannot be null or whitespace-only."
 
-        match this.stringSet.TryGetValue str with
-        | true, handle -> handle
-        | _ ->
-            let handle = this.strings.Add(str)
-            this.stringSet.[str] <- handle
-            handle
+        this.strings.Add(str)
 
     member this.AddStringOrNilString(str: string) : OlyILStringHandle =
         if System.String.IsNullOrWhiteSpace str then
             Unchecked.defaultof<_>
         else
-            match this.stringSet.TryGetValue str with
-            | true, handle -> handle
-            | _ ->
-                let handle = this.strings.Add(str)
-                this.stringSet.[str] <- handle
-                handle
+            this.strings.Add(str)
 
     member private this.SetEntityDefinitionLookup(handle: OlyILEntityDefinitionHandle, entDef: OlyILEntityDefinition) =
         let name = this.GetStringOrEmpty(entDef.NameHandle)
@@ -1208,12 +1197,12 @@ type OlyILAssembly =
 
     member this.AddFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, funcDef: OlyILFunctionDefinition) : OlyILFunctionDefinitionHandle =
         let handle = this.funcDefs.Add(funcDef)
-        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
+       // this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
         handle
 
     member this.SetFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, handle: OlyILFunctionDefinitionHandle, funcDef) =
         this.funcDefs.Set(handle, funcDef)
-        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
+        //this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
 
     member this.AddFieldDefinition(fieldDef: OlyILFieldDefinition) : OlyILFieldDefinitionHandle =
         this.fieldDefs.Add(fieldDef)
@@ -1300,13 +1289,20 @@ type OlyILAssembly =
         | _ -> ImArray.empty
 
     member this.FindFunctionDefinitions(entDefHandle: OlyILEntityDefinitionHandle, name: string) =
-        match this.funcDefSet.TryGetValue(entDefHandle) with
-        | true, handles ->
-            match handles.TryGetValue(name) with
-            | true, handles -> handles.Keys |> ImArray.ofSeq
-            | _ -> ImArray.empty
-        | _ ->
-            ImArray.empty
+        let entDef = this.GetEntityDefinition(entDefHandle)
+        entDef.FunctionHandles
+        |> ImArray.filter (fun handle ->
+            let funcDef = this.GetFunctionDefinition(handle)
+            let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
+            this.GetStringOrEmpty(funcSpec.NameHandle) = name
+        )
+        //match this.funcDefSet.TryGetValue(entDefHandle) with
+        //| true, handles ->
+        //    match handles.TryGetValue(name) with
+        //    | true, handles -> handles.Keys |> ImArray.ofSeq
+        //    | _ -> ImArray.empty
+        //| _ ->
+        //    ImArray.empty
 
     member this.AddPrimitiveType(builtInTy, entDefHandle) =
         this.primitiveTypes.Add(builtInTy, entDefHandle)
@@ -1333,7 +1329,6 @@ type OlyILAssembly =
 
     static member Create(name, stamp, isDebuggable) =
         let asm = {
-            stringSet = ConcurrentDictionary()
             entDefSet = ConcurrentDictionary()
             entRefSet = ConcurrentDictionary()
             funcDefSet = ConcurrentDictionary()

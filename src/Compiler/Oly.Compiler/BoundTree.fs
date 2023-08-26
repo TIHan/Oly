@@ -887,7 +887,7 @@ type BoundDeclarationTable private (
         )
 
 [<Sealed>]
-type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot) =
+type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot, diags: OlyDiagnostic imarray) =
 
     member _.Assembly = asm
 
@@ -907,7 +907,15 @@ type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree
     member _.DeclarationTable = declTable
 
     member _.UpdateRoot(root) =
-        BoundTree(asm, declTable, syntaxTree, root)
+        BoundTree(asm, declTable, syntaxTree, root, diags)
+
+    member _.Diagnostics = diags
+
+    member _.AppendDiagnostics(newDiags: OlyDiagnostic imarray) =
+        BoundTree(asm, declTable, syntaxTree, root, diags.AddRange(newDiags))
+
+    member _.PrependDiagnostics(newDiags: OlyDiagnostic imarray) =
+        BoundTree(asm, declTable, syntaxTree, root, newDiags.AddRange(diags))
 
 [<Struct;NoEquality;NoComparison>]
 type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =

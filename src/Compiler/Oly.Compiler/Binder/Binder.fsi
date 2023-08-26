@@ -18,7 +18,7 @@ type BinderPass4 =
 
     member PartialDeclarationTable : BoundDeclarationTable
 
-    member Bind : CancellationToken -> BoundTree * OlyDiagnostic imarray
+    member Bind : CancellationToken -> BoundTree
 
     member SyntaxTree : OlySyntaxTree
 

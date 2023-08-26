@@ -637,7 +637,7 @@ type internal LocalCache =
         identity: OlyILAssemblyIdentity
         tyFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, TypeSymbol>
         tyFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, TypeSymbol>
-        entFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, EntitySymbol>
+        entFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, CacheValue<EntitySymbol>>
         entFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, EntitySymbol>
         funcFromFuncDef: ConcurrentDictionary<OlyILFunctionDefinitionHandle, IFunctionSymbol>
     }
@@ -681,33 +681,37 @@ type Imports =
         let localCache = this.GetLocalCache(ilAsm)
         match localCache.entFromEntDef.TryGetValue ilEntDefHandle with
         | true, ent -> 
-            ent
+            ent.GetValue(CancellationToken.None)
         | _ ->
-            let ent: EntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
-            let asm =
-                match ent.ContainingAssembly with
-                | Some asm -> asm
-                | _ -> failwith "Imported entity must have a containing assembly."
+            let eval =
+                fun ilEntDefHandle ->
+                    CacheValue(fun _ ->
+                        let ent: EntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
+                        let asm =
+                            match ent.ContainingAssembly with
+                            | Some asm -> asm
+                            | _ -> failwith "Imported entity must have a containing assembly."
 
-            let ent =
-                let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
+                        let ent =
+                            let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
 
-                // Anonymous
-                if ilEntDef.NameHandle.IsNil then
-                   ent
-                else
-                    match this.sharedCache.entFromName.TryGetValue(asm.Identity.Name) with
-                    | true, ents ->
-                        match ents.TryGetValue(ent.QualifiedName) with
-                        | true, ent -> ent
-                        | _ -> 
-                            this.sharedCache.AddEntity(ent)
-                            ent
-                    | _ ->
-                        this.sharedCache.AddEntity(ent)
+                            // Anonymous
+                            if ilEntDef.NameHandle.IsNil then
+                               ent
+                            else
+                                match this.sharedCache.entFromName.TryGetValue(asm.Identity.Name) with
+                                | true, ents ->
+                                    match ents.TryGetValue(ent.QualifiedName) with
+                                    | true, ent -> ent
+                                    | _ -> 
+                                        this.sharedCache.AddEntity(ent)
+                                        ent
+                                | _ ->
+                                    this.sharedCache.AddEntity(ent)
+                                    ent
                         ent
-            localCache.entFromEntDef.TryAdd(ilEntDefHandle, ent) |> ignore
-            ent
+                    )
+            localCache.entFromEntDef.GetOrAdd(ilEntDefHandle, eval).GetValue(CancellationToken.None)
 
     static member Create(diagnostics, namespaceEnv, sharedCache: SharedImportCache) =
         {
@@ -1263,6 +1267,11 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
 [<DebuggerDisplay("{DebugName}")>]
 type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imports, enclosingEnt: EntitySymbol, ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle, ilFuncDefHandle: OlyILFunctionDefinitionHandle, semantic: FunctionSemantic) as this =
     
+    // REVIEW: Required for evaluating data that needs to happen once to preserve identity.
+    //         This includes type-parameters, parameters, and function-overrides.
+    //         In theory, we could remove the lock if we can verify that these symbol types have structural identity at the Formal level.
+    let lockObj() = obj()
+
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
     let id = newId()
@@ -1286,39 +1295,61 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         else
             funcFlags
 
-    let lazyValueFlags =
-        lazy
-            // Clean up value flags.
-            if 
-                    not ilFuncDef.IsStatic && 
-                    (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)) && 
-                    not (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor)) && 
-                    (enclosing.IsAnyStruct || enclosing.IsShape) then
-                ValueFlags.Mutable
-            else
-                ValueFlags.None
+    let mutable lazyValueFlags = ValueNone: ValueFlags voption
+    let evalValueFlags() =
+        match lazyValueFlags with
+        | ValueSome(valueFlags) -> valueFlags
+        | _ ->
+            let valueFlags =
+                // Clean up value flags.
+                if 
+                        not ilFuncDef.IsStatic && 
+                        (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)) && 
+                        not (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor)) && 
+                        (enclosing.IsAnyStruct || enclosing.IsShape) then
+                    ValueFlags.Mutable
+                else
+                    ValueFlags.None
+            lazyValueFlags <- ValueSome(valueFlags)
+            valueFlags
 
-    let lazyName =
-        lazy
-            let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
-            let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
-            cenv.ilAsm.GetStringOrEmpty(ilFuncSpec.NameHandle)
+    let mutable lazyName = null
+    let evalName() =
+        match lazyName with
+        | null ->
+            let name =
+                let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+                let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+                cenv.ilAsm.GetStringOrEmpty(ilFuncSpec.NameHandle)
+            lazyName <- name
+            name
+        | name ->
+            name
 
-    let lazyTyPars =
-        lazy
-            importTypeParameterSymbols cenv enclosingEnt.TypeParameters true ilFuncSpec.TypeParameters
+    let mutable lazyTyPars = Unchecked.defaultof<TypeParameterSymbol imarray>
+    let evalTyPars() =
+        if lazyTyPars.IsDefault then
+            lock lockObj (fun () ->
+                if lazyTyPars.IsDefault then
+                    lazyTyPars <- importTypeParameterSymbols cenv enclosingEnt.TypeParameters true ilFuncSpec.TypeParameters
+            )
+        lazyTyPars
 
-    let lazyTyArgs =
-        lazy
-            lazyTyPars.Value
-            |> ImArray.map (fun tyPar -> tyPar.AsType)
+    let mutable lazyTyArgs = Unchecked.defaultof<TypeArgumentSymbol imarray>
+    let evalTyArgs() =
+        if lazyTyArgs.IsDefault then
+            lazyTyArgs <-
+                evalTyPars()
+                |> ImArray.map (fun tyPar -> tyPar.AsType)
+        lazyTyArgs
 
-    let lazyPars =
-        lazy
+    let mutable lazyPars = Unchecked.defaultof<ILocalParameterSymbol imarray>
+    let evalPars() =
+        if lazyPars.IsDefault then
             let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
             let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
             let enclosingTyPars = enclosingEnt.TypeParameters
-            let funcTyPars = lazyTyPars.Value
+            let funcTyPars = evalTyPars()
             let pars =
                 let ilPars = ilFuncSpec.Parameters
                 let ilPars =
@@ -1339,36 +1370,47 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
                 ilPars
                 |> ImArray.map (importParameter cenv enclosingTyPars funcTyPars)
-            pars
+            lock lockObj (fun () ->
+                if lazyPars.IsDefault then
+                    lazyPars <- pars
+            )
+        lazyPars
 
-    let lazyAttrs =
-        lazy
-            let attrs =
-                ilFuncDef.Attributes
-                |> ImArray.map (importAttribute cenv)
-            if ilCallConv.HasFlag(OlyILCallingConvention.Blittable) then
-                attrs.Add(AttributeSymbol.Blittable)
-            else
-                attrs
-
-    let lazyReturnTy =
-        lazy
-            let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
-            let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
-
-            let returnTy = 
-                if isConstructor then
-                    if isInstance then
-                        enclosingEnt.AsType
-                    else
-                        TypeSymbol.Unit
+    let mutable lazyAttrs = Unchecked.defaultof<AttributeSymbol imarray>
+    let evalAttrs() =
+        if lazyAttrs.IsDefault then
+            lazyAttrs <-
+                let attrs =
+                    ilFuncDef.Attributes
+                    |> ImArray.map (importAttribute cenv)
+                if ilCallConv.HasFlag(OlyILCallingConvention.Blittable) then
+                    attrs.Add(AttributeSymbol.Blittable)
                 else
-                    let tyPars = lazyTyPars.Value
-                    importTypeSymbol cenv enclosingEnt.TypeParameters tyPars ilFuncSpec.ReturnType
-            returnTy
+                    attrs
+        lazyAttrs
 
-    let lazyTy =
-        lazy
+    let mutable lazyReturnTy = Unchecked.defaultof<TypeSymbol>
+    let evalReturnTy() =
+        if obj.ReferenceEquals(lazyReturnTy, null) then
+            lazyReturnTy <-
+                let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+                let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+
+                let returnTy = 
+                    if isConstructor then
+                        if isInstance then
+                            enclosingEnt.AsType
+                        else
+                            TypeSymbol.Unit
+                    else
+                        let tyPars = evalTyPars()
+                        importTypeSymbol cenv enclosingEnt.TypeParameters tyPars ilFuncSpec.ReturnType
+                returnTy
+        lazyReturnTy
+
+    let mutable lazyTy = Unchecked.defaultof<TypeSymbol>
+    let evalTy() =
+        if obj.ReferenceEquals(lazyTy, null) then
             let pars = (this :> IFunctionSymbol).Parameters
             let tyPars = (this :> IFunctionSymbol).TypeParameters
             let returnTy = (this :> IFunctionSymbol).ReturnType
@@ -1376,20 +1418,36 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 if this.IsInstanceNotConstructor && pars.IsEmpty then
                     failwith "Expected full parameters."
                 TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy)
-            ty
+            lazyTy <- ty
+        lazyTy
         
-    let lazyFuncOverrides =
-        lazy
-            ilFuncDef.Overrides
-            |> Option.map (importFunctionOverridesFromReference cenv enclosingEnt.TypeParameters this)
+    let mutable lazyFuncOverrides = ValueNone: IFunctionSymbol option voption
+    let evalFuncOverrides() =
+        match lazyFuncOverrides with
+        | ValueSome(funcOverrides) -> funcOverrides
+        | _ ->
+            lock lockObj (fun () ->
+                if lazyFuncOverrides.IsNone then
+                    let funcOverrides =
+                        ilFuncDef.Overrides
+                        |> Option.map (importFunctionOverridesFromReference cenv enclosingEnt.TypeParameters this)
+                    lazyFuncOverrides <- ValueSome(funcOverrides)
+            )
+            lazyFuncOverrides.Value
 
-    let lazyWellKnownFunc =
-        lazy
-            lazyAttrs.Value
-            |> WellKnownFunction.TryFromAttributes
-            |> Option.defaultValue WellKnownFunction.None
+    let mutable lazyWellKnownFunc = ValueNone: WellKnownFunction voption
+    let evalWellKnownFunc() =
+        match lazyWellKnownFunc with
+        | ValueSome(wellKnownFunc) -> wellKnownFunc
+        | _ ->
+            let wellKnownFunc =
+                evalAttrs()
+                |> WellKnownFunction.TryFromAttributes
+                |> Option.defaultValue WellKnownFunction.None
+            lazyWellKnownFunc <- ValueSome(wellKnownFunc)
+            wellKnownFunc
 
-    member this.DebugName = lazyName.Value
+    member this.DebugName = evalName()
 
     /// Mutability.
     member this.SetAssociatedFormalPattern(pat: IPatternSymbol) =
@@ -1401,29 +1459,28 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
         member _.Id = id
 
-        member _.Name = lazyName.Value
+        member _.Name = evalName()
 
         member this.Formal = this :> IValueSymbol
 
-        member _.TypeParameters = lazyTyPars.Value
+        member _.TypeParameters = evalTyPars()
 
-        member this.TypeArguments = lazyTyArgs.Value
+        member this.TypeArguments = evalTyArgs()
 
-        member _.Attributes = lazyAttrs.Value
+        member _.Attributes = evalAttrs()
 
-        member this.Parameters = lazyPars.Value
+        member this.Parameters = evalPars()
 
-        member this.ReturnType = lazyReturnTy.Value
+        member this.ReturnType = evalReturnTy()
         member _.IsField = false
         member _.FunctionFlags = funcFlags
         member _.MemberFlags = memberFlags
         member _.IsFunction = true
-        member _.ValueFlags = lazyValueFlags.Value
+        member _.ValueFlags = evalValueFlags()
 
-        member this.Type = lazyTy.Value
+        member this.Type = evalTy()
 
-        member this.FunctionOverrides =
-            lazyFuncOverrides.Value
+        member this.FunctionOverrides = evalFuncOverrides()
 
         member _.IsProperty = false
         member _.IsPattern = false
@@ -1433,7 +1490,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
         member _.Semantic = semantic
 
-        member _.WellKnownFunction = lazyWellKnownFunc.Value
+        member _.WellKnownFunction = evalWellKnownFunc()
         member _.AssociatedFormalPattern = patOpt
 
 [<Sealed>]
@@ -1531,9 +1588,13 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) as this =
     inherit EntitySymbol()
 
+    // REVIEW: Required for evaluating data that needs to happen once to preserve identity.
+    //         This includes type-parameters, nested entities, properties, functions, patterns and fields.
+    //         In theory, we could remove the lock if we can verify that these symbol types have structural identity at the Formal level.
+    let lockObj = obj()
+
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
-    let id = newId()
     let ilEntDef = cenv.ilAsm.GetEntityDefinition(ilEntDefHandle)
     let name = cenv.ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
     let entFlags = importEntityFlags ilEntDef.Flags
@@ -1543,159 +1604,233 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
         else
             entFlags
 
-    let lazyEnclosing =
-        lazy
-            importEnclosing cenv this ilEntDef.TypeParameters.Length ilEntDef.Enclosing
+    let mutable lazyEnclosing = Unchecked.defaultof<EnclosingSymbol>
+    let evalEnclosing() =
+        if obj.ReferenceEquals(null, lazyEnclosing) then
+            lazyEnclosing <- importEnclosing cenv this ilEntDef.TypeParameters.Length ilEntDef.Enclosing
+        lazyEnclosing
 
-    let lazyTyPars =
-        lazy
-            let enclosingTyPars = lazyEnclosing.Value.TypeParameters
-            enclosingTyPars.AddRange(importTypeParameterSymbols cenv enclosingTyPars false ilEntDef.TypeParameters)
-
-    let lazyTyArgs =
-        lazy
-            lazyTyPars.Value
-            |> ImArray.map (fun tyPar -> tyPar.AsType)
-
-    let lazyEnts =
-        lazy
-            ilEntDef.EntityDefinitionHandles
-            |> ImArray.map (fun ilEntDefHandle ->
-                importEntitySymbolFromDefinition cenv ilEntDefHandle
+    let mutable lazyTyPars = Unchecked.defaultof<TypeParameterSymbol imarray>
+    let evalTyPars() =
+        if lazyTyPars.IsDefault then
+            lock lockObj (fun () ->
+                if lazyTyPars.IsDefault then
+                    let enclosingTyPars = evalEnclosing().TypeParameters
+                    let tyPars = enclosingTyPars.AddRange(importTypeParameterSymbols cenv enclosingTyPars false ilEntDef.TypeParameters)
+                    lazyTyPars <- tyPars
             )
+        lazyTyPars
 
-    let lazyExtends =
-        lazy
-            ilEntDef.Extends
-            |> ImArray.map (fun ilTy ->
-                match ilTy with
-                | OlyILTypeVoid -> TypeSymbol.Void
-                | _ ->
-                    importTypeSymbol cenv lazyTyPars.Value ImArray.empty ilTy
+    let mutable lazyTyArgs = Unchecked.defaultof<TypeArgumentSymbol imarray>
+    let evalTyArgs() =
+        if lazyTyArgs.IsDefault then
+            let tyArgs =
+                evalTyPars()
+                |> ImArray.map (fun tyPar -> tyPar.AsType)
+            lazyTyArgs <- tyArgs
+        lazyTyArgs
+
+    let mutable lazyEnts = Unchecked.defaultof<EntitySymbol imarray>
+    let evalEnts() =
+        if lazyEnts.IsDefault then
+            lock lockObj (fun () ->
+                if lazyEnts.IsDefault then
+                    let ents =
+                        ilEntDef.EntityDefinitionHandles
+                        |> ImArray.map (fun ilEntDefHandle ->
+                            importEntitySymbolFromDefinition cenv ilEntDefHandle
+                        )
+                    lazyEnts <- ents
             )
+        lazyEnts
 
-    let lazyImplements =
-        lazy
-            ilEntDef.Implements
-            |> ImArray.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
-
-    let lazyRuntimeTyOpt =
-        lazy
-            ilEntDef.RuntimeType
-            |> Option.map (importTypeSymbol cenv lazyTyPars.Value ImArray.empty)
-
-    let lazyProps =
-        lazy
-            ilEntDef.PropertyDefinitionHandles
-            |> ImArray.choose (fun ilPropDefHandle ->
-                let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
-                let name = ilPropDef.NameHandle |> ilAsm.GetStringOrEmpty
-                let attrs = ImArray.empty // TODO:
-                let propTy = importTypeSymbol cenv lazyTyPars.Value ImArray.empty ilPropDef.Type
-
-                let valueFlags = ValueFlags.None
-
-                let getterOpt =
-                    if ilPropDef.Getter.IsNil then
-                        None
-                    else
-                        importFunctionFromDefinition cenv this ilEntDefHandle GetterFunction ilPropDef.Getter
-                        |> Some
-
-                let setterOpt =
-                    if ilPropDef.Setter.IsNil then
-                        None
-                    else
-                        importFunctionFromDefinition cenv this ilEntDefHandle SetterFunction ilPropDef.Setter
-                        |> Some
-
-                let isValid, memberFlags =
-                    match getterOpt, setterOpt with
-                    | Some(getter), Some(setter) ->
-                        if getter.IsInstance = setter.IsInstance then
-                            let getterAccessor = getter.MemberFlags &&& MemberFlags.AccessorMask
-                            let setterAccessor = setter.MemberFlags &&& MemberFlags.AccessorMask
-
-                            let memberFlags =
-                                if getterAccessor < setterAccessor then
-                                    getter.MemberFlags
-                                elif setterAccessor < getterAccessor then
-                                    setter.MemberFlags
-                                else
-                                    getter.MemberFlags
-                            true, memberFlags
-                        else
-                            false, MemberFlags.None
-                    | Some(getter), _ ->
-                        true, getter.MemberFlags
-                    | _, Some(setter) ->
-                        true, setter.MemberFlags
+    let mutable lazyExtends = Unchecked.defaultof<TypeSymbol imarray>
+    let evalExtends() =
+        if lazyExtends.IsDefault then
+            let extends =
+                ilEntDef.Extends
+                |> ImArray.map (fun ilTy ->
+                    match ilTy with
+                    | OlyILTypeVoid -> TypeSymbol.Void
                     | _ ->
-                        false, MemberFlags.None                               
+                        importTypeSymbol cenv (evalTyPars()) ImArray.empty ilTy
+                )
+            lazyExtends <- extends
+        lazyExtends
 
-                if not isValid then
-                    None
-                else
-                    let memberFlags = memberFlags &&& (MemberFlags.AccessorMask ||| MemberFlags.Instance)
+    let mutable lazyImplements = Unchecked.defaultof<TypeSymbol imarray>
+    let evalImplements() =
+        if lazyImplements.IsDefault then
+            let implements =
+                ilEntDef.Implements
+                |> ImArray.map (fun ilTy ->
+                    importTypeSymbol cenv (evalTyPars()) ImArray.empty ilTy
+                )
+            lazyImplements <- implements
+        lazyImplements
 
-                    // TODO: We should make a ImportedPropertyDefinitionSymbol to do this.
-                    let id = newId()
-                    let enclosing = EnclosingSymbol.Entity(this)
-                    { new IPropertySymbol with
-                          member this.Attributes = attrs
-                          member this.BackingField = None
-                          member this.Enclosing = enclosing
-                          member this.Formal = this :> IValueSymbol
-                          member this.FunctionFlags = FunctionFlags.None
-                          member this.FunctionOverrides = None
-                          member this.Getter = getterOpt
-                          member this.Id = id
-                          member this.IsBase = false
-                          member this.IsField = false
-                          member this.IsFunction = false
-                          member this.IsPattern = false
-                          member this.IsProperty = true
-                          member this.IsThis = false
-                          member this.MemberFlags = memberFlags
-                          member this.Name = name
-                          member this.Setter = setterOpt
-                          member this.Type = propTy
-                          member this.TypeArguments = ImArray.empty
-                          member this.TypeParameters = ImArray.empty
-                          member this.ValueFlags = valueFlags
+    let mutable lazyRuntimeTyOpt = ValueNone: TypeSymbol option voption
+    let evalRuntimeTyOpt() =
+        match lazyRuntimeTyOpt with
+        | ValueSome(runtimeTyOpt) -> runtimeTyOpt
+        | _ ->
+            let runtimeTyOpt =
+                ilEntDef.RuntimeType
+                |> Option.map (importTypeSymbol cenv (evalTyPars()) ImArray.empty)
+            lazyRuntimeTyOpt <- ValueSome(runtimeTyOpt)
+            runtimeTyOpt
+
+    let mutable lazyProps = Unchecked.defaultof<IPropertySymbol imarray>
+    let evalProps() =
+        if lazyProps.IsDefault then
+            lock lockObj (fun () ->
+                if lazyProps.IsDefault then
+                    let props =
+                        ilEntDef.PropertyDefinitionHandles
+                        |> ImArray.choose (fun ilPropDefHandle ->
+                            let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
+                            let name = ilPropDef.NameHandle |> ilAsm.GetStringOrEmpty
+                            let attrs = ImArray.empty // TODO:
+                            let propTy = importTypeSymbol cenv (evalTyPars()) ImArray.empty ilPropDef.Type
+
+                            let valueFlags = ValueFlags.None
+
+                            let getterOpt =
+                                if ilPropDef.Getter.IsNil then
+                                    None
+                                else
+                                    importFunctionFromDefinition cenv this ilEntDefHandle GetterFunction ilPropDef.Getter
+                                    |> Some
+
+                            let setterOpt =
+                                if ilPropDef.Setter.IsNil then
+                                    None
+                                else
+                                    importFunctionFromDefinition cenv this ilEntDefHandle SetterFunction ilPropDef.Setter
+                                    |> Some
+
+                            let isValid, memberFlags =
+                                match getterOpt, setterOpt with
+                                | Some(getter), Some(setter) ->
+                                    if getter.IsInstance = setter.IsInstance then
+                                        let getterAccessor = getter.MemberFlags &&& MemberFlags.AccessorMask
+                                        let setterAccessor = setter.MemberFlags &&& MemberFlags.AccessorMask
+
+                                        let memberFlags =
+                                            if getterAccessor < setterAccessor then
+                                                getter.MemberFlags
+                                            elif setterAccessor < getterAccessor then
+                                                setter.MemberFlags
+                                            else
+                                                getter.MemberFlags
+                                        true, memberFlags
+                                    else
+                                        false, MemberFlags.None
+                                | Some(getter), _ ->
+                                    true, getter.MemberFlags
+                                | _, Some(setter) ->
+                                    true, setter.MemberFlags
+                                | _ ->
+                                    false, MemberFlags.None                               
+
+                            if not isValid then
+                                None
+                            else
+                                let memberFlags = memberFlags &&& (MemberFlags.AccessorMask ||| MemberFlags.Instance)
+
+                                // TODO: We should make a ImportedPropertyDefinitionSymbol to do this.
+                                let id = newId()
+                                let enclosing = EnclosingSymbol.Entity(this)
+                                { new IPropertySymbol with
+                                      member this.Attributes = attrs
+                                      member this.BackingField = None
+                                      member this.Enclosing = enclosing
+                                      member this.Formal = this :> IValueSymbol
+                                      member this.FunctionFlags = FunctionFlags.None
+                                      member this.FunctionOverrides = None
+                                      member this.Getter = getterOpt
+                                      member this.Id = id
+                                      member this.IsBase = false
+                                      member this.IsField = false
+                                      member this.IsFunction = false
+                                      member this.IsPattern = false
+                                      member this.IsProperty = true
+                                      member this.IsThis = false
+                                      member this.MemberFlags = memberFlags
+                                      member this.Name = name
+                                      member this.Setter = setterOpt
+                                      member this.Type = propTy
+                                      member this.TypeArguments = ImArray.empty
+                                      member this.TypeParameters = ImArray.empty
+                                      member this.ValueFlags = valueFlags
                         
-                    }
-                    |> Some
+                                }
+                                |> Some
+                        )
+                    lazyProps <- props
             )
+        lazyProps
 
-    let lazyPats =
-        lazy
-            ImArray.empty // TODO:
-
-    let lazyFuncs =
-        lazy
-            lazyProps.Force() |> ignore
-            lazyPats.Force() |> ignore
-            ilEntDef.FunctionHandles
-            |> ImArray.map (importFunctionFromDefinition cenv this ilEntDefHandle NormalFunction)
-
-    let lazyInstanceCtors =
-        lazy
-            lazyFuncs.Value
-            |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
-
-    let lazyFields =
-        lazy
-            let asEnclosing = this.AsEnclosing
-            ilEntDef.FieldDefinitionHandles
-            |> ImArray.map (fun ilFieldDefHandle ->
-                ImportedFieldDefinitionSymbol(asEnclosing, ilAsm, imports, ilFieldDefHandle) :> IFieldSymbol
+    let mutable lazyPats = Unchecked.defaultof<IPatternSymbol imarray>
+    let evalPats() =
+        if lazyPats.IsDefault then
+            lock lockObj (fun () ->
+                if lazyPats.IsDefault then
+                    let pats = ImArray.empty // TODO:
+                    lazyPats <- pats
             )
+        lazyPats
 
-    let lazyAttrs =
-        lazy
-            ilEntDef.Attributes
-            |> ImArray.map (importAttribute cenv)
+    let mutable lazyFuncs = Unchecked.defaultof<IFunctionSymbol imarray>
+    let evalFuncs() =
+        if lazyFuncs.IsDefault then
+            // Evaluate these first before we do all functions.
+            evalProps() |> ignore
+            evalPats() |> ignore
+
+            lock lockObj (fun () ->
+                if lazyFuncs.IsDefault then
+                    let funcs =
+                        evalProps() |> ignore
+                        evalPats() |> ignore
+                        ilEntDef.FunctionHandles
+                        |> ImArray.map (importFunctionFromDefinition cenv this ilEntDefHandle NormalFunction)
+                    lazyFuncs <- funcs
+            )
+        lazyFuncs
+
+    let mutable lazyInstanceCtors = Unchecked.defaultof<IFunctionSymbol imarray>
+    let evalInstanceCtors() =
+        if lazyInstanceCtors.IsDefault then
+            let instanceCtors =
+                evalFuncs()
+                |> ImArray.filter (fun func -> func.IsInstance && func.IsConstructor)
+            lazyInstanceCtors <- instanceCtors
+        lazyInstanceCtors
+
+    let mutable lazyFields = Unchecked.defaultof<IFieldSymbol imarray>
+    let evalFields() =
+        if lazyFields.IsDefault then
+            lock lockObj (fun () ->
+                if lazyFields.IsDefault then
+                    let fields =
+                        let asEnclosing = this.AsEnclosing
+                        ilEntDef.FieldDefinitionHandles
+                        |> ImArray.map (fun ilFieldDefHandle ->
+                            ImportedFieldDefinitionSymbol(asEnclosing, ilAsm, imports, ilFieldDefHandle) :> IFieldSymbol
+                        )
+                    lazyFields <- fields
+            )
+        lazyFields
+
+    let mutable lazyAttrs = Unchecked.defaultof<AttributeSymbol imarray>
+    let evalAttrs() =
+        if lazyAttrs.IsDefault then
+            let attrs =
+                ilEntDef.Attributes
+                |> ImArray.map (importAttribute cenv)
+            lazyAttrs <- attrs
+        lazyAttrs
 
     let kind = importEntityKind ilEntDef.Kind
 
@@ -1704,23 +1839,23 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     member _.DebugName = name
 
     override _.ContainingAssembly = containingAsmOpt
-    override _.Enclosing: EnclosingSymbol = lazyEnclosing.Value
-    override _.Entities: EntitySymbol imarray = lazyEnts.Value
-    override _.Fields: IFieldSymbol imarray = lazyFields.Value
-    override _.Properties: IPropertySymbol imarray = lazyProps.Value
-    override _.Patterns: IPatternSymbol imarray = lazyPats.Value
+    override _.Enclosing: EnclosingSymbol = evalEnclosing()
+    override _.Entities: EntitySymbol imarray = evalEnts()
+    override _.Fields: IFieldSymbol imarray = evalFields()
+    override _.Properties: IPropertySymbol imarray = evalProps()
+    override _.Patterns: IPatternSymbol imarray = evalPats()
     override _.Flags: EntityFlags = entFlags
     override this.Formal: EntitySymbol = this :> EntitySymbol
-    override _.Functions: IFunctionSymbol imarray = lazyFuncs.Value
-    override _.InstanceConstructors = lazyInstanceCtors.Value
-    override _.Implements: TypeSymbol imarray = lazyImplements.Value
-    override _.Extends: TypeSymbol imarray = lazyExtends.Value
-    override _.RuntimeType: TypeSymbol option = lazyRuntimeTyOpt.Value
+    override _.Functions: IFunctionSymbol imarray = evalFuncs()
+    override _.InstanceConstructors = evalInstanceCtors()
+    override _.Implements: TypeSymbol imarray = evalImplements()
+    override _.Extends: TypeSymbol imarray = evalExtends()
+    override _.RuntimeType: TypeSymbol option = evalRuntimeTyOpt()
     override _.Kind: EntityKind = kind
     override _.Name: string = name
-    override _.TypeArguments: TypeSymbol imarray = lazyTyArgs.Value
-    override _.TypeParameters: TypeParameterSymbol imarray = lazyTyPars.Value
-    override _.Attributes = lazyAttrs.Value
+    override _.TypeArguments: TypeSymbol imarray = evalTyArgs()
+    override _.TypeParameters: TypeParameterSymbol imarray = evalTyPars()
+    override _.Attributes = evalAttrs()
 
     static member Create(asm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> EntitySymbol
