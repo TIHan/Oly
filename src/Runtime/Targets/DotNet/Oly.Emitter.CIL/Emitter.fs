@@ -20,6 +20,7 @@ type ClrMethodSpecialKind =
     | TypeOf
     | SizeOf
     | FunctionPointer
+    | CreateDelegate
 
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
 type ClrTypeDefinitionInfo =
@@ -228,6 +229,7 @@ module rec ClrCodeGen =
             dups: System.Collections.Generic.HashSet<int>
             irTier: OlyIRFunctionTier
             debugLocalsInScope: System.Collections.Generic.Dictionary<int, ClrDebugLocal>
+            newUniqueId: unit -> int64
             mutable localCount: int ref
             mutable nextLabelId: int32 ref
             mutable seqPointCount: int ref
@@ -316,7 +318,7 @@ module rec ClrCodeGen =
                 | _ ->
                     false
 
-    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
+    let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
         tyDef.Attributes <- TypeAttributes.Sealed
         tyDef.BaseType <- asmBuilder.MulticastDelegate
@@ -334,10 +336,10 @@ module rec ClrCodeGen =
 
         tyDef
 
-    let createMultiCastDelegateConstructor (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
+    let createMulticastDelegateConstructor (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
         (enclosingTy.MethodDefinitionBuilders |> Seq.item 0).Handle
 
-    let createMultiCastDelegateInvoke (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
+    let createMulticastDelegateInvoke (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
         (enclosingTy.MethodDefinitionBuilders |> Seq.item 1).Handle
 
     let createAnonymousFunctionConstructor (asmBuilder: ClrAssemblyBuilder) enclosingTy =
@@ -537,7 +539,7 @@ module rec ClrCodeGen =
 
             let ctor = 
                 if funcTy.IsTypeDefinition_t then
-                    ClrCodeGen.createMultiCastDelegateConstructor cenv.assembly funcTy
+                    ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
                 else
                     ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
             I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
@@ -1026,7 +1028,7 @@ module rec ClrCodeGen =
 
             let ctor = 
                 if funcTy.IsTypeDefinition_t then
-                    ClrCodeGen.createMultiCastDelegateConstructor cenv.assembly funcTy
+                    ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
                 else
                     ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
             I.Newobj(ctor, methInfo.Parameters.Length) |> emitInstruction cenv
@@ -1084,6 +1086,23 @@ module rec ClrCodeGen =
         | ClrMethodSpecialKind.SizeOf ->
             I.Sizeof func.tyInst.[0].Handle |> emitInstruction cenv
 
+        | ClrMethodSpecialKind.CreateDelegate when irArgs.Length = 2 && func.tyInst.Length > 0 ->
+            
+            let name = "__oly_delegate_" + (cenv.newUniqueId()).ToString()
+            let returnTy = func.tyInst[0].Handle
+
+            // tuple type representing variadic type arguments
+            // TODO: add some sort of verification for this.
+            // we skip 1 as it is the instance type
+            let parTys =
+                func.tyInst[1].TypeArguments 
+                |> ImArray.skip 1
+                |> ImArray.map (fun x -> ("", x))
+            // TODO: We should cache this.
+            let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition cenv.assembly name parTys returnTy
+            let ctor = (tyDef.MethodDefinitionBuilders |> Seq.item 0).Handle
+            I.Newobj(ctor, parTys.Length) |> emitInstruction cenv
+
         | _ ->
             failwith "Invalid special method."
 
@@ -1111,7 +1130,7 @@ module rec ClrCodeGen =
 
             let invoke =
                 if funcTy.IsTypeDefinition_t then
-                    createMultiCastDelegateInvoke cenv.assembly funcTy
+                    createMulticastDelegateInvoke cenv.assembly funcTy
                 else
                     createAnonymousFunctionInvoke cenv.assembly funcTy.Handle funcTy.TypeArguments argTys runtimeReturnTy.Handle
             I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
@@ -1870,7 +1889,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         let tyArgs = ClrCodeGen.handleTypeArguments asmBuilder tyArgs
         asmBuilder.AddGenericInstanceTypeReference(tyHandle, tyArgs)
     
-    let createMultiCastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle invokeParTys invokeReturnTy =
+    let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle invokeParTys invokeReturnTy =
         let name = "__oly_delegate_" + (newUniqueId().ToString())
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false)
 
@@ -2036,7 +2055,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 let parTys =
                     argTyHandles
                     |> ImArray.map (fun x -> ("", x))
-                let tyDef = ClrCodeGen.createMultiCastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
+                let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
                 ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, false, false, ClrTypeDefinitionInfo.Default)
             else
                 let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
@@ -2687,6 +2706,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         ClrMethodSpecialKind.SizeOf
                     | "__ldftn" ->
                         ClrMethodSpecialKind.FunctionPointer
+                    | "CreateDelegate" ->
+                        ClrMethodSpecialKind.CreateDelegate
                     | _ ->
                         failwith "Invalid CLR intrinsic"
                 | Some _ ->
@@ -2736,6 +2757,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     locals = System.Collections.Generic.Dictionary()
                     dups = System.Collections.Generic.HashSet()
                     debugLocalsInScope = System.Collections.Generic.Dictionary()
+                    newUniqueId = newUniqueId
                     localCount = ref bodyResult.LocalCount
                     nextLabelId = ref 0
                     seqPointCount = ref 0
