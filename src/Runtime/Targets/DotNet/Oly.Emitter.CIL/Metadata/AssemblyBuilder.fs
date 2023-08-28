@@ -901,6 +901,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member val tr_InAttribute: ClrTypeHandle option = None with get, set
     member val tr_IsReadOnlyAttribute: ClrTypeHandle option = None with get, set
+    member val tr_UnmanagedFunctionPointerAttribute: ClrTypeHandle option = None with get, set
+    member val tr_CallingConvention: ClrTypeHandle option = None with get, set
 
     member val tr_Span: ClrTypeHandle option = None with get, set
     member val tr_ReadOnlySpan: ClrTypeHandle option = None with get, set
@@ -915,6 +917,33 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``MulticastDelegate`` = sysTy "MulticastDelegate" false
 
     member val EntryPoint = ClrMethodHandle.None with get, set
+
+    member this.CreateMethodHandle(enclosingTy: ClrTypeHandle, methodName: string, isInstance: bool, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
+        let signature = BlobBuilder()
+        let mutable encoder = BlobEncoder(signature)
+        let mutable encoder = encoder.MethodSignature(isInstanceMethod = isInstance)
+        encoder.Parameters(
+            parTys.Length,
+            (fun encoder -> MetadataHelpers.encodeReturnType(encoder, returnTy, this)),
+            (fun encoder ->
+                parTys
+                |> ImArray.iter (fun parTy ->
+                    this.EncodeType(encoder.AddParameter().Type(), parTy)
+                )
+            )
+        )
+
+        let name = metadataBuilder.GetOrAddString(methodName)
+        let signature = metadataBuilder.GetOrAddBlob(signature)
+
+        let realHandle =
+            metadataBuilder.AddMemberReference(
+                enclosingTy.EntityHandle,
+                name,
+                signature
+            )
+
+        createMemRef realHandle name signature
 
     member this.EncodeAttributeElementType (encoder: CustomAttributeElementTypeEncoder, handle: ClrTypeHandle) =
         match handle with

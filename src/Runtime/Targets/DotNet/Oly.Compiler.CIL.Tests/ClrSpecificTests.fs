@@ -5472,6 +5472,9 @@ module M =
     #[import("intrinsic-CLR", "", "CreateDelegate")]
     CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
 
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TParameters...>(object, static TParameters... -> ()): System.Delegate
+
     main(): () =
         let callback = Callback()
         let del = CreateDelegate(callback, &&callback.Invoke)
@@ -5482,3 +5485,64 @@ module M =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "58"
+
+[<Fact>]
+let ``Custom delegate with return type``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[export]
+class Callback =
+
+    Invoke(bodyId1: uint32, bodyId2: uint32): uint32 =
+        M.print(bodyId1)
+        M.print(bodyId2)
+        789
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+module M =
+
+    #[intrinsic("print")]
+    print(object): ()
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    typeof<require T>: System.Type
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TParameters...>(object, static TParameters... -> ()): System.Delegate
+
+    main(): () =
+        let callback = Callback()
+        let del = CreateDelegate(callback, &&callback.Invoke)
+        let x = 5: uint32
+        let y = 8: uint32
+        let result = del.DynamicInvoke(mutable [x: object; y: object])
+        print(result)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "58789"

@@ -218,6 +218,130 @@ and [<ReferenceEquality;NoComparison>] ClrMethodInfo =
 
     member this.Parameters = this.pars
 
+type BlobBuilder with
+
+    member b.WriteSerializedUTF8(value: string) =
+        b.WriteByte(byte value.Length)
+        b.WriteUTF8(value)
+
+    member b.WriteTypeOfC(asmBuilder: ClrAssemblyBuilder, x: C<ClrTypeInfo, _>) =
+        match x with
+        | C.Int8 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceByte)
+        | C.UInt8 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSByte)
+        | C.Int16 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt16)
+        | C.UInt16 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt16)
+        | C.Int32 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt32)
+        | C.UInt32 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt32)
+        | C.Int64 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt64)
+        | C.UInt64 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt64)
+        | C.Float32 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSingle)
+        | C.Float64 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceDouble)
+
+        | C.True _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
+
+        | C.False _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
+
+        | C.Array(elementTy, _) ->
+            let mutable encoder = CustomAttributeArrayTypeEncoder(b)
+            if elementTy.Handle = asmBuilder.TypeReferenceObject then
+                encoder.ObjectArray()
+            else
+                asmBuilder.EncodeAttributeElementType(encoder.ElementType(), elementTy.Handle)
+
+        | C.Char16 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceChar)
+
+        | C.Utf16 _ -> 
+            let mutable encoder = SignatureTypeEncoder(b)
+            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceString)
+
+        | C.Variable _ ->
+            raise(System.NotSupportedException("constant variable"))
+
+        | C.External(func) -> 
+            match func.specialKind with
+            | ClrMethodSpecialKind.TypeOf ->
+                if func.ReturnType.IsStruct then
+                    ClrElementTypes.ValueType
+                    |> b.WriteByte
+                else
+                    ClrElementTypes.Class
+                    |> b.WriteByte
+            | ClrMethodSpecialKind.SizeOf ->
+                if func.tyInst.Length = 1 && func.tyInst[0].IsStruct then
+                    raise(System.NotSupportedException("sizeof constant"))
+                    //ClrElementTypes.ValueType
+                    //|> b.WriteByte
+                else
+                    failwith "Invalid use of SizeOf."
+            | ClrMethodSpecialKind.FunctionPointer ->
+                SignatureTypeCode.FunctionPointer
+                |> byte
+                |> b.WriteByte
+            | _ ->
+                raise(System.NotSupportedException($"Constant function '{func.name}'."))
+
+    member b.WriteValueOfC(x, asCountedUtf8) =
+        match x with
+        | C.UInt8(value) -> b.WriteByte(value)
+        | C.Int8(value) -> b.WriteSByte(value)
+        | C.UInt16(value) -> b.WriteUInt16(value)
+        | C.Int16(value) -> b.WriteInt16(value)
+        | C.UInt32(value) -> b.WriteUInt32(value)
+        | C.Int32(value) -> b.WriteInt32(value)
+        | C.UInt64(value) -> b.WriteUInt64(value)
+        | C.Int64(value) -> b.WriteInt64(value)
+        | C.Float32(value) -> b.WriteSingle(value)
+        | C.Float64(value) -> b.WriteDouble(value)
+        | C.Char16(value) -> b.WriteUInt16(uint16 value)
+        | C.Utf16(value) -> 
+            if asCountedUtf8 then
+                b.WriteSerializedUTF8(value)
+            else
+                b.WriteSerializedString(value)
+        | C.True -> b.WriteBoolean(true)
+        | C.False -> b.WriteBoolean(false)
+        | C.Array(ty: ClrTypeInfo, elements) ->
+            b.WriteUInt32(uint32 elements.Length)
+            elements
+            |> ImArray.iter (fun x -> b.WriteValueOfC(x, false))
+        | C.Variable _ ->
+            raise(System.NotSupportedException("constant variable"))
+        | C.External(func) -> 
+            match func.specialKind with
+            | ClrMethodSpecialKind.TypeOf when func.tyInst.Length = 1 ->
+                let ty = func.tyInst.[0]
+                b.WriteSerializedString(ty.FullyQualifiedName)
+            | ClrMethodSpecialKind.SizeOf when func.tyInst.Length = 1 ->
+                raise(System.NotSupportedException("constant sizeof"))
+            | _ ->
+                failwith "Invalid external constant."
+
 module rec ClrCodeGen =
 
     type cenv =
@@ -318,23 +442,78 @@ module rec ClrCodeGen =
                 | _ ->
                     false
 
+    let writeAttributeArguments (asmBuilder: ClrAssemblyBuilder) (irArgs: C<ClrTypeInfo, ClrMethodInfo> imarray) (irNamedArgs: OlyIRAttributeNamedArgument<ClrTypeInfo, ClrMethodInfo> imarray) =
+        let b = BlobBuilder()
+
+        // Prolog
+        b.WriteByte(1uy)
+        b.WriteByte(0uy)
+
+        irArgs
+        |> ImArray.iter (fun x -> b.WriteValueOfC(x, false))
+
+        // NumNamed
+        let numNamed = irNamedArgs.Length
+        b.WriteByte(byte numNamed)
+        b.WriteByte(0uy)
+        
+        irNamedArgs
+        |> ImArray.iter (fun { Kind = kind; Name = name; Constant = x } ->
+            match kind with
+            | OlyIRAttributeNamedArgumentKind.Property ->
+                b.WriteByte(byte 0x54) // PROPERTY
+            | OlyIRAttributeNamedArgumentKind.Field ->
+                b.WriteByte(byte 0x53) // FIELD
+
+            b.WriteTypeOfC(asmBuilder, x)
+            b.WriteSerializedUTF8(name)
+            b.WriteValueOfC(x, true)
+        )
+
+        asmBuilder.AddBlob(b)
+
     let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
-        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
-        tyDef.Attributes <- TypeAttributes.Sealed
-        tyDef.BaseType <- asmBuilder.MulticastDelegate
 
-        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
-        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
-        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
-        ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+        match (asmBuilder.tr_UnmanagedFunctionPointerAttribute, asmBuilder.tr_CallingConvention) with
+        | Some(attr), Some(callConv) ->
 
-        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+            let attrTy = ClrTypeInfo.TypeReference(asmBuilder, attr, false, false)
+            let callConvTy = ClrTypeInfo.TypeReference(asmBuilder, callConv, false, true)
 
-        let mutable strictAttr = 0x00000200
-        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual ||| (System.Runtime.CompilerServices.Unsafe.As(&strictAttr))
-        invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+            let ctorArgs =
+                // TODO: VERY BAD - for now we are defaulting to cdecl, which isn't great
+                OlyIRConstant.Int32((* cdecl *) 2)
+                |> ImArray.createOne
+            let ctorHandle = 
+                asmBuilder.CreateMethodHandle(
+                    attrTy.Handle,
+                    ".ctor",
+                    true,
+                    ImArray.createOne(callConvTy.Handle),
+                    asmBuilder.TypeReferenceVoid
+                )
 
-        tyDef
+            let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
+
+            asmBuilder.AddTypeAttribute(tyDef.Handle, ctorHandle, ClrCodeGen.writeAttributeArguments asmBuilder ctorArgs ImArray.empty)
+
+            tyDef.Attributes <- TypeAttributes.Sealed
+            tyDef.BaseType <- asmBuilder.MulticastDelegate
+
+            let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
+            let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+            ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
+            ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+            let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+
+            let mutable strictAttr = 0x00000200
+            invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual ||| (System.Runtime.CompilerServices.Unsafe.As(&strictAttr))
+            invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+            tyDef
+        | _ ->
+            failwith "Missing UnmanagedFunctionPointerAttribute or CallingConvention"
 
     let createMulticastDelegateConstructor (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
         (enclosingTy.MethodDefinitionBuilders |> Seq.item 0).Handle
@@ -1089,13 +1268,22 @@ module rec ClrCodeGen =
         | ClrMethodSpecialKind.CreateDelegate when irArgs.Length = 2 && func.tyInst.Length > 0 ->
             
             let name = "__oly_delegate_" + (cenv.newUniqueId()).ToString()
-            let returnTy = func.tyInst[0].Handle
+            let returnTy = 
+                if func.tyInst.Length = 1 then
+                    cenv.assembly.TypeReferenceVoid
+                else
+                    func.tyInst[0].Handle
 
             // tuple type representing variadic type arguments
             // TODO: add some sort of verification for this.
             // we skip 1 as it is the instance type
             let parTys =
-                func.tyInst[1].TypeArguments 
+                let tyArgs =
+                    if func.tyInst.Length = 1 then
+                        func.tyInst[0].TypeArguments
+                    else
+                        func.tyInst[1].TypeArguments
+                tyArgs
                 |> ImArray.skip 1
                 |> ImArray.map (fun x -> ("", x))
             // TODO: We should cache this.
@@ -1654,130 +1842,6 @@ let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodNa
 
     methDefBuilder
 
-type BlobBuilder with
-
-    member b.WriteSerializedUTF8(value: string) =
-        b.WriteByte(byte value.Length)
-        b.WriteUTF8(value)
-
-    member b.WriteTypeOfC(asmBuilder: ClrAssemblyBuilder, x: C<ClrTypeInfo, _>) =
-        match x with
-        | C.Int8 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceByte)
-        | C.UInt8 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSByte)
-        | C.Int16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt16)
-        | C.UInt16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt16)
-        | C.Int32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt32)
-        | C.UInt32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt32)
-        | C.Int64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt64)
-        | C.UInt64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt64)
-        | C.Float32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSingle)
-        | C.Float64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceDouble)
-
-        | C.True _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
-
-        | C.False _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
-
-        | C.Array(elementTy, _) ->
-            let mutable encoder = CustomAttributeArrayTypeEncoder(b)
-            if elementTy.Handle = asmBuilder.TypeReferenceObject then
-                encoder.ObjectArray()
-            else
-                asmBuilder.EncodeAttributeElementType(encoder.ElementType(), elementTy.Handle)
-
-        | C.Char16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceChar)
-
-        | C.Utf16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceString)
-
-        | C.Variable _ ->
-            raise(System.NotSupportedException("constant variable"))
-
-        | C.External(func) -> 
-            match func.specialKind with
-            | ClrMethodSpecialKind.TypeOf ->
-                if func.ReturnType.IsStruct then
-                    ClrElementTypes.ValueType
-                    |> b.WriteByte
-                else
-                    ClrElementTypes.Class
-                    |> b.WriteByte
-            | ClrMethodSpecialKind.SizeOf ->
-                if func.tyInst.Length = 1 && func.tyInst[0].IsStruct then
-                    raise(System.NotSupportedException("sizeof constant"))
-                    //ClrElementTypes.ValueType
-                    //|> b.WriteByte
-                else
-                    failwith "Invalid use of SizeOf."
-            | ClrMethodSpecialKind.FunctionPointer ->
-                SignatureTypeCode.FunctionPointer
-                |> byte
-                |> b.WriteByte
-            | _ ->
-                raise(System.NotSupportedException($"Constant function '{func.name}'."))
-
-    member b.WriteValueOfC(x, asCountedUtf8) =
-        match x with
-        | C.UInt8(value) -> b.WriteByte(value)
-        | C.Int8(value) -> b.WriteSByte(value)
-        | C.UInt16(value) -> b.WriteUInt16(value)
-        | C.Int16(value) -> b.WriteInt16(value)
-        | C.UInt32(value) -> b.WriteUInt32(value)
-        | C.Int32(value) -> b.WriteInt32(value)
-        | C.UInt64(value) -> b.WriteUInt64(value)
-        | C.Int64(value) -> b.WriteInt64(value)
-        | C.Float32(value) -> b.WriteSingle(value)
-        | C.Float64(value) -> b.WriteDouble(value)
-        | C.Char16(value) -> b.WriteUInt16(uint16 value)
-        | C.Utf16(value) -> 
-            if asCountedUtf8 then
-                b.WriteSerializedUTF8(value)
-            else
-                b.WriteSerializedString(value)
-        | C.True -> b.WriteBoolean(true)
-        | C.False -> b.WriteBoolean(false)
-        | C.Array(ty: ClrTypeInfo, elements) ->
-            b.WriteUInt32(uint32 elements.Length)
-            elements
-            |> ImArray.iter (fun x -> b.WriteValueOfC(x, false))
-        | C.Variable _ ->
-            raise(System.NotSupportedException("constant variable"))
-        | C.External(func) -> 
-            match func.specialKind with
-            | ClrMethodSpecialKind.TypeOf when func.tyInst.Length = 1 ->
-                let ty = func.tyInst.[0]
-                b.WriteSerializedString(ty.FullyQualifiedName)
-            | ClrMethodSpecialKind.SizeOf when func.tyInst.Length = 1 ->
-                raise(System.NotSupportedException("constant sizeof"))
-            | _ ->
-                failwith "Invalid external constant."
-
 [<Sealed>]
 type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly) =
 
@@ -1855,36 +1919,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     let voidTy = ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceVoid, false, false)
 
-    let writeAttrArgs (irArgs: C<ClrTypeInfo, ClrMethodInfo> imarray) (irNamedArgs: OlyIRAttributeNamedArgument<ClrTypeInfo, ClrMethodInfo> imarray) =
-        let b = BlobBuilder()
-
-        // Prolog
-        b.WriteByte(1uy)
-        b.WriteByte(0uy)
-
-        irArgs
-        |> ImArray.iter (fun x -> b.WriteValueOfC(x, false))
-
-        // NumNamed
-        let numNamed = irNamedArgs.Length
-        b.WriteByte(byte numNamed)
-        b.WriteByte(0uy)
-        
-        irNamedArgs
-        |> ImArray.iter (fun { Kind = kind; Name = name; Constant = x } ->
-            match kind with
-            | OlyIRAttributeNamedArgumentKind.Property ->
-                b.WriteByte(byte 0x54) // PROPERTY
-            | OlyIRAttributeNamedArgumentKind.Field ->
-                b.WriteByte(byte 0x53) // FIELD
-
-            b.WriteTypeOfC(asmBuilder, x)
-            b.WriteSerializedUTF8(name)
-            b.WriteValueOfC(x, true)
-        )
-
-        asmBuilder.AddBlob(b)
-
     let addGenericInstanceTypeReference(tyHandle, tyArgs: ClrTypeHandle imarray) =
         let tyArgs = ClrCodeGen.handleTypeArguments asmBuilder tyArgs
         asmBuilder.AddGenericInstanceTypeReference(tyHandle, tyArgs)
@@ -1914,6 +1948,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             asmBuilder.tr_IsReadOnlyAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsReadOnlyAttribute") |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_Span <- vm.TryFindType("System.Span", 1) |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_ReadOnlySpan <- vm.TryFindType("System.ReadOnlySpan", 1) |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_UnmanagedFunctionPointerAttribute <- vm.TryFindType("System.Runtime.InteropServices.UnmanagedFunctionPointerAttribute") |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_CallingConvention <- vm.TryFindType("System.Runtime.InteropServices.CallingConvention") |> Option.map (fun x -> x.Handle)
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
@@ -2160,7 +2196,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             |> ImArray.iter (fun x ->
                 match x with
                 | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                    asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.handle, writeAttrArgs irArgs irNamedArgs)
+                    asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
             )
 
             let extends =
@@ -2417,7 +2453,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 |> ImArray.iter (fun x ->
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                        asmBuilder.AddFieldAttribute(fieldHandle, ctor.handle, writeAttrArgs irArgs irNamedArgs)
+                        asmBuilder.AddFieldAttribute(fieldHandle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                 )
 
                 {
@@ -2688,7 +2724,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 |> ImArray.iter (fun x ->
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                        asmBuilder.AddMethodAttribute(handle, ctor.handle, writeAttrArgs irArgs irNamedArgs)
+                        asmBuilder.AddMethodAttribute(handle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                 )
 
                 if flags.IsEntryPoint then
