@@ -656,6 +656,17 @@ let tryGetFunctionBody optenv func =
 
 let tryInlineFunction optenv irExpr =
     match irExpr with
+    | E.Operation(irTextRange, O.CallIndirect(_, E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)), irArgExprs, resultTy)) ->
+        let irCallExprToInline =
+            E.Operation(irTextRange,
+                O.Call(irFunc,
+                    irArgExprs
+                    |> ImArray.prependOne irArgExpr,
+                    resultTy
+                )
+            )
+        tryInlineFunction optenv irCallExprToInline
+
     | E.Operation(irTextRange, O.Call(irFunc, irArgExprs, resultTy)) 
             when (irFunc.IsInlineable) ->
         let func = irFunc.RuntimeFunction
@@ -787,24 +798,12 @@ let tryInlineFunction optenv irExpr =
 
 let InlineFunctions optenv (irExpr: E<_, _, _>) =
     
-    let rec optimizeOperation irExpr =
+    let optimizeOperation irExpr =
         match irExpr with
-        | E.Operation(irTextRange, irOp) ->
-            match irOp with
-            | O.CallIndirect(_, E.Operation(op=O.LoadFunction(irFunc, receiverExpr, _)), argExprs, resultTy) ->
-                E.Operation(irTextRange,
-                    O.Call(irFunc,
-                        argExprs
-                        |> ImArray.prependOne receiverExpr,
-                        resultTy
-                    )
-                )
-                |> optimizeOperation
-
-            | _ ->
-                match tryInlineFunction optenv irExpr with
-                | Some irInlinedExpr -> irInlinedExpr
-                | _ -> irExpr
+        | E.Operation _ ->
+            match tryInlineFunction optenv irExpr with
+            | Some irInlinedExpr -> irInlinedExpr
+            | _ -> irExpr
         | _ ->
             OlyAssert.Fail("Expected operation")
 
@@ -1271,6 +1270,7 @@ type CopyPropagationItem<'Type, 'Function, 'Field> =
     | LocalAddress of localIndex: int * irByRefKind: OlyIRByRefKind
     | Argument of argIndex: int
     | LoadField of irField: OlyIRField<'Type, 'Function, 'Field> * irReceiverExpr: E<'Type, 'Function, 'Field>
+    | LoadFunction of irFunc: OlyIRFunction<'Type, 'Function, 'Field> * irArgExpr: E<'Type, 'Function, 'Field>
     | NewTuple of CopyPropagationItem<'Type, 'Function, 'Field> option imarray
     | NewClosure of CopyPropagationItem<'Type, 'Function, 'Field> option imarray
     | Cast of irArgExpr: E<'Type, 'Function, 'Field> * castTy: 'Type
@@ -1304,7 +1304,8 @@ let tryGetPropagatedExpressionByLocal optenv (items: Dictionary<int, CopyPropaga
                 // Conservative
                 None
             | CopyPropagationItem.NewTuple _
-            | CopyPropagationItem.NewClosure _ ->
+            | CopyPropagationItem.NewClosure _
+            | CopyPropagationItem.LoadFunction _ ->
                 None
         tryGet item
     | _ ->
@@ -1331,7 +1332,8 @@ let tryGetPropagatedExpressionByLocalAddress (items: Dictionary<int, CopyPropaga
         | CopyPropagationItem.NewTuple _
         | CopyPropagationItem.NewClosure _
         | CopyPropagationItem.Constant _ 
-        | CopyPropagationItem.Cast _ ->
+        | CopyPropagationItem.Cast _ 
+        | CopyPropagationItem.LoadFunction _ ->
             None
     | _ ->
         None
@@ -1398,6 +1400,24 @@ let copyPropagationOptimizeExpression optenv (items: Dictionary<int, CopyPropaga
         | _ ->
             irExpr
 
+    | E.Operation(op=O.CallIndirect(argTys, E.Value(value=V.Local(localIndex, localTy)), irArgExprs, resultTy)) ->
+        match items.TryGetValue(localIndex) with
+        | true, CopyPropagationItem.LoadFunction(irFunc, irArgExpr) when irFunc.IsInlineable -> 
+            let irExprToInline =
+                E.Operation(NoRange,
+                    O.CallIndirect(argTys, 
+                        E.Operation(NoRange, O.LoadFunction(irFunc, irArgExpr, localTy)), 
+                        irArgExprs, 
+                        resultTy
+                    )
+                )
+            match tryInlineFunction optenv irExprToInline with
+            | Some irExpr ->
+                irExpr
+            | _ ->
+                failwith "Expected to inline function."
+        | _ ->
+            irExpr
     | _ ->
         irExpr
 
@@ -1627,6 +1647,16 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
                         )
                     items.Add(localIndex, CopyPropagationItem.NewClosure(itemsToAdd))
                     
+                    let irNewBodyExpr = handleExpression irBodyExpr
+
+                    if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+
+                | E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)) when not(hasSideEffect optenv irArgExpr) ->
+                    items.Add(localIndex, CopyPropagationItem.LoadFunction(irFunc, irArgExpr))
+
                     let irNewBodyExpr = handleExpression irBodyExpr
 
                     if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
