@@ -787,12 +787,24 @@ let tryInlineFunction optenv irExpr =
 
 let InlineFunctions optenv (irExpr: E<_, _, _>) =
     
-    let optimizeOperation irExpr =
+    let rec optimizeOperation irExpr =
         match irExpr with
-        | E.Operation _ ->
-            match tryInlineFunction optenv irExpr with
-            | Some irInlinedExpr -> irInlinedExpr
-            | _ -> irExpr
+        | E.Operation(irTextRange, irOp) ->
+            match irOp with
+            | O.CallIndirect(_, E.Operation(op=O.LoadFunction(irFunc, receiverExpr, _)), argExprs, resultTy) ->
+                E.Operation(irTextRange,
+                    O.Call(irFunc,
+                        argExprs
+                        |> ImArray.prependOne receiverExpr,
+                        resultTy
+                    )
+                )
+                |> optimizeOperation
+
+            | _ ->
+                match tryInlineFunction optenv irExpr with
+                | Some irInlinedExpr -> irInlinedExpr
+                | _ -> irExpr
         | _ ->
             OlyAssert.Fail("Expected operation")
 
@@ -1621,6 +1633,7 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
                         irExpr
                     else
                         E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+
                 | _ ->
                     let irNewBodyExpr = handleExpression irBodyExpr
 

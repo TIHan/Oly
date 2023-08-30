@@ -474,6 +474,22 @@ module rec ClrCodeGen =
 
     let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
 
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
+
+        tyDef.Attributes <- TypeAttributes.Sealed
+        tyDef.BaseType <- asmBuilder.MulticastDelegate
+
+        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
+        ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
+        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+
+        let mutable strictAttr = 0x00000200
+        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual ||| (System.Runtime.CompilerServices.Unsafe.As(&strictAttr))
+        invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
+
         match (asmBuilder.tr_UnmanagedFunctionPointerAttribute, asmBuilder.tr_CallingConvention) with
         | Some(attr), Some(callConv) ->
 
@@ -493,27 +509,10 @@ module rec ClrCodeGen =
                     asmBuilder.TypeReferenceVoid
                 )
 
-            let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
-
             asmBuilder.AddTypeAttribute(tyDef.Handle, ctorHandle, ClrCodeGen.writeAttributeArguments asmBuilder ctorArgs ImArray.empty)
-
-            tyDef.Attributes <- TypeAttributes.Sealed
-            tyDef.BaseType <- asmBuilder.MulticastDelegate
-
-            let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
-            let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
-            ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
-            ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
-
-            let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
-
-            let mutable strictAttr = 0x00000200
-            invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Virtual ||| (System.Runtime.CompilerServices.Unsafe.As(&strictAttr))
-            invoke.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
-
-            tyDef
-        | _ ->
-            failwith "Missing UnmanagedFunctionPointerAttribute or CallingConvention"
+        | _ -> 
+            ()
+        tyDef
 
     let createMulticastDelegateConstructor (asmBuilder: ClrAssemblyBuilder) (enclosingTy: ClrTypeInfo) =
         (enclosingTy.MethodDefinitionBuilders |> Seq.item 0).Handle

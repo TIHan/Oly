@@ -8,7 +8,9 @@ open Oly.Runtime.CodeGen
 type DummyType
 
 [<Sealed;NoComparison;NoEquality>]
-type DummyFunction
+type DummyFunction =
+
+    member Name: string
 
 [<Sealed;NoComparison;NoEquality>]
 type DummyField
@@ -24,6 +26,8 @@ type DummyLocalManager =
 type DummyEmitter =
 
     new : unit -> DummyEmitter
+
+    new : (DummyFunction -> Lazy<OlyIRFunctionBody<DummyType, DummyFunction, DummyField>> -> unit) -> DummyEmitter
 
     interface IOlyRuntimeEmitter<DummyType, DummyFunction, DummyField>
 
