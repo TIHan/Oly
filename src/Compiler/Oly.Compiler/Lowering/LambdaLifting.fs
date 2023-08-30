@@ -743,7 +743,6 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let funcTy = origExpr.Type
         let bodyExpr = lazyBodyExpr.Expression
         
-        let lambdaFlags = LambdaFlags.None
         let tyParLookup = tyParLookup |> ReadOnlyDictionary
         let closureTyParLookup = closureTyParLookup |> ReadOnlyDictionary
 
