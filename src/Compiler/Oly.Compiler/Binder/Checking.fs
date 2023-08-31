@@ -680,7 +680,7 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
     | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, lazyTy, freeLocals, freeTyVars) ->
         let parsOpt =
             if caller.IsFunction then
-                (caller :?> IFunctionSymbol).Parameters
+                (caller :?> IFunctionSymbol).LogicalParameters
                 |> ValueSome
             else
                 ValueNone
@@ -736,7 +736,7 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
         argExpr
 
 let private checkCalleeArgumentExpressions cenv env (caller: IValueSymbol) (argExprs: E imarray) =
-    let argTys = caller.Type.FunctionArgumentTypes
+    let argTys = caller.LogicalType.FunctionArgumentTypes
     if argTys.Length = argExprs.Length then              
         (argTys, argExprs)
         ||> ImArray.mapi2 (fun i argTy argExpr ->

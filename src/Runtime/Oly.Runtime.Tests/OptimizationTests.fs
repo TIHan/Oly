@@ -309,6 +309,69 @@ main(): () =
         OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
 [<Fact>]
+let ``Lambda will get inlined 11``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+class C =
+
+    #[inline]
+    M(#[inline] f: () -> ()): () =
+        f()
+
+main(): () =
+    let c = C()
+    c.M(() -> Work())
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Let(rhsExpr=OlyIRExpression.Operation(op=OlyIROperation.New _);bodyExpr=bodyExpr) ->
+        match bodyExpr with
+        | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+            OlyAssert.Equal("Work", func.EmittedFunction.Name)
+        | _ ->
+            OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+    | _ ->
+          OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 12``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+class C =
+
+    #[inline]
+    M1<T1>(x: T1, #[inline] f: T1 -> ()): () =
+        f(x)
+
+    M1<T1, T2, T3>(z: T1, f: __oly_int32 -> ()): () =
+        f(5)
+
+main(): () =
+    let c = C()
+    c.M1(5, _y -> Work())
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Let(rhsExpr=OlyIRExpression.Operation(op=OlyIROperation.New _);bodyExpr=bodyExpr) ->
+        match bodyExpr with
+        | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+            OlyAssert.Equal("Work", func.EmittedFunction.Name)
+        | _ ->
+            OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+    | _ ->
+          OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
 let ``Lambda will not get inlined``() =
     let ir =
         """

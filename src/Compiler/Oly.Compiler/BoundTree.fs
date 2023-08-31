@@ -22,7 +22,7 @@ type LambdaFlags =
     | Static                = 0x010000
 
     /// Only used in lambda-lifting
-    | Bound                 = 0x001000
+    | Bound                 = 0x100000
 
 type InlineArgumentSymbol with
 

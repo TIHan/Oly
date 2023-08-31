@@ -189,12 +189,17 @@ let dumpExpression indentAmount (expr: E) =
                 |> indentLines indentAmount
         output + "\n"
 
-    | E.Lambda(pars=pars;body=lazyBodyExpr) ->
+    | E.Lambda(flags=lambdaFlags;pars=pars;body=lazyBodyExpr) ->
         let pars = 
             pars 
             |> ImArray.map (fun x -> let name = if x.Name = "" then $"__v{x.Id}" else x.Name in $"`{name}__{x.Id}`: {dumpTypeSymbol x.Type}") 
             |> String.concat ", "
-        $"LAMBDA ({pars}) ->\n{dumpExpression 0 lazyBodyExpr.Expression |> indentLines 4}"
+        let flagsStr =
+            if lambdaFlags.HasFlag(LambdaFlags.Inline) then
+                "|i|"
+            else
+                ""
+        $"LAMBDA {flagsStr} ({pars}) ->\n{dumpExpression 0 lazyBodyExpr.Expression |> indentLines 4}"
         |> indentLines indentAmount
 
     | E.Literal(_, literal) ->

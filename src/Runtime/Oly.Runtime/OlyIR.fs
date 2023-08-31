@@ -906,6 +906,8 @@ module Dump =
                     | null -> ""
                     | _ -> irFunc.EmittedFunction.ToString()
             $"{name} `{funcName}`\n{args}"
+        | O.LoadFunction(irFunc, _, _) when irFunc.IsInlineable ->
+            $"{name}\n{args} |i|"
         | _ ->
             $"{name}\n{args}"
         
