@@ -1002,3 +1002,30 @@ let checkSubsumesType (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) super
     let res = subsumesTypeWith TypeVariableRigidity.Flexible superTy ty
     if not res then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv superTy) (printType env.benv ty), 0, syntaxNode.GetSuitableSyntaxForTypeError())
+
+let checkParameter (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (func: IFunctionSymbol) (par: ILocalParameterSymbol) =
+    par.Attributes
+    |> ImArray.iter (fun attr ->
+        match attr with
+        | AttributeSymbol.Inline(inlineArg) ->
+            if par.Type.IsFunction_t && not par.Type.IsNativeFunctionPtr_t then
+                match inlineArg with
+                | InlineArgumentSymbol.None ->
+                    if not func.IsInline then
+                        env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline' because the function '{func.Name}' is not.", 10, syntaxNode.GetChildNameIfPossible())
+
+                | InlineArgumentSymbol.Always ->
+                    if not func.IsInlineAlways then
+                        env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline(always)' because the function '{func.Name}' is not.", 10, syntaxNode.GetChildNameIfPossible())
+
+                | InlineArgumentSymbol.Never ->
+                    if func.IsInlineNever then
+                        env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline(never)' because the function '{func.Name}' already is.", 10, syntaxNode.GetChildNameIfPossible())
+
+            else
+                env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline' because the parameter's type is not a non-static function.", 10, syntaxNode.GetChildNameIfPossible())
+
+        | _ ->
+            ()
+
+    )

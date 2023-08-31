@@ -8745,3 +8745,161 @@ Test(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Parameter whose type is a function, cannot be marked inline if the owning function is not``() =
+    let src =
+        """
+M(#[inline] f: () -> ()): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the function 'M' is not.",
+                """
+M(#[inline] f: () -> ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is a function, cannot be marked inline(always) if the owning function is not``() =
+    let src =
+        """
+#[inline]
+M(#[inline(always)] f: () -> ()): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline(always)' because the function 'M' is not.",
+                """
+M(#[inline(always)] f: () -> ()): () =
+                    ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is a function, cannot be marked inline(never) if the owning function already is``() =
+    let src =
+        """
+#[inline(never)]
+M(#[inline(never)] f: () -> ()): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline(never)' because the function 'M' already is.",
+                """
+M(#[inline(never)] f: () -> ()): () =
+                   ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is a function, cannot be marked inline if the owning function is marked as inline(never)``() =
+    let src =
+        """
+#[inline(never)]
+M(#[inline] f: () -> ()): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the function 'M' is not.",
+                """
+M(#[inline] f: () -> ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is not a function, cannot be marked inline``() =
+    let src =
+        """
+#[inline]
+M(#[inline] f: ()): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the parameter's type is not a non-static function.",
+                """
+M(#[inline] f: ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is not a function, cannot be marked inline 2``() =
+    let src =
+        """
+#[inline(never)]
+M(#[inline] f: ()): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the parameter's type is not a non-static function.",
+                """
+M(#[inline] f: ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is not a function, cannot be marked inline 3``() =
+    let src =
+        """
+M(#[inline] f: ()): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the parameter's type is not a non-static function.",
+                """
+M(#[inline] f: ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Parameter whose type is a static function, cannot be marked inline``() =
+    let src =
+        """
+#[inline]
+M(#[inline] f: static () -> ()): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Parameter 'f' cannot be marked as 'inline' because the parameter's type is not a non-static function.",
+                """
+M(#[inline] f: static () -> ()): () =
+            ^
+"""
+            )
+        ]
+    |> ignore

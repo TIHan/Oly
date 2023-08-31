@@ -2182,6 +2182,13 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
     let getLocal localIndex =
         locals[localIndex]
 
+    let handleOperation irOp : O<_, _, _> =
+        match irOp with
+        | O.Store(localIndex, irRhsExpr, resultTy) ->
+            O.Store(getLocal localIndex, irRhsExpr, resultTy)
+        | _ ->
+            irOp
+
     let rec handleExpression irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
@@ -2279,15 +2286,15 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
                     areSame <- false
             )
             if areSame then
-                irExpr
+                let irNewOp = handleOperation irOp
+                if irOp = irNewOp then
+                    irExpr
+                else
+                    E.Operation(irTextRange, irNewOp)
             else                    
-                let irNewOp = irOp.ReplaceArguments(irNewArgExprs)
-                let irNewOp =
-                    match irNewOp with
-                    | O.Store(localIndex, irRhsExpr, resultTy) ->
-                        O.Store(getLocal localIndex, irRhsExpr, resultTy)
-                    | _ ->
-                        irNewOp
+                let irNewOp = 
+                    irOp.ReplaceArguments(irNewArgExprs)
+                    |> handleOperation
                 E.Operation(irTextRange, irNewOp)
 
         | E.Value(irTextRange, V.Local(localIndex, resultTy)) ->

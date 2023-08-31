@@ -489,12 +489,20 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
             thisPar.AddRange(invokePars), returnTy
 
     let funcFlags =
-        if lambdaFlags.HasFlag(LambdaFlags.Inline) then
+        OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.StackEmplace))
+        if lambdaFlags.HasFlag(LambdaFlags.InlineAlways) then
+            FunctionFlags.InlineAlways
+        elif lambdaFlags.HasFlag(LambdaFlags.Inline) then
             FunctionFlags.Inline
+        elif lambdaFlags.HasFlag(LambdaFlags.InlineNever) then
+            FunctionFlags.InlineNever
         else
             match tryAttributesInlineFlags attrs with
-            | Some(inlineFlags) -> inlineFlags
-            | _ -> FunctionFlags.None
+            | Some(inlineFlags) -> 
+                OlyAssert.False(inlineFlags.HasFlag(FunctionFlags.StackEmplace))
+                inlineFlags
+            | _ -> 
+                FunctionFlags.None
 
     let memberFlags =
         let memberFlags = MemberFlags.Public

@@ -246,7 +246,6 @@ type RuntimeParameter =
         Name: string
         Type: RuntimeType
         IsMutable: bool
-        CanInlineClosure: bool
     }
 
     override this.GetHashCode() = this.Name.GetHashCode()
@@ -259,8 +258,7 @@ type RuntimeParameter =
         | :? RuntimeParameter as o ->
             this.Name = o.Name &&
             this.Type = o.Type &&
-            this.IsMutable = o.IsMutable &&
-            this.CanInlineClosure = o.CanInlineClosure
+            this.IsMutable = o.IsMutable
         | _ ->
             false
 

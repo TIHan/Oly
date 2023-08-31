@@ -287,6 +287,12 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             | _ ->
                 cenv.diagnostics.Error("Duplicate entry points are defined for this compilation.", 10, syntaxNode)
 
+        // We use 'tryIter2' to be resilient against any possible partially complete syntax.
+        (syntaxPars.Values, pars)
+        ||> ImArray.tryIter2 (fun syntaxPar par ->
+            checkParameter (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxPar func par
+        )
+
         func
 
     let bindPropertyGetterSetter (cenv: cenv) env syntaxNode (syntaxParsOpt: OlySyntaxParameters option) propName propTy =

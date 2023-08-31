@@ -398,7 +398,6 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
                 Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
                 IsMutable = ilPar.IsMutable
-                CanInlineClosure = ilPar.CanInlineClosure
             } : RuntimeParameter
         )
 
