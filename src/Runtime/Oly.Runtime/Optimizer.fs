@@ -2189,17 +2189,62 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
         | _ ->
             irOp
 
-    let rec handleExpression irExpr : E<_, _, _> =
+    let rec handleLinearExpression irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
-            let irNewRhsExpr = handleExpression irRhsExpr
+            let irNewRhsExpr =
+                match irRhsExpr with
+                | E.Let _
+                | E.Sequential _ ->
+                    handleLinearExpression irRhsExpr
+                | _ ->
+                    handleExpression irRhsExpr
+
             let newLocalIndex = addLocal localIndex
-            let irNewBodyExpr = handleExpression irBodyExpr
+
+            let irNewBodyExpr =
+                match irBodyExpr with
+                | E.Let _
+                | E.Sequential _ ->
+                    handleLinearExpression irBodyExpr
+                | _ ->
+                    handleExpression irBodyExpr
 
             if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
                 irExpr
             else
                 E.Let(irTextRange, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
+
+        | E.Sequential(irExpr1, irExpr2) ->
+            let irNewExpr1 =
+                match irExpr1 with
+                | E.Let _
+                | E.Sequential _ ->
+                    handleLinearExpression irExpr1
+                | _ ->
+                    handleExpression irExpr1
+
+            let irNewExpr2 =
+                match irExpr2 with
+                | E.Let _
+                | E.Sequential _ ->
+                    handleLinearExpression irExpr2
+                | _ ->
+                    handleExpression irExpr2
+
+            if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
+                irExpr
+            else
+                E.Sequential(irNewExpr1, irNewExpr2)
+
+        | _ ->
+            failwith "Invalid linear expression"
+
+    and handleExpression irExpr : E<_, _, _> =
+        match irExpr with
+        | E.Let _
+        | E.Sequential _ ->
+            handleLinearExpression irExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
             let irNewConditionExpr = handleExpression irConditionExpr
@@ -2268,15 +2313,6 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
                 irExpr
             else
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
-
-        | E.Sequential(irExpr1, irExpr2) ->
-            let irNewExpr1 = handleExpression irExpr1
-            let irNewExpr2 = handleExpression irExpr2
-
-            if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-                irExpr
-            else
-                E.Sequential(irNewExpr1, irNewExpr2)
 
         | E.Operation(irTextRange, irOp) ->
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
