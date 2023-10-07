@@ -105,7 +105,7 @@ let toTargetJump(expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace,
+            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -164,7 +164,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace,
+            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(

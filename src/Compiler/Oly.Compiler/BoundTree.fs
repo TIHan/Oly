@@ -34,6 +34,8 @@ type InlineArgumentSymbol with
             LambdaFlags.InlineNever
         | InlineArgumentSymbol.Always ->
             LambdaFlags.InlineAlways
+        | InlineArgumentSymbol.Stack ->
+            LambdaFlags.StackEmplace
 
 type IBoundNode =
 

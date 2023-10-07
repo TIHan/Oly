@@ -54,6 +54,7 @@ type InlineArgumentSymbol =
     | None
     | Never
     | Always
+    | Stack
 
     member this.ToFunctionFlags() =
         match this with
@@ -63,6 +64,8 @@ type InlineArgumentSymbol =
             FunctionFlags.InlineNever
         | InlineArgumentSymbol.Always ->
             FunctionFlags.InlineAlways
+        | InlineArgumentSymbol.Stack ->
+            FunctionFlags.StackEmplace
 
 [<RequireQualifiedAccess>]
 type AttributeSymbol =
@@ -3510,6 +3513,8 @@ type TypeSymbol =
         | TypeSymbol.ByRef _ -> true
         | _ -> false
 
+    member this.IsByRefLike = this.IsByRef_t
+
     member this.IsNativePtr_t =
         match stripTypeEquations this with
         | TypeSymbol.NativePtr _ -> true
@@ -4090,8 +4095,7 @@ module SymbolExtensions =
                 this.IsLocal
 
             member this.IsStackEmplace =
-                (this.FunctionFlags &&& FunctionFlags.StackEmplace = FunctionFlags.StackEmplace) &&
-                this.IsLocal
+                (this.FunctionFlags &&& FunctionFlags.StackEmplace = FunctionFlags.StackEmplace)
 
             member this.RequiresExplicitTypeArguments =
                 this.FunctionFlags &&& FunctionFlags.RequiresExplicitTypeArguments = FunctionFlags.RequiresExplicitTypeArguments

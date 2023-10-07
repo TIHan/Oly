@@ -757,14 +757,21 @@ let tryInlineFunction optenv irExpr =
                             | _ -> 
                                 OlyAssert.Fail($"bad forwardsub {irValue}")
 
-                        | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) as irExpr ->
+                        | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
                             if hasSideEffectForEmplace optenv irReceiverExpr then
-                                OlyAssert.Fail($"bad forwardsub due to side-effect: {irExpr}")
+                                OlyAssert.Fail($"bad forwardsub due to side-effect: {irReceiverExpr}")
+
+                            if not isEmplaced then
+                                OlyAssert.Fail($"bad forwardsub {irExpr}")
 
                             SubValue.Field(field, irReceiverExpr)
 
-                        | expr ->
-                            OlyAssert.Fail($"bad forwardsub {expr}")
+                        | irExpr ->
+                            if not isEmplaced then
+                                OlyAssert.Fail($"bad forwardsub {irExpr}")
+
+                            // Disables forward-sub
+                            SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                     else                       
                         SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                 )
@@ -999,6 +1006,11 @@ let hasSideEffectForEmplace optenv irExpr =
         optenv.localManager.IsMutable(index)
     | E.Value(value=V.Argument(index, _)) ->
         optenv.func.IsArgumentMutable(index)
+    | E.Operation(op=O.New(func, irArgExprs, _)) ->
+        if irArgExprs |> ImArray.exists (hasSideEffectForEmplace optenv) then
+            true
+        else
+            not func.IsClosureInstanceConstructor
     | _ ->
         true
 
@@ -2315,6 +2327,14 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Operation(irTextRange, irOp) ->
+
+            // Check to make sure we are inlining a stack-emplaced function.
+            match irOp with
+            | O.Call(irFunc, _, _) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
+                OlyAssert.Fail($"Expected stack-emplaced function '{irFunc.RuntimeFunction.Name}' to be inlined.")
+            | _ ->
+                ()
+
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->

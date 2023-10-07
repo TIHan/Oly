@@ -1022,6 +1022,10 @@ let checkParameter (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (func: I
                     if func.IsInlineNever then
                         env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline(never)' because the function '{func.Name}' already is.", 10, syntaxNode.GetChildNameIfPossible())
 
+                | InlineArgumentSymbol.Stack ->
+                    if not func.IsInlineAlways then
+                        env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline(stack)' because the function '{func.Name}' is not.", 10, syntaxNode.GetChildNameIfPossible())
+
             else
                 env.diagnostics.Error($"Parameter '{par.Name}' cannot be marked as 'inline' because the parameter's type is not a non-static function.", 10, syntaxNode.GetChildNameIfPossible())
 

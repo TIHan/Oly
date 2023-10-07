@@ -222,6 +222,7 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                     match syntaxIdent.ValueText with
                     | "never" -> InlineArgumentSymbol.Never
                     | "always" -> InlineArgumentSymbol.Always
+                    | "stack" -> InlineArgumentSymbol.Stack
                     | _ -> InlineArgumentSymbol.None
                 AttributeSymbol.Inline(inlineArg)
                 |> Some

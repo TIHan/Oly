@@ -489,8 +489,10 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
             thisPar.AddRange(invokePars), returnTy
 
     let funcFlags =
-        OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.StackEmplace))
-        if lambdaFlags.HasFlag(LambdaFlags.InlineAlways) then
+       // OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.StackEmplace))
+        if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
+            FunctionFlags.StackEmplace
+        elif lambdaFlags.HasFlag(LambdaFlags.InlineAlways) then
             FunctionFlags.InlineAlways
         elif lambdaFlags.HasFlag(LambdaFlags.Inline) then
             FunctionFlags.Inline
@@ -770,13 +772,26 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         closureBuilder.SetTypeParameters(Pass0, closureTyPars)
 
         let fields =
+            let fieldNames = HashSet<string>() // TODO: Maybe use object pool for this?
+            let rec checkFieldName name i =
+                if fieldNames.Add(name) then
+                    name
+                else
+                    checkFieldName (name + $"__oly_state{i}") i
+                    
             freeLocals
             |> ImArray.mapi (fun i x ->
                 let name =
                     if System.String.IsNullOrWhiteSpace(x.Name) then
-                        ($"__oly_state{i}")
+                        $"__oly_state{i}"
                     else
                         x.Name
+
+                let name = checkFieldName name i
+
+                if x.Type.IsByRefLike then
+                    failwith "Cannot capture a ByRef-like value in a closure."
+
                 let field =
                     createFieldValue
                         closureBuilder.Entity.AsEnclosing

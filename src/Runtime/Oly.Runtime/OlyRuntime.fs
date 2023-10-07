@@ -270,6 +270,9 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
 /// Perhaps we only do introspection up to a point?
 let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILFunctionDefinition) =
     if ilFuncDef.IsConstructor || ilFuncDef.IsAbstract || (ilFuncDef.IsVirtual && not ilFuncDef.IsSealed) || ilFuncDef.IsExported || ilFuncDef.IsImported then
+        if ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
+            let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+            failwith $"Function '{ilAsm.GetStringOrEmpty(ilFuncSpec.NameHandle)}' cannot be stack-emplaced."
         false
     elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
         true
@@ -950,7 +953,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                                 OlyAssert.Fail("Invalid field mutability for stack-emplaced function.")
 
                         | _ ->
-                            OlyAssert.Fail($"Invalid argument for stack-emplaced function call. Argument:\n{irArg}\n")
+                            ()
                     )
 
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
@@ -2239,6 +2242,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                        kind <> OlyILEntityKind.Module &&
                        kind <> OlyILEntityKind.Newtype then
                         failwithf "Fields can only be declared on module, class, struct or closure types: '%s'." field.Name
+
+                    if field.Type.IsByRefLike then
+                        failwith $"Field '{field.Name}' cannot be of type '{field.Type.Name}'."
 
                     this.EmitField(field) |> ignore
                 )

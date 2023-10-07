@@ -314,7 +314,7 @@ type OlyClassificationKind with
         | OlyClassificationKind.Type ->
             "type"
         | OlyClassificationKind.Keyword ->
-            "keyword"
+            "macro"
         | OlyClassificationKind.KeywordControl ->
             "keyword"
         | _ ->

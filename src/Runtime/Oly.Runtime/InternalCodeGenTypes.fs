@@ -567,6 +567,8 @@ type RuntimeType =
         | ByRef _ -> true
         | _ -> false
 
+    member this.IsByRefLike = this.IsByRef_t
+
     member this.IsAnyPtr =
         match this.StripAlias() with
         | NativePtr _

@@ -16342,6 +16342,18 @@ main(): () =
 let ``Base constructor is called before setting rest of the fields``() =
     let src =
         """
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
 #[intrinsic("int32")]
 alias int32
 
@@ -16373,4 +16385,171 @@ main(): () =
     Oly src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "before A after"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+F(x: int32): () = print(x)
+
+main(): () =
+    let x = 456
+    F(x)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+F(mutable x: int32): () = x <- 321
+
+main(): () =
+    let mutable x = 456
+    F(x)
+    print(x)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "321"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 3``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+For(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    let start = 0
+    let length = 5
+    For(start, length, i -> print(i))
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "01234"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 4``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+ForTwice(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    let start = 0
+    let length = 5
+    ForTwice(start, length, i -> print(i))
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "0123401234"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 5``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+For(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    let mutable mutValue = -3
+    print(mutValue)
+
+    let start = 0
+    let length = 5
+    For(start, length, 
+        i -> 
+            mutValue <- i
+            print(i)
+    )
+
+    print(mutValue)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "-3012344"
     |> ignore

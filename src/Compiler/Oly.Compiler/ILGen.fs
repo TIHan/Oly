@@ -1314,13 +1314,22 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         GenLetExpression cenv possiblyReturnableEnv syntaxDebugNode bindingInfo rhsExpr (Some bodyExpr)
 
     | E.Sequential(_, expr1, expr2, _) ->
-        match expr1 with
-        | E.None _ ->
+        match expr1, expr2 with
+        | E.None _, E.None _ ->
+            OlyILExpressionNone
+        | E.None _, _ ->
             GenExpression cenv possiblyReturnableEnv expr2
         | _ ->
             let ilExpr1 = GenExpression cenv env expr1
             let ilExpr2 = GenExpression cenv possiblyReturnableEnv expr2
-            OlyILExpression.Sequential(ilExpr1, ilExpr2)
+
+            match ilExpr1, ilExpr2 with
+            | OlyILExpression.None _, OlyILExpression.None _ ->
+                OlyILExpressionNone
+            | OlyILExpression.None _, _ ->
+                ilExpr2
+            | _ ->
+                OlyILExpression.Sequential(ilExpr1, ilExpr2)
 
     | NewRefCell(expr) ->
         let ilElementTy = emitILType cenv env expr.Type
@@ -2083,6 +2092,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
 
         let ilBodyExpr =
             if cenv.assembly.IsDebuggable then
+                // This allows to place a breakpoint at the start of the function.
                 OlyILExpression.Sequential(OlyILExpression.None(emitTextRange cenv syntaxDebugNode), ilBodyExpr)
             else
                 ilBodyExpr

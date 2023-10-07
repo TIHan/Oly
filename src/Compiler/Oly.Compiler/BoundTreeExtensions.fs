@@ -980,6 +980,8 @@ type IFunctionSymbol with
     member this.IsInlineAlways =
         this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.InlineAlways
 
+    member this.IsInlineStack = this.IsStackEmplace
+
 // ************************************************************************
 
 /// Associates constraints with their corresponding syntax, because

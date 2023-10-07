@@ -2313,7 +2313,8 @@ let tryParseInlineAttribute state =
     | Some(inlineToken), Some(leftParenToken, identToken, rightParenToken) ->
         match identToken.ValueText with
         | "never"
-        | "always" ->
+        | "always"
+        | "stack" ->
             SyntaxAttribute.Inline(inlineToken, leftParenToken, identToken, rightParenToken, ep s state) |> Some
         | _ ->
             errorDo (InvalidSyntax("inline argument"), identToken) state
