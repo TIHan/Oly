@@ -1064,7 +1064,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 irField.EmittedField.GetStaticValue()
                 |> stack.Push
             | InterpreterValue.Function(func, resultTy) ->
-                InterpreterInstanceOfFunctionType(resultTy, func)
+                InterpreterInstanceOfFunctionType(resultTy, func.EmittedFunction)
                 |> stack.Push
             | _ ->
                 raise(System.NotImplementedException(sprintf "InterpreterValue.%A" value))
@@ -1346,8 +1346,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 match evalArg stack receiverExpr with
                 | :? InterpreterInstanceOfType as receiver ->
                     receiver.SetFieldState("contents", evalArg stack argExpr)
-                | _ ->
-                    failwith "Invalid 'StoreRefCellContents' operation."
+                | x ->
+                    failwith $"Invalid 'StoreRefCellContents' operation."
 
             | InterpreterOperation.NewTuple(elementTys, argExprs, resultTy) ->
                 let args = evalArgs stack argExprs

@@ -840,10 +840,13 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let resultTy = RuntimeType.Function(argTys, returnTy)
 
-            V.Function(cenv.EmitFunction(func), cenv.EmitType(resultTy)) |> asExpr, resultTy
+            V.Function(OlyIRFunction(cenv.EmitFunction(func), func), cenv.EmitType(resultTy)) |> asExpr, resultTy
 
     | OlyILExpression.Let(localIndex, ilRhsExpr, ilBodyExpr) ->
         let ilLocal = env.ILLocals.[localIndex]
+
+        cenv.LocalMutability[localIndex] <- ilLocal.IsMutable
+
         let localName = env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle)
         let irRhsExpr = importArgumentExpression cenv env env.LocalTypes[localIndex] ilRhsExpr
         let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr

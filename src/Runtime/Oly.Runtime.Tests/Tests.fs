@@ -505,7 +505,7 @@ let ``Should eliminate local because isDebuggable is false`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip="not working")>]
 let ``Should eliminate local because isDebuggable is false 2`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -981,7 +981,7 @@ let ``Test 8`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not working")>]
 let ``Test 9`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 

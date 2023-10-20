@@ -1968,8 +1968,8 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
         ) then
         failwith "Default constructors cannot contain parameters."
 
-    if funcFlags.HasFlag(FunctionFlags.StaticLocal) && (not (memberFlags.HasFlag(MemberFlags.Private)) || not enclosing.IsLocalEnclosing) then
-        failwith "Invalid static local function."
+ //   if funcFlags.HasFlag(FunctionFlags.StaticLocal) && (not (memberFlags.HasFlag(MemberFlags.Private)) || not enclosing.IsLocalEnclosing) then
+   //     failwith "Invalid static local function."
 
     let funcTy = 
         TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy)

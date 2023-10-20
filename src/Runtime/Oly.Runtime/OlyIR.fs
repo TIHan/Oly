@@ -96,7 +96,7 @@ type OlyIRValue<'Type, 'Function, 'Field> =
     | Null of resultTy: 'Type
     | DefaultStruct of resultTy: 'Type
     | FunctionPtr of func: 'Function * resultTy: 'Type
-    | Function of func: 'Function * resultTy: 'Type
+    | Function of func: OlyIRFunction<'Type, 'Function, 'Field> * resultTy: 'Type
     | Local of index: int32 * resultTy: 'Type
     | LocalAddress of index: int32 * kind: OlyIRByRefKind * resultTy: 'Type
     | Argument of index: int32 * resultTy: 'Type
@@ -656,6 +656,9 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
     static member Empty =
         OlyIRDebugSourceTextRange(OlyPath.Empty, 0, 0, 0, 0)
 
+    member this.IsEmpty =
+        this.Path.IsEmpty
+
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 type OlyIRCatchCase<'Type, 'Function, 'Field> =
@@ -696,6 +699,11 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
             |> ImArray.reduceBack (fun expr1 expr2 ->
                 OlyIRExpression.Sequential(expr1, expr2)
             )
+
+    member this.Strip() =
+        match this with
+        | Sequential(OlyIRExpression.None _, irExpr2) -> irExpr2.Strip()
+        | _ -> this
 
     member this.ResultType =
         match this with
@@ -897,7 +905,8 @@ module Dump =
 
         match o with
         | O.Call(func=irFunc)
-        | O.CallVirtual(func=irFunc) ->
+        | O.CallVirtual(func=irFunc)
+        | O.New(func=irFunc)->
             let funcName =
                 match irFunc.RuntimeFunctionOption with
                 | Some func -> func.Name
@@ -908,6 +917,8 @@ module Dump =
             $"{name} `{funcName}`\n{args}"
         | O.LoadFunction(irFunc, _, _) when irFunc.IsInlineable ->
             $"{name}\n{args} |i|"
+        | O.Store(n=n) ->
+            $"{name} {n}\n{args}"
         | _ ->
             $"{name}\n{args}"
         

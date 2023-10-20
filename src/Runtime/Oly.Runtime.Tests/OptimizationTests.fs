@@ -10,6 +10,34 @@ open Oly.Runtime
 open Oly.Runtime.Tools
 open Oly.Runtime.CodeGen
 
+let getMainIR (src: string) =
+    let options = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true }
+    let tree = OlySyntaxTree.Parse(OlyPath.Create("olytest1.oly"), src, options)
+    let options = OlyCompilationOptions.Default
+    let options = { options with Debuggable = true; Executable = true }
+    let c = OlyCompilation.Create("olytest", [tree], options = options)
+
+    match c.GetILAssembly(System.Threading.CancellationToken.None) with
+    | Error diags -> failwithf "%A" diags
+    | Ok ilAsm ->
+
+    let mutable result = None
+    let onEmitBody = 
+        fun (emittedFunc: DummyFunction) (irLazyFuncBody: Lazy<OlyIRFunctionBody<DummyType, DummyFunction, DummyField>>) ->
+            let irFuncBody = irLazyFuncBody.Value
+            if "main" = emittedFunc.Name then
+                match result with
+                | Some _ -> ()
+                | _ -> result <- Some irFuncBody
+
+    let vm = OlyRuntime(DummyEmitter(onEmitBody))
+    vm.ImportAssembly(ilAsm.ToReadOnly())
+    vm.EmitEntryPoint()
+
+    match result with
+    | None -> failwith "Unable to find function."
+    | Some body -> body.Expression
+
 let getMainOptimizedIR (src: string) =
     let options = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true }
     let tree = OlySyntaxTree.Parse(OlyPath.Create("olytest1.oly"), src, options)
@@ -370,6 +398,29 @@ main(): () =
             OlyAssert.Fail($"Unexpected pattern:\n{ir}")
     | _ ->
           OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 13``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline(stack)]
+M(#[inline(stack)] f: () -> ()): () =
+    f()
+
+main(): () =
+    M(() -> Work())
+        """
+        |> getMainIR 
+    match ir.Strip() with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | ir ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
 [<Fact>]
 let ``Lambda will not get inlined``() =

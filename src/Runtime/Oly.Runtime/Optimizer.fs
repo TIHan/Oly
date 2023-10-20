@@ -390,9 +390,12 @@ type SubValue<'Type, 'Function, 'Field> =
     | Local of localIndex: int * isNew: bool
     | Argument of argIndex: int
     | Constant of C<'Type, 'Function>
+    | Function of func: OlyIRFunction<'Type, 'Function, 'Field>
 
     /// Only used for stack-emplaced inlining.
     | Field of field: OlyIRField<'Type, 'Function, 'Field> * receiverExpr: OlyIRExpression<'Type, 'Function, 'Field>
+    | LoadFunction of func: OlyIRFunction<'Type, 'Function, 'Field> * argExpr: OlyIRExpression<'Type, 'Function, 'Field>
+    | New of ctor: OlyIRFunction<'Type, 'Function, 'Field> * argExprs: OlyIRExpression<'Type, 'Function, 'Field> imarray
 
 [<Literal>]
 let RecursiveInlineLimit = 3
@@ -421,7 +424,7 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irExpr: E<_, _, _>) isEmplaced =
+let inlineFunction (optenv: optenv<_, _, _>) isStackEmplaced (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irExpr: E<_, _, _>) isEmplaced =
     let optimizeOperation irExpr =
         match irExpr with
         | E.Operation(irTextRange, irOp) ->
@@ -445,7 +448,27 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | sub ->
                     OlyAssert.Fail($"StoreArgument: bad forwardsub {sub}")
 
-            | O.Call _ ->
+            | O.StoreField(irField, irReceiverExpr, irRhsExpr, resultTy) ->
+                if irField.RuntimeEnclosingType.IsClosure && isStackEmplaced then
+                    match irReceiverExpr with
+                    | E.Operation(op=O.New(irFunc, irArgExprs, _)) ->
+                        let enclosingTy = irFunc.RuntimeFunction.EnclosingType
+                        if enclosingTy.IsClosure then
+                            let fieldIndex = irField.RuntimeField.Value.Index
+                            match irArgExprs[fieldIndex] with
+                            | E.Value(value=V.Local(localIndex, _)) ->                         
+                                E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
+                            | _ ->
+                                failwith "Invalid stack-emplacement"
+                        else
+                            failwith "Invalid stack-emplacement"
+                    | _ ->
+                        failwith "Invalid stack-emplacement"
+                else
+                    irExpr
+
+            | O.Call _
+            | O.CallIndirect _ ->
                 match tryInlineFunction optenv irExpr with
                 | Some(inlinedExpr) -> inlinedExpr
                 | _ -> irExpr
@@ -597,9 +620,29 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | SubValue.Constant(irConstant) ->
                     E.Value(irTextRange, V.Constant(irConstant, resultTy))
 
+                // stack emplace handling
+
                 | SubValue.Field(field, irReceiverExpr) as sub ->
                     if isEmplaced then
                         E.Operation(irTextRange, O.LoadField(field, irReceiverExpr, resultTy))
+                    else
+                        OlyAssert.Fail($"Argument: bad forwardsub {sub}")
+
+                | SubValue.LoadFunction(func, irArgExpr) as sub ->
+                    if isEmplaced then
+                        E.Operation(irTextRange, O.LoadFunction(func, irArgExpr, resultTy))
+                    else
+                        OlyAssert.Fail($"Argument: bad forwardsub {sub}")
+
+                | SubValue.Function(emittedFunc) as sub ->
+                    if isEmplaced then
+                        E.Value(irTextRange, V.Function(emittedFunc, resultTy))
+                    else
+                        OlyAssert.Fail($"Argument: bad forwardsub {sub}")
+
+                | SubValue.New(ctor, irArgExprs) as sub ->
+                    if isEmplaced then
+                        E.Operation(irTextRange, O.New(ctor, irArgExprs, resultTy))
                     else
                         OlyAssert.Fail($"Argument: bad forwardsub {sub}")
 
@@ -662,6 +705,16 @@ let tryInlineFunction optenv irExpr =
                 O.Call(irFunc,
                     irArgExprs
                     |> ImArray.prependOne irArgExpr,
+                    resultTy
+                )
+            )
+        tryInlineFunction optenv irCallExprToInline
+
+    | E.Operation(irTextRange, O.CallIndirect(_, E.Value(value=V.Function(irFunc, _)), irArgExprs, resultTy)) ->
+        let irCallExprToInline =
+            E.Operation(irTextRange,
+                O.Call(irFunc,
+                    irArgExprs,
                     resultTy
                 )
             )
@@ -754,11 +807,17 @@ let tryInlineFunction optenv irExpr =
                             | V.Argument(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.ArgumentAddress(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.Constant(constant, _) -> SubValue.Constant(constant)
-                            | _ -> 
+                            | V.Function(irFunc, _) when irFunc.RuntimeFunction.Flags.IsStackEmplace -> 
+                                if not isEmplaced then
+                                    OlyAssert.Fail($"bad forwardsub {irValue}")
+
+                                SubValue.Function(irFunc)
+
+                            | _ ->
                                 OlyAssert.Fail($"bad forwardsub {irValue}")
 
                         | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
-                            if hasSideEffectForEmplace optenv irReceiverExpr then
+                            if isValidForEmplace optenv irReceiverExpr then
                                 OlyAssert.Fail($"bad forwardsub due to side-effect: {irReceiverExpr}")
 
                             if not isEmplaced then
@@ -770,8 +829,42 @@ let tryInlineFunction optenv irExpr =
                             if not isEmplaced then
                                 OlyAssert.Fail($"bad forwardsub {irExpr}")
 
-                            // Disables forward-sub
-                            SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
+                            match irExpr with
+                            | E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
+                                match irArgExpr with
+                                | E.Value(value=irValue) ->
+                                    match irValue with
+                                    | V.Local(index=localIndex) when optenv.IsLocalMutable(localIndex) |> not ->
+                                        SubValue.LoadFunction(irFunc, irArgExpr)
+                                    | V.Argument(index=argIndex) when optenv.IsArgumentMutable(argIndex) |> not ->
+                                        SubValue.LoadFunction(irFunc, irArgExpr)
+                                    | _ ->
+                                        OlyAssert.Fail($"bad forwardsub {irExpr}")
+
+                                | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) when not field.IsMutable ->
+                                    if isValidForEmplace optenv irReceiverExpr then
+                                        OlyAssert.Fail($"bad forwardsub due to emplace side-effect: {irReceiverExpr}")
+
+                                    SubValue.LoadFunction(irFunc, irArgExpr)
+
+                                | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType ->
+                                    if irArgExprs |> ImArray.exists (isValidForEmplace optenv) then
+                                        OlyAssert.Fail($"bad forwardsub {irExpr}")
+
+                                    SubValue.LoadFunction(irFunc, irArgExpr)
+
+                                | _ ->
+                                    OlyAssert.Fail($"bad forwardsub {irExpr}")
+
+                            | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType ->
+                                if irArgExprs |> ImArray.exists (isValidForEmplace optenv) then
+                                    OlyAssert.Fail($"bad forwardsub {irExpr}")
+
+                                SubValue.New(ctor, irArgExprs)
+
+                            | _ ->
+                                // Disables forward-sub
+                                SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                     else                       
                         SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                 )
@@ -783,7 +876,7 @@ let tryInlineFunction optenv irExpr =
                 |> ignore
 
             let irFinalExpr =
-                inlineFunction optenv func localOffset argMap irFuncBodyExpr isEmplaced
+                inlineFunction optenv isEmplaced func localOffset argMap irFuncBodyExpr isEmplaced
 
             let irInlinedExpr =
                 (irFinalExpr, argMap)
@@ -1000,23 +1093,18 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) limit checkAddressExposed depth (
 let hasSideEffect optenv (irExpr: E<_, _, _>) =
     hasSideEffectAux optenv SideEffectDepthLimit false 0 irExpr
 
-let hasSideEffectForEmplace optenv irExpr =
+let isValidForEmplace optenv irExpr =
     match irExpr with
-    | E.Value(value=V.Local(index, _)) ->
-        optenv.localManager.IsMutable(index)
-    | E.Value(value=V.Argument(index, _)) ->
-        optenv.func.IsArgumentMutable(index)
+    | E.Value(value=V.Local _)
+    | E.Value(value=V.Argument _) -> false
+    | E.Operation(op=O.LoadField(_, irReceiverExpr, _)) -> isValidForEmplace optenv irReceiverExpr
     | E.Operation(op=O.New(func, irArgExprs, _)) ->
-        if irArgExprs |> ImArray.exists (hasSideEffectForEmplace optenv) then
+        if irArgExprs |> ImArray.exists (isValidForEmplace optenv) then
             true
         else
             not func.IsClosureInstanceConstructor
     | _ ->
         true
-
-let isInvariant optenv (irExpr: E<_, _, _>) =
-    hasSideEffectAux optenv SideEffectDepthLimit true 0 irExpr
-    |> not
 
 let And arg1 arg2 resultTy =
     E.IfElse(arg1, arg2, E.Value(NoRange, V.Constant(C.False, resultTy)), resultTy)
@@ -2330,7 +2418,8 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
 
             // Check to make sure we are inlining a stack-emplaced function.
             match irOp with
-            | O.Call(irFunc, _, _) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
+            | O.Call(irFunc, _, _)
+            | O.LoadFunction(irFunc, _, _) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
                 OlyAssert.Fail($"Expected stack-emplaced function '{irFunc.RuntimeFunction.Name}' to be inlined.")
             | _ ->
                 ()
@@ -2357,6 +2446,10 @@ let NormalizeLocals optenv (irExpr: E<_, _, _>) =
             E.Value(irTextRange, V.Local(getLocal localIndex, resultTy))
         | E.Value(irTextRange, V.LocalAddress(localIndex, irByRefKind, resultTy)) ->
             E.Value(irTextRange, V.LocalAddress(getLocal localIndex, irByRefKind, resultTy))
+
+        // Check to make sure we are inlining a stack-emplaced function.
+        | E.Value(_, V.Function(irFunc, _)) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
+            OlyAssert.Fail($"Expected stack-emplaced function '{irFunc.RuntimeFunction.Name}' to be inlined.")
 
         | _ ->
             irExpr

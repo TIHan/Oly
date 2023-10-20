@@ -1510,6 +1510,7 @@ and GenSetFieldExpression (cenv: cenv) env _ilTextRange receiverOpt field rhsExp
         | Some ilReceiver ->
             OlyILOperation.StoreField(ilFieldRef, ilReceiver, ilRhsExpr)
         | _ ->
+            OlyAssert.False(field.IsInstance)
             OlyILOperation.StoreStaticField(ilFieldRef, ilRhsExpr)
     OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
 

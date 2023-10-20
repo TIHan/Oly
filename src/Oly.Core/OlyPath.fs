@@ -11,6 +11,8 @@ type OlyPath private (path: string) =
 
     static member Empty = empty
 
+    member _.IsEmpty = path = ""
+
     /// Does no computation, just simply returns the underlying path as a string.
     override _.ToString() = path
 

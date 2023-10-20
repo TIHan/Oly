@@ -1200,7 +1200,9 @@ module rec ClrCodeGen =
         | V.FunctionPtr(methInfo, _) ->
             emitInstruction cenv (I.Ldftn(methInfo.handle))
 
-        | V.Function(methInfo, funcTy) ->
+        | V.Function(irFunc, funcTy) ->
+            let methInfo = irFunc.EmittedFunction
+
             I.Ldnull |> emitInstruction cenv
             emitInstruction cenv (I.Ldftn(methInfo.handle))
 
