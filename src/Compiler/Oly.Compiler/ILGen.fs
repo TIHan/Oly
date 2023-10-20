@@ -1902,7 +1902,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     let ilFuncInst = GenFunctionAsILFunctionInstance cenv env witnessArgs func
 
                     if func.IsConstructor && receiverOpt.IsNone then
-                        OlyAssert.False(func.IsStackEmplace)
+                       // OlyAssert.False(func.IsStackEmplace)
                         OlyILOperation.New(ilFuncInst, ilArgExprs)
                     else
                         if func.Parameters.Length <> ilArgExprs.Length then

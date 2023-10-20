@@ -16539,9 +16539,7 @@ main(): () =
     let mutable mutValue = -3
     print(mutValue)
 
-    let start = 0
-    let length = 5
-    For(start, length, 
+    For(0, 5, 
         i -> 
             mutValue <- i
             print(i)
@@ -16552,4 +16550,109 @@ main(): () =
     Oly src
     |> shouldCompile
     |> shouldRunWithExpectedOutput "-3012344"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 6``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+For(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    let mutable mutValue = -3
+    print(mutValue)
+
+    let start = 0
+    let length = 2
+    For(start, length, 
+        i -> 
+            For(start, length,
+                i ->
+                    mutValue <- i
+                    print(i)
+            )
+    )
+
+    print(mutValue)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "-301011"
+    |> ignore
+
+[<Fact>]
+let ``Explicit stack-emplaced function 7``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(stack)]
+For(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+#[inline(never)]
+ForNoInline(start: int32, length: int32, f: int32 -> ()): () =
+    let mutable i = start
+    while (i < length)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    let mutable mutValue = -3
+    print(mutValue)
+
+    let start = 0
+    let length = 2
+    ForNoInline(0, 2, 
+        i -> 
+            let start = 0
+            let length = 2
+            For(start, length,
+                i ->
+                    mutValue <- i
+                    print(i)
+            )
+    )
+
+    print(mutValue)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "-301011"
     |> ignore

@@ -270,9 +270,6 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
 /// Perhaps we only do introspection up to a point?
 let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILFunctionDefinition) =
     if ilFuncDef.IsConstructor || ilFuncDef.IsAbstract || (ilFuncDef.IsVirtual && not ilFuncDef.IsSealed) || ilFuncDef.IsExported || ilFuncDef.IsImported then
-        if ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
-            let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
-            failwith $"Function '{ilAsm.GetStringOrEmpty(ilFuncSpec.NameHandle)}' cannot be stack-emplaced."
         false
     elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
         true

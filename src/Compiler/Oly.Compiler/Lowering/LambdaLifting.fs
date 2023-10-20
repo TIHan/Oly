@@ -436,7 +436,7 @@ type cenv =
         this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_closure_" + string newId
 
-let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: ReadOnlyDictionary<_, _>) (fields: IFieldSymbol imarray) (closure: EntitySymbol) =
+let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: ReadOnlyDictionary<_, _>) isStackEmplaced (fields: IFieldSymbol imarray) (closure: EntitySymbol) =
     Assert.ThrowIfNot(freeLocals.Length = fields.Length)
 
     let thisCtorPar = createThisValue "" true true (closure.ToInstantiation())
@@ -449,6 +449,13 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: Re
     let ctorPars =
         (ImArray.createOne thisCtorPar).AddRange(ctorPars0)
 
+    let ctorFlags = FunctionFlags.Constructor
+    let ctorFlags =
+        if isStackEmplaced then 
+            ctorFlags ||| FunctionFlags.StackEmplace 
+        else 
+            ctorFlags
+
     let ctor = 
         createFunctionValue 
             closure.AsEnclosing
@@ -458,7 +465,7 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: Re
             ctorPars
             closure.AsType
             (MemberFlags.Instance ||| MemberFlags.Public)
-            FunctionFlags.Constructor
+            ctorFlags
             WellKnownFunction.None
             None
             false
@@ -820,7 +827,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
 
         closureBuilder.SetFields(Pass2, fields)
         
-        let ctor = createClosureConstructor freeLocals tyParLookup fields closureBuilder.Entity
+        let ctor = createClosureConstructor freeLocals tyParLookup isStackEmplaced fields closureBuilder.Entity
         let invoke = createClosureInvoke lambdaFlags tyParLookup attrs pars invokeTyPars funcTy closureBuilder.Entity
         
         closureBuilder.SetFunctions(Pass2, [ctor;invoke] |> ImArray.ofSeq)
