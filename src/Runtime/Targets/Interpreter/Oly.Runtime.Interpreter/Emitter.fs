@@ -1446,6 +1446,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
 
         and evalExpr (stack: Stack<obj>) (expr: InterpreterExpression) =
             match expr with
+            | InterpreterExpression.Lambda _ ->
+                raise(System.NotImplementedException("Lambda"))
+
             | InterpreterExpression.Try _ ->
                 raise(NotImplementedException("'Try' expression"))
 

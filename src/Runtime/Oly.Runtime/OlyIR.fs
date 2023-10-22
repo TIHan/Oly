@@ -674,6 +674,15 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
     | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
 
+    | Lambda of 
+        textRange: OlyIRDebugSourceTextRange *
+        capturedLocals: OlyIRParameter<'Type> imarray * 
+        captureTyPars: OlyIRTypeParameter<Type> imarray *
+        locals: OlyIRParameter<'Type> imarray * 
+        tyPars: OlyIRTypeParameter<'Type> imarray *
+        bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> *
+        resultTy: 'Type
+
     member this.GetExpressions() : _ imarray =
         match this with
         | OlyIRExpression.Sequential(expr1, expr2) ->
@@ -707,6 +716,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
         | Try(resultTy=resultTy) -> resultTy
+        | Lambda(resultTy=resultTy) -> resultTy
 
     member this.TextRange =
         match this with
@@ -718,6 +728,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | IfElse(conditionExpr, _, _, _)
         | While(conditionExpr, _, _) -> conditionExpr.TextRange
         | Try(bodyExpr=bodyExpr) -> bodyExpr.TextRange
+        | Lambda(textRange=textRange) -> textRange
 
     override this.ToString() =
         Dump.DumpExpression this
@@ -956,3 +967,7 @@ module Dump =
         | E.Try _ ->
             // TODO: Implement this.
             "TRY"
+
+        | E.Lambda _ ->
+            // TODO: Implement this.
+            "LAMBDA"

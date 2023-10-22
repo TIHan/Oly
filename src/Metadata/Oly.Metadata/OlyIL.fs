@@ -964,6 +964,13 @@ type OlyILExpression =
 
     | Try of bodyExpr: OlyILExpression * catchCases: OlyILCatchCase imarray * finallyBodyExprOpt: OlyILExpression option
 
+    | Lambda of 
+        capturedLocals: OlyILLocal imarray * 
+        captureTyPars: OlyILTypeParameter imarray *
+        locals: OlyILLocal imarray * 
+        tyPars: OlyILTypeParameter imarray *
+        bodyExpr: OlyILExpression
+
 // Not concurrency safe.
 type private Table<'Value>(kind: OlyILTableKind) =
 

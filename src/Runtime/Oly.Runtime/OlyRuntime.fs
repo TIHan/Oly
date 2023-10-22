@@ -676,6 +676,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
     | OlyILExpression.None(ilTextRange) -> 
         E.None(readTextRange env.ILAssembly ilTextRange, cenv.EmittedTypeVoid), RuntimeType.Void
 
+    | OlyILExpression.Lambda(ilCapturedLocals, ilCapturedTyPars, ilLocals, ilTyPars, ilBodyExpr) ->
+        raise(NotImplementedException("Lambda"))
+
     | OlyILExpression.Try(ilBodyExpr, ilCatchCases, ilFinallyBodyExprOpt) ->
         let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr
         let irCatchCases = ilCatchCases |> ImArray.map (importCatchCase cenv env resultTy)

@@ -1494,6 +1494,9 @@ module rec ClrCodeGen =
                 emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
                 emitDebugNopIfPossible cenv
 
+        | E.Lambda _ ->
+            raise(System.NotImplementedException("Lambda"))
+
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
             
