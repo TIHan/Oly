@@ -417,7 +417,12 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyAssert.Fail("Internal error: Unable to code-gen an eager inference variable type.")
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
-        if innerTy.IsBuiltIn then
+        if innerTy.IsFunction_t then
+            OlyILTypeForAll(
+                emitILTypeParameters cenv env tyPars,
+                emitILType cenv env innerTy
+            )
+        elif innerTy.IsBuiltIn then
             raise(System.NotSupportedException("For all types are not supported in IL."))
         else
             let ent = innerTy.TryEntity.Value
@@ -1480,7 +1485,51 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         OlyILExpression.While(ilConditionExpr, ilBodyExpr)
 
-    | E.Lambda _
+    | E.Lambda(syntaxInfo, lambdaFlags, tyPars, pars, lazyBodyExpr, _, _, _) ->
+        let bodyExpr = lazyBodyExpr.Expression
+        let freeTyVars = expr.GetLogicalFreeTypeVariables()
+        let freeLocals = expr.GetLogicalFreeAnyLocals()
+
+        let oldFunEnv = cenv.funEnv
+        cenv.funEnv <- FunctionEnv.Create()
+
+        pars
+        |> ImArray.iter (fun par ->
+            let name = par.Name
+            let ilTy = emitILType cenv env par.Type
+            let localId = par.Id
+            let ilLocal = 
+                let flags = if par.IsMutable then OlyILLocalFlags.Mutable else OlyILLocalFlags.None
+                OlyILLocal(cenv.funEnv.ilLocals.Count, GenString cenv name, ilTy, flags)
+
+            cenv.funEnv.scopedLocals.Add(localId, ilLocal) // this will protect against accidently adding the same local twice
+            cenv.funEnv.ilLocals.Add(ilLocal)
+        )
+
+        let ilLocals = cenv.funEnv.ilLocals.ToImmutable()
+        let ilTyPars = emitILTypeParameters cenv env tyPars
+
+        freeLocals
+        |> ImArray.iter (fun value ->
+            let name = value.Name
+            let ilTy = emitILType cenv env value.Type
+            let localId = value.Id
+            let ilLocal = 
+                let flags = if value.IsMutable then OlyILLocalFlags.Mutable else OlyILLocalFlags.None
+                OlyILLocal(cenv.funEnv.ilLocals.Count, GenString cenv name, ilTy, flags)
+
+            cenv.funEnv.scopedLocals.Add(localId, ilLocal) // this will protect against accidently adding the same local twice
+            cenv.funEnv.ilLocals.Add(ilLocal)
+        )
+
+        let ilFreeLocals = cenv.funEnv.ilLocals |> Seq.skip ilLocals.Length |> ImArray.ofSeq
+        let ilFreeTyPars = emitILTypeParameters cenv env freeTyVars
+
+        let ilBodyExpr = GenExpression cenv env bodyExpr
+        cenv.funEnv <- oldFunEnv
+        OlyILExpression.Lambda(ilFreeLocals, ilFreeTyPars, ilLocals, ilTyPars, ilBodyExpr)
+
+
     | E.Match _
     | E.GetProperty _
     | E.SetProperty _ 
@@ -1969,16 +2018,8 @@ and GenMemberDefinitionExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bin
     | BindingField _ ->
         OlyILExpressionNone
 
-and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
-    match bindingInfo with
-    | BindingLocalFunction(func) ->
-        OlyAssert.True(bodyExprOpt.IsSome)
-        OlyAssert.True(func.IsLocal)
-        GenFunctionDefinitionExpression cenv env syntaxDebugNode func rhsExpr
-        GenExpression cenv env bodyExprOpt.Value
-      
-    | BindingLocal(value) ->
-        // TODO: Unit logic is a bit complex, we need to simplify it.
+and GenLetExpressionAux cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) (value: IValueSymbol) : OlyILExpression =
+    // TODO: Unit logic is a bit complex, we need to simplify it.
         let mustBeRealUnit = 
             match stripTypeEquations value.Type with
             | TypeSymbol.Unit -> true
@@ -2033,6 +2074,14 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
                 OlyILExpression.Let(ilLocal.Index, ilNewRhsExpr, ilBodyExpr)
         else
             OlyILExpression.Let(ilLocal.Index, ilRhsExpr, ilBodyExpr)
+
+and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
+    match bindingInfo with
+    | BindingLocalFunction(func) ->
+        GenLetExpressionAux cenv env syntaxDebugNode bindingInfo rhsExpr bodyExprOpt func
+      
+    | BindingLocal(value) ->
+        GenLetExpressionAux  cenv env syntaxDebugNode bindingInfo rhsExpr bodyExprOpt value
 
 and GenFunctionDefinitionLambdaExpression (cenv: cenv) env (pars: ILocalParameterSymbol imarray) (body: E) =
     pars
