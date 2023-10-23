@@ -677,7 +677,55 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         E.None(readTextRange env.ILAssembly ilTextRange, cenv.EmittedTypeVoid), RuntimeType.Void
 
     | OlyILExpression.Lambda(ilCapturedLocals, ilCapturedTyPars, ilLocals, ilTyPars, ilBodyExpr) ->
-        raise(NotImplementedException("Lambda"))
+        
+        let irFreeLocals =
+            ilCapturedLocals
+            |> ImArray.map (fun ilLocal ->
+                OlyIRLocal.Local(
+                    env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle),
+                    ilLocal.Index,
+                    cenv.ResolveType(env.ILAssembly, ilLocal.Type, env.GenericContext)
+                    |> cenv.EmitType,
+                    ilLocal.IsMutable
+                )
+            )
+
+        let irFreeTyPars =
+            ilCapturedTyPars
+            |> ImArray.map (fun ilTyPar ->
+                OlyIRTypeParameter(env.ILAssembly.GetStringOrEmpty(ilTyPar.NameHandle))
+            )
+
+        let irLocals =
+            ilLocals
+            |> ImArray.map (fun ilLocal ->
+                OlyIRLocal.Local(
+                    env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle),
+                    ilLocal.Index,
+                    cenv.ResolveType(env.ILAssembly, ilLocal.Type, env.GenericContext)
+                    |> cenv.EmitType,
+                    ilLocal.IsMutable
+                )
+            )
+
+        let irTyPars =
+            ilTyPars
+            |> ImArray.map (fun ilTyPar ->
+                OlyIRTypeParameter(env.ILAssembly.GetStringOrEmpty(ilTyPar.NameHandle))
+            )
+
+        // TODO: Finish this.
+        let irBodyExpr, bodyExprTy = importExpression cenv env None ilBodyExpr
+
+        OlyIRExpression.Lambda(
+            OlyIRDebugSourceTextRange.Empty,
+            irFreeLocals,
+            irFreeTyPars,
+            irLocals,
+            irTyPars,
+            irBodyExpr,
+            Unchecked.defaultof<_>
+        ), Unchecked.defaultof<_>
 
     | OlyILExpression.Try(ilBodyExpr, ilCatchCases, ilFinallyBodyExprOpt) ->
         let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr

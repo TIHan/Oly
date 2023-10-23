@@ -661,6 +661,11 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
 type OlyIRCatchCase<'Type, 'Function, 'Field> =
     | CatchCase of localName: string * localIndex: int32 * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchTy: 'Type
 
+[<NoEquality;NoComparison>]
+[<RequireQualifiedAccess>]
+type OlyIRLocal<'Type> =
+    | Local of name: string * localIndex: int32 * ty: 'Type * isMutable: bool
+
 [<ReferenceEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 [<DebuggerDisplay("{ToString()}")>]
@@ -676,9 +681,9 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
 
     | Lambda of 
         textRange: OlyIRDebugSourceTextRange *
-        capturedLocals: OlyIRParameter<'Type> imarray * 
+        capturedLocals: OlyIRLocal<'Type> imarray * 
         captureTyPars: OlyIRTypeParameter<Type> imarray *
-        locals: OlyIRParameter<'Type> imarray * 
+        locals: OlyIRLocal<'Type> imarray * 
         tyPars: OlyIRTypeParameter<'Type> imarray *
         bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> *
         resultTy: 'Type
