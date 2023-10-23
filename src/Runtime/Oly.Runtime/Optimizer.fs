@@ -475,9 +475,14 @@ let inlineFunction (optenv: optenv<_, _, _>) isStackEmplaced (func: RuntimeFunct
                         let enclosingTy = irFunc.RuntimeFunction.EnclosingType
                         if enclosingTy.IsClosure then
                             let fieldIndex = irField.RuntimeField.Value.Index
+                            // TODO: We need to write a spec for what is valid for emplacement.
                             match irArgExprs[fieldIndex] with
                             | E.Value(value=V.Local(localIndex, _)) ->                         
                                 E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
+                            | E.Value(value=V.Argument(argIndex, _)) ->
+                                E.Operation(irTextRange, O.Store(argIndex, irRhsExpr, resultTy))
+                            | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
+                                E.Operation(irTextRange, O.StoreField(field, irReceiverExpr, irRhsExpr, resultTy))
                             | _ ->
                                 failwith "Invalid stack-emplacement"
                         else
@@ -1118,7 +1123,7 @@ let isNotValidForEmplace optenv irExpr =
     | E.Value(value=V.Local _)
     | E.Value(value=V.Argument _) -> false
     | E.Operation(op=O.LoadField(_, irReceiverExpr, _)) -> isNotValidForEmplace optenv irReceiverExpr
-    | E.Operation(op=O.New(func, irArgExprs, _)) ->
+    | E.Operation(op=O.New(func, irArgExprs, _)) when func.RuntimeFunction.Flags.IsStackEmplace ->
         if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
             true
         else
