@@ -867,6 +867,17 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceAction`3`` = sysTy "Action`3" false
     member val ``TypeReferenceAction`4`` = sysTy "Action`4" false
     member val ``TypeReferenceAction`5`` = sysTy "Action`5" false
+    member val ``TypeReferenceAction`6`` = sysTy "Action`6" false
+    member val ``TypeReferenceAction`7`` = sysTy "Action`7" false
+    member val ``TypeReferenceAction`8`` = sysTy "Action`8" false
+    member val ``TypeReferenceAction`9`` = sysTy "Action`9" false
+    member val ``TypeReferenceAction`10`` = sysTy "Action`10" false
+    member val ``TypeReferenceAction`11`` = sysTy "Action`11" false
+    member val ``TypeReferenceAction`12`` = sysTy "Action`12" false
+    member val ``TypeReferenceAction`13`` = sysTy "Action`13" false
+    member val ``TypeReferenceAction`14`` = sysTy "Action`14" false
+    member val ``TypeReferenceAction`15`` = sysTy "Action`15" false
+    member val ``TypeReferenceAction`16`` = sysTy "Action`16" false
 
     member val ``TypeReferenceFunc`1`` = sysTy "Func`1" false
     member val ``TypeReferenceFunc`2`` = sysTy "Func`2" false
@@ -874,6 +885,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceFunc`4`` = sysTy "Func`4" false
     member val ``TypeReferenceFunc`5`` = sysTy "Func`5" false
     member val ``TypeReferenceFunc`6`` = sysTy "Func`6" false
+    member val ``TypeReferenceFunc`7`` = sysTy "Func`7" false
+    member val ``TypeReferenceFunc`8`` = sysTy "Func`8" false
+    member val ``TypeReferenceFunc`9`` = sysTy "Func`9" false
+    member val ``TypeReferenceFunc`10`` = sysTy "Func`10" false
+    member val ``TypeReferenceFunc`11`` = sysTy "Func`11" false
+    member val ``TypeReferenceFunc`12`` = sysTy "Func`12" false
+    member val ``TypeReferenceFunc`13`` = sysTy "Func`13" false
+    member val ``TypeReferenceFunc`14`` = sysTy "Func`14" false
+    member val ``TypeReferenceFunc`15`` = sysTy "Func`15" false
+    member val ``TypeReferenceFunc`16`` = sysTy "Func`16" false
 
     member val ``TypeReferenceTuple`2`` = sysTy "Tuple`2" false
     member val ``TypeReferenceTuple`3`` = sysTy "Tuple`3" false
@@ -1283,8 +1304,19 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | 3 -> this.AddGenericInstanceType(this.``TypeReferenceAction`3``, argTys), argTys
             | 4 -> this.AddGenericInstanceType(this.``TypeReferenceAction`4``, argTys), argTys
             | 5 -> this.AddGenericInstanceType(this.``TypeReferenceAction`5``, argTys), argTys
+            | 6 -> this.AddGenericInstanceType(this.``TypeReferenceAction`6``, argTys), argTys
+            | 7 -> this.AddGenericInstanceType(this.``TypeReferenceAction`7``, argTys), argTys
+            | 8 -> this.AddGenericInstanceType(this.``TypeReferenceAction`8``, argTys), argTys
+            | 9 -> this.AddGenericInstanceType(this.``TypeReferenceAction`9``, argTys), argTys
+            | 10 -> this.AddGenericInstanceType(this.``TypeReferenceAction`10``, argTys), argTys
+            | 11 -> this.AddGenericInstanceType(this.``TypeReferenceAction`11``, argTys), argTys
+            | 12 -> this.AddGenericInstanceType(this.``TypeReferenceAction`12``, argTys), argTys
+            | 13 -> this.AddGenericInstanceType(this.``TypeReferenceAction`13``, argTys), argTys
+            | 14 -> this.AddGenericInstanceType(this.``TypeReferenceAction`14``, argTys), argTys
+            | 15 -> this.AddGenericInstanceType(this.``TypeReferenceAction`15``, argTys), argTys
+            | 16 -> this.AddGenericInstanceType(this.``TypeReferenceAction`16``, argTys), argTys
             | _ ->
-                raise(System.NotImplementedException())
+                raise(NotSupportedException($"not supported: System.Action type with arg-count: {argTys.Length}"))
         else
             match argTys.Length with
             | 0 -> 
@@ -1305,8 +1337,41 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | 5 ->
                 let tyInst = argTys.Add(returnTy)
                 this.AddGenericInstanceType(this.``TypeReferenceFunc`6``, tyInst), tyInst
+            | 6 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`6``, tyInst), tyInst
+            | 7 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`7``, tyInst), tyInst
+            | 8 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`8``, tyInst), tyInst
+            | 9 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`9``, tyInst), tyInst
+            | 10 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`10``, tyInst), tyInst
+            | 11 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`11``, tyInst), tyInst
+            | 12 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`12``, tyInst), tyInst
+            | 13 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`13``, tyInst), tyInst
+            | 14 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`14``, tyInst), tyInst
+            | 15 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`15``, tyInst), tyInst
+            | 16 ->
+                let tyInst = argTys.Add(returnTy)
+                this.AddGenericInstanceType(this.``TypeReferenceFunc`16``, tyInst), tyInst
             | _ ->
-                raise(System.NotImplementedException())
+                raise(NotSupportedException($"not supported: System.Func type with arg-count: {argTys.Length}"))
 
     member this.AddAnonymousFunctionConstructor(parent: ClrTypeHandle) =
         let signature = BlobBuilder()

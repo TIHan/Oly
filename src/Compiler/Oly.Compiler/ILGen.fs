@@ -222,8 +222,8 @@ and GenString cenv (value: string) =
         handle
 
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
+    OlyAssert.True(ent.IsFormal)
     OlyAssert.False(ent.IsAnonymous)
-    let ent = ent.Formal
     match cenv.cachedEntRefs.TryGetValue ent.Id with
     | true, handle -> handle
     | _ ->
@@ -260,7 +260,7 @@ and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
         // Local to the assembly
         OlyILEntityInstance(GenEntityAsILEntityDefinition cenv env ent.Formal, ilTyInst)
     else
-        OlyILEntityInstance(GenEntityAsILEntityReference cenv env ent, ilTyInst)
+        OlyILEntityInstance(GenEntityAsILEntityReference cenv env ent.Formal, ilTyInst)
 
 and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: EntitySymbol) =
 #if DEBUG

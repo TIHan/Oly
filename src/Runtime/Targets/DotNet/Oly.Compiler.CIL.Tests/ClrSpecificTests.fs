@@ -2443,7 +2443,7 @@ module Main =
     proj.Compilation
     |> runWithExpectedOutput "<1, 1, 1>"
 
-[<Fact(Skip = "Different behavior in Debug and Release - this is a .NET JIT bug.")>]
+[<Fact(Skip = "Invalid program")>]
 let ``Weird one``() =
     let src =
         """
@@ -2469,18 +2469,18 @@ module M =
     #[intrinsic("add")]
     (+)(int, int): int
     
-    #[intrinsic("cast")]
+    #[intrinsic("unsafe_cast")]
     unsafeCast<T>(__oly_object): T
 
     #[export]
     interface IMoveable =
-        get set Position: int
+        Position: int get, set
    
     #[export]
     class Item =
         implements IMoveable
 
-        get set Name: string = "Bar"
+        Name: string get, set = "Bar" 
 
         Position: int
             get() =
@@ -2513,7 +2513,7 @@ module M =
     proj.Compilation
     |> runWithExpectedOutput "Get - Goo Set - Goo "
 
-[<Fact(Skip = "breaks in net7")>]
+[<Fact(Skip = "Invalid program")>]
 let ``Weird one 2``() =
     let src =
         """
@@ -2539,18 +2539,18 @@ module M =
     #[intrinsic("add")]
     (+)(int, int): int
     
-    #[intrinsic("cast")]
+    #[intrinsic("unsafe_cast")]
     unsafeCast<T>(__oly_object): T
 
     #[export]
     interface IMoveable =
-        get set Position: int
+        Position: int get, set
    
     #[export]
     struct Item =
         implements IMoveable
 
-        get set Name: string = "Bar"
+        Name: string get, set = "Bar"
 
         Position: int
             get() =
