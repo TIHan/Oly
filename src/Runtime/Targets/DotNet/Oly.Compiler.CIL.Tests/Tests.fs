@@ -16656,3 +16656,55 @@ main(): () =
     |> shouldCompile
     |> shouldRunWithExpectedOutput "-301011"
     |> ignore
+
+[<Fact>]
+let ``Static ctor evaluation order for fields``() =
+    let src =
+        """
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module MD =
+
+    field X: int32 = 5
+    public field Y: int32 = X + 4
+
+main(): () =
+    print(MD.Y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "9"
+    |> ignore
+
+[<Fact>]
+let ``Static ctor evaluation order for fields 2``() =
+    let src =
+        """
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module MD =
+
+    public field Y: int32 = X + 4
+    field X: int32 = 5
+
+main(): () =
+    print(MD.Y)
+        """
+    Oly src
+    |> shouldCompile
+    |> shouldRunWithExpectedOutput "4"
+    |> ignore
