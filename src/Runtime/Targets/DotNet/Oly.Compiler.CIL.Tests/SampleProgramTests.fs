@@ -117,7 +117,7 @@ interface LessThanOrEqual<T1, T2, T3> =
 
 let run expectedOutput src =
     OlySharp (coreLib + src)
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput expectedOutput
     |> ignore
 

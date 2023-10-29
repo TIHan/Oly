@@ -354,7 +354,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
     
     let lambdaExpr =
         E.CreateLambda(
-            cenv.syntaxTree,
+            syntaxInfo,
             LambdaFlags.None,
             ImArray.empty,
             lambdaPars,

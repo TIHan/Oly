@@ -11,7 +11,7 @@ let ``Top-level module with nothing in it should pass``() =
 module Test
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -21,7 +21,7 @@ let ``Top-level module with type parameters should pass``() =
 module Test<T>
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -33,7 +33,7 @@ module Test<T>
 class Test2<U>
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -43,7 +43,7 @@ let ``Top-level module with type parameters should pass 3``() =
 module Test<T> where T: struct
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -55,7 +55,7 @@ module Test<T> where T: struct
 class Test2<U> where U: struct
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -73,7 +73,7 @@ module Entities<T1> =
         mutable field X: __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]

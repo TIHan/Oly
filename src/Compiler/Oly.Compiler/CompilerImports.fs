@@ -1230,6 +1230,12 @@ let private importFunctionFlags (ilFuncFlags: OlyILFunctionFlags) =
         else
             funcFlags
 
+    let funcFlags =
+        if ilFuncFlags.HasFlag(OlyILFunctionFlags.UnmanagedAllocationOnly) then
+            funcFlags ||| FunctionFlags.UnmanagedAllocationOnly
+        else
+            funcFlags
+
     funcFlags
 
 let private importFieldFlags (ilFieldFlags: OlyILFieldFlags) =

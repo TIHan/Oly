@@ -280,6 +280,13 @@ type SyntaxAttribute =
     | Expression
         of
         expr: SyntaxExpression
+    | Unmanaged
+        of
+        unmanagedToken: SyntaxToken *
+        leftParenthesisToken: SyntaxToken *
+        ident: SyntaxToken *
+        rightParenthesisToken: SyntaxToken *
+        fullWidth: int
     | Error
         of
         token: SyntaxToken
@@ -337,6 +344,13 @@ type SyntaxAttribute =
                 match index with
                 | 0 -> expr :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Unmanaged(unmanagedToken, leftParenthesisToken, ident, rightParenthesisToken, _) ->
+                match index with
+                | 0 -> unmanagedToken :> ISyntaxNode
+                | 1 -> leftParenthesisToken :> ISyntaxNode
+                | 2 -> ident :> ISyntaxNode
+                | 3 -> rightParenthesisToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | Error(token) ->
                 match index with
                 | 0 -> token :> ISyntaxNode
@@ -353,6 +367,7 @@ type SyntaxAttribute =
             | Inline _ -> 4
             | Pure _ -> 1
             | Expression _ -> 1
+            | Unmanaged _ -> 4
             | Error _ -> 1
 
         member this.FullWidth =
@@ -375,6 +390,8 @@ type SyntaxAttribute =
                 (x :> ISyntaxNode).FullWidth
             | Expression(x) ->
                 (x :> ISyntaxNode).FullWidth
+            | Unmanaged(fullWidth=fullWidth) ->
+                fullWidth
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 

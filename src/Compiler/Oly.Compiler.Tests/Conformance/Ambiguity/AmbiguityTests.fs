@@ -19,7 +19,7 @@ fmap<F<_>, A>(aa: A -> A, fa: F<A>): F<A> where F: Functor<F> =
     fmap<F, A, A>(aa, fa)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -37,7 +37,7 @@ fmap<F<_>, A>(aa: A -> A, fa: F<A>): F<A> where F: Functor<F> =
     fmap<_, _, _>(aa, fa)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -52,7 +52,7 @@ class Test =
 Test() : () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -69,7 +69,7 @@ class B =
     a(): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -87,7 +87,7 @@ fmap<F<_>, A>(aa: A -> A, fa: F<A>): F<A> where F: Functor<F> =
     fmap<_, _, _>(aa, fa)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -246,7 +246,7 @@ main(): () =
     test(() -> Wrapper(1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -268,7 +268,7 @@ main(): () =
     test(() -> Wrapper(() -> 1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -291,7 +291,7 @@ main(): () =
     test(() -> Wrapper(1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -314,7 +314,7 @@ main(): () =
     test(() -> Wrapper(() -> 1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -337,7 +337,7 @@ main(): () =
     test(() -> Wrapper(Wrapper(() -> 1)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -360,7 +360,7 @@ main(): () =
     test(() -> Wrapper(Wrapper(() -> 1)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -383,7 +383,7 @@ main(): () =
     test(() -> Wrapper(Wrapper(() -> 1)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -428,7 +428,7 @@ main(): () =
     test(() -> Wrapper(Wrapper(() -> 1)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -473,7 +473,7 @@ main(): () =
     test(() -> Wrapper(1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -518,7 +518,7 @@ main(): () =
     test(() -> Wrapper(1))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -613,7 +613,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -640,7 +640,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -667,7 +667,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -735,7 +735,7 @@ f(ptr: void*): () =
     let x: int32 = *ptr
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -926,7 +926,7 @@ f(ptr: void*): void* =
     ptr + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1044,7 +1044,7 @@ f(ptr: void*): void* =
     ptr + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1211,7 +1211,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1231,7 +1231,7 @@ main(): () =
     | _ => ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1445,7 +1445,7 @@ class Test =
     overrides Test(x: int32): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1780,7 +1780,7 @@ module Unsafe =
         Cast(arr)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1796,5 +1796,5 @@ class B =
     static M(): () = ()
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> ignore

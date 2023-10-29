@@ -192,7 +192,7 @@ f<T, U, V>(x: V, y: U) : V where U : Add<V, U, V> =
     U.add(x, y)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -206,7 +206,7 @@ test(): () =
     f("")
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -264,7 +264,7 @@ example() : () =
    let res: Maybe<__oly_float64> = m >>= transform
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -277,7 +277,7 @@ test(x: Test<__oly_utf16>): () =
     ()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -290,7 +290,7 @@ test(x: Test<(__oly_int32, __oly_int32)>): () =
     ()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -303,7 +303,7 @@ test(): () =
     let result = Test<(__oly_int32, __oly_int32)>()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -317,7 +317,7 @@ g<U>(x: U): () where U: not struct =
     f(x)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -330,7 +330,7 @@ alias int32
 test<N>(): () where N: constant int32 = ()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -346,7 +346,7 @@ main(): () =
     test<1>()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -420,7 +420,7 @@ main() : () =
     let f(x) = x
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -515,7 +515,7 @@ test<T<_>>() : () where T<_> : Add = ()
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -557,7 +557,7 @@ class Test<T> where T : Add<T, T, T> =
     test(y: T) : T = T.add(y, y) 
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -728,7 +728,7 @@ interface ITest<T>
 class Test<T<_>> where T<_>: ITest; where T: struct
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -745,7 +745,7 @@ struct Impl<T> =
 test(x: Test<Impl>): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -768,7 +768,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -791,7 +791,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -814,7 +814,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -837,7 +837,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -858,7 +858,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -879,7 +879,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -906,7 +906,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -933,7 +933,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -960,7 +960,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -987,7 +987,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1012,7 +1012,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1037,7 +1037,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1257,7 +1257,7 @@ interface ITest<Z> where Z: ITest<Z>
 test<T>(): () where T: ITest<T> = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1276,7 +1276,7 @@ main(): () =
     test<A>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1287,7 +1287,7 @@ CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Inv
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]

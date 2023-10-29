@@ -18,7 +18,7 @@ main() : () =
     test(5, 4)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -36,7 +36,7 @@ main() : () =
     test(5, 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -54,7 +54,7 @@ main() : () =
     test(5, 6)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -72,7 +72,7 @@ main() : () =
     test(5, 4)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -90,7 +90,7 @@ main() : () =
     test(5, 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -108,7 +108,7 @@ main() : () =
     test(5, 6)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -126,7 +126,7 @@ main() : () =
     test(5.0f, 4.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -144,7 +144,7 @@ main() : () =
     test(5.0f, 5.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -162,7 +162,7 @@ main() : () =
     test(5.0f, 6.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -180,7 +180,7 @@ main() : () =
     test(5.0f, 4.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -198,7 +198,7 @@ main() : () =
     test(5.0f, 5.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -216,7 +216,7 @@ main() : () =
     test(5.0f, 6.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -234,7 +234,7 @@ main() : () =
     test(4294967295u, 0u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -252,7 +252,7 @@ main() : () =
     test(4294967295u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -270,7 +270,7 @@ main() : () =
     test(0u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -288,7 +288,7 @@ main() : () =
     test(4294967295u, 0u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -306,7 +306,7 @@ main() : () =
     test(4294967295u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -324,7 +324,7 @@ main() : () =
     test(0u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -342,7 +342,7 @@ main() : () =
     test(5, 4)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -360,7 +360,7 @@ main() : () =
     test(5, 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -378,7 +378,7 @@ main() : () =
     test(5, 6)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -396,7 +396,7 @@ main() : () =
     test(5, 4)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -414,7 +414,7 @@ main() : () =
     test(5, 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -432,7 +432,7 @@ main() : () =
     test(5, 6)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -450,7 +450,7 @@ main() : () =
     test(5.0f, 4.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -468,7 +468,7 @@ main() : () =
     test(5.0f, 5.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -486,7 +486,7 @@ main() : () =
     test(5.0f, 6.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -504,7 +504,7 @@ main() : () =
     test(5.0f, 4.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -522,7 +522,7 @@ main() : () =
     test(5.0f, 5.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -540,7 +540,7 @@ main() : () =
     test(5.0f, 6.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -558,7 +558,7 @@ main() : () =
     test(4294967295u, 0u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -576,7 +576,7 @@ main() : () =
     test(4294967295u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -594,7 +594,7 @@ main() : () =
     test(0u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -612,7 +612,7 @@ main() : () =
     test(4294967295u, 0u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -630,7 +630,7 @@ main() : () =
     test(4294967295u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -648,7 +648,7 @@ main() : () =
     test(0u, 4294967295u)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -666,7 +666,7 @@ main() : () =
     test(3, 3)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -684,7 +684,7 @@ main() : () =
     test(3, 2)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -702,7 +702,7 @@ main() : () =
     test(2, 3)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -720,7 +720,7 @@ main() : () =
     test(3, 3)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -738,7 +738,7 @@ main() : () =
     test(3, 2)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -756,7 +756,7 @@ main() : () =
     test(2, 3)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -774,6 +774,6 @@ main() : () =
     print(test(1, 4))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore

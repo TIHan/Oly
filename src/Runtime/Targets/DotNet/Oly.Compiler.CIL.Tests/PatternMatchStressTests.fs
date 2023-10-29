@@ -115,7 +115,7 @@ main(): () =
     test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -229,7 +229,7 @@ main(): () =
     test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -344,7 +344,7 @@ main(): () =
     test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -551,7 +551,7 @@ main(): () =
     test(2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
 
@@ -666,7 +666,7 @@ main(): () =
     test(1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
 
@@ -873,7 +873,7 @@ main(): () =
     test(1, 3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1213"
     |> ignore
 
@@ -1080,7 +1080,7 @@ main(): () =
     test(1, 3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1213"
     |> ignore
 
@@ -1197,6 +1197,6 @@ main(): () =
     test(90)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "128990"
     |> ignore

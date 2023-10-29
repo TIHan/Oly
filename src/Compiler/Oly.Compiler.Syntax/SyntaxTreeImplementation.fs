@@ -1003,6 +1003,33 @@ module OlySyntaxTreeExtensions =
             | None -> ImArray.empty
             | Some textSpan -> this.FindTokens(textSpan, skipTrivia, ct)
 
+        member this.BestSyntaxForReporting =
+            let rec find (syntax: OlySyntaxNode) : OlySyntaxNode =
+                // TODO: Add more cases.
+                match syntax with
+                | :? OlySyntaxExpression as syntaxExpr ->
+                    match syntaxExpr with
+                    | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDeclName, _, _, _, _) ->
+                        syntaxTyDeclName
+                    | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
+                        match syntaxBinding.TryGetBindingDeclaration() with
+                        | ValueSome(syntaxBindingDecl) ->
+                            match syntaxBindingDecl with
+                            | OlySyntaxBindingDeclaration.Function(syntaxFuncName, _, _, _, _) ->
+                                syntaxFuncName
+                            | _ ->
+                                // TODO: Add more cases.
+                                syntaxBindingDecl
+                        | _ ->
+                            syntaxBinding
+                    | OlySyntaxExpression.Sequential(syntaxExpr1, _) ->
+                        find syntaxExpr1
+                    | _ ->
+                        syntaxExpr
+                | syntaxNode ->
+                    syntaxNode
+            find this
+
     type OlySyntaxToken with
 
         member this.ValueText =

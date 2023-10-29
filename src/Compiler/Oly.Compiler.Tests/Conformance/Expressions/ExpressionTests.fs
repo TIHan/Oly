@@ -12,7 +12,7 @@ let ``Shift right definition``() =
 (>>)(__oly_int32, __oly_int32): __oly_int32
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -652,7 +652,7 @@ main() : () =
     test().test.x <- 5
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -786,7 +786,7 @@ test(z: B<A<B>>) : () =
     let y = A<_>(z)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -920,7 +920,7 @@ main() : () =
     let y = f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -939,7 +939,7 @@ main() : () =
     let y = f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -979,7 +979,7 @@ main() : () =
     let test<T>(x: T) : T where T : Add<T> = T.add(x, x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1081,7 +1081,7 @@ test() : () =
     static let g() = f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1093,7 +1093,7 @@ test() : () =
     let g = static () -> f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1105,7 +1105,7 @@ test() : () =
     let g = static () -> f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1156,7 +1156,7 @@ test() : () =
     static let f() = () -> ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1261,7 +1261,7 @@ struct Test =
         this <- Test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1643,7 +1643,7 @@ struct Test =
         &this.x
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1678,7 +1678,7 @@ derefTest() : () =
     let w: int32 = x.test() 
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1751,7 +1751,7 @@ derefTest() : () =
     let w: inref<int32> = &x.test() 
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1770,7 +1770,7 @@ main() : () =
     x.test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1780,7 +1780,7 @@ let ``Basic alias``() =
 alias int32 = __oly_int32
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1846,7 +1846,7 @@ test(mutable x: __oly_int32) : () =
     x <- 765
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1858,7 +1858,7 @@ main() : () =
     let result = a(456.0f)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1871,7 +1871,7 @@ main() : () =
     let z : __oly_int32 -> _ = result
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1884,7 +1884,7 @@ main() : () =
     let z : __oly_int32 -> _ = result
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1898,7 +1898,7 @@ main() : __oly_int32 =
     a(456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -1914,7 +1914,7 @@ main() : __oly_int32 =
     test<_>(456, a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2017,7 +2017,7 @@ let ``Should error with right diagnostics 4 - NOW PASSES``() =
 field test : __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2147,7 +2147,7 @@ interface TestTrait<T> where T : { x: int32 get }
 alias int32
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2162,7 +2162,7 @@ interface TestTrait<T> where T : { x: int32 get }
 alias int32
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2189,7 +2189,7 @@ main() : () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2216,7 +2216,7 @@ main() : () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2228,7 +2228,7 @@ class TestData =
     field x: __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2254,7 +2254,7 @@ class Test =
 test(x: Test.NestedTest): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2270,7 +2270,7 @@ class Test =
 test(x: Test.NestedTest.NestedTest2): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2284,7 +2284,7 @@ class Test =
 test(x: Test.NestedTest<__oly_int32>): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2298,7 +2298,7 @@ class Test<T> =
 test(x: Test<__oly_int32>.NestedTest<__oly_float32>): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2610,7 +2610,7 @@ main(): () =
     x.printTest2(1, 2.3, "Hello World!")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2759,7 +2759,7 @@ main(): () =
     let x: Test = Test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2778,7 +2778,7 @@ main(): () =
     let x = Test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2799,7 +2799,7 @@ main(): () =
     test(Test())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2818,7 +2818,7 @@ main(): () =
     let x: Test = Test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2866,7 +2866,7 @@ class Test<G<_>> =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2881,7 +2881,7 @@ class Test<T> =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2894,7 +2894,7 @@ class Test<T> where T: struct =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2929,7 +2929,7 @@ main(): () =
     let result = test<_>(ts)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -2994,7 +2994,7 @@ main(): () =
     let x: (__oly_int32[], __oly_int32[]) = ([1], [1])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3024,7 +3024,7 @@ main(): () =
     let result = getResult(cast<ITest>(123))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3060,7 +3060,7 @@ main(): () =
     let result = getResult(cast<ITest>(123))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3086,7 +3086,7 @@ main(): () =
     let result = result.test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3204,7 +3204,7 @@ main(): () =
     let result: int8 = -1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3236,7 +3236,7 @@ main(): () =
    // let result: int8 = 1 + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3265,7 +3265,7 @@ main(): () =
     let result: int8 = 1 + -1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3285,7 +3285,7 @@ main(): () =
     let result = 1 + (-1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3305,7 +3305,7 @@ main(): () =
     let `result` = 1 + (-1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3378,7 +3378,7 @@ main(): () =
     let result = getLength<_>([1])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3399,7 +3399,7 @@ main(): () =
     let result = getLength<_>(mutable [1])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3416,7 +3416,7 @@ test(xs: int32[]): () =
     let x = xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3436,7 +3436,7 @@ test(xs: int32[]): () =
     let x = xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3462,7 +3462,7 @@ test(xs: int32[]): () =
     let x = xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3495,7 +3495,7 @@ test(xs: int32[]): () =
         ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3512,7 +3512,7 @@ test(xs: mutable int32[]): () =
     xs[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3618,7 +3618,7 @@ test1(x: Wrapper<__oly_int32>): Wrapper<__oly_float32> =
     return 1.0f
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3644,7 +3644,7 @@ test1(x: Wrapper<__oly_int32>): Wrapper<__oly_int32> =
     return result
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3671,7 +3671,7 @@ test1(x: Wrapper<__oly_int32>): Wrapper<__oly_int32> =
     return result
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3694,7 +3694,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3720,7 +3720,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3755,7 +3755,7 @@ main(): () =
     (s[0]) <- 5
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -3890,7 +3890,7 @@ main(): () =
     let x = s[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4202,7 +4202,7 @@ module Test =
       ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4244,7 +4244,7 @@ alias int32
 test(): (x1: int32, x2: int32) = (1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4257,7 +4257,7 @@ alias int32
 test(): (int32, x2: int32) = (1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4270,7 +4270,7 @@ alias int32
 test(): (int32: int32, int32) = (1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
    
 [<Fact>]
@@ -4333,7 +4333,7 @@ struct Chunk<TMemory<_>> where TMemory<_>: IMemory =
         }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4453,7 +4453,7 @@ test(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4569,7 +4569,7 @@ internal test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
     x
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4717,7 +4717,7 @@ struct Test =
         z[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4772,7 +4772,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
         z[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4824,7 +4824,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
         this.Buffer[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4869,7 +4869,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
         this.Buffer[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4914,7 +4914,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
         this.Buffer[0] <- 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4948,7 +4948,7 @@ test(xs: mutable int32[]): () =
     let z: int32 = xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -4983,7 +4983,7 @@ test(xs: mutable int32[]): () =
     let z: byref<int32> = &xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5018,7 +5018,7 @@ test(xs: mutable int32[]): () =
     let z: int32 = xs[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5054,7 +5054,7 @@ test2(xs: mutable int32[]): () =
     let z = test(xs)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5114,7 +5114,7 @@ test(): () =
     let w = &t[0]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5351,7 +5351,7 @@ module Entities =
         static None: EntityId get = EntityId(0, 0)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5377,7 +5377,7 @@ module Entities =
                                     x
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5788,7 +5788,7 @@ test(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5804,7 +5804,7 @@ test(): () =
         ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5917,7 +5917,7 @@ main(): () =
     let x = 1 + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -5982,7 +5982,7 @@ main(): () =
 
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6014,7 +6014,7 @@ main(): () =
     test(&x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6118,7 +6118,7 @@ main(): () =
     loop()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6229,7 +6229,7 @@ main(): () =
     let x: __oly_utf16 = Null
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6248,7 +6248,7 @@ main(): () =
     let x: Option<__oly_utf16> = None
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6270,7 +6270,7 @@ main(): () =
     let x: Option<__oly_utf16> = None
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6293,7 +6293,7 @@ main(): () =
     let x: Option<__oly_utf16> = Test2Module.None
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6318,7 +6318,7 @@ test(x: Option<__oly_utf16>): () =
     | _ => ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6365,7 +6365,7 @@ test(x: Option<__oly_utf16>): () =
     | _ => ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6461,7 +6461,7 @@ main(): () =
     let x = Null<__oly_utf16>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6584,7 +6584,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6868,7 +6868,7 @@ main(): () =
     TestModule.X(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6884,7 +6884,7 @@ main(): () =
     t.X(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6899,7 +6899,7 @@ main(): () =
     TestModule.X(123)(345)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6914,7 +6914,7 @@ main(): () =
     TestModule.X(123)(345)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6929,7 +6929,7 @@ main(): () =
     TestModule.X(123)(345)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -6945,7 +6945,7 @@ main(): () =
     t.X(123)(345)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7009,7 +7009,7 @@ main(): () =
     TestModule.X(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7025,7 +7025,7 @@ main(): () =
     t.X(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 // *************(*****************************************
@@ -7333,7 +7333,7 @@ main(): () =
     let result = Find(xs, x -> if (x.S == s) true else false)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7365,7 +7365,7 @@ main(): () =
         )
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7394,7 +7394,7 @@ main(): () =
     let result = Find(xs, x -> if (x.S == s) true else false)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7417,7 +7417,7 @@ class C2 =
         new(x: int32) = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7442,7 +7442,7 @@ class C2 =
         new(x: int32) = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7469,7 +7469,7 @@ class C2 =
         new(x: int32) = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7496,7 +7496,7 @@ class C2 =
         new(x: int32) = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7523,7 +7523,7 @@ class C2 =
         new(x: int32) = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7622,7 +7622,7 @@ class C1 =
     private static ShouldNotError(x: PC1): () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7635,7 +7635,7 @@ class C1 =
     private static ShouldNotError: PC1 get = unchecked default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7650,7 +7650,7 @@ class C1 =
         public mutable field ShouldNotError: PC1 = unchecked default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7665,7 +7665,7 @@ class C1 =
         public mutable field ShouldNotError: PC1 = unchecked default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7680,7 +7680,7 @@ class C1 =
         public mutable field ShouldNotError: PC1 = unchecked default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7717,7 +7717,7 @@ main(): () =
     let x = C1.PC1()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7748,7 +7748,7 @@ namespace Test
 private class C1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7766,7 +7766,7 @@ internal module Helpers =
         fixed()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7787,7 +7787,7 @@ test2(): ITest =
     test1()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7810,7 +7810,7 @@ test2(): ITest2 =
     test1()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 
@@ -7870,7 +7870,7 @@ class C =
         }     
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7889,7 +7889,7 @@ main(): () =
     test<Test<Test<int32>>>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7904,7 +7904,7 @@ main(): () =
         ]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7919,7 +7919,7 @@ main(): () =
         ]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7937,7 +7937,7 @@ main(): () =
         ]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -7958,7 +7958,7 @@ main(): () =
         ]
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8085,7 +8085,7 @@ main(): () =
     let result = v * v
         """
     OlyWithRef refSrc src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8103,7 +8103,7 @@ main(): () =
     )
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8124,7 +8124,7 @@ module M =
         let x: int32 = 0
         """
     OlyWithRef refSrc src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8147,7 +8147,7 @@ module M =
         let x: int32 = 0
         """
     OlyWithRef refSrc src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8161,7 +8161,7 @@ module M =
     field F: S = default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8227,7 +8227,7 @@ main(): () =
     let (x, y) = (1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8246,7 +8246,7 @@ main(): () =
     print(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8260,7 +8260,7 @@ main(): () =
     let (x) = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8278,7 +8278,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8361,7 +8361,7 @@ module Array =
         newArr
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8418,7 +8418,7 @@ module Array =
         newArr
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8452,7 +8452,7 @@ main(): () =
     test(f)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8486,7 +8486,7 @@ main(): () =
     )
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8525,7 +8525,7 @@ main(): () =
     )
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8565,7 +8565,7 @@ main(): () =
     test(f)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8687,7 +8687,7 @@ class Manager<T> =
 
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -8903,3 +8903,18 @@ M(#[inline] f: static () -> ()): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Simple value binding of object type with an int32``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+main(): () =
+    let x: obj = 1234
+    """
+    |> Oly
+    |> shouldCompile

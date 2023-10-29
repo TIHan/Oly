@@ -2324,6 +2324,23 @@ let tryParseInlineAttribute state =
     | _ ->
         None
 
+let tryParseUnmanagedAttribute state =
+    let s = sp state
+
+    match bt2 UNMANAGED (tryParseParenthesisOld IDENTIFIER) state with
+    | Some(unmanagedToken), Some(leftParenToken, identToken, rightParenToken) ->
+        match identToken.ValueText with
+        | "allocation_only" ->
+            SyntaxAttribute.Unmanaged(unmanagedToken, leftParenToken, identToken, rightParenToken, ep s state) |> Some
+        | _ ->
+            errorDo (InvalidSyntax("unmanaged argument"), identToken) state
+            SyntaxAttribute.Unmanaged(unmanagedToken, leftParenToken, identToken, rightParenToken, ep s state) |> Some
+    | Some(unmanagedToken), _ ->
+        errorDo (InvalidSyntax("missing unmanaged argument"), unmanagedToken) state
+        SyntaxAttribute.Unmanaged(unmanagedToken, dummyToken(), dummyToken(), dummyToken(), ep s state) |> Some
+    | _ ->
+        None
+
 let tryParseOpenDeclarationExpression state =
     if isNextToken (function Open -> true | _ -> false) state then
         let s = sp state
@@ -3643,6 +3660,10 @@ let tryParseAttribute state =
     | _ ->
 
     match bt (tryOffside tryParseInlineAttribute) state with
+    | Some attr -> attr |> Some
+    | _ ->
+
+    match bt (tryOffside tryParseUnmanagedAttribute) state with
     | Some attr -> attr |> Some
     | _ ->
 

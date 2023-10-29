@@ -12,7 +12,7 @@ newtype A =
     field Value: __oly_int32
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]

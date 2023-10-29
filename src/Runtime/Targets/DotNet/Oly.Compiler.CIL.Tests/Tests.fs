@@ -11,7 +11,7 @@ let ``Blank``() =
 main() : () = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -23,7 +23,7 @@ main() : () =
     print("Hello World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello World"
     |> ignore
 
@@ -42,7 +42,7 @@ main() : () =
     x.test()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello World"
     |> ignore
 
@@ -55,7 +55,7 @@ main() : () =
     print("Hello World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello WorldHello World"
     |> ignore
 
@@ -68,7 +68,7 @@ main() : () =
         print("Hello World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello World"
     |> ignore
 
@@ -82,7 +82,7 @@ main() : () =
     print("World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "HelloWorld"
     |> ignore
 
@@ -95,7 +95,7 @@ main() : () =
         print("Hello World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -109,7 +109,7 @@ main() : () =
     print("World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "World"
     |> ignore
 
@@ -124,7 +124,7 @@ main() : () =
         print("World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello"
     |> ignore
 
@@ -139,7 +139,7 @@ main() : () =
         print("World")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "World"
     |> ignore
 
@@ -155,7 +155,7 @@ main() : () =
     print("Earth")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "HelloEarth"
     |> ignore
 
@@ -171,7 +171,7 @@ main() : () =
     print("Earth")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "WorldEarth"
     |> ignore
 
@@ -188,7 +188,7 @@ main() : () =
     print("Earth")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "WorldEarth"
     |> ignore
 
@@ -207,7 +207,7 @@ main() : () =
     print("Earth")
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "HelloEarth"
     |> ignore
 
@@ -237,7 +237,7 @@ main(): () =
         x <- x + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1234"
     |> ignore
 
@@ -257,7 +257,7 @@ main() : () =
     Test.test()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test_private"
     |> ignore
 
@@ -292,7 +292,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -327,7 +327,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -365,7 +365,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -423,7 +423,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
     |> ignore
 
@@ -507,7 +507,7 @@ main() : () =
    example()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "228888.45"
     |> ignore
 
@@ -565,7 +565,7 @@ main() : () =
    example()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123.45"
     |> ignore
 
@@ -604,7 +604,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -644,7 +644,7 @@ main () : () =
         """
 
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -658,7 +658,7 @@ main () : () =
         """
 
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
 
@@ -680,7 +680,7 @@ main() : () =
     print(getResult<Test>())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "567"
     |> ignore
 
@@ -704,7 +704,7 @@ main() : () =
     print(getResult<Test>())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -728,7 +728,7 @@ main() : () =
     print(getResult<Test>())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -746,7 +746,7 @@ main(): () =
     ()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "51.4"
     |> ignore
 
@@ -777,7 +777,7 @@ main() : () =
     print(getResult<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "567"
     |> ignore
 
@@ -810,7 +810,7 @@ main() : () =
     print(getResult<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -841,7 +841,7 @@ main() : () =
     print(getResult<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "878"
     |> ignore
 
@@ -872,7 +872,7 @@ main() : () =
     print(getResult<_>(123))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "567"
     |> ignore
 
@@ -905,7 +905,7 @@ main(): () =
     print(getResult<_>(123))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "987"
     |> ignore
 
@@ -938,7 +938,7 @@ main() : () =
     print(getResult<_>(123))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "987"
     |> ignore
 
@@ -965,7 +965,7 @@ main() : () =
     print(getResult(r))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -997,7 +997,7 @@ main() : () =
     print(getResult(r))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1026,7 +1026,7 @@ main() : () =
     print(getResult(r))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1058,7 +1058,7 @@ main() : () =
     
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1085,7 +1085,7 @@ main() : () =
     print(getResult(r))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "894"
     |> ignore
 
@@ -1114,7 +1114,7 @@ main() : () =
     print(getResult(r))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1135,7 +1135,7 @@ main() : () =
     print(x.M<float32>())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Hello World"
     |> ignore
 
@@ -1152,7 +1152,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1171,7 +1171,7 @@ main() : () =
     print(x.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1190,7 +1190,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1205,7 +1205,7 @@ main() : () =
     print(f(789))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
 
@@ -1225,7 +1225,7 @@ main() : () =
     x.test(456)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123456"
     |> ignore
 
@@ -1240,7 +1240,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -1258,7 +1258,7 @@ main() : () =
     print(test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "50"
     |> ignore
 
@@ -1278,7 +1278,7 @@ main() : () =
     print(test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "30"
     |> ignore
 
@@ -1301,7 +1301,7 @@ main() : () =
     print(test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "45"
     |> ignore
 
@@ -1324,7 +1324,7 @@ main() : () =
     print(t.test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -1350,7 +1350,7 @@ main() : () =
     print(t.test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "13"
     |> ignore
 
@@ -1376,7 +1376,7 @@ main() : () =
     print(t.test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "11"
     |> ignore
 
@@ -1405,7 +1405,7 @@ main() : () =
     print(t.test.x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -1429,7 +1429,7 @@ main() : () =
     test()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -1474,7 +1474,7 @@ main() : () =
     test<_>(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -1494,7 +1494,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "79"
     |> ignore
 
@@ -1515,7 +1515,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1009"
     |> ignore
 
@@ -1541,7 +1541,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "710079"
     |> ignore
 
@@ -1567,7 +1567,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "710079"
     |> ignore
 
@@ -1597,7 +1597,7 @@ main() : () =
     print(t.x.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "710079"
     |> ignore
 
@@ -1619,7 +1619,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "79"
     |> ignore
 
@@ -1641,7 +1641,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "79"
     |> ignore
 
@@ -1668,7 +1668,7 @@ main() : () =
     test(t)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "100"
     |> ignore
 
@@ -1690,7 +1690,7 @@ main() : () =
     print(t.y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1009"
     |> ignore
 
@@ -1713,7 +1713,7 @@ main(): () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -1736,7 +1736,7 @@ main(): () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -1759,7 +1759,7 @@ main(): () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -1774,7 +1774,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1791,7 +1791,7 @@ main() : () =
     print(test<_>(159, a))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "159"
     |> ignore
 
@@ -1807,7 +1807,7 @@ main(): () =
     print(test<_>(999, id))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "999"
     |> ignore
 
@@ -1822,7 +1822,7 @@ main() : () =
     print(a(456, 123))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1835,7 +1835,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1848,7 +1848,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1860,7 +1860,7 @@ main() : () =
     let a = (x) -> x
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -1875,7 +1875,7 @@ main() : () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1888,7 +1888,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1901,7 +1901,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -1914,7 +1914,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -1928,7 +1928,7 @@ main() : () =
     print(a(5.0f))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "11"
     |> ignore
 
@@ -1942,7 +1942,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -1958,7 +1958,7 @@ main() : () =
     print(a())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "155"
     |> ignore
 
@@ -1978,7 +1978,7 @@ main() : () =
     test((t) -> print(t.x))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "567"
     |> ignore
 
@@ -1996,7 +1996,7 @@ main() : () =
     f(5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5hello"
     |> ignore
 
@@ -2014,7 +2014,7 @@ main() : () =
     f(5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "earthhello"
     |> ignore
 
@@ -2034,7 +2034,7 @@ main() : () =
     print(a())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256"
     |> ignore
 
@@ -2056,7 +2056,7 @@ main() : () =
     print(a())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256128"
     |> ignore
 
@@ -2074,7 +2074,7 @@ main() : () =
     test(256)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256765"
     |> ignore
 
@@ -2097,7 +2097,7 @@ main() : () =
     test(t)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256"
     |> ignore
 
@@ -2122,7 +2122,7 @@ main() : () =
     test(t)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256999"
     |> ignore
 
@@ -2138,7 +2138,7 @@ main() : () =
     g(42)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "42"
     |> ignore
 
@@ -2157,7 +2157,7 @@ main() : () =
     f(7)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "22hello"
     |> ignore
 
@@ -2174,7 +2174,7 @@ main() : () =
     test()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2194,7 +2194,7 @@ main() : () =
     print(a(1, 2))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -2219,7 +2219,7 @@ main() : () =
     print(t.P)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -2232,7 +2232,7 @@ main() : () =
     print(a(456)(123))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2246,7 +2246,7 @@ main() : () =
     print(r(123))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2260,7 +2260,7 @@ main() : () =
     print(b(456)(123))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2273,7 +2273,7 @@ main() : () =
     print(a(456)(123))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -2287,7 +2287,7 @@ main() : () =
     print(a())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "232"
     |> ignore
 
@@ -2302,7 +2302,7 @@ main() : () =
     print(a(456))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -2317,7 +2317,7 @@ main() : () =
     print(a(898))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "898"
     |> ignore
 
@@ -2334,7 +2334,7 @@ main() : () =
     print(b(34.3))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "89834.3"
     |> ignore
 
@@ -2351,7 +2351,7 @@ main() : () =
     print(test<_>(456, a))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -2368,7 +2368,7 @@ main() : () =
     print(test<_>(89.5, id<_>))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "45689.5"
     |> ignore
 
@@ -2385,7 +2385,7 @@ main() : () =
     let x = test<_>(456, a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -2406,7 +2406,7 @@ main() : () =
     print(a((1, 2)))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2427,7 +2427,7 @@ main() : () =
     print(a((1, 2), (3, 4)))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2480,7 +2480,7 @@ main() : () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "8"
     |> ignore
 
@@ -2548,7 +2548,7 @@ main() : () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "7"
     |> ignore
 
@@ -2616,7 +2616,7 @@ main() : () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -2634,7 +2634,7 @@ main() : () =
     test(true, true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2652,7 +2652,7 @@ main() : () =
     test(true, false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2670,7 +2670,7 @@ main() : () =
     test(false, true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2688,7 +2688,7 @@ main() : () =
     test(false, false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2706,7 +2706,7 @@ main() : () =
     test(true, if (__oly_and(false, true)) true else false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2724,7 +2724,7 @@ main() : () =
     test(true, if (__oly_and(true, true)) true else false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2742,7 +2742,7 @@ main() : () =
     test(true, true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2760,7 +2760,7 @@ main() : () =
     test(true, false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2778,7 +2778,7 @@ main() : () =
     test(false, true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2796,7 +2796,7 @@ main() : () =
     test(false, false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2814,7 +2814,7 @@ main() : () =
     test(true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2832,7 +2832,7 @@ main() : () =
     test(false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2851,7 +2851,7 @@ main() : () =
     test(false)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "True"
     |> ignore
 
@@ -2870,7 +2870,7 @@ main() : () =
     test(true)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "False"
     |> ignore
 
@@ -2887,7 +2887,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -2904,7 +2904,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -2923,7 +2923,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "101"
     |> ignore
 
@@ -2942,7 +2942,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "152"
     |> ignore
 
@@ -2956,7 +2956,7 @@ main() : () =
     print(f())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -2976,7 +2976,7 @@ main() : () =
     print(f().x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -2996,7 +2996,7 @@ main() : () =
     print(f())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
 
@@ -3009,7 +3009,7 @@ main() : () =
     test(())
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -3022,7 +3022,7 @@ main() : () =
     test((), 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -3037,7 +3037,7 @@ main() : () =
     test((), 5, (), 10)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "510"
     |> ignore
 
@@ -3053,7 +3053,7 @@ main() : () =
     let y = x
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -3071,7 +3071,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1234"
     |> ignore
 
@@ -3089,7 +3089,7 @@ main() : () =
     print(x)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1234"
     |> ignore
 
@@ -3102,7 +3102,7 @@ main() : () =
     print(45)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "45"
     |> ignore
 
@@ -3117,7 +3117,7 @@ main() : () =
     print(test(x))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "234"
     |> ignore
 
@@ -3136,7 +3136,7 @@ main(): () =
     print(test(true))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -3152,7 +3152,7 @@ main(): () =
     print(test(true))
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -3168,7 +3168,7 @@ main(): () =
     print(123)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -3180,7 +3180,7 @@ main() : () =
     let x = (1, 2.0f)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -3195,7 +3195,7 @@ main() : () =
     a(2)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -3210,7 +3210,7 @@ main() : () =
     a(2)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -3249,7 +3249,7 @@ main() : () =
     print(a(2))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
     |> ignore
 
@@ -3284,7 +3284,7 @@ main(): () =
     print(a(2))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
     |> ignore
 
@@ -3322,7 +3322,7 @@ main() : () =
     print(z)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -3350,7 +3350,7 @@ main(): () =
     print(x.test())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello123"
     |> ignore
 
@@ -3376,7 +3376,7 @@ main() : () =
     print(x.test(5))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -3412,7 +3412,7 @@ main() : () =
     print(t.get_x())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
 
@@ -3450,7 +3450,7 @@ main() : () =
     print(t.get_x())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
 
@@ -3502,7 +3502,7 @@ main() : () =
     print(tOrig.get_x())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789789"
     |> ignore
 
@@ -3554,7 +3554,7 @@ main() : () =
     print(tOrig.get_x())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789123"
     |> ignore
 
@@ -3622,7 +3622,7 @@ main() : () =
     print(tOrig.x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789789123"
     |> ignore
 
@@ -3638,7 +3638,7 @@ Invoke<T>(x: T) : T =
     call()
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -3684,7 +3684,7 @@ main() : () =
     print(test<_, _, float64>(1, 2.0))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "32"
     |> ignore
 
@@ -3749,7 +3749,7 @@ main(): () =
     print(test<_, _, int32>(1, 2.0))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5676"
     |> ignore
 
@@ -3773,7 +3773,7 @@ main() : () =
     Console.Write(5)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -3801,7 +3801,7 @@ extension Int32Extension =
     implements Test
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -3825,7 +3825,7 @@ main() : () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -3856,7 +3856,7 @@ main() : () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -3890,7 +3890,7 @@ main() : () =
     print(1 + 3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
     |> ignore
 
@@ -3920,7 +3920,7 @@ main(): () =
     Test1.Test2.printTest2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test1Test2"
     |> ignore
 
@@ -3955,7 +3955,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test1Test2"
     |> ignore
 
@@ -3995,7 +3995,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12.3Hello World!"
     |> ignore
 
@@ -4043,7 +4043,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12.3Hello World!True"
     |> ignore
 
@@ -4089,7 +4089,7 @@ main(): () =
     Test1<int32>.Test2<float32, utf16>.Test3<bool>.print(1,  4.3f, "yeet", true)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "14.3yeetTrue"
     |> ignore
 
@@ -4138,7 +4138,7 @@ main(): () =
     test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -4196,7 +4196,7 @@ main(): () =
     test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Mtest"
     |> ignore
 
@@ -4254,7 +4254,7 @@ main(): () =
     test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Mtest"
     |> ignore
 
@@ -4270,7 +4270,7 @@ main(): () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -4288,7 +4288,7 @@ main(): () =
     print(result)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "23"
     |> ignore
 
@@ -4311,7 +4311,7 @@ main(): () =
     print(y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "13"
     |> ignore
 
@@ -4335,7 +4335,7 @@ main(): () =
     print(y)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -4359,7 +4359,7 @@ main(): () =
     Σ(λ, 5, x -> print(a(x)), 5)
         """
     OlySharp src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12345"
     |> ignore
 
@@ -4394,7 +4394,7 @@ main(): () =
     print(1 + 1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -4431,7 +4431,7 @@ main(): () =
     test<int32>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "witness"
     |> ignore
 
@@ -4475,7 +4475,7 @@ main(): () =
     test<int32>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "witness"
     |> ignore
 
@@ -4513,7 +4513,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123500500"
     |> ignore
 
@@ -4554,7 +4554,7 @@ main() : () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test188"
     |> ignore
 
@@ -4594,7 +4594,7 @@ main() : () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test19"
     |> ignore
 
@@ -4634,7 +4634,7 @@ main() : () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test19"
     |> ignore
 
@@ -4699,7 +4699,7 @@ main(): () =
   test<_>(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test-DootInt32DootExtension-Doot"
     |> ignore
 
@@ -4734,7 +4734,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "567"
     |> ignore
 
@@ -4771,7 +4771,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -4811,7 +4811,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -4855,7 +4855,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -4896,7 +4896,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -4937,7 +4937,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -4978,7 +4978,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -5019,7 +5019,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -5081,7 +5081,7 @@ main(): () =
     printCombined(Test<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123456123456"
     |> ignore
 
@@ -5142,7 +5142,7 @@ main(): () =
     printCombined(Test<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123456123456"
     |> ignore
 
@@ -5204,7 +5204,7 @@ main(): () =
     printCombined(Test<int32>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123456123456"
     |> ignore
 
@@ -5243,7 +5243,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -5269,7 +5269,7 @@ main(): () =
     f(example)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "success"
     |> ignore
 
@@ -5297,7 +5297,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5325,7 +5325,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -5353,7 +5353,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5381,7 +5381,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5409,7 +5409,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -5437,7 +5437,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5465,7 +5465,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5493,7 +5493,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -5521,7 +5521,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5555,7 +5555,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5589,7 +5589,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5623,7 +5623,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5657,7 +5657,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
     
@@ -5691,7 +5691,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -5726,7 +5726,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5761,7 +5761,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5796,7 +5796,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5831,7 +5831,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5866,7 +5866,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -5901,7 +5901,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -5936,7 +5936,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -5966,7 +5966,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello world"
     |> ignore
 
@@ -5996,7 +5996,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "no hello world"
     |> ignore
 
@@ -6028,7 +6028,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -6059,7 +6059,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -6092,7 +6092,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -6124,7 +6124,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -6156,7 +6156,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -6188,7 +6188,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -6220,7 +6220,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -6252,7 +6252,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -6283,7 +6283,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "55"
     |> ignore
 
@@ -6314,7 +6314,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "55"
     |> ignore
 
@@ -6345,7 +6345,7 @@ main(): () =
     test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "it is 123 !!"
     |> ignore
 
@@ -6376,7 +6376,7 @@ main(): () =
     test(123, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -6409,7 +6409,7 @@ main(): () =
     test(123, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValueGetValuepassed"
     |> ignore
 
@@ -6442,7 +6442,7 @@ main(): () =
     test(999, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValue"
     |> ignore
 
@@ -6476,7 +6476,7 @@ main(): () =
     test(999, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -6511,7 +6511,7 @@ main(): () =
     test(888, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValuepassed"
     |> ignore
 
@@ -6546,7 +6546,7 @@ main(): () =
     test(888, 555)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValue"
     |> ignore
 
@@ -6581,7 +6581,7 @@ main(): () =
     test(123, 555)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValueGetValue"
     |> ignore
 
@@ -6614,7 +6614,7 @@ main(): () =
     test(123, 456)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "GetValueGetValueGetValuepassed"
     |> ignore
 
@@ -6640,7 +6640,7 @@ main(): () =
     test(123, 555)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123555"
     |> ignore
 
@@ -6672,7 +6672,7 @@ main(): () =
     test(123, 555)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123555"
     |> ignore
 
@@ -6707,7 +6707,7 @@ main(): () =
     test(123, 555)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "_555"
     |> ignore
 
@@ -6742,7 +6742,7 @@ main(): () =
     test(1, 2, 3, 4)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12341"
     |> ignore
 
@@ -6782,7 +6782,7 @@ main(): () =
     test(1, 2, 3, 4)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -6818,7 +6818,7 @@ main(): () =
     test(1, 2, 3, 4)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -6861,7 +6861,7 @@ main(): () =
     test(1, 2, 3, 4)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "AddOnepassed"
     |> ignore
 
@@ -6904,7 +6904,7 @@ main(): () =
     test(1, 2, 3, 4)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "AddOneAddOnepassed"
     |> ignore
 
@@ -6936,7 +6936,7 @@ main(): () =
     test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "11"
     |> ignore
 
@@ -6970,7 +6970,7 @@ main(): () =
     test(2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "222"
     |> ignore
 
@@ -7006,7 +7006,7 @@ main(): () =
     test(2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7048,7 +7048,7 @@ main(): () =
     test(2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7094,7 +7094,7 @@ main(): () =
     test(C)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -7138,7 +7138,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456--None--"
     |> ignore
 
@@ -7182,7 +7182,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456--None--"
     |> ignore
 
@@ -7229,7 +7229,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456--None--"
     |> ignore
 
@@ -7276,7 +7276,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "--None----None--"
     |> ignore
 
@@ -7324,7 +7324,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed--None--"
     |> ignore
 
@@ -7372,7 +7372,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed--None--"
     |> ignore
 
@@ -7420,7 +7420,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed--None--"
     |> ignore
 
@@ -7467,7 +7467,7 @@ main(): () =
     test(Some(Some(456)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7514,7 +7514,7 @@ main(): () =
     test(Some(null: Option<_>))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7563,7 +7563,7 @@ main(): () =
     test(Some(Some(123)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7613,7 +7613,7 @@ main(): () =
     test(Some(Some(123)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7663,7 +7663,7 @@ main(): () =
     test(Some(Some(123)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7713,7 +7713,7 @@ main(): () =
     test(Some(Some(Some(123))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7761,7 +7761,7 @@ main(): () =
     test(Some(Some((x, x))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7809,7 +7809,7 @@ main(): () =
     test(Some(Some((x, x))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7862,7 +7862,7 @@ main(): () =
     test(Some(Some(Some(123))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -7927,7 +7927,7 @@ main(): () =
     print(valueref)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed987"
     |> ignore
 
@@ -7983,7 +7983,7 @@ main(): () =
     test(Some(123.0f))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -8036,7 +8036,7 @@ main(): () =
     test(Some(Some(Some(123))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -8088,7 +8088,7 @@ main(): () =
     test(Some(Some(Some("hello"))))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -8138,7 +8138,7 @@ main(): () =
     test(None())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed--None--"
     |> ignore
 
@@ -8194,7 +8194,7 @@ main(): () =
     c.Run([123]: int32[])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -8218,7 +8218,7 @@ main(): () =
     test(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -8242,7 +8242,7 @@ main(): () =
     test(1, 5)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -8269,7 +8269,7 @@ main(): () =
     test(99, 10)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "side effect99"
     |> ignore
 
@@ -8296,7 +8296,7 @@ main(): () =
     test(99, 10)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "99"
     |> ignore
 
@@ -8331,7 +8331,7 @@ main(): () =
     test(99, 10)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "99"
     |> ignore
 
@@ -8366,7 +8366,7 @@ main(): () =
     test(99, 10)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "side effect99"
     |> ignore
 
@@ -8402,7 +8402,7 @@ main(): () =
     test(99, 49)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)50"
     |> ignore
 
@@ -8436,7 +8436,7 @@ main(): () =
     test(99, 49)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)50"
     |> ignore
 
@@ -8472,7 +8472,7 @@ main(): () =
     test(99, 49, 5)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)50"
     |> ignore
 
@@ -8508,7 +8508,7 @@ main(): () =
     test(99, 49, 5)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)50"
     |> ignore
 
@@ -8544,7 +8544,7 @@ main(): () =
     test(99, 49, 8, 3.3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)3.3"
     |> ignore
 
@@ -8587,7 +8587,7 @@ main(): () =
     test(99, 49, 8, 3.3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)0hello0"
     |> ignore
 
@@ -8628,7 +8628,7 @@ main(): () =
     test(99, 49, 8, 3.3)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)0hello0"
     |> ignore
 
@@ -8676,7 +8676,7 @@ main(): () =
     test(99, 49, 8, &x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "(side effect)(side effect)0hello0"
     |> ignore
 
@@ -8699,7 +8699,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -8735,7 +8735,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
     |> ignore
 
@@ -8769,7 +8769,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -8812,7 +8812,7 @@ main(): () =
     print(result2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
 
@@ -8854,7 +8854,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
 
@@ -8886,7 +8886,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -8927,7 +8927,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -8973,7 +8973,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -9010,7 +9010,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9050,7 +9050,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9066,7 +9066,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -9084,7 +9084,7 @@ main(): () =
     print("Test")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test"
     |> ignore
 
@@ -9104,7 +9104,7 @@ main(): () =
     print(x.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9122,7 +9122,7 @@ main(): () =
     print("Test")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test"
     |> ignore
 
@@ -9142,7 +9142,7 @@ main(): () =
     print(x.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9170,7 +9170,7 @@ main(): () =
     test2(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "IAIB"
     |> ignore
 
@@ -9191,7 +9191,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "A"
     |> ignore
 
@@ -9211,7 +9211,7 @@ main(): () =
     print(Test.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "A"
     |> ignore
 
@@ -9251,7 +9251,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "568"
     |> ignore
 
@@ -9292,7 +9292,7 @@ main(): () =
     ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1134"
     |> ignore
 
@@ -9319,7 +9319,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -9346,7 +9346,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -9373,7 +9373,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -9393,7 +9393,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -9421,7 +9421,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -9453,7 +9453,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -9486,7 +9486,7 @@ main(): () =
     print(x.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -9519,7 +9519,7 @@ main(): () =
     print(x.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -9551,7 +9551,7 @@ main(): () =
     print(x.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -9572,7 +9572,7 @@ main(): () =
     print(a.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3"
     |> ignore
 
@@ -9595,7 +9595,7 @@ main(): () =
     print(t.y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "256"
     |> ignore
 
@@ -9621,7 +9621,7 @@ main(): () =
     print(t.Value)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9643,7 +9643,7 @@ main(): () =
     print(Test.Default)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9665,7 +9665,7 @@ main(): () =
     print(Test.Default)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -9700,7 +9700,7 @@ main(): () =
     print(Test2.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "XY_DEFAULT_789"
     |> ignore
 
@@ -9738,7 +9738,7 @@ main(): () =
     print(Test2.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "_X__Y__DEFAULT_789_MID_789"
     |> ignore
 
@@ -9775,7 +9775,7 @@ main(): () =
     print(Test2.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "_X__Y__DEFAULT__MID_789"
     |> ignore
 
@@ -9816,7 +9816,7 @@ main(): () =
     print(Test2.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "_X__Y__DEFAULT_0_AAA_0_MID_789"
     |> ignore
 
@@ -9840,7 +9840,7 @@ main(): () =
     print(Test.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "abc123"
     |> ignore
 
@@ -9866,7 +9866,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -9894,7 +9894,7 @@ main(): () =
     print(Test.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "defabc123"
     |> ignore
 
@@ -9922,7 +9922,7 @@ main(): () =
     print(Test.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "abcdef123"
     |> ignore
 
@@ -9951,7 +9951,7 @@ main(): () =
     print(Test.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "before_abcdef123"
     |> ignore
 
@@ -9979,7 +9979,7 @@ main(): () =
     print(Test.Get())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "before_45"
     |> ignore
 
@@ -10007,7 +10007,7 @@ main(): () =
     print(Test.Get())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "before_45"
     |> ignore
 
@@ -10033,7 +10033,7 @@ main(): () =
     print(value)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -10059,7 +10059,7 @@ main(): () =
     print(value)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "8"
     |> ignore
 
@@ -10091,7 +10091,7 @@ main(): () =
     print(xs[3])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "14"
     |> ignore
 
@@ -10138,7 +10138,7 @@ main(): () =
     print(xs[3])
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "50089"
     |> ignore
 
@@ -10255,7 +10255,7 @@ main(): () =
     test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -10744,7 +10744,7 @@ main(): () =
     test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -10779,7 +10779,7 @@ main(): () =
     t.A(x -> print(x))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -10811,7 +10811,7 @@ main(): () =
     t.A(x -> print(x))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -10839,7 +10839,7 @@ main(): () =
     t.F(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -10867,7 +10867,7 @@ main(): () =
     t.F(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -10900,7 +10900,7 @@ main(): () =
     forLoop(5, i -> print(i))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "01234"
     |> ignore
 
@@ -11044,7 +11044,7 @@ main(): () =
     print(bits.IsSet(500)) // true
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "FalseTrueFalseFalseTrue"
     |> ignore
 
@@ -11091,7 +11091,7 @@ main(): () =
     print("test")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -11113,7 +11113,7 @@ main(): () =
     test(x -> print(x))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "345"
     |> ignore
 
@@ -11133,7 +11133,7 @@ main(): () =
     print(X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -11167,7 +11167,7 @@ main(): () =
     print(s.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -11201,7 +11201,7 @@ main(): () =
     print(s.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -11241,7 +11241,7 @@ main(): () =
     print(s.S.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
 
@@ -11279,7 +11279,7 @@ main(): () =
     print(s.S.A)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5"
     |> ignore
 
@@ -11352,7 +11352,7 @@ main(): () =
     print(w)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "normalbyrefbyrefbyrefbyref123123123123"
     |> ignore
 
@@ -11430,7 +11430,7 @@ main(): () =
     print(w)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "normalbyrefbyrefbyref123123123123normalinrefinref123123123"
     |> ignore
 
@@ -11496,7 +11496,7 @@ main(): () =
     print(z)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "normalbyrefinref123123123"
     |> ignore
 
@@ -11558,7 +11558,7 @@ main(): () =
     print(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "byrefbyref123123"
     |> ignore
 
@@ -11602,7 +11602,7 @@ main(): () =
     print(s.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -11653,7 +11653,7 @@ main(): () =
     print(s.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -11704,7 +11704,7 @@ main(): () =
     print(s.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "15"
     |> ignore
 
@@ -11745,7 +11745,7 @@ main(): () =
     print(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "199"
     |> ignore
 
@@ -11786,7 +11786,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "199"
     |> ignore
 
@@ -11825,7 +11825,7 @@ main(): () =
     print(s.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "199"
     |> ignore
 
@@ -11867,7 +11867,7 @@ main(): () =
     print(x2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "199"
     |> ignore
 
@@ -11911,7 +11911,7 @@ main(): () =
     print(x2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1199"
     |> ignore
 
@@ -11955,7 +11955,7 @@ main(): () =
     print(x2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1199"
     |> ignore
 
@@ -11994,7 +11994,7 @@ main(): () =
     print(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12013,7 +12013,7 @@ main(): () =
     print("test")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -12035,7 +12035,7 @@ main(): () =
     print(GetTupleElement<0, _>(("world", 6)))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "5world"
     |> ignore
 
@@ -12056,7 +12056,7 @@ main(): () =
     test<1>()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "it ran"
     |> ignore
 
@@ -12077,7 +12077,7 @@ main(): () =
     test<123>()
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12104,7 +12104,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "10"
     |> ignore
 
@@ -12135,7 +12135,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1044"
     |> ignore
 
@@ -12165,7 +12165,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1055"
     |> ignore
 
@@ -12198,7 +12198,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1044"
     |> ignore
 
@@ -12232,7 +12232,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1044"
     |> ignore
 
@@ -12267,7 +12267,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "221044"
     |> ignore
 
@@ -12307,7 +12307,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "775"
     |> ignore
 
@@ -12337,7 +12337,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "225"
     |> ignore
 
@@ -12368,7 +12368,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "225"
     |> ignore
 
@@ -12399,7 +12399,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "225"
     |> ignore
 
@@ -12434,7 +12434,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "335"
     |> ignore
 
@@ -12463,7 +12463,7 @@ main(): () =
     test(2)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123456"
     |> ignore
 
@@ -12512,7 +12512,7 @@ main(): () =
     print(ClampAngle(lfAngle, -80, 80))
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4.5"
     |> ignore
 
@@ -12556,7 +12556,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "775"
     |> ignore
 
@@ -12599,7 +12599,7 @@ main(): () =
     test(5)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "775"
     |> ignore
 
@@ -12630,7 +12630,7 @@ main(): () =
     print(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1234"
     |> ignore
 
@@ -12652,7 +12652,7 @@ main(): () =
     print(t.Value)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12674,7 +12674,7 @@ main(): () =
     print(t.Value)
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
 
@@ -12698,7 +12698,7 @@ main(): () =
     print(t.GetValue())
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12725,7 +12725,7 @@ main(): () =
     print(getValue(t))
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12752,7 +12752,7 @@ main(): () =
     print(getValue(t))
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
 
@@ -12777,7 +12777,7 @@ main(): () =
     print(t.GetValue())
     """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
 
@@ -12811,7 +12811,7 @@ main(): () =
     printM(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "MextM2MextM2"
     |> ignore
 
@@ -12845,7 +12845,7 @@ main(): () =
     printM(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "MextM2MextM2"
     |> ignore
 
@@ -12879,7 +12879,7 @@ main(): () =
     printM(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "MextM2MextM2"
     |> ignore
 
@@ -12913,7 +12913,7 @@ main(): () =
     printM(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "00"
     |> ignore
 
@@ -12949,7 +12949,7 @@ main(): () =
     printM(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "00"
     |> ignore
 
@@ -12972,7 +12972,7 @@ main(): () =
     test(55)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -12997,7 +12997,7 @@ main(): () =
     | _ => ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -13030,7 +13030,7 @@ main(): () =
     test(Option("test"))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Some was hit"
     |> ignore
 
@@ -13063,7 +13063,7 @@ main(): () =
     test(Option("test"))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Some was hit"
     |> ignore
 
@@ -13096,7 +13096,7 @@ main(): () =
     test(Option("test"))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "None was hit"
     |> ignore
 
@@ -13114,7 +13114,7 @@ main(): () =
     print(f<()>())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -13135,7 +13135,7 @@ main(): () =
     print(if (getBool()) f<()>() else ())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -13156,7 +13156,7 @@ main(): () =
     print(if (getBool()) f<()>() else ())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 
@@ -13176,7 +13176,7 @@ main(): () =
         print("fail")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "pass"
     |> ignore
 
@@ -13199,7 +13199,7 @@ main(): () =
         print("fail")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "pass5"
     |> ignore
 
@@ -13224,7 +13224,7 @@ main(): () =
         print("fail")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "pass5"
     |> ignore
 
@@ -13249,7 +13249,7 @@ main(): () =
         print("fail")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "pass5"
     |> ignore
 
@@ -13272,7 +13272,7 @@ main(): () =
         print("pass")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "pass"
     |> ignore
 
@@ -13307,7 +13307,7 @@ main(): () =
     print(EAX.get_RegisterEncoding())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "255"
     |> ignore
 
@@ -13343,7 +13343,7 @@ main(): () =
     print(x.get_RegisterEncoding())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "255"
     |> ignore
 
@@ -13378,7 +13378,7 @@ main(): () =
     print(EAX.RegisterEncoding)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "255"
     |> ignore
 
@@ -13414,7 +13414,7 @@ main(): () =
     print(x.RegisterEncoding)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "255"
     |> ignore
 
@@ -13447,7 +13447,7 @@ main(): () =
     printRegister(EAX)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "ebxeax"
     |> ignore
 
@@ -13480,7 +13480,7 @@ main(): () =
     printRegister(EAX)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "ebxeax"
     |> ignore
 
@@ -13543,7 +13543,7 @@ main(): () =
     Shift(item)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Get - Goo Set - Goo "
     |> ignore
 
@@ -13610,7 +13610,7 @@ main(): () =
     Shift(item)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Get - Goo Set - Bar "
     |> ignore
 
@@ -13677,7 +13677,7 @@ main(): () =
     Shift(item)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Get - Goo Set - Bar "
     |> ignore
 
@@ -13704,7 +13704,7 @@ main(): () =
     v.Test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -13733,7 +13733,7 @@ main(): () =
     Test<Vector3>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -13766,7 +13766,7 @@ main() : () =
     let result = multiply<Matrix, Vector3, Matrix, object>(default, default)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -13799,7 +13799,7 @@ main() : () =
     let result = multiply<Matrix, Vector3, Matrix, Vector3>(default, default)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -13836,7 +13836,7 @@ main(): () =
     print(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1123"
     |> ignore
 
@@ -13874,7 +13874,7 @@ main(): () =
     print(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1123"
     |> ignore
 
@@ -13930,7 +13930,7 @@ main(): () =
     print(result.Z)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "246"
     |> ignore
 
@@ -13986,7 +13986,7 @@ main(): () =
     print(result.Z)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "246"
     |> ignore
 
@@ -14019,7 +14019,7 @@ main(): () =
     test1(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14052,7 +14052,7 @@ main(): () =
     test1(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14085,7 +14085,7 @@ main(): () =
     test1(Test1())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14121,7 +14121,7 @@ main(): () =
     test1(Test1(), Test1())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14157,7 +14157,7 @@ main(): () =
     test1(null, null, null)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14197,7 +14197,7 @@ main(): () =
     test(test2(22))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "8877newtype888877newtype55newtype22"
     |> ignore
 
@@ -14239,7 +14239,7 @@ main(): () =
     t.test(NewInt32(77))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "88newtype77"
     |> ignore
 
@@ -14280,7 +14280,7 @@ main(): () =
     test(&y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "88byref77inref"
     |> ignore
 
@@ -14325,7 +14325,7 @@ main(): () =
     print(by)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "inrefbyref222277"
     |> ignore
 
@@ -14377,7 +14377,7 @@ main(): () =
     t.test(&y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "byref88inref77"
     |> ignore
 
@@ -14396,7 +14396,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "y"
     |> ignore
 
@@ -14424,7 +14424,7 @@ main(): () =
     print(t.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -14444,7 +14444,7 @@ main(): () =
     print("should work")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "should work"
     |> ignore
 
@@ -14484,7 +14484,7 @@ main(): () =
     testLocal()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput " hello world"
     |> ignore
 
@@ -14517,7 +14517,7 @@ main(): () =
     print(xs[0].X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -14553,7 +14553,7 @@ main(): () =
     print(c1.XS[0].X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -14592,7 +14592,7 @@ main(): () =
     print(c2.C.XS[0].X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "789"
     |> ignore
 
@@ -14635,7 +14635,7 @@ main(): () =
     update<TestStruct>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14661,7 +14661,7 @@ module Test2 =
         mutable field E: N<M> = default
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14685,7 +14685,7 @@ main(): () =
     print(x.GetValue())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14728,7 +14728,7 @@ main(): () =
         ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14771,7 +14771,7 @@ main(): () =
         ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14814,7 +14814,7 @@ main(): () =
         print("passed")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -14909,7 +14909,7 @@ main(): () =
         print("failed")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15008,7 +15008,7 @@ main(): () =
         print("failed")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15107,7 +15107,7 @@ main(): () =
         print("failed")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15137,7 +15137,7 @@ main(): () =
     t.Test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -15171,7 +15171,7 @@ main(): () =
     t.Test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -15218,7 +15218,7 @@ main(): () =
     t.Test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello123"
     |> ignore
 
@@ -15252,7 +15252,7 @@ main(): () =
     t.Test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -15297,7 +15297,7 @@ main(): () =
     t.Test(123)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "Test_T_Test_int32_123"
     |> ignore
 
@@ -15327,7 +15327,7 @@ main(): () =
    test(c2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "M"
     |> ignore
 
@@ -15357,7 +15357,7 @@ main(): () =
     test(xs)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "test"
     |> ignore
 
@@ -15391,7 +15391,7 @@ main(): () =
     print(c.value2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hellopassed"
     |> ignore
 
@@ -15411,7 +15411,7 @@ main(): () =
     print(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
 
@@ -15438,7 +15438,7 @@ main(): () =
     print(c.X.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -15465,7 +15465,7 @@ main(): () =
     print(c.X.X)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
 
@@ -15505,7 +15505,7 @@ main(): () =
     print("passed")
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15569,7 +15569,7 @@ module TestModule =
         print(value2)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1122"
     |> ignore
 
@@ -15628,7 +15628,7 @@ module TestModule =
         print(value2)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1122"
     |> ignore
 
@@ -15710,7 +15710,7 @@ module TestModule =
         print(value2)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3355"
     |> ignore
 
@@ -15787,7 +15787,7 @@ module TestModule =
         print(value2)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "3355"
     |> ignore
 
@@ -15851,7 +15851,7 @@ module TestModule =
         print(value2)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1122"
     |> ignore
 
@@ -15874,7 +15874,7 @@ main(): () =
     test<A>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15904,7 +15904,7 @@ main(): () =
     Test<S>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15935,7 +15935,7 @@ main(): () =
     Test<S>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -15985,7 +15985,7 @@ main(): () =
     Test2()
         """
     OlyTwo src2 src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passedpassed2"
     |> ignore
 
@@ -16015,7 +16015,7 @@ main(): () =
     Test<S>(S())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -16046,7 +16046,7 @@ main(): () =
     Test<S>(S())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -16102,7 +16102,7 @@ main(): () =
     let _ = db.CreateQuery<S, S2>()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello123456"
     |> ignore
 
@@ -16186,7 +16186,7 @@ main(): () =
     let _ = db.CreateQuery<S, S2>()
         """
     OlyTwo src2 src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "hello123456hello899988"
     |> ignore
 
@@ -16239,7 +16239,7 @@ main(): () =
     print(value)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -16281,7 +16281,7 @@ main(): () =
     Test(InputSnapshot())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
@@ -16334,7 +16334,7 @@ main(): () =
     print(value)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -16383,7 +16383,7 @@ main(): () =
     let _ = B()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "before A after"
     |> ignore
 
@@ -16405,7 +16405,7 @@ main(): () =
     F(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
@@ -16428,7 +16428,7 @@ main(): () =
     print(x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "321"
     |> ignore
 
@@ -16464,7 +16464,7 @@ main(): () =
     For(start, length, i -> print(i))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "01234"
     |> ignore
 
@@ -16505,7 +16505,7 @@ main(): () =
     ForTwice(start, length, i -> print(i))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "0123401234"
     |> ignore
 
@@ -16548,7 +16548,7 @@ main(): () =
     print(mutValue)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "-3012344"
     |> ignore
 
@@ -16596,7 +16596,7 @@ main(): () =
     print(mutValue)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "-301011"
     |> ignore
 
@@ -16653,7 +16653,7 @@ main(): () =
     print(mutValue)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "-301011"
     |> ignore
 
@@ -16679,7 +16679,7 @@ main(): () =
     print(MD.Y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "9"
     |> ignore
 
@@ -16705,6 +16705,27 @@ main(): () =
     print(MD.Y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "4"
+    |> ignore
+
+[<Fact>]
+let ``Simple value binding of object type with an int32``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+main(): () =
+    let x: obj = 1234
+    print(x)
+
+#[intrinsic("print")]
+print(__oly_object): ()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234"
     |> ignore

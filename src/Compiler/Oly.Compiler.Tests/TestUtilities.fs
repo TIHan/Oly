@@ -2,6 +2,7 @@
 
 open System
 open System.Threading
+open System.Diagnostics
 open Xunit
 open Oly.Core
 open Oly.Compiler.Text
@@ -195,26 +196,25 @@ let withNoDiagnostics (c: TestCompilation) =
 
 let withErrorDiagnostics (expected: string list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
-    (expected, errorMsgs)
-    ||> Seq.iter2 (fun expectedMsg msg ->
-        Assert.Equal(expectedMsg, msg)
-    )
-    Assert.Equal(expected.Length, errorMsgs.Length)
+    Assert.Equal(expected, errorMsgs)
     c
 
 let hasErrorDiagnostics (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
     Assert.NotEmpty(errorMsgs)
 
-let withErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
+[<DebuggerHidden>]
+let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
-    (expected, errorMsgs)
-    ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
-        Assert.Equal(expectedMsg, msg)
-        Assert.Equal(expectedText, text)
-    )
-    Assert.Equal(expected.Length, errorMsgs.Length)
+    Assert.Equal(expected, errorMsgs)
     c
+
+[<DebuggerHidden>]
+let withErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAux expected c
+
+/// Same as 'withErrorHelperTextDiagnostics' but ignores the result.
+[<DebuggerHidden>]
+let hasErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAux expected c |> ignore
 
 let containsErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
@@ -226,7 +226,7 @@ let containsErrorHelperTextDiagnostics (expected: (string * string) list) (c: Te
                 expectedMsg = msg && expectedText = text
             )
         )
-    Assert.True(result, sprintf "%A" errorMsgs)
+    Assert.True(result, if (errorMsgs.Length = 0) then "Expected error messages but received none." else sprintf "%A" errorMsgs)
     c
 
 [<NoEquality;NoComparison>]
@@ -237,7 +237,7 @@ type TestCompilationOutput =
         ilAsmDebug: Oly.Metadata.OlyILAssembly
     }
 
-let shouldCompile (c: TestCompilation) =
+let private withCompileAux (c: TestCompilation) =
     let c = 
         c
         |> withNoSyntaxDiagnostics
@@ -249,11 +249,17 @@ let shouldCompile (c: TestCompilation) =
         match c.c.GetILAssembly(CancellationToken.None) with
         | Ok ilAsm -> ilAsm
         | Error diags -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
+
     {
         c = c
         ilAsm = ilAsm
         ilAsmDebug = ilAsmDebug
     }
+
+let withCompile c = withCompileAux c
+
+/// Same as 'withCompile' but ignores the result.
+let shouldCompile c = withCompileAux c |> ignore
 
 /// Will also assert that the syntax tree produced will equal the source.
 let Oly (src: string) =

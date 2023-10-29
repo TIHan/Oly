@@ -1976,11 +1976,22 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
 
     let tyArgs = tyPars |> Seq.map (fun x -> x.AsType) |> ImmutableArray.CreateRange
 
+    // TODO: Clean this up. We do not need to iterate over all the attributes multiple times to determine the flags.
+    //       We only need to do it once.
+
     let funcFlags =
         let inlineFlagsOpt = tryAttributesInlineFlags attrs
         match inlineFlagsOpt with
         | Some(inlineFlags) ->
             funcFlags ||| inlineFlags
+        | _ ->
+            funcFlags
+
+    let funcFlags =
+        let unmanagedFlagsOpt = tryAttributesUnmanagedFlags attrs
+        match unmanagedFlagsOpt with
+        | Some(unmanagedFlags) ->
+            funcFlags ||| unmanagedFlags
         | _ ->
             funcFlags
 

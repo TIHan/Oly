@@ -167,7 +167,7 @@ let getProjectWithReferenceProject refSrc src =
 
 let run expectedOutput src =
     OlySharp (coreLib + src)
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput expectedOutput
     |> ignore
 
@@ -216,7 +216,7 @@ main() : () =
     print(xs.get_Item(0))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "123"
     |> ignore
 
@@ -249,7 +249,7 @@ main() : () =
     print(xs.get_Item(0))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "012123"
     |> ignore
 
@@ -275,7 +275,7 @@ main() : () =
     print(x.ToString())
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "1239123"
     |> ignore
 
@@ -3037,7 +3037,7 @@ main(): () =
     test2(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput ""
     |> ignore
 

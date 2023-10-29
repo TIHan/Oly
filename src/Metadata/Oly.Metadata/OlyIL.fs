@@ -128,6 +128,8 @@ type OlyILFunctionFlags =
     | ParameterLess                 = 0x010000
     | StackEmplace                  = 0x100030
 
+    | UnmanagedAllocationOnly           = 0x1000000
+
 [<Flags>]
 type OlyILFieldFlags =
     | None =        0x000000

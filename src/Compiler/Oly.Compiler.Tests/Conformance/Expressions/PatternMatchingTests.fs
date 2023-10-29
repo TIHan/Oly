@@ -175,7 +175,7 @@ test(x: __oly_int32): () =
     | _ => ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]

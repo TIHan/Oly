@@ -68,6 +68,15 @@ type InlineArgumentSymbol =
             FunctionFlags.StackEmplace
 
 [<RequireQualifiedAccess>]
+type UnmanagedArgumentSymbol =
+    | AllocationOnly
+
+    member this.ToFunctionFlags() =
+        match this with
+        | UnmanagedArgumentSymbol.AllocationOnly ->
+            FunctionFlags.UnmanagedAllocationOnly
+
+[<RequireQualifiedAccess>]
 type AttributeSymbol =
     | Open
     | Null
@@ -77,6 +86,7 @@ type AttributeSymbol =
     | Blittable
     | Intrinsic of name: string
     | Inline of InlineArgumentSymbol
+    | Unmanaged of UnmanagedArgumentSymbol
     | Constructor of ctor: IFunctionSymbol * args: ConstantSymbol imarray * namedArgs: AttributeNamedArgumentSymbol imarray * flags: AttributeFlags
 
     member this.Flags =
@@ -90,7 +100,8 @@ type AttributeSymbol =
         | Blittable _ 
         | Pure ->
             AttributeFlags.AllowOnFunction ||| AttributeFlags.AllowOnType
-        | Inline _ ->
+        | Inline _
+        | Unmanaged _ ->
             AttributeFlags.AllowOnFunction
         | Constructor(_, _, _, flags) ->
             flags
@@ -135,6 +146,20 @@ let tryAttributesInlineArgument (attrs: AttributeSymbol imarray) =
 
 let tryAttributesInlineFlags (attrs: AttributeSymbol imarray) =
     tryAttributesInlineArgument attrs
+    |> Option.map (fun x -> x.ToFunctionFlags())
+
+let tryAttributesUnmanagedArgument (attrs: AttributeSymbol imarray) =
+    attrs
+    |> ImArray.tryPick (fun attr ->
+        match attr with
+        | AttributeSymbol.Unmanaged(unmanagedArg) ->
+            Some(unmanagedArg)
+        | _ ->
+            None
+    )
+
+let tryAttributesUnmanagedFlags (attrs: AttributeSymbol imarray) =
+    tryAttributesUnmanagedArgument attrs
     |> Option.map (fun x -> x.ToFunctionFlags())
 
 [<System.Flags>]
@@ -1658,39 +1683,41 @@ type MemberFlags =
 
 [<System.Flags>]
 type FunctionFlags =
-    | None                          = 0x000000000000L
+    | None                          = 0x0000000000000L
 
     /// Constructor member.
-    | Constructor                   = 0x000000000001L
+    | Constructor                   = 0x0000000000001L
 
     /// Static local (not a member).
-    | StaticLocal                   = 0x000000000010L
+    | StaticLocal                   = 0x0000000000010L
 
     /// Function is marked 'inline' and will be inlined by the runtime.
-    | Inline                        = 0x000000000100L
+    | Inline                        = 0x0000000000100L
 
     /// Function is marked 'not inline' and will never be inlined by the runtime.
-    | InlineNever                   = 0x000000000200L
+    | InlineNever                   = 0x0000000000200L
 
-    | InlineAlways                  = 0x000000000300L
+    | InlineAlways                  = 0x0000000000300L
 
-    | InlineMask                    = 0x000000000700L
+    | InlineMask                    = 0x0000000000700L
 
-    | Pure                          = 0x000000001000L
+    | Pure                          = 0x0000000001000L
 
-    | ImplicitDefaultConstructor    = 0x000000010001L
+    | ImplicitDefaultConstructor    = 0x0000000010001L
 
-    | Extra                         = 0x000000100000L
+    | Extra                         = 0x0000000100000L
 
-    | EntryPoint                    = 0x000001000000L
+    | EntryPoint                    = 0x0000001000000L
 
-    | StackEmplace                  = 0x000100000300L
+    | StackEmplace                  = 0x0000100000300L
 
-    | RequiresExplicitTypeArguments = 0x001000000000L
+    | RequiresExplicitTypeArguments = 0x0001000000000L
 
-    | ParameterLess                 = 0x010000000000L
+    | ParameterLess                 = 0x0010000000000L
 
-    | Blittable                     = 0x100000000000L
+    | Blittable                     = 0x0100000000000L
+
+    | UnmanagedAllocationOnly       = 0x1000000000000L
 
 [<System.Flags>]
 type ValueFlags =
@@ -3897,6 +3924,9 @@ module SymbolExtensions =
 
             member this.IsFormal =
                 this.Formal = this
+
+            member this.IsUnmanagedAllocationOnly =
+                this.FunctionFlags.HasFlag(FunctionFlags.UnmanagedAllocationOnly)
 
             member this.IsPublic =
                 this.MemberFlags &&& MemberFlags.AccessorMask = MemberFlags.Public

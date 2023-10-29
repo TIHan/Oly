@@ -13,7 +13,7 @@ interface Test =
     static abstract default test() : __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -156,7 +156,7 @@ extension MaybeMonadExtension<T> =
     Toot.bind<_, _>(ma, f)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -189,7 +189,7 @@ extension MaybeExtension<T> =
     Toot.bind<_, _>(ma, f)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -252,7 +252,7 @@ interface TestInterface =
     static abstract default test() : __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -265,7 +265,7 @@ interface IC =
     inherits IA, IB
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 
@@ -579,7 +579,7 @@ test() : () =
     let x = __oly_int32.add(1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -603,7 +603,7 @@ test() : () =
     let x = y.add(1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -681,7 +681,7 @@ test() : () =
     let x = y.add(1, 2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -706,7 +706,7 @@ extension Int32Extensions =
         __oly_add(x, value2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]

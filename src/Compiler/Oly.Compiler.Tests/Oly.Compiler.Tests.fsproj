@@ -19,6 +19,7 @@
     <Compile Include="SyntaxTreeTests.fs" />
     <Compile Include="MiscTests.fs" />
     <Compile Include="CompilationTests.fs" />
+    <Compile Include="Conformance\ContextualAnalysis\UnmanagedAllocationOnly\UnmanagedAllocationOnlyTests.fs" />
     <Compile Include="Conformance\DoNotCrashTests.fs" />
     <Compile Include="Conformance\Ambiguity\AmbiguityTests.fs" />
     <Compile Include="Conformance\Expressions\PatternMatchingTests.fs" />

@@ -2080,6 +2080,6 @@ main(): () =
     print(bits.IsSet(500)) // true
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput "FalseTrueFalseFalseTrue"
     |> ignore

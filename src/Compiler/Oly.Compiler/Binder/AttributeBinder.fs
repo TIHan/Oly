@@ -227,6 +227,14 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                 AttributeSymbol.Inline(inlineArg)
                 |> Some
 
+            | OlySyntaxAttribute.Unmanaged(_, _, syntaxIdent, _) ->
+                match syntaxIdent.ValueText with
+                | "allocation_only" -> 
+                    AttributeSymbol.Unmanaged(UnmanagedArgumentSymbol.AllocationOnly)
+                    |> Some
+                | _ ->
+                    None
+
             | OlySyntaxAttribute.Export _ ->
                 AttributeSymbol.Export
                 |> Some

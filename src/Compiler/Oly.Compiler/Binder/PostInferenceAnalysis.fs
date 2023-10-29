@@ -15,7 +15,25 @@ open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 
 type acenv = { cenv: cenv; scopes: System.Collections.Generic.Dictionary<int64, int>; checkedTypeParameters: System.Collections.Generic.HashSet<int64> }
-type aenv = { envRoot: BinderEnvironment; scope: int; isReturnableAddress: bool; freeLocals: ReadOnlyFreeLocals; benv: BoundEnvironment; isMemberSig: bool; memberFlags: MemberFlags }
+
+type Limits =
+    | None                      = 0x000000
+    | UnmanagedAllocationOnly   = 0x0000001
+
+type aenv = 
+    { 
+        envRoot: BinderEnvironment 
+        scope: int 
+        isReturnableAddress: bool 
+        freeLocals: ReadOnlyFreeLocals 
+        benv: BoundEnvironment 
+        isMemberSig: bool
+        memberFlags: MemberFlags
+        limits: Limits
+    }
+
+    member this.IsUnmanagedAllocationOnly =
+        this.limits.HasFlag(Limits.UnmanagedAllocationOnly)
 
 let notReturnableAddress aenv = 
     if aenv.isReturnableAddress then
@@ -28,6 +46,9 @@ let returnableAddress aenv =
         aenv
     else
         { aenv with isReturnableAddress = true }
+
+let reportUnmanagedAllocationOnly acenv (syntaxNode: OlySyntaxNode) =
+    acenv.cenv.diagnostics.Error("Managed allocations are not allowed.", 10, syntaxNode.BestSyntaxForReporting)
 
 let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
@@ -371,11 +392,23 @@ let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
     )
     |> ImArray.min
 
-let rec analyzeBindingInfo acenv aenv (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
+let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
     match rhsExprOpt with
     | ValueSome(E.Lambda(body=lazyBodyExpr)) when value.IsFunction ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false } lazyBodyExpr.Expression
+
+        if aenv.IsUnmanagedAllocationOnly then
+            if value.IsLocal then
+                if not value.IsStaticLocalFunction || not value.IsUnmanagedAllocationOnly then
+                    reportUnmanagedAllocationOnly acenv syntaxNode
+
+        let limits =
+            if value.IsUnmanagedAllocationOnly then
+                aenv.limits ||| Limits.UnmanagedAllocationOnly
+            else
+                aenv.limits
+
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; limits = limits } lazyBodyExpr.Expression
     | ValueSome(rhsExpr) ->
         analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
     | _ ->
@@ -583,7 +616,16 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
         if not ty.IsAnyStruct && not ty.IsNullable && ty.IsSolved && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
-    | _ -> ()
+
+    | _ ->
+        if aenv.IsUnmanagedAllocationOnly then
+            match literal with
+            | BoundLiteral.ConstantEnum(_, enumTy) when not enumTy.IsUnmanaged ->
+                reportUnmanagedAllocationOnly acenv syntaxNode
+            | BoundLiteral.Constant(cons) when not cons.Type.IsUnmanaged ->
+                reportUnmanagedAllocationOnly acenv syntaxNode
+            | _ ->
+                ()
     analyzeType acenv aenv syntaxNode literal.Type
 
 and analyzeConstant acenv aenv (syntaxNode: OlySyntaxNode) (constant: ConstantSymbol) =
@@ -699,9 +741,15 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.ErrorWithType _ -> ()
 
     | BoundExpression.NewTuple(_, items, _) ->
+        if aenv.IsUnmanagedAllocationOnly then
+            reportUnmanagedAllocationOnly acenv syntaxNode
+
         items |> ImArray.iter (fun item -> analyzeExpression acenv (notReturnableAddress aenv) item)
 
     | BoundExpression.NewArray(_, _, elements, _) ->
+        if aenv.IsUnmanagedAllocationOnly then
+            reportUnmanagedAllocationOnly acenv syntaxNode
+
         elements |> ImArray.iter (fun element -> analyzeExpression acenv (notReturnableAddress aenv) element)
 
     | BoundExpression.Typed(body=bodyExpr) -> 
@@ -726,6 +774,9 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
             |> ImArray.iter (fun x ->
                 checkWitnessSolution acenv aenv syntaxNode x
             )
+
+            if aenv.IsUnmanagedAllocationOnly && not value.IsUnmanagedAllocationOnly then
+                reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax            
 
         args |> ImArray.iter (fun arg -> analyzeExpression acenv aenv arg)
         receiverOpt
@@ -791,6 +842,9 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         OlyAssert.True(lazyBodyExpr.HasExpression)
         OlyAssert.True(lazyTy.Type.IsFunction_t)
 
+        if aenv.IsUnmanagedAllocationOnly then
+            reportUnmanagedAllocationOnly acenv syntaxNode
+
         match lazyTy.Type.TryFunction with
         | ValueSome(_, outputTy) ->
             pars
@@ -837,6 +891,11 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeLiteral acenv aenv syntaxNode literal
 
     | BoundExpression.EntityDefinition(syntaxInfo=syntaxInfo;body=bodyExpr;ent=ent) ->
+
+        if aenv.IsUnmanagedAllocationOnly && ent.IsClass then
+            reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
+        
+
         let aenv = 
             match syntaxInfo.TryEnvironment with
             | Some benv ->
@@ -859,7 +918,17 @@ let analyzeRoot acenv aenv (root: BoundRoot) =
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
     let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
-    let aenv = { envRoot = env; scope = 0; isReturnableAddress = false; freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()); benv = env.benv; isMemberSig = false; memberFlags = MemberFlags.None }
+    let aenv = 
+        { 
+            envRoot = env 
+            scope = 0
+            isReturnableAddress = false 
+            freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) 
+            benv = env.benv 
+            isMemberSig = false 
+            memberFlags = MemberFlags.None
+            limits = Limits.None
+        }
     analyzeRoot acenv aenv tree.Root
 
 

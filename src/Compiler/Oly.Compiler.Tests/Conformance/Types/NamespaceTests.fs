@@ -11,6 +11,6 @@ let ``Namespace with nothing in it should pass``() =
 namespace Test
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 

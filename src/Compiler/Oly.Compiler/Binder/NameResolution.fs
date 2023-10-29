@@ -2473,7 +2473,7 @@ let bindLiteral cenv env expectedTyOpt syntaxLiteral =
     let literal = bindLiteralAux cenv syntaxLiteral
     match expectedTyOpt with
     | Some(expectedTy) ->
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral expectedTy literal.Type
+        checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral expectedTy literal.Type
         stripLiteral literal
     | _ ->
         literal

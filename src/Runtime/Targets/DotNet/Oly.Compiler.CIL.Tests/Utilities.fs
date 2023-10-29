@@ -43,13 +43,13 @@ let shouldRunWithExpectedOutput expectedOutput result =
 
 let runWithExpectedOutput expectedOutput (c: OlyCompilation) =
     TestCompilation.Create(c)
-    |> shouldCompile
+    |> withCompile
     |> shouldRunWithExpectedOutput expectedOutput
 
 let runWithExpectedExceptionMessage expectedExceptionMsg (c: OlyCompilation) =
     let output =
         TestCompilation.Create(c)
-        |> shouldCompile
+        |> withCompile
     let refAsms =
         output.c.Compilation.References
         |> ImArray.map (fun x -> 

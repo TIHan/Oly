@@ -219,7 +219,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | InternalUserWithName(tyOpt=tyOpt) -> tyOpt
         | _ -> None
 
-    member this.TrySyntaxName =
+    member this.TrySyntaxName: OlySyntaxName option =
         match this with
         | InternalUserWithName(_, _, syntaxName, _) -> Some syntaxName
         | _ -> None

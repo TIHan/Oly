@@ -84,6 +84,12 @@
     <Case name="Expression">
       <Field name="expr">SyntaxExpression</Field>
     </Case>
+	<Case name="Unmanaged">
+      <Field name="unmanagedToken">SyntaxToken</Field>
+	  <Field name="leftParenthesisToken">SyntaxToken</Field>
+	  <Field name="ident">SyntaxToken</Field>
+	  <Field name="rightParenthesisToken">SyntaxToken</Field>
+	</Case>
     <Case name="Error">
       <Field name="token">SyntaxToken</Field>
     </Case>

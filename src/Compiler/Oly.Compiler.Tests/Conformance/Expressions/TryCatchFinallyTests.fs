@@ -15,5 +15,5 @@ test(): __oly_int32 =
     throw "a message for throw"
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore

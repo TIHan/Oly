@@ -12,7 +12,7 @@ class A =
     field value: __oly_int32 = 0
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -27,7 +27,7 @@ class B =
     field value2: __oly_int32 = 0
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -43,7 +43,7 @@ class A =
     value(): __oly_int32 = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -474,7 +474,7 @@ test() : () =
     let t = Test()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -496,7 +496,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -520,7 +520,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -544,7 +544,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -632,7 +632,7 @@ abstract class Class1 =
     field x: __oly_int32 = 0
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -675,7 +675,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -751,7 +751,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -775,7 +775,7 @@ test() : () =
     let t = Class2()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -788,7 +788,7 @@ class A =
       get() = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -806,7 +806,7 @@ class A =
         overrides get() = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -824,7 +824,7 @@ class A =
         get() = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -842,7 +842,7 @@ class A =
         overrides get() = 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -861,7 +861,7 @@ class A =
         set(value) = ()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -913,5 +913,5 @@ class C =
     new() = { }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore

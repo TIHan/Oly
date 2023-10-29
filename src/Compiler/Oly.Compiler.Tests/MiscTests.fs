@@ -12,7 +12,7 @@ f() : () =
         let y: __oly_int32 = 1
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -23,14 +23,14 @@ f() : () =
         let y: __oly_int32 = 1
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
 let ``No input`` () =
     let src = """f() : __oly_int32 = 1"""
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -43,7 +43,7 @@ z() : () =
     let g: () -> __oly_int32 = f
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -72,7 +72,7 @@ f() : () =
              1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -89,7 +89,7 @@ test2(x: int32) : () =
     test(x)
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -104,7 +104,7 @@ f() : () =
     let x = Test<_>(1)
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -152,7 +152,7 @@ g() : () =
     IntrinsicPrint<_>(z)
               """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -181,7 +181,7 @@ extension TestAddExtension =
     static overrides add(value1: Test, value2: Test) : Test = Test(500)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -200,7 +200,7 @@ z() : () =
     IntrinsicPrint<_>(y)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -234,7 +234,7 @@ f() : () =
     IntrinsicPrint<_>(2)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -296,7 +296,7 @@ main (): () =
     Console.WriteLine<_>(test<_>(1, 2))
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -391,7 +391,7 @@ g<T>(x: T, y: T): T where T: Add<T> =
    doot.x + y
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -425,7 +425,7 @@ main (): () =
    Console.WriteLine<_>(result)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -460,7 +460,7 @@ main(): () =
    Console.WriteLine<_>(x + x)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -510,7 +510,7 @@ main () : () =
    Console.WriteLine<_>(res)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -527,7 +527,7 @@ interface Functor<F<_>> =
    static abstract Map<A, B>(fa: F<A>, f: A -> B) : F<B>
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -551,7 +551,7 @@ add<T>(x: T, y: T) : T where T : Add<T> =
    x + y
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -594,7 +594,7 @@ extension MaybeMonadExtension<T> =
       Maybe<_>(a)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -626,7 +626,7 @@ f() : () =
     let x = 1 + 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -639,7 +639,7 @@ f() : () =
     let y = ^ 1
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -652,7 +652,7 @@ main() : __oly_int32 =
     f()
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -665,7 +665,7 @@ main() : __oly_int32 =
     f(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -678,7 +678,7 @@ main() : __oly_int32 =
     f(1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -691,7 +691,7 @@ class Test =
     new(x: __oly_int32) = { x = x }
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -708,7 +708,7 @@ test<T>(x: T) : () =
     let y = X<__oly_int32>(x, 1)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -724,7 +724,7 @@ test() : () =
     let f = Test.M(1i)
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -737,7 +737,7 @@ main() : () =
 test(x: __oly_int32) : __oly_int32 = x
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore
 
 [<Fact>]
@@ -750,5 +750,5 @@ class Test =
     field x: __oly_int32 = 0
         """
     Oly src
-    |> shouldCompile
+    |> withCompile
     |> ignore

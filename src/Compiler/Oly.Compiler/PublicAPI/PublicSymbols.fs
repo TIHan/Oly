@@ -604,6 +604,7 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
         | AttributeSymbol.Export _ -> "export"
         | AttributeSymbol.Intrinsic _ -> "intrinsic"
         | AttributeSymbol.Inline _ -> "inline"
+        | AttributeSymbol.Unmanaged _ -> "unmanaged"
         | AttributeSymbol.Blittable -> "blittable"
         | AttributeSymbol.Pure -> "pure"
         | AttributeSymbol.Constructor(ctor, _, _, _) -> ctor.Name
@@ -626,6 +627,9 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
             | InlineArgumentSymbol.Never -> "inline(never)"
             | InlineArgumentSymbol.Always -> "inline(always)"
             | InlineArgumentSymbol.Stack -> "inline(stack)"
+        | AttributeSymbol.Unmanaged(unmanagedArg) -> 
+            match unmanagedArg with
+            | UnmanagedArgumentSymbol.AllocationOnly -> "unmanaged(allocation_only)"
         | AttributeSymbol.Constructor(ctor, _, _, _) -> 
             OlyValueSymbol(boundModel, benv, location, ctor).SignatureText
 

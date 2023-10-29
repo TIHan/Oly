@@ -870,7 +870,8 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Null
     | AttributeSymbol.Inline _
     | AttributeSymbol.Blittable
-    | AttributeSymbol.Pure ->
+    | AttributeSymbol.Pure
+    | AttributeSymbol.Unmanaged _ ->
         None
     | AttributeSymbol.Import(platform, path, name) ->
         let platform = GenString cenv platform

@@ -555,6 +555,13 @@ module OlySyntaxAttribute =
         | _ ->
             Option.None
 
+    let (|Unmanaged|_|) (node: OlySyntaxAttribute) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxToken * OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxAttribute.Unmanaged _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
+        | _ ->
+            Option.None
+
     let (|Error|_|) (node: OlySyntaxAttribute) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxAttribute.Error _ ->
