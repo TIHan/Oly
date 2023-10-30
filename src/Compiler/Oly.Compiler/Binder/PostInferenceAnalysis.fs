@@ -32,7 +32,7 @@ type aenv =
         limits: Limits
     }
 
-    member this.IsUnmanagedAllocationOnly =
+    member this.IsInUnmanagedAllocationOnlyContext =
         this.limits.HasFlag(Limits.UnmanagedAllocationOnly)
 
 let notReturnableAddress aenv = 
@@ -49,6 +49,9 @@ let returnableAddress aenv =
 
 let reportUnmanagedAllocationOnly acenv (syntaxNode: OlySyntaxNode) =
     acenv.cenv.diagnostics.Error("Managed allocations are not allowed.", 10, syntaxNode.BestSyntaxForReporting)
+
+let reportUnmanagedAllocationOnlyBoxing acenv (syntaxNode: OlySyntaxNode) =
+    acenv.cenv.diagnostics.Error("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.", 10, syntaxNode.BestSyntaxForReporting)
 
 let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
@@ -397,7 +400,8 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
     | ValueSome(E.Lambda(body=lazyBodyExpr)) when value.IsFunction ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
 
-        if aenv.IsUnmanagedAllocationOnly then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext then
             if value.IsLocal then
                 if not value.IsStaticLocalFunction || not value.IsUnmanagedAllocationOnly then
                     reportUnmanagedAllocationOnly acenv syntaxNode
@@ -410,7 +414,10 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
 
         analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; limits = limits } lazyBodyExpr.Expression
     | ValueSome(rhsExpr) ->
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
+        if value.IsLocal then
+            analyzeArgumentExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr value.Type
+        else
+            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
     | _ ->
         ()
 
@@ -618,7 +625,8 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->
-        if aenv.IsUnmanagedAllocationOnly then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext then
             match literal with
             | BoundLiteral.ConstantEnum(_, enumTy) when not enumTy.IsUnmanaged ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
@@ -644,6 +652,9 @@ and analyzeConstant acenv aenv (syntaxNode: OlySyntaxNode) (constant: ConstantSy
         ()
 
 and analyzeAttribute acenv aenv (syntaxNode: OlySyntaxNode) (attr: AttributeSymbol) =
+    // No limits when analyzing attributes.
+    let aenv = if aenv.limits = Limits.None then aenv else { aenv with limits = Limits.None }
+
     match attr with
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _) ->
         checkValue acenv  aenv syntaxNode ctor
@@ -660,6 +671,16 @@ and analyzeAttribute acenv aenv (syntaxNode: OlySyntaxNode) (attr: AttributeSymb
 
     | _ ->
         ()
+
+and analyzeArgumentExpression acenv (aenv: aenv) (expr: BoundExpression) (expectedTy: TypeSymbol) =
+    // Context Analysis: UnmanagedAllocationOnly
+    if aenv.IsInUnmanagedAllocationOnlyContext then
+        let exprTy = expr.Type
+        let willBox = (exprTy.IsAnyStruct || exprTy.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint) && expectedTy.IsAnyNonStruct
+        if willBox then
+            reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
+
+    analyzeExpression acenv aenv expr
 
 and analyzeExpression acenv aenv (expr: BoundExpression) =
     acenv.cenv.ct.ThrowIfCancellationRequested()
@@ -741,21 +762,28 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.ErrorWithType _ -> ()
 
     | BoundExpression.NewTuple(_, items, _) ->
-        if aenv.IsUnmanagedAllocationOnly then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
         items |> ImArray.iter (fun item -> analyzeExpression acenv (notReturnableAddress aenv) item)
 
     | BoundExpression.NewArray(_, _, elements, _) ->
-        if aenv.IsUnmanagedAllocationOnly then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
         elements |> ImArray.iter (fun element -> analyzeExpression acenv (notReturnableAddress aenv) element)
 
-    | BoundExpression.Typed(body=bodyExpr) -> 
-        analyzeExpression acenv aenv bodyExpr
+    | BoundExpression.Typed(body=bodyExpr;ty=exprTy) -> 
+        analyzeArgumentExpression acenv aenv bodyExpr exprTy
 
-    | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, _) ->
+    | BoundExpression.Call(syntaxInfo, receiverArgExprOpt, witnessArgs, logicalArgExprs, value, _) ->
+        // Note: Constraints can retry solving in this analysis.
+        //       However, overloads of a call cannot retry solving, except in constraints.
+        // REVIEW: In the future, consider allowing overloads of a call to retry solving.
+        //         What are the pitfalls? It would make analysis more than just analysis, but doesn't retrying to solve constraints also mean that?
+
         let aenv =
             if aenv.isReturnableAddress then
                 match value.Type.TryFunction with
@@ -775,12 +803,34 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
                 checkWitnessSolution acenv aenv syntaxNode x
             )
 
-            if aenv.IsUnmanagedAllocationOnly && not value.IsUnmanagedAllocationOnly then
-                reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax            
+            // Context Analysis: UnmanagedAllocationOnly
+            if aenv.IsInUnmanagedAllocationOnlyContext && not value.IsUnmanagedAllocationOnly then
+                reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
+                
+        let argCount =
+            match receiverArgExprOpt with
+            | Some _ -> logicalArgExprs.Length + 1
+            | _ -> logicalArgExprs.Length
 
-        args |> ImArray.iter (fun arg -> analyzeExpression acenv aenv arg)
-        receiverOpt
-        |> Option.iter (fun receiver -> analyzeExpression acenv aenv receiver)
+        if value.IsFunctionGroup || (value.Type.FunctionParameterCount <> argCount) then
+            logicalArgExprs 
+            |> ImArray.iter (analyzeExpression acenv aenv)
+
+            receiverArgExprOpt
+            |> Option.iter (analyzeExpression acenv aenv)
+        else
+            match value.Type.TryGetFunctionWithParameters() with
+            | ValueSome(parTys, _) ->
+                match receiverArgExprOpt with
+                | Some receiverArgExpr ->
+                    analyzeArgumentExpression acenv aenv receiverArgExpr parTys[0]
+                    for i = 1 to parTys.Length - 1 do
+                        analyzeArgumentExpression acenv aenv logicalArgExprs[i - 1] parTys[i]
+                | _ ->
+                    for i = 0 to parTys.Length - 1 do
+                        analyzeArgumentExpression acenv aenv logicalArgExprs[i] parTys[i]
+            | _ -> 
+                ()
 
         match syntaxInfo.TrySyntaxName with
         | Some(syntaxName) ->
@@ -788,6 +838,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         | _ ->
             checkValue acenv aenv syntaxNode value
 
+        // Context Analysis: byref/byref-like
         match expr with
         | AddressOf(AutoDereferenced(expr)) -> 
             analyzeExpression acenv aenv expr
@@ -816,7 +867,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeExpression acenv aenv receiver
 
     | BoundExpression.SetField(_, receiver, field, rhs) ->
-        analyzeExpression acenv (notReturnableAddress aenv) rhs
+        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs field.Type
         analyzeExpression acenv (notReturnableAddress aenv) receiver
         checkValue acenv aenv syntaxNode field
 
@@ -825,24 +876,25 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
 
     | BoundExpression.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
-        analyzeExpression acenv (notReturnableAddress aenv) rhs
+        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs prop.Type
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
         checkValue acenv aenv syntaxNode prop
 
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        analyzeExpression acenv (notReturnableAddress aenv) rhs
+        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs value.Type
         checkValue acenv aenv syntaxNode value
 
     | BoundExpression.SetContentsOfAddress(_, lhsExpr, rhsExpr) ->
         analyzeExpression acenv (notReturnableAddress aenv) lhsExpr
-        analyzeExpression acenv (notReturnableAddress aenv) rhsExpr
+        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhsExpr (stripByRef lhsExpr.Type)
 
     | BoundExpression.Lambda(_, _, _, pars, lazyBodyExpr, lazyTy, _, _) ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
         OlyAssert.True(lazyTy.Type.IsFunction_t)
 
-        if aenv.IsUnmanagedAllocationOnly then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
         match lazyTy.Type.TryFunction with
@@ -892,9 +944,9 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
 
     | BoundExpression.EntityDefinition(syntaxInfo=syntaxInfo;body=bodyExpr;ent=ent) ->
 
-        if aenv.IsUnmanagedAllocationOnly && ent.IsClass then
+        // Context Analysis: UnmanagedAllocationOnly
+        if aenv.IsInUnmanagedAllocationOnlyContext && ent.IsClass then
             reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
-        
 
         let aenv = 
             match syntaxInfo.TryEnvironment with

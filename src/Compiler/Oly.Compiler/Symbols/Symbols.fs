@@ -1357,7 +1357,7 @@ let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
     stripTypeEquationsAux true false ty
 
-let stripByReference (ty: TypeSymbol) =
+let stripByRef (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.ByRef(innerTy, _) -> innerTy
     | _ -> ty
@@ -3345,6 +3345,34 @@ type TypeSymbol =
         | HigherVariable _ -> true
         | _ -> false
 
+    member this.IsAnyTypeVariableWithNotStructConstraint =
+        match stripTypeEquations this with
+        | Variable(tyPar)
+        | HigherVariable(tyPar, _) ->
+            tyPar.Constraints
+            |> ImArray.exists (function
+                | ConstraintSymbol.NotStruct -> true
+                | _ -> false
+            )
+        | _ -> false
+
+    member this.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint =
+        match stripTypeEquations this with
+        | Variable(tyPar)
+        | HigherVariable(tyPar, _) ->
+            tyPar.Constraints
+            |> ImArray.exists (function
+                | ConstraintSymbol.Struct
+                | ConstraintSymbol.Unmanaged
+                | ConstraintSymbol.NotStruct -> true
+                | _ -> false
+            )
+            |> not
+        | _ -> false
+
+    member this.IsAnyNonStruct =
+        (not this.IsAnyStruct) || this.IsAnyTypeVariableWithNotStructConstraint
+
     member this.IsTypeConstructor =
         match stripTypeEquations this with
         | ForAll _ -> true
@@ -3642,7 +3670,8 @@ type TypeSymbol =
         | HigherVariable(tyPar, _) ->
             tyPar.Constraints
             |> ImArray.exists (function
-                | ConstraintSymbol.Struct -> true
+                | ConstraintSymbol.Struct
+                | ConstraintSymbol.Unmanaged -> true
                 | _ -> false
             )
         | _ -> false

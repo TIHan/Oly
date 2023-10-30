@@ -422,7 +422,7 @@ let AddressOfMutable =
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.ReadWrite)
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of_mutable" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.AddressOf None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of_mutable" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.AddressOf None false
 
 let AddressOf =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("address_of"))
@@ -435,7 +435,7 @@ let AddressOf =
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read)
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.AddressOf None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.AddressOf None false
 
 let UnsafeAddressOf =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("unsafe_address_of"))
@@ -448,7 +448,7 @@ let UnsafeAddressOf =
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.NativePtr(tyPars.[0].AsType)
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.UnsafeAddressOf None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.UnsafeAddressOf None false
 
 let FromAddress =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("from_address"))
@@ -461,7 +461,7 @@ let FromAddress =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_from_address" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.FromAddress None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_from_address" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.FromAddress None false
 
 let LoadFunction =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function"))
@@ -503,7 +503,7 @@ let LoadFunctionPtr =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[2].AsType, tyPars[1].AsType), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.LoadFunctionPtr None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
 
 let NewRefCell =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("new_ref_cell"))

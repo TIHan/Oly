@@ -5546,3 +5546,188 @@ module M =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "58789"
+
+[<Fact>]
+let ``Should choose correct overload``() =
+    let src =
+        """
+open System
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+class C =
+
+    Write<T>(mutable value: T): () where T: unmanaged, ValueType =
+        print("T")
+        this.Write(&value)
+    Write<T>(value: byref<T>): () where T: unmanaged, ValueType =
+        print("byref")
+
+main(): () =
+    let c = C()
+    c.Write<int32>(0)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Tbyref"
+
+[<Fact>]
+let ``Should choose correct overload 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+class C =
+
+    Write<T>(value: T): () where T: unmanaged, ValueType =
+        print("T")
+        this.Write(&value)
+    Write<T>(value: inref<T>): () where T: unmanaged, ValueType =
+        print("inref")
+
+main(): () =
+    let c = C()
+    c.Write<int32>(0)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Tinref"
+
+[<Fact>]
+let ``Should choose correct overload 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+class C =
+
+    Write<T>(mutable value: T): () where T: unmanaged, ValueType =
+        print("T")
+        this.Write(&value)
+    Write<T>(value: byref<T>): () where T: unmanaged, ValueType =
+        print("byref")
+
+main(): () =
+    let c = C()
+    c.Write<int32>(0: int32)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Tbyref"
+
+[<Fact>]
+let ``Should choose correct overload 4``() =
+    let src =
+        """
+open System
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+class C =
+
+    Write<T>(mutable value: T): () where T: unmanaged, ValueType =
+        print("T")
+        this.Write(&value)
+    Write<T>(value: byref<T>): () where T: unmanaged, ValueType =
+        print("byref")
+
+main(): () =
+    let c = C()
+    c.Write(0: int32)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Tbyref"
+
+[<Fact>]
+let ``Should choose correct overload 5``() =
+    let src =
+        """
+open System
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+class C =
+
+    Write<T>(mutable value: T): () where T: unmanaged, ValueType =
+        print("T")
+        this.Write(&value)
+    Write<T>(value: byref<T>): () where T: unmanaged, ValueType =
+        print("byref")
+
+main(): () =
+    let c = C()
+    c.Write(0)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "Tbyref"

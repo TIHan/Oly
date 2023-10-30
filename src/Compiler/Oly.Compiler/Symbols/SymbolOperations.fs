@@ -190,7 +190,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
         | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
-            if targetTy.IsAnyStruct then
+            if targetTy.IsAnyStruct && not targetTy.IsTypeVariable then
                 match targetTy with
                 | TypeSymbol.UInt8
                 | TypeSymbol.Int8

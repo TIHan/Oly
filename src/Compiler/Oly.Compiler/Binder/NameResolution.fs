@@ -1098,7 +1098,7 @@ let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args
             invalidFunction () :> IValueSymbol
 
 let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs isPatternContext (ident: string) =
-    let ty = stripByReference ty
+    let ty = stripByRef ty
 
     let value =
         let queryMemberFlags =
