@@ -465,7 +465,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
 
         let env1, implicitBaseOpt =
             match currentEnclosing env with
-            | EnclosingSymbol.Entity(ent) when not ent.Extends.IsEmpty && (ent.IsClass || ent.IsStruct) && bindingInfo.Value.IsFunction ->
+            | EnclosingSymbol.Entity(ent) when not ent.Extends.IsEmpty && ent.IsClass && bindingInfo.Value.IsFunction ->
                 let baseTy = ent.Extends.[0]
                 match baseTy.TryEntity with
                 | ValueSome baseEnt ->
@@ -1617,7 +1617,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let implicitBaseCtorCallExprOpt =
             match syntaxConstructTy, env.isInInstanceConstructorType with
             | OlySyntaxConstructType.Anonymous _, Some(ty) ->
-                if not ty.Inherits.IsEmpty && not(ty.Inherits.Length = 1 && ty.Inherits[0].IsBaseObject_t) then
+                if not ty.Inherits.IsEmpty && not(ty.Inherits.Length = 1 && ty.Inherits[0].IsBaseObject_t) && not ty.IsAnyStruct then
                     let implicitParameterlessBaseInstanceCtorOpt =
                         if env.implicitThisOpt.IsNone then
                             None

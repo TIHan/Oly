@@ -205,6 +205,10 @@ type InterpreterField = InterpreterField of declaringTy: InterpreterType * name:
         | InterpreterField(staticFieldValueOpt=valueOpt) ->
             valueOpt.contents <- Some value
 
+    member this.Type =
+        match this with
+        | InterpreterField(ty=ty) -> ty
+
 [<Sealed>]
 type InterpreterFunction(env: InterpreterEnvironment,
                          name: string,
@@ -1001,7 +1005,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | _ ->
                 arg
 
-        let pushValue (stack: Stack<obj>) (value: InterpreterValue) =
+        let rec pushValue (stack: Stack<obj>) (value: InterpreterValue) =
             match value with
             | InterpreterValue.Constant(irConstant, _) ->
                 match irConstant with
@@ -1056,7 +1060,37 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 | ty when ty.IsStruct ->
                     let instance = InterpreterInstanceOfType(resultTy, false, true, resultTy.Inherits, resultTy.Implements)
                     for field in resultTy.Fields do
-                        instance.SetFieldState(field.Name, null)
+                        match field.Type with
+                        | InterpreterType.UInt8 ->
+                            instance.SetFieldState(field.Name, 0uy)
+                        | InterpreterType.UInt16 ->
+                            instance.SetFieldState(field.Name, 0us)
+                        | InterpreterType.UInt32 ->
+                            instance.SetFieldState(field.Name, 0u)
+                        | InterpreterType.UInt64 ->
+                            instance.SetFieldState(field.Name, 0UL)
+                        | InterpreterType.Int8 ->
+                            instance.SetFieldState(field.Name, 0y)
+                        | InterpreterType.Int16 ->
+                            instance.SetFieldState(field.Name, 0s)
+                        | InterpreterType.Int32 ->
+                            instance.SetFieldState(field.Name, 0)
+                        | InterpreterType.Int64 ->
+                            instance.SetFieldState(field.Name, 0L)
+                        | InterpreterType.Float32 ->
+                            instance.SetFieldState(field.Name, 0.0f)
+                        | InterpreterType.Float64 ->
+                            instance.SetFieldState(field.Name, 0.0)
+                        | InterpreterType.Char16 ->
+                            instance.SetFieldState(field.Name, Unchecked.defaultof<char>)
+                        | InterpreterType.Bool ->
+                            instance.SetFieldState(field.Name, Unchecked.defaultof<bool>)
+                        | ty ->
+                            if ty.IsStruct then
+                                pushValue stack (InterpreterValue.DefaultStruct(ty))
+                                instance.SetFieldState(field.Name, stack.Pop())
+                            else
+                                instance.SetFieldState(field.Name, null)
                     stack.Push(instance)
                 | _ ->
                     OlyAssert.Fail("Expected struct type.")
@@ -1295,7 +1329,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 | :? InterpreterInstanceOfType as arg ->
                     stack.Push(arg.GetFieldState(field.Name) |> copyIfStruct)
                 | :? InterpreterByReferenceOfInstance as arg ->
-                    stack.Push(arg.InstanceOfType.GetFieldState(field.Name))
+                    stack.Push(arg.InstanceOfType.GetFieldState(field.Name) |> copyIfStruct)
                 | _ ->
                     failwith "Invalid receiver instance."
 
@@ -1503,7 +1537,7 @@ type InterpreterConstant = OlyIRConstant<InterpreterType, InterpreterFunction>
 
 type InterpreterInstanceOfType private (ty: InterpreterType, isTyExt: bool, isStruct: bool, fieldStates: ConcurrentDictionary<string, obj>, inherits: InterpreterType imarray, implements: InterpreterType imarray) =
 
-    member this.SetFieldState(name, state) =
+    member this.SetFieldState(name, state: obj) =
         fieldStates.[name] <- state
 
     member this.GetFieldState(name): obj =
@@ -1687,6 +1721,9 @@ type InterpreterRuntimeEmitter() =
                 field
             | _ ->
                 raise (NotImplementedException())
+
+        member this.EmitFieldInstance(_, _) =
+            raise(NotSupportedException())
 
         member this.EmitFunctionDefinition(_, enclosingTy, flags, name: string, tyPars, pars, returnTy, overridesOpt, sigKey, _): InterpreterFunction = 
             if not tyPars.IsEmpty then

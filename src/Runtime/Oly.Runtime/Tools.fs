@@ -40,6 +40,9 @@ type DummyEmitter(onEmitBody) =
         member this.EmitField(enclosingTy, flags, name, ty, attrs, constValueOpt) =
             DummyField(name)
 
+        member this.EmitFieldInstance(enclosingTy, field) =
+            field
+
         member this.EmitFunctionBody(body, _, func) =
             onEmitBody func body
 

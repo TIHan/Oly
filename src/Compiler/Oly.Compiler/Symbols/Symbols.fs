@@ -3611,6 +3611,11 @@ type TypeSymbol =
         | TypeSymbol.ByRef(elementTy, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
+    member this.GetByReferenceElementType() =
+        match stripTypeEquations this with
+        | TypeSymbol.ByRef(elementTy, _) -> elementTy
+        | _ -> OlyAssert.Fail("Expected ByRef type.")
+
     member this.TryGetReferenceCellElement =
         match stripTypeEquations this with
         | TypeSymbol.RefCell(elementTy) -> elementTy |> ValueSome
@@ -3675,6 +3680,16 @@ type TypeSymbol =
                 | _ -> false
             )
         | _ -> false
+
+    member this.IsTypeExtendingAStruct =
+        match stripTypeEquations this with
+        | Entity(ent) when ent.IsTypeExtension ->
+            if ent.Extends.IsEmpty then
+                false
+            else
+                ent.IsAnyStruct
+        | _ ->
+            false
 
     member this.IsSealed =
         match stripTypeEquations this with

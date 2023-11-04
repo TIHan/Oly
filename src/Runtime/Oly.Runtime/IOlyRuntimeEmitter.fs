@@ -130,6 +130,11 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         constValueOpt: OlyIRConstant<'Type, 'Function> option 
             -> 'Field
 
+    abstract EmitFieldInstance : 
+        enclosingTy: 'Type * 
+        formalField: 'Field
+            -> 'Field
+
     abstract EmitExportedProperty :
         enclosingTy: 'Type *
         name: string *

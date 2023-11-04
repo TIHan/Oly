@@ -1516,6 +1516,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         ClrFieldHandle.MemberReference(handle, nameHandle, signature)
 
+    member this.AddFieldReference(parent: ClrTypeHandle, fieldHandle: ClrFieldHandle) =  
+        let handle =
+            metadataBuilder.AddMemberReference(
+                parent.EntityHandle,
+                fieldHandle.NameHandle,
+                fieldHandle.Signature
+            )
+
+        ClrFieldHandle.MemberReference(handle, fieldHandle.NameHandle, fieldHandle.Signature)
+
     member this.AddFieldInstance(parent: ClrTypeHandle, fieldHandle: ClrFieldHandle) =  
         let handle =
             metadataBuilder.AddMemberReference(
@@ -1586,8 +1596,21 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member internal this.GenericParameterQueue = genericParamsQueue
 
+[<RequireQualifiedAccess>]
+[<NoEquality;NoComparison>]
+type ClrTypeConstraint =
+    | SubtypeOf of ClrTypeHandle
+
+[<RequireQualifiedAccess>]
+[<NoEquality;NoComparison>]
+type ClrTypeParameter =
+    {
+        Name: string
+        Constraints: ClrTypeConstraint imarray
+    }
+
 [<Sealed>]
-type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyParCount: int, name, tyPars: (string) imarray, pars: (string * ClrTypeHandle) imarray, returnTy: ClrTypeHandle, isInstance: bool) as this =
+type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyParCount: int, name, tyPars: ClrTypeParameter imarray, pars: (string * ClrTypeHandle) imarray, returnTy: ClrTypeHandle, isInstance: bool) as this =
     
     let mutable cachedHandle = ValueNone
     let parTys =
@@ -2509,9 +2532,16 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             let f = fun () ->
                 for i = 0 to tyPars.Length - 1 do
-                    let name = metadataBuilder.GetOrAddString(tyPars.[i])
-                    metadataBuilder.AddGenericParameter(castedHandle, GenericParameterAttributes.None, name, enclosingTyParCount + i)
-                    |> ignore
+                    let tyPar = tyPars.[i]
+                    let name = metadataBuilder.GetOrAddString(tyPar.Name)
+                    let handle = metadataBuilder.AddGenericParameter(castedHandle, GenericParameterAttributes.None, name, enclosingTyParCount + i)
+                    tyPar.Constraints
+                    |> ImArray.iter (fun constr ->
+                        match constr with
+                        | ClrTypeConstraint.SubtypeOf(tyHandle) ->
+                            metadataBuilder.AddGenericParameterConstraint(handle, tyHandle.EntityHandle)
+                            |> ignore
+                    )
             if not tyPars.IsEmpty then
                 asmBuilder.GenericParameterQueue.Enqueue(f, index)
 
@@ -2618,7 +2648,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
     let mutable tyPars = ImArray.empty
 
-    member _.SetTypeParameters(newTyPars: string imarray) =
+    member _.SetTypeParameters(newTyPars: ClrTypeParameter imarray) =
         if newTyPars.Length <> tyParCount then
             failwith "Invalid amount of type parameters."
         tyPars <- newTyPars
@@ -2736,7 +2766,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
             let f = fun () ->
                 for i = 0 to tyPars.Length - 1 do
-                    let name = metadataBuilder.GetOrAddString(tyPars.[i])
+                    let name = metadataBuilder.GetOrAddString(tyPars.[i].Name)
                     metadataBuilder.AddGenericParameter(castedTyDefHandle, GenericParameterAttributes.None, name, i)
                     |> ignore
             if not tyPars.IsEmpty then

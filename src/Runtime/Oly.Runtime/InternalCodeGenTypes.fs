@@ -224,6 +224,7 @@ type RuntimeTypeParameter =
         Name: string
         Arity: int
         IsVariadic: bool
+        ILConstraints: OlyILConstraint imarray
     }
 
     override this.GetHashCode() = this.Name.GetHashCode()
@@ -846,11 +847,11 @@ type RuntimeType =
         | ReferenceCell _
         | Array _
         | ByRef _ 
-        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false })
-        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true })
+        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty })
+        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty })
         | Function _ 
         | NativeFunctionPtr _ ->
-            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false })
+            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty })
         | _ -> 
             ImArray.empty
 

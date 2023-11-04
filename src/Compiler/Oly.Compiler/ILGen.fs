@@ -1760,8 +1760,8 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 GenValueExpression cenv env ilTextRange ValueNone witnessArgs value ImArray.empty
             | E.GetField(receiver=receiver;field=field) ->
                 GenGetFieldExpression cenv env ilTextRange ValueNone receiver field
-            | _ ->
-                failwith "Invalid use of intrinsic 'from_address'"
+            | argExpr ->
+                GenExpression cenv env argExpr
 
         OlyILExpression.Operation(ilTextRange, OlyILOperation.LoadFromAddress(ilArgExpr))
 

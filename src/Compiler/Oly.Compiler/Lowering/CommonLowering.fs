@@ -420,9 +420,20 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                     let thisExpr = E.CreateValue(syntaxInfo.Syntax.Tree, thisPar)
                     let newBodyExpr =
                         let firstExprOpt =
-                            if ent.Extends.IsEmpty || ent.IsNewtype then None
+                            if ent.Extends.IsEmpty || ent.IsNewtype || ent.IsAnyStruct then None
                             else
-                                match ent.Extends.[0].TryEntity with
+                                let baseTy = ent.Extends.[0]
+                                let baseTy =
+                                    // REVIEW: This is kinda of a hack since we generally do not try to get information
+                                    //         this way. Consider finding the entity before lowering.
+                                    match syntaxInfo.TryEnvironment with
+                                    | Some benv ->
+                                        match benv.TryFindEntityByIntrinsicType baseTy with
+                                        | ValueSome(ent) -> ent.AsType
+                                        | _ -> baseTy
+                                    | _ ->
+                                        baseTy
+                                match baseTy.TryEntity with
                                 | ValueSome(baseEnt) ->
                                     let baseDefaultInstanceCtorOpt =
                                         createBaseInstanceConstructors "" baseEnt
@@ -530,6 +541,26 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                 newBodyExpr,
                 ent
             )
+
+    // Implicit copy for read-only by-ref to non-read-only by-ref.
+    | E.Call(syntaxInfo, Some(receiverArgExpr), witnessArgs, logicalArgExprs, value, isVirtualCall) when value.IsFunction ->
+        let firstParTy = value.AsFunction.Parameters[0].Type
+        if not firstParTy.IsReadOnlyByRef then
+            let receiverArgExprTy = receiverArgExpr.Type
+            if receiverArgExprTy.IsReadOnlyByRef then
+                let copy = createMutableLocalGeneratedValue "implicitCopy" (receiverArgExprTy.GetByReferenceElementType())
+                let copyExpr =
+                    E.Let(
+                        BoundSyntaxInfo.Generated(syntaxTree),
+                        BindingLocal(copy),
+                        WellKnownExpressions.FromAddress(receiverArgExpr),
+                        WellKnownExpressions.AddressOfMutable(E.Value(BoundSyntaxInfo.Generated(syntaxTree), copy))
+                    )
+                E.Call(syntaxInfo, Some(copyExpr), witnessArgs, logicalArgExprs, value, isVirtualCall)
+            else
+                origExpr
+        else
+            origExpr      
 
     | _ ->
         origExpr

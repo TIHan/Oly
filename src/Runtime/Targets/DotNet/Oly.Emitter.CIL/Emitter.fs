@@ -74,6 +74,13 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
             else
                 (match info.enumBaseTyOpt with Some ty -> ty.IsStruct | _ -> false)
 
+    member this.IsTypeVariable =
+        match this with
+        | TypeReference(_, handle, _, _) ->
+            handle.IsVariable
+        | _ ->
+            false
+
     member this.IsByRefOfTypeVariable =
         match this with
         | TypeReference(_, handle, _, _) ->
@@ -860,6 +867,11 @@ module rec ClrCodeGen =
         | O.Cast(irArg, resultTy) ->
             GenArgumentExpression cenv env irArg
 
+            if resultTy.IsTypeVariable then
+                I.Box(irArg.ResultType.Handle) |> emitInstruction cenv
+                I.Unbox_any(resultTy.Handle) |> emitInstruction cenv
+            else
+
             let castFromTy = irArg.ResultType |> getPrimitiveTypeCode cenv
             let castToTy = resultTy |> getPrimitiveTypeCode cenv
             
@@ -1071,9 +1083,10 @@ module rec ClrCodeGen =
             elif ty.Handle = cenv.assembly.TypeReferenceUInt64 then
                 I.Stind_i8 |> emitInstruction cenv
             else
-                if irArg2.ResultType.Handle.IsNamed then
-                    I.Stobj(irArg2.ResultType.Handle) |> emitInstruction cenv
-                else
+                match irArg1.ResultType.TryByRefElementType with
+                | ValueSome(elementTy) when not elementTy.IsStruct ->
+                    I.Stobj(elementTy.Handle) |> emitInstruction cenv
+                | _ ->
                     I.Stind_ref |> emitInstruction cenv
 
         | O.StoreField(irField: OlyIRField<_, _, ClrFieldInfo>, irArg1, irArg2, _) ->
@@ -1097,7 +1110,7 @@ module rec ClrCodeGen =
                 else
                     I.Ldobj(returnTy.Handle) |> emitInstruction cenv
             else
-                I.LdindRef |> emitInstruction cenv
+                I.Ldobj(returnTy.Handle) |> emitInstruction cenv
 
         | O.LoadField(irField, irArg, _) ->
             GenArgumentExpression cenv env irArg
@@ -1240,7 +1253,9 @@ module rec ClrCodeGen =
             raise(System.NotImplementedException("Clr FunctionPointer"))
         | _ ->
 
-        irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
+        irArgs 
+        |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
+
         match func.specialKind with
         | ClrMethodSpecialKind.None
         | ClrMethodSpecialKind.External ->
@@ -1360,7 +1375,7 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let canEmitDebugNop cenv =
+    let canEmitDebugNop cenv env =
         cenv.irTier.HasMinimalOptimizations
 
     let createSequencePointInstruction (textRange: inref<OlyIRDebugSourceTextRange>) =
@@ -1389,17 +1404,19 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
-    let emitDebugNopIfPossible cenv : unit =
-        if canEmitDebugNop cenv then
+    let emitDebugNopIfPossible cenv env : unit =
+        if canEmitDebugNop cenv env then
             match tryGetLastInstruction cenv with
             | ValueSome(I.Nop) -> ()
             | _ ->
                 emitInstruction cenv I.Nop
 
-    let emitDebugNopIfTypeVoid cenv (ty: ClrTypeInfo) =
-        if canEmitDebugNop cenv then
+    let emitDebugNopIfTypeVoid cenv env (ty: ClrTypeInfo) =
+        if canEmitDebugNop cenv env then
             match tryGetLastInstruction cenv with
-            | ValueSome(I.Nop) -> ()
+            | ValueSome(I.Nop)
+            | ValueSome(I.HiddenSequencePoint)
+            | ValueSome(I.SequencePoint _) -> ()
             | _ ->
                 emitInstruction cenv I.Nop
 
@@ -1494,7 +1511,7 @@ module rec ClrCodeGen =
             // We only want to emit actual nop and sequence points if the result type is void.
             if resultTy.Handle = cenv.assembly.TypeReferenceVoid then
                 emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
-                emitDebugNopIfPossible cenv
+                emitDebugNopIfPossible cenv env
 
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
@@ -1532,54 +1549,16 @@ module rec ClrCodeGen =
 
         | E.Value(textRange, irValue) ->
             emitSequencePointIfPossible cenv env &textRange
-            emitDebugNopIfPossible cenv
+            emitDebugNopIfPossible cenv env
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
-            let seqPointPosition = cenv.buffer.Count
             emitSequencePointIfPossible cenv env &textRange
-            emitDebugNopIfPossible cenv
+            emitDebugNopIfPossible cenv env
 
-            let prevSeqPointCount = cenv.GetSequencePointCount()
             GenOperation cenv env irOp
-            let didEmitSeqPoints = (cenv.GetSequencePointCount() - prevSeqPointCount) <> 0
 
-            if didEmitSeqPoints then
-                match tryGetLastInstruction cenv with
-                | ValueSome(instr) ->
-                    let seqPointInstrOpt =
-                        if seqPointPosition < cenv.buffer.Count then
-                            let instr = cenv.buffer[seqPointPosition]
-                            match instr with
-                            | I.SequencePoint _
-                            | I.HiddenSequencePoint ->
-                                cenv.buffer[seqPointPosition] <- I.Skip
-                                Some instr
-                            | _ -> 
-                                None
-                        else
-                            None
-
-                    match seqPointInstrOpt with
-                    | Some(instrToSetLast) ->
-                        match tryGetSecondToLastInstruction cenv with
-                        // Handle calls with prefixes. 
-                        // We do this because, as an example, we cannot insert a Nop in-between an I.Constrained and I.Call
-                        | ValueSome(I.Tail as secondToLastInstr)
-                        | ValueSome(I.Constrained _ as secondToLastInstr) ->
-                            setSecondToLastInstruction cenv instrToSetLast
-                            emitDebugNopIfPossible cenv
-                            setLastInstruction cenv secondToLastInstr
-                        | _ ->
-                            setLastInstruction cenv instrToSetLast
-                            emitDebugNopIfPossible cenv
-                        emitInstruction cenv instr
-                    | _ ->
-                        ()
-                | _ ->
-                    ()
-
-            emitDebugNopIfTypeVoid cenv irOp.ResultType
+            emitDebugNopIfTypeVoid cenv env irOp.ResultType
 
         | E.Sequential(irExpr1, irExpr2) ->
             GenExpression cenv (setNotReturnable env) irExpr1
@@ -1646,7 +1625,7 @@ module rec ClrCodeGen =
             match debugTmpOpt with
             | Some(debugTmp) ->
                 emitHiddenSequencePointIfPossible cenv env
-                emitDebugNopIfPossible cenv
+                emitDebugNopIfPossible cenv env
                 I.Stloc debugTmp |> emitInstruction cenv
             | _ ->
                 ()
@@ -1868,6 +1847,23 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     let newUniquePrivateTypeName () =
         "__oly_unique_" + string (newUniqueId ())
+
+    let convertTyPars (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) =
+        tyPars
+        |> ImArray.map (fun x -> 
+            {
+                Name = x.Name
+                Constraints =
+                    x.Constraints
+                    |> ImArray.choose (function
+                        | OlyIRConstraint.SubtypeOf(ty) ->
+                            ClrTypeConstraint.SubtypeOf(ty.Handle)
+                            |> Some
+                        | _ ->
+                            None
+                    )
+            } : ClrTypeParameter
+        )
 
     let createMethodName 
             (externalInfoOpt: OlyIRFunctionExternalInfo option)
@@ -2185,9 +2181,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let isExported = flags.IsExported
 
-            let tyPars =
-                irTyPars
-                |> ImArray.map (fun x -> x.Name)
+            let tyPars = convertTyPars irTyPars
 
             let tyDefBuilder = tyDef.TypeDefinitionBuilder
 
@@ -2472,6 +2466,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | _ ->
                 failwith "Invalid type info."
 
+        member this.EmitFieldInstance(enclosingTy, field) =
+            let fieldHandle = asmBuilder.AddFieldReference(enclosingTy.Handle, field.Handle)
+            {
+                handle = fieldHandle
+                isMutable = field.isMutable
+            }
+
         member this.EmitExportedProperty(enclosingTy, name, ty, attrs, getterOpt, setterOpt) =
             match enclosingTy with
             | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
@@ -2602,10 +2603,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         
             let isInstance = not isStatic && not isTypeExtension        
 
-            let tyPars =
-                tyPars
-                |> Seq.map (fun x -> x.Name)
-                |> ImArray.ofSeq
+            let tyPars = convertTyPars tyPars
                 
             let methRefHandle, methDefBuilderOpt =
                 match enclosingTy with

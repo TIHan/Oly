@@ -16050,6 +16050,144 @@ main(): () =
     |> shouldRunWithExpectedOutput "passed"
     |> ignore
 
+
+[<Fact>]
+let ``Abstract for witness should work 3``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    default M(): () = print("failed")
+
+    X: __oly_int32 get
+
+struct S =
+
+    public mutable field x: __oly_int32 = 0
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    X: __oly_int32
+        get() =
+            this.x
+        set(value) =
+            this.x <- value
+
+    mutable M(): () =
+        this.X <- __oly_add(this.X, 1)
+
+Test<T>(s: T): () where T: IA =
+    let f = 
+        () -> 
+            s.M()
+            s.M()
+            print(s.X)
+    f()
+    print(s.X)
+
+main(): () =
+    Test<S>(S())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "20"
+    |> ignore
+
+[<Fact>]
+let ``Abstract for witness should work 4``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    default M(): () = print("failed")
+
+    X: __oly_int32 get
+
+struct S =
+
+    public mutable field x: __oly_int32 = 0
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    X: __oly_int32
+        get() =
+            this.x
+        set(value) =
+            this.x <- value
+
+    mutable M(): () =
+        this.X <- __oly_add(this.X, 1)
+
+Test(mutable s: S): ()=
+    s.M()
+    s.M()
+    print(s.X)
+
+main(): () =
+    Test(S())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Abstract for witness should work 5``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+    default M(): () = print("failed")
+
+    X: __oly_int32 get
+
+struct S =
+
+    public mutable field x: __oly_int32 = 0
+
+#[open]
+extension SA =
+    inherits S
+    implements IA
+
+    X: __oly_int32
+        get() =
+            this.x
+        set(value) =
+            this.x <- value
+
+    mutable M(): () =
+        this.X <- __oly_add(this.X, 1)
+
+Test(mutable s: S): ()=
+    let f = 
+        () -> 
+            s.M()
+            s.M()
+            print(s.X)
+    f()
+
+main(): () =
+    Test(S())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+
 [<Fact>]
 let ``Witness passing regression``() =
     let src =
@@ -16728,4 +16866,961 @@ print(__oly_object): ()
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "1234"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should occur``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+M<T>(x: inref<T>): int32 where T: IA =
+    x.SideEffect()
+    x.SideEffect()
+    x.X
+
+main(): () =
+    let s = S()
+    let result = M(&s)
+    print(result)
+    print("_")
+    print(s.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1_1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should occur 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+interface IA2 =
+
+    S: S get
+
+struct S2 =
+    implements IA2
+
+    S: S get, set = S()
+
+M<T>(x: inref<T>): int32 where T: IA2 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(&s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1_1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should occur 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+interface IA2 =
+
+    S: S get
+
+struct S2 =
+    implements IA2
+
+    S: S get, set = S()
+
+M<T>(x: byref<T>): int32 where T: IA2 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(&s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1_1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+struct S =
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+M(mutable x: S): int32 =
+    x.SideEffect()
+    x.SideEffect()
+    x.X
+
+main(): () =
+    let s = S()
+    let result = M(s)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+M(x: IA): int32 =
+    x.SideEffect()
+    x.SideEffect()
+    x.X
+
+main(): () =
+    let s = S()
+    let result = M(s)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+M<T>(x: T): int32 where T: IA =
+    x.SideEffect()
+    x.SideEffect()
+    x.X
+
+main(): () =
+    let s = S()
+    let result = M(s)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+M<T>(x: byref<T>): int32 where T: IA =
+    x.SideEffect()
+    x.SideEffect()
+    x.X
+
+main(): () =
+    let mutable s = S()
+    let result = M(&s)
+    print(result)
+    print("_")
+    print(s.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "9_9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 5``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+interface IA2 =
+
+    S: S get
+
+struct S2 =
+    implements IA2
+
+    S: S get, set = S()
+
+M<T>(x: T): int32 where T: IA2 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 6``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+
+    X: int32 get
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+interface IA2 =
+
+    S: S get
+
+class S2 =
+    implements IA2
+
+    S: S get, set = S()
+
+M<T>(x: T): int32 where T: IA2 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1_1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 7``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+struct S =
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+class S2 =
+
+    S: S get, set = S()
+
+M(x: S2): int32 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1_1"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 8``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+struct S =
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+class S2 =
+
+    public mutable field S: S = S()
+
+M(x: S2): int32 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "9_9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 9``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+struct S =
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+class S2<T> =
+
+    public mutable field S: T = unchecked default
+
+M(x: S2<S>): int32 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.S.X
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_8"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 10``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+    
+    X: int32 get, set
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+class S2<T> where T: IA =
+
+    public mutable field S: T = unchecked default
+
+    GetX(): int32 = this.S.X
+
+    SetX(x: int32): () = this.S.X <- x
+
+M(x: S2<S>): int32 =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+M2(x: S2<S>): int32 =
+    x.SetX(1)
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+main(): () =
+    let mutable s = S2()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    let result = M2(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_89_9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 11``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+class S2<T> where T: IA =
+
+    public field S: T = unchecked default
+
+    GetX(): int32 = this.S.X
+
+    SetX(x: int32): () = this.S.X <- x
+
+M<T>(x: S2<T>): int32 where T: IA =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+M2<T>(x: S2<T>): int32 where T: IA =
+    x.SetX(1)
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+main(): () =
+    let mutable s = S2<S>()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    let result = M2(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_89_9"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 12``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+struct S2<T> where T: IA =
+
+    public field S: T = unchecked default
+
+    GetX(): int32 = this.S.X
+
+    SetX(x: int32): () = this.S.X <- x
+
+M<T>(x: S2<T>): int32 where T: IA =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+M2<T>(x: S2<T>): int32 where T: IA =
+    x.SetX(1)
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+main(): () =
+    let mutable s = S2<S>()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    let result = M2(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_09_0"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 13``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+struct S2<T> where T: IA =
+    implements IA
+
+    public field S: T = unchecked default
+
+    X: int32
+        get() = this.S.X
+        set(value) = this.S.X <- value
+
+    SideEffect(): () =
+        this.S.SideEffect()
+
+struct S3<T> where T: IA =
+
+    public field S: T = unchecked default
+
+    GetX(): int32 = this.S.X
+
+    SetX(x: int32): () = this.S.X <- x
+
+M<T>(x: S3<T>): int32 where T: IA =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+M2<T>(x: S3<T>): int32 where T: IA =
+    x.SetX(1)
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+main(): () =
+    let mutable s = S3<S2<S>>()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    let result = M2(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_09_0"
+    |> ignore
+
+[<Fact>]
+let ``Implicit copy should not occur 16``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+struct S2<T> where T: IA =
+    implements IA
+
+    public field S: T = unchecked default
+
+    X: int32
+        get() = this.S.X
+        set(value) = this.S.X <- value
+
+    SideEffect(): () =
+        this.S.SideEffect()
+
+struct S3<T> where T: IA =
+
+    public field S: S2<T> = unchecked default
+
+    GetX(): int32 = this.S.S.X
+
+    SetX(x: int32): () = this.S.S.X <- x
+
+M<T>(x: S3<T>): int32 where T: IA =
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+M2<T>(x: S3<T>): int32 where T: IA =
+    x.SetX(1)
+    x.S.SideEffect()
+    x.S.SideEffect()
+    x.GetX()
+
+main(): () =
+    let mutable s = S3<S2<S>>()
+    let result = M(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    let result = M2(s)
+    print(result)
+    print("_")
+    print(s.S.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_09_0"
     |> ignore

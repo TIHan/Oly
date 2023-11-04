@@ -382,6 +382,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                 Arity = ilTyPar.Arity
                 IsVariadic = ilTyPar.IsVariadic
+                ILConstraints = ilTyPar.Constraints
             } : RuntimeTypeParameter
         )
 
@@ -524,6 +525,7 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
     member val LocalAddressExposed = Array.init localCount (fun _ -> false) with get
     member val LocalMutability = Array.init localCount (fun _ -> false) with get
     member val ArgumentAddressExposed = Array.init argCount (fun _ -> false) with get
+    member val ArgumentMutability = Array.init argCount (fun _ -> false) with get
     member val ArgumentUsageCount = Array.init argCount (fun _ -> 0) with get
 
 [<NoEquality;NoComparison>]
@@ -550,23 +552,12 @@ type env<'Type, 'Function, 'Field> =
         OlyAssert.False(argTy.IsTypeExtension)
         OlyAssert.False(argTy.IsModule)
 #endif
-        
-        if argTy.IsByRef_t && (not argTy.IsByRefOfVariable || env.GenericContext.IsErasingFunction) && (not expectedArgTy.IsByRef_t) then
-            match irArg with
-            | E.Value(irTextRange, V.LocalAddress(n, _, _)) ->
-                let ty = argTy.TypeArguments[0]
-                E.Value(irTextRange, V.Local(n, cenv.EmitType(ty))), ty
-        
-            | E.Value(irTextRange, V.ArgumentAddress(n, _, _)) ->
-                let ty = argTy.TypeArguments[0]
-                E.Value(irTextRange, V.Argument(n, cenv.EmitType(ty))), ty
-        
-            | E.Operation(irTextRange, O.LoadFieldAddress(field, arg, _, _)) ->
-                let elementTy = argTy.TypeArguments[0]
-                E.Operation(irTextRange, O.LoadField(field, arg, cenv.EmitType(elementTy))), elementTy
-            | _ ->
-                irArg, argTy
-        else
+
+        if not expectedArgTy.IsByRef_t && argTy.IsByRef_t && not argTy.IsByRefOfVariable then
+            let argDerefTy = argTy.TypeArguments[0]
+            let irArgDerefExpr = E.Operation(NoRange, O.LoadFromAddress(irArg, cenv.EmitType(argDerefTy)))
+            irArgDerefExpr, argDerefTy
+        else      
             irArg, argTy
 
 let createByReferenceRuntimeType irByRefKind elementTy =
@@ -620,7 +611,7 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
         | RuntimeType.Float32 ->
             V.Constant(C.Float32(0.0f), emittedTy) |> asExpr
         | RuntimeType.Float64 ->
-            V.Constant(C.Int8(0y), emittedTy) |> asExpr
+            V.Constant(C.Float64(0.0), emittedTy) |> asExpr
         | RuntimeType.Char16 ->
             V.Constant(C.Char16(char 0), emittedTy) |> asExpr
         | _ ->
@@ -772,9 +763,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
                 | OlyILByRefKind.Read -> OlyIRByRefKind.Read
-            if not env.ILLocals.[localIndex].IsMutable && irByRefKind = OlyIRByRefKind.ReadWrite then
-                failwith "Invalid IL for local."
-            let elementTy = cenv.EmitType(localTy)
+
+            let _elementTy = cenv.EmitType(localTy)
             let resultTy = createByReferenceRuntimeType irByRefKind localTy
             V.LocalAddress(localIndex, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -984,7 +974,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     // Basic devirtualization.
                     if (func.Flags.IsFinal || not func.Flags.IsVirtual) && isVirtualCall then
                         handle()
-                    elif isVirtualCall then
+                    elif isVirtualCall then                              
                         O.CallVirtual(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr, func.ReturnType
                     else
                         handle()
@@ -1332,7 +1322,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 if resultTy.IsByRef_t then
                     resultTy.TypeArguments[0]
                 else
-                    failwith "Expected ByRef."
+                    failwith "Expected ByRef type."
             O.LoadFromAddress(irArg, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewTuple(ilElementTys, ilArgs, ilNameHandles) ->
@@ -1542,6 +1532,9 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
     OlyAssert.False(argTy.IsModule)
 #endif
 
+    if not isReceiver && expectedArgTy.IsByRef_t <> argTy.IsByRef_t && (not expectedArgTy.IsAnyPtr && not argTy.IsAnyPtr) then
+        failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
+
     if argTy.Formal = expectedArgTy.Formal then
         if argTy <> expectedArgTy then
             failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
@@ -1549,7 +1542,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
     else
         if expectedArgTy.IsVoid_t && argTy.IsUnit_t then
             E.Operation(NoRange, O.Ignore(irArg, cenv.EmittedTypeVoid))
-        elif expectedArgTy.IsObjectType && argTy.IsTypeVariable then
+        elif not expectedArgTy.IsAnyStruct && argTy.IsTypeVariable then
             E.Operation(NoRange, O.Box(irArg, cenv.EmitType(expectedArgTy)))
         
         elif subsumesType expectedArgTy argTy then
@@ -2052,7 +2045,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match emitted.TryGetValue field.EnclosingType.TypeArguments with
             | ValueSome res -> res
             | _ -> emitFieldNoCache asm emitted field
-        | _ ->                  
+        | _ ->              
 
         match asm.FieldDefinitionCache.TryGetValue field.ILFieldDefinitionHandle with
         | true, (_, emitted) ->
@@ -2083,14 +2076,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
 
             let res = 
-                this.Emitter.EmitField(
-                    enclosingTy,
-                    field.Flags, 
-                    field.Name,
-                    fieldTy,
-                    irAttrs,
-                    constantOpt
-                )
+                if field.IsFormal || field.EnclosingType.TypeParameters.IsEmpty || (not field.EnclosingType.IsExternal && not field.EnclosingType.IsExported) then
+                    this.Emitter.EmitField(
+                        enclosingTy,
+                        field.Flags, 
+                        field.Name,
+                        fieldTy,
+                        irAttrs,
+                        constantOpt
+                    )
+                else
+                    let emittedField = emitField field.Formal
+                    this.Emitter.EmitFieldInstance(enclosingTy, emittedField)
             emitted.[field.EnclosingType.TypeArguments] <- res
             res
 
@@ -2114,6 +2111,23 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
             OlyIRAttribute(irCtor, irArgs, irNamedArgs)                           
         )
+
+    and emitConstraints (ilAsm: OlyILReadOnlyAssembly) (ilConstrs: OlyILConstraint imarray) genericContext =
+        ilConstrs
+        |> ImArray.map (fun ilConstr ->
+            match ilConstr with
+            | OlyILConstraint.Null -> OlyIRConstraint.Null
+            | OlyILConstraint.Struct -> OlyIRConstraint.Struct
+            | OlyILConstraint.NotStruct -> OlyIRConstraint.NotStruct
+            | OlyILConstraint.Unmanaged -> OlyIRConstraint.Unmanaged
+            | OlyILConstraint.Scoped -> OlyIRConstraint.Scoped
+            | OlyILConstraint.ConstantType(ilTy) ->
+                let ty = this.ResolveType(ilAsm, ilTy, genericContext)
+                OlyIRConstraint.ConstantType(this.EmitType(ty))
+            | OlyILConstraint.SubtypeOf(ilTy) ->
+                let ty = this.ResolveType(ilAsm, ilTy, genericContext)
+                OlyIRConstraint.SubtypeOf(this.EmitType(ty))
+        )     
 
     and emitTypeDefinition (tyDef: RuntimeType) =
         let asm = assemblies.[tyDef.AssemblyIdentity]
@@ -2197,7 +2211,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         ImArray.empty
                     else
                         tyDef.TypeParameters
-                        |> ImArray.map (fun tyPar -> OlyIRTypeParameter(tyPar.Name))
+                        |> ImArray.map (fun tyPar -> 
+                            OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints GenericContext.Default)
+                        )
 
                 let inheritTys =
                     if tyDef.IsNewtype then
@@ -2730,7 +2746,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith $"Multiple fields of '{name}' are found."
             else
                 let asm = assemblies[ilAsm.Identity]
-                { fields.[0] with EnclosingType = enclosingTy; Type = fields.[0].Type.Substitute(GenericContext.Create(enclosingTy.TypeArguments)) }
+                { fields.[0] with EnclosingType = enclosingTy; Type = fields.[0].Type.Substitute(genericContext) }
                 |> asm.RuntimeFieldReferenceCache.Intern
 
     member this.ResolveFunctionDefinition(enclosingTy: RuntimeType, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
@@ -3164,6 +3180,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                             Arity = ilTyPar.Arity
                             IsVariadic = ilTyPar.IsVariadic
+                            ILConstraints = ilTyPar.Constraints
                         } : RuntimeTypeParameter
                     )
 
@@ -3349,6 +3366,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                         Arity = ilTyPar.Arity
                         IsVariadic = ilTyPar.IsVariadic
+                        ILConstraints = ilTyPar.Constraints
                     } : RuntimeTypeParameter
                 )
             let innerTy = this.ResolveType(ilAsm, ilInnerTy, GenericContext.Default)
@@ -3694,7 +3712,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     if isErasingFunc then
                         ImArray.empty
                     else
-                        func.TypeParameters |> ImArray.map (fun tyPar -> OlyIRTypeParameter(tyPar.Name))
+                        func.TypeParameters 
+                        |> ImArray.map (fun tyPar -> 
+                            OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints GenericContext.Default)
+                        )
 
                 let pars = 
                     func.Parameters 
@@ -4102,7 +4123,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             ImArray.init argCount (fun i ->
                 let irArgFlags = OlyIRLocalFlags.None
                 let irArgFlags =
-                    if bodyFunc.IsArgumentMutable(i) then
+                    if bodyFunc.IsArgumentMutable(i) || cenv.ArgumentMutability[i] then
                         irArgFlags ||| OlyIRLocalFlags.Mutable
                     else
                         irArgFlags

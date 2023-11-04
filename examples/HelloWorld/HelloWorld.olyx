@@ -1,6 +1,6 @@
-#target "dotnet: net7"
+#target "dotnet: net8"
 
 #reference "../core/core.olyx"
 
 main(): () =
-    printLine("Hello World!")
+    print("Hello World!")

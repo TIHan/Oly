@@ -289,14 +289,14 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if ((exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtension)) || exprTy.IsTypeVariable) then
+    if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable then
         if exprTy.IsByRef_t then
             failwith "Invalid expression."
         else
             match expr with
             // Cannot take the address of a constant.
             | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
-                if value.IsReadOnly then
+                if value.IsReadOnly && not exprTy.IsTypeVariable then
                     AddressOf expr
                 else
                     AddressOfMutable expr
@@ -314,6 +314,8 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                 if field.Enclosing.IsNewtype then
                     // Cannot take the address of a field from a newtype.
                     expr
+                elif exprTy.IsTypeVariable then
+                    AddressOfMutable expr
                 elif field.IsReadOnly then
                     AddressOf expr
                 else

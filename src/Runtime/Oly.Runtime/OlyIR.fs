@@ -26,15 +26,29 @@ type OlyIRParameter<'RuntimeType> =
     override this.ToString() =
         $"{this.Name}: {this.Type} - (mutable: {this.IsMutable})"
 
-// TODO: Add constraints
+[<RequireQualifiedAccess>]
+[<NoEquality;NoComparison>]
+type OlyIRConstraint<'Type> =
+    | Null
+    | Struct
+    | NotStruct
+    | Unmanaged
+    | Scoped
+    | ConstantType of 'Type
+    | SubtypeOf of 'Type
+
 [<NoComparison;NoEquality>]
 [<DebuggerDisplay("{ToString()}")>]
 type OlyIRTypeParameter<'RuntimeType> =
-    | OlyIRTypeParameter of name: string
+    | OlyIRTypeParameter of name: string * constrs: OlyIRConstraint<'RuntimeType> imarray
 
     member this.Name =
         match this with
-        | OlyIRTypeParameter(name) -> name
+        | OlyIRTypeParameter(name, _) -> name
+
+    member this.Constraints =
+        match this with
+        | OlyIRTypeParameter(_, constrs) -> constrs
 
     override this.ToString() =
         this.Name

@@ -2443,7 +2443,7 @@ module Main =
     proj.Compilation
     |> runWithExpectedOutput "<1, 1, 1>"
 
-[<Fact(Skip = "Invalid program")>]
+[<Fact(Skip = "This test is weird because running it with dotnet.exe explicitly will result in Goo Goo for release. For this test in process, it is Goo Bar for release.")>]
 let ``Weird one``() =
     let src =
         """
@@ -2513,7 +2513,7 @@ module M =
     proj.Compilation
     |> runWithExpectedOutput "Get - Goo Set - Goo "
 
-[<Fact(Skip = "Invalid program")>]
+[<Fact>]
 let ``Weird one 2``() =
     let src =
         """
@@ -2564,7 +2564,7 @@ module M =
                 print(" ")
 
     #[export]
-    GetOffset<T>(item: byref<T>): int =
+    GetOffset<T>(item: byref<T>): int where T: IMoveable =
         let mutable item2 = Item()
         item2.Name <- "Bar"
         item <- unsafeCast(item2)
@@ -5731,3 +5731,225 @@ main(): () =
     let proj = getProject src
     proj.Compilation
     |> runWithExpectedOutput "Tbyref"
+
+[<Fact>]
+let ``Exported type with a generic field type``() =
+    let src =
+        """
+namespace NMSPC1
+
+#[open]
+module Prelude =
+
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+#[export]
+struct S<T> =
+
+    public field X: int32 = 5
+
+#[export]
+module Program =
+
+    #[export]
+    field X: S<int32> = S()
+
+    #[export]
+    main(): () =
+        print(X.X)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "5"
+
+[<Fact>]
+let ``Complex use of fields and structs and mutation with exported``() =
+    let src =
+        """
+namespace NMSPC1
+
+#[open]
+module Prelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("by_ref_read_write")]
+    alias byref<T>
+
+    #[intrinsic("address_of")]
+    (&)<T>(T): byref<T>
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    #[intrinsic("add")]
+    (+)(int32, int32): int32
+
+#[export]
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+#[export]
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+#[export]
+struct S2<T> where T: IA =
+    implements IA
+
+    public field S: T = unchecked default
+
+    X: int32
+        get() = this.S.X
+        set(value) = this.S.X <- value
+
+    SideEffect(): () =
+        this.S.SideEffect()
+
+#[export]
+struct S3<T> where T: IA =
+
+    public field S: T = unchecked default
+
+    GetX(): int32 = this.S.X
+
+    SetX(x: int32): () = this.S.X <- x
+
+
+#[export]
+module Program =
+
+    #[export]
+    M<T>(x: S3<T>): int32 where T: IA =
+        x.S.SideEffect()
+        x.S.SideEffect()
+        x.GetX()
+
+    #[export]
+    M2<T>(x: S3<T>): int32 where T: IA =
+        x.SetX(1)
+        x.S.SideEffect()
+        x.S.SideEffect()
+        x.GetX()
+
+    #[export]
+    main(): () =
+        let mutable s = S3<S2<S>>()
+        let result = M(s)
+        print(result)
+        print("_")
+        print(s.S.X)
+        let result = M2(s)
+        print(result)
+        print("_")
+        print(s.S.X)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "8_09_0"
+
+[<Fact>]
+let ``Complex use of fields and structs and mutation with exported 2``() =
+    let src =
+        """
+namespace NMSPC1
+
+#[open]
+module Prelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("by_ref_read_write")]
+    alias byref<T>
+
+    #[intrinsic("address_of")]
+    (&)<T>(T): byref<T>
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    #[intrinsic("add")]
+    (+)(int32, int32): int32
+
+#[export]
+interface IA =
+    
+    X: int32 get, set
+
+    SideEffect(): ()
+
+#[export]
+struct S =
+    implements IA
+
+    X: int32 get, set = 1
+
+    mutable SideEffect(): () =
+        this.X <- this.X + 4
+
+#[export]
+struct S2<T> where T: IA =
+    implements IA
+
+    public field S: T = unchecked default
+
+    X: int32
+        get() = this.S.X
+        set(value) = this.S.X <- value
+
+    SideEffect(): () =
+        this.S.SideEffect()
+
+#[export]
+struct S3<T> where T: IA =
+
+    public field S: S2<T> = unchecked default
+
+    GetX(): int32 = this.S.S.X
+
+    SetX(x: int32): () = this.S.S.X <- x
+
+
+#[export]
+module Program =
+
+    #[export]
+    M<T>(x: S3<T>): int32 where T: IA =
+        x.S.SideEffect()
+        x.S.SideEffect()
+        x.GetX()
+
+    #[export]
+    M2<T>(x: S3<T>): int32 where T: IA =
+        x.SetX(1)
+        x.S.SideEffect()
+        x.S.SideEffect()
+        x.GetX()
+
+    #[export]
+    main(): () =
+        let mutable s = S3<S2<S>>()
+        let result = M(s)
+        print(result)
+        print("_")
+        print(s.S.X)
+        let result = M2(s)
+        print(result)
+        print("_")
+        print(s.S.X)
+        """
+    let proj = getProject src
+    proj.Compilation
+    |> runWithExpectedOutput "8_09_0"
