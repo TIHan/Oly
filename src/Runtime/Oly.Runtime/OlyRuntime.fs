@@ -580,7 +580,8 @@ let canPossiblyEraseGenericFunction (envFunc: RuntimeFunction) (func: RuntimeFun
         (
             envFunc.IsOverridesExternal && 
             envFunc.Witnesses.IsEmpty && 
-            (not envFunc.TypeParameters.IsEmpty || not envFunc.EnclosingType.TypeParameters.IsEmpty) &&
+            ((not envFunc.TypeParameters.IsEmpty) 
+                || (not envFunc.EnclosingType.CanGenericsBeErased)) &&
             func.Formal.EnclosingType <> envFunc.Formal.EnclosingType
         )
         |> not
@@ -3714,7 +3715,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         func.TypeParameters 
                         |> ImArray.map (fun tyPar -> 
-                            OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints GenericContext.Default)
+                            OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints genericContext)
                         )
 
                 let pars = 

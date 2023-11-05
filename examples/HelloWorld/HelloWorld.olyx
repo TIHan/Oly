@@ -1,4 +1,4 @@
-#target "dotnet: net8"
+#target "dotnet: net7"
 
 #reference "../core/core.olyx"
 
