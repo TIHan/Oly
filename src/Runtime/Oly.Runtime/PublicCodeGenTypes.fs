@@ -14,7 +14,6 @@ type OlyIRLocalFlags =
     | ReadWriteByRefType            = 0b00001010
     
     | AddressExposed                = 0b00010000
-    | UsedOnlyOnce                  = 0b00100000
 
 [<RequireQualifiedAccess>]
 type OlyIRTypeVariableKind =

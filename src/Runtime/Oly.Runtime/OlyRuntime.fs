@@ -398,7 +398,6 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             { 
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
                 Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
-                IsMutable = ilPar.IsMutable
             } : RuntimeParameter
         )
 
@@ -526,7 +525,6 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
     member val LocalMutability = Array.init localCount (fun _ -> false) with get
     member val ArgumentAddressExposed = Array.init argCount (fun _ -> false) with get
     member val ArgumentMutability = Array.init argCount (fun _ -> false) with get
-    member val ArgumentUsageCount = Array.init argCount (fun _ -> 0) with get
 
 [<NoEquality;NoComparison>]
 type env<'Type, 'Function, 'Field> =
@@ -620,9 +618,6 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
     else
         V.Null(emittedTy) |> asExpr
 
-let incrementArgumentUsage (cenv: cenv<'Type, 'Function, 'Field>) argIndex =
-    cenv.ArgumentUsageCount[argIndex] <- cenv.ArgumentUsageCount[argIndex] + 1
-
 let importCatchCase (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTy: RuntimeType) (ilCatchCase: OlyILCatchCase) =
     match ilCatchCase with
     | OlyILCatchCase.CatchCase(localIndex, ilBodyExpr) ->
@@ -715,13 +710,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             createDefaultExpression irTextRange (resultTy, cenv.EmitType(resultTy)), resultTy
 
         | OlyILValue.Argument(argIndex) ->
-            incrementArgumentUsage cenv argIndex
-
             let argTy = env.ArgumentTypes.[argIndex]
             V.Argument(argIndex, cenv.EmitType(argTy)) |> asExpr, argTy
 
         | OlyILValue.ArgumentAddress(argIndex, ilByRefKind) ->
-            incrementArgumentUsage cenv argIndex
             cenv.ArgumentAddressExposed[argIndex] <- true
 
             let argTy = env.ArgumentTypes.[argIndex]
@@ -832,9 +824,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
     | OlyILExpression.Let(localIndex, ilRhsExpr, ilBodyExpr) ->
         let ilLocal = env.ILLocals.[localIndex]
-
-        cenv.LocalMutability[localIndex] <- ilLocal.IsMutable
-
         let localName = env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle)
         let irRhsExpr = importArgumentExpression cenv env env.LocalTypes[localIndex] ilRhsExpr
         let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr
@@ -900,53 +889,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             OlyAssert.False(func.EnclosingType.IsShape)
 
             if func.Flags.IsInlineable then
-
-                (*
-                    Stack Emplace:
-
-                    This fixes a nasty and hidden bug in this example:
-
-                    let mutable currentOffset = 0
-                    match (abc)
-                    | abc =>   // May or may not use a stack-emplace function for the target. Let's assume it does.
-                        work()
-                        work()
-                        work()
-                        currentOffset <- currentOffset + 5
-                        print(currentOffset) // The bug here was that it prints "0" with optimizations on, due to copy-prop.
-                    | _ =>
-                        ()
-
-                    Pattern matches could use a stack-emplace function for the target,
-                    therefore, we need to check the parameters and the argument expressions of locals
-                    and record the local if it is mutable or not because we will do a forced forward-sub
-                    regardless of mutability for stack-emplaced functions.
-
-                    This is also validation for stack-emplaced function calls.
-                *)
-                if func.Flags.IsStackEmplace then
-                    (func.Parameters, irArgs)
-                    ||> ImArray.iter2 (fun par irArg ->
-                        match irArg with
-                        | E.Value(value=V.Local(localIndex, _)) ->
-                            if par.IsMutable <> env.ILLocals[localIndex].IsMutable then
-                                OlyAssert.Fail("Invalid local mutability for stack-emplaced function.")
-
-                            if par.IsMutable then
-                                cenv.LocalMutability[localIndex] <- true
-
-                        | E.Value(value=V.Argument(argIndex, _)) ->
-                            if par.IsMutable <> env.Function.IsArgumentMutable(argIndex) then
-                                OlyAssert.Fail("Invalid argument mutability for stack-emplaced function.")
-
-                        | E.Operation(op=O.LoadField(field=field)) ->
-                            if par.IsMutable <> field.IsMutable then
-                                OlyAssert.Fail("Invalid field mutability for stack-emplaced function.")
-
-                        | _ ->
-                            ()
-                    )
-
                 let dummyEmittedFunc = Unchecked.defaultof<'Function>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
@@ -1205,16 +1147,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         | OlyILOperation.Store(localIndex, ilArg) ->
             cenv.LocalMutability[localIndex] <- true
 
-            if env.ILLocals[localIndex].IsMutable |> not then
-                failwith $"Local '{localIndex}' is not mutable."
             let irArg = importArgumentExpression cenv env env.LocalTypes.[localIndex] ilArg
             O.Store(localIndex, irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.StoreArgument(argIndex, ilArg) ->
-            incrementArgumentUsage cenv argIndex
+            cenv.ArgumentMutability[argIndex] <- true
 
-            if env.Function.Parameters[argIndex].IsMutable |> not then
-                failwith $"Argument '{argIndex}' is not mutable."
             let irArg = importArgumentExpression cenv env env.ArgumentTypes.[argIndex] ilArg
             O.StoreArgument(argIndex, irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
@@ -4121,10 +4059,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 irExpr
 
         let irArgFlags =
-            ImArray.init argCount (fun i ->
+            Array.init argCount (fun i ->
                 let irArgFlags = OlyIRLocalFlags.None
                 let irArgFlags =
-                    if bodyFunc.IsArgumentMutable(i) || cenv.ArgumentMutability[i] then
+                    if cenv.ArgumentMutability[i] then
                         irArgFlags ||| OlyIRLocalFlags.Mutable
                     else
                         irArgFlags
@@ -4143,17 +4081,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         irArgFlags ||| OlyIRLocalFlags.AddressExposed
                     else
                         irArgFlags
-                let irArgFlags =
-                    if cenv.ArgumentUsageCount[i] = 1 then
-                        irArgFlags ||| OlyIRLocalFlags.UsedOnlyOnce
-                    else
-                        irArgFlags
                 irArgFlags                
             )
 
         let irLocalFlags =
             ilLocals
-            |> ImArray.mapi (fun i x ->
+            |> Seq.mapi (fun i x ->
                 let irLocalFlags = OlyIRLocalFlags.None
                 let irLocalFlags =
                     if cenv.LocalMutability[i] then
@@ -4177,6 +4110,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         irLocalFlags
                 irLocalFlags
             )
+            |> Array.ofSeq
 
         OlyIRFunctionBody(irFinalExpr, irArgFlags, irLocalFlags)
 

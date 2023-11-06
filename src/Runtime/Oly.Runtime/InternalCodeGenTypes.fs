@@ -246,7 +246,6 @@ type RuntimeParameter =
     {
         Name: string
         Type: RuntimeType
-        IsMutable: bool
     }
 
     override this.GetHashCode() = this.Name.GetHashCode()
@@ -258,8 +257,7 @@ type RuntimeParameter =
         match o with
         | :? RuntimeParameter as o ->
             this.Name = o.Name &&
-            this.Type = o.Type &&
-            this.IsMutable = o.IsMutable
+            this.Type = o.Type
         | _ ->
             false
 
@@ -1186,15 +1184,6 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
                 this.Parameters[argIndex - 1].Type
         else
             this.Parameters[argIndex].Type
-
-    member this.IsArgumentMutable(argIndex: int) =
-        if this.Flags.IsInstance then
-            if argIndex = 0 then
-                false
-            else
-                this.Parameters[argIndex - 1].IsMutable
-        else
-            this.Parameters[argIndex].IsMutable
 
     member this.IsArgumentByRefType(argIndex: int) =
         if this.Flags.IsInstance then

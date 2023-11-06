@@ -463,7 +463,7 @@ module internal rec Helpers =
                         | _ ->
                             OlyILTableIndex(OlyILTableKind.String, -1)
 
-                    yield OlyILParameter(olyNameHandle, parTy, true, false)
+                    yield OlyILParameter(olyNameHandle, parTy, false)
             }
             |> ImArray.ofSeq
 
@@ -789,7 +789,7 @@ module internal rec Helpers =
         let pars = 
             si.ParameterTypes
             |> ImArray.map (fun olyTy ->
-                OlyILParameter(OlyILTableIndex.CreateString(-1), olyTy, true, false)
+                OlyILParameter(OlyILTableIndex.CreateString(-1), olyTy, false)
             )
         let returnTy = si.ReturnType
 

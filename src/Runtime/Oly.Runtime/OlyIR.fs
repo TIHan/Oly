@@ -140,8 +140,8 @@ type OlyIRValue<'Type, 'Function, 'Field> =
 [<NoEquality;NoComparison>]
 type OlyIRFunctionBody<'Type, 'Function, 'Field>
     (bodyExpr: OlyIRExpression<'Type, 'Function, 'Field>, 
-     argFlags: OlyIRLocalFlags imarray, 
-     localFlags: OlyIRLocalFlags imarray) =
+     argFlags: OlyIRLocalFlags [], 
+     localFlags: OlyIRLocalFlags []) =
 
     member _.Expression = bodyExpr
     member _.ArgumentFlags = argFlags

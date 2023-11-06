@@ -513,7 +513,7 @@ let ``Should eliminate local because isDebuggable is false 2`` () =
     let ilExprTy = OlyILTypeInt32
 
     let ilExpr =
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
             (Local local0)
 
@@ -550,7 +550,7 @@ let ``Should eliminate local because SSA works even when the local is mutated`` 
     let ilExprTy = OlyILTypeInt32
 
     let ilExpr =
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
             (Sequential
                 (Store local0 (ConstantInt32 789))
@@ -631,7 +631,7 @@ let ``Test 2`` () =
                 let local1 = &local1
                 local1
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.ReadWrite), OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
             (Let local1 (LocalAddress local0 OlyILByRefKind.ReadWrite)
@@ -678,7 +678,7 @@ let ``Test 3`` () =
             Turns into:
                 789
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.ReadWrite), OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
             (Let local1 (LocalAddress local0 OlyILByRefKind.ReadWrite)
@@ -728,7 +728,7 @@ let ``Test 4`` () =
             Turns into:
                 789
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.ReadWrite), OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
             (Let local1 (LocalAddress local0 OlyILByRefKind.ReadWrite)
@@ -838,7 +838,7 @@ let ``Test 6`` () =
                 let local0 = default: StructA
                 local0.X
         *)
-        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
@@ -894,7 +894,7 @@ let ``Test 7`` () =
                 let local0 = default: StructA
                 local0.X
         *)
-        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
@@ -998,7 +998,7 @@ let ``Test 9`` () =
             Turns into:
                 1
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (ConstantInt32 1)
@@ -1052,7 +1052,7 @@ let ``Test 10`` () =
             The reason this works is SSA and because we do quick local elimination:
                 Let(n, rhsExpr, Value(Local(n2)) when n = n2 -> rhsExpr
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (ConstantInt32 1)
@@ -1109,7 +1109,7 @@ let ``Test 11`` () =
                 local0 <- 2
                 local2
         *)
-        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (ConstantInt32 1)
@@ -1168,7 +1168,7 @@ let ``Test 12`` () =
                 let local0 = default: StructA
                 local0.X
         *)
-        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.Mutable)
+        let local0 = locals.CreateLocal(tyStructA, OlyILLocalFlags.None)
         let local0r = locals.CreateLocal(OlyILTypeByRef(tyStructA, OlyILByRefKind.ReadWrite), OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)

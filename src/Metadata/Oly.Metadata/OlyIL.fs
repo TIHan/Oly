@@ -287,7 +287,7 @@ type OlyILEntityInstance =
 
 [<NoEquality;NoComparison>]
 type OlyILParameter =
-    | OlyILParameter of name: OlyILStringHandle * ty: OlyILType * isMutable: bool * canInlineClosure: bool
+    | OlyILParameter of name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
 
     member this.NameHandle =
         match this with
@@ -296,10 +296,6 @@ type OlyILParameter =
     member this.Type =
         match this with
         | OlyILParameter(ty=ty) -> ty
-
-    member this.IsMutable =
-        match this with
-        | OlyILParameter(isMutable=isMutable) -> isMutable
 
     member this.CanInlineClosure =
         match this with
@@ -811,7 +807,6 @@ type OlyILType =
 
 type OlyILLocalFlags =
     | None           = 0x0000
-    | Mutable        = 0x0001
 
 [<NoEquality;NoComparison>]
 type OlyILLocal =
@@ -828,10 +823,6 @@ type OlyILLocal =
     member this.Type =
         match this with
         | OlyILLocal(_, _, ty, _) -> ty
-
-    member this.IsMutable =
-        match this with
-        | OlyILLocal(_, _, _, flags) -> flags &&& OlyILLocalFlags.Mutable = OlyILLocalFlags.Mutable
 
 [<NoEquality;NoComparison>]
 type OlyILFunctionBody =

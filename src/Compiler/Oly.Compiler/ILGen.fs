@@ -514,7 +514,6 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
                 | _ -> true
             | _ ->
                 false
-        let isMutable = par.IsMutable
 
         let parTy = par.Type
 #if DEBUG
@@ -522,7 +521,7 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
             failwith "Unexpected formal type."
 #endif
 
-        OlyILParameter(nameHandle, emitILType cenv env parTy, isMutable, canInlineClosure)
+        OlyILParameter(nameHandle, emitILType cenv env parTy, canInlineClosure)
     )
 
 and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) =
@@ -1225,7 +1224,7 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
                 let name = value.Name
                 let localId = value.Id
                 let ilLocal = 
-                    let flags = if value.IsMutable then OlyILLocalFlags.Mutable else OlyILLocalFlags.None
+                    let flags = OlyILLocalFlags.None
                     OlyILLocal(cenv.funEnv.ilLocals.Count, GenString cenv name, ilTy, flags)
 
                 cenv.funEnv.scopedLocals.Add(localId, ilLocal) // this will protect against accidently adding the same local twice
@@ -2018,7 +2017,7 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
         | _ ->
 
         let ilLocal = 
-            let flags = if isMutable then OlyILLocalFlags.Mutable else OlyILLocalFlags.None
+            let flags = OlyILLocalFlags.None
             OlyILLocal(cenv.funEnv.ilLocals.Count, GenString cenv name, ilTy, flags)
 
         cenv.funEnv.scopedLocals.Add(localId, ilLocal) // this will protect against accidently adding the same local twice

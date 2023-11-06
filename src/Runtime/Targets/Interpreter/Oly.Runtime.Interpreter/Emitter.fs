@@ -1784,8 +1784,8 @@ type InterpreterRuntimeEmitter() =
                             ]
                             |> ImArray.ofSeq
                         )
-                    let argFlags = ImArray.init 2 (fun _ -> OlyIRLocalFlags.None) // TODO: This is not accurate. Consider never having to include the argflags.
-                    lazy OlyIRFunctionBody(body, argFlags, ImArray.empty) |> Some
+                    let argFlags = Array.init 2 (fun _ -> OlyIRLocalFlags.None) // TODO: This is not accurate. Consider never having to include the argflags.
+                    lazy OlyIRFunctionBody(body, argFlags, [||]) |> Some
                 funcs.Add(ctor)
             
 

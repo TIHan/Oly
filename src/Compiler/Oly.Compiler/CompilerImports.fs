@@ -1155,7 +1155,7 @@ let private importParameter (cenv: cenv) (enclosingTyPars: TypeParameterSymbol i
     let ty = importTypeSymbol cenv enclosingTyPars funcTyPars ilPar.Type
     let isThis = false // TODO:
     let attrs = ImArray.empty // TODO:
-    LocalParameterSymbol(attrs, name, ty, isThis, false, ilPar.IsMutable) :> ILocalParameterSymbol
+    LocalParameterSymbol(attrs, name, ty, isThis, (* isBase *) false, (* isMutable: *) false) :> ILocalParameterSymbol
 
 let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
     let flags =
@@ -1370,7 +1370,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                                     OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.ReadWrite)
                             else
                                 ilEnclosingTy
-                        ImArray.createOne(OlyILParameter(OlyILTableIndex.CreateString(-1), ilEnclosingTy, false, false)).AddRange(ilPars)
+                        ImArray.createOne(OlyILParameter(OlyILTableIndex.CreateString(-1), ilEnclosingTy, false)).AddRange(ilPars)
                     else
                         ilPars
 

@@ -10,8 +10,8 @@ val OptimizeFunctionBody<'Type, 'Function, 'Field> :
     tryGetFunctionBody: (RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option) ->
     emitFunction: ((RuntimeFunction * RuntimeFunction) -> 'Function) ->
     func: RuntimeFunction -> 
-    irArgFlags: OlyIRLocalFlags imarray ->
-    irLocalFlags: OlyIRLocalFlags imarray ->
+    irArgFlags: OlyIRLocalFlags [] ->
+    irLocalFlags: OlyIRLocalFlags [] ->
     E<'Type, 'Function, 'Field> -> 
     GenericContext ->
     irTier: OlyIRFunctionTier ->
