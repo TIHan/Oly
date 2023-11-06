@@ -716,6 +716,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         | OlyILValue.ArgumentAddress(argIndex, ilByRefKind) ->
             cenv.ArgumentAddressExposed[argIndex] <- true
 
+            match ilByRefKind with
+            | OlyILByRefKind.ReadWrite ->
+                cenv.ArgumentMutability[argIndex] <- true
+            | _ ->
+                ()
+
             let argTy = env.ArgumentTypes.[argIndex]
             let irByRefKind = 
                 match ilByRefKind with
