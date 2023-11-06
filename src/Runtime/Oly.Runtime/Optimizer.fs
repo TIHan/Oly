@@ -889,7 +889,7 @@ let tryInlineFunction optenv irExpr =
 
                                     SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
 
-                                | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType ->
+                                | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType && ctor.RuntimeFunction.Flags.IsStackEmplace ->
                                     if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
                                         OlyAssert.Fail($"bad forwardsub {irExpr}")
 
@@ -898,7 +898,7 @@ let tryInlineFunction optenv irExpr =
                                 | _ ->
                                     OlyAssert.Fail($"bad forwardsub {irExpr}")
 
-                            | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType ->
+                            | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType && ctor.RuntimeFunction.Flags.IsStackEmplace ->
                                 if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
                                     OlyAssert.Fail($"bad forwardsub {irExpr}")
 
@@ -1142,7 +1142,7 @@ let isNotValidForEmplace optenv irExpr =
     | E.Operation(op=O.LoadField(_, irReceiverExpr, _)) -> isNotValidForEmplace optenv irReceiverExpr
     | E.Operation(op=O.New(func, irArgExprs, _)) when func.RuntimeFunction.Flags.IsStackEmplace ->
         if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
-            true
+            not func.IsClosureInstanceConstructor
         else
             not func.IsClosureInstanceConstructor
     | _ ->
