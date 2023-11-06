@@ -1186,11 +1186,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irArg1, _ = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
             let irArg2 = importArgumentExpression cenv env field.Type ilArg2
 
-            let emittedField = 
-                if env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitField(field)
+            let emittedField = cenv.EmitField(field)
 
             let irField = OlyIRField(emittedField, field)
             O.StoreField(irField, irArg1, irArg2, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
@@ -1245,11 +1241,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     field.EnclosingType
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
 
-            let emittedField = 
-                if env.Function.Flags.IsInstance && env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitField(field)
+            let emittedField = cenv.EmitField(field)
 
             let irField = OlyIRField(emittedField, field)
             O.LoadField(irField, irArg, cenv.EmitType(field.Type)) |> asExpr, field.Type
@@ -1276,11 +1268,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irArg, argTy = importExpression cenv env (Some expectedArgTy) ilArg
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
 
-            let emittedField = 
-                if env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitField(field)
+            let emittedField = cenv.EmitField(field)
 
             let irField = OlyIRField(emittedField, field)
             let resultTy = createByReferenceRuntimeType irByRefKind field.Type
@@ -1404,11 +1392,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     Unchecked.defaultof<_>
                 else
                     cenv.EmitFunction(func)
-            let emittedEnclosingTy = 
-                if func.Flags.IsStackEmplace then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitType(enclosingTy)
+
+            let emittedEnclosingTy = cenv.EmitType(enclosingTy)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
             let newExpr = O.New(irFunc, irArgs, emittedEnclosingTy) |> asExpr
