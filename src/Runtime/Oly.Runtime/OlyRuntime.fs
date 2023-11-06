@@ -942,7 +942,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let argExpr, _ = importExpression cenv env (Some resultTy) ilArgExpr
 
-            let emittedFunc = cenv.EmitFunction(func)
+            let emittedFunc = 
+                if func.Flags.IsStackEmplace then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitFunction(func)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
             E.Operation(
@@ -1181,7 +1185,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irArg1, argTy1 = importExpression cenv env (Some expectedArgTy1) ilArg1
             let irArg1, _ = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
             let irArg2 = importArgumentExpression cenv env field.Type ilArg2
-            let irField = OlyIRField(cenv.EmitField(field), field)
+
+            let emittedField = 
+                if env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitField(field)
+
+            let irField = OlyIRField(emittedField, field)
             O.StoreField(irField, irArg1, irArg2, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.StoreStaticField(ilFieldRef, ilArg) ->
@@ -1233,7 +1244,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 else
                     field.EnclosingType
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
-            let irField = OlyIRField(cenv.EmitField(field), field)
+
+            let emittedField = 
+                if env.Function.Flags.IsInstance && env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitField(field)
+
+            let irField = OlyIRField(emittedField, field)
             O.LoadField(irField, irArg, cenv.EmitType(field.Type)) |> asExpr, field.Type
 
         | OlyILOperation.LoadFieldAddress(ilFieldRef, ilArg, ilByRefKind) ->
@@ -1257,7 +1275,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let irArg, argTy = importExpression cenv env (Some expectedArgTy) ilArg
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
-            let irField = OlyIRField(cenv.EmitField(field), field)
+
+            let emittedField = 
+                if env.Function.Flags.IsInstance && env.Function.Flags.IsStackEmplace && env.Function.EnclosingType.Formal = field.EnclosingType.Formal then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitField(field)
+
+            let irField = OlyIRField(emittedField, field)
             let resultTy = createByReferenceRuntimeType irByRefKind field.Type
             O.LoadFieldAddress(irField, irArg, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -1374,8 +1399,16 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 irArgs[0], enclosingTy.Extends[0]
             else
 
-            let emittedFunc = cenv.EmitFunction(func)
-            let emittedEnclosingTy = cenv.EmitType(enclosingTy)
+            let emittedFunc = 
+                if func.Flags.IsStackEmplace then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitFunction(func)
+            let emittedEnclosingTy = 
+                if func.Flags.IsStackEmplace then
+                    Unchecked.defaultof<_>
+                else
+                    cenv.EmitType(enclosingTy)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
             let newExpr = O.New(irFunc, irArgs, emittedEnclosingTy) |> asExpr
@@ -2080,6 +2113,28 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         if not isGenericsErased && not tyDef.IsFormal then
             failwith "Expected formal type."
+
+//#if DEBUG
+//        let typeShouldNotBeEmitted = 
+//            if tyDef.IsClosure then
+//                let ilEntDef = asm.ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
+//                if ilEntDef.FunctionHandles.IsEmpty then
+//                    false
+//                else
+//                    ilEntDef.FunctionHandles
+//                    |> ImArray.exists (fun ilFuncDefHandle ->
+//                        let ilFuncDef = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+//                        if not ilFuncDef.IsStatic then
+//                            ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace)
+//                        else
+//                            false
+//                    )
+//            else
+//                false
+
+//        if typeShouldNotBeEmitted then
+//            OlyAssert.Fail("Type should not be emitted")
+//#endif
         
         match asm.EntityDefinitionCache.TryGetValue(tyDef.ILEntityDefinitionHandle) with
         | true, (_, emitted) ->
@@ -3615,6 +3670,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let witnesses = func.Witnesses
         let funcTyArgs = func.TypeArguments
         let asm = assemblies.[func.AssemblyIdentity]
+
+        OlyAssert.False(func.Flags.IsStackEmplace)
 
         if not genericContext.IsErasingType && not enclosingTy.IsFormal then
             failwith "Expected formal enclosing type."
