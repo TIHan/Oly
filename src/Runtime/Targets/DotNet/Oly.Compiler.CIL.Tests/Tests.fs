@@ -16796,6 +16796,66 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Explicit stack-emplaced instance function``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+    #[inline(stack)]
+    For(start: int32, length: int32, #[inline(stack)] f: int32 -> ()): () =
+        let mutable i = start
+        while (i < length)
+            f(i)
+            i <- i + 1
+
+    #[inline(never)]
+    ForNoInline(start: int32, length: int32, f: int32 -> ()): () =
+        let mutable i = start
+        while (i < length)
+            f(i)
+            i <- i + 1
+
+main(): () =
+    let c = C()
+
+    let mutable mutValue = -3
+    print(mutValue)
+
+    let start = 0
+    let length = 2
+    c.ForNoInline(0, 2, 
+        i -> 
+            let start = 0
+            let length = 2
+            c.For(start, length,
+                i ->
+                    mutValue <- i
+                    print(i)
+            )
+    )
+
+    print(mutValue)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "-301011"
+    |> ignore
+
+[<Fact>]
 let ``Static ctor evaluation order for fields``() =
     let src =
         """

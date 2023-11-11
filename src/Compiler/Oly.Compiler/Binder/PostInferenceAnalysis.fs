@@ -25,11 +25,13 @@ type aenv =
         envRoot: BinderEnvironment 
         scope: int 
         isReturnableAddress: bool 
+        isReturnable: bool
         freeLocals: ReadOnlyFreeLocals 
         benv: BoundEnvironment 
         isMemberSig: bool
         memberFlags: MemberFlags
         limits: Limits
+        currentFunctionOpt: IFunctionSymbol option
     }
 
     member this.IsInUnmanagedAllocationOnlyContext =
@@ -46,6 +48,18 @@ let returnableAddress aenv =
         aenv
     else
         { aenv with isReturnableAddress = true }
+
+let notReturnable aenv = 
+    if aenv.isReturnable then
+        { aenv with isReturnable = false }
+    else
+        aenv
+
+let returnable aenv =
+    if aenv.isReturnable then
+        aenv
+    else
+        { aenv with isReturnable = true }
 
 let reportUnmanagedAllocationOnly acenv (syntaxNode: OlySyntaxNode) =
     acenv.cenv.diagnostics.Error("Managed allocations are not allowed.", 10, syntaxNode.BestSyntaxForReporting)
@@ -412,12 +426,12 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
             else
                 aenv.limits
 
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; limits = limits } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression
     | ValueSome(rhsExpr) ->
         if value.IsLocal then
-            analyzeArgumentExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr value.Type
+            analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isReturnableAddress = true } rhsExpr value.Type
         else
-            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = true } rhsExpr
+            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isReturnableAddress = true } rhsExpr
     | _ ->
         ()
 
@@ -672,7 +686,11 @@ and analyzeAttribute acenv aenv (syntaxNode: OlySyntaxNode) (attr: AttributeSymb
     | _ ->
         ()
 
-and analyzeArgumentExpression acenv (aenv: aenv) (expr: BoundExpression) (expectedTy: TypeSymbol) =
+and analyzeExpressionWithType acenv (aenv: aenv) (expr: BoundExpression) (expectedTy: TypeSymbol) =
+    analyzeExpressionWithTypeAux acenv aenv expr expectedTy
+    analyzeExpression acenv aenv expr
+
+and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: BoundExpression) (expectedTy: TypeSymbol) =
     // Context Analysis: UnmanagedAllocationOnly
     if aenv.IsInUnmanagedAllocationOnlyContext then
         let exprTy = expr.Type
@@ -680,9 +698,28 @@ and analyzeArgumentExpression acenv (aenv: aenv) (expr: BoundExpression) (expect
         if willBox then
             reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
 
-    analyzeExpression acenv aenv expr
-
 and analyzeExpression acenv aenv (expr: BoundExpression) =
+    if aenv.isReturnable then
+        match aenv.currentFunctionOpt with
+        | Some func ->
+            match expr with
+            // Skip these expressions as we will check their bodies.
+            | E.Try _
+            | E.IfElse _
+            | E.Match _
+            | E.While _ 
+            | E.Sequential _ 
+            | E.Let _ ->
+                ()
+            | _ ->
+                analyzeExpressionWithTypeAux acenv aenv expr func.ReturnType
+            analyzeExpressionAux acenv aenv expr
+        | _ ->
+            analyzeExpressionAux acenv aenv expr
+    else
+        analyzeExpressionAux acenv aenv expr
+
+and analyzeExpressionAux acenv aenv (expr: BoundExpression) =
     acenv.cenv.ct.ThrowIfCancellationRequested()
 
     let diagnostics = acenv.cenv.diagnostics
@@ -700,25 +737,25 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
 
     | BoundExpression.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, exprTy) ->
         analyzeTypePermitByRef acenv aenv syntaxNode exprTy
-        analyzeExpression acenv (notReturnableAddress aenv) conditionExpr
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) conditionExpr
         analyzeExpression acenv aenv trueTargetExpr
         analyzeExpression acenv aenv falseTargetExpr
 
     | BoundExpression.Match(_, _, matchExprs, matchClauses, exprTy) ->
         analyzeTypePermitByRef acenv aenv syntaxNode exprTy
         matchExprs
-        |> ImArray.iter (analyzeExpression acenv (notReturnableAddress aenv))
+        |> ImArray.iter (analyzeExpression acenv (notReturnable aenv |> notReturnableAddress))
         matchClauses
         |> ImArray.iter (function
             | BoundMatchClause.MatchClause(_, matchPat, conditionExprOpt, targetExpr) ->
                 analyzeMatchPattern acenv aenv matchPat
-                conditionExprOpt |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
+                conditionExprOpt |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notReturnableAddress))
                 analyzeExpression acenv (notReturnableAddress aenv) targetExpr
         )
 
     | BoundExpression.While(_, conditionExpr, bodyExpr) ->
-        analyzeExpression acenv (notReturnableAddress aenv) conditionExpr
-        analyzeExpression acenv (notReturnableAddress aenv) bodyExpr
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) conditionExpr
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) bodyExpr
 
     | BoundExpression.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
         analyzeExpression acenv aenv bodyExpr
@@ -733,7 +770,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
 
         finallyBodyExprOpt
         |> Option.iter (fun finallyBodyExpr ->
-            analyzeExpression acenv (notReturnableAddress aenv) finallyBodyExpr
+            analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) finallyBodyExpr
         )
 
     | BoundExpression.Witness(_, benv, _, bodyExpr, witnessArgOptRef, exprTy) ->
@@ -761,22 +798,43 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.ErrorWithNamespace _
     | BoundExpression.ErrorWithType _ -> ()
 
-    | BoundExpression.NewTuple(_, items, _) ->
+    | BoundExpression.NewTuple(_, argExprs, exprTy) ->
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
-        items |> ImArray.iter (fun item -> analyzeExpression acenv (notReturnableAddress aenv) item)
+        let itemTys =
+            match exprTy.TryGetTupleItemTypes() with
+            | ValueSome(itemTys) -> itemTys
+            | _ -> ImArray.empty         
 
-    | BoundExpression.NewArray(_, _, elements, _) ->
+        argExprs 
+        |> ImArray.iteri (fun i argExpr -> 
+            let itemTy =
+                if i < itemTys.Length then
+                    itemTys[i]
+                else
+                    TypeSymbol.Error(None, None)
+            analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) argExpr itemTy
+        )
+
+    | BoundExpression.NewArray(_, _, argExprs, exprTy) ->
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
-        elements |> ImArray.iter (fun element -> analyzeExpression acenv (notReturnableAddress aenv) element)
+        let elementTy =
+            match exprTy.TryGetArrayElementType() with
+            | ValueSome(elementTy) -> elementTy
+            | _ -> TypeSymbol.Error(None, None)
+
+        argExprs
+        |> ImArray.iter (fun argExpr -> 
+            analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) argExpr elementTy
+        )
 
     | BoundExpression.Typed(body=bodyExpr;ty=exprTy) -> 
-        analyzeArgumentExpression acenv aenv bodyExpr exprTy
+        analyzeExpressionWithType acenv aenv bodyExpr exprTy
 
     | BoundExpression.Call(syntaxInfo, receiverArgExprOpt, witnessArgs, logicalArgExprs, value, _) ->
         // Note: Constraints can retry solving in this analysis.
@@ -814,21 +872,21 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
 
         if value.IsFunctionGroup || (value.Type.FunctionParameterCount <> argCount) then
             logicalArgExprs 
-            |> ImArray.iter (analyzeExpression acenv aenv)
+            |> ImArray.iter (analyzeExpression acenv (notReturnable aenv))
 
             receiverArgExprOpt
-            |> Option.iter (analyzeExpression acenv aenv)
+            |> Option.iter (analyzeExpression acenv (notReturnable aenv))
         else
             match value.Type.TryGetFunctionWithParameters() with
             | ValueSome(parTys, _) ->
                 match receiverArgExprOpt with
                 | Some receiverArgExpr ->
-                    analyzeArgumentExpression acenv aenv receiverArgExpr parTys[0]
+                    analyzeExpressionWithType acenv (notReturnable aenv) receiverArgExpr parTys[0]
                     for i = 1 to parTys.Length - 1 do
-                        analyzeArgumentExpression acenv aenv logicalArgExprs[i - 1] parTys[i]
+                        analyzeExpressionWithType acenv (notReturnable aenv) logicalArgExprs[i - 1] parTys[i]
                 | _ ->
                     for i = 0 to parTys.Length - 1 do
-                        analyzeArgumentExpression acenv aenv logicalArgExprs[i] parTys[i]
+                        analyzeExpressionWithType acenv (notReturnable aenv) logicalArgExprs[i] parTys[i]
             | _ -> 
                 ()
 
@@ -864,30 +922,30 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
     | BoundExpression.None _ -> ()
 
     | BoundExpression.GetField(receiver=receiver) ->
-        analyzeExpression acenv aenv receiver
+        analyzeExpression acenv (notReturnable aenv) receiver
 
     | BoundExpression.SetField(_, receiver, field, rhs) ->
-        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs field.Type
-        analyzeExpression acenv (notReturnableAddress aenv) receiver
+        analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) rhs field.Type
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) receiver
         checkValue acenv aenv syntaxNode field
 
     | BoundExpression.GetProperty(receiverOpt=receiverOpt) ->
         receiverOpt
-        |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
+        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notReturnableAddress))
 
     | BoundExpression.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
-        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs prop.Type
+        analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) rhs prop.Type
         receiverOpt
-        |> Option.iter (analyzeExpression acenv (notReturnableAddress aenv))
+        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notReturnableAddress))
         checkValue acenv aenv syntaxNode prop
 
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhs value.Type
+        analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) rhs value.Type
         checkValue acenv aenv syntaxNode value
 
     | BoundExpression.SetContentsOfAddress(_, lhsExpr, rhsExpr) ->
-        analyzeExpression acenv (notReturnableAddress aenv) lhsExpr
-        analyzeArgumentExpression acenv (notReturnableAddress aenv) rhsExpr (stripByRef lhsExpr.Type)
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) lhsExpr
+        analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) rhsExpr (stripByRef lhsExpr.Type)
 
     | BoundExpression.Lambda(_, _, _, pars, lazyBodyExpr, lazyTy, _, _) ->
         OlyAssert.True(lazyBodyExpr.HasExpression)
@@ -920,7 +978,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
                     diagnostics.Error($"'{x.Name}' is an address and cannot be captured.", 10, syntaxNode)
         )
 
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnableAddress = false; freeLocals = freeLocals } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = true; isReturnableAddress = false; freeLocals = freeLocals } lazyBodyExpr.Expression
 
     | BoundExpression.MemberDefinition(_, binding) ->
         let aenv = (notReturnableAddress aenv)
@@ -929,7 +987,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeBinding acenv aenv expr.Syntax binding
 
     | BoundExpression.Sequential(_, e1, e2, _) ->
-        analyzeExpression acenv (notReturnableAddress aenv) e1
+        analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) e1
         analyzeExpression acenv aenv e2
 
     | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
@@ -943,6 +1001,7 @@ and analyzeExpression acenv aenv (expr: BoundExpression) =
         analyzeLiteral acenv aenv syntaxNode literal
 
     | BoundExpression.EntityDefinition(syntaxInfo=syntaxInfo;body=bodyExpr;ent=ent) ->
+        let aenv = (notReturnable aenv)
 
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext && ent.IsClass then
@@ -980,6 +1039,8 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
             isMemberSig = false 
             memberFlags = MemberFlags.None
             limits = Limits.None
+            currentFunctionOpt = None
+            isReturnable = false
         }
     analyzeRoot acenv aenv tree.Root
 

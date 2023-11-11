@@ -3575,7 +3575,7 @@ type TypeSymbol =
         | TypeSymbol.NativePtr _ -> true
         | _ -> false
 
-    member this.IsAnyArray_t =
+    member this.IsAnyArray =
         match stripTypeEquations this with
         | TypeSymbol.Array _ -> true
         | _ -> false
@@ -3583,6 +3583,11 @@ type TypeSymbol =
     member this.IsMutableArray_t =
         match stripTypeEquations this with
         | TypeSymbol.Array(_, _, ArrayKind.Mutable) -> true
+        | _ -> false
+
+    member this.IsAnyTuple =
+        match stripTypeEquations this with
+        | TypeSymbol.Tuple _ -> true
         | _ -> false
 
     member this.IsAnyPtr =
@@ -3615,6 +3620,16 @@ type TypeSymbol =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(elementTy, _) -> elementTy
         | _ -> OlyAssert.Fail("Expected ByRef type.")
+
+    member this.TryGetArrayElementType() =
+        match stripTypeEquations this with
+        | TypeSymbol.Array(elementTy, _, _) -> elementTy |> ValueSome
+        | _ -> ValueNone
+
+    member this.TryGetTupleItemTypes() =
+        match stripTypeEquations this with
+        | TypeSymbol.Tuple(itemTys, _) -> itemTys |> ValueSome
+        | _ -> ValueNone
 
     member this.TryGetReferenceCellElement =
         match stripTypeEquations this with
@@ -3792,6 +3807,9 @@ type TypeSymbol =
             | _ -> 1
         | _ -> 
             0
+
+    member this.FirstTypeArgument =
+        this.TypeArguments[0]
 
     member this.AsParameters(): TypeSymbol imarray =
         match this with

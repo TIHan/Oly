@@ -915,6 +915,7 @@ type OlyILOperation =
     | NewArray of elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
+   // | NewClosure of closureTy: OlyILType * args: OlyILExpression
 
     | Witness of body: OlyILExpression * witnessArg: OlyILType * ty: OlyILType
     | Ignore of arg: OlyILExpression

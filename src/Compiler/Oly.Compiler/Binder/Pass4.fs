@@ -685,16 +685,19 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOp
                 item
             )
 
-        let ty = TypeSymbol.CreateTuple(argExprs |> ImArray.map (fun item -> item.Type))
-        let expectedTupleTy = TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None))
+        let tupleTy = 
+            match expectedTyOpt with
+            | Some expectedTy when expectedTy.IsAnyTuple && expectedTy.TypeArguments.Length = argExprs.Length ->
+                expectedTy
+            | _ ->
+                TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None))
 
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxNode expectedTupleTy ty
-        match expectedTyOpt with
-        | Some(expectedTy) ->
-            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxNode expectedTy expectedTupleTy
-        | _ ->
-            ()
-        env, BoundExpression.NewTuple(BoundSyntaxInfo.User(syntaxNode, env.benv), argExprs, ty)
+        (tupleTy.TypeArguments, argExprs)
+        ||> ImArray.iter2 (checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)))
+
+        let newTupleExpr = BoundExpression.NewTuple(BoundSyntaxInfo.User(syntaxNode, env.benv), argExprs, tupleTy)
+
+        env, checkExpression cenv env expectedTyOpt newTupleExpr
 
 let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxExpression imarray) : BoundExpression =
     let argExprs = bindArguments cenv (env.SetReturnable(false)) syntaxArgs
@@ -1317,7 +1320,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
        
     env, expr
 
-let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
+let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
     let elements =
         syntaxElements
         |> ImArray.map (fun syntaxElement ->
@@ -1337,6 +1340,13 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (syntax
         |> Option.defaultWith(fun () ->
             mkInferenceVariableType None
         )
+
+    match expectedTyOpt with
+    | Some(expectedTy) when expectedTy.IsAnyArray ->
+        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxToCapture expectedTy.FirstTypeArgument elementTy
+    | _ ->
+        ()
+
     elements
     |> ImArray.iter (fun element ->
         checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) elementTy element
@@ -1757,11 +1767,11 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Array(_, syntaxElements, _) ->
-        let env, expr = bindNewArrayExpression cenv env syntaxToCapture false syntaxElements.ChildrenOfType
+        let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture false syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.MutableArray(_, _, syntaxElements, _) ->
-        let env, expr = bindNewArrayExpression cenv env syntaxToCapture true syntaxElements.ChildrenOfType
+        let env, expr = bindNewArrayExpression cenv env expectedTyOpt syntaxToCapture true syntaxElements.ChildrenOfType
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.If(_, _, syntaxConditionExpr, _, syntaxTargetExpr, syntaxElseIfOrElseExpr) ->

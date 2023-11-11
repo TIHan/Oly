@@ -161,16 +161,16 @@ main(): () =
     |> Oly
     |> hasErrorHelperTextDiagnostics
         [
-            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
-                """
-    let x: obj[] = [1234]
-                    ^^^^
-"""
-            )
             ("Managed allocations are not allowed.",
                 """
     let x: obj[] = [1234]
                    ^^^^^^
+"""
+            )
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+    let x: obj[] = [1234]
+                    ^^^^
 """
             )
         ]
@@ -191,16 +191,16 @@ main(): () =
     |> Oly
     |> hasErrorHelperTextDiagnostics
         [
-            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
-                """
-    let x: (int32, obj) = (1234, 678)
-                                 ^^^
-"""
-            )
             ("Managed allocations are not allowed.",
                 """
     let x: (int32, obj) = (1234, 678)
                           ^^^^^^^^^^^
+"""
+            )
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+    let x: (int32, obj) = (1234, 678)
+                                 ^^^
 """
             )
         ]
@@ -401,6 +401,196 @@ M<T>(x: T): () where T: unmanaged =
         ]
 
 [<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 13``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(): obj = 1234
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+M(): obj = 1234
+           ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 14``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj = x
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+M(x: int32): obj = x
+                   ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 15``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj =
+    try
+        x
+    finally
+        let _ = x
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+        x
+        ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 16``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj =
+    let y = x
+    y
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+    y
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 17``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj =
+    ()
+    x
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+    x
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 18``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj =
+    if (true)
+        x
+    else
+        1234
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+        x
+        ^
+"""
+            )
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+        1234
+        ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged(allocation_only) should error as it will cause boxing 19``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+#[unmanaged(allocation_only)]
+M(x: int32): obj =
+    match (x)
+    | 1 =>
+        567
+    | _ =>
+        x
+    """
+    |> Oly
+    |> hasErrorHelperTextDiagnostics
+        [
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+        567
+        ^^^
+"""
+            )
+            ("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.",
+                """
+        x
+        ^
+"""
+            )
+        ]
+
+[<Fact>]
 let ``Simple unmanaged(allocation_only) should error as the local type definition is for managed allocation``() =
     """
 #[intrinsic("int32")]
@@ -503,44 +693,6 @@ main(): () =
                 """
     let _ = f
             ^
-"""
-            )
-        ]
-
-[<Fact>]
-let ``Simple unmanaged(allocation_only) should error as the type parameters must be constrained to 'unmanaged'``() =
-    """
-#[unmanaged(allocation_only)]
-M<T>(): () =
-    ()
-    """
-    |> Oly
-    |> hasErrorHelperTextDiagnostics
-        [
-            ("Managed allocations are not allowed.",
-                """
-M<T>(): () =
-  ^
-"""
-            )
-        ]
-
-
-[<Fact>]
-let ``Simple unmanaged(allocation_only) should error as the type parameters must be constrained to 'unmanaged' 2``() =
-    """
-module MD<T> =
-    #[unmanaged(allocation_only)]
-    M<U>(): () where U: unmanaged =
-        ()
-    """
-    |> Oly
-    |> hasErrorHelperTextDiagnostics
-        [
-            ("Managed allocations are not allowed.",
-                """
-module MD<T> =
-          ^
 """
             )
         ]

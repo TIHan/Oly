@@ -645,7 +645,7 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         )
     )
 
-let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (ctor: IFunctionSymbol) =
+let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (ctor: IFunctionSymbol) (invoke: IFunctionSymbol) =
     Assert.ThrowIfNot(ctor.Formal = ctor)
     Assert.ThrowIfNot(ctor.IsConstructor)
 
@@ -657,14 +657,25 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
         freeLocals
         |> ImArray.map (fun x -> E.CreateValue(syntaxTree, x))
 
-    E.Call(
-        BoundSyntaxInfo.Generated(syntaxTree),
-        None,
-        ImArray.empty,
-        ctorArgExprs,
-        ctor,
-        false
-    )
+    let callCtorExpr =
+        E.Call(
+            BoundSyntaxInfo.Generated(syntaxTree),
+            None,
+            ImArray.empty,
+            ctorArgExprs,
+            ctor,
+            false
+        )
+
+    callCtorExpr
+
+    //let funcTy = 
+    //    if invoke.TypeParameters.IsEmpty then
+    //        invoke.LogicalType
+    //    else
+    //        TypeSymbol.ForAll(invoke.TypeParameters, invoke.LogicalType)
+
+    //WellKnownExpressions.LoadFunction callCtorExpr (E.Value(BoundSyntaxInfo.Generated(syntaxTree), invoke)) funcTy
 
 [<NoEquality;NoComparison>]
 type ClosureInfo =
@@ -864,7 +875,7 @@ let toClosureExpression cenv (info: ClosureInfo) =
     let ctorDefExpr = createClosureConstructorMemberDefinitionExpression cenv ctor
     let invokeDefExpr = createClosureInvokeMemberDefinitionExpression cenv bindingInfoOpt freeLocals pars tyParLookup invoke bodyExpr
         
-    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars ctor
+    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars ctor invoke
 
     let syntaxTree = cenv.tree.SyntaxTree   
     E.CreateSequential(syntaxTree,

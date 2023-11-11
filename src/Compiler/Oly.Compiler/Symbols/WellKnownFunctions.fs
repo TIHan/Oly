@@ -135,14 +135,14 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.GetArrayLength ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.Parameters[0].Type.IsAnyArray &&
                     func.ReturnType.IsInteger
 
             | WellKnownFunction.GetArrayElement ->
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length < 2 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.Parameters[0].Type.IsAnyArray &&
                     func.Parameters[1].Type.IsInteger &&
                     (
                         areTypesEqual func.ReturnType func.Parameters[0].Type.TypeArguments[0] ||
@@ -153,7 +153,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length < 3 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray_t &&
+                    func.Parameters[0].Type.IsAnyArray &&
                     func.Parameters[1].Type.IsInteger &&
                     (areTypesEqual func.ReturnType TypeSymbol.Unit)
 

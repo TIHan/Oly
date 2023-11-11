@@ -8922,3 +8922,33 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Simple array initialization syntax should compile with the binding of object array type with an int32 array``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+main(): () =
+    let x: obj[] = [1234]
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Simple tuple initialization syntax should compile with the binding of object tuple type with an int32 tuple``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias obj
+
+main(): () =
+    let x: (obj, obj) = (1234, 5678)
+    """
+    |> Oly
+    |> shouldCompile

@@ -659,31 +659,36 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
 
     bindingInfo2, rhsExpr2
 
-and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (boundExpr: BoundExpression) =
-    let ty = boundExpr.Type
+and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr: BoundExpression) =
+    let exprTy = expr.Type
 
     if expectedTy.IsSolved && 
-       ty.IsSolved && 
+       exprTy.IsSolved && 
        not expectedTy.IsError_t && 
-       not ty.IsError_t && 
-       subsumesTypeInEnvironment env.benv expectedTy ty then
+       not exprTy.IsError_t && 
+       subsumesTypeInEnvironment env.benv expectedTy exprTy then
         let expectedTyArgs = expectedTy.TypeArguments
         let tyArgs =
-            if areTypesEqual expectedTy ty then
-                ty.TypeArguments
+            if areTypesEqual expectedTy exprTy then
+                exprTy.TypeArguments
             else
                 // This should always pass because it passed subsumption.
-                match ty.AllLogicalInheritsAndImplements |> ImArray.tryFind (fun x -> areTypesEqual x expectedTy) with
+                match exprTy.AllLogicalInheritsAndImplements |> ImArray.tryFind (fun x -> areTypesEqual x expectedTy) with
                 | Some(inheritOrImplementTy) ->
                     inheritOrImplementTy.TypeArguments
                 | _ ->
                     ImArray.empty
         (expectedTyArgs, tyArgs)
         ||> ImArray.tryIter2 (fun expectedTyArg tyArg ->
-            solveTypes env boundExpr.Syntax expectedTyArg tyArg
+            solveTypes env expr.Syntax expectedTyArg tyArg
         )
     else
-        solveTypes env boundExpr.Syntax expectedTy boundExpr.Type
+        // REVIEW: If either type is an error, then just solve it without subsumption 
+        //         because subsumption skips solving if it sees an error type. We should *review* that logic.
+        if exprTy.IsError_t || expectedTy.IsError_t then
+            solveTypes env expr.Syntax expectedTy exprTy
+        else
+            solveTypesWithSubsumption env expr.Syntax expectedTy exprTy
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let reportError name syntax =

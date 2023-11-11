@@ -1373,6 +1373,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.New(ilFuncInst, ilArgs) ->
             let func = cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
+
             OlyAssert.True(func.Flags.IsConstructor)
             OlyAssert.True(func.Flags.IsInstance)
 
@@ -1808,7 +1809,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         count
 
     let resolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) ilFuncTyArgs (enclosing: RuntimeEnclosing) genericContext =
-        let enclosingTyParCount1 = enclosing.TypeParameters.Length
         let funcTyArgs =
             ilFuncTyArgs
             |> ImArray.map (fun x -> this.ResolveType(ilAsm1, x, genericContext))
@@ -1860,6 +1860,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             failwith $"Too many function definitions found for '{name}'."
         else
             OlyAssert.True(funcs[0].IsFormal)
+
+            this.Verify(funcs[0])
 
             let funcTyArgs =
                 // We definitly need to do this.
@@ -4010,6 +4012,38 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member this.OptimizeFunctionBody(func: RuntimeFunction, funcBody: OlyIRFunctionBody<_, _, _>, genericContext: GenericContext) =
         optimizeFunctionBody func funcBody genericContext
 
+    member private this.Verify(func: RuntimeFunction) =
+
+        // Closure Verification
+        if func.EnclosingType.IsClosure && func.Flags.IsInstance && func.Flags.IsConstructor then
+            let ilAsm = func.ILAssembly
+            let ilFuncDef = ilAsm.GetFunctionDefinition(func.ILFunctionDefinitionHandle)
+            let ilFuncBody = ilAsm.GetFunctionBody(ilFuncDef.BodyHandle.contents.Value)
+
+            try
+                let fields = func.EnclosingType.Fields |> ImArray.filter (fun field -> field.Flags.IsInstance)
+                let fieldSet = HashSet<RuntimeField>()
+                let rec check ilExpr =
+                    match ilExpr with
+                    | OlyILExpression.None _ -> ()
+                    | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
+                        check ilExpr1
+                        check ilExpr2
+                    | OlyILExpression.Operation(op=OlyILOperation.StoreField(ilFieldRef, OlyILExpression.Value(value=OlyILValue.Argument(0)), OlyILExpression.Value(value=OlyILValue.Argument(argIndex)))) ->
+                        let field = this.ResolveField(ilAsm, ilFieldRef, GenericContext.Default)
+                        if field.Formal = fields[argIndex - 1].Formal && fieldSet.Add(field.Formal) then
+                            ()
+                        else
+                            OlyAssert.Fail("Invalid closure constructor.")  
+                    | _ ->
+                        OlyAssert.Fail("Invalid closure constructor.")
+                check ilFuncBody.BodyExpression
+                if fieldSet.Count <> fields.Length then
+                    OlyAssert.Fail("Invalid closure constructor.")
+            with
+            | _ ->
+                OlyAssert.Fail("Invalid closure constructor.")
+
     member this.ImportFunctionBody(
                 bodyFunc: RuntimeFunction, 
                 ilAsm: OlyILReadOnlyAssembly, 
@@ -4260,4 +4294,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         member this.TryFindType(fullyQualifiedTypeName): 'Type option =
             (this: IOlyVirtualMachine<'Type, 'Function, 'Field>).TryFindType(fullyQualifiedTypeName, 0)
+        
+
+
         
