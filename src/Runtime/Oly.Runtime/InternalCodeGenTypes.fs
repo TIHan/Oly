@@ -342,7 +342,11 @@ type RuntimeEntity =
         this.ILEntityKind = OlyILEntityKind.TypeExtension
 
     member this.IsClosure =
-        this.ILEntityKind = OlyILEntityKind.Closure
+        this.ILEntityKind = OlyILEntityKind.Closure ||
+        this.ILEntityKind = OlyILEntityKind.InlineClosure
+
+    member this.IsInlineClosure =
+        this.ILEntityKind = OlyILEntityKind.InlineClosure
 
     member this.IsInterface =
         this.ILEntityKind = OlyILEntityKind.Interface
@@ -800,6 +804,11 @@ type RuntimeType =
     member this.IsClosure =
         match this with
         | Entity(ent) -> ent.IsClosure
+        | _ -> false
+
+    member this.IsInlineClosure =
+        match this with
+        | Entity(ent) -> ent.IsInlineClosure
         | _ -> false
 
     member this.IsInterface =

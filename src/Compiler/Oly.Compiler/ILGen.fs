@@ -979,6 +979,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
         | EntityKind.TypeExtension -> OlyILEntityKind.TypeExtension
         | EntityKind.Alias -> OlyILEntityKind.Alias
         | EntityKind.Closure -> OlyILEntityKind.Closure
+        | EntityKind.InlineClosure -> OlyILEntityKind.InlineClosure
         | EntityKind.Enum -> OlyILEntityKind.Enum
         | EntityKind.Newtype -> OlyILEntityKind.Newtype
 

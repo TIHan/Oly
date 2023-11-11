@@ -1746,6 +1746,8 @@ type EntityKind =
     | Closure
     | Newtype
 
+    | InlineClosure
+
 type FunctionSemantic =
     | NormalFunction
     | GetterFunction
@@ -4619,7 +4621,8 @@ module SymbolExtensions =
                     ValueNone
     
             member this.IsClosure =
-                this.Kind = EntityKind.Closure
+                this.Kind = EntityKind.Closure ||
+                this.Kind = EntityKind.InlineClosure
 
             member this.IsEnum =
                 this.Kind = EntityKind.Enum

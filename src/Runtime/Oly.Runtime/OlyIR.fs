@@ -170,6 +170,10 @@ type OlyIRFunction<'Type, 'Function, 'Field>
         OlyAssert.Equal(true, runtimeFunc.IsSome)
         runtimeFunc.Value.EnclosingType.IsClosure
 
+    member internal this.HasEnclosingInlineClosureType =
+        OlyAssert.Equal(true, runtimeFunc.IsSome)
+        runtimeFunc.Value.EnclosingType.IsInlineClosure
+
     member internal this.IsClosureInstanceConstructor =
         OlyAssert.Equal(true, runtimeFunc.IsSome)
         if this.HasEnclosingClosureType then

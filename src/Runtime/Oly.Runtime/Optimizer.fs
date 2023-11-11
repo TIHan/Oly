@@ -458,16 +458,12 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             | O.LoadField(irField, irReceiverExpr, resultTy) ->
                 if irField.RuntimeEnclosingType.IsClosure then
                     match irReceiverExpr with
-                    | E.Operation(op=O.New(irFunc, irArgExprs, _)) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
-                        let enclosingTy = irFunc.RuntimeFunction.EnclosingType
-                        if enclosingTy.IsClosure then
-                            let fieldIndex = irField.RuntimeField.Value.Index
-                            let irArgExpr = irArgExprs[fieldIndex]
-                            // TODO: We need to write a spec for what is valid for emplacement.
-                            if isNotValidForEmplace optenv irArgExpr |> not then
-                                irArgExpr
-                            else
-                                failwith "Invalid stack-emplacement"
+                    | E.Operation(op=O.New(irFunc, irArgExprs, _)) when irFunc.HasEnclosingInlineClosureType ->
+                        let fieldIndex = irField.RuntimeField.Value.Index
+                        let irArgExpr = irArgExprs[fieldIndex]
+                        // TODO: We need to write a spec for what is valid for emplacement.
+                        if isNotValidForEmplace optenv irArgExpr |> not then
+                            irArgExpr
                         else
                             failwith "Invalid stack-emplacement"
                     | _ ->
@@ -478,23 +474,19 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             | O.StoreField(irField, irReceiverExpr, irRhsExpr, resultTy) ->
                 if irField.RuntimeEnclosingType.IsClosure then
                     match irReceiverExpr with
-                    | E.Operation(op=O.New(irFunc, irArgExprs, _)) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
-                        let enclosingTy = irFunc.RuntimeFunction.EnclosingType
-                        if enclosingTy.IsClosure then
-                            let fieldIndex = irField.RuntimeField.Value.Index
-                            // TODO: We need to write a spec for what is valid for emplacement.
-                            match irArgExprs[fieldIndex] with
-                            | E.Value(value=V.Local(localIndex, _)) ->   
-                                optenv.MarkLocalAsMutable(localIndex)
-                                E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
-                            | E.Value(value=V.Argument(argIndex, _)) ->
-                                optenv.MarkArgumentAsMutable(argIndex)
-                                E.Operation(irTextRange, O.Store(argIndex, irRhsExpr, resultTy))
-                            | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
-                                E.Operation(irTextRange, O.StoreField(field, irReceiverExpr, irRhsExpr, resultTy))
-                            | _ ->
-                                failwith "Invalid stack-emplacement"
-                        else
+                    | E.Operation(op=O.New(irFunc, irArgExprs, _)) when irFunc.HasEnclosingInlineClosureType ->
+                        let fieldIndex = irField.RuntimeField.Value.Index
+                        // TODO: We need to write a spec for what is valid for emplacement.
+                        match irArgExprs[fieldIndex] with
+                        | E.Value(value=V.Local(localIndex, _)) ->   
+                            optenv.MarkLocalAsMutable(localIndex)
+                            E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
+                        | E.Value(value=V.Argument(argIndex, _)) ->
+                            optenv.MarkArgumentAsMutable(argIndex)
+                            E.Operation(irTextRange, O.Store(argIndex, irRhsExpr, resultTy))
+                        | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
+                            E.Operation(irTextRange, O.StoreField(field, irReceiverExpr, irRhsExpr, resultTy))
+                        | _ ->
                             failwith "Invalid stack-emplacement"
                     | _ ->
                         irExpr
@@ -889,7 +881,7 @@ let tryInlineFunction optenv irExpr =
 
                                     SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
 
-                                | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType && ctor.RuntimeFunction.Flags.IsStackEmplace ->
+                                | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
                                     if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
                                         OlyAssert.Fail($"bad forwardsub {irExpr}")
 
@@ -898,7 +890,7 @@ let tryInlineFunction optenv irExpr =
                                 | _ ->
                                     OlyAssert.Fail($"bad forwardsub {irExpr}")
 
-                            | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingClosureType && ctor.RuntimeFunction.Flags.IsStackEmplace ->
+                            | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
                                 if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
                                     OlyAssert.Fail($"bad forwardsub {irExpr}")
 
@@ -1140,7 +1132,7 @@ let isNotValidForEmplace optenv irExpr =
     | E.Value(value=V.Local _)
     | E.Value(value=V.Argument _) -> false
     | E.Operation(op=O.LoadField(_, irReceiverExpr, _)) -> isNotValidForEmplace optenv irReceiverExpr
-    | E.Operation(op=O.New(func, irArgExprs, _)) when func.RuntimeFunction.Flags.IsStackEmplace ->
+    | E.Operation(op=O.New(func, irArgExprs, _)) when func.HasEnclosingInlineClosureType ->
         if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
             not func.IsClosureInstanceConstructor
         else

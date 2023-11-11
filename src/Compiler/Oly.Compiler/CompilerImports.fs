@@ -740,6 +740,7 @@ let private importEntityKind (ilEntKind: OlyILEntityKind) =
     | OlyILEntityKind.Alias -> EntityKind.Alias
     | OlyILEntityKind.Class -> EntityKind.Class
     | OlyILEntityKind.Closure -> EntityKind.Closure
+    | OlyILEntityKind.InlineClosure -> EntityKind.InlineClosure
     | OlyILEntityKind.Interface -> EntityKind.Interface
     | OlyILEntityKind.Module -> EntityKind.Module
     | OlyILEntityKind.Shape -> EntityKind.Shape

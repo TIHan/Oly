@@ -2240,7 +2240,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 |> ImArray.iter (fun field ->
                     if kind <> OlyILEntityKind.Class && 
                        kind <> OlyILEntityKind.Struct && 
-                       kind <> OlyILEntityKind.Closure && 
+                       kind <> OlyILEntityKind.Closure &&
+                       kind <> OlyILEntityKind.InlineClosure &&
                        kind <> OlyILEntityKind.Enum &&
                        kind <> OlyILEntityKind.Module &&
                        kind <> OlyILEntityKind.Newtype then
