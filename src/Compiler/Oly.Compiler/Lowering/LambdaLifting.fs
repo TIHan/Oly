@@ -926,7 +926,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
             | BindingLocal _ -> OlyAssert.Fail("Invalid local binding")
             | BindingLocalFunction _ -> ()
 
-            if bindingInfo.Value.IsStaticLocalFunction then
+            if bindingInfo.Value.IsStaticLocalFunction && (not (lambdaFlags.HasFlag(LambdaFlags.StackEmplace))) then
                 E.Let(syntaxInfo, bindingInfo, makeLambdaBound rhsExpr, bodyExpr)
             else
                 if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then

@@ -95,7 +95,7 @@ let toTargetJump(expr: E) =
             ImArray.empty
             expr.Type
             MemberFlags.Private
-            (FunctionFlags.StackEmplace)
+            (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
             WellKnownFunction.None
             None
             false
@@ -105,7 +105,7 @@ let toTargetJump(expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace,
+            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -154,7 +154,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
             pars
             expr.Type
             MemberFlags.Private
-            (FunctionFlags.StackEmplace)
+            (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
             WellKnownFunction.None
             None
             false
@@ -164,7 +164,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace,
+            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
