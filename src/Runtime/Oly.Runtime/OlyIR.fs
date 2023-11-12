@@ -166,6 +166,11 @@ type OlyIRFunction<'Type, 'Function, 'Field>
         let runtimeFunc = runtimeFunc.Value
         runtimeFunc.Flags.IsInlineable
 
+    member internal this.IsStackEmplace =
+        OlyAssert.Equal(true, runtimeFunc.IsSome)
+        let runtimeFunc = runtimeFunc.Value
+        runtimeFunc.Flags.IsStackEmplace
+
     member internal this.HasEnclosingClosureType =
         OlyAssert.Equal(true, runtimeFunc.IsSome)
         runtimeFunc.Value.EnclosingType.IsClosure
@@ -934,7 +939,7 @@ module Dump =
                     | _ -> irFunc.EmittedFunction.ToString()
             $"{name} `{funcName}`\n{args}"
         | O.LoadFunction(irFunc, _, _) when irFunc.IsInlineable ->
-            $"{name}\n{args} |i|"
+            $"{name} |i|\n {args}"
         | O.Store(n=n) ->
             $"{name} {n}\n{args}"
         | _ ->

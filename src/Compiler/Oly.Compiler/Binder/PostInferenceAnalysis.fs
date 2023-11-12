@@ -24,6 +24,7 @@ type aenv =
     { 
         envRoot: BinderEnvironment 
         scope: int 
+        scopeLambda: int
         isReturnableAddress: bool 
         isReturnable: bool
         freeLocals: ReadOnlyFreeLocals 
@@ -32,6 +33,8 @@ type aenv =
         memberFlags: MemberFlags
         limits: Limits
         currentFunctionOpt: IFunctionSymbol option
+
+        scopedLambdaValues: ValueSymbolMap<int>
     }
 
     member this.IsInUnmanagedAllocationOnlyContext =
@@ -409,9 +412,27 @@ let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
     )
     |> ImArray.min
 
+let handleLambda aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSymbol imarray) =
+    let aenv = 
+        if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
+            aenv
+        else
+            { aenv with scopeLambda = aenv.scopeLambda + 1 }
+
+    (aenv, pars)
+    ||> ImArray.fold (fun aenv par ->
+        match tryAttributesInlineArgument par.Attributes with
+        | Some(InlineArgumentSymbol.Stack) ->
+            { aenv with scopedLambdaValues = aenv.scopedLambdaValues.Add(par, aenv.scopeLambda) }
+        | _ ->
+            aenv
+    )
+
 let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsExprOpt: BoundExpression voption) (value: IValueSymbol) =
     match rhsExprOpt with
-    | ValueSome(E.Lambda(body=lazyBodyExpr)) when value.IsFunction ->
+    | ValueSome(E.Lambda(flags=lambdaFlags;pars=pars;body=lazyBodyExpr)) when value.IsFunction ->
+        let aenv = handleLambda aenv lambdaFlags pars
+
         OlyAssert.True(lazyBodyExpr.HasExpression)
 
         // Context Analysis: UnmanagedAllocationOnly
@@ -864,6 +885,14 @@ and analyzeExpressionAux acenv aenv (expr: BoundExpression) =
             // Context Analysis: UnmanagedAllocationOnly
             if aenv.IsInUnmanagedAllocationOnlyContext && not value.IsUnmanagedAllocationOnly then
                 reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
+
+            // Scope lambda call
+            match aenv.scopedLambdaValues.TryFind(value.Formal) with
+            | Some scopeLambda ->
+                if aenv.scopeLambda > scopeLambda then
+                    acenv.cenv.diagnostics.Error("Value cannot be captured.", 10, syntaxInfo.SyntaxNameOrDefault)
+            | _ ->
+                ()
                 
         let argCount =
             match receiverArgExprOpt with
@@ -947,7 +976,9 @@ and analyzeExpressionAux acenv aenv (expr: BoundExpression) =
         analyzeExpression acenv (notReturnable aenv |> notReturnableAddress) lhsExpr
         analyzeExpressionWithType acenv (notReturnable aenv |> notReturnableAddress) rhsExpr (stripByRef lhsExpr.Type)
 
-    | BoundExpression.Lambda(_, _, _, pars, lazyBodyExpr, lazyTy, _, _) ->
+    | BoundExpression.Lambda(_, lambdaFlags, _, pars, lazyBodyExpr, lazyTy, _, _) ->
+        let aenv = handleLambda aenv lambdaFlags pars
+
         OlyAssert.True(lazyBodyExpr.HasExpression)
         OlyAssert.True(lazyTy.Type.IsFunction_t)
 
@@ -994,7 +1025,13 @@ and analyzeExpressionAux acenv aenv (expr: BoundExpression) =
         analyzeBindingInfo acenv aenv syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
         analyzeExpression acenv aenv bodyExpr
 
-    | BoundExpression.Value(_, value) ->
+    | BoundExpression.Value(syntaxInfo, value) ->
+        match aenv.scopedLambdaValues.TryFind(value) with
+        | Some _ ->
+            acenv.cenv.diagnostics.Error("Value cannot be captured.", 10, syntaxInfo.SyntaxNameOrDefault)
+        | _ ->
+            ()
+
         checkValue acenv aenv syntaxNode value
 
     | BoundExpression.Literal(_, literal) ->
@@ -1033,6 +1070,7 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
         { 
             envRoot = env 
             scope = 0
+            scopeLambda = 0
             isReturnableAddress = false 
             freeLocals = ReadOnlyFreeLocals(System.Collections.Generic.Dictionary()) 
             benv = env.benv 
@@ -1041,6 +1079,8 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
             limits = Limits.None
             currentFunctionOpt = None
             isReturnable = false
+
+            scopedLambdaValues = ValueSymbolMap.Create()
         }
     analyzeRoot acenv aenv tree.Root
 

@@ -8952,3 +8952,151 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``inline(stack) should fail if called in a normal lambda``() =
+    """
+M(f: () -> ()): () = f()
+
+#[inline(stack)]
+M2(#[inline(stack)] f: () -> ()): () =
+    M(() -> f())
+
+main(): () =
+    M2(() -> ())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Value cannot be captured.",
+                """
+    M(() -> f())
+            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``inline(stack) should fail if called in a normal lambda 2``() =
+    """
+M(f: () -> ()): () = f()
+
+#[inline(stack)]
+M2(#[inline(stack)] f: () -> ()): () =
+    M(f)
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+main(): () =
+    M2(() -> ())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Value cannot be captured.",
+                """
+    M(f)
+      ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``inline(stack) should fail if called in a normal lambda 3``() =
+    """
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[inline(stack)]
+M2(#[inline(stack)] f: () -> ()): () =
+    let x = &f
+
+main(): () =
+    M2(() -> ())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Value cannot be captured.",
+                """
+    let x = &f
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``inline(stack) should fail if lambda not created at the call site``() =
+    """
+#[inline(stack)]
+M2(#[inline(stack)] f: () -> ()): () = f()
+
+main(): () =
+    let f = () -> ()
+    M2(f)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Value cannot be captured.",
+                """
+    M2(f)
+       ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``inline(stack) should fail as it cannot override or implement an abstract/virtual function``() =
+    """
+interface IA =
+
+    M(): ()
+
+class A =
+    implements IA
+
+    #[inline(stack)]
+    M(): () = ()
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO ERROR",
+                """
+    M(): () = ()
+    ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``inline(stack) should pass if called in a normal lambda``() =
+    """
+#[inline(stack)]
+M(#[inline(stack)] f: () -> ()): () = f()
+
+#[inline(stack)]
+M2(#[inline(stack)] f: () -> ()): () =
+    M(() -> f())
+
+main(): () =
+    M2(() -> ())
+    """
+    |> Oly
+    |> shouldCompile

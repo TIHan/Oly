@@ -787,6 +787,7 @@ let tryInlineFunction optenv irExpr =
 
             let irFuncBodyExpr = irFuncBody.Expression
 
+            // TODO: We need to write a spec for what is valid for emplacement.
             let isEmplaced = func.Flags.IsStackEmplace
 
             if not isEmplaced && isPassthroughExpression irArgExprs.Length irFuncBodyExpr then
@@ -841,6 +842,8 @@ let tryInlineFunction optenv irExpr =
                             | V.Argument(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.ArgumentAddress(index=argIndex) -> SubValue.Argument(argIndex)
                             | V.Constant(constant, _) -> SubValue.Constant(constant)
+
+                            // TODO: We need to write a spec for what is valid for emplacement.
                             | V.Function(irFunc, _) when irFunc.RuntimeFunction.Flags.IsStackEmplace -> 
                                 if not isEmplaced then
                                     OlyAssert.Fail($"bad forwardsub {irValue}")
@@ -851,6 +854,7 @@ let tryInlineFunction optenv irExpr =
                                 OlyAssert.Fail($"bad forwardsub {irValue}")
 
                         | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
+                            // TODO: We need to write a spec for what is valid for emplacement.
                             if isNotValidForEmplace optenv irReceiverExpr then
                                 OlyAssert.Fail($"bad forwardsub due to side-effect: {irReceiverExpr}")
 
@@ -863,6 +867,7 @@ let tryInlineFunction optenv irExpr =
                             if not isEmplaced then
                                 OlyAssert.Fail($"bad forwardsub {irExpr}")
 
+                            // TODO: We need to write a spec for what is valid for emplacement.
                             match irExpr with
                             | E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)) when irFunc.RuntimeFunction.Flags.IsStackEmplace ->
                                 match irArgExpr with
@@ -873,7 +878,7 @@ let tryInlineFunction optenv irExpr =
                                     | V.Argument(index=argIndex) when optenv.IsArgumentMutable(argIndex) |> not ->
                                         SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
                                     | _ ->
-                                        OlyAssert.Fail($"bad forwardsub {irExpr}")
+                                        OlyAssert.Fail($"bad forwardsub 1 {irExpr}")
 
                                 | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) when not field.IsMutable ->
                                     if isNotValidForEmplace optenv irReceiverExpr then
@@ -883,16 +888,16 @@ let tryInlineFunction optenv irExpr =
 
                                 | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
                                     if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
-                                        OlyAssert.Fail($"bad forwardsub {irExpr}")
+                                        OlyAssert.Fail($"bad forwardsub 2 {irExpr}")
 
                                     SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
 
                                 | _ ->
-                                    OlyAssert.Fail($"bad forwardsub {irExpr}")
+                                    OlyAssert.Fail($"bad forwardsub 3 {irExpr}")
 
                             | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
                                 if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
-                                    OlyAssert.Fail($"bad forwardsub {irExpr}")
+                                    OlyAssert.Fail($"bad forwardsub 4 {irExpr}")
 
                                 SubValue.New(ctor, irArgExprs)
 
@@ -1127,6 +1132,25 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) limit checkAddressExposed depth (
 let hasSideEffect optenv (irExpr: E<_, _, _>) =
     hasSideEffectAux optenv SideEffectDepthLimit false 0 irExpr
 
+// TODO: We need to write a spec for what is valid for emplacement.
+let isNotValidForLoadFunctionEmplace (optenv: optenv<_, _, _>) argExpr =
+    match argExpr with
+    | E.Value(value=V.Local(index, _)) -> optenv.IsLocalMutable(index)
+    | E.Value(value=V.Argument(index, _)) -> optenv.IsArgumentMutable(index)
+    | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
+        if field.IsMutable then
+            true
+        else
+            isNotValidForLoadFunctionEmplace optenv irReceiverExpr
+    | E.Operation(op=O.New(func, irArgExprs, _)) when func.HasEnclosingInlineClosureType ->
+        if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
+            not func.IsClosureInstanceConstructor
+        else
+            not func.IsClosureInstanceConstructor
+    | _ ->
+        true
+
+// TODO: We need to write a spec for what is valid for emplacement.
 let isNotValidForEmplace optenv irExpr =
     match irExpr with
     | E.Value(value=V.Local _)
@@ -1137,6 +1161,8 @@ let isNotValidForEmplace optenv irExpr =
             not func.IsClosureInstanceConstructor
         else
             not func.IsClosureInstanceConstructor
+    | E.Operation(op=O.LoadFunction(func, argExpr, _)) when func.IsStackEmplace ->
+        isNotValidForLoadFunctionEmplace optenv argExpr
     | _ ->
         true
 
