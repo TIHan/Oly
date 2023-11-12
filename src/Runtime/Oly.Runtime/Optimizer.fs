@@ -462,7 +462,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                         let fieldIndex = irField.RuntimeField.Value.Index
                         let irArgExpr = irArgExprs[fieldIndex]
                         // TODO: We need to write a spec for what is valid for emplacement.
-                        if isNotValidForEmplace optenv irArgExpr |> not then
+                        if isNotValidForStackEmplace optenv irArgExpr |> not then
                             irArgExpr
                         else
                             failwith "Invalid stack-emplacement"
@@ -855,7 +855,7 @@ let tryInlineFunction optenv irExpr =
 
                         | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
                             // TODO: We need to write a spec for what is valid for emplacement.
-                            if isNotValidForEmplace optenv irReceiverExpr then
+                            if isNotValidForStackEmplace optenv irReceiverExpr then
                                 OlyAssert.Fail($"bad forwardsub due to side-effect: {irReceiverExpr}")
 
                             if not isEmplaced then
@@ -881,13 +881,13 @@ let tryInlineFunction optenv irExpr =
                                         OlyAssert.Fail($"bad forwardsub 1 {irExpr}")
 
                                 | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) when not field.IsMutable ->
-                                    if isNotValidForEmplace optenv irReceiverExpr then
+                                    if isNotValidForStackEmplace optenv irReceiverExpr then
                                         OlyAssert.Fail($"bad forwardsub due to emplace side-effect: {irReceiverExpr}")
 
                                     SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
 
                                 | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
-                                    if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
+                                    if irArgExprs |> ImArray.exists (isNotValidForStackEmplace optenv) then
                                         OlyAssert.Fail($"bad forwardsub 2 {irExpr}")
 
                                     SubValue.LoadEmplaceFunction(irFunc, irArgExpr)
@@ -896,7 +896,7 @@ let tryInlineFunction optenv irExpr =
                                     OlyAssert.Fail($"bad forwardsub 3 {irExpr}")
 
                             | E.Operation(op=O.New(ctor, irArgExprs, _)) when ctor.HasEnclosingInlineClosureType ->
-                                if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
+                                if irArgExprs |> ImArray.exists (isNotValidForStackEmplace optenv) then
                                     OlyAssert.Fail($"bad forwardsub 4 {irExpr}")
 
                                 SubValue.New(ctor, irArgExprs)
@@ -1133,36 +1133,53 @@ let hasSideEffect optenv (irExpr: E<_, _, _>) =
     hasSideEffectAux optenv SideEffectDepthLimit false 0 irExpr
 
 // TODO: We need to write a spec for what is valid for emplacement.
-let isNotValidForLoadFunctionEmplace (optenv: optenv<_, _, _>) argExpr =
+let isNotValidForLoadFunctionStackEmplace (optenv: optenv<_, _, _>) argExpr =
     match argExpr with
     | E.Value(value=V.Local(index, _)) -> optenv.IsLocalMutable(index)
     | E.Value(value=V.Argument(index, _)) -> optenv.IsArgumentMutable(index)
-    | E.Operation(op=O.LoadField(field, irReceiverExpr, _)) ->
-        if field.IsMutable then
+    | E.Operation(op=op) ->
+        match op with
+        | O.LoadField(field, receiverExpr, _) when not field.IsMutable ->
+            isNotValidForLoadFunctionStackEmplace optenv receiverExpr
+
+        | O.Upcast(argExpr, _) ->
+            isNotValidForLoadFunctionStackEmplace optenv argExpr
+
+        | O.New(func, argExprs, _) when func.HasEnclosingInlineClosureType ->
+            if argExprs |> ImArray.exists (isNotValidForStackEmplace optenv) then
+                not func.IsClosureInstanceConstructor
+            else
+                not func.IsClosureInstanceConstructor
+
+        | _ ->
             true
-        else
-            isNotValidForLoadFunctionEmplace optenv irReceiverExpr
-    | E.Operation(op=O.New(func, irArgExprs, _)) when func.HasEnclosingInlineClosureType ->
-        if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
-            not func.IsClosureInstanceConstructor
-        else
-            not func.IsClosureInstanceConstructor
     | _ ->
         true
 
 // TODO: We need to write a spec for what is valid for emplacement.
-let isNotValidForEmplace optenv irExpr =
-    match irExpr with
+let isNotValidForStackEmplace optenv expr =
+    match expr with
     | E.Value(value=V.Local _)
     | E.Value(value=V.Argument _) -> false
-    | E.Operation(op=O.LoadField(_, irReceiverExpr, _)) -> isNotValidForEmplace optenv irReceiverExpr
-    | E.Operation(op=O.New(func, irArgExprs, _)) when func.HasEnclosingInlineClosureType ->
-        if irArgExprs |> ImArray.exists (isNotValidForEmplace optenv) then
-            not func.IsClosureInstanceConstructor
-        else
-            not func.IsClosureInstanceConstructor
-    | E.Operation(op=O.LoadFunction(func, argExpr, _)) when func.IsStackEmplace ->
-        isNotValidForLoadFunctionEmplace optenv argExpr
+    | E.Operation(op=op) ->
+        match op with
+        | O.LoadField(_, receiverExpr, _) -> 
+            isNotValidForStackEmplace optenv receiverExpr
+
+        | O.Upcast(argExpr, _) -> 
+            isNotValidForStackEmplace optenv argExpr
+
+        | O.LoadFunction(func, argExpr, _) when func.IsStackEmplace ->
+            isNotValidForLoadFunctionStackEmplace optenv argExpr
+
+        | O.New(func, argExprs, _) when func.HasEnclosingInlineClosureType ->
+            if argExprs |> ImArray.exists (isNotValidForStackEmplace optenv) then
+                not func.IsClosureInstanceConstructor
+            else
+                not func.IsClosureInstanceConstructor
+
+        | _ ->
+            true
     | _ ->
         true
 

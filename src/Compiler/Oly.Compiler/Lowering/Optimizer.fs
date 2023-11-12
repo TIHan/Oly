@@ -2,9 +2,6 @@
 module rec Oly.Compiler.Internal.Lowering.Optimizer
 
 open System.Threading
-open System.Collections.Generic
-open System.Collections.ObjectModel
-open System.Collections.Immutable
 
 open Oly.Core
 open Oly.Compiler.Syntax
@@ -28,18 +25,6 @@ type cenv =
         syntaxTree: OlySyntaxTree
         ct: CancellationToken
     }
-
-let canConvertLambdaToStaticLambda (expr: E) =
-    match expr with
-    | E.Lambda(tyPars=tyPars) ->
-        if tyPars.IsEmpty then
-            let freeTyVars = expr.GetFreeTypeVariables()
-            let freeLocals = expr.GetFreeLocals()
-            freeTyVars.Count = 0 && freeLocals.Count = 0
-        else
-            false
-    | _ ->
-        OlyAssert.Fail("Expected lambda expression")
 
 let canEliminateBinding (settings: OptimizerSettings) (bindingInfo: LocalBindingInfoSymbol) (rhsExprTy: TypeSymbol) =
     // Generated let-bindings will always get eliminated regardless if local value elimination is enabled or not.
