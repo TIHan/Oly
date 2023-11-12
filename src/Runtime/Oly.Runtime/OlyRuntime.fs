@@ -895,7 +895,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             OlyAssert.False(func.EnclosingType.IsShape)
 
             if func.Flags.IsInlineable then
-                let dummyEmittedFunc = Unchecked.defaultof<'Function>
+                let dummyEmittedFunc = Unchecked.defaultof<_>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
                 irExpr, func.ReturnType
@@ -942,11 +942,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let argExpr, _ = importExpression cenv env (Some resultTy) ilArgExpr
 
-            let emittedFunc = 
-                if func.Flags.IsStackEmplace then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitFunction(func)
+            let emittedFunc = cenv.EmitFunction(func)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
             E.Operation(
@@ -1388,11 +1384,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 irArgs[0], enclosingTy.Extends[0]
             else
 
-            let emittedFunc = 
-                if func.Flags.IsStackEmplace then
-                    Unchecked.defaultof<_>
-                else
-                    cenv.EmitFunction(func)
+            let emittedFunc = cenv.EmitFunction(func)
 
             let emittedEnclosingTy = cenv.EmitType(enclosingTy)
 
@@ -3646,7 +3638,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 //****************************************************************************************************************************************************************************************************************
 
     member runtime.EmitField(field: RuntimeField) : 'Field =
-        emitField field
+        if field.EnclosingType.IsInlineClosure && field.Flags.IsInstance then
+            Unchecked.defaultof<_>
+        else
+            emitField field
 
     member runtime.EmitType(ty: RuntimeType) : 'Type =
         emitType false ty
@@ -3881,6 +3876,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             failwithf "Function definition not cached: %A" func.Name
 
     member private vm.EmitFunction(canErase, func: RuntimeFunction, irCustomBody: _ option) =
+        if func.EnclosingType.IsInlineClosure && func.Flags.IsInstance then
+            Unchecked.defaultof<_>
+        else
+
         let genericContext = createGenericContextFromFunction canErase func
 
         if func.IsFormal then
