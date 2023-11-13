@@ -66,7 +66,7 @@ type DummyEmitter(onEmitBody) =
             ()
         member this.EmitTypeFloat32() = DummyType("float32")
         member this.EmitTypeFloat64() = DummyType("float64")
-        member this.EmitTypeFunction(inputTys, outputTy) = DummyType("func")
+        member this.EmitTypeFunction(inputTys, outputTy, _) = DummyType("func")
         member this.EmitTypeNativeFunctionPtr(_, parTys, returnTy) = DummyType("func_ptr")
         member this.EmitTypeGenericInstance(ty, tyArgs) = ty
         member this.EmitTypeHigherVariable(index, tyInst, enclosingTyParCount) = DummyType("variable_constructor")

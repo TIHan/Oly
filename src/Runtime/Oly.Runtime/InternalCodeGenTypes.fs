@@ -818,7 +818,7 @@ type RuntimeType =
 
     member this.IsScoped =
         match this with
-        | Entity(ent) -> ent.IsClosure
+        | Entity(ent) -> ent.IsScoped
         | Function(kind=OlyIRFunctionKind.Scoped) -> true
         | _ -> false
 

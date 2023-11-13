@@ -51,7 +51,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeHigherVariable : index: int32 * tyInst: 'Type imarray * kind: OlyIRTypeVariableKind -> 'Type
     /// Element type count will always be two or more.
     abstract EmitTypeTuple          : elementTys: 'Type imarray * elementNames: string imarray -> 'Type
-    abstract EmitTypeFunction       : argTys: 'Type imarray * returnTy: 'Type -> 'Type
+    abstract EmitTypeFunction       : argTys: 'Type imarray * returnTy: 'Type * kind: OlyIRFunctionKind -> 'Type
     abstract EmitTypeRefCell  : ty: 'Type -> 'Type
     // TODO: When we expand literal types, we should create a 'kind' to represent the different possibilities
     //       and then use one function "EmitTypeLiteral".

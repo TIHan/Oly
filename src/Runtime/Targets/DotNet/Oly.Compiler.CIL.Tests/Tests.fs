@@ -17580,3 +17580,34 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "50"
     |> ignore
+
+[<Fact>]
+let ``Scoped lambda 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(f: scoped int32 -> int32): int32 = f(50)
+
+main(): () =
+    let mutable y = 78
+    let result = 
+        M(x -> 
+            y <- x
+            x
+        )
+    print(y)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "50"
+    |> ignore

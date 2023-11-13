@@ -1643,6 +1643,7 @@ let importFunctionBody
 type TypeCache<'Type, 'Function, 'Field> =
     {
         Functions: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+        ScopedFunctions: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
     }
 
 [<Sealed>]
@@ -1668,6 +1669,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     let typeCache = 
         {
             Functions = RuntimeTypeArgumentListTable()
+            ScopedFunctions = RuntimeTypeArgumentListTable()
         }
 
     let resolveFunctionDefinition (enclosingTy: RuntimeType) ilFuncDefHandle =
@@ -2465,14 +2467,19 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
-            | RuntimeType.Function(argTys, returnTy, _ (* TODO: handle kind *)) ->
+            | RuntimeType.Function(argTys, returnTy, kind) ->
+                let cache =
+                    match kind with
+                    | OlyIRFunctionKind.Normal -> typeCache.Functions
+                    | OlyIRFunctionKind.Scoped -> typeCache.ScopedFunctions
                 let key = argTys.Add(returnTy)
-                match typeCache.Functions.TryGetValue key with
+                match cache.TryGetValue key with
                 | ValueSome result -> result
                 | _ ->
-                    let result = this.Emitter.EmitTypeFunction(argTys |> ImArray.map (emitType false), emitType false returnTy)
-                    typeCache.Functions[key] <- result
+                    let result = this.Emitter.EmitTypeFunction(argTys |> ImArray.map (emitType false), emitType false returnTy, kind)
+                    cache[key] <- result
                     result
+
             | RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy) ->
                 this.Emitter.EmitTypeNativeFunctionPtr(ilCc, argTys |> ImArray.map (emitType false), emitType false returnTy)
             | RuntimeType.ByRef(elementTy, kind) ->

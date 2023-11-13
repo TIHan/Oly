@@ -479,6 +479,58 @@ module rec ClrCodeGen =
 
         asmBuilder.AddBlob(b)
 
+    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
+
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true)
+
+        tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
+        tyDef.BaseType <- asmBuilder.TypeReferenceValueType
+
+        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceIntPtr) ("", asmBuilder.TypeReferenceIntPtr)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
+        ctor.ImplementationAttributes <- MethodImplAttributes.Managed
+
+        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
+        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Final
+        invoke.ImplementationAttributes <- MethodImplAttributes.Managed
+
+        let ptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "ptr", asmBuilder.TypeReferenceIntPtr, None)
+        let fnptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "fnptr", asmBuilder.TypeReferenceIntPtr, None)
+
+        ctor.BodyInstructions <-
+            [
+                (I.Ldarg 0)
+                (I.Ldarg 1)
+                (I.Stfld ptrField)
+
+                (I.Ldarg 0)
+                (I.Ldarg 2)
+                (I.Stfld fnptrField)
+
+                I.Ret
+            ]
+            |> ImArray.ofSeq
+
+        invoke.BodyInstructions <-
+            [
+                (I.Ldarg 0)
+                (I.Ldfld ptrField)
+
+                for i = 1 to invokeParTys.Length do
+                    (I.Ldarg i)
+
+                (I.Ldarg 0)
+                (I.Ldfld fnptrField)
+
+                (I.Calli(SignatureCallingConvention.Default, invokeParTys |> ImArray.map snd |> ImArray.prependOne asmBuilder.TypeReferenceIntPtr, invokeReturnTy))
+
+                I.Ret
+            ]
+            |> ImArray.ofSeq
+
+        tyDef
+
     let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
 
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
@@ -719,19 +771,26 @@ module rec ClrCodeGen =
         match irOp with
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             if receiverExpr.ResultType.IsStruct then
-                let boxTy = ClrTypeInfo.TypeReference(cenv.assembly, cenv.assembly.TypeReferenceObject, false, false)
-                GenArgumentExpression cenv env (E.Operation(NoRange, O.Box(receiverExpr, boxTy)))
+                GenArgumentExpression cenv env receiverExpr
+                let localIndex = cenv.NewLocal(receiverExpr.ResultType)
+                I.Stloc localIndex |> emitInstruction cenv
+
+                I.Ldloca localIndex |> emitInstruction cenv
+                I.Ldftn(irFunc.EmittedFunction.handle) |> emitInstruction cenv
+                let ctor = ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
+                I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
+
             else
                 GenArgumentExpression cenv env receiverExpr
 
-            emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
+                emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 
-            let ctor = 
-                if funcTy.IsTypeDefinition_t then
-                    ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
-                else
-                    ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
-            I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
+                let ctor = 
+                    if funcTy.IsTypeDefinition_t then
+                        ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
+                    else
+                        ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
+                I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -1319,9 +1378,28 @@ module rec ClrCodeGen =
         I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
     let GenCallIndirect (cenv: cenv) env (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
-        GenArgumentExpression cenv env irFunArg
 
         let funcTy = irFunArg.ResultType
+
+        //if funcTy.IsStruct && funcTy.IsTypeDefinition_t && funcTy.FullyQualifiedName.Contains("__oly_scoped_func") then
+        //    let irFunArg =
+        //        match irFunArg with
+        //        | E.Value(textRange, V.Argument(n, ty)) ->
+        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
+        //            E.Value(textRange, V.ArgumentAddress(n, OlyIRByRefKind.ReadWrite, byRefTy))
+        //        | E.Value(textRange, V.Local(n, ty)) ->
+        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
+        //            E.Value(textRange, V.LocalAddress(n, OlyIRByRefKind.ReadWrite, byRefTy))
+        //        | E.Operation(textRange, O.LoadField(field, receiverExpr, ty)) ->
+        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
+        //            E.Operation(textRange, O.LoadFieldAddress(field, receiverExpr, OlyIRByRefKind.ReadWrite, byRefTy))
+        //        | _ ->
+        //            failwith "Invalid indirect call."
+                
+        //    GenArgumentExpression cenv env irFunArg
+        //else
+        GenArgumentExpression cenv env irFunArg
+
         match funcTy.Handle with
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->            
             let localIndex = cenv.NewLocal(irFunArg.ResultType)
@@ -1341,7 +1419,11 @@ module rec ClrCodeGen =
                     createMulticastDelegateInvoke cenv.assembly funcTy
                 else
                     createAnonymousFunctionInvoke cenv.assembly funcTy.Handle funcTy.TypeArguments argTys runtimeReturnTy.Handle
-            I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
+
+            if funcTy.IsStruct then
+                I.Call(invoke, irArgs.Length) |> emitInstruction cenv
+            else
+                I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
     let rec MorphExpression (cenv: cenv) (expr: E<ClrTypeInfo, _, _>) =
@@ -2077,26 +2159,34 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitTypeConstantInt32 _ = raise (System.NotSupportedException())
 
-        member this.EmitTypeFunction(inputTys, outputTy) =
-            let mutable mustCreateDelegate = false
-            let argTyHandles =
-                inputTys
-                |> ImArray.map (fun x -> 
-                    if ClrCodeGen.isByRefLike asmBuilder x then
-                        mustCreateDelegate <- true
-                    x.Handle
-                )
+        member this.EmitTypeFunction(inputTys, outputTy, kind) =
+            if kind = OlyIRFunctionKind.Normal then
+                let mutable mustCreateDelegate = false
+                let argTyHandles =
+                    inputTys
+                    |> ImArray.map (fun x -> 
+                        if ClrCodeGen.isByRefLike asmBuilder x then
+                            mustCreateDelegate <- true
+                        x.Handle
+                    )
 
-            if mustCreateDelegate then
-                let name = "__oly_delegate_" + (newUniqueId()).ToString()
-                let parTys =
-                    argTyHandles
-                    |> ImArray.map (fun x -> ("", x))
-                let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
-                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, false, false, ClrTypeDefinitionInfo.Default)
+                if mustCreateDelegate then
+                    let name = "__oly_delegate_" + (newUniqueId()).ToString()
+                    let parTys =
+                        argTyHandles
+                        |> ImArray.map (fun x -> ("", x))
+                    let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
+                    ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, false, false, ClrTypeDefinitionInfo.Default)
+                else
+                    let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
+                    ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
             else
-                let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
-                ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
+                let name = "__oly_scoped_func_" + (newUniqueId()).ToString()
+                let parTys =
+                    inputTys
+                    |> ImArray.map (fun x -> ("", x.Handle))
+                let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name parTys outputTy.Handle
+                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, true, false, ClrTypeDefinitionInfo.Default)
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum

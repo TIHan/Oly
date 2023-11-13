@@ -614,7 +614,8 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
                 bodyExpr,
                 tyParLookup, 
                 valueLookup,
-                fun _ -> thisExpr
+                fun _ -> 
+                    thisExpr
             )
         E.CreateLambda(
             syntaxInfo,

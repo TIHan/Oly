@@ -929,7 +929,8 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
             )
 
     match syntaxTy with
-    | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
+    | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy)
+    | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
         match ty.TryGetFunctionWithParameters() with
         | ValueSome(argTys, returnTy) ->
             // TODO: Kind of a hack using TypeSymbol.Tuple.

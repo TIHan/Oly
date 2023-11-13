@@ -1820,7 +1820,7 @@ type InterpreterRuntimeEmitter() =
         member this.EmitTypeFloat64(): InterpreterType = 
             InterpreterType.Float64
 
-        member this.EmitTypeFunction(inputTys: imarray<InterpreterType>, outputTy: InterpreterType): InterpreterType = 
+        member this.EmitTypeFunction(inputTys: imarray<InterpreterType>, outputTy: InterpreterType, _): InterpreterType = 
             InterpreterType.Function(inputTys, outputTy)
 
         member this.EmitTypeHigherVariable(index: int32, tyInst: imarray<InterpreterType>, _): InterpreterType = 
