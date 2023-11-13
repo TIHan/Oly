@@ -578,9 +578,6 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             false
 
-    member this.IsInlineStack =
-        value.FunctionFlags.HasFlag(FunctionFlags.StackEmplace)
-
     override this.GetHashCode() = value.Formal.Id.GetHashCode()
 
     override this.Equals(o) =
@@ -626,7 +623,6 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
             | InlineArgumentSymbol.None -> "inline"
             | InlineArgumentSymbol.Never -> "inline(never)"
             | InlineArgumentSymbol.Always -> "inline(always)"
-            | InlineArgumentSymbol.Stack -> "inline(stack)"
         | AttributeSymbol.Unmanaged(unmanagedArg) -> 
             match unmanagedArg with
             | UnmanagedArgumentSymbol.AllocationOnly -> "unmanaged(allocation_only)"

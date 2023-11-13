@@ -14,15 +14,16 @@ open Oly.Compiler.Internal.SymbolEnvironments
 
 [<Flags>]
 type LambdaFlags =
-    | None                  = 0x000000
-    | Inline                = 0x000001
-    | InlineNever           = 0x000010
-    | InlineAlways          = 0x000101
-    | StackEmplace          = 0x001101
-    | Static                = 0x010000
+    | None                  = 0x0000000
+    | Inline                = 0x0000001
+    | InlineNever           = 0x0000010
+    | InlineAlways          = 0x0000101
+    | Continuation          = 0x0011101
+    | Static                = 0x0010000
+    | Scoped                = 0x0100000
 
     /// Only used in lambda-lifting
-    | Bound                 = 0x100000
+    | Bound                 = 0x1000000
 
 type InlineArgumentSymbol with
 
@@ -34,8 +35,6 @@ type InlineArgumentSymbol with
             LambdaFlags.InlineNever
         | InlineArgumentSymbol.Always ->
             LambdaFlags.InlineAlways
-        | InlineArgumentSymbol.Stack ->
-            LambdaFlags.StackEmplace
 
 type IBoundNode =
 

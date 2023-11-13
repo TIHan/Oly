@@ -2195,7 +2195,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             )
 
             let extends =
-                if kind = OlyILEntityKind.Closure || kind = OlyILEntityKind.InlineClosure then
+                if kind = OlyILEntityKind.Closure then
                     ImArray.empty
                 else
                     inherits
@@ -2380,7 +2380,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct)
 
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, isStruct, (kind = OlyILEntityKind.Closure || kind = OlyILEntityKind.InlineClosure), ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, isStruct, (kind = OlyILEntityKind.Closure), ClrTypeDefinitionInfo.Default)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic

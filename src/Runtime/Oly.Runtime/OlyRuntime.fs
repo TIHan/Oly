@@ -271,8 +271,6 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
 let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILFunctionDefinition) =
     if ilFuncDef.IsConstructor || ilFuncDef.IsAbstract || (ilFuncDef.IsVirtual && not ilFuncDef.IsSealed) || ilFuncDef.IsExported || ilFuncDef.IsImported then
         false
-    elif ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
-        true
     elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineNever then
         false
     elif ilFuncDef.Flags &&& OlyILFunctionFlags.InlineMask = OlyILFunctionFlags.InlineAlways then
@@ -350,12 +348,6 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             RuntimeFunctionFlags.External
         else
             RuntimeFunctionFlags.None
-
-    let irFlags =
-        if ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace) then
-            irFlags ||| RuntimeFunctionFlags.StackEmplace
-        else
-            irFlags
 
     let irFlags =
         match ilAsm.EntryPoint with
@@ -1621,14 +1613,19 @@ let importFunctionBody
             func.Parameters
             |> ImArray.map (fun x -> x.Type)
 
-    vm.ImportFunctionBody(
-        func,
-        ilAsm, 
-        ilFuncBody, 
-        argTys, 
-        func.ReturnType, 
-        genericContext.SetPassedWitnesses(func.Witnesses)
-    )
+    try
+        vm.ImportFunctionBody(
+            func,
+            ilAsm, 
+            ilFuncBody, 
+            argTys, 
+            func.ReturnType, 
+            genericContext.SetPassedWitnesses(func.Witnesses)
+        )
+    with
+    | ex ->
+        let msg = $"Invalid Program in: {func.EnclosingType.Name}.{func.Name}"
+        raise(AggregateException(msg, ex))
 
 [<NoEquality;NoComparison>]
 type TypeCache<'Type, 'Function, 'Field> =
@@ -2233,7 +2230,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     if kind <> OlyILEntityKind.Class && 
                        kind <> OlyILEntityKind.Struct && 
                        kind <> OlyILEntityKind.Closure &&
-                       kind <> OlyILEntityKind.InlineClosure &&
                        kind <> OlyILEntityKind.Enum &&
                        kind <> OlyILEntityKind.Module &&
                        kind <> OlyILEntityKind.Newtype then
@@ -3638,10 +3634,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 //****************************************************************************************************************************************************************************************************************
 
     member runtime.EmitField(field: RuntimeField) : 'Field =
-        if field.EnclosingType.IsInlineClosure && field.Flags.IsInstance then
-            Unchecked.defaultof<_>
-        else
-            emitField field
+        emitField field
 
     member runtime.EmitType(ty: RuntimeType) : 'Type =
         emitType false ty
@@ -3653,8 +3646,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let witnesses = func.Witnesses
         let funcTyArgs = func.TypeArguments
         let asm = assemblies.[func.AssemblyIdentity]
-
-        OlyAssert.False(func.Flags.IsStackEmplace)
 
         if not genericContext.IsErasingType && not enclosingTy.IsFormal then
             failwith "Expected formal enclosing type."
@@ -3876,10 +3867,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             failwithf "Function definition not cached: %A" func.Name
 
     member private vm.EmitFunction(canErase, func: RuntimeFunction, irCustomBody: _ option) =
-        if func.EnclosingType.IsInlineClosure && func.Flags.IsInstance then
-            Unchecked.defaultof<_>
-        else
-
         let genericContext = createGenericContextFromFunction canErase func
 
         if func.IsFormal then

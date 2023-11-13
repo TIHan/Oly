@@ -76,9 +76,7 @@ let private classifyValueKind (valueSymbol: OlyValueSymbol) =
     if valueSymbol.IsParameter then
         OlyClassificationKind.Parameter
     elif valueSymbol.IsFunction then
-        if valueSymbol.IsInlineStack then
-            OlyClassificationKind.Keyword
-        elif valueSymbol.IsConstructor then
+        if valueSymbol.IsConstructor then
             if valueSymbol.Enclosing.IsStruct then
                 OlyClassificationKind.ConstructorStruct
             else

@@ -692,12 +692,6 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                     memberFlags
 
         let ilFuncFlags =
-            if func.IsStackEmplace then
-                ilFuncFlags ||| OlyILFunctionFlags.StackEmplace
-            else
-                ilFuncFlags
-
-        let ilFuncFlags =
             if func.IsMutable then
                 ilFuncFlags ||| OlyILFunctionFlags.Mutable
             else
@@ -979,7 +973,6 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
         | EntityKind.TypeExtension -> OlyILEntityKind.TypeExtension
         | EntityKind.Alias -> OlyILEntityKind.Alias
         | EntityKind.Closure -> OlyILEntityKind.Closure
-        | EntityKind.InlineClosure -> OlyILEntityKind.InlineClosure
         | EntityKind.Enum -> OlyILEntityKind.Enum
         | EntityKind.Newtype -> OlyILEntityKind.Newtype
 
@@ -1909,7 +1902,6 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                         if func.Parameters.Length <> ilArgExprs.Length then
                             OlyAssert.Fail($"Parameters and arguments do not match - {func.Name}")
                         if isVirtualCall then
-                            OlyAssert.False(func.IsStackEmplace)
                             OlyILOperation.CallVirtual(ilFuncInst, ilArgExprs)
                         else
                             OlyILOperation.Call(ilFuncInst, ilArgExprs)

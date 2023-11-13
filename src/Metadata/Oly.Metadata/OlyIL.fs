@@ -80,8 +80,6 @@ type OlyILEntityKind =
     | Closure
     | Newtype
 
-    | InlineClosure
-
 [<Flags>]
 type OlyILEntityFlags =
     | None         = 0x00000000
@@ -128,7 +126,6 @@ type OlyILFunctionFlags =
     | Pure                          = 0x000200
     | RequiresExplicitTypeArguments = 0x001000
     | ParameterLess                 = 0x010000
-    | StackEmplace                  = 0x100030
 
     | UnmanagedAllocationOnly           = 0x1000000
 

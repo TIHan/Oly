@@ -95,7 +95,7 @@ let toTargetJump(expr: E) =
             ImArray.empty
             expr.Type
             MemberFlags.Private
-            (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
+            (FunctionFlags.InlineAlways ||| FunctionFlags.StaticLocal)
             WellKnownFunction.None
             None
             false
@@ -105,7 +105,7 @@ let toTargetJump(expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
+            LambdaFlags.Continuation,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -154,7 +154,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
             pars
             expr.Type
             MemberFlags.Private
-            (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
+            (FunctionFlags.InlineAlways ||| FunctionFlags.StaticLocal)
             WellKnownFunction.None
             None
             false
@@ -164,7 +164,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.StackEmplace ||| LambdaFlags.Static,
+            LambdaFlags.Continuation ||| LambdaFlags.Static,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -251,21 +251,8 @@ let isSimpleExpression (expr: E) =
         argExprs
         |> ImArray.forall isReallySimpleExpression
     | E.Call(receiverOpt=None;args=argExprs;value=value) ->
-        if value.IsStackEmplace then
-#if DEBUG
-            argExprs
-            |> ImArray.forall (function 
-                | E.Value(value=value) -> 
-                    value.IsLocal && not value.IsFunction 
-                | _ -> 
-                    false
-            )
-            |> OlyAssert.True
-#endif
-            true
-        else
-            argExprs
-            |> ImArray.forall isReallySimpleExpression
+        argExprs
+        |> ImArray.forall isReallySimpleExpression
     | _ ->
         isReallySimpleExpression expr
 

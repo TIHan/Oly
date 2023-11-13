@@ -400,63 +400,6 @@ main(): () =
           OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
 [<Fact>]
-let ``Lambda will get inlined 13``() =
-    let ir =
-        """
-module Program
-
-#[inline(never)]
-Work(): () = ()
-
-#[inline(stack)]
-M(#[inline(stack)] f: () -> ()): () =
-    f()
-
-main(): () =
-    M(() -> Work())
-        """
-        |> getMainIR 
-    match ir.Strip() with
-    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
-        OlyAssert.Equal("Work", func.EmittedFunction.Name)
-    | ir ->
-        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
-
-[<Fact>]
-let ``Lambda will get inlined 14``() =
-    let ir =
-        """
-module Program
-
-#[inline(never)]
-Work(): () = ()
-
-#[inline(stack)]
-M(#[inline(stack)] f: () -> ()): () =
-    f()
-    f()
-
-main(): () =
-    M(() -> Work())
-        """
-        |> getMainIR 
-    match ir.Strip() with
-    | OlyIRExpression.Sequential(expr1=expr1;expr2=expr2) ->
-        match expr1.Strip() with
-        | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
-            OlyAssert.Equal("Work", func.EmittedFunction.Name)
-        | ir ->
-            OlyAssert.Fail($"Unexpected pattern:\n{ir}")
-
-        match expr2.Strip() with
-        | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
-            OlyAssert.Equal("Work", func.EmittedFunction.Name)
-        | ir ->
-            OlyAssert.Fail($"Unexpected pattern:\n{ir}")
-    | ir ->
-        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
-
-[<Fact>]
 let ``Lambda will not get inlined``() =
     let ir =
         """

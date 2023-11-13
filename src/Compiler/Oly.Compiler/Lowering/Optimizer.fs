@@ -188,14 +188,6 @@ let optimizeImmediateExpression cenv origExpr =
                                     false
                                 else
                                     true
-                            | E.Call(value=value) ->
-                                // We do this to ensure we do not replace an argument for a stack-emplaced function
-                                // with a literal as it is illegal.
-                                if value.IsStackEmplace then
-                                    canEliminate <- false
-                                    false
-                                else
-                                    true
                             | _ ->
                                 true
                         ), fun expr ->

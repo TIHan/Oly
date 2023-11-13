@@ -53,13 +53,6 @@ let (|OrCall|_|) (expr: E) =
     | _ ->
         None
 
-let (|StackEmplaceCall|_|) (expr: E) =
-    match expr.Strip() with
-    | E.Call(receiverOpt=None;value=value;args=args) when value.IsStackEmplace ->
-        Some(value :?> IFunctionSymbol, args)
-    | _ ->
-        None
-
 let (|AddressOf|_|) (expr: E) =
     match expr.Strip() with
     | E.Call(receiverOpt=None;value=value;args=args) when args.Length = 1 && value.IsAddressOf ->

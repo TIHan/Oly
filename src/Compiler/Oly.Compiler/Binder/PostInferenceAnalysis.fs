@@ -414,17 +414,17 @@ let rec getAddressReturningScope acenv aenv (expr: BoundExpression) =
 
 let handleLambda aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSymbol imarray) =
     let aenv = 
-        if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
+        if lambdaFlags.HasFlag(LambdaFlags.Scoped) then
             aenv
         else
             { aenv with scopeLambda = aenv.scopeLambda + 1 }
 
     (aenv, pars)
     ||> ImArray.fold (fun aenv par ->
-        match tryAttributesInlineArgument par.Attributes with
-        | Some(InlineArgumentSymbol.Stack) ->
+        if false then
+            // TODO: scope lambdas
             { aenv with scopedLambdaValues = aenv.scopedLambdaValues.Add(par, aenv.scopeLambda) }
-        | _ ->
+        else
             aenv
     )
 

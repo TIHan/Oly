@@ -198,14 +198,14 @@ module private Helpers =
         override _.VisitLocalBindingInfo(bindingInfo) =
             let value = bindingInfo.Value
             //OlyAssert.Equal(value.Formal, value)
-            if not value.IsStaticLocalFunction && not value.IsStackEmplace && predicate value && not (locals.Add(value.Id)) then 
+            if not value.IsStaticLocalFunction && predicate value && not (locals.Add(value.Id)) then 
                 failwithf "Local already added - name: %s id: %i" value.Name value.Id
             true            
 
         override this.VisitExpression(expr) =
             match expr with
             | BoundExpression.Lambda(flags=flags) ->
-                if checkInnerLambdas || flags.HasFlag(LambdaFlags.StackEmplace) then
+                if checkInnerLambdas || flags.HasFlag(LambdaFlags.Continuation) then
                     Iterator.HandlePossibleLambda((fun x -> not(locals.Contains(x.Formal.Id)) && predicate x), canCache, true, expr, freeLocals, locals)
                     
 
@@ -979,8 +979,6 @@ type IFunctionSymbol with
 
     member this.IsInlineAlways =
         this.FunctionFlags &&& FunctionFlags.InlineMask = FunctionFlags.InlineAlways
-
-    member this.IsInlineStack = this.IsStackEmplace
 
 // ************************************************************************
 

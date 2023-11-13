@@ -166,9 +166,6 @@ type EntitySymbolBuilder private (
     static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name) =
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, EntityFlags.Final, EntityKind.Closure)
 
-    static member CreateInlineClosure(containingAsmOpt, enclosing: EnclosingSymbol, name) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, EntityFlags.Final, EntityKind.InlineClosure)
-
     static member CreateAnonymousShape(enclosing, asm) =
         match enclosing with
         | EnclosingSymbol.RootNamespace

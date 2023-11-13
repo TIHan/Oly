@@ -166,18 +166,9 @@ type OlyIRFunction<'Type, 'Function, 'Field>
         let runtimeFunc = runtimeFunc.Value
         runtimeFunc.Flags.IsInlineable
 
-    member internal this.IsStackEmplace =
-        OlyAssert.Equal(true, runtimeFunc.IsSome)
-        let runtimeFunc = runtimeFunc.Value
-        runtimeFunc.Flags.IsStackEmplace
-
     member internal this.HasEnclosingClosureType =
         OlyAssert.Equal(true, runtimeFunc.IsSome)
         runtimeFunc.Value.EnclosingType.IsClosure
-
-    member internal this.HasEnclosingInlineClosureType =
-        OlyAssert.Equal(true, runtimeFunc.IsSome)
-        runtimeFunc.Value.EnclosingType.IsInlineClosure
 
     member internal this.IsClosureInstanceConstructor =
         OlyAssert.Equal(true, runtimeFunc.IsSome)

@@ -494,22 +494,15 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
             thisPar.AddRange(invokePars), returnTy
 
     let funcFlags =
-        //OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.StackEmplace))
-        if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
-            FunctionFlags.StackEmplace
-        elif lambdaFlags.HasFlag(LambdaFlags.InlineAlways) then
+        OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.Continuation))
+        if lambdaFlags.HasFlag(LambdaFlags.InlineAlways) then
             FunctionFlags.InlineAlways
         elif lambdaFlags.HasFlag(LambdaFlags.Inline) then
             FunctionFlags.Inline
         elif lambdaFlags.HasFlag(LambdaFlags.InlineNever) then
             FunctionFlags.InlineNever
         else
-            match tryAttributesInlineFlags attrs with
-            | Some(inlineFlags) -> 
-                OlyAssert.False(inlineFlags.HasFlag(FunctionFlags.StackEmplace))
-                inlineFlags
-            | _ -> 
-                FunctionFlags.None
+            FunctionFlags.None
 
     let memberFlags =
         let memberFlags = MemberFlags.Public
@@ -692,8 +685,6 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
 
         // Find free type variables and free locals
 
-        let isStackEmplaced = lambdaFlags.HasFlag(LambdaFlags.StackEmplace)
-
         let freeTyVars = 
             origExpr.GetFreeTypeVariables().Values
             |> Seq.sortBy (fun x -> x.Index) 
@@ -712,7 +703,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let freeLocals = 
             origExpr.GetFreeLocals()
             |> Seq.map (fun x -> x.Value |> snd)
-            |> Seq.filter (fun x -> (isStackEmplaced || not x.IsMutable) && not x.IsFunction)
+            |> Seq.filter (fun x -> (not x.IsMutable) && not x.IsFunction)
             |> ImArray.ofSeq
             |> ImArray.filter (fun x ->
                 match bindingInfoOpt with
@@ -730,18 +721,11 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 bindingInfo.Value.Name + cenv.GenerateClosureName()
         
         let closureBuilder = 
-            if isStackEmplaced then
-                EntitySymbolBuilder.CreateInlineClosure(
-                    Some cenv.tree.Assembly, 
-                    EnclosingSymbol.Local, 
-                    name
-                )
-            else
-                EntitySymbolBuilder.CreateClosure(
-                    Some cenv.tree.Assembly, 
-                    EnclosingSymbol.Local, 
-                    name
-                )
+            EntitySymbolBuilder.CreateClosure(
+                Some cenv.tree.Assembly, 
+                EnclosingSymbol.Local, 
+                name
+            )
         
         let tyParLookup = Dictionary()
         let closureTyParLookup = Dictionary()
@@ -824,7 +808,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                         name
                         (x.Type.Substitute(closureTyParLookup))
                         (MemberFlags.Instance ||| MemberFlags.Public)
-                        (if x.IsMutable && isStackEmplaced then ValueFlags.Mutable else ValueFlags.None)
+                        ValueFlags.None
                         (ref None)
 
                 // Checks and balances.
@@ -926,10 +910,10 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
             | BindingLocal _ -> OlyAssert.Fail("Invalid local binding")
             | BindingLocalFunction _ -> ()
 
-            if bindingInfo.Value.IsStaticLocalFunction && (not (lambdaFlags.HasFlag(LambdaFlags.StackEmplace))) then
+            if bindingInfo.Value.IsStaticLocalFunction && (not (lambdaFlags.HasFlag(LambdaFlags.Continuation))) then
                 E.Let(syntaxInfo, bindingInfo, makeLambdaBound rhsExpr, bodyExpr)
             else
-                if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
+                if lambdaFlags.HasFlag(LambdaFlags.Continuation) then
                     let freeTyVars = rhsExpr.GetLogicalFreeTypeVariables()
                     let freeLocals = rhsExpr.GetLogicalFreeAnyLocals()
 
@@ -953,15 +937,29 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                         let pars =
                             freeLocals
                             |> ImArray.map (fun x -> 
-                                let par = createLocalParameterValue(ImArray.empty, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
+                                let parTy =
+                                    let parTy = x.Type.Substitute(tyParLookup)
+                                    if x.IsMutable then
+                                        OlyAssert.False(x.Type.IsByRef_t)
+                                        TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
+                                    else
+                                        parTy
+                                let par = createLocalParameterValue(ImArray.empty, x.Name, parTy, false)
                                 valueLookup[x.Id] <- par :> IValueSymbol
                                 par
                             )
                             |> ImArray.append (
                                 pars
                                 |> ImArray.map (fun x ->
+                                    let parTy =
+                                        let parTy = x.Type.Substitute(tyParLookup)
+                                        if x.IsMutable then
+                                            OlyAssert.False(x.Type.IsByRef_t)
+                                            TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
+                                        else
+                                            parTy
                                     // TODO: Do we need to replace type variables in the attributes?
-                                    let par = createLocalParameterValue(x.Attributes, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
+                                    let par = createLocalParameterValue(x.Attributes, x.Name, parTy, false)
                                     valueLookup[x.Id] <- par :> IValueSymbol
                                     par
                                 )
@@ -980,7 +978,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 pars
                                 returnTy
                                 MemberFlags.Private
-                                (FunctionFlags.StackEmplace ||| FunctionFlags.StaticLocal)
+                                (FunctionFlags.InlineAlways ||| FunctionFlags.StaticLocal)
                                 WellKnownFunction.None
                                 None
                                 false
@@ -1003,7 +1001,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
 #endif
 
                         let newRhsExpr =
-                            E.CreateLambda(syntaxInfoLambda, (LambdaFlags.StackEmplace ||| LambdaFlags.Static ||| LambdaFlags.Bound), tyPars, pars, newLazyLambdaBodyExpr)
+                            E.CreateLambda(syntaxInfoLambda, (LambdaFlags.InlineAlways ||| LambdaFlags.Static ||| LambdaFlags.Bound), tyPars, pars, newLazyLambdaBodyExpr)
 
                         let newBodyExpr = 
                             let newArgExprs =
@@ -1014,6 +1012,19 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 | E.Call(syntaxInfo, None, witnessArgs, argExprs, value, false) when value.Formal.Id = func.Id ->
                                     let newFunc = newFunc.Apply(freeTyVars |> Seq.map (fun x -> x.AsType) |> ImArray.ofSeq)
                                     let argExprs = argExprs.AddRange(newArgExprs)
+                                    let argExprs =
+                                        match newFunc.Type.TryGetFunctionWithParameters() with
+                                        | ValueSome(parTys, _) ->
+                                            (parTys, argExprs)
+                                            ||> ImArray.map2 (fun parTy argExpr ->
+                                                if parTy.IsReadWriteByRef && not argExpr.Type.IsByRef_t then
+                                                    AddressOfMutable argExpr
+                                                else
+                                                    argExpr
+                                            )
+                                        | _ ->
+                                            OlyAssert.Fail("should not happen")
+
                                     E.Call(syntaxInfo, None, witnessArgs, argExprs, newFunc, false)
                                 | _ ->
                                     expr
@@ -1065,13 +1076,9 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
 
                     let funcFlags = FunctionFlags.StaticLocal
 
-                    let funcFlags =
-                        if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
-                            funcFlags ||| FunctionFlags.StackEmplace
-                        else
-                            funcFlags
+                    OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.Continuation))
 
-//                    if lambdaFlags.HasFlag(LambdaFlags.StackEmplace) then
+//                    if lambdaFlags.HasFlag(LambdaFlags.Continuation) then
 //                        let freeTyVars = origExpr.GetLogicalFreeTypeVariables()
 //                        let freeLocals = origExpr.GetLogicalFreeAnyLocals()
 

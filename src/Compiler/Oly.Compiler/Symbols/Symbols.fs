@@ -54,7 +54,6 @@ type InlineArgumentSymbol =
     | None
     | Never
     | Always
-    | Stack
 
     member this.ToFunctionFlags() =
         match this with
@@ -64,8 +63,6 @@ type InlineArgumentSymbol =
             FunctionFlags.InlineNever
         | InlineArgumentSymbol.Always ->
             FunctionFlags.InlineAlways
-        | InlineArgumentSymbol.Stack ->
-            FunctionFlags.StackEmplace
 
 [<RequireQualifiedAccess>]
 type UnmanagedArgumentSymbol =
@@ -1709,8 +1706,6 @@ type FunctionFlags =
 
     | EntryPoint                    = 0x0000001000000L
 
-    | StackEmplace                  = 0x0000100000300L
-
     | RequiresExplicitTypeArguments = 0x0001000000000L
 
     | ParameterLess                 = 0x0010000000000L
@@ -1745,8 +1740,6 @@ type EntityKind =
     | Enum
     | Closure
     | Newtype
-
-    | InlineClosure
 
 type FunctionSemantic =
     | NormalFunction
@@ -4188,9 +4181,6 @@ module SymbolExtensions =
                 (this.FunctionFlags &&& FunctionFlags.StaticLocal = FunctionFlags.StaticLocal) &&
                 this.IsLocal
 
-            member this.IsStackEmplace =
-                (this.FunctionFlags &&& FunctionFlags.StackEmplace = FunctionFlags.StackEmplace)
-
             member this.RequiresExplicitTypeArguments =
                 this.FunctionFlags &&& FunctionFlags.RequiresExplicitTypeArguments = FunctionFlags.RequiresExplicitTypeArguments
 
@@ -4621,8 +4611,7 @@ module SymbolExtensions =
                     ValueNone
     
             member this.IsClosure =
-                this.Kind = EntityKind.Closure ||
-                this.Kind = EntityKind.InlineClosure
+                this.Kind = EntityKind.Closure
 
             member this.IsEnum =
                 this.Kind = EntityKind.Enum
