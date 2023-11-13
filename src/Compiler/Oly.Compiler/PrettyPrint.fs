@@ -114,8 +114,12 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
                 tyPar.Name
         name + "<" + (tyArgs |> Seq.map (printTypeAux benv isDefinition true) |> String.concat ", ") + ">"
 
-    | TypeSymbol.Function(inputTy, returnTy) -> 
-        printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+    | TypeSymbol.Function(inputTy, returnTy, kind) -> 
+        match kind with
+        | FunctionKind.Normal ->
+            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+        | FunctionKind.Scoped ->
+            "scoped " + printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
 
     | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
         if ilCallConv.HasFlag(Oly.Metadata.OlyILCallingConvention.Blittable) then

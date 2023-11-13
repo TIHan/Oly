@@ -531,7 +531,7 @@ type RuntimeType =
     | Tuple of tyArgs: RuntimeType imarray * string imarray
     | ReferenceCell of elementTy: RuntimeType
     | Array of elementTy: RuntimeType * rank: int * isMutable: bool
-    | Function of argTys: RuntimeType imarray * returnTy: RuntimeType
+    | Function of argTys: RuntimeType imarray * returnTy: RuntimeType * kind: OlyIRFunctionKind
     | NativeFunctionPtr of OlyILCallingConvention * argTys: RuntimeType imarray * returnTy: RuntimeType
     | Entity of RuntimeEntity
     | Variable of index: int * ilKind: OlyILTypeVariableKind
@@ -755,7 +755,7 @@ type RuntimeType =
         | ByRef(elementTy, _)
         | NativePtr(elementTy) -> ImArray.createOne elementTy
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
-        | Function(argTys, returnTy) 
+        | Function(argTys, returnTy, _) 
         | NativeFunctionPtr(_, argTys, returnTy) ->
             argTys.Add(returnTy)
         | _ -> 
@@ -886,8 +886,8 @@ type RuntimeType =
         | Tuple(tyArgs, names) ->
             let tyArgsNew = tyArgs |> ImArray.map (fun x -> x.Substitute(genericContext))
             Tuple(tyArgsNew, names)
-        | Function(argTys, returnTy) ->
-            Function(argTys |> ImArray.map (fun x -> x.Substitute(genericContext)), returnTy.Substitute(genericContext))
+        | Function(argTys, returnTy, kind) ->
+            Function(argTys |> ImArray.map (fun x -> x.Substitute(genericContext)), returnTy.Substitute(genericContext), kind)
         | NativeFunctionPtr(ilCc, argTys, returnTy) ->
             NativeFunctionPtr(ilCc, argTys |> ImArray.map (fun x -> x.Substitute(genericContext)), returnTy.Substitute(genericContext))
         | ReferenceCell(elementTy) ->
@@ -1029,9 +1029,10 @@ type RuntimeType =
 
             | ByRef(elementTy1, kind1), ByRef(elementTy2, kind2) -> elementTy1 = elementTy2 && kind1 = kind2
 
-            | Function(inputTy1, outputTy1), Function(inputTy2, outputTy2) ->
+            | Function(inputTy1, outputTy1, kind1), Function(inputTy2, outputTy2, kind2) ->
                 inputTy1 = inputTy2 &&
-                outputTy1 = outputTy2
+                outputTy1 = outputTy2 &&
+                kind1 = kind2
 
             | NativeFunctionPtr(ilCc1, inputTy1, outputTy1), NativeFunctionPtr(ilCc2, inputTy2, outputTy2) ->
                 ilCc1 = ilCc2 &&

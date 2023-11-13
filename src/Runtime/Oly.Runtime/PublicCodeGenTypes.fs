@@ -69,6 +69,12 @@ type OlyIRArrayKind =
     | Immutable
     | Mutable
 
+[<Struct>]
+[<RequireQualifiedAccess>]
+type OlyIRFunctionKind =
+    | Normal
+    | Scoped
+
 // TODO: Rename this to RuntimeTypeFlags?
 type internal RuntimeTypeFlags =
     | None =           0x000000000

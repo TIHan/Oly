@@ -103,7 +103,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
         |> ignore
 
     | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-    | TypeSymbol.Function(inputTy, returnTy) ->
+    | TypeSymbol.Function(inputTy, returnTy, _) ->
         match inputTy with
         | TypeSymbol.Tuple(tyArgs, _) ->
             tyArgs

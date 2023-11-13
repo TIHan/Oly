@@ -340,9 +340,9 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
             failwith "Expected only one type instantiation."
         TypeSymbol.CreateByRef(tyArgs.[0], kind)
 
-    | TypeSymbol.Function _ ->
+    | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
-        TypeSymbol.Function(tyArgs[0], tyArgs[1])
+        TypeSymbol.Function(tyArgs[0], tyArgs[1], kind)
 
     | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
         OlyAssert.Equal(2, tyArgs.Length)
@@ -383,8 +383,8 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
             applyType tyArgs.[tyPar.Index].Formal tyArgs3
 
-        | TypeSymbol.Function(inputTy, returnTy) ->
-            TypeSymbol.Function(instTy inputTy, instTy returnTy)
+        | TypeSymbol.Function(inputTy, returnTy, kind) ->
+            TypeSymbol.Function(instTy inputTy, instTy returnTy, kind)
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
             TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
@@ -711,7 +711,7 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
     let ty =
         lazy
             let argTys = pars.Value |> ImArray.map (fun x -> x.Type)
-            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, returnTy)
+            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, returnTy, FunctionKind.Normal)
     
     let funcTyArgs = actualTypes tyArgs func.Formal.TypeArguments
 
@@ -1006,8 +1006,8 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
             | true, ty -> mkSolvedInferenceVariableType tyPar (applyType ty tyArgs3)
             | _ -> TypeSymbol.HigherVariable(tyPar, tyArgs3)
 
-        | TypeSymbol.Function(inputTy, returnTy) ->
-            TypeSymbol.Function(instTy inputTy, instTy returnTy)
+        | TypeSymbol.Function(inputTy, returnTy, kind) ->
+            TypeSymbol.Function(instTy inputTy, instTy returnTy, kind)
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
             TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
@@ -1074,7 +1074,7 @@ let tryActualFunction (enclosing: EnclosingSymbol) tys (func: IFunctionSymbol) =
     let funcTy =
         lazy
             let argTys = pars.Value |> ImArray.map (fun x -> x.Type)
-            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, returnTy)
+            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, returnTy, FunctionKind.Normal)
 
     { new IFunctionSymbol with
 
@@ -1309,12 +1309,12 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
 
     // 'Function' is a built-in type whose formal definition has a variadic type parameter as a single argument.
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    | TypeSymbol.Function(inputTy, returnTy) when inputTy.IsSolved ->
+    | TypeSymbol.Function(inputTy, returnTy, kind) when inputTy.IsSolved ->
         match inputTy with
         | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
             match stripTypeEquationsAux skipAlias skipModifiers inputTy with
-            | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy)
-            | TypeSymbol.Unit -> TypeSymbol.CreateFunction(ImArray.empty, returnTy)
+            | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy, kind)
+            | TypeSymbol.Unit -> TypeSymbol.CreateFunction(ImArray.empty, returnTy, kind)
             | _ -> ty
         | _ ->
             ty
@@ -2855,9 +2855,13 @@ let private FormalFunctionTypeParameters =
     let argsTy = TypeParameterSymbol("TArguments", 1, 0, true, TypeParameterKind.Type, ref ImArray.empty)
     ImArray.createTwo returnTy argsTy
 
-let private FormalFunctionType =
+let private FormalNormalFunctionType =
     let tyPars = FormalFunctionTypeParameters
-    TypeSymbol.Function(tyPars[0].AsType, tyPars[1].AsType)
+    TypeSymbol.Function(tyPars[0].AsType, tyPars[1].AsType, FunctionKind.Normal)
+
+let private FormalScopedFunctionType =
+    let tyPars = FormalFunctionTypeParameters
+    TypeSymbol.Function(tyPars[0].AsType, tyPars[1].AsType, FunctionKind.Scoped)
 
 let private FormalRefCellTypeParameters =
     TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
@@ -2918,6 +2922,11 @@ type ArrayKind =
 type TypeModifier =
     | Int32 of name: string * value: int32
 
+[<RequireQualifiedAccess>]
+type FunctionKind =
+    | Normal
+    | Scoped
+
 [<RequireQualifiedAccess;DebuggerDisplay("{DebugName}")>]
 type TypeSymbol =
     | BaseObject
@@ -2947,7 +2956,7 @@ type TypeSymbol =
     | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
-    | Function of inputTy: TypeSymbol * returnTy: TypeSymbol
+    | Function of inputTy: TypeSymbol * returnTy: TypeSymbol * kind: FunctionKind
     | ForAll of tyPars: ImmutableArray<TypeParameterSymbol> * innerTy: TypeSymbol
     | Variable of TypeParameterSymbol
     | HigherVariable of TypeParameterSymbol * tyArgs: TypeArgumentSymbol imarray
@@ -3027,7 +3036,8 @@ type TypeSymbol =
         match stripTypeEquations this with
         | TypeSymbol.Entity(ent) -> TypeSymbol.Entity(ent.Formal)
         | TypeSymbol.ByRef(_, kind) -> TypeSymbol.GetFormalByRef(kind)
-        | TypeSymbol.Function _ -> FormalFunctionType
+        | TypeSymbol.Function(kind=FunctionKind.Normal) -> FormalNormalFunctionType
+        | TypeSymbol.Function(kind=FunctionKind.Scoped) -> FormalScopedFunctionType
         | TypeSymbol.RefCell _ -> FormalRefCellType
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
         | TypeSymbol.Array(_, 1, ArrayKind.Immutable) -> FormalArrayType
@@ -3056,7 +3066,12 @@ type TypeSymbol =
         | Entity(ent) -> ent.Name
         | Tuple _ -> "__oly_tuple"
         | RefCell _ -> "__oly_ref_cell"
-        | Function _ -> "__oly_function"
+        | Function(kind=kind) -> 
+            match kind with
+            | FunctionKind.Scoped ->
+                "__oly_scoped_function"
+            | _ ->
+                "__oly_function"
         | ByRef(_, kind) ->
             match kind with
             | ByRefKind.ReadWrite -> "__oly_read_write_by_ref"
@@ -3227,7 +3242,7 @@ type TypeSymbol =
         | RefCell(elementTy) ->
             ImArray.createOne elementTy
 
-        | Function(inputTy, returnTy)
+        | Function(inputTy, returnTy, _)
         | NativeFunctionPtr(_, inputTy, returnTy) ->
             let inputTy =
                 match stripTypeEquations inputTy with
@@ -3771,8 +3786,10 @@ type TypeSymbol =
                     obj.ReferenceEquals(tyPar, ByReferenceTypeParameters[0])
                 | _ ->
                     false
-            | Function _ as ty ->
-                obj.ReferenceEquals(FormalFunctionType, ty)
+            | Function(kind=FunctionKind.Normal) as ty ->
+                obj.ReferenceEquals(FormalNormalFunctionType, ty)
+            | Function(kind=FunctionKind.Scoped) as ty ->
+                obj.ReferenceEquals(FormalScopedFunctionType, ty)
             | RefCell _ as ty ->
                 obj.ReferenceEquals(FormalRefCellType, ty)
             | Array(_, 1, ArrayKind.Immutable) as ty ->
@@ -3786,9 +3803,9 @@ type TypeSymbol =
     /// TODO: Rename to "TryAnyFunction".
     member this.TryFunction =
         match stripTypeEquations this with
-        | TypeSymbol.Function(inputTy, outputTy)
+        | TypeSymbol.Function(inputTy, outputTy, _)
         | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy)) -> 
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy, _)) -> 
             ValueSome(inputTy, outputTy)
         | _ -> 
             ValueNone
@@ -3820,9 +3837,9 @@ type TypeSymbol =
 
     member this.TryGetFunctionWithParameters() =
         match stripTypeEquations this with
-        | TypeSymbol.Function(inputTy, outputTy)
+        | TypeSymbol.Function(inputTy, outputTy, _)
         | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy)) -> 
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy, _)) -> 
             ValueSome(inputTy.AsParameters(), outputTy)
         | _ -> 
             ValueNone
@@ -3862,10 +3879,10 @@ type TypeSymbol =
     static member CreateMutableArray(elementTy: TypeSymbol) =
         TypeSymbol.CreateMutableArray(elementTy, 1)
 
-    static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol) =
-        TypeSymbol.Function(inputTy, outputTy)
+    static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
+        TypeSymbol.Function(inputTy, outputTy, kind)
 
-    static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol) =
+    static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind) =
         let inputTy =
             if argTys.IsEmpty then
                 TypeSymbol.Unit
@@ -3879,17 +3896,17 @@ type TypeSymbol =
             else
                 TypeSymbol.Tuple(argTys, ImArray.empty)
         if tyPars.IsEmpty then
-            TypeSymbol.Function(inputTy, returnTy)
+            TypeSymbol.Function(inputTy, returnTy, kind)
         else
             tyPars
             |> ImArray.iter (fun tyPar ->
                 if tyPar.Kind = TypeParameterKind.Type then 
                     failwith $"Expected type parameter kind 'Function': '{tyPar.Name}'"
             )
-            TypeSymbol.ForAll(tyPars, TypeSymbol.Function(inputTy, returnTy))
+            TypeSymbol.ForAll(tyPars, TypeSymbol.Function(inputTy, returnTy, kind))
 
-    static member CreateFunction(argTys: TypeSymbol imarray, returnTy) =
-        TypeSymbol.CreateFunction(ImArray.empty, argTys, returnTy)
+    static member CreateFunction(argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind: FunctionKind) =
+        TypeSymbol.CreateFunction(ImArray.empty, argTys, returnTy, kind)
 
     static member CreateFunctionPtr(ilCallConv, inputTy: TypeSymbol, outputTy: TypeSymbol) =
         TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, outputTy)
@@ -4019,7 +4036,7 @@ module SymbolExtensions =
                 if this.IsInstance && this.IsFunction then
                     match this.Type.TryFunction with
                     | ValueSome(inputTy, outputTy) ->
-                        TypeSymbol.CreateFunction(inputTy.AsParameters().RemoveAt(0), outputTy)
+                        TypeSymbol.CreateFunction(inputTy.AsParameters().RemoveAt(0), outputTy, FunctionKind.Normal)
                     | _ ->
                         this.Type
                 else
@@ -4215,7 +4232,7 @@ module SymbolExtensions =
                             else
                                 x.Type
                         )
-                    let funcTy = TypeSymbol.CreateFunction(func.TypeParameters, parTys, returnTy)
+                    let funcTy = TypeSymbol.CreateFunction(func.TypeParameters, parTys, returnTy, FunctionKind.Normal)
                     { new IFunctionSymbol with
     
                         member _.Enclosing = enclosing

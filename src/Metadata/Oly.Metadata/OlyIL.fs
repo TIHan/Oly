@@ -636,6 +636,11 @@ type OlyILArrayKind =
     | Immutable
     | Mutable
 
+[<RequireQualifiedAccess>]
+type OlyILFunctionKind =
+    | Normal
+    | Scoped
+
 [<NoEquality;NoComparison>]
 type OlyILType =
     | OlyILTypeModified of modifierTy: OlyILType * ty: OlyILType
@@ -667,7 +672,7 @@ type OlyILType =
     | OlyILTypeTuple of elementTys: OlyILType imarray * elementNames: OlyILStringHandle imarray
     | OlyILTypeRefCell of ty: OlyILType
     /// TODO: Add parameter type names.
-    | OlyILTypeFunction of parTys: OlyILType imarray * returnTy: OlyILType
+    | OlyILTypeFunction of parTys: OlyILType imarray * returnTy: OlyILType * kind: OlyILFunctionKind
     | OlyILTypeNativeInt
     | OlyILTypeNativeUInt
     | OlyILTypeNativePtr of elementTy: OlyILType
@@ -710,7 +715,7 @@ type OlyILType =
         | OlyILTypeBaseObject
         | OlyILTypeNativeInt
         | OlyILTypeNativeUInt -> imarray.Empty
-        | OlyILTypeFunction(argTys, returnTy)
+        | OlyILTypeFunction(argTys, returnTy, _)
         | OlyILTypeNativeFunctionPtr(_, argTys, returnTy) -> argTys.Add(returnTy)
         | OlyILTypeNativePtr(ty) -> ImArray.createOne ty
         | OlyILTypeArray(ty, _, _) -> ImArray.createOne ty

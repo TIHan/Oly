@@ -153,9 +153,14 @@ and [<Sealed>] LazyExpressionType (syntaxTree) =
             let ty0 =
                 let expr = this.Expression
                 match expr with
-                | BoundExpression.Lambda(tyPars=tyPars;pars=pars;body=body) ->
+                | BoundExpression.Lambda(flags=flags;tyPars=tyPars;pars=pars;body=body) ->
                     let argTys = pars |> ImArray.map (fun x -> x.Type)
-                    TypeSymbol.CreateFunction(tyPars, argTys, body.ExpressionType)
+                    let kind =
+                        if flags.HasFlag(LambdaFlags.Scoped) then
+                            FunctionKind.Scoped
+                        else
+                            FunctionKind.Normal
+                    TypeSymbol.CreateFunction(tyPars, argTys, body.ExpressionType, kind)
                 | _ ->
                     expr.Type
             ty <- ty0
@@ -938,10 +943,11 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
         | _ ->
 
         match stripTypeEquations ty with
-        | TypeSymbol.Function(inputTy, returnTy) ->
+        | TypeSymbol.Function(inputTy, returnTy, kind) ->
             TypeSymbol.Function(
                 freshen tys explicitTyArgs inputTy,
-                freshen tys explicitTyArgs returnTy
+                freshen tys explicitTyArgs returnTy,
+                kind
             )
 
         | TypeSymbol.ForAll(tyPars, innerTy) ->
@@ -1477,7 +1483,7 @@ let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
         value
 
 let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imarray) (func: FunctionSymbol) =
-    let funcTy = TypeSymbol.CreateFunction(tyPars, func.Parameters |> ImArray.map (fun x -> x.Type), func.ReturnType)
+    let funcTy = TypeSymbol.CreateFunction(tyPars, func.Parameters |> ImArray.map (fun x -> x.Type), func.ReturnType, FunctionKind.Normal)
     let tyArgs = tyPars |> ImArray.map (fun tyPar -> tyPar.AsType)
 
     OlyAssert.False(func.FunctionOverrides.IsSome)

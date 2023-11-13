@@ -376,9 +376,15 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             OlyILTypeTuple(tyArgs |> ImArray.map (emitILType cenv env), ilNameHandles)
     | TypeSymbol.RefCell(ty) ->
         OlyILTypeRefCell(emitILType cenv env ty)
-    | TypeSymbol.Function(inputTy, outputTy) ->
+    | TypeSymbol.Function(inputTy, outputTy, kind) ->
         let ilArgTys, ilReturnTy = emitILFunctionTypeInfo cenv env inputTy outputTy
-        OlyILTypeFunction(ilArgTys, ilReturnTy)
+        let ilKind =
+            match kind with
+            | FunctionKind.Normal ->
+                OlyILFunctionKind.Normal
+            | FunctionKind.Scoped ->
+                OlyILFunctionKind.Scoped
+        OlyILTypeFunction(ilArgTys, ilReturnTy, ilKind)
 
     | TypeSymbol.Variable(tyPar) ->
         let index, ilKind = GenTypeParameterAsILTypeVariableInfo env tyPar

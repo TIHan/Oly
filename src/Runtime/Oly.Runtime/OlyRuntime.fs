@@ -816,7 +816,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 |> ImArray.map (fun x -> x.Type)
             let returnTy = func.ReturnType
 
-            let resultTy = RuntimeType.Function(argTys, returnTy)
+            let resultTy = RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Normal (* TODO: handle kind *))
 
             V.Function(OlyIRFunction(cenv.EmitFunction(func), func), cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -930,7 +930,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 |> ImArray.map (fun x -> x.Type)
             let returnTy = func.ReturnType
 
-            let resultTy = RuntimeType.Function(argTys, returnTy)
+            let resultTy = RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Normal (* TODO: handle kind *))
 
             let argExpr, _ = importExpression cenv env (Some resultTy) ilArgExpr
 
@@ -1339,7 +1339,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let argTys, returnTy =
                 match funArgTy with
-                | RuntimeType.Function(argTys, returnTy)
+                | RuntimeType.Function(argTys, returnTy, _)
                 | RuntimeType.NativeFunctionPtr(_, argTys, returnTy) ->
                     argTys, returnTy
                 | _ ->
@@ -2449,7 +2449,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
-            | RuntimeType.Function(argTys, returnTy) ->
+            | RuntimeType.Function(argTys, returnTy, _ (* TODO: handle kind *)) ->
                 let key = argTys.Add(returnTy)
                 match typeCache.Functions.TryGetValue key with
                 | ValueSome result -> result
@@ -3402,10 +3402,16 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeArray(ilElementTy, rank, ilKind) ->
                 let isMutable = ilKind = OlyILArrayKind.Mutable
                 RuntimeType.Array(this.ResolveType(ilAsm, ilElementTy, genericContext), rank, isMutable)
-            | OlyILTypeFunction(ilArgTys, ilReturnTy) ->
+            | OlyILTypeFunction(ilArgTys, ilReturnTy, ilKind) ->
                 let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
                 let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
-                RuntimeType.Function(argTys, returnTy)
+                let kind =
+                    match ilKind with
+                    | OlyILFunctionKind.Normal ->
+                        OlyIRFunctionKind.Normal
+                    | OlyILFunctionKind.Scoped ->
+                        OlyIRFunctionKind.Scoped
+                RuntimeType.Function(argTys, returnTy, kind)
 
             | OlyILTypeVariable(index, ilKind) ->
                 RuntimeType.Variable(index, ilKind)

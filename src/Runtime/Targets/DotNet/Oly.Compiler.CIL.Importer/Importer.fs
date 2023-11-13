@@ -112,7 +112,7 @@ module internal rec Helpers =
                 | OlyILTypeTuple(_, names) ->
                     OlyILTypeTuple(olyTyArgs, names)
 
-                | OlyILTypeFunction(olyArgTys, olyReturnTy) ->
+                | OlyILTypeFunction(olyArgTys, olyReturnTy, olyKind) ->
                     let olyArgTys =
                         olyArgTys
                         |> ImArray.map (function
@@ -123,7 +123,7 @@ module internal rec Helpers =
                         match olyReturnTy with
                         | OlyILTypeVariable(i, _) -> olyTyArgs[i]
                         | olyTy -> olyTy
-                    OlyILTypeFunction(olyArgTys, olyReturnTy)
+                    OlyILTypeFunction(olyArgTys, olyReturnTy, olyKind)
 
                 | _ ->
                     olyTy
@@ -229,17 +229,17 @@ module internal rec Helpers =
                 let tyParCount = tyDef.GetGenericParameters().Count
                 match namespac, name with
                 | "System", "Action" when tyParCount = 0 ->
-                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid)
+                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Action`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Action`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Func`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0])
+                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
                 | "System", "Func`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1])
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1], OlyILFunctionKind.Normal)
                 | "System", "Func`3" when tyParCount = 3 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2])
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2], OlyILFunctionKind.Normal)
                 | _ ->
                     olyTy
 
@@ -258,17 +258,17 @@ module internal rec Helpers =
                 // TODO: This is duplicated, we should move this logic to a common place.
                 match namespac, name with
                 | "System", "Action" when tyParCount = 0 ->
-                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid)
+                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Action`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Action`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid)
+                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
                 | "System", "Func`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0])
+                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
                 | "System", "Func`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1])
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1], OlyILFunctionKind.Normal)
                 | "System", "Func`3" when tyParCount = 3 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2])
+                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2], OlyILFunctionKind.Normal)
                 | _ ->
                     olyTy
 
@@ -300,9 +300,9 @@ module internal rec Helpers =
 
                     match namespac, name, tyParCount with
                     | "System", "Action", 0 ->
-                        OlyILTypeFunction(ImArray.empty, OlyILTypeVoid)
+                        OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
                     | "System", "Func", 1 ->
-                        OlyILTypeFunction(ImArray.empty, olyTyArgs[0])
+                        OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
                     | _ ->
                         olyTy
 

@@ -550,7 +550,7 @@ let private lateCheckCalleeExpression cenv env expr =
                         argTys.RemoveAt(0)
                     else
                         argTys
-                let expectedFuncTy = TypeSymbol.CreateFunction(argTysWithoutInstance, returnTy)
+                let expectedFuncTy = TypeSymbol.CreateFunction(argTysWithoutInstance, returnTy, FunctionKind.Normal)
                 checkTypes
                     (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
                     syntaxInfo.Syntax 

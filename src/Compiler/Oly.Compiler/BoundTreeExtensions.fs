@@ -287,7 +287,7 @@ module private Helpers =
                 for i = 0 to tyArgs.Length - 1 do
                     implType tyArgs.[i]
             | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-            | TypeSymbol.Function(inputTy, returnTy) ->
+            | TypeSymbol.Function(inputTy, returnTy, _) ->
                 implType inputTy
                 implType returnTy
             | TypeSymbol.ForAll(tyPars, innerTy) ->
@@ -413,7 +413,7 @@ module private Helpers =
                     for i = 0 to tyArgs.Length - 1 do
                         implType tyArgs.[i]
                 | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-                | TypeSymbol.Function(inputTy, returnTy) ->
+                | TypeSymbol.Function(inputTy, returnTy, _) ->
                     implType inputTy
                     implType returnTy
                 | TypeSymbol.ForAll(tyPars, innerTy) ->
@@ -465,7 +465,7 @@ module private FreeVariablesHelper =
 
             match stripTypeEquations ty with
             | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-            | TypeSymbol.Function(inputTy, returnTy) ->
+            | TypeSymbol.Function(inputTy, returnTy, _) ->
                 visitType inputTy
                 visitType returnTy
             | TypeSymbol.ForAll(tyPars, innerTy) ->

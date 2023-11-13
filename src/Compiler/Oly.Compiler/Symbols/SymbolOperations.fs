@@ -254,20 +254,23 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.ConstantInt32 n1, TypeSymbol.ConstantInt32 n2 -> n1 = n2
 
-        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2)
-        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2))
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2) ->
-            (
-                match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
-                | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-                | TypeSymbol.Tuple(elementTys, _), ty
-                | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                    UnifyTypes rigidity elementTys[0] ty
-                | _ ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-            ) &&
-            UnifyTypes rigidity returnTy1 returnTy2
+        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2)
+        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2))
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2) ->
+            if kind1 = kind2 then
+                (
+                    match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
+                    | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
+                        UnifyTypes rigidity inputTy1 inputTy2
+                    | TypeSymbol.Tuple(elementTys, _), ty
+                    | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
+                        UnifyTypes rigidity elementTys[0] ty
+                    | _ ->
+                        UnifyTypes rigidity inputTy1 inputTy2
+                ) &&
+                UnifyTypes rigidity returnTy1 returnTy2
+            else
+                false
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
             (
@@ -1681,7 +1684,7 @@ let private getTotalTypeVariableUseCountFromType (ty: TypeSymbol) =
             for i = 0 to tyArgs.Length - 1 do
                 implType tyArgs.[i]
         | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-        | TypeSymbol.Function(inputTy, returnTy) ->
+        | TypeSymbol.Function(inputTy, returnTy, _) ->
             implType inputTy
             implType returnTy
         | TypeSymbol.ForAll(_, innerTy) ->
@@ -1972,7 +1975,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
    //     failwith "Invalid static local function."
 
     let funcTy = 
-        TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy)
+        TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
 
     let tyArgs = tyPars |> Seq.map (fun x -> x.AsType) |> ImmutableArray.CreateRange
 

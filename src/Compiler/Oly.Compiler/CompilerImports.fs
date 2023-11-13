@@ -58,7 +58,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
     let lazyTy =
         lazy
             let argTys = lazyPars.Value |> ImArray.map (fun (x: ILocalParameterSymbol) -> x.Type)
-            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, lazyReturnTy.Value)
+            TypeSymbol.CreateFunction(ImArray.empty (* TODO: This may not be right, we might want to pass typars. *), argTys, lazyReturnTy.Value, FunctionKind.Normal)
 
     let lazyOverrides =
         lazy
@@ -515,13 +515,13 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
             let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
             TypeSymbol.Tuple(tyArgs, names)
 
-    | TypeSymbol.Function(inputTy, returnTy) ->
+    | TypeSymbol.Function(inputTy, returnTy, kind) ->
         if ty.IsFormal then
             ty
         else
             let inputTy = retargetType currentAsmIdent importer tyPars inputTy
             let returnTy = retargetType currentAsmIdent importer tyPars returnTy
-            TypeSymbol.Function(inputTy, returnTy)
+            TypeSymbol.Function(inputTy, returnTy, kind)
 
     | _ ->
         if ty.Arity > 0 then
@@ -885,9 +885,13 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeRefCell(ilElementTy) -> TypeSymbol.RefCell(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy)
     | OlyILType.OlyILTypeConstantInt32(n) -> TypeSymbol.ConstantInt32(n)
 
-    | OlyILType.OlyILTypeFunction(ilArgTys, ilReturnTy) -> 
+    | OlyILType.OlyILTypeFunction(ilArgTys, ilReturnTy, ilKind) -> 
         let argTys, returnTy = importFunctionTypeInfo cenv enclosingTyPars funcTyPars ilArgTys ilReturnTy
-        TypeSymbol.CreateFunction(argTys, returnTy)
+        let kind =
+            match ilKind with
+            | OlyILFunctionKind.Normal -> FunctionKind.Normal
+            | OlyILFunctionKind.Scoped -> FunctionKind.Scoped
+        TypeSymbol.CreateFunction(argTys, returnTy, kind)
 
     | OlyILType.OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy) ->
         let argTys, returnTy = importFunctionTypeInfo cenv enclosingTyPars funcTyPars ilArgTys ilReturnTy
@@ -1423,7 +1427,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
             let ty =
                 if this.IsInstanceNotConstructor && pars.IsEmpty then
                     failwith "Expected full parameters."
-                TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy)
+                TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
             lazyTy <- ty
         lazyTy
         

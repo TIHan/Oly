@@ -1385,7 +1385,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
         | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
             let outputTy = bind cenv env resTyArity false syntaxOutputTy
-            TypeSymbol.CreateFunction(inputTy, outputTy)
+            TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Normal)
 
         | OlySyntaxType.FunctionPtr(_, syntaxBlittableOptional, syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy

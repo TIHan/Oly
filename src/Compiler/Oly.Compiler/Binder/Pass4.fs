@@ -898,6 +898,10 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
         | _ ->
             raise(InternalCompilerException())
 
+    let kind =
+        match syntaxLambdaKind with
+        | _ -> FunctionKind.Normal // TODO:
+
     let bind (pars: ImmutableArray<ILocalParameterSymbol>) isStatic syntaxBodyExpr =
         let argTys = pars |> ImArray.map (fun x -> x.Type)
 
@@ -910,7 +914,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                     )
                 let _, bodyExpr = bindLocalExpression cenv (env1.SetReturnable(false)) None syntaxBodyExpr syntaxBodyExpr
                 let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env1.benv)
-                let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None))
+                let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), kind)
                 checkLambdaExpression solverEnv pars bodyExpr ty
 
                 checkLocalLambdaKind solverEnv bodyExpr pars isStatic
@@ -1459,10 +1463,11 @@ let private bindLocalValueDeclaration
                     TypeSymbol.CreateFunction(
                         ImArray.empty,
                         ImArray.createOne tyPar2.AsType,
-                        returnTy
+                        returnTy,
+                        FunctionKind.Normal
                     )
 
-                TypeSymbol.CreateFunction(ImArray.empty, ImArray.createTwo par1Ty par2Ty, returnTy)
+                TypeSymbol.CreateFunction(ImArray.empty, ImArray.createTwo par1Ty par2Ty, returnTy, FunctionKind.Normal)
 
             let freshBindFuncTy = freshenType env.benv ImArray.empty ImArray.empty bindFuncTy
             let _, bindValue = resolveLetBindFunction cenv env syntaxToCapture syntaxBindingDecl.Identifier freshBindFuncTy
