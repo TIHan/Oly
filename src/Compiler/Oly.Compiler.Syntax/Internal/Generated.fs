@@ -893,6 +893,13 @@ type SyntaxType =
         rightArrowToken: SyntaxToken *
         outputTy: SyntaxType *
         fullWidth: int
+    | ScopedFunction
+        of
+        scopedToken: SyntaxToken *
+        inputTy: SyntaxType *
+        rightArrowToken: SyntaxToken *
+        outputTy: SyntaxType *
+        fullWidth: int
     | FunctionPtr
         of
         staticToken: SyntaxToken *
@@ -971,6 +978,13 @@ type SyntaxType =
                 | 1 -> rightArrowToken :> ISyntaxNode
                 | 2 -> outputTy :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | ScopedFunction(scopedToken, inputTy, rightArrowToken, outputTy, _) ->
+                match index with
+                | 0 -> scopedToken :> ISyntaxNode
+                | 1 -> inputTy :> ISyntaxNode
+                | 2 -> rightArrowToken :> ISyntaxNode
+                | 3 -> outputTy :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | FunctionPtr(staticToken, blittableOptional, inputTy, rightArrowToken, outputTy, _) ->
                 match index with
                 | 0 -> staticToken :> ISyntaxNode
@@ -1004,6 +1018,7 @@ type SyntaxType =
             | Shape _ -> 1
             | WildCard _ -> 1
             | Function _ -> 3
+            | ScopedFunction _ -> 4
             | FunctionPtr _ -> 5
             | Postfix _ -> 2
             | Literal _ -> 1
@@ -1028,6 +1043,8 @@ type SyntaxType =
             | WildCard(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Function(fullWidth=fullWidth) ->
+                fullWidth
+            | ScopedFunction(fullWidth=fullWidth) ->
                 fullWidth
             | FunctionPtr(fullWidth=fullWidth) ->
                 fullWidth

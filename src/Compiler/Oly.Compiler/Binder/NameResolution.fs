@@ -1387,6 +1387,11 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             let outputTy = bind cenv env resTyArity false syntaxOutputTy
             TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Normal)
 
+        | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
+            let inputTy = bind cenv env resTyArity true syntaxInputTy
+            let outputTy = bind cenv env resTyArity false syntaxOutputTy
+            TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Scoped)
+
         | OlySyntaxType.FunctionPtr(_, syntaxBlittableOptional, syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
             let returnTy = bind cenv env resTyArity false syntaxOutputTy

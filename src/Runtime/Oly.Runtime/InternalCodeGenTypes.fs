@@ -736,7 +736,12 @@ type RuntimeType =
         | Utf16 _ -> "__oly_utf16"
         | Char16 -> "__oly_char16"
         | ReferenceCell _ -> "__oly_reference_cell"
-        | Function _ -> "__oly_func"
+        | Function(kind=kind) -> 
+            match kind with
+            | OlyIRFunctionKind.Normal ->
+                "__oly_func"
+            | OlyIRFunctionKind.Scoped ->
+                "__oly_scoped_func"
         | Array _ -> "__oly_array"
         | BaseObject -> "__oly_base_object"
         | ForAll _ -> "__oly_for_all"

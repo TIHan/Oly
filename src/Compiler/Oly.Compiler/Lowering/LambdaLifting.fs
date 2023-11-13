@@ -1063,7 +1063,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
 
     override this.Rewrite(origExpr) =
         match origExpr with
-        | E.Lambda(syntaxInfo=syntaxInfo;flags=lambdaFlags;tyPars=tyPars;pars=pars;body=lazyLambdaBodyExpr) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) ->
+        | E.Lambda(syntaxInfo=syntaxInfo;flags=lambdaFlags;tyPars=tyPars;pars=pars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) ->
             let newExpr = 
                 if lambdaFlags.HasFlag(LambdaFlags.Static) then
                     let name = cenv.GenerateClosureName()
@@ -1077,88 +1077,6 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     let funcFlags = FunctionFlags.StaticLocal
 
                     OlyAssert.False(lambdaFlags.HasFlag(LambdaFlags.Continuation))
-
-//                    if lambdaFlags.HasFlag(LambdaFlags.Continuation) then
-//                        let freeTyVars = origExpr.GetLogicalFreeTypeVariables()
-//                        let freeLocals = origExpr.GetLogicalFreeAnyLocals()
-
-//                        OlyAssert.Equal(0, tyPars.Length)
-
-//                        let tyParLookup = Dictionary()
-//                        let tyPars =
-//                            freeTyVars
-//                            |> ImArray.mapi (fun i tyPar ->
-//                                // TODO: Handle constraints
-//                                let newTyPar = TypeParameterSymbol(tyPar.Name, i, tyPar.Arity, tyPar.IsVariadic, TypeParameterKind.Function i, ref ImArray.empty)
-//                                tyParLookup[tyPar.Id] <- newTyPar.AsType
-//                                newTyPar
-//                            )
-//                            |> ImArray.ofSeq
-//                        let tyParLookup = ReadOnlyDictionary tyParLookup
-
-//                        let valueLookup = Dictionary()
-//                        let pars =
-//                            freeLocals
-//                            |> ImArray.map (fun x -> 
-//                                let par = createLocalParameterValue(ImArray.empty, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
-//                                valueLookup[x.Id] <- par :> IValueSymbol
-//                                par
-//                            )
-//                            |> ImArray.append (
-//                                pars
-//                                |> ImArray.map (fun x ->
-//                                    // TODO: Do we need to replace type variables in the attributes?
-//                                    let par = createLocalParameterValue(x.Attributes, x.Name, x.Type.Substitute(tyParLookup), x.IsMutable)
-//                                    valueLookup[x.Id] <- par :> IValueSymbol
-//                                    par
-//                                )
-//                            )
-
-//                        let returnTy = returnTy.Substitute(tyParLookup)
-
-//                        let func =
-//                            createFunctionValue
-//                                EnclosingSymbol.Local
-//                                ImArray.empty
-//                                name
-//                                tyPars
-//                                pars
-//                                returnTy
-//                                MemberFlags.Private
-//                                funcFlags
-//                                WellKnownFunction.None
-//                                None
-//                                false
-
-//                        let newLambdaBodyExpr =
-//                            substitute(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
-
-//                        let newLazyLambdaBodyExpr =
-//                            LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
-
-//#if DEBUG
-//                        let freeLocalsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeLocals()
-//                        let freeTyVarsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeTypeVariables()
-//                        let freeLocalsDebug = newLazyLambdaBodyExpr.Expression.GetFreeLocals()
-//                        let freeTyVarsDebug = newLazyLambdaBodyExpr.Expression.GetFreeTypeVariables()
-//                        OlyAssert.Equal(freeLocalsDebugOrig.Count, freeLocalsDebug.Count)
-//                        OlyAssert.Equal(freeTyVarsDebugOrig.Count, freeTyVarsDebug.Count)
-//#endif
-
-//                        let rhsExpr =
-//                            E.CreateLambda(
-//                                syntaxInfo, 
-//                                (LambdaFlags.StackEmplace ||| LambdaFlags.Static ||| LambdaFlags.Bound), 
-//                                tyPars, 
-//                                pars, 
-//                                newLazyLambdaBodyExpr
-//                            )
-
-//                        E.Let(syntaxInfo, BindingLocalFunction(func), rhsExpr, 
-//                            E.Value(syntaxInfo, func)
-//                        )
-
-//                    else
 
                     let func =
                         createFunctionValue

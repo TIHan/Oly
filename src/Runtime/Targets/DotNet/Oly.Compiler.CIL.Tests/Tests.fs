@@ -17554,3 +17554,29 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "8_09_0"
     |> ignore
+
+[<Fact>]
+let ``Scoped lambda 1``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(f: scoped int32 -> int32): int32 = f(50)
+
+main(): () =
+    let result = M(x -> x)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "50"
+    |> ignore

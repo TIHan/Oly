@@ -944,7 +944,7 @@ type BoundExpression with
                     WellKnownExpressions.LoadFunction
                         argExpr
                         funcExpr
-                        cloInvoke.LogicalType
+                        argTy
                 resultExpr
             else
                 match argExpr with

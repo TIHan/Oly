@@ -1161,6 +1161,13 @@ module OlySyntaxType =
         | _ ->
             Option.None
 
+    let (|ScopedFunction|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxToken * OlySyntaxType ) option =
+        match node.Internal with
+        | SyntaxType.ScopedFunction _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
+        | _ ->
+            Option.None
+
     let (|FunctionPtr|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxBlittableOptional * OlySyntaxType * OlySyntaxToken * OlySyntaxType ) option =
         match node.Internal with
         | SyntaxType.FunctionPtr _ ->

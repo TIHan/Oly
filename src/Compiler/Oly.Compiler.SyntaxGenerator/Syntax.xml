@@ -232,6 +232,12 @@
       <Field name="rightArrowToken">SyntaxToken</Field>
       <Field name="outputTy">SyntaxType</Field>
     </Case>
+	<Case name="ScopedFunction">
+	  <Field name="scopedToken">SyntaxToken</Field>
+      <Field name="inputTy">SyntaxType</Field>
+      <Field name="rightArrowToken">SyntaxToken</Field>
+      <Field name="outputTy">SyntaxType</Field>
+    </Case>
 	<Case name="FunctionPtr">
 	  <Field name="staticToken">SyntaxToken</Field>
 	  <Field name="blittableOptional">SyntaxBlittableOptional</Field>

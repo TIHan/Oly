@@ -150,4 +150,34 @@ let ImplicitPassingArguments (benv: BoundEnvironment) (func: IFunctionSymbol) (a
         else
             func, argExprs
     else
-        func, argExprs
+        if func.IsFunctionGroup then
+            func, argExprs
+        else
+            let pars = func.LogicalParameters
+            if (not pars.IsEmpty) && pars.Length = argExprs.Length then
+
+                // We lazily create a new argument expression array when it is needed.
+                let mutable newArgExprs = Unchecked.defaultof<E imarrayb>
+
+                for i = 0 to argExprs.Length - 1 do
+                    let argExpr = argExprs[i]
+                    let par = pars[i]
+                    if par.Type.IsScopedFunction then                          
+                        match argExpr with
+                        | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
+                            let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
+
+                            if newArgExprs = Unchecked.defaultof<_> then
+                                newArgExprs <- ImArray.builderWithSize argExprs.Length
+                                newArgExprs.AddRange(argExprs)
+
+                            newArgExprs[i] <- newArgExpr                              
+                        | _ ->
+                            ()
+
+                if newArgExprs = Unchecked.defaultof<_> then
+                    func, argExprs
+                else
+                    func, newArgExprs.MoveToImmutable()
+            else
+                func, argExprs

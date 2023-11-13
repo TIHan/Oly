@@ -1596,6 +1596,31 @@ let tryParseType state =
             errorDo (ExpectedSyntaxAfterToken("function type", staticToken.RawToken), staticToken) state
             Some(SyntaxType.FunctionPtr(staticToken, blittableOptional, SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), dummyToken(), SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state))
     | _ ->
+
+    match bt SCOPED state with
+    | Some(scopedToken) ->
+        match bt tryParseInputOrOutput state with
+        | Some(input) ->
+            let input = parseInputType s None input state
+            match (tryPeek canRecover) state with
+            | true -> 
+                errorDo (ExpectedSyntax "function type", input) state
+                Some(SyntaxType.ScopedFunction(scopedToken, input, dummyToken(), SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state))
+            | _ ->
+                match bt2 RIGHT_ARROW tryParseType state with
+                | Some(rightArrowToken), Some(output) ->
+                    SyntaxType.ScopedFunction(scopedToken, input, rightArrowToken, output, ep s state) |> Some
+                | Some(rightArrowToken), _ ->
+                    error (ExpectedSyntax "an output type annotation", SyntaxType.ScopedFunction(scopedToken, input, rightArrowToken, SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state)) state
+                | _ ->
+
+                errorDo (ExpectedSyntax "function type", input) state
+                Some(SyntaxType.ScopedFunction(scopedToken, input, dummyToken(), SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state))
+        | _ ->
+            errorDo (ExpectedSyntaxAfterToken("function type", scopedToken.RawToken), scopedToken) state
+            Some(SyntaxType.ScopedFunction(scopedToken, SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), dummyToken(), SyntaxType.Name(SyntaxName.Identifier(dummyToken ())), ep s state))
+    | _ ->
+
         let mutableTokenOpt = bt MUTABLE state
         match bt tryParseInputOrOutput state with
         | Some(input) ->

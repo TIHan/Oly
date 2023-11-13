@@ -3477,6 +3477,12 @@ type TypeSymbol =
         | ForAll(_, TypeSymbol.Function _) -> true
         | _ -> false
 
+    member this.IsScopedFunction =
+        match stripTypeEquations this with
+        | Function(kind=FunctionKind.Scoped)
+        | ForAll(_, TypeSymbol.Function(kind=FunctionKind.Scoped)) -> true
+        | _ -> false
+
     member this.IsNativeFunctionPtr_t =
         match stripTypeEquations this with
         | NativeFunctionPtr _ -> true
