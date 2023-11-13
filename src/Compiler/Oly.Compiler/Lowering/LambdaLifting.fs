@@ -719,12 +719,19 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 cenv.GenerateClosureName()
             | Some(bindingInfo) ->
                 bindingInfo.Value.Name + cenv.GenerateClosureName()
+
+        let entFlags = 
+            if lambdaFlags.HasFlag(LambdaFlags.Scoped) then
+                EntityFlags.Final ||| EntityFlags.Scoped
+            else
+                EntityFlags.Final
         
         let closureBuilder = 
             EntitySymbolBuilder.CreateClosure(
                 Some cenv.tree.Assembly, 
                 EnclosingSymbol.Local, 
-                name
+                name,
+                entFlags
             )
         
         let tyParLookup = Dictionary()

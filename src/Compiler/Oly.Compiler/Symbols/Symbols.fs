@@ -175,6 +175,8 @@ type EntityFlags =
     | AutoOpen          = 0x000100000L
     | Nullable          = 0x001000000L
 
+    | Scoped            = 0x010000000L
+
     | Invalid           = 0x100000000L
 
 [<Struct;RequireQualifiedAccess>]
@@ -3702,6 +3704,8 @@ type TypeSymbol =
         | NativeUInt
         | NativePtr _ 
         | NativeFunctionPtr _ -> true
+        // Scoped function types are structs.
+        | Function(kind=FunctionKind.Scoped) -> true
         | Variable(tyPar)
         | HigherVariable(tyPar, _) ->
             tyPar.Constraints

@@ -163,8 +163,8 @@ type EntitySymbolBuilder private (
             failwith "Expected a namespace entity."
         EntitySymbolBuilder.Create(None, enclosing, name, EntityFlags.None, EntityKind.Namespace)
 
-    static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, EntityFlags.Final, EntityKind.Closure)
+    static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name, flags) =
+        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure)
 
     static member CreateAnonymousShape(enclosing, asm) =
         match enclosing with

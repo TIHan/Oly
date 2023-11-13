@@ -999,6 +999,12 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
         else
             ilEntFlags // Default is public
 
+    let ilEntFlags =
+        if ent.Flags.HasFlag(EntityFlags.Scoped) then
+            ilEntFlags ||| OlyILEntityFlags.Scoped
+        else
+            ilEntFlags
+
     let ilFieldDefs = GenFieldsAsILFieldDefinitions cenv envWithLocalContext ent.Fields
 
     let name =

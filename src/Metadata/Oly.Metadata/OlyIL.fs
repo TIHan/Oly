@@ -94,6 +94,8 @@ type OlyILEntityFlags =
     | AutoOpen     = 0x00010000
     | Nullable     = 0x00100000
 
+    | Scoped       = 0x01000000
+
 [<Flags>]
 type OlyILMemberFlags =
     | None =              0x00000000

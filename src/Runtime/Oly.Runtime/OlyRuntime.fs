@@ -816,7 +816,13 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 |> ImArray.map (fun x -> x.Type)
             let returnTy = func.ReturnType
 
-            let resultTy = RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Normal (* TODO: handle kind *))
+            let funcKind =
+                if func.Flags.IsInstance && func.EnclosingType.IsScoped then
+                    OlyIRFunctionKind.Scoped
+                else
+                    OlyIRFunctionKind.Normal
+
+            let resultTy = RuntimeType.Function(argTys, returnTy, funcKind)
 
             V.Function(OlyIRFunction(cenv.EmitFunction(func), func), cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -930,7 +936,13 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 |> ImArray.map (fun x -> x.Type)
             let returnTy = func.ReturnType
 
-            let resultTy = RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Normal (* TODO: handle kind *))
+            let funcKind =
+                if func.Flags.IsInstance && func.EnclosingType.IsScoped then
+                    OlyIRFunctionKind.Scoped
+                else
+                    OlyIRFunctionKind.Normal
+
+            let resultTy = RuntimeType.Function(argTys, returnTy, funcKind)
 
             let argExpr, _ = importExpression cenv env (Some resultTy) ilArgExpr
 
@@ -2021,6 +2033,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match emitted.TryGetValue field.EnclosingType.TypeArguments with
         | ValueSome res -> res
         | _ ->
+
+            if field.IsMutable && field.EnclosingType.IsClosure then
+                failwith "Fields on a closure cannot be mutable."
+
             let irAttrs = emitAttributes asm.ilAsm field.Attributes
 
             let constantOpt =

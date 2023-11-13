@@ -823,6 +823,12 @@ let private importEntityFlags (ilEntFlags: OlyILEntityFlags) =
         else
             flags
 
+    let flags =
+        if ilEntFlags.HasFlag(OlyILEntityFlags.Scoped) then
+            flags ||| EntityFlags.Scoped
+        else
+            flags
+
     flags
 
 let private importFunctionTypeInfo (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilArgTys: OlyILType imarray) (ilReturnTy: OlyILType) =

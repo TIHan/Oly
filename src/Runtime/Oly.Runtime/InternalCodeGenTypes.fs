@@ -328,6 +328,7 @@ type RuntimeEntity =
             this.RuntimeType.Value.IsAnyStruct
         else
             this.ILEntityKind = OlyILEntityKind.Struct ||
+            this.IsScopedClosure ||
             (
                 (this.IsTypeExtension || this.IsNewtype || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
             )
@@ -343,6 +344,13 @@ type RuntimeEntity =
 
     member this.IsClosure =
         this.ILEntityKind = OlyILEntityKind.Closure
+
+    member this.IsScoped =
+        this.ILEntityFlags.HasFlag(OlyILEntityFlags.Scoped)
+
+    // TODO: Do we really want this?
+    member this.IsScopedClosure =
+        this.IsClosure && this.IsScoped
 
     member this.IsInterface =
         this.ILEntityKind = OlyILEntityKind.Interface
@@ -784,6 +792,7 @@ type RuntimeType =
         | NativeUInt _
         | NativePtr _ 
         | NativeFunctionPtr _ -> true
+        | Function(kind=OlyIRFunctionKind.Scoped) -> true
         | Entity(ent) -> ent.IsAnyStruct
         | _ -> false
 
@@ -805,6 +814,12 @@ type RuntimeType =
     member this.IsClosure =
         match this with
         | Entity(ent) -> ent.IsClosure
+        | _ -> false
+
+    member this.IsScoped =
+        match this with
+        | Entity(ent) -> ent.IsClosure
+        | Function(kind=OlyIRFunctionKind.Scoped) -> true
         | _ -> false
 
     member this.IsInterface =

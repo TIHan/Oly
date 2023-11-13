@@ -718,7 +718,11 @@ module rec ClrCodeGen =
         let env = { prevEnv with isReturnable = false }
         match irOp with
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
-            GenArgumentExpression cenv env receiverExpr
+            if receiverExpr.ResultType.IsStruct then
+                let boxTy = ClrTypeInfo.TypeReference(cenv.assembly, cenv.assembly.TypeReferenceObject, false, false)
+                GenArgumentExpression cenv env (E.Operation(NoRange, O.Box(receiverExpr, boxTy)))
+            else
+                GenArgumentExpression cenv env receiverExpr
 
             emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 
@@ -2367,7 +2371,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     name
             let name = transformName name tyParCount
 
-            let isStruct = kind = OlyILEntityKind.Struct
+            let isClosure = kind = OlyILEntityKind.Closure
+            let isStruct = kind = OlyILEntityKind.Struct || (isClosure && flags.IsScoped)
             let isEnum = kind = OlyILEntityKind.Enum
             let isReadOnly = flags.IsReadOnly 
             let isInterface = kind = OlyILEntityKind.Interface
@@ -2380,7 +2385,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct)
 
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, isStruct, (kind = OlyILEntityKind.Closure), ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, isStruct, isClosure, ClrTypeDefinitionInfo.Default)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic

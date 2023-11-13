@@ -100,6 +100,7 @@ type OlyIRFunctionExternalInfo internal (platform: string, path: string imarray,
 
     member _.Name = name
 
+[<Sealed>]
 type OlyIRTypeFlags internal (ilEntFlags: OlyILEntityFlags, tyFlags: RuntimeTypeFlags) =
 
     member _.IsGenericsErased = tyFlags &&& RuntimeTypeFlags.GenericsErased = RuntimeTypeFlags.GenericsErased
@@ -117,6 +118,8 @@ type OlyIRTypeFlags internal (ilEntFlags: OlyILEntityFlags, tyFlags: RuntimeType
     member _.IsInternal = ilEntFlags &&& OlyILEntityFlags.AccessorMask = OlyILEntityFlags.Internal
 
     member _.IsPrivate = ilEntFlags &&& OlyILEntityFlags.AccessorMask = OlyILEntityFlags.Private
+
+    member _.IsScoped = ilEntFlags &&& OlyILEntityFlags.Scoped = OlyILEntityFlags.Scoped
 
 [<Struct>]
 type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, funcFlags: RuntimeFunctionFlags) =
