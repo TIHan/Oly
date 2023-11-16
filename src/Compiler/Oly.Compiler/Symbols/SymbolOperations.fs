@@ -1321,6 +1321,9 @@ type EntitySymbol with
     member this.IsInvalid =
         this.Flags &&& EntityFlags.Invalid = EntityFlags.Invalid
 
+    member this.IsScoped =
+        this.Flags &&& EntityFlags.Scoped = EntityFlags.Scoped
+
     member this.TryImportedInfo =
         this.Attributes
         |> Seq.tryPick (fun x ->

@@ -196,8 +196,6 @@ type AssemblySymbol =
 [<AbstractClass>]
 type EntitySymbol() =
 
-    let mutable isUnmanaged = ValueNone
-
     member val Id: int64 = newId()
 
     abstract Kind : EntityKind
@@ -3485,6 +3483,12 @@ type TypeSymbol =
         | ForAll(_, TypeSymbol.Function(kind=FunctionKind.Scoped)) -> true
         | _ -> false
 
+    member this.IsScoped =
+        match stripTypeEquations this with
+        | ByRef _ -> true
+        | Entity(ent) -> ent.Flags.HasFlag(EntityFlags.Scoped)
+        | this -> this.IsScopedFunction
+
     member this.IsNativeFunctionPtr_t =
         match stripTypeEquations this with
         | NativeFunctionPtr _ -> true
@@ -3585,8 +3589,6 @@ type TypeSymbol =
         match stripTypeEquations this with
         | TypeSymbol.ByRef _ -> true
         | _ -> false
-
-    member this.IsByRefLike = this.IsByRef_t
 
     member this.IsNativePtr_t =
         match stripTypeEquations this with

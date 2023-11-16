@@ -1354,6 +1354,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | RuntimeType.Function(argTys, returnTy, _)
                 | RuntimeType.NativeFunctionPtr(_, argTys, returnTy) ->
                     argTys, returnTy
+                | RuntimeType.ByRef(RuntimeType.Function(argTys, returnTy, _), _)
+                | RuntimeType.ByRef(RuntimeType.NativeFunctionPtr(_, argTys, returnTy), _) ->
+                    argTys, returnTy
                 | _ ->
                     failwith "Invalid indirect call."
 
@@ -2035,10 +2038,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match emitted.TryGetValue field.EnclosingType.TypeArguments with
         | ValueSome res -> res
         | _ ->
-
-            if field.IsMutable && field.EnclosingType.IsClosure then
-                failwith "Fields on a closure cannot be mutable."
-
             let irAttrs = emitAttributes asm.ilAsm field.Attributes
 
             let constantOpt =
@@ -2253,7 +2252,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                        kind <> OlyILEntityKind.Newtype then
                         failwithf "Fields can only be declared on module, class, struct or closure types: '%s'." field.Name
 
-                    if field.Type.IsByRefLike then
+                    if not field.EnclosingType.IsScoped && field.Type.IsScoped then
                         failwith $"Field '{field.Name}' cannot be of type '{field.Type.Name}'."
 
                     this.EmitField(field) |> ignore
@@ -2694,6 +2693,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | true, (res, _) -> res
         | _ ->
             let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandle)
+
+            if ilFieldDef.IsMutable && enclosingTy.IsClosure then
+                failwith "Fields on a closure cannot be mutable."
+
             let attrs =
                 ilFieldDef.Attributes
                 |> ImArray.choose (fun x -> this.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
@@ -2703,12 +2706,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 | OlyILFieldConstant(constant=ilConst) -> Some ilConst
                 | _ -> None
 
-            let ilFieldFlags =
-                if not(ilFieldDef.MemberFlags.HasFlag(OlyILMemberFlags.Static)) && enclosingTy.IsAnyStruct then
-                    // Instance fields on structs are always considered mutable.
-                    ilFieldDef.Flags ||| OlyILFieldFlags.Mutable
-                else
-                    ilFieldDef.Flags
+            let ilFieldFlags = ilFieldDef.Flags
 
             let res =
                 {

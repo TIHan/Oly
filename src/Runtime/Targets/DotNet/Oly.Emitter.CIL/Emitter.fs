@@ -22,6 +22,13 @@ type ClrMethodSpecialKind =
     | FunctionPointer
     | CreateDelegate
 
+[<RequireQualifiedAccess>]
+type ClrTypeFlags =
+    | None           = 0x00000
+    | Struct         = 0x00001
+    | ByRefLike      = 0x00011
+    | ScopedFunction = 0x00111
+
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
 type ClrTypeDefinitionInfo =
     {
@@ -38,7 +45,8 @@ type ClrTypeDefinitionInfo =
 and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo = 
     | TypeGenericInstance of ClrTypeInfo * tyArgs: ClrTypeHandle imarray * appliedTyHandle: ClrTypeHandle
     | TypeReference of assembly: ClrAssemblyBuilder * ClrTypeHandle * isReadOnly: bool * isStruct: bool
-    | TypeDefinition of assembly: ClrAssemblyBuilder * ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * isStruct: bool * isClosure: bool * info: ClrTypeDefinitionInfo
+    | TypeDefinition of assembly: ClrAssemblyBuilder * ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
+    | ByRef of ClrTypeInfo * isReadOnly: bool * appliedTyHandle: ClrTypeHandle
 
     member this.FullyQualifiedName =
         match this with
@@ -48,6 +56,8 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
             tyHandle.FullyQualifiedName
         | TypeGenericInstance(formalTy, _, _) ->
             formalTy.FullyQualifiedName
+        | ByRef _ ->
+            failwith "Not a named typed."
 
     member this.IsDefinitionEnum =
         match this with
@@ -64,15 +74,18 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeGenericInstance(x, _, _) -> x.IsReadOnly
         | TypeReference(isReadOnly=isReadOnly)
         | TypeDefinition(isReadOnly=isReadOnly) -> isReadOnly
+        | ByRef(isReadOnly=isReadOnly) -> isReadOnly
 
     member this.IsStruct =
         match this with
         | TypeGenericInstance(x, _, _) -> x.IsStruct
         | TypeReference(isStruct=isStruct) -> isStruct
-        | TypeDefinition(isStruct=isStruct;info=info) -> 
-            if isStruct then true
+        | TypeDefinition(flags=flags;info=info) -> 
+            if flags.HasFlag(ClrTypeFlags.Struct) then true
             else
                 (match info.enumBaseTyOpt with Some ty -> ty.IsStruct | _ -> false)
+        | ByRef _ ->
+            false
 
     member this.IsTypeVariable =
         match this with
@@ -83,37 +96,40 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
 
     member this.IsByRefOfTypeVariable =
         match this with
-        | TypeReference(_, handle, _, _) ->
-            handle.IsByRef_t &&
-            match handle.TryElementType with
-            | ValueSome elementHandle -> elementHandle.IsVariable
-            | _ -> false
+        | ByRef(elementTy, _, _) ->
+            elementTy.IsTypeVariable
         | _ ->
             false
 
     member this.IsByRefOfStruct =
         match this with
-        | TypeReference(_, handle, _, _) ->
-            handle.IsByRef_t &&
-            match handle.TryElementType with
-            | ValueSome elementHandle -> elementHandle.IsValueType
-            | _ -> false
+        | ByRef(elementTy, _, _) ->
+            elementTy.IsStruct
         | _ ->
             false
 
-    member this.IsByRef =
+    member this.IsByRef_t =
         match this with
-        | TypeReference(_, handle, _, _) ->
-            handle.IsByRef_t
+        | ByRef _ ->
+            true
         | _ ->
             false
+
+    member this.IsByRefLike =
+        match this with
+        | ByRef _ -> true
+        | TypeDefinition(flags=flags) -> flags.HasFlag(ClrTypeFlags.ByRefLike)
+        | _ -> false
+
+    member this.IsScopedFunction =
+        match this with
+        | TypeDefinition(flags=flags) -> flags.HasFlag(ClrTypeFlags.ScopedFunction)
+        | _ -> false
 
     member this.TryByRefElementType =
         match this with
-        | TypeReference(asmBuilder, handle, _, _) ->
-            match handle.TryElementType with
-            | ValueSome elementHandle -> ValueSome(ClrTypeInfo.TypeReference(asmBuilder, elementHandle, false, false))
-            | _ -> ValueNone
+        | ByRef(elementTy, _, _) ->
+            ValueSome(elementTy)
         | _ ->
             ValueNone
 
@@ -136,6 +152,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeGenericInstance(x, _, _) -> x.IsClosure
         | TypeReference _ -> false
         | TypeDefinition(isClosure=isClosure) -> isClosure
+        | ByRef _ -> false
 
     member this.IsTypeDefinitionInterface =
         match this with
@@ -152,6 +169,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeGenericInstance(_, _, x) -> x
         | TypeReference(_, handle, _, _) -> handle
         | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) -> tyDefBuilder.Handle
+        | ByRef(_, _, handle) -> handle
 
     member this.TypeArguments: ClrTypeHandle imarray =
         match this with
@@ -172,6 +190,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeGenericInstance(x, _, _) -> x.Assembly
         | TypeReference(assembly=asm)
         | TypeDefinition(assembly=asm) -> asm
+        | ByRef _ -> failwith "Not a named type."
 
     member this.TypeDefinitionBuilder =
         match this with
@@ -418,7 +437,7 @@ module rec ClrCodeGen =
         }
 
     let isByRefLike (asmBuilder: ClrAssemblyBuilder) (x: ClrTypeInfo) =
-        if x.IsByRef then
+        if x.IsByRefLike then
             true
         else
             let result =
@@ -430,7 +449,9 @@ module rec ClrCodeGen =
                     | ClrTypeInfo.TypeReference(_, handle, _, _) ->
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
-                        info.Handle = tr                  
+                        info.Handle = tr
+                    | ClrTypeInfo.ByRef _ ->
+                        false
                 | _ ->
                     false
 
@@ -446,6 +467,8 @@ module rec ClrCodeGen =
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
                         info.Handle = tr
+                    | ClrTypeInfo.ByRef _ ->
+                        false
                 | _ ->
                     false
 
@@ -479,7 +502,7 @@ module rec ClrCodeGen =
 
         asmBuilder.AddBlob(b)
 
-    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
+    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name =
 
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true)
 
@@ -490,10 +513,6 @@ module rec ClrCodeGen =
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Managed
-
-        let invoke = tyDef.CreateMethodDefinitionBuilder("Invoke", ImArray.empty, invokeParTys, invokeReturnTy, true)
-        invoke.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.Final
-        invoke.ImplementationAttributes <- MethodImplAttributes.Managed
 
         let ptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "ptr", asmBuilder.TypeReferenceIntPtr, None)
         let fnptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "fnptr", asmBuilder.TypeReferenceIntPtr, None)
@@ -507,23 +526,6 @@ module rec ClrCodeGen =
                 (I.Ldarg 0)
                 (I.Ldarg 2)
                 (I.Stfld fnptrField)
-
-                I.Ret
-            ]
-            |> ImArray.ofSeq
-
-        invoke.BodyInstructions <-
-            [
-                (I.Ldarg 0)
-                (I.Ldfld ptrField)
-
-                for i = 1 to invokeParTys.Length do
-                    (I.Ldarg i)
-
-                (I.Ldarg 0)
-                (I.Ldfld fnptrField)
-
-                (I.Calli(SignatureCallingConvention.Default, invokeParTys |> ImArray.map snd |> ImArray.prependOne asmBuilder.TypeReferenceIntPtr, invokeReturnTy))
 
                 I.Ret
             ]
@@ -1147,7 +1149,7 @@ module rec ClrCodeGen =
                 I.Stind_i8 |> emitInstruction cenv
             else
                 match irArg1.ResultType.TryByRefElementType with
-                | ValueSome(elementTy) when not elementTy.IsStruct ->
+                | ValueSome(elementTy) ->
                     I.Stobj(elementTy.Handle) |> emitInstruction cenv
                 | _ ->
                     I.Stind_ref |> emitInstruction cenv
@@ -1181,6 +1183,13 @@ module rec ClrCodeGen =
 
         | O.LoadFieldAddress(irField, irArg, _, _) ->
             GenArgumentExpression cenv env irArg
+            if irArg.ResultType.IsStruct then
+                failwith "Expected an address."
+            match tryGetLastInstruction cenv with
+            | ValueSome(I.Ldloc(i)) when irArg.ResultType.IsByRefOfStruct && not((cenv.locals[i] |> snd).IsByRefOfStruct) ->
+                failwith "Local address mis-matching."
+            | _ ->
+                ()
             I.Ldflda irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.NewTuple(itemTys, irArgs, _) ->
@@ -1377,53 +1386,59 @@ module rec ClrCodeGen =
         irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
-    let GenCallIndirect (cenv: cenv) env (irFunArg: E<ClrTypeInfo, _, _>) (irArgs: E<_, _, _> imarray) (runtimeArgTys: ClrTypeInfo imarray) (runtimeReturnTy: ClrTypeInfo) =
+    let GenCallIndirect (cenv: cenv) env (thisArgExpr: E<ClrTypeInfo, _, _>) (argExprs: E<_, _, _> imarray) (parTys: ClrTypeInfo imarray) (returnTy: ClrTypeInfo) =
 
-        let funcTy = irFunArg.ResultType
+        let funcTy = thisArgExpr.ResultType
+        let funcTy =
+            match funcTy.TryByRefElementType with
+            | ValueSome(elementTy) ->
+                elementTy
+            | _ ->
+                funcTy
 
-        //if funcTy.IsStruct && funcTy.IsTypeDefinition_t && funcTy.FullyQualifiedName.Contains("__oly_scoped_func") then
-        //    let irFunArg =
-        //        match irFunArg with
-        //        | E.Value(textRange, V.Argument(n, ty)) ->
-        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
-        //            E.Value(textRange, V.ArgumentAddress(n, OlyIRByRefKind.ReadWrite, byRefTy))
-        //        | E.Value(textRange, V.Local(n, ty)) ->
-        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
-        //            E.Value(textRange, V.LocalAddress(n, OlyIRByRefKind.ReadWrite, byRefTy))
-        //        | E.Operation(textRange, O.LoadField(field, receiverExpr, ty)) ->
-        //            let byRefTy = ClrTypeInfo.TypeReference(cenv.assembly, ClrTypeHandle.CreateByRef(ty.Handle), false, false)
-        //            E.Operation(textRange, O.LoadFieldAddress(field, receiverExpr, OlyIRByRefKind.ReadWrite, byRefTy))
-        //        | _ ->
-        //            failwith "Invalid indirect call."
-                
-        //    GenArgumentExpression cenv env irFunArg
-        //else
-        GenArgumentExpression cenv env irFunArg
+        GenArgumentExpression cenv env thisArgExpr
 
         match funcTy.Handle with
         | ClrTypeHandle.FunctionPointer(cc, parTys, returnTy) ->            
-            let localIndex = cenv.NewLocal(irFunArg.ResultType)
+            let localIndex = cenv.NewLocal(thisArgExpr.ResultType)
             I.Stloc localIndex |> emitInstruction cenv
-            irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
+            argExprs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
             I.Ldloc localIndex |> emitInstruction cenv
             I.Calli(cc, parTys, returnTy) |> emitInstruction cenv
         | _ ->
-            irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
+
+            let localIndex =
+                if funcTy.IsScopedFunction then
+                    let localIndex = cenv.NewLocal(thisArgExpr.ResultType)
+                    I.Stloc localIndex |> emitInstruction cenv
+                    localIndex
+                else
+                    -1
+
+            if funcTy.IsScopedFunction then
+                I.Ldloc localIndex |> emitInstruction cenv
+                I.Ldfld (funcTy.TypeDefinitionBuilder.GetFieldByIndex(0)) |> emitInstruction cenv
+
+            argExprs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
 
             let argTys =
-                runtimeArgTys
+                parTys
                 |> ImArray.map (fun x -> x.Handle)
 
-            let invoke =
-                if funcTy.IsTypeDefinition_t then
-                    createMulticastDelegateInvoke cenv.assembly funcTy
-                else
-                    createAnonymousFunctionInvoke cenv.assembly funcTy.Handle funcTy.TypeArguments argTys runtimeReturnTy.Handle
+            if funcTy.IsScopedFunction then
+                I.Ldloc localIndex |> emitInstruction cenv
+                I.Ldfld (funcTy.TypeDefinitionBuilder.GetFieldByIndex(1)) |> emitInstruction cenv
 
-            if funcTy.IsStruct then
-                I.Call(invoke, irArgs.Length) |> emitInstruction cenv
+                I.Calli(SignatureCallingConvention.Default, argTys |> ImArray.prependOne cenv.assembly.TypeReferenceIntPtr, returnTy.Handle)
+                |> emitInstruction cenv
             else
-                I.Callvirt(invoke, irArgs.Length) |> emitInstruction cenv
+                let invoke =
+                    if funcTy.IsTypeDefinition_t then
+                        createMulticastDelegateInvoke cenv.assembly funcTy
+                    else
+                        createAnonymousFunctionInvoke cenv.assembly funcTy.Handle funcTy.TypeArguments argTys returnTy.Handle
+
+                I.Callvirt(invoke, argExprs.Length) |> emitInstruction cenv
 
     // TODO: We could just do this in the front-end when optimizations are enabled.
     let rec MorphExpression (cenv: cenv) (expr: E<ClrTypeInfo, _, _>) =
@@ -1989,10 +2004,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     let mutable readOnlyByRefCount = 0
                     pars
                     |> ImArray.iter (fun x ->
-                        if x.Type.IsByRef && x.Type.IsReadOnly then
+                        if x.Type.IsByRef_t && x.Type.IsReadOnly then
                             readOnlyByRefCount <- readOnlyByRefCount + 1
                     )
-                    if returnTy.IsByRef && returnTy.IsReadOnly then
+                    if returnTy.IsByRef_t && returnTy.IsReadOnly then
                         readOnlyByRefCount <- readOnlyByRefCount + 1
             
                     if readOnlyByRefCount > 0 then
@@ -2021,6 +2036,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         tyDef
 
+    let lazyScopedFunc =
+        lazy
+            let name = "__oly_scoped_func"
+            let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
+            ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+
     member this.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
 
@@ -2033,6 +2054,15 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             asmBuilder.tr_ReadOnlySpan <- vm.TryFindType("System.ReadOnlySpan", 1) |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_UnmanagedFunctionPointerAttribute <- vm.TryFindType("System.Runtime.InteropServices.UnmanagedFunctionPointerAttribute") |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_CallingConvention <- vm.TryFindType("System.Runtime.InteropServices.CallingConvention") |> Option.map (fun x -> x.Handle)
+
+            // TODO: Uncomment this when we have the design right for ref structs.
+            //asmBuilder.tr_IsByRefLikeAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsByRefLikeAttribute") |> Option.map (fun x -> x.Handle)
+
+            match asmBuilder.tr_IsByRefLikeAttribute with
+            | Some(isByRefLikeAttrHandle) ->
+                asmBuilder.tr_IsByRefLikeAttributeConstructor <- asmBuilder.CreateConstructor(isByRefLikeAttrHandle) |> Some
+            | _ ->
+                ()
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
@@ -2078,15 +2108,15 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeByRef(ty, byRefKind) =
             match byRefKind with
             | OlyIRByRefKind.ReadWrite ->
-                ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(ty.Handle), false, true)     
+                ClrTypeInfo.ByRef(ty, false, ClrTypeHandle.CreateByRef(ty.Handle))     
             | OlyIRByRefKind.Read ->
-                let ty = 
+                let handle = 
                     match asmBuilder.tr_InAttribute with
                     | Some tr_InAttribute ->
                         ClrTypeHandle.ModReq(tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
                     | _ ->
                         ClrTypeHandle.CreateByRef(ty.Handle)
-                ClrTypeInfo.TypeReference(asmBuilder, ty, true, true)     
+                ClrTypeInfo.ByRef(ty, true, handle)      
 
         member this.EmitTypeRefCell(ty) =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(ty.Handle, 1), false, false)
@@ -2176,17 +2206,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         argTyHandles
                         |> ImArray.map (fun x -> ("", x))
                     let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
-                    ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, false, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
                 else
                     let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
                     ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
             else
-                let name = "__oly_scoped_func_" + (newUniqueId()).ToString()
-                let parTys =
-                    inputTys
-                    |> ImArray.map (fun x -> ("", x.Handle))
-                let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name parTys outputTy.Handle
-                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, true, false, ClrTypeDefinitionInfo.Default)
+                lazyScopedFunc.Value
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum
@@ -2287,6 +2312,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
                     asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
             )
+
+            if flags.IsScoped then
+                match asmBuilder.tr_IsByRefLikeAttributeConstructor with
+                | Some(isByRefLikeAttrCtorHandle) ->
+                    asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, isByRefLikeAttrCtorHandle, ClrCodeGen.writeAttributeArguments asmBuilder ImArray.empty ImArray.empty)
+                | _ ->
+                    ()
 
             let extends =
                 if kind = OlyILEntityKind.Closure then
@@ -2449,23 +2481,23 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         |> ImArray.ofSeq
 
                 let instanceTyInfo =
-                    ClrTypeInfo.TypeDefinition(asmBuilder, instanceTyDefBuilder, isReadOnly, false, false, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(asmBuilder, instanceTyDefBuilder, isReadOnly, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
 
                 tyDef.TypeDefinitionInfo.typeExtensionInfo <- ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle)
 
-        member this.EmitTypeDefinition(enclosing, kind, flags, name, tyParCount) =
+        member this.EmitTypeDefinition(enclosing, ilKind, irTyFlags, name, tyParCount) =
             let name =
-                if flags.IsGenericsErased then
+                if irTyFlags.IsGenericsErased then
                     name + newUniquePrivateTypeName()
                 else
                     name
             let name = transformName name tyParCount
 
-            let isClosure = kind = OlyILEntityKind.Closure
-            let isStruct = kind = OlyILEntityKind.Struct || (isClosure && flags.IsScoped)
-            let isEnum = kind = OlyILEntityKind.Enum
-            let isReadOnly = flags.IsReadOnly 
-            let isInterface = kind = OlyILEntityKind.Interface
+            let isClosure = ilKind = OlyILEntityKind.Closure
+            let isStruct = ilKind = OlyILEntityKind.Struct || (isClosure && irTyFlags.IsScoped)
+            let isEnum = ilKind = OlyILEntityKind.Enum
+            let isReadOnly = irTyFlags.IsReadOnly 
+            let isInterface = ilKind = OlyILEntityKind.Interface
 
             let enclosingTyHandle, namespac = getEnclosingInfo enclosing
 
@@ -2475,10 +2507,30 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct)
 
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, isStruct, isClosure, ClrTypeDefinitionInfo.Default)
+            let tyFlags = 
+                if isStruct then
+                    ClrTypeFlags.Struct
+                else
+                    ClrTypeFlags.None
+
+            let tyFlags =
+                if irTyFlags.IsScoped then
+                    tyFlags ||| ClrTypeFlags.ByRefLike
+                else
+                    tyFlags
+
+            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Default)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic
+
+            let fieldTy =
+                // If the field type is a byref, then emit it as a native-pointer if IsByRefLike doesn't exist.
+                match fieldTy.TryByRefElementType with
+                | ValueSome elementTy when asmBuilder.tr_IsByRefLikeAttributeConstructor.IsNone ->
+                    ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddNativePointer(elementTy.Handle), false, true)
+                | _ ->
+                    fieldTy
             let fieldTyHandle = fieldTy.Handle
 
             match enclosingTy with
@@ -2658,7 +2710,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         match cilTy.TryTypeExtensionType with
                         | ValueSome(cilTy, _, _) -> 
                             if cilTy.IsStruct then
-                                ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(cilTy.Handle), false, false)
+                                ClrTypeInfo.ByRef(cilTy, false, ClrTypeHandle.CreateByRef(cilTy.Handle))
                             else
                                 cilTy
                         | _ -> cilTy
@@ -2702,6 +2754,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 
             let methRefHandle, methDefBuilderOpt =
                 match enclosingTy with
+                | ClrTypeInfo.ByRef _ -> failwith "Invalid enclosing type."
                 | ClrTypeInfo.TypeGenericInstance(_, _, enclosingTyHandle)
                 | ClrTypeInfo.TypeReference(_, enclosingTyHandle, _, _) ->
                     let convention = SignatureCallingConvention.Default
@@ -2806,7 +2859,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     if enclosingTy.IsStruct then
                         // Perhaps, the OlyRuntime can give all parameters even for instance functions instead of us
                         // having to do this manually.
-                        let thisTy = ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateByRef(enclosingTy.Handle), false, true)  
+                        let thisTy = ClrTypeInfo.ByRef(enclosingTy, false, ClrTypeHandle.CreateByRef(enclosingTy.Handle))  
                         ImArray.createOne("this", thisTy).AddRange(pars)
                     else
                         ImArray.createOne("this", enclosingTy).AddRange(pars)

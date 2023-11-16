@@ -1963,27 +1963,6 @@ main() : () =
     proj.Compilation
     |> runWithExpectedOutput ""
 
-// Mono.Cecil tests
-
-open Mono.Cecil
-
-[<Fact(Skip = "fix paths")>]
-let ``Debug info reading``() =
-    let src =
-        """
-main(): () = ()
-        """
-    let proj = getProject src
-    match dotnetTarget.BuildProjectAsync(proj, System.Threading.CancellationToken.None).Result with
-    | Ok(str) ->
-        let pars = ReaderParameters()
-        pars.ReadSymbols <- true
-        pars.ThrowIfSymbolsAreNotMatching <- true
-        let mcAsm = AssemblyDefinition.ReadAssembly(str, pars)
-        ()
-    | Error(str) ->
-        failwith str
-
 [<Fact(Skip = "We cannot call 'test' as it is marked as unmanaged callers only, we need a new test. Passes in Release vs Debug - weird .NET behavior.")>]
 let ``UnmanagedCallersOnly example``() =
     let src =

@@ -1924,12 +1924,21 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            OlyILExpression.Operation(ilTextRange,
-                                OlyILOperation.LoadField(
-                                    GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol), 
-                                    ilReceiver
+                            if value.Type.IsAnyStruct && not value.Type.IsNativeFunctionPtr_t then
+                                OlyILExpression.Operation(ilTextRange,
+                                    OlyILOperation.LoadFieldAddress(
+                                        GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),
+                                        ilReceiver,
+                                        OlyILByRefKind.ReadWrite
+                                    )
                                 )
-                            )
+                            else
+                                OlyILExpression.Operation(ilTextRange,
+                                    OlyILOperation.LoadField(
+                                        GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol), 
+                                        ilReceiver
+                                    )
+                                )
                         else
                             failwith "Invalid function argument for CallIndirect."
 
@@ -1943,11 +1952,17 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                         else
                             match cenv.funEnv.scopedLocals.TryGetValue value.Formal.Id with
                             | true, local ->
-                                OlyILExpression.Value(ilTextRange, OlyILValue.Local local.Index)
+                                if value.Type.IsAnyStruct && not value.Type.IsNativeFunctionPtr_t then
+                                    OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(local.Index, OlyILByRefKind.ReadWrite))
+                                else
+                                    OlyILExpression.Value(ilTextRange, OlyILValue.Local local.Index)
                             | _ ->
                                 match cenv.funEnv.arguments.TryGetValue value.Formal.Id with
                                 | true, n ->
-                                    OlyILExpression.Value(ilTextRange, OlyILValue.Argument n)
+                                    if value.Type.IsAnyStruct && not value.Type.IsNativeFunctionPtr_t then
+                                        OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.ReadWrite))
+                                    else
+                                        OlyILExpression.Value(ilTextRange, OlyILValue.Argument n)
                                 | _ ->
                                     failwith "Invalid function argument for CallIndirect."
 

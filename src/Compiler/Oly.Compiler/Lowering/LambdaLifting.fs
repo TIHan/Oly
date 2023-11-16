@@ -215,20 +215,21 @@ let substitute
                                     let getFieldExpr =
                                         BoundExpression.GetField(
                                             syntaxInfo, 
-                                            handleReceiverExpr newValue,
+                                            (
+                                                (handleReceiverExpr newValue)
+                                            ),
                                             appliedNewValue :?> IFieldSymbol
                                         )
-                                    // TODO: Get rid of this commented code, or actually use it.
-                                    //       Do we want to handle substitutions for ref cells here?
-                                    //if not value.Type.IsRefCell_t && newValue.Type.IsRefCell_t then
-                                    //    WellKnownExpressions.LoadRefCellContents getFieldExpr
-                                    //else
-                                    getFieldExpr                                      
+                                    // Special!
+                                    if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
+                                        WellKnownExpressions.FromAddress getFieldExpr
+                                    else
+                                        getFieldExpr                                      
                             else
                                 let valueExpr = BoundExpression.Value(syntaxInfo, appliedNewValue)
                                 // Special!
                                 if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
-                                    WellKnownExpressions.AutoDereferenceIfPossible valueExpr
+                                    WellKnownExpressions.FromAddress valueExpr
                                 else
                                     valueExpr
 
@@ -264,11 +265,19 @@ let substitute
 
                         // Special!
                         if appliedNewValue.Type.IsByRef_t && not value.Type.IsByRef_t then
-                            BoundExpression.SetContentsOfAddress(
-                                syntaxInfo, 
-                                BoundExpression.CreateValue(syntaxInfo.Syntax.Tree, appliedNewValue),
-                                rhsExpr
-                            )
+                            match appliedNewValue with
+                            | :? IFieldSymbol as appliedNewField ->
+                                BoundExpression.SetContentsOfAddress(
+                                    syntaxInfo, 
+                                    BoundExpression.GetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField),
+                                    rhsExpr
+                                )
+                            | _ ->
+                                BoundExpression.SetContentsOfAddress(
+                                    syntaxInfo, 
+                                    BoundExpression.CreateValue(syntaxInfo.Syntax.Tree, appliedNewValue),
+                                    rhsExpr
+                                )
                         else
                             match appliedNewValue with
                             | :? IFieldSymbol as appliedNewField ->
@@ -442,9 +451,9 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: Re
     let thisCtorPar = createThisValue "" true true (closure.ToInstantiation())
     
     let ctorPars0 =
-        freeLocals
+        fields
         |> ImArray.map (fun x ->
-            createLocalParameterValue(ImArray.empty, "", x.Type.Substitute(tyParLookup), false)
+            createLocalParameterValue(ImArray.empty, "", x.Type, false)
         )
     let ctorPars =
         (ImArray.createOne thisCtorPar).AddRange(ctorPars0)
@@ -644,7 +653,12 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
         
     let ctorArgExprs =
         freeLocals
-        |> ImArray.map (fun x -> E.CreateValue(syntaxTree, x))
+        |> ImArray.map (fun x -> 
+            if x.IsMutable then
+                WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))
+            else
+                E.CreateValue(syntaxTree, x)
+        )
 
     let callCtorExpr =
         E.Call(
@@ -704,7 +718,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let freeLocals = 
             origExpr.GetFreeLocals()
             |> Seq.map (fun x -> x.Value |> snd)
-            |> Seq.filter (fun x -> (not x.IsMutable) && not x.IsFunction)
+            |> Seq.filter (fun x -> not x.IsFunction)
             |> ImArray.ofSeq
             |> ImArray.filter (fun x ->
                 match bindingInfoOpt with
@@ -806,15 +820,22 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
 
                 let name = checkFieldName name i
 
-                if x.Type.IsByRefLike then
-                    failwith "Cannot capture a ByRef-like value in a closure."
-
                 let field =
+                    let fieldTy = x.Type.Substitute(closureTyParLookup)
+                    let fieldTy =
+                        if x.IsMutable then
+                            TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
+                        else
+                            fieldTy
+
+                    if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped then
+                        failwith "Cannot capture a value whose type is scoped in a closure."
+
                     createFieldValue
                         closureBuilder.Entity.AsEnclosing
                         ImArray.empty
                         name
-                        (x.Type.Substitute(closureTyParLookup))
+                        fieldTy
                         (MemberFlags.Instance ||| MemberFlags.Public)
                         ValueFlags.None
                         (ref None)

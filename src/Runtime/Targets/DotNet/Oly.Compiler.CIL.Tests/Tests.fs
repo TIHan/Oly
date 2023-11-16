@@ -17561,12 +17561,6 @@ let ``Scoped lambda 1``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
-alias byref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
-
 #[intrinsic("print")]
 print(__oly_object): ()
 
@@ -17587,12 +17581,6 @@ let ``Scoped lambda 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
-alias byref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
-
 #[intrinsic("print")]
 print(__oly_object): ()
 
@@ -17610,4 +17598,374 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "50"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(f: scoped int32 -> int32): int32 = f(50)
+
+M2(f: scoped int32 -> int32): int32 =
+    M(x -> f(x))
+
+main(): () =
+    let mutable y = 78
+    let result = 
+        M2(x -> 
+            y <- x
+            x
+        )
+    print(y)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "50"
+    |> ignore
+
+[<Fact>]
+let ``ByRef should pass as it can be captured inside a scoped lambda``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(f: scoped () -> int32): int32 = f()
+
+M2(x: byref<int32>): int32 =
+    M(() -> x)
+
+main(): () =
+    let mutable y = 5
+    let result = M2(&y)
+    print(result)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"
+    |> ignore
+
+[<Fact>]
+let ``ByRef should pass as it can be captured inside a scoped lambda 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+
+    mutable Call(): () =
+        this.X <- 5
+
+M(f: scoped () -> ()): () = f()
+
+M2(x: byref<S>): () =
+    M(() -> x.Call())
+
+main(): () =
+    let mutable y = S()
+    M2(&y)
+    print(y.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"
+    |> ignore
+
+[<Fact>]
+let ``ByRef should pass as it can be captured inside a scoped lambda 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+
+    mutable Call(): () =
+        this.X <- 5
+
+M(f: scoped () -> ()): () = f()
+
+M2(f: scoped () -> ()): () = M(f)
+
+M3(x: byref<S>): () =
+    M2(() -> x.Call())
+
+main(): () =
+    let mutable y = S()
+    M3(&y)
+    print(y.X)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda should close properly``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+
+M(f: scoped byref<S> -> ()): () = 
+    let mutable s = S()
+    f(&s)
+    print(s.X)
+
+M2(x: int32): () =
+    M(s -> s.X <- x)
+
+main(): () =
+    M2(123)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda should close properly 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+    public mutable field EntityId: EntityId = EntityId()
+
+struct EntityId =
+
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
+
+M(entId: EntityId, f: scoped byref<S> -> ()): () = 
+    let mutable s = S()
+    f(&s)
+    print(s.X)
+
+M2(entId: EntityId): () =
+    M(entId, 
+        s -> 
+            s.EntityId <- entId
+            s.X <- 123
+    )
+
+main(): () =
+    M2(EntityId())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda should close properly 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+    public mutable field EntityId: EntityId = EntityId()
+
+struct EntityId =
+
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
+
+M(entId: EntityId, f: scoped byref<S> -> ()): () = 
+    let mutable s = S()
+    f(&s)
+    print(s.X)
+
+M2(mutable entId: EntityId): () =
+    M(entId, 
+        s -> 
+            s.EntityId <- entId
+            s.X <- 123
+    )
+
+main(): () =
+    M2(EntityId())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda should close properly 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+    public mutable field EntityId: EntityId = EntityId()
+
+struct EntityId =
+
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
+
+    #[inline(never)]
+    Encode(): int32 = 7
+
+M(entId: EntityId, f: scoped byref<S> -> ()): () = 
+    let mutable s = S()
+    f(&s)
+    print(s.X)
+
+M2(mutable entId: EntityId): () =
+    M(entId, 
+        s -> 
+            s.EntityId <- entId
+            s.X <- entId.Encode()
+    )
+
+main(): () =
+    M2(EntityId())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda should close properly 5``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+struct S =
+
+    public mutable field X: int32 = 0
+    public mutable field EntityId: EntityId = EntityId()
+
+struct EntityId =
+
+    public mutable field Index: int32 = 0
+    public mutable field Version: uint32 = 0
+
+    #[inline(never)]
+    Encode(): int32 = 7
+
+M(entId: EntityId, f: scoped byref<S> -> ()): () = 
+    let mutable s = S()
+    f(&s)
+    print(s.X)
+
+M2(mutable entId: EntityId): () =
+    M(entId, 
+        s -> 
+            M(entId,
+                s ->
+                    s.EntityId <- entId
+                    s.X <- entId.Encode()
+            )
+    )
+
+main(): () =
+    M2(EntityId())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "70"
     |> ignore

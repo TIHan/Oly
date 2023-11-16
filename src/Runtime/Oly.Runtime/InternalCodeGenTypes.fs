@@ -574,8 +574,6 @@ type RuntimeType =
         | ByRef _ -> true
         | _ -> false
 
-    member this.IsByRefLike = this.IsByRef_t
-
     member this.IsAnyPtr =
         match this.StripAlias() with
         | NativePtr _
@@ -817,9 +815,15 @@ type RuntimeType =
         | _ -> false
 
     member this.IsScoped =
-        match this with
+        match this.StripAll() with
+        | ByRef _ -> true
         | Entity(ent) -> ent.IsScoped
         | Function(kind=OlyIRFunctionKind.Scoped) -> true
+        | _ -> false
+
+    member this.IsFunction_t =
+        match this.StripAll() with
+        | Function _ -> true
         | _ -> false
 
     member this.IsInterface =
@@ -1444,6 +1448,9 @@ type RuntimeField =
         }
 
 type RuntimeType with
+
+    member this.StripAll() =
+        this.StripAliasAndNewtypeAndEnum()
 
     member this.StripAlias(): RuntimeType =
         if this.IsAlias && this.Extends.Length = 1 then

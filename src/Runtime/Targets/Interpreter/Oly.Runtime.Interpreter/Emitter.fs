@@ -1346,16 +1346,28 @@ type InterpreterFunction(env: InterpreterEnvironment,
                     failwith "Invalid receiver instance."
 
             | InterpreterOperation.CallIndirect(receiver=receiverExpr; args=argExprs) ->
+
+                let handle (o: obj) =
+                    match o with
+                    | :? InterpreterInstanceOfClosureType as receiver ->
+                        let thisArg = receiver.InvokeThisArgument
+                        let args = evalArgs stack argExprs 
+                        receiver.InvokeFunction.CallWithStack(stack, ImArray.prependOne thisArg args, false)
+                    | :? InterpreterInstanceOfFunctionType as func ->
+                        let args = evalArgs stack argExprs 
+                        func.InvokeFunction.CallWithStack(stack, args, false)
+                    | _ ->
+                        failwithf "Invalid indirect call."
+
                 match evalArg stack receiverExpr with
-                | :? InterpreterInstanceOfClosureType as receiver ->
-                    let thisArg = receiver.InvokeThisArgument
-                    let args = evalArgs stack argExprs 
-                    receiver.InvokeFunction.CallWithStack(stack, ImArray.prependOne thisArg args, false)
-                | :? InterpreterInstanceOfFunctionType as func ->
-                    let args = evalArgs stack argExprs 
-                    func.InvokeFunction.CallWithStack(stack, args, false)
-                | res ->
-                    failwithf "Invalid indirect call."
+                | :? InterpreterByReferenceOfArgument as byRef ->
+                    handle byRef.Instance
+                | :? InterpreterByReferenceOfLocal as byRef ->
+                    handle byRef.Instance
+                | :? InterpreterByReferenceOfInstanceField as byRef ->
+                    handle byRef.Instance
+                | o ->
+                    handle o
 
             | InterpreterOperation.NewRefCell(_, argExpr, resultTy) ->
                 let instance = InterpreterInstanceOfType(resultTy, false, false, ImArray.empty, ImArray.empty)
