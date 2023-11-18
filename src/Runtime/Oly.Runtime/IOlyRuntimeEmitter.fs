@@ -18,6 +18,7 @@ type IOlyVirtualMachine<'Type, 'Function, 'Field> =
 
     abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
     abstract TryFindType : fullyQualifiedTypeName: string * tyParCount: int32 -> 'Type option
+    abstract TryFindField : fullyQualifiedTypeName: string * tyParCount: int32 * fieldName: string -> 'Field option
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 

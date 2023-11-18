@@ -370,8 +370,28 @@ type BlobBuilder with
 
 module rec ClrCodeGen =
 
+    [<NoEquality;NoComparison>]
+    type g =
+        {
+            ``ValueTuple`2``: ClrTypeInfo
+            ``ValueTuple`3``: ClrTypeInfo
+            ``ValueTuple`4``: ClrTypeInfo
+            ``ValueTuple`5``: ClrTypeInfo
+            ``ValueTuple`6``: ClrTypeInfo
+            ``ValueTuple`7``: ClrTypeInfo
+
+            ``ValueTuple`2_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`3_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`4_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`5_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`6_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`7_GetItemFields``: ClrFieldHandle imarray
+        }
+
+    [<NoEquality;NoComparison>]
     type cenv =
         {
+            g: g
             assembly: ClrAssemblyBuilder
             emitTailCalls: bool
             buffer: imarrayb<I>
@@ -761,6 +781,51 @@ module rec ClrCodeGen =
         | _ ->
             ()
 
+    let createByRef (asmBuilder: ClrAssemblyBuilder) byRefKind ty =
+        match byRefKind with
+        | OlyIRByRefKind.ReadWrite ->
+            ClrTypeInfo.ByRef(ty, false, ClrTypeHandle.CreateByRef(ty.Handle))     
+        | OlyIRByRefKind.Read ->
+            let handle = 
+                match asmBuilder.tr_InAttribute with
+                | Some tr_InAttribute ->
+                    ClrTypeHandle.ModReq(tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
+                | _ ->
+                    ClrTypeHandle.CreateByRef(ty.Handle)
+            ClrTypeInfo.ByRef(ty, true, handle) 
+
+    let addressOf cenv byRefKind (expr: E<ClrTypeInfo, _, _>) =
+        let exprTy = expr.ResultType
+        OlyAssert.False(exprTy.IsByRef_t)
+        let byRefOfExprTy = createByRef cenv.assembly byRefKind exprTy
+
+        let defaultCase() =
+            let newLocalIndex = cenv.NewLocal(exprTy)
+            let valueExpr = E.Value(NoRange, V.LocalAddress(newLocalIndex, byRefKind, byRefOfExprTy))
+            E.Let("tmp", newLocalIndex, expr, valueExpr)
+
+        match expr with
+        | E.Value(textRange, value) ->
+            match value with
+            | V.Local(localIndex, _) ->
+                E.Value(textRange, V.LocalAddress(localIndex, byRefKind, byRefOfExprTy))
+            | V.Argument(argIndex, _) ->
+                E.Value(textRange, V.ArgumentAddress(argIndex, byRefKind, byRefOfExprTy))
+            | V.StaticField(field, _) ->
+                E.Value(textRange, V.StaticFieldAddress(field, byRefKind, byRefOfExprTy))
+            | _ ->
+                defaultCase()
+
+        | E.Operation(textRange, op) ->
+            match op with
+            | O.LoadField(field, receiverExpr, _) ->
+                E.Operation(textRange, O.LoadFieldAddress(field, receiverExpr, byRefKind, byRefOfExprTy))
+            | _ ->
+                defaultCase()
+
+        | _ ->
+            defaultCase()
+
     let GenArgumentExpression (cenv: cenv) (env: env) expr =
         match expr with
         | E.Value _ -> 
@@ -1090,33 +1155,41 @@ module rec ClrCodeGen =
                 OlyAssert.Fail("Expected ByRef type.")
 
         | O.LoadTupleElement(irArg, index, _) ->
+            let tupleTy = irArg.ResultType
+            OlyAssert.False(tupleTy.IsByRef_t)
+
+            let irArg =
+                if irArg.ResultType.IsStruct then
+                    addressOf cenv OlyIRByRefKind.Read irArg
+                else
+                    irArg
+
             GenArgumentExpression cenv env irArg
-            let methHandle =
-                match irArg.ResultType with
-                | ClrTypeInfo.TypeReference(asmBuilder, tyHandle, _, _) ->
-                    match tyHandle with
-                    | ClrTypeHandle.TypeSpecification(tyRefHandle=formalTyHandle) ->
-                        let methHandle =
-                            if formalTyHandle = asmBuilder.``TypeReferenceTuple`2`` then
-                                asmBuilder.``Tuple`2_ItemMethods``.Value[index]
-                            elif formalTyHandle = asmBuilder.``TypeReferenceTuple`3`` then
-                                asmBuilder.``Tuple`3_ItemMethods``.Value[index]
-                            elif formalTyHandle = asmBuilder.``TypeReferenceTuple`4`` then
-                                asmBuilder.``Tuple`4_ItemMethods``.Value[index]
-                            elif formalTyHandle = asmBuilder.``TypeReferenceTuple`5`` then
-                                asmBuilder.``Tuple`5_ItemMethods``.Value[index]
-                            elif formalTyHandle = asmBuilder.``TypeReferenceTuple`6`` then
-                                asmBuilder.``Tuple`6_ItemMethods``.Value[index]
-                            elif formalTyHandle = asmBuilder.``TypeReferenceTuple`7`` then
-                                asmBuilder.``Tuple`7_ItemMethods``.Value[index]
-                            else
-                                failwith "Invalid LoadTupleItem"
-                        asmBuilder.CreateMethodSpecification(tyHandle, methHandle, ImArray.empty)
-                    | _ ->
+
+            let fieldHandle =
+                match tupleTy with
+                | ClrTypeInfo.TypeGenericInstance(formalTy, _, _) ->
+                    let formalTyHandle = formalTy.Handle
+                    let g = cenv.g
+
+                    if formalTyHandle = g.``ValueTuple`2``.Handle then
+                        g.``ValueTuple`2_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`3``.Handle then
+                        g.``ValueTuple`3_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`4``.Handle then
+                        g.``ValueTuple`4_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`5``.Handle then
+                        g.``ValueTuple`5_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`6``.Handle then
+                        g.``ValueTuple`6_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`7``.Handle then
+                        g.``ValueTuple`7_GetItemFields``[index]
+                    else
                         failwith "Invalid LoadTupleItem"
                 | _ ->
                     failwith "Invalid LoadTupleItem"
-            I.Call(methHandle, 1) |> emitInstruction cenv
+
+            I.Ldfld(cenv.assembly.AddFieldReference(tupleTy.Handle, fieldHandle)) |> emitInstruction cenv
 
         | O.StoreRefCellContents(irArg1, irArg2, _) ->
             let tyHandle =
@@ -1197,7 +1270,7 @@ module rec ClrCodeGen =
             let tyArgs =
                 itemTys
                 |> ImArray.map (fun x -> x.Handle)
-            I.Newobj(cenv.assembly.AddTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
+            I.Newobj(cenv.assembly.AddValueTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
             
         | O.NewMutableArray(elementTy, irSizeArgExpr, _) ->
             GenArgumentExpression cenv env irSizeArgExpr
@@ -1926,6 +1999,8 @@ let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodNa
 [<Sealed>]
 type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly) =
 
+    let mutable g = Unchecked.defaultof<_>
+
     let asmBuilder = ClrAssemblyBuilder(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
     let getEnclosingInfo (enclosing: Choice<string imarray, ClrTypeInfo>) =
@@ -2041,6 +2116,18 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let name = "__oly_scoped_func"
             let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
             ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+    
+    let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
+        let formalTyHandle = formalTy.Handle
+        let tyArgHandles = 
+            tyArgs 
+            |> ImArray.map (fun x -> x.Handle)
+            |> ClrCodeGen.handleTypeArguments asmBuilder
+        ClrTypeInfo.TypeGenericInstance(
+            formalTy, 
+            tyArgHandles, 
+            addGenericInstanceTypeReference(formalTyHandle, tyArgHandles)
+        )
 
     member this.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
@@ -2063,6 +2150,43 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 asmBuilder.tr_IsByRefLikeAttributeConstructor <- asmBuilder.CreateConstructor(isByRefLikeAttrHandle) |> Some
             | _ ->
                 ()
+
+            match vm.TryFindType("System.ValueTuple", 2) with
+            | None -> failwith "System.ValueTuple not found."
+            | Some(result) ->
+
+            let ``ValueTuple`2`` = result
+            let ``ValueTuple`3`` = vm.TryFindType("System.ValueTuple", 3).Value
+            let ``ValueTuple`4`` = vm.TryFindType("System.ValueTuple", 4).Value
+            let ``ValueTuple`5`` = vm.TryFindType("System.ValueTuple", 5).Value
+            let ``ValueTuple`6`` = vm.TryFindType("System.ValueTuple", 6).Value
+            let ``ValueTuple`7`` = vm.TryFindType("System.ValueTuple", 7).Value
+
+            let createTuple_GetItemField count index =
+                vm.TryFindField("System.ValueTuple", count, $"Item{index + 1}").Value.Handle
+
+            let createTuple_GetItemFields count =
+                ImArray.init count
+                    (fun i ->
+                        createTuple_GetItemField count i
+                    )
+
+            g <-
+                {
+                    ``ValueTuple`2`` = ``ValueTuple`2``
+                    ``ValueTuple`3`` = ``ValueTuple`3``
+                    ``ValueTuple`4`` = ``ValueTuple`4``
+                    ``ValueTuple`5`` = ``ValueTuple`5``
+                    ``ValueTuple`6`` = ``ValueTuple`6``
+                    ``ValueTuple`7`` = ``ValueTuple`7``
+
+                    ``ValueTuple`2_GetItemFields`` = createTuple_GetItemFields 2
+                    ``ValueTuple`3_GetItemFields`` = createTuple_GetItemFields 3
+                    ``ValueTuple`4_GetItemFields`` = createTuple_GetItemFields 4
+                    ``ValueTuple`5_GetItemFields`` = createTuple_GetItemFields 5
+                    ``ValueTuple`6_GetItemFields`` = createTuple_GetItemFields 6
+                    ``ValueTuple`7_GetItemFields`` = createTuple_GetItemFields 7
+                } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
@@ -2106,17 +2230,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceUIntPtr, false, true)
 
         member this.EmitTypeByRef(ty, byRefKind) =
-            match byRefKind with
-            | OlyIRByRefKind.ReadWrite ->
-                ClrTypeInfo.ByRef(ty, false, ClrTypeHandle.CreateByRef(ty.Handle))     
-            | OlyIRByRefKind.Read ->
-                let handle = 
-                    match asmBuilder.tr_InAttribute with
-                    | Some tr_InAttribute ->
-                        ClrTypeHandle.ModReq(tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
-                    | _ ->
-                        ClrTypeHandle.CreateByRef(ty.Handle)
-                ClrTypeInfo.ByRef(ty, true, handle)      
+            ClrCodeGen.createByRef asmBuilder byRefKind ty    
 
         member this.EmitTypeRefCell(ty) =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(ty.Handle, 1), false, false)
@@ -2180,12 +2294,18 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeUtf16() =
             ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceString, true, false)
 
-        member this.EmitTypeTuple(tyInst, _) =   
-            let tyInst =
-                tyInst 
-                |> ImArray.map (fun x -> x.Handle)
-                |> ClrCodeGen.handleTypeArguments asmBuilder
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddTupleType(tyInst), true, false)
+        member this.EmitTypeTuple(itemTys, _) =   
+            let formalTy =
+                match itemTys.Length with
+                | 2 -> g.``ValueTuple`2``
+                | 3 -> g.``ValueTuple`3``
+                | 4 -> g.``ValueTuple`4``
+                | 5 -> g.``ValueTuple`5``
+                | 6 -> g.``ValueTuple`6``
+                | 7 -> g.``ValueTuple`7``
+                | count -> raise(NotSupportedException($"Tuple of {count}"))
+
+            createTypeGenericInstance formalTy itemTys
 
         member this.EmitTypeConstantInt32 _ = raise (System.NotSupportedException())
 
@@ -2933,6 +3053,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let cenv = 
                 {
+                    g = g
                     assembly = asmBuilder
                     irTier = irTier
                     emitTailCalls = not irTier.HasMinimalOptimizations

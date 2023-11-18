@@ -8,8 +8,14 @@ open Oly.Runtime.Interpreter
 open Oly.Core
 open Xunit
 
+let globalSetup() =
+    ()
+
 let createEmitter(asm: OlyILAssembly) =
     InterpreterRuntimeEmitter()
+
+let configureRuntime(vm: OlyRuntime<InterpreterType, InterpreterFunction, InterpreterField>) =
+    ()
 
 let emitterWrite(emitter: InterpreterRuntimeEmitter) =
     emitter.Run(ImArray.empty)

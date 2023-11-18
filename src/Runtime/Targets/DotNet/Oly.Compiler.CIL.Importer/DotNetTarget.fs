@@ -133,6 +133,27 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     let frameworkRefs = ConcurrentDictionary<string, ProjectBuildInfo>()
 
+    static member CompileCSharp(name: string, src: string, references: OlyPath imarray, ct: CancellationToken) =
+        let references = 
+            references
+            |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
+        let parseOptions = CSharpParseOptions(LanguageVersion.Preview)
+        let sourceText = SourceText.From(src)
+        let syntaxTree = CSharpSyntaxTree.ParseText(sourceText, options = parseOptions, cancellationToken = ct)
+        let compOptions = CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        let comp = CSharpCompilation.Create(name, syntaxTrees = [syntaxTree], options = compOptions, references = references)
+
+        let ms = new MemoryStream()
+
+        let emitOptions = Emit.EmitOptions()
+        let result = comp.Emit(ms, options = emitOptions, cancellationToken = ct)
+        if result.Success then
+            ms.Position <- 0L
+            ms
+        else
+            ms.Dispose()
+            failwithf "%A" result.Diagnostics
+
     member _.GetCSharpOutput(path) =
         match csOutputs.TryGetValue path with
         | true, ms -> ms

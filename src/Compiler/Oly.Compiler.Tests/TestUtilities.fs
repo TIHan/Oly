@@ -10,6 +10,14 @@ open Oly.Compiler
 open Oly.Compiler.Syntax
 open Oly.Compiler.Extensions
 
+module Configuration =
+
+    let mutable defaultReferences: OlyCompilationReference imarray = ImArray.empty
+    let mutable implicitExtendsForStruct: string option = None
+    let mutable implicitExtendsForEnum: string option = None
+
+open Configuration
+
 [<NoComparison;NoEquality;RequireQualifiedAccess>]
 type TestCompilation =
     private {
@@ -27,22 +35,24 @@ type TestCompilation =
         }     
 
     static member Create(src: string) =
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], [], options = options)
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
     static member CreateWithConditionalDefines(src: string, conditionalDefines) =
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], [], options = options)
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
     static member CreateWithReference(src: string, refSrc: string) =
-        let options = { OlyCompilationOptions.Default with Parallel = false }
-        let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], [], options = options)
+        let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
         let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", (fun () -> refc))
+        TestCompilation.CreateWithCRef(src, refcRef)
 
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], [refcRef], options = options)
+    static member CreateWithCRef(src: string, refcRef: OlyCompilationReference) =
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef), options = options)
         TestCompilation.Create(c)
 
     static member CreateTwo(src1: string, src2: string) =
@@ -69,8 +79,8 @@ type TestCompilation =
                         }
                 )
             ]
-        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true }
-        let c = OlyCompilation.Create("olytest", syntaxTrees, [], options = options)
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", syntaxTrees, defaultReferences, options = options)
         TestCompilation.Create(c)
 
 let getFirstSyntaxTree (c: TestCompilation) =
@@ -282,6 +292,12 @@ let OlyWithReference refSrc src =
         TestCompilation.CreateWithReference(src, refSrc)
         |> stressTest src
     c.Compilation
+
+let OlyWithCRef cRef src =
+    let c =
+        TestCompilation.CreateWithCRef(src, cRef)
+        |> stressTest src
+    c
 
 /// Does not check for syntax tree - source equality.
 let OlyTwo src1 src2 =

@@ -8,6 +8,45 @@ open Oly.Core
 open Oly.Compiler
 open Oly.Compiler.Syntax
 
+let mutable private globalSetupComplete = false
+let mutable private globalSetupCompleteLockObj = obj()
+let private globalSetupCheck() =
+    if not globalSetupComplete then
+        lock globalSetupCompleteLockObj 
+            (fun () ->
+                if not globalSetupComplete then
+                    TestPlatform.globalSetup()
+                    globalSetupComplete <- true
+            )
+
+let getDefaultReferences() =
+    globalSetupCheck()
+    TestUtilities.Configuration.defaultReferences
+
+/// Will also assert that the syntax tree produced will equal the source.
+let Oly (src: string) =
+    globalSetupCheck()
+    Oly src
+
+/// Will also assert that the syntax tree produced will equal the source.
+let OlyWithConditionalDefines (conditionalDefines: string list) (src: string) =
+    globalSetupCheck()
+    OlyWithConditionalDefines conditionalDefines src
+
+/// Will also assert that the syntax tree produced will equal the source.
+let OlyWithRef refSrc src =
+    globalSetupCheck()
+    OlyWithRef refSrc src
+
+let OlyWithCRef cRef src =
+    globalSetupCheck()
+    OlyWithCRef cRef src
+
+/// Does not check for syntax tree - source equality.
+let OlyTwo src1 src2 =
+    globalSetupCheck()
+    OlyTwo src1 src2
+
 let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     let emitter = TestPlatform.createEmitter(asm)
     let runtime = OlyRuntime(emitter)
@@ -16,6 +55,9 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     |> ImArray.iter (fun x -> runtime.ImportAssembly(x.ToReadOnly()))
 
     runtime.ImportAssembly(asm.ToReadOnly())
+
+    TestPlatform.configureRuntime(runtime)
+
     runtime.InitializeEmitter()
     runtime.EmitEntryPoint()
     

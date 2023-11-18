@@ -2566,6 +2566,44 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         this.Emitter.EmitFunctionBody(body, irTier, emittedFunc)
 
+
+    let tryFindType(fullyQualifiedTypeName: string, tyParCount: int32) =
+        // TODO: This should be optimized.
+        let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
+        let enclosingTargetNames = splitted.RemoveAt(splitted.Length - 1)
+        let targetName = splitted[splitted.Length - 1]
+        let rec collect (enclosingTargetNames: string imarray) targetName =
+            assemblies.Values
+            |> Seq.map (fun asm ->
+                asm.ilAsm.FindEntityDefinitions(targetName)
+                |> ImArray.filter (fun ilEntDefHandle ->
+                    let ilEntDef = asm.ilAsm.GetEntityDefinition(ilEntDefHandle)
+                    if ilEntDef.FullTypeParameterCount = tyParCount then
+                        match ilEntDef.Enclosing with
+                        | OlyILEnclosing.Namespace(path, _) ->
+                            if path.Length = enclosingTargetNames.Length then
+                                (path, enclosingTargetNames)
+                                ||> ImArray.forall2 (fun handle name ->
+                                    asm.ilAsm.GetStringOrEmpty(handle) = name
+                                )
+                            else
+                                false
+                        | OlyILEnclosing.Entity _ ->
+                            // TODO: Handle nested types.
+                            false
+                        | _ ->
+                            false
+                    else
+                        false
+                )
+                |> ImArray.map (fun ilEntDefHandle ->
+                    this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
+                )
+            )
+            |> Seq.concat
+        collect enclosingTargetNames targetName
+        |> Seq.tryExactlyOne
+
     member val TypeVoid: _ Lazy =       lazy emitter.EmitTypeVoid()
     member val TypeUnit: _ Lazy  =       lazy emitter.EmitTypeUnit()
     member val TypeUInt8: 'Type Lazy  =      lazy emitter.EmitTypeUInt8()
@@ -4269,45 +4307,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         /// Try to find a type based on its fully-qualified name.
         /// Note: Does not support nested types (yet).
         member this.TryFindType(fullyQualifiedTypeName: string, tyParCount: int32): 'Type option =
-            // TODO: This should be optimized.
-            let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
-            let enclosingTargetNames = splitted.RemoveAt(splitted.Length - 1)
-            let targetName = splitted[splitted.Length - 1]
-            let rec collect (enclosingTargetNames: string imarray) targetName =
-                assemblies.Values
-                |> Seq.map (fun asm ->
-                    asm.ilAsm.FindEntityDefinitions(targetName)
-                    |> ImArray.filter (fun ilEntDefHandle ->
-                        let ilEntDef = asm.ilAsm.GetEntityDefinition(ilEntDefHandle)
-                        if ilEntDef.FullTypeParameterCount = tyParCount then
-                            match ilEntDef.Enclosing with
-                            | OlyILEnclosing.Namespace(path, _) ->
-                                if path.Length = enclosingTargetNames.Length then
-                                    (path, enclosingTargetNames)
-                                    ||> ImArray.forall2 (fun handle name ->
-                                        asm.ilAsm.GetStringOrEmpty(handle) = name
-                                    )
-                                else
-                                    false
-                            | OlyILEnclosing.Entity _ ->
-                                // TODO: Handle nested types.
-                                false
-                            | _ ->
-                                false
-                        else
-                            false
-                    )
-                    |> ImArray.map (fun ilEntDefHandle ->
-                        this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
-                        |> this.EmitType
-                    )
-                )
-                |> Seq.concat
-            collect enclosingTargetNames targetName
-            |> Seq.tryExactlyOne
+            tryFindType(fullyQualifiedTypeName, tyParCount)
+            |> Option.map this.EmitType
 
         member this.TryFindType(fullyQualifiedTypeName): 'Type option =
             (this: IOlyVirtualMachine<'Type, 'Function, 'Field>).TryFindType(fullyQualifiedTypeName, 0)
+
+        member this.TryFindField(fullyQualifiedTypeName, tyParCount, fieldName): 'Field option =
+            match tryFindType(fullyQualifiedTypeName, tyParCount) with
+            | Some(ty) -> ty.Fields |> ImArray.tryFind (fun x -> x.Name = fieldName) |> Option.map this.EmitField
+            | _ -> None
+
+
         
 
 

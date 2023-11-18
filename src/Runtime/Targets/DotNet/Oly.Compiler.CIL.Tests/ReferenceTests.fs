@@ -22,8 +22,9 @@ open static ReferenceTest
 main(): () =
     RefTest()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Witness pass subsumption``() =
@@ -56,8 +57,9 @@ extension Int32AddExtension =
 main(): () =
     test<int32>()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Witness pass subsumption 2``() =
@@ -90,8 +92,9 @@ test<T>(): () where T: Add<T, T, T> = print("not from a reference")
 main(): () =
     test<int32>()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "not from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "not from a reference"
 
 [<Fact>]
 let ``Witness pass subsumption 3``() =
@@ -131,8 +134,9 @@ extension Int32AddExtension =
 main(): () =
     test<int32>()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Witness pass subsumption 4``() =
@@ -172,8 +176,9 @@ test<T>(): () where T: Add<T, T, T> =
 main(): () =
     test<int32>()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "not from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "not from a reference"
 
 [<Fact>]
 let ``Basic namespace reference should compile and run``() =
@@ -197,8 +202,9 @@ module TestMain =
     main(): () =
         TestModule.RefTest()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Basic namespace reference should compile and run 2``() =
@@ -222,8 +228,9 @@ module TestMain =
     main(): () =
         TestModule.RefTest()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Basic module reference should compile and run``() =
@@ -247,8 +254,9 @@ module TestMain =
     main(): () =
         RefTest()
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "from a reference"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "from a reference"
 
 [<Fact>]
 let ``Basic types referencing one another in the same compilation``() =
@@ -330,8 +338,9 @@ main(): () =
     let value = (values[0])[0]
     print(value.X)
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "0"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
 
 [<Fact>]
 let ``() -> () function should be properly exported and imported``() =
@@ -355,5 +364,6 @@ open static Test.TestModule
 main(): () =
     test(() -> print("123"))
         """
-    OlyWithReference refSrc src
-    |> runWithExpectedOutput "123"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"

@@ -789,7 +789,8 @@ type RuntimeType =
         | NativeInt _
         | NativeUInt _
         | NativePtr _ 
-        | NativeFunctionPtr _ -> true
+        | NativeFunctionPtr _ 
+        | Tuple _ -> true
         | Function(kind=OlyIRFunctionKind.Scoped) -> true
         | Entity(ent) -> ent.IsAnyStruct
         | _ -> false

@@ -284,7 +284,7 @@ test(x: Test<__oly_utf16>): () =
 let ``Constraint should compile 5``() =
     let src =
         """
-class Test<T> where T: not struct
+class Test<T> where T: struct
 
 test(x: Test<(__oly_int32, __oly_int32)>): () =
     ()
@@ -297,7 +297,7 @@ test(x: Test<(__oly_int32, __oly_int32)>): () =
 let ``Constraint should compile 6``() =
     let src =
         """
-class Test<T> where T: not struct
+class Test<T> where T: struct
 
 test(): () =
     let result = Test<(__oly_int32, __oly_int32)>()

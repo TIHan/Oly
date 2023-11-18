@@ -8,6 +8,10 @@
 	<ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'" />
+
   <ItemGroup>
     <Compile Include="TestPlatform.fs" />
     <Compile Include="Utilities.fs" />

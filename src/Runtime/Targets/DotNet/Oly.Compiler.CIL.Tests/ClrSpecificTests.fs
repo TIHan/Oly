@@ -13,6 +13,23 @@ open Oly.Core
 open System.Runtime.Loader
 open System
 
+let OlyWithCSharp csSrc src (callback: TestCompilation -> unit): unit =
+    let tmp = Path.GetTempFileName()
+    let dllTmp = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileNameWithoutExtension(tmp), ".dll"))
+
+    try
+
+    let csAsm = DotNetTarget.CompileCSharp(Path.GetFileNameWithoutExtension(dllTmp), csSrc, getDefaultReferences() |> ImArray.map (fun x -> x.Path), System.Threading.CancellationToken.None)
+    let csRef = OlyCompilationReference.Create(OlyPath.Create(dllTmp), 42UL, Importer.Import(Path.GetFileNameWithoutExtension(dllTmp), csAsm))
+    csAsm.Position <- 0L
+    File.WriteAllBytes(dllTmp, csAsm.ToArray())
+
+    callback(OlyWithCRef csRef src)
+
+    finally
+        try File.Delete dllTmp with _ -> ()
+        try File.Delete tmp with _ -> ()
+
 let coreLib =
     """
 // Interfaces
@@ -118,53 +135,6 @@ interface LessThanOrEqual<T1, T2, T3> =
 (||)(bool, bool) : bool
 """
 
-let dotnetTarget = DotNetTarget()
-let targetName = "net7"
-let targetInfo = OlyTargetInfo(targetName, OlyOutputKind.Library, Some "System.ValueType", Some "System.Enum")
-let projectPath = OlyPath.Create "olytest"
-let projectPath2 = OlyPath.Create "olytest2"
-let dotnetReferences =
-    dotnetTarget.ResolveReferencesAsync(projectPath, targetInfo, ImArray.empty, ImArray.empty, System.Threading.CancellationToken.None).Result.Paths
-    |> ImArray.map (fun x -> 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, x, System.Threading.CancellationToken.None).Result with
-        | Ok(Some res) -> OlyProjectReference.Create res.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
-    )
-let workspace = OlyWorkspace.Create([dotnetTarget])
-let lazyInfo =
-    lazy
-        let config = OlyProjectConfiguration("olytest", ImArray.empty, false)
-        let sol, _ = workspace.Solution.CreateProject(projectPath, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), System.Threading.CancellationToken.None)
-        let sol, proj = sol.UpdateReferences(projectPath, dotnetReferences, System.Threading.CancellationToken.None)
-        let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
-        let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
-        sol, proj, doc
-let lazyInfo2 =
-    lazy
-        let config = OlyProjectConfiguration("olytest2", ImArray.empty, false)
-        let sol, _ = workspace.Solution.CreateProject(projectPath2, config, "dotnet", OlyTargetInfo(targetName, OlyOutputKind.Library, Some "System.ValueType", Some "System.Enum"), System.Threading.CancellationToken.None)
-        let sol, proj = sol.UpdateReferences(projectPath2, dotnetReferences, System.Threading.CancellationToken.None)
-        let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest2", (fun _ -> OlySourceText.Create("")), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
-        let (sol: OlySolution), (proj: OlyProject), (doc: OlyDocument) = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest2", syntaxTree, ImArray.empty)
-        sol, proj, doc
-let getProject src =
-    let sol, proj, doc = lazyInfo.Value
-    let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
-    let _, proj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
-    proj
-
-let getProjectWithReferenceProject refSrc src =
-    let sol, proj, doc = lazyInfo2.Value
-    let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest2", (fun _ -> OlySourceText.Create(refSrc)), parsingOptions = OlyParsingOptions.Default)
-    let sol, refProj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
-
-    let sol, proj, doc = lazyInfo.Value
-    let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)), parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true })
-    let sol, proj, _ = sol.UpdateDocument(proj.Path, doc.Path, syntaxTree, ImArray.empty)
-    let _, proj = sol.UpdateReferences(projectPath, dotnetReferences.Add(OlyProjectReference.Create(OlyCompilationReference.Create(projectPath2, fun () -> refProj.Compilation))), System.Threading.CancellationToken.None)
-    proj
-
 let run expectedOutput src =
     OlySharp (coreLib + src)
     |> withCompile
@@ -218,7 +188,6 @@ main() : () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
-    |> ignore
 
 [<Fact>]
 let ``CLR import generic type 2``() =
@@ -237,7 +206,7 @@ class List<T> =
 
     Add(item: T) : ()
 
-    ToString() : __oly_utf16
+    overrides ToString() : __oly_utf16
 
 main() : () =
     let xs : List<__oly_int32> = List<__oly_int32>()
@@ -251,7 +220,6 @@ main() : () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "012123"
-    |> ignore
 
 [<Fact>]
 let ``Custom CLR import intrinsic int32``() =
@@ -266,7 +234,7 @@ struct CustomInt32 =
 
     static Parse(s: __oly_utf16) : CustomInt32
 
-    ToString() : __oly_utf16
+    overrides ToString() : __oly_utf16
 
 main() : () =
     let x = CustomInt32.Parse("123")
@@ -277,7 +245,6 @@ main() : () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "1239123"
-    |> ignore
 
 [<Fact>]
 let ``Simple immutable array``() =
@@ -290,10 +257,9 @@ main(): () =
     let x = ImmutableArray.Create<_>(7)
     Console.Write(123)
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Witness pass subsumption with IDisposable``() =
@@ -335,10 +301,9 @@ main(): () =
   Console.Write("Hello World!")
   Console.Write(result)
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "3Hello World!3"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "3Hello World!3"
 
 [<Fact>]
 let ``Witness pass subsumption with IDisposable 2``() =
@@ -372,10 +337,9 @@ main(): () =
   test<_>(tt)
   test<_>(1)
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Partial call``() =
@@ -388,10 +352,9 @@ main(): () =
     let xs = xsf(1223)
     Console.Write(xs.Capacity)
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1223"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1223"
 
 [<Fact>]
 let ``GetHashCode``() =
@@ -424,10 +387,9 @@ main(): () =
     let mutable testStruct = TestStruct(123)
     let result = test<_>(&testStruct)
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "0"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
 
 [<Fact>]
 let ``GetHashCode shape constraint``() =
@@ -450,10 +412,9 @@ hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
 main(): () =
     print(hash<Int32>(123))
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 2``() =
@@ -476,10 +437,9 @@ hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
 main(): () =
     print(hash(123))
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 3``() =
@@ -509,10 +469,9 @@ main(): () =
     let mutable h = Hash<System.Int32>(123)
     print(h.GetValue())
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 4``() =
@@ -542,10 +501,9 @@ main(): () =
     let mutable h = Hash(123)
     print(h.GetValue())
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 5``() =
@@ -587,10 +545,9 @@ main(): () =
     let mutable h2 = Hash2(h)
     print(h2.GetValue())
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 6``() =
@@ -639,10 +596,9 @@ main(): () =
     let h2 = Hash2(h)
     print(h2.GetValue())
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 7``() =
@@ -697,10 +653,9 @@ main(): () =
     let h2 = Hash2(h)
     print(h2.GetValue())
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``GetHashCode shape constraint 8``() =
@@ -721,10 +676,9 @@ hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
 main(): () =
     print(hash(123))
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Complex test and csharp source``() =
@@ -745,22 +699,6 @@ public interface IExample3
     void GenericExample<T>(T x) where T : IExample, IExample2;
 }
         """
-
-    let origTmp = Path.GetTempFileName()
-    try File.Delete origTmp with | _ -> ()
-    let tmp = Path.ChangeExtension(Path.GetTempFileName(), ".cs")
-    use _disposable = 
-        { new System.IDisposable with
-            member _.Dispose() =
-                try File.Delete(tmp) with | _ -> ()
-        }
-    File.WriteAllText(tmp, csSrc)
-
-    let csRef = 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
 
     let src =
         """
@@ -792,21 +730,11 @@ main(): () =
 
     t2.GenericExample<_>(t)
         """
-
-    let proj = getProject src
-    let _, proj = proj.Solution.UpdateReferences(proj.Path, proj.References.Add(csRef), System.Threading.CancellationToken.None)
-    proj.Compilation.GetILAssembly(System.Threading.CancellationToken.None) |> ignore
-    let csDll = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileName(tmp), ".dll"))
-    try
-        let csMs = dotnetTarget.GetCSharpOutput(OlyPath.Create tmp)
-        csMs.Position <- 0L
-        let fs = File.Create(csDll)
-        fs.Write(csMs.GetBuffer().AsSpan())
-        fs.Dispose()
-        proj.Compilation
-        |> runWithExpectedOutput "testExample"
-    finally
-        try File.Delete csDll with _ -> ()
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
 
 [<Fact>]
 let ``Complex test and csharp source 2``() =
@@ -827,22 +755,6 @@ public interface IExample3
     void GenericExample<T>(T x) where T : IExample, IExample2;
 }
         """
-
-    let origTmp = Path.GetTempFileName()
-    try File.Delete origTmp with | _ -> ()
-    let tmp = Path.ChangeExtension(Path.GetTempFileName(), ".cs")
-    use _disposable = 
-        { new System.IDisposable with
-            member _.Dispose() =
-                try File.Delete(tmp) with | _ -> ()
-        }
-    File.WriteAllText(tmp, csSrc)
-
-    let csRef = 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
 
     let src =
         """
@@ -874,21 +786,11 @@ main(): () =
 
     t2.GenericExample<_>(t)
         """
-
-    let proj = getProject src
-    let _, proj = proj.Solution.UpdateReferences(proj.Path, proj.References.Add(csRef), System.Threading.CancellationToken.None)
-    proj.Compilation.GetILAssembly(System.Threading.CancellationToken.None) |> ignore
-    let csDll = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileName(tmp), ".dll"))
-    try
-        let csMs = dotnetTarget.GetCSharpOutput(OlyPath.Create tmp)
-        csMs.Position <- 0L
-        let fs = File.Create(csDll)
-        fs.Write(csMs.GetBuffer().AsSpan())
-        fs.Dispose()
-        proj.Compilation
-        |> runWithExpectedOutput "testExample"
-    finally
-        try File.Delete csDll with _ -> ()
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
 
 [<Fact>]
 let ``Complex test and csharp source 3``() =
@@ -909,22 +811,6 @@ public interface IExample3
     void GenericExample<T>(T x) where T : IExample, IExample2;
 }
         """
-
-    let origTmp = Path.GetTempFileName()
-    try File.Delete origTmp with | _ -> ()
-    let tmp = Path.ChangeExtension(Path.GetTempFileName(), ".cs")
-    use _disposable = 
-        { new System.IDisposable with
-            member _.Dispose() =
-                try File.Delete(tmp) with | _ -> ()
-        }
-    File.WriteAllText(tmp, csSrc)
-
-    let csRef = 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
 
     let src =
         """
@@ -956,21 +842,11 @@ main(): () =
 
     t2.GenericExample<_>(t)
         """
-
-    let proj = getProject src
-    let _, proj = proj.Solution.UpdateReferences(proj.Path, proj.References.Add(csRef), System.Threading.CancellationToken.None)
-    proj.Compilation.GetILAssembly(System.Threading.CancellationToken.None) |> ignore
-    let csDll = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileName(tmp), ".dll"))
-    try
-        let csMs = dotnetTarget.GetCSharpOutput(OlyPath.Create tmp)
-        csMs.Position <- 0L
-        let fs = File.Create(csDll)
-        fs.Write(csMs.GetBuffer().AsSpan())
-        fs.Dispose()
-        proj.Compilation
-        |> runWithExpectedOutput "testExample"
-    finally
-        try File.Delete csDll with _ -> ()
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
 
 [<Fact>]
 let ``Complex test and csharp source 4 - using an export``() =
@@ -991,22 +867,6 @@ public interface IExample3
     void GenericExample<T>(T x) where T : IExample, IExample2;
 }
         """
-
-    let origTmp = Path.GetTempFileName()
-    try File.Delete origTmp with | _ -> ()
-    let tmp = Path.ChangeExtension(Path.GetTempFileName(), ".cs")
-    use _disposable = 
-        { new System.IDisposable with
-            member _.Dispose() =
-                try File.Delete(tmp) with | _ -> ()
-        }
-    File.WriteAllText(tmp, csSrc)
-
-    let csRef = 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
 
     let src =
         """
@@ -1044,21 +904,11 @@ struct Example2<Z> =
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
         """
-
-    let proj = getProject src
-    let _, proj = proj.Solution.UpdateReferences(proj.Path, proj.References.Add(csRef), System.Threading.CancellationToken.None)
-    proj.Compilation.GetILAssembly(System.Threading.CancellationToken.None) |> ignore
-    let csDll = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileName(tmp), ".dll"))
-    try
-        let csMs = dotnetTarget.GetCSharpOutput(OlyPath.Create tmp)
-        csMs.Position <- 0L
-        let fs = File.Create(csDll)
-        fs.Write(csMs.GetBuffer().AsSpan())
-        fs.Dispose()
-        proj.Compilation
-        |> runWithExpectedOutput "testExample"
-    finally
-        try File.Delete csDll with _ -> ()
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
 
 [<Fact>]
 let ``Property test and csharp source``() =
@@ -1069,22 +919,6 @@ public interface IExample
     int X { get; }
 }
         """
-
-    let origTmp = Path.GetTempFileName()
-    try File.Delete origTmp with | _ -> ()
-    let tmp = Path.ChangeExtension(Path.GetTempFileName(), ".cs")
-    use _disposable = 
-        { new System.IDisposable with
-            member _.Dispose() =
-                try File.Delete(tmp) with | _ -> ()
-        }
-    File.WriteAllText(tmp, csSrc)
-
-    let csRef = 
-        match dotnetTarget.ImportReferenceAsync(projectPath, targetInfo, OlyPath.Create tmp, System.Threading.CancellationToken.None).Result with
-        | Ok(Some csRef) -> OlyProjectReference.Create csRef.CompilationReference
-        | Ok(None) -> failwith "None"
-        | Error msg -> failwith msg
 
     let src =
         """
@@ -1100,25 +934,21 @@ main(): () =
     let t = Test()
     Console.Write(t.X)
         """
-
-    let proj = getProject src
-    let _, proj = proj.Solution.UpdateReferences(proj.Path, proj.References.Add(csRef), System.Threading.CancellationToken.None)
-    proj.Compilation.GetILAssembly(System.Threading.CancellationToken.None) |> ignore
-    let csDll = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileName(tmp), ".dll"))
-    try
-        let csMs = dotnetTarget.GetCSharpOutput(OlyPath.Create tmp)
-        csMs.Position <- 0L
-        let fs = File.Create(csDll)
-        fs.Write(csMs.GetBuffer().AsSpan())
-        fs.Dispose()
-        proj.Compilation
-        |> runWithExpectedOutput "123"
-    finally
-        try File.Delete csDll with _ -> ()
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
 
 [<Fact>]
 let ``Second order generic on List``() =
     """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
 
@@ -1135,11 +965,19 @@ main(): () =
     test<_>(x)
     print(x.get_Item(0))
     """
-    |> run "1"
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``Second order generic on ICollection``() =
     """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
 
@@ -1164,11 +1002,19 @@ main(): () =
     test<_>(x)
     print(x.get_Item(0))
     """
-    |> run "1"
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``Second order generic on ICollection 2``() =
     """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
 
@@ -1194,7 +1040,9 @@ main(): () =
     z(x)
     print(x.get_Item(0))
     """
-    |> run "1"
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``String concat with fully qualified calls``() =
@@ -1208,10 +1056,9 @@ alias string
 main(): () =
     System.Console.Write("Hello" + "World")
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "HelloWorld"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "HelloWorld"
 
 [<Fact>]
 let ``Mappable example``() =
@@ -1255,10 +1102,9 @@ main(): () =
     Console.Write(xs2.get_Item(0))
     Console.Write(xs2.get_Item(1))
         """
-
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "101102"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "101102"
 
 [<Fact>]
 let ``MemoryStream API that takes an array``() =
@@ -1272,9 +1118,9 @@ main(): () =
     Console.Write("test")
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
 
 [<Fact>]
 let ``typeof``() =
@@ -1291,9 +1137,9 @@ main(): () =
     Console.Write(x.Name)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Int32"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Int32"
 
 [<Fact>]
 let ``typeof as a partial call``() =
@@ -1310,9 +1156,9 @@ main(): () =
     Console.Write(x().Name)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Int32"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Int32"
 
 [<Fact>]
 let ``Call ToString on newly defined class``() =
@@ -1325,9 +1171,9 @@ main(): () =
     System.Console.Write(x.ToString())
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "__oly_gen_0+Test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
 
 [<Fact>]
 let ``Call ToString on newly defined class with overriding ToString``() =
@@ -1342,9 +1188,9 @@ main(): () =
     System.Console.Write(x.ToString())
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overriding ToString"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overriding ToString"
 
 [<Fact>]
 let ``Call ToString on newly defined class with overriding ToString 2``() =
@@ -1360,9 +1206,9 @@ main(): () =
     System.Console.Write(y.ToString())
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overriding ToString"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overriding ToString"
 
 [<Fact>]
 let ``Call ToString via witness on newly defined class``() =
@@ -1378,9 +1224,9 @@ main(): () =
     test(x)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "__oly_gen_0+Test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
 
 [<Fact>]
 let ``Call ToString via witness on newly defined class 2``() =
@@ -1398,9 +1244,9 @@ main(): () =
     test(x)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overriding ToString"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overriding ToString"
 
 [<Fact>]
 let ``Call ToString via witness on newly defined class 3``() =
@@ -1419,9 +1265,9 @@ main(): () =
     test(x)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overriding ToString__oly_gen_0+Test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overriding ToString__oly_gen_0+Test"
 
 [<Fact>]
 let ``Use of '()' should pass 1``() =
@@ -1441,9 +1287,9 @@ main(): () =
     print(test())
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Use of '()' should pass 2``() =
@@ -1463,9 +1309,9 @@ main(): () =
     print(test())
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Type extension of a generic type``() =
@@ -1489,9 +1335,9 @@ main(): () =
    x.Doot(1)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``Type extension of a generic type with #[export]``() =
@@ -1520,9 +1366,9 @@ module Test =
        x.Doot(1)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``Implicit default ctors should output correctly``() =
@@ -1544,9 +1390,9 @@ main(): () =
    Console.Write(t.X)
         """
 
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Index getter/setter call``() =
@@ -1584,9 +1430,9 @@ main(): () =
     lookup["hello"] <- 123
     Console.Write(lookup["hello"])
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Index getter/setter call 2``() =
@@ -1624,9 +1470,9 @@ main(): () =
     strs.Add("hello")
     Console.Write(strs[0])
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "hello"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
 
 [<Fact>]
 let ``get_Item for ReadOnlySpan``() =
@@ -1640,9 +1486,9 @@ main(): () =
     let mutable xs = ReadOnlySpan(xs)
     Console.Write(xs.get_Item(1))
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "2"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
 
 [<Fact>]
 let ``Intrinsic alias should be able to get mscorlib methods``() =
@@ -1657,9 +1503,9 @@ main(): () =
     let mutable x: int32 = 1
     Console.Write(x.ToString())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
 
 [<Fact>]
 let ``Get enumerator should pass``() =
@@ -1673,9 +1519,9 @@ main(): () =
     let e = xs.GetEnumerator()
     Console.Write("123")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Task Run example``() =
@@ -1688,9 +1534,9 @@ main(): () =
     let task = Task.Run(() -> ())
     ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Task Run example 2``() =
@@ -1703,9 +1549,9 @@ main(): () =
     let task = Task.Run<__oly_int32>(() -> Task.FromResult(1))
     ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Task Run example 3``() =
@@ -1718,9 +1564,9 @@ main(): () =
     let task = Task.Run(() -> Task.FromResult(1))
     ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Task Run example 4``() =
@@ -1734,9 +1580,8 @@ main(): () =
     let task = Task.Run(() -> ())
     let w = task.ContinueWith(x -> (), null)
         """
-    let proj = getProject src
-    let diags = proj.Compilation.GetDiagnostics(System.Threading.CancellationToken.None)
-    Assert.Empty(diags)
+    Oly src
+    |> shouldCompile
 
 [<Fact>]
 let ``State machine example``() =
@@ -1757,9 +1602,9 @@ struct StateMachine<A, B> =
 main(): () =
     let stateMachine = default: StateMachine<__oly_int32, __oly_int32>
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``State machine example 2``() =
@@ -1829,9 +1674,9 @@ main(): () =
   let result = test(x)
   ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``AsyncTaskMethodBuilder example``() =
@@ -1859,9 +1704,9 @@ main(): () =
   let x = AsyncTaskMethodBuilder<__oly_int32>.Create()
   ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Export example 1``() =
@@ -1879,9 +1724,9 @@ module Test =
       let x = GenericType<__oly_int32>()
       ()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Indexer operator example with struct with export``() =
@@ -1912,9 +1757,9 @@ module Test =
         let x = s.s[0]
         print(x)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "0"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
 
 [<Fact>]
 let ``Simple functions and private ones with export``() =
@@ -1942,9 +1787,9 @@ module Test =
     #[export]
     test(): () = Test.test_private()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "test_private"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_private"
 
 [<Fact>]
 let ``Use mscorlib type to pass the shape constraint``() =
@@ -1959,9 +1804,9 @@ main() : () =
     let s = Stopwatch()
     test(s)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact(Skip = "We cannot call 'test' as it is marked as unmanaged callers only, we need a new test. Passes in Release vs Debug - weird .NET behavior.")>]
 let ``UnmanagedCallersOnly example``() =
@@ -1991,9 +1836,9 @@ module Main =
         let result = test(1234)
         print(result)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1234"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234"
 
 [<Fact>]
 let ``Using SystemValueType subsumption``() =
@@ -2009,9 +1854,9 @@ main(): () =
     let result2 = result: ValueType
     print(result2)
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1234"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234"
 
 [<Fact>]
 let ``Using SystemValueType subsumption 2``() =
@@ -2029,9 +1874,9 @@ main(): () =
     let result2 = result: ValueType
     print("1234")
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1234"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234"
 
 [<Fact>]
 let ``Overrides ToString()``() =
@@ -2049,9 +1894,9 @@ main(): () =
     let result: System.Object = Test()
     print(result.ToString())
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overrides"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overrides"
 
 [<Fact>]
 let ``Overrides ToString() 2``() =
@@ -2068,9 +1913,9 @@ main(): () =
     let result: System.Object = Test()
     print(result.ToString())
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "overrides"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "overrides"
 
 [<Fact>]
 let ``System Convert ToUInt64``() =
@@ -2082,9 +1927,9 @@ print(__oly_object): ()
 main(): () =
     print(System.Convert.ToUInt64(123))
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``StructLayout``() =
@@ -2110,9 +1955,9 @@ main(): () =
     let size = System.Runtime.InteropServices.Marshal.SizeOf(default: Test)
     print(size)
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1234568"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234568"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply``() =
@@ -2134,9 +1979,9 @@ module Main =
         let v1 = Vector3.Zero
         print(v1 * v1)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 2``() =
@@ -2164,9 +2009,9 @@ module Main =
         let a = AClass()
         print(a.Mtd())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 3``() =
@@ -2196,9 +2041,9 @@ module Main =
         let a = AClass()
         print(a.Mtd())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 4``() =
@@ -2228,9 +2073,9 @@ module Main =
         let a = AClass()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 5``() =
@@ -2267,9 +2112,9 @@ module Main =
         let a = AClass()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 6``() =
@@ -2306,9 +2151,9 @@ module Main =
         let a = AClass()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 7``() =
@@ -2345,9 +2190,9 @@ module Main =
         let a = AClass<__oly_utf16>()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 8``() =
@@ -2384,9 +2229,9 @@ module Main =
         let a = AClass<__oly_utf16>()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<0, 0, 0>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<0, 0, 0>"
 
 [<Fact>]
 let ``Regression Vector3 with witness multiply 9``() =
@@ -2418,9 +2263,9 @@ module Main =
         let a = AClass<__oly_utf16>()
         print(a.Mtd<__oly_object>())
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "<1, 1, 1>"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "<1, 1, 1>"
 
 [<Fact(Skip = "This test is weird because running it with dotnet.exe explicitly will result in Goo Goo for release. For this test in process, it is Goo Bar for release.")>]
 let ``Weird one``() =
@@ -2488,9 +2333,9 @@ module M =
         item.Name <- "Goo"
         Shift(item)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Get - Goo Set - Goo "
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Get - Goo Set - Goo "
 
 [<Fact>]
 let ``Weird one 2``() =
@@ -2558,9 +2403,9 @@ module M =
         item.Name <- "Goo"
         Shift(item)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Get - Goo Set - Bar "
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Get - Goo Set - Bar "
 
 [<Fact>]
 let ``Set a pointer with a value``() =
@@ -2606,9 +2451,9 @@ main(): () =
     X64.Emit(123, 8, m)
     print("test")
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
 
 [<Fact>]
 let ``Set a value with a null ptr``() =
@@ -2631,9 +2476,9 @@ test(x: void*): () = print("test")
 main(): () =
     test(nullptr)
     """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "test"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
 
 
 [<Fact>]
@@ -2650,12 +2495,15 @@ test(): __oly_int32 =
     throw System.Exception("a message for throw")
 
 main(): () =
-    let result = test()
-    print("should not happen")
+    try
+        let result = test()
+        print("should not happen")
+    catch (ex: System.Exception) =>
+        print(ex.Message)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedExceptionMessage "a message for throw"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "a message for throw"
 
 [<Fact(Skip = "Should work but we should switch to something that is not a message box")>]
 let ``Simple PInvoke``() =
@@ -2682,9 +2530,9 @@ MessageBox(hWnd: nint, lpText: string, lpCaption: string, uType: uint32): int32
 main(): () =
     let result = MessageBox(default, "Command-line message box", "Attention!", 0)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput ""
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
 
 [<Fact>]
 let ``Void* overload should work``() =
@@ -2732,9 +2580,9 @@ main(): () =
     let result: int32 = *resultAddr
     print(result)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile``() =
@@ -2776,9 +2624,9 @@ main(): () =
     print(result.Y)
     print(result.Z)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "246"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "246"
 
 [<Fact>]
 let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 2``() =
@@ -2820,9 +2668,9 @@ main(): () =
     print(result.Y)
     print(result.Z)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "246"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "246"
 
 [<Fact>]
 let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 3``() =
@@ -2864,9 +2712,9 @@ main(): () =
     print(result.Y)
     print(result.Z)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "246"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "246"
 
 [<Fact>]
 let ``Multiple type parameters on System_Numerics_Vector3 extension with shape constraint should compile 4``() =
@@ -2913,9 +2761,9 @@ main(): () =
     print(result.Y)
     print(result.Z)
         """
-    let proj = getProjectWithReferenceProject refSrc src
-    proj.Compilation
-    |> runWithExpectedOutput "246"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "246"
 
 [<Fact>]
 let ``Extension Vector3 should work``() =
@@ -2954,9 +2802,9 @@ main(): () =
     print(result.Y)
     print(result.Z)
         """
-    let proj = getProjectWithReferenceProject refSrc src
-    proj.Compilation
-    |> runWithExpectedOutput "149"
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "149"
 
 [<Fact>]
 let ``Test various branch sizes``() =
@@ -3034,9 +2882,9 @@ main(): () =
     let str: System.String = "asdf"
     print(str.Length)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "4"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "4"
 
 [<Fact>]
 let ``Use 'Length' property from string 2``() =
@@ -3052,9 +2900,9 @@ main(): () =
     let str = "asdf"
     print(str.Length)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "4"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "4"
 
 [<Fact>]
 let ``Use 'Length' property from string 3``() =
@@ -3069,9 +2917,9 @@ alias string
 main(): () =
     print("asdf".Length)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "4"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "4"
 
 [<Fact>]
 let ``Use 'MaxValue' from uint16``() =
@@ -3086,9 +2934,9 @@ alias uint16
 main(): () =
     print(uint16.MaxValue)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "65535"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "65535"
 
 [<Fact>]
 let ``Simple Try expression``() =
@@ -3111,9 +2959,9 @@ main(): () =
     finally
         print("printing the finally")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "printing the finally"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "printing the finally"
 
 [<Fact>]
 let ``Simple Try expression 2``() =
@@ -3135,9 +2983,9 @@ main(): () =
     finally
         print("printing the finally")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "printing the finally"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "printing the finally"
 
 [<Fact>]
 let ``Simple Try expression 3``() =
@@ -3157,9 +3005,9 @@ main(): () =
     catch (ex: Exception) =>
         print(ex.Message)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "an exception"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "an exception"
 
 [<Fact>]
 let ``Marshal sizeof should work``() =
@@ -3193,9 +3041,9 @@ main(): () =
     print(x)
     print(y)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "48"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "48"
 
 [<Fact>]
 let ``Indexing into a ReadOnlySpan of a ref type should give the correct value``() =
@@ -3216,9 +3064,9 @@ main(): () =
     let mutable xs = ReadOnlySpan(mutable [TestData()])
     print(xs.get_Item(0).X)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123456789"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123456789"
 
 [<Fact>]
 let ``Cast to SystemEnum``() =
@@ -3236,9 +3084,9 @@ main(): () =
     let x: Enum = E.A
     print(x)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "A"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "A"
 
 [<Fact>]
 let ``Cast to SystemValueType``() =
@@ -3256,9 +3104,9 @@ main(): () =
     let x: ValueType = E.A
     print(x)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "A"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "A"
 
 [<Fact>]
 let ``Enum equality overload check``() =
@@ -3300,9 +3148,9 @@ main(): () =
     else
         print("failed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``typeof can be usesd in attribute``() =
@@ -3326,12 +3174,10 @@ test(): () =
 main(): () =
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
-
-/// TODO: We should instead compile the actual prelude file instead of embedding this here.
 [<Fact>]
 let ``Compile prelude``() =
     let src =
@@ -4138,9 +3984,9 @@ fail<TResult>(msg: string): TResult =
 main(): () =
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Generic class that handles functions that have ambiguity - Exported``() =
@@ -4187,9 +4033,9 @@ module Program =
         let t = t: A<Int32>
         t.Test(123)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Test_T_Test_int32_123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Test_T_Test_int32_123"
 
 [<Fact>]
 let ``Should get correct GetEnumerator``() =
@@ -4214,9 +4060,9 @@ main(): () =
 
     ForEach(xs, x -> print(x))
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "123"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array``() =
@@ -4247,9 +4093,9 @@ main(): () =
     let xs = [1]
     test(xs)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array 2``() =
@@ -4284,9 +4130,9 @@ main(): () =
     let xs = [1]
     test(xs)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array 3``() =
@@ -4318,9 +4164,9 @@ main(): () =
     let xs = [1]
     let x = xs.GetEnumerator()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array 4``() =
@@ -4359,9 +4205,9 @@ main(): () =
     let xs = [1]
     test(xs)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array 5``() =
@@ -4405,9 +4251,9 @@ main(): () =
     let xs = [1]
     test(xs)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Should get correct IEnumerable extension for array 6``() =
@@ -4450,9 +4296,9 @@ test<T>(xs: T): () where T: IEnumerable<int32> =
 main(): () =
     test([])
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Get ReadOnlySpan index``() =
@@ -4496,9 +4342,9 @@ main(): () =
     let x = rospan[1]
     print(x)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "2"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
 
 [<Fact>]
 let ``Implement IEquatable``() =
@@ -4528,9 +4374,9 @@ main(): () =
    let t = Test()
    print(t == t)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedTrue"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedTrue"
 
 [<Fact>]
 let ``Implement IEquatable with extension``() =
@@ -4564,9 +4410,9 @@ main(): () =
    let t = Test()
    print(t == t)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedTrue"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedTrue"
 
 [<Fact>]
 let ``Implement IEquatable with extension 2``() =
@@ -4604,9 +4450,9 @@ main(): () =
    let t = Test()
    print(t == t)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedTrue"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedTrue"
 
 [<Fact>]
 let ``Always choose most specific implementation for extension``() =
@@ -4636,9 +4482,9 @@ main(): () =
    c.Dispose()
    test(c)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedpassed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedpassed"
 
 [<Fact>]
 let ``Always choose most specific implementation for extension 2``() =
@@ -4675,9 +4521,9 @@ main(): () =
    c.Dispose()
    test(c)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedpassed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedpassed"
 
 [<Fact>]
 let ``Always choose most specific implementation for extension 3``() =
@@ -4707,9 +4553,9 @@ main(): () =
    c.Dispose()
    test(c)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passedpassed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passedpassed"
 
 [<Fact>]
 let ``Override finalizer``() =
@@ -4734,9 +4580,9 @@ main(): () =
     GC.Collect(2)
     GC.WaitForPendingFinalizers()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "finalize"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "finalize"
 
 [<Fact>]
 let ``Field array of byte pointers should work``() =
@@ -4758,9 +4604,9 @@ field XS: (byte*)[] = []
 main(): () =
     print(XS)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "System.UIntPtr[]"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "System.UIntPtr[]"
 
 [<Fact>]
 let ``Lambda uses a pointer type should work``() =
@@ -4785,9 +4631,9 @@ main(): () =
     f(x -> x)
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Span used as a parameter for a lambda``() =
@@ -4810,9 +4656,9 @@ main(): () =
     test(s -> ())
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``ReadOnlySpan used as a parameter for a lambda``() =
@@ -4835,9 +4681,9 @@ main(): () =
     test(s -> ())
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Span extension should not have an ambiguous overload``() =
@@ -4872,9 +4718,9 @@ main(): () =
     let span = xs.AsSpan()
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Span extension should not have an ambiguous overload 2``() =
@@ -4909,9 +4755,9 @@ main(): () =
     test(xs.AsSpan())
     print("passed")
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Passing witnesses to ctor type arguments by only by function type arguments - with exported interface``() =
@@ -4974,9 +4820,9 @@ module TestModule =
         print(value1)
         print(value2)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "1122"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1122"
 
 [<Fact>]
 let ``Transform should work``() =
@@ -5134,9 +4980,9 @@ main(): () =
     print(GetComponentSize<Transform>())
     db.Register<Transform>()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "641361366464"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "641361366464"
 
 [<Fact>]
 let ``Basic Observable``() =
@@ -5226,9 +5072,9 @@ main(): () =
     var.Value <- 123
     subscription.Dispose()
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "passed"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "passed"
 
 [<Fact>]
 let ``Span get_Item simple test``() =
@@ -5244,9 +5090,9 @@ main(): () =
     let value = span.get_Item(0)
     print(value)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "567"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "567"
 
 [<Fact>]
 let ``Observer example``() =
@@ -5361,9 +5207,9 @@ main(): () =
     o.Value <- 456
     print(o.Value)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "456"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
 
 [<Fact>]
 let ``Observer example 2``() =
@@ -5481,9 +5327,9 @@ main(): () =
     o.Value <- 456
     print(o.Value)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "456"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
 
 [<Fact>]
 let ``Lock example``() =
@@ -5522,9 +5368,9 @@ main(): () =
         () -> print("hello")
     )
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "hello"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
 
 [<Fact>]
 let ``Custom delegate``() =
@@ -5581,9 +5427,9 @@ module M =
         let y = 8: uint32
         let _ = del.DynamicInvoke(mutable [x: object; y: object])
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "58"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "58"
 
 [<Fact>]
 let ``Custom delegate with return type``() =
@@ -5642,9 +5488,9 @@ module M =
         let result = del.DynamicInvoke(mutable [x: object; y: object])
         print(result)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "58789"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "58789"
 
 [<Fact>]
 let ``Should choose correct overload``() =
@@ -5679,9 +5525,10 @@ main(): () =
     let c = C()
     c.Write<int32>(0)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Tbyref"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Tbyref"
+    
 
 [<Fact>]
 let ``Should choose correct overload 2``() =
@@ -5716,9 +5563,9 @@ main(): () =
     let c = C()
     c.Write<int32>(0)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Tinref"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Tinref"
 
 [<Fact>]
 let ``Should choose correct overload 3``() =
@@ -5753,9 +5600,9 @@ main(): () =
     let c = C()
     c.Write<int32>(0: int32)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Tbyref"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Tbyref"
 
 [<Fact>]
 let ``Should choose correct overload 4``() =
@@ -5790,9 +5637,9 @@ main(): () =
     let c = C()
     c.Write(0: int32)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Tbyref"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Tbyref"
 
 [<Fact>]
 let ``Should choose correct overload 5``() =
@@ -5827,9 +5674,9 @@ main(): () =
     let c = C()
     c.Write(0)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "Tbyref"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Tbyref"
 
 [<Fact>]
 let ``Exported type with a generic field type``() =
@@ -5861,9 +5708,9 @@ module Program =
     main(): () =
         print(X.X)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "5"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"
 
 [<Fact>]
 let ``Complex use of fields and structs and mutation with exported``() =
@@ -5955,9 +5802,9 @@ module Program =
         print("_")
         print(s.S.X)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "8_09_0"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_09_0"
 
 [<Fact>]
 let ``Complex use of fields and structs and mutation with exported 2``() =
@@ -6049,6 +5896,6 @@ module Program =
         print("_")
         print(s.S.X)
         """
-    let proj = getProject src
-    proj.Compilation
-    |> runWithExpectedOutput "8_09_0"
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8_09_0"

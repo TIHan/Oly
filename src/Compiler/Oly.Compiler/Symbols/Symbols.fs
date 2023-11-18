@@ -3705,7 +3705,8 @@ type TypeSymbol =
         | NativeInt
         | NativeUInt
         | NativePtr _ 
-        | NativeFunctionPtr _ -> true
+        | NativeFunctionPtr _
+        | Tuple _ -> true
         // Scoped function types are structs.
         | Function(kind=FunctionKind.Scoped) -> true
         | Variable(tyPar)
