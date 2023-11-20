@@ -735,7 +735,7 @@ type OlyDocument with
                         )
 
                     | :? OlyValueSymbol as symbol ->
-                        let ty = symbol.Type
+                        let ty = symbol.Type.StripByRef()
                             
                         ty.Fields
                         |> Seq.iter (fun field ->

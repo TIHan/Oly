@@ -248,6 +248,50 @@ main(): () =
     |> containsCompletionLabelsByCursor ["X"]
 
 [<Fact>]
+let ``By cursor, get completions from a byref local variable`` () =
+    """
+#target "i: default"
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)(T): byref<T>
+
+struct Test =
+    
+    mutable X: __oly_int32 = 3
+
+main(): () =
+    let mutable t = Test()
+    let x: byref<Test> = &t
+    x.~^~
+    """
+    |> containsCompletionLabelsByCursor ["X"]
+
+[<Fact>]
+let ``By cursor, get completions from a byref local variable 2`` () =
+    """
+#target "i: default"
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct Test =
+    
+    mutable X: __oly_int32 = 3
+
+main(): () =
+    let mutable t = Test()
+    let x = &t
+    x.~^~
+    """
+    |> containsCompletionLabelsByCursor ["X"]
+
+[<Fact>]
 let ``By cursor, get completions from a namespace`` () =
     """
 namespace TestNamespace

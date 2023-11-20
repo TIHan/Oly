@@ -109,17 +109,10 @@ type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol)
 type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location: OlySyntaxNode, ty: TypeSymbol) =
     inherit OlySymbol(location)
 
-    let stripTypeEquations ty =
-        match stripTypeEquations ty with
-        | TypeSymbol.ByRef(ty, _) ->
-            stripTypeEquations ty
-        | ty ->
-            ty
-
     member internal _.Internal = ty
 
     member _.IsTypeParameter =
-        match stripTypeEquations ty with
+        match ty with
         | TypeSymbol.Variable _ 
         | TypeSymbol.HigherVariable _ -> true
         | _ -> false
@@ -238,6 +231,11 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
                     None
         else
             None
+
+    member this.StripByRef() =
+        match ty.TryByReferenceElementType with
+        | ValueSome ty -> OlyTypeSymbol(boundModel, benv, location, ty)
+        | _ -> this
 
     member _.Extends =
         ty.Inherits
