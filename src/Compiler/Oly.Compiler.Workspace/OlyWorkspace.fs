@@ -224,11 +224,7 @@ type OlyProject (
     member _.IsInvalidated = isInvalidated
 
     member this.Invalidate(newSolutionLazy) =
-        let mutable newProject = this
-        let newProjectLazy = lazy newProject
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilation, documents, references, packages, copyFileInfos, platformName, targetInfo, true)
-        newProjectLazy.Force() |> ignore
-        newProject
+         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation))
 
@@ -657,6 +653,7 @@ type WorkspaceMessage =
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetDocuments of documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | InvalidateProject of projectPath: OlyPath * ct: CancellationToken
+    | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken * AsyncReplyChannel<unit>
 
 [<Sealed>]
@@ -720,6 +717,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         let rec loop() =
             async {
                 match! mbp.Receive() with
+                | GetSolution(ct, reply) ->
+                    try
+                        ct.ThrowIfCancellationRequested()
+                        reply.Reply(solution)
+                    with
+                    | _ ->
+                        ()
                 | InvalidateProject(projectPath, ct) ->
                     try
                         ct.ThrowIfCancellationRequested()
@@ -1185,8 +1189,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         }
 
     member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
-        let solution = this.Solution
         backgroundTask {          
+            let! solution = mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply))
             let proj = solution.GetProject(projectPath)
             let target = proj.SharedBuild
             try

@@ -655,7 +655,7 @@ main(): () =
     print("Hello World!")
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -689,7 +689,7 @@ main(): () =
     Test.print("Hello World!")
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -724,7 +724,7 @@ main(): () =
     print("Hello World!")
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -765,7 +765,7 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -823,7 +823,7 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -866,7 +866,7 @@ main(): () =
     let result = x * x
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -917,8 +917,8 @@ main(): () =
     print("passed")
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
-    let path2 = OlyPath.Create("fakePath/ui.oly")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("fakepath/ui.oly")
     let path3 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -957,7 +957,7 @@ main(): () =
     test((x: __oly_int32, y: __oly_int64) -> true)
         """
 
-    let path1 = OlyPath.Create("fakePath/Test.olyx")
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
@@ -968,6 +968,192 @@ main(): () =
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
+
+[<Fact>]
+let ``Project reference another project 9``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+main(): () =
+    test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let updatedSrc1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (missing_type, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let updatedSrc2 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+// this changed to a scoped lambda, but still should work.
+test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+ 
+    // Should fail
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error _ -> ()
+    | _ -> OlyAssert.Fail("Expected error")
+
+    // Should pass
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+[<Fact>]
+let ``Project reference another project that references another project``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "Test.olyx"
+
+#[open]
+module Test2
+        """
+
+    let src3 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test2.olyx"
+
+main(): () =
+    Test.test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let updatedSrc1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (missing_type, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let updatedSrc2 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+// this changed to a scoped lambda, but still should work.
+test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("fakepath/Test2.olyx")
+    let path3 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let text3 = OlySourceText.Create(src3)
+    let workspace = 
+        createWorkspaceWith(fun x -> 
+            if OlyPath.Equals(x, path1) then 
+                text1 
+            elif OlyPath.Equals(x, path2) then
+                text2
+            else 
+                failwith "Invalid path")
+   // workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+ 
+    // Should fail
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error _ -> ()
+    | _ -> OlyAssert.Fail("Expected error")
+
+    // Should pass
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
 
 [<Fact>]
 let ``By cursor, get completions for incomplete alias definition`` () =
