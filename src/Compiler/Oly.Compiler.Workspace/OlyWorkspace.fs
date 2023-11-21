@@ -777,8 +777,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             )
                         )
                     with
-                    | :? OperationCanceledException -> ()
-                    | ex -> OlyAssert.Fail(ex.Message)
+                    | _ -> ()
                 | UpdateDocument(documentPath, sourceText, ct, reply) ->
                     try
                         ct.ThrowIfCancellationRequested()

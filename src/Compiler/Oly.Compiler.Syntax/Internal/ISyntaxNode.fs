@@ -59,6 +59,8 @@ module internal SyntaxHelpers =
             member _.Tag = Tags.Terminal
         }
 
+type ISyntaxSeparatorList = interface end
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
     | Empty of unit
@@ -87,6 +89,7 @@ type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
         | List(head=head) -> Some head
         | _ -> None
 
+    interface ISyntaxSeparatorList
     interface ISyntaxNode with
 
         member _.IsTerminal = false

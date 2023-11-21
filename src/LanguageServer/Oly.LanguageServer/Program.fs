@@ -745,11 +745,14 @@ module ExtensionHelpers =
         if node.FullTextSpan.Width = 0 then 
             [||]
         elif node.IsSequentialExpression then
-            let children = node.Children
-            let nodes1 = children |> Seq.item 0 |> getViewModel ct nextId
-            let nodes2 = children |> Seq.item 1 |> getViewModel ct nextId
-            Array.append nodes1 nodes2
-            |> Array.ofSeq
+            match node :?> OlySyntaxExpression with
+            | OlySyntaxExpression.Sequential(expr1, expr2) ->
+                let nodes1 = expr1 |> getViewModel ct nextId
+                let nodes2 = expr2 |> getViewModel ct nextId
+                Array.append nodes1 nodes2
+                |> Array.ofSeq
+            | _ ->
+                failwith "should not happen"
         else
             let children = 
                 node.Children 
@@ -1098,22 +1101,16 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                         do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
-                        let docs = origSolution.GetDocuments(documentPath)
-
                         for doc in docs do
                             let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
                             for dep in depsOn do
-                                match textManager.TryGet(dep.Path) with
-                                | Some (sourceText, _) ->
-                                    let! docs = workspace.UpdateDocumentAsync(dep.Path, sourceText, ct)
-                                    for doc in docs do
-                                        doc.Project.Documents
-                                        |> ImArray.iter (fun doc ->
-                                            let diags = doc.ToLspDiagnostics(ct)
-                                            server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                                        )
-                                | _ ->
-                                    ()
+                                ct.ThrowIfCancellationRequested()
+                                dep.Documents
+                                |> ImArray.iter (fun doc ->
+                                    ct.ThrowIfCancellationRequested()
+                                    let diags = doc.ToLspDiagnostics(ct)
+                                    server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                                )
                     with
                     | :? OperationCanceledException ->
                         ()

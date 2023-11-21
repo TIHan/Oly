@@ -590,7 +590,9 @@ module OlySyntaxTreeExtensions =
             | _ -> false
 
         member this.IsSeparatorList =
-            this.InternalNode.GetType().DeclaringType.Name.Contains(nameof(SyntaxSeparatorList))
+            match this.InternalNode with
+            | :? ISyntaxSeparatorList -> true
+            | _ -> false
 
         member this.IsTypeDeclarationExpression =
             match this.InternalNode with
