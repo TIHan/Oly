@@ -720,7 +720,11 @@ type OlyCompilation private (state: CompilationState) =
 
         let refDiags =
             this.GetTransitiveReferenceCompilations(ct)
-            |> ImArray.collect (fun x -> x.GetDiagnostics(ct))
+            |> ImArray.collect (fun x -> 
+                x.GetImportDiagnostics(ct).AddRange(
+                    x.GetSyntaxDiagnostics(ct).AddRange(
+                        x.GetSemanticDiagnostics(ct)))
+            )
 
         ImArray.append diags refDiags
 
