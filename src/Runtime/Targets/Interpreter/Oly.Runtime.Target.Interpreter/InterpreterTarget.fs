@@ -29,7 +29,7 @@ type InterpreterTarget() =
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
-        | Error diags -> return Error(OlyDiagnostic.PrepareForOutput(diags, ct))
+        | Error diags -> return Error(diags)
         | Ok asm ->
 
         let emitter = InterpreterRuntimeEmitter()
@@ -44,7 +44,7 @@ type InterpreterTarget() =
         )
 
         if refDiags.Count > 0 then
-            return Error(OlyDiagnostic.PrepareForOutput(refDiags.ToImmutable(), ct))
+            return Error(refDiags.ToImmutable())
         else
 
         runtime.ImportAssembly(asm.ToReadOnly())

@@ -118,7 +118,7 @@ type OlyBuild(platformName: string) =
     
     abstract OnAfterReferencesImported : unit -> unit
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, string>>
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
@@ -1213,7 +1213,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return! target.BuildProjectAsync(proj, ct)
             with
             | ex ->
-                return Error(ex.Message)
+                return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message)))
         }
 
     static member CreateCore(targetPlatforms: OlyBuild seq, rs: IOlyWorkspaceResourceService) =

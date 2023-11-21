@@ -94,7 +94,7 @@ type OlyBuild =
     
     abstract OnAfterReferencesImported : unit -> unit
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, string>>
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
@@ -218,7 +218,7 @@ type OlyWorkspace =
     member GetDocumentsAsync : documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// We should make this better.
-    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<string, string>>
+    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
     member ClearSolutionAsync : ct: CancellationToken -> Task<unit>

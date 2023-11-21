@@ -297,7 +297,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
-        | Error diags -> return Error(OlyDiagnostic.PrepareForOutput(diags, ct))
+        | Error diags -> return Error(diags)
         | Ok asm ->
 
         let netInfo = netInfos[proj.Path]
@@ -382,11 +382,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             )
 
         match primaryAssemblyOpt with
-        | None -> return Error "Unable to find primary assembly."
+        | None -> return Error(OlyDiagnostic.CreateError("Unable to find primary assembly.") |> ImArray.createOne)
         | Some primaryAssembly ->
 
         match consoleAssemblyOpt with
-        | None -> return Error "Unable to find console assembly."
+        | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
         | Some consoleAssembly ->
 
         let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
@@ -401,7 +401,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         )
 
         if refDiags.Count > 0 then
-            return Error(OlyDiagnostic.PrepareForOutput(refDiags.ToImmutable(), ct))
+            return Error(refDiags.ToImmutable())
         else
 
         runtime.ImportAssembly(asm.ToReadOnly())

@@ -1831,10 +1831,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.Handle(request, ct) =
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
-                    //GC.Collect()
                     match! workspace.BuildProjectAsync(doc.Project.Path, ct) with
                     | Ok result -> return { resultPath = result; error = null }
-                    | Error error -> return { resultPath = null; error = error }
+                    | Error error -> return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
                 }
             )
 
