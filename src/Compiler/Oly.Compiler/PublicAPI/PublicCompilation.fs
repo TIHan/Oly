@@ -485,7 +485,12 @@ module private CompilationPhases =
         let ilGen = OlyILAssemblyGenerator(state.assembly, state.options.Debuggable)
         loweredBoundTrees
         |> ImArray.iter (fun (x, _) ->
-            ilGen.Generate(x)
+            try
+                ilGen.Generate(x)
+            with
+            | ex ->
+                let msg = $"Internal Error (ILGen) in '{x.SyntaxTree.Path}':\n{ex.Message}"
+                raise(Exception(msg, ex))
         )
 
         ilGen.ILAssembly
@@ -686,28 +691,43 @@ type OlyCompilation private (state: CompilationState) =
 
     member _.GetBoundModel(path): OlyBoundModel = state.cunits.[path].BoundModel
 
-    member _.GetSyntaxDiagnostics(ct: CancellationToken) =
+    member private _.GetSyntaxDiagnostics(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         state.cunits.Values
         |> Seq.map (fun x -> x.GetSyntaxDiagnostics(ct))
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member _.GetSemanticDiagnostics(ct: CancellationToken) =
+    member private _.GetSemanticDiagnostics(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         state.cunits.Values
         |> Seq.map (fun x -> x.GetSemanticDiagnostics(ct))
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member _.GetImportDiagnostics(ct: CancellationToken) =
+    member private _.GetImportDiagnostics(ct: CancellationToken) =
+        ct.ThrowIfCancellationRequested()
         state.lazyInitialState.GetValue(ct).importDiags
 
     member this.GetDiagnostics(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        this.GetImportDiagnostics(ct).AddRange(
-            this.GetSyntaxDiagnostics(ct).AddRange(
-                this.GetSemanticDiagnostics(ct)))
+        this.Bind(ct) |> ignore
+
+        let diags =
+            this.GetImportDiagnostics(ct).AddRange(
+                this.GetSyntaxDiagnostics(ct).AddRange(
+                    this.GetSemanticDiagnostics(ct)))
+
+        let refDiags =
+            this.GetTransitiveReferenceCompilations(ct)
+            |> ImArray.collect (fun x -> x.GetDiagnostics(ct))
+
+        ImArray.append diags refDiags
+
+    member private this.Bind(ct) =
+        ct.ThrowIfCancellationRequested()
+        let binders4 = lazySigPhase.GetValue(ct)
+        CompilationPhases.implementation state binders4 ct
         
     member this.Version = state.version
 
@@ -716,8 +736,7 @@ type OlyCompilation private (state: CompilationState) =
         if checkHasErrors importDiags then
             Result.Error(importDiags)
         else
-            let binders4 = lazySigPhase.GetValue(ct)
-            let boundTrees = CompilationPhases.implementation state binders4 ct
+            let boundTrees = this.Bind(ct)
 
             let hasErrors =
                 boundTrees

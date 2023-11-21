@@ -137,6 +137,11 @@ module ImArray =
                 builder.Add(mapper i arr1.[i] arr2.[i])
             builder.MoveToImmutable()
 
+    let inline collect (mapping: 'T -> 'U imarray) (arr: imarray<'T>) : imarray<'U> =
+        // TODO: Make this performant.
+        Seq.collect mapping arr
+        |> ImmutableArray.CreateRange
+
     let inline rev (arr: imarray<'T>) : imarray<'T> =
         // TODO: Make this performant.
         arr

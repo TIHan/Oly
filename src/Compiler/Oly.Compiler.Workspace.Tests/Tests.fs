@@ -748,7 +748,7 @@ module Test
 
 class TestClass =
 
-    get X: __oly_int32 = 123
+    X: __oly_int32 get = 123
     
 #[intrinsic("print")]
 print(__oly_object): ()
@@ -788,14 +788,14 @@ module Test
 
 class TestClass =
 
-    get X: __oly_int32 = 123
+    X: __oly_int32 get = 123
 
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
     
 #[intrinsic("print")]
 print(__oly_object): ()
 
-testShape<T>(x: T): () where T: { get X: __oly_int32 } =
+testShape<T>(x: T): () where T: { X: __oly_int32 get } =
     ()
 
 shape AddShape<T1, T2, T3> =
@@ -1082,7 +1082,7 @@ module Test2
 #reference "fakepath/Test2.olyx"
 
 main(): () =
-    Test.test((x: __oly_int32, y: __oly_int64) -> true)
+    test((x: __oly_int32, y: __oly_int64) -> true)
         """
 
     let updatedSrc1 =
@@ -1122,7 +1122,6 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
                 text2
             else 
                 failwith "Invalid path")
-   // workspace.UpdateDocument(path2, text2, CancellationToken.None)
     workspace.UpdateDocument(path3, text3, CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
@@ -1140,6 +1139,222 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     // Should fail
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error _ -> ()
+    | _ -> OlyAssert.Fail("Expected error")
+
+    // Should pass
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+[<Fact>]
+let ``Project reference another project that references another project 2``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "Test.olyx"
+
+#[open]
+module Test2
+
+test2(): () =
+    test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let src3 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test2.olyx"
+
+main(): () =
+    test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let updatedSrc1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (missing_type, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let updatedSrc2 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+// this changed to a scoped lambda, but still should work.
+test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("fakepath/Test2.olyx")
+    let path3 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let text3 = OlySourceText.Create(src3)
+    let workspace = 
+        createWorkspaceWith(fun x -> 
+            if OlyPath.Equals(x, path1) then 
+                text1 
+            elif OlyPath.Equals(x, path2) then
+                text2
+            else 
+                failwith "Invalid path")
+    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+ 
+    // Should fail
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+
+    let doc = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0]
+    Assert.NotEmpty(doc.Project.Compilation.GetDiagnostics(CancellationToken.None))
+
+    // Should fail
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error _ -> ()
+    | _ -> OlyAssert.Fail("Expected error")
+
+    // Should pass
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+[<Fact>]
+let ``Project reference another project that references another project 3``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "Test.olyx"
+
+#[open]
+module Test2
+
+test2(): () =
+    test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let src3 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test2.olyx"
+
+main(): () =
+    test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let updatedSrc1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (missing_type, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let updatedSrc2 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+// this changed to a scoped lambda, but still should work.
+test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("fakepath/Test2.olyx")
+    let path3 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let text3 = OlySourceText.Create(src3)
+    let workspace = 
+        createWorkspaceWith(fun x -> 
+            if OlyPath.Equals(x, path1) then 
+                text1 
+            elif OlyPath.Equals(x, path2) then
+                text2
+            else 
+                failwith "Invalid path")
+    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+    let doc = proj.Documents[0]
+    let symbols = doc.GetAllSymbols(CancellationToken.None)
+    Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
+    Assert.NotEqual(0, symbols.Length)
+
+    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let result = task.Result
+    match result with
+    | Result.Error(msg) -> raise(Exception(msg))
+    | _ -> ()
+
+ 
+    // Getting the document for 'path2' shouldn't screw up building. Very weird case.
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    let _doc = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0]
+
+    // Should fail
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with

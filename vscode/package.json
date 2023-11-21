@@ -114,6 +114,17 @@
 					"type": "number",
 					"default": 1000,
 					"description": "Controls the delay (ms) to publish document diagnostics after the currently edited documents has its diagnostics published."
+				},
+				"olyLanguageServer.trace.server": {
+					"scope": "window",
+					"type": "string",
+					"enum": [
+						"off",
+						"messages",
+						"verbose"
+					],
+					"default": "off",
+					"description": "Traces the communication between VS Code and the language server."
 				}
 			}
 		}

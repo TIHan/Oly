@@ -182,7 +182,7 @@ let rec GenWitnessArguments cenv env (witnessArgs: WitnessSolution imarray) =
             | WitnessSymbol.Type _ ->
                 None
         | _ ->
-            failwith "Internal error: No witnesses found"
+            failwith "No witnesses found"
     )
 
 and GenValueTypeArgumentsAndWitnessArguments cenv env (value: IValueSymbol) witnessArgs =
@@ -394,7 +394,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeHigherVariable(index, tyArgs |> ImArray.map (emitILType cenv env), ilKind)
     | TypeSymbol.InferenceVariable _
     | TypeSymbol.HigherInferenceVariable _ ->
-        failwith "Internal error: Solution-less inference variables cannot be emitted"
+        failwith "Solution-less inference variables cannot be emitted"
     | TypeSymbol.ConstantInt32(n) ->
         OlyILTypeConstantInt32(n)
 
@@ -420,7 +420,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeArray(emitILType cenv env elementTy, rank, ilKind)
 
     | TypeSymbol.EagerInferenceVariable _ ->
-        OlyAssert.Fail("Internal error: Unable to code-gen an eager inference variable type.")
+        OlyAssert.Fail("Unable to code-gen an eager inference variable type.")
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
         if innerTy.IsBuiltIn then
@@ -433,7 +433,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             )
 
     | TypeSymbol.Error _ ->
-        failwith "Internal error: Unable to code-gen an error type."
+        failwith "Unable to code-gen an error type."
 
 and emitILTypes cenv env (tys: TypeSymbol imarray) =
     tys
@@ -1598,7 +1598,7 @@ and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind
         | _ ->
             match value.Enclosing with
             | EnclosingSymbol.Local ->
-                failwithf "Internal error: local '%s' does not exist" value.Name
+                failwithf "local '%s' does not exist" value.Name
             | _ ->
                 match value with
                 | :? IFunctionSymbol as func when not func.IsInstance ->
@@ -1609,7 +1609,7 @@ and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind
                 | :? IFieldSymbol as field ->
                     GenLoadFieldExpression cenv env ilTextRange takeAddress field ilArgExprs
                 | _ ->
-                    failwithf "Internal error: local '%s' does not exist" value.Name
+                    failwithf "local '%s' does not exist" value.Name
 
 and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs: E imarray) =
     let valueTy = value.LogicalType
