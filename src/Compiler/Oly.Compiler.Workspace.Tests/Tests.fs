@@ -1030,7 +1030,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
  
@@ -1049,7 +1049,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
 [<Fact>]
@@ -1132,7 +1132,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
  
@@ -1151,7 +1151,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
 [<Fact>]
@@ -1237,7 +1237,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
  
@@ -1260,7 +1260,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
 [<Fact>]
@@ -1346,7 +1346,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
  
@@ -1367,7 +1367,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
     let result = task.Result
     match result with
-    | Result.Error(msg) -> raise(Exception(msg))
+    | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
 
 [<Fact>]
