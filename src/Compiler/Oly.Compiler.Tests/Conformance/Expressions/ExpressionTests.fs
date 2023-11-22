@@ -8952,3 +8952,31 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Type should be the correct alias``() =
+    let src =
+        """
+    #[intrinsic("int32")]
+    alias int32
+
+    main(): () =
+        let _ = 1: ~^~int32
+        """
+    let symbol = getSymbolByCursor src
+    Assert.True(symbol.AsType.IsAlias)
+
+[<Fact>]
+let ``Type should be the correct alias 2``() =
+    let src =
+        """
+    #[intrinsic("int32")]
+    alias int32
+
+    class C<T>
+
+    main(): () =
+        let _ = C<~^~int32>()
+        """
+    let symbol = getSymbolByCursor src
+    Assert.True(symbol.AsType.IsAlias)

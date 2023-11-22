@@ -42,6 +42,9 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
     member this.AsValue =
         this :?> OlyValueSymbol
 
+    member this.AsType =
+        this :?> OlyTypeSymbol
+
     member this.AsConstant =
         this :?> OlyConstantSymbol
 
