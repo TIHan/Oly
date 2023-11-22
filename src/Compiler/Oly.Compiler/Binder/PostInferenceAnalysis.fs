@@ -796,7 +796,7 @@ and analyzeExpressionAux acenv aenv (expr: E) =
 
         catchCases
         |> ImArray.iter (function
-            | BoundCatchCase.CatchCase(value, catchBodyExpr) ->
+            | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
                 // TODO: 'syntaxNode' is not the accurate place for this.
                 analyzeType acenv aenv syntaxNode value.Type
                 analyzeExpression acenv aenv catchBodyExpr

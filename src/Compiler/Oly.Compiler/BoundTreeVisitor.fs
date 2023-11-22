@@ -91,7 +91,7 @@ type internal BoundTreeVisitor(core: BoundTreeVisitorCore) =
                 this.VisitExpression(bodyExpr) |> ignore
                 catchCases
                 |> ImArray.iter (function
-                    | BoundCatchCase.CatchCase(_, catchBodyExpr) ->
+                    | BoundCatchCase.CatchCase(_, _, catchBodyExpr) ->
                         this.VisitExpression(catchBodyExpr) |> ignore
                 )
                 finallyBodyExprOpt

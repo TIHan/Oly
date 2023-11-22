@@ -43,13 +43,13 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                     catchCases
                     |> ImArray.map (fun catchCase ->
                         match catchCase with
-                        | BoundCatchCase.CatchCase(local, catchBodyExpr) ->
+                        | BoundCatchCase.CatchCase(syntaxInfo, local, catchBodyExpr) ->
                             let newCatchBodyExpr = this.Rewrite(catchBodyExpr)
 
                             if newCatchBodyExpr = catchBodyExpr then
                                 catchCase
                             else
-                                BoundCatchCase.CatchCase(local, newCatchBodyExpr)
+                                BoundCatchCase.CatchCase(syntaxInfo, local, newCatchBodyExpr)
                     )
                 let newFinallyBodyExprOpt =
                     finallyBodyExprOpt

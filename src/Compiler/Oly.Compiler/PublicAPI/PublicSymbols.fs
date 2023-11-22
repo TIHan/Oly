@@ -1689,6 +1689,29 @@ type OlyBoundModel internal (
                 | _ ->
                     ()
 
+            | BoundExpression.Try(catchCases=catchCases) ->
+                // TODO: We iterate over catch cases already, but we do it again here.
+                //       This may have perf issues, but likely not as there tends not to be very many
+                //       catch cases.
+                catchCases
+                |> ImArray.iter (fun catchCase ->
+                    match catchCase with
+                    | BoundCatchCase.CatchCase(syntaxInfo, par, _) ->
+                        match syntaxInfo.TryEnvironment with
+                        | Some benv ->
+                            match syntaxInfo.Syntax with
+                            | :? OlySyntaxCatchOrFinallyExpression as syntax ->
+                                match syntax with
+                                | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, _, _) ->
+                                    getParameterSymbol addSymbol benv predicate syntaxPar par
+                                | _ ->
+                                    ()
+                            | _ ->
+                                ()
+                        | _ ->
+                            ()
+                )
+
             | BoundExpression.Witness(syntaxInfo, _, castFunc, _, _, _) ->
                 match syntaxInfo.TryEnvironment with
                 | Some benv ->

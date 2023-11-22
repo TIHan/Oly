@@ -273,7 +273,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 InternalUser(syntaxNode, benv)
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
-    | CatchCase of ILocalParameterSymbol * catchBodyExpr: BoundExpression
+    | CatchCase of syntaxInfo: BoundSyntaxInfo * ILocalParameterSymbol * catchBodyExpr: BoundExpression
 
 and BoundSequentialSemantic =
     | NormalSequential

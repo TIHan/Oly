@@ -1223,13 +1223,18 @@ let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (
         let _, finallyBodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxFinallyBodyExpr syntaxFinallyBodyExpr
         catchCasesBuilder.ToImmutable(), Some finallyBodyExpr
 
-    | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxCatchOrFinallyExpr) ->
+    | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxNextCatchOrFinallyExpr) ->
         let _, par = bindParameter cenv env None false syntaxPar
         let envForCatchCase = env.SetUnqualifiedValue(par)
         let _, catchBodyExpr = bindLocalExpression cenv envForCatchCase expectedTyOpt syntaxCatchBodyExpr syntaxCatchBodyExpr
-        let catchCase = BoundCatchCase.CatchCase(par, catchBodyExpr)
+        let catchCase = 
+            BoundCatchCase.CatchCase(
+                BoundSyntaxInfo.User(syntaxCatchOrFinallyExpr, env.benv), 
+                par, 
+                catchBodyExpr
+            )
         catchCasesBuilder.Add(catchCase)
-        bindCatchOrFinallyExpression cenv env expectedTyOpt catchCasesBuilder syntaxCatchOrFinallyExpr
+        bindCatchOrFinallyExpression cenv env expectedTyOpt catchCasesBuilder syntaxNextCatchOrFinallyExpr
 
     | _ ->
         raise(InternalCompilerUnreachedException())

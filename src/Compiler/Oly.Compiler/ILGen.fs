@@ -1225,7 +1225,7 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
     let ilCatchCases =
         catchCases
         |> ImArray.map (function
-            | BoundCatchCase.CatchCase(value, catchBodyExpr) ->
+            | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
                 let ilTy = emitILType cenv env value.Type
                 let name = value.Name
                 let localId = value.Id
