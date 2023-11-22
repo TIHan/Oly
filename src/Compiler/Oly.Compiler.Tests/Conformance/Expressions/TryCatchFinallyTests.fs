@@ -55,3 +55,14 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Get symbol for catch type``() =
+    """
+main(): () =
+    try
+        let _ = 1
+    catch (~^~ex: __oly_object) =>
+        ()
+    """
+    |> hasSymbolSignatureTextByCursor "ex: __oly_object"
