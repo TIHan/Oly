@@ -1526,3 +1526,51 @@ main(): () =
     Assert.True(symbol.IsFunction)
     Assert.Equal(2, info.ActiveParameterIndex)
     Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get call syntax token 7`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+    GetSomething<T, U, V>(x: int32, y: int32, z: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(1, 2,~^~ 4)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(2, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get call syntax token 8`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+    GetSomething<T, U, V>(x: int32, y: int32, z: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(1, 2~^~, 4)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)

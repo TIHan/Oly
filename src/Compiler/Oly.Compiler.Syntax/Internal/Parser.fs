@@ -987,17 +987,30 @@ let tryParseList tryParseNode state =
 
 // ** parenthesis, brackets, lists **
 
-let tryParseListWithSeparator separatorToken nodeName tryParseNode state =
+let tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
-    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode) state with
+    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode) state with
     | Some(node), Some(separatorToken), Some(rest) ->
-        SyntaxSeparatorList.List(node, separatorToken, rest, ep s state) |> Some
+        match rest with
+        | SyntaxSeparatorList.Error ->
+            match tryErrorNode (dummyToken()) with
+            | Some errorNode ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state) |> Some
+            | _ ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state) |> Some
+        | _ ->
+            SyntaxSeparatorList.List(node, separatorToken, rest, ep s state) |> Some
 
     | Some(node), Some(separatorToken), _ ->
-        let result = SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
+        let listNode = 
+            match tryErrorNode (dummyToken()) with
+            | Some errorNode ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
+            | _ ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
         errorDo(ExpectedSyntaxAfterToken(nodeName, separatorToken.RawToken), separatorToken) state
-        result |> Some
+        listNode |> Some
 
     | Some(node), _ , _ ->
         SyntaxSeparatorList.List(node, dummyToken(), SyntaxSeparatorList.Empty(), ep s state) |> Some
@@ -1008,9 +1021,17 @@ let tryParseListWithSeparator separatorToken nodeName tryParseNode state =
 let parseSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
-    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode) state with
+    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode) state with
     | Some(node), Some(separatorToken), Some(rest) ->
-        SyntaxSeparatorList.List(node, separatorToken, rest, ep s state)
+        match rest with
+        | SyntaxSeparatorList.Error ->
+            match tryErrorNode (dummyToken()) with
+            | Some errorNode ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
+            | _ ->
+                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
+        | _ ->
+            SyntaxSeparatorList.List(node, separatorToken, rest, ep s state)
 
     | Some(node), Some(separatorToken), _ ->
         let listNode = 
@@ -3812,7 +3833,7 @@ let tryParseArguments state =
     match bt LEFT_PARENTHESIS state with
     | Some(leftParenthesisToken) ->
         let argumentList = parseSeparatorList COMMA "expression" tryParseArgument (fun x -> SyntaxExpression.Error(x) |> Some) state
-        let namedArgumentList = parseSeparatorList COMMA "name argument" tryParseNamedArgument (fun _ -> None) state // TODO: Not passing a 'tryErrorNode', we should so we can get better recovery.
+        let namedArgumentList = parseSeparatorList COMMA "named argument" tryParseNamedArgument (fun _ -> None) state // TODO: Not passing a 'tryErrorNode', we should so we can get better recovery.
         match bt tryRecoverableRightParenthesis state with
         | Some(rightParenthesisToken) ->
             SyntaxArguments.Arguments(leftParenthesisToken, argumentList, namedArgumentList, rightParenthesisToken, ep s state) |> Some

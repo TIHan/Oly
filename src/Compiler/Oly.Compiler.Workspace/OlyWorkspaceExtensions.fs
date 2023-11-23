@@ -451,7 +451,7 @@ type OlyDocument with
                                             Some 0
                                         else
                                             argList.ChildrenOfType
-                                            |> ImArray.tryFindIndex (fun x -> x.TextSpan.IntersectsWith(position))
+                                            |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
 
                                     match indexOpt with
                                     | Some index ->                                       
@@ -471,7 +471,7 @@ type OlyDocument with
                         None
 
                     | _ ->
-                        None
+                        loop node.Parent
                 | _ ->
                     if node.HasParent then
                         loop node.Parent
