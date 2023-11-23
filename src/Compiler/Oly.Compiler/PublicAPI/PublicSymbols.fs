@@ -46,8 +46,11 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
 
     member this.IsFunctionGroup =
         match this with
-        | :? OlyValueSymbol as symbol -> symbol.IsFunctionGroup
+        | :? OlyFunctionGroupSymbol -> true
         | _ -> false
+
+    member this.AsFunctionGroup =
+        this :?> OlyFunctionGroupSymbol
 
     member this.AsValue =
         this :?> OlyValueSymbol

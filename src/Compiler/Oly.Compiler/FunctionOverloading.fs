@@ -138,13 +138,15 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
             (0, 0)
     
     let mapArgTys (func: IFunctionSymbol) (argTys: TypeSymbol imarray) =
+        OlyAssert.Equal(func.LogicalParameterCount, argTys.Length)
+
         let mutable currentRigidWeight = 0
         let mutable currentWeight = 0
 
         if argTys.IsEmpty then ()
         else
             (func.LogicalParameters, argTys.AsMemory())
-            ||> ROMem.tryIter2 (fun par argTy ->
+            ||> ROMem.iter2 (fun par argTy ->
                 let struct(rigidWeight, weight) = computeWeight (0, 0) par.Type argTy
                 currentRigidWeight <- currentRigidWeight + rigidWeight
                 currentWeight <- currentWeight + weight
@@ -164,21 +166,28 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
     | ResolutionArguments.ByType(argTys) ->
         let result =
             funcs
-            |> ImArray.map (fun func ->
-                mapArgTys func argTys
+            |> ImArray.choose (fun func ->
+                if func.LogicalParameterCount = argTys.Length then
+                    mapArgTys func argTys
+                    |> Some
+                else
+                    None
             )
     
-        let _, maxWeight =
-            result
-            |> Seq.maxBy (fun (_, x) -> x)
+        if result.IsEmpty then
+            ImArray.empty
+        else
+            let _, maxWeight =
+                result
+                |> Seq.maxBy (fun (_, x) -> x)
     
-        result
-        |> ImArray.choose (fun (func, weight) ->
-            if weight = maxWeight then
-                Some func
-            else
-                None  
-        )
+            result
+            |> ImArray.choose (fun (func, weight) ->
+                if weight = maxWeight then
+                    Some func
+                else
+                    None  
+            )
     | _ ->
         funcs
 

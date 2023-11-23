@@ -1412,4 +1412,45 @@ main(): () =
     c.GetSomething(~^~)
         """
     let symbol = getFunctionCallSymbolByCursor src
-    OlyAssert.True(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunctionGroup)
+    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
+
+[<Fact>]
+let ``By cursor, get call syntax token 2`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(~^~)
+        """
+    let symbol = getFunctionCallSymbolByCursor src
+    Assert.True(symbol.IsFunctionGroup)
+    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
+
+[<Fact>]
+let ``By cursor, get call syntax token 3`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething~^~()
+        """
+    let symbol = getFunctionCallSymbolByCursor src
+    Assert.True(symbol.IsFunctionGroup)
+    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
