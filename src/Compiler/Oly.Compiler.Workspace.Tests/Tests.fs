@@ -111,13 +111,16 @@ let containsOnlyCompletionLabelsByCursor (expectedCompletionLabels: string seq) 
     |> Seq.forall (fun expected -> completionLabels.ContainsKey(expected))
     |> Assert.True
 
-let getFunctionCallSymbolByCursor (srcWithCursor: string) =
+let getFunctionCallInfoByCursor (srcWithCursor: string) =
     let (cursorPosition, doc) = getDocumentWithCursor srcWithCursor
     if cursorPosition = -1 then
         failwith "Cursor position cannot be -1."
-    match doc.TryFindFunctionCallSymbol(cursorPosition, CancellationToken.None) with
-    | Some symbol -> symbol
+    match doc.TryFindFunctionCallInfo(cursorPosition, CancellationToken.None) with
+    | Some x -> x
     | _ -> failwith "Unable to find function call symbol."
+
+let getFunctionCallSymbolByCursor (srcWithCursor: string) =
+    (getFunctionCallInfoByCursor srcWithCursor).Function
 
 [<Fact>]
 let ``Simple workspace with hello world project should compile`` () =
@@ -1413,7 +1416,7 @@ main(): () =
         """
     let symbol = getFunctionCallSymbolByCursor src
     Assert.True(symbol.IsFunctionGroup)
-    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
+    Assert.Equal(2, symbol.AsFunctionGroup.Functions.Length)
 
 [<Fact>]
 let ``By cursor, get call syntax token 2`` () =
@@ -1433,7 +1436,7 @@ main(): () =
         """
     let symbol = getFunctionCallSymbolByCursor src
     Assert.True(symbol.IsFunctionGroup)
-    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
+    Assert.Equal(2, symbol.AsFunctionGroup.Functions.Length)
 
 [<Fact>]
 let ``By cursor, get call syntax token 3`` () =
@@ -1453,4 +1456,73 @@ main(): () =
         """
     let symbol = getFunctionCallSymbolByCursor src
     Assert.True(symbol.IsFunctionGroup)
-    Assert.Equal(symbol.AsFunctionGroup.Functions.Length, 2)
+    Assert.Equal(2, symbol.AsFunctionGroup.Functions.Length)
+
+[<Fact>]
+let ``By cursor, get call syntax token 4`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething(x: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(~^~)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(0, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get call syntax token 5`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(1,~^~)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get call syntax token 6`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething<T>(x: int32): () = ()
+    GetSomething<T, U>(x: int32, y: int32): () = ()
+    GetSomething<T, U, V>(x: int32, y: int32, z: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(1, 2,~^~)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(2, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)

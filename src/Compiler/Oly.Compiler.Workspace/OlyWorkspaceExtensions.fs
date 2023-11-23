@@ -395,6 +395,14 @@ let private keywords =
     ]
     |> ImArray.ofSeq
 
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyDocumentFunctionCallInfo =
+    {
+        Function: OlyValueSymbol
+        ActiveParameterIndex: int32
+        ActiveFunctionIndex: int32
+    }
+
 type OlyDocument with
 
     member this.TryFindSymbol(line, column, ct) =
@@ -411,16 +419,16 @@ type OlyDocument with
         | _ ->
             None
 
-    member this.TryFindFunctionCallSymbol(line, column, ct) =
+    member this.TryFindFunctionCallInfo(line, column, ct) =
         let syntaxTree = this.SyntaxTree
 
         match syntaxTree.GetSourceText(ct).TryGetPosition(OlyTextPosition(line, column)) with
         | Some position ->
-            this.TryFindFunctionCallSymbol(position, ct)
+            this.TryFindFunctionCallInfo(position, ct)
         | _ ->
             None
 
-    member this.TryFindFunctionCallSymbol(position, ct) : OlySymbol option =
+    member this.TryFindFunctionCallInfo(position, ct) : OlyDocumentFunctionCallInfo option =
         let boundModel = this.BoundModel
         let syntaxTree = this.SyntaxTree
 
@@ -430,13 +438,38 @@ type OlyDocument with
                 match node with
                 | :? OlySyntaxExpression as node ->
                     match node with
-                    | OlySyntaxExpression.Call(expr, _) ->
+                    | OlySyntaxExpression.Call(expr, args) ->
                         match expr with
                         | OlySyntaxExpression.Name(name) ->
-                            OlyToken(name.LastIdentifier)
+                            let activeParameterIndex, activeParameterCount = 
+                                match args with
+                                | OlySyntaxArguments.Arguments(_, argList, _, _) ->
+                                    let args = argList.ChildrenOfType
+
+                                    let indexOpt =
+                                        if args.IsEmpty then
+                                            Some 0
+                                        else
+                                            argList.ChildrenOfType
+                                            |> ImArray.tryFindIndex (fun x -> x.TextSpan.IntersectsWith(position))
+
+                                    match indexOpt with
+                                    | Some index ->                                       
+                                        (index, args.Length)
+                                    | _ ->
+                                        (-1, 0)
+                                | _ ->
+                                    (-1, 0)
+
+                            (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount)
                             |> Some
                         | _ ->
                             None
+
+                    | OlySyntaxExpression.Parenthesis _ ->
+                        // We could be creating a tuple or a unit, so stop trying to find a function call.
+                        None
+
                     | _ ->
                         None
                 | _ ->
@@ -446,8 +479,32 @@ type OlyDocument with
                         None
 
             match loop node with
-            | Some token ->
+            | Some(token, activeParameterIndex, activeParameterCount) ->
                 boundModel.TryFindSymbol(token, ct)
+                |> Option.filter (fun x -> x.IsFunction)
+                |> Option.map (fun x ->
+                    let activeFunctionIndex =
+                        if x.IsFunctionGroup then
+                            let funcIndices =
+                                x.AsFunctionGroup.Functions
+                                |> ImArray.choosei (fun i x ->
+                                    if x.LogicalParameterCount = activeParameterCount then
+                                        Some(i)
+                                    else
+                                        None
+                                )
+                            if funcIndices.IsEmpty then
+                                -1
+                            else
+                                funcIndices[0]
+                        else
+                            0                          
+                    {
+                        Function = x.AsValue
+                        ActiveParameterIndex = activeParameterIndex
+                        ActiveFunctionIndex = activeFunctionIndex
+                    } : OlyDocumentFunctionCallInfo
+                )
             | _ ->
                 None
         | _ ->

@@ -539,6 +539,21 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             ImArray.empty
 
+    member this.LogicalParameters =
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.LogicalParameters
+            |> ROMem.mapAsImArray (fun x -> OlyValueSymbol(boundModel, benv, location, x))
+        | _ ->
+            ImArray.empty
+
+    member this.LogicalParameterCount =
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.LogicalParameterCount
+        | _ ->
+            0
+
     member this.IsPure =
         value.FunctionFlags.HasFlag(FunctionFlags.Pure)
 

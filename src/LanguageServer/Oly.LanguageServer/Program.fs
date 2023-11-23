@@ -466,7 +466,7 @@ type OlySymbol with
             Documentation = StringOrMarkupContent(this.Name)
         )
 
-    member this.ToLspSignatureInfo() =
+    member this.ToLspSignatureInfo(activeParameter) =
         SignatureInformation(
             Label = this.SignatureText,
             Documentation = StringOrMarkupContent(this.Name),
@@ -474,40 +474,12 @@ type OlySymbol with
                 (
                 match this with
                 | :? OlyValueSymbol as value ->
-                    value.Parameters |> Seq.map (fun x -> x.ToLspParameterInfo()) |> Array.ofSeq |> Container
+                    value.LogicalParameters |> Seq.map (fun x -> x.ToLspParameterInfo()) |> Array.ofSeq |> Container
                 | _ ->
                     Container([||])
                 ),
-            ActiveParameter =
-                (
-                match this with
-                | :? OlyValueSymbol as value ->
-                    Nullable 0
-                | _ ->
-                    Unchecked.defaultof<_>
-                )
+            ActiveParameter = activeParameter
         )
-
-    member this.ToLspSignatureHelp() =
-        match this with
-        | :? OlyFunctionGroupSymbol as funcGroup ->
-            SignatureHelp(
-                Signatures =
-                    (
-                    funcGroup.Functions
-                    |> Seq.map (fun x -> x.ToLspSignatureInfo())
-                    |> Array.ofSeq
-                    |> Container
-                    ),
-                ActiveParameter = Nullable 0,
-                ActiveSignature = Nullable 0
-            )
-        | _ ->
-            SignatureHelp(
-                Signatures = Container([|this.ToLspSignatureInfo()|]),
-                ActiveParameter = Nullable 0,
-                ActiveSignature = Nullable 0
-            )
             
 type OlySymbol with
 
@@ -1340,9 +1312,29 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: SignatureHelpParams, ct: CancellationToken): Task<SignatureHelp> = 
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
                 if request.Context.TriggerKind = SignatureHelpTriggerKind.Invoked || request.Context.TriggerKind = SignatureHelpTriggerKind.TriggerCharacter then
-                    match doc.TryFindFunctionCallSymbol(request.Position.Line, request.Position.Character, ct) with
-                    | Some symbol ->
-                        return symbol.ToLspSignatureHelp()
+                    match doc.TryFindFunctionCallInfo(request.Position.Line, request.Position.Character, ct) with
+                    | Some info ->
+                        let activeParameter = if info.ActiveParameterIndex = -1 then Unchecked.defaultof<Nullable<_>> else Nullable(info.ActiveParameterIndex)
+                        let activeSignature = if info.ActiveFunctionIndex = -1 then Unchecked.defaultof<Nullable<_>> else Nullable(info.ActiveFunctionIndex)
+                        match info.Function with
+                        | :? OlyFunctionGroupSymbol as funcGroup ->
+                            return SignatureHelp(
+                                Signatures =
+                                    (
+                                    funcGroup.Functions
+                                    |> Seq.map (fun x -> x.ToLspSignatureInfo(activeParameter))
+                                    |> Array.ofSeq
+                                    |> Container
+                                    ),
+                                ActiveParameter = activeParameter,
+                                ActiveSignature = activeSignature
+                            )
+                        | func ->
+                            return SignatureHelp(
+                                Signatures = Container([|func.ToLspSignatureInfo(activeParameter)|]),
+                                ActiveParameter = activeParameter,
+                                ActiveSignature = activeSignature
+                            )
                     | _ ->
                         return null
                 else
