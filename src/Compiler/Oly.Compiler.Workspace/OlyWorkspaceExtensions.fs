@@ -401,6 +401,7 @@ type OlyDocumentFunctionCallInfo =
         Function: OlyValueSymbol
         ActiveParameterIndex: int32
         ActiveFunctionIndex: int32
+        IsPattern: bool
     }
 
 type OlyDocument with
@@ -436,6 +437,30 @@ type OlyDocument with
         | Some node ->
             let rec loop (node: OlySyntaxNode) =
                 match node with
+                | :? OlySyntaxPattern as node ->
+                    match node with
+                    | OlySyntaxPattern.Function(name, _, argList, _) ->
+                        let args = argList.ChildrenOfType
+
+                        let activeParameterIndex, activeParameterCount = 
+                            let indexOpt =
+                                if args.IsEmpty then
+                                    Some 0
+                                else
+                                    args
+                                    |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
+
+                            match indexOpt with
+                            | Some index ->                                       
+                                (index, args.Length)
+                            | _ ->
+                                (-1, 0)
+
+                        (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount, true)
+                        |> Some
+                    | _ ->
+                        None
+
                 | :? OlySyntaxExpression as node ->
                     match node with
                     | OlySyntaxExpression.Call(expr, args) ->
@@ -450,7 +475,7 @@ type OlyDocument with
                                         if args.IsEmpty then
                                             Some 0
                                         else
-                                            argList.ChildrenOfType
+                                            args
                                             |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
 
                                     match indexOpt with
@@ -461,17 +486,23 @@ type OlyDocument with
                                 | _ ->
                                     (-1, 0)
 
-                            (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount)
+                            (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount, false)
                             |> Some
                         | _ ->
-                            None
+                            if node.HasParent then
+                                loop node.Parent
+                            else
+                                None
 
                     | OlySyntaxExpression.Parenthesis _ ->
                         // We could be creating a tuple or a unit, so stop trying to find a function call.
                         None
 
                     | _ ->
-                        loop node.Parent
+                        if node.HasParent then
+                            loop node.Parent
+                        else
+                            None
                 | _ ->
                     if node.HasParent then
                         loop node.Parent
@@ -479,7 +510,7 @@ type OlyDocument with
                         None
 
             match loop node with
-            | Some(token, activeParameterIndex, activeParameterCount) ->
+            | Some(token, activeParameterIndex, activeParameterCount, isPattern) ->
                 boundModel.TryFindSymbol(token, ct)
                 |> Option.filter (fun x -> x.IsFunction)
                 |> Option.map (fun x ->
@@ -487,22 +518,84 @@ type OlyDocument with
                         if x.IsFunctionGroup then
                             let funcIndices =
                                 x.AsFunctionGroup.Functions
-                                |> ImArray.choosei (fun i x ->
-                                    if x.LogicalParameterCount = activeParameterCount then
-                                        Some(i)
+                                |> Seq.sortBy (fun x -> 
+                                    if isPattern then
+                                        match x.ReturnType with
+                                        | Some(returnTy) ->
+                                            if returnTy.IsTuple then
+                                                returnTy.LogicalTypeParameterCount
+                                            elif returnTy.IsUnit then
+                                                0
+                                            else
+                                                1
+                                        | _ ->
+                                            0
                                     else
-                                        None
+                                        x.LogicalParameterCount
+                                )
+                                |> ImArray.ofSeq
+                                |> ImArray.choosei (fun i x ->
+                                    if isPattern then
+                                        match x.ReturnType with
+                                        | Some(returnTy) ->
+                                            if returnTy.IsTuple then
+                                                if returnTy.LogicalTypeParameterCount >= activeParameterCount then
+                                                    Some(i)
+                                                else
+                                                    None
+                                            elif returnTy.IsUnit then
+                                                if 0 >= activeParameterCount then
+                                                    Some(i)
+                                                else
+                                                    None
+                                            else
+                                                if 1 >= activeParameterCount then
+                                                    Some(i)
+                                                else
+                                                    None
+                                        | _ ->
+                                            None
+                                    else
+                                        if x.LogicalParameterCount >= activeParameterCount then
+                                            Some(i)
+                                        else
+                                            None
                                 )
                             if funcIndices.IsEmpty then
                                 -1
                             else
                                 funcIndices[0]
                         else
-                            0                          
+                            if isPattern then
+                                match x.AsValue.ReturnType with
+                                | Some(returnTy) ->
+                                    if returnTy.IsTuple then
+                                        if returnTy.LogicalTypeParameterCount >= activeParameterCount then
+                                            0
+                                        else
+                                            -1
+                                    elif returnTy.IsUnit then
+                                        if 0 >= activeParameterCount then
+                                            0
+                                        else
+                                            -1
+                                    else
+                                        if 1 >= activeParameterCount then
+                                            0
+                                        else
+                                            -1
+                                | _ ->
+                                    -1
+                            else
+                                if x.AsValue.LogicalParameterCount >= activeParameterCount then
+                                    0
+                                else
+                                    -1                      
                     {
                         Function = x.AsValue
                         ActiveParameterIndex = activeParameterIndex
                         ActiveFunctionIndex = activeFunctionIndex
+                        IsPattern = isPattern
                     } : OlyDocumentFunctionCallInfo
                 )
             | _ ->

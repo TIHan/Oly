@@ -216,11 +216,22 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     member _.IsShape = ty.IsShape
 
+    member _.IsTuple = ty.IsAnyTuple
+
     member _.IsStruct = ty.IsAnyStruct
 
     member _.IsModule = ty.IsModule
 
     member _.IsAlias = ty.IsAlias
+
+    member _.IsUnit = ty.IsUnit_t
+
+    member _.LogicalTypeParameterCount = 
+        // REVIEW: This is kind of weird, why doesn't `ty.LogicalTypeParameterCount` return the same for tuples?
+        match stripTypeEquations ty with
+        | TypeSymbol.Tuple(elementTys=itemTys) -> itemTys.Length
+        | _ ->
+            ty.LogicalTypeParameterCount
 
     member this.TryGetAliasedType() =
         if this.IsAlias then

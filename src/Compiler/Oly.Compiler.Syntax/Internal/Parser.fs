@@ -3559,7 +3559,7 @@ let tryParsePattern (isLetBinding: bool) (state: ParserState) : SyntaxPattern op
     | _ ->
 
     if isNextToken (function LeftParenthesis -> true | _ -> false) state then
-        match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun _ -> None)) state with
+        match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
         | Some(leftParenToken, patList, rightParenToken) ->
             SyntaxPattern.Parenthesis(leftParenToken, patList, rightParenToken, ep s state) |> Some
         | _ ->
@@ -3570,7 +3570,7 @@ let tryParsePattern (isLetBinding: bool) (state: ParserState) : SyntaxPattern op
         else
             match bt (tryParseName TypeParameterContext.Operator) state with
             | Some(name) ->
-                match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun _ -> None)) state with
+                match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
                 | Some(leftParenToken, patList, rightParenToken) ->
                     SyntaxPattern.Function(name, leftParenToken, patList, rightParenToken, ep s state) |> Some
                 | _ ->
