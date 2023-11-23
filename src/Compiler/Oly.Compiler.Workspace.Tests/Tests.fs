@@ -66,12 +66,16 @@ let shouldCompile (proj: OlyProject) =
     let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
     Assert.Empty(diags)
 
-let getCompletionLabels (srcWithCursor: string) =
+let getDocumentWithCursor (srcWithCursor: string) =
     let cursorPosition = srcWithCursor.IndexOf("~^~")
     let src = srcWithCursor.Replace("~^~", "")
     let doc =
         createWorkspace()
         |> createDocument src
+    (cursorPosition, doc)
+
+let getCompletionLabels (srcWithCursor: string) =
+    let (cursorPosition, doc) = getDocumentWithCursor srcWithCursor
 
     let completionLabels = 
         doc.GetCompletions(cursorPosition, CancellationToken.None)
@@ -106,6 +110,14 @@ let containsOnlyCompletionLabelsByCursor (expectedCompletionLabels: string seq) 
     expectedCompletionLabels
     |> Seq.forall (fun expected -> completionLabels.ContainsKey(expected))
     |> Assert.True
+
+let getFunctionCallSymbolByCursor (srcWithCursor: string) =
+    let (cursorPosition, doc) = getDocumentWithCursor srcWithCursor
+    if cursorPosition = -1 then
+        failwith "Cursor position cannot be -1."
+    match doc.TryFindFunctionCallSymbol(cursorPosition, CancellationToken.None) with
+    | Some symbol -> symbol
+    | _ -> failwith "Unable to find function call symbol."
 
 [<Fact>]
 let ``Simple workspace with hello world project should compile`` () =
@@ -1382,3 +1394,22 @@ class TestClass
 alias TestAlias = ~^~
     """
     |> containsOnlyCompletionLabelsByCursor ["TestClass"]
+
+[<Fact>]
+let ``By cursor, get call syntax token`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething(x: int32): () = ()
+    GetSomething(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething(~^~)
+        """
+    let symbol = getFunctionCallSymbolByCursor src
+    OlyAssert.True(symbol.IsFunctionGroup)

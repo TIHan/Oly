@@ -39,6 +39,16 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
         | _ ->
             false
 
+    member this.IsFunction =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsFunction
+        | _ -> false
+
+    member this.IsFunctionGroup =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsFunctionGroup
+        | _ -> false
+
     member this.AsValue =
         this :?> OlyValueSymbol
 
@@ -475,6 +485,8 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ -> false
 
     member this.IsFunction = value.IsFunction
+
+    member this.IsFunctionGroup = value.IsFunctionGroup
 
     member this.IsConstructor = value.IsConstructor
 

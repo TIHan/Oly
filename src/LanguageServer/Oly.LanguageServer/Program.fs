@@ -1071,8 +1071,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
             do! autoOpenProjectsByDocumentIfNecessary documentPath ct
 
-            let origSolution = workspace.Solution
-
             workspace.UpdateDocument(documentPath, sourceText, ct)
             let work =
                 backgroundTask {

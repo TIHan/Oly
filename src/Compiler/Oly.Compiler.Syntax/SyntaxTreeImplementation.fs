@@ -18,7 +18,7 @@ type OlyToken =
     
     val private node: OlySyntaxToken
 
-    internal new(node) =
+    new(node) =
         {
             node = node
         }
@@ -1065,23 +1065,11 @@ module OlySyntaxTreeExtensions =
             | _ -> 
                 failwith "Invalid syntax name."
 
-        member this.LastIdentifier =           
-            let rec loop (node: OlySyntaxNode) =
-                match node with
-                | :? OlySyntaxName as node ->
-                    match node with
-                    | OlySyntaxName.Identifier(ident) -> 
-                        Some ident
-                    | OlySyntaxName.Parenthesis(_, identOrOperator, _) ->
-                        Some identOrOperator
-                    | _ ->
-                        node.Children
-                        |> ImArray.tryPick loop
-                | _ ->
-                    None
-
-            let res = loop this
-            res.Value
+        member this.LastIdentifier =    
+            match this.LastName with
+            | OlySyntaxName.Identifier(token)
+            | OlySyntaxName.Parenthesis(_, token, _) -> token
+            | _ -> failwith "should not happen"
 
         member this.AllNames =
             match this with
@@ -1329,33 +1317,17 @@ module OlySyntaxTreeExtensions =
 
     type OlySyntaxTree with
 
-        member this.TryFindFunctionCallToken(position: int) =
+        member this.TryFindNode(position: int, ct) =
             let rec loop (node: OlySyntaxNode) =
-                if node.TextSpan.IntersectsWith(position) then                  
-                    match node with
-                    | :? OlySyntaxToken as node ->
-                        if node.Internal.RawToken.IsIdentifierOrOperatorOrKeyword then
-                            Some(OlyToken(node))
-                        else
-                            None
-                    | :? OlySyntaxExpression as node ->
-                        match node with
-                        | OlySyntaxExpression.Call(expr, pars) ->
-                            if pars.TextSpan.IntersectsWith(position) then
-                                match expr with
-                                | OlySyntaxExpression.Name(name) ->
-                                    Some(OlyToken(name.LastIdentifier))
-                                | _ ->
-                                    None
-                            else
-                                node.Children
-                                |> ImArray.tryPick loop
-                        | _ ->
-                            node.Children
-                            |> ImArray.tryPick loop
-                    | _ ->
+                if node.FullTextSpan.Contains(position) then
+                    let innerNode =
                         node.Children
-                        |> ImArray.tryPick loop
+                        |> ImArray.tryPick (loop)
+
+                    if innerNode.IsSome then
+                        innerNode
+                    else
+                        Some node
                 else
                     None
 

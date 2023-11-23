@@ -290,7 +290,7 @@ type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, interna
 
     /// Can be 'null'.
     member _.Parent = parent
-    member _.HasParent = isNull(parent)
+    member _.HasParent = isNull(parent) |> not
 
     member this.GetDiagnostics(ct: CancellationToken): OlyDiagnostic imarray =
         tree.GetInternal(ct).GetDiagnostics(internalNode) 

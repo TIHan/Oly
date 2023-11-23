@@ -144,7 +144,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
         if argTys.IsEmpty then ()
         else
             (func.LogicalParameters, argTys.AsMemory())
-            ||> ROMem.iter2 (fun par argTy ->
+            ||> ROMem.tryIter2 (fun par argTy ->
                 let struct(rigidWeight, weight) = computeWeight (0, 0) par.Type argTy
                 currentRigidWeight <- currentRigidWeight + rigidWeight
                 currentWeight <- currentWeight + weight
@@ -385,22 +385,38 @@ let private filterFunctionsForOverloadingPhase1 (benv: BoundEnvironment) resTyAr
 ///     This is used in name resolution upon finding a list of function candidates.
 ///     Does not check against types.
 let filterFunctionsForOverloadingPart1 (benv: BoundEnvironment) resTyArity (argCountOpt: int voption) (candidates: IFunctionSymbol imarray): _ imarray =
-    filterFunctionsForOverloadingPhase1 benv resTyArity argCountOpt candidates
+    let funcs = filterFunctionsForOverloadingPhase1 benv resTyArity argCountOpt candidates
+    if funcs.IsEmpty then
+        candidates
+    else
+        funcs
 
 /// Overloading Part 2:
 ///     Proper function overloading that checks types.
 ///     This is used in call expression checking.
 let filterFunctionsForOverloadingPart2 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray): _ imarray =
     let phase2Results = filterFunctionsForOverloadingPhase2 returnTyOpt candidates
-    filterFunctionsForOverloadingPhase3 resArgs returnTyOpt phase2Results
+    let funcs = filterFunctionsForOverloadingPhase3 resArgs returnTyOpt phase2Results
+    if funcs.IsEmpty then
+        candidates
+    else
+        funcs
 
 /// Overloading Part 3:
 ///     Handles ambiguity for generics by using scores.
 let filterFunctionsForOverloadingPart3 skipEager (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
-    let funcs3 = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
+    let funcs = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
 
     if returnTyOpt.IsSome then
-        filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt funcs3
-        |> filterFunctionsForOverloadingFinalPhase
+        let funcs =
+            filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt funcs
+            |> filterFunctionsForOverloadingFinalPhase
+        if funcs.IsEmpty then
+            candidates
+        else
+            funcs
     else
-        funcs3
+        if funcs.IsEmpty then
+            candidates
+        else
+            funcs

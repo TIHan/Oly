@@ -2419,7 +2419,7 @@ main(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Member 'printTest2' does not exist on type 'Test2<?U, ?V>'."
+            "Expected 3 argument(s) but only given 0."
         ]
     |> ignore
 
@@ -8957,11 +8957,11 @@ main(): () =
 let ``Type should be the correct alias``() =
     let src =
         """
-    #[intrinsic("int32")]
-    alias int32
+#[intrinsic("int32")]
+alias int32
 
-    main(): () =
-        let _ = 1: ~^~int32
+main(): () =
+    let _ = 1: ~^~int32
         """
     let symbol = getSymbolByCursor src
     Assert.True(symbol.AsType.IsAlias)
@@ -8970,13 +8970,74 @@ let ``Type should be the correct alias``() =
 let ``Type should be the correct alias 2``() =
     let src =
         """
-    #[intrinsic("int32")]
-    alias int32
+#[intrinsic("int32")]
+alias int32
 
-    class C<T>
+class C<T>
 
-    main(): () =
-        let _ = C<~^~int32>()
+main(): () =
+    let _ = C<~^~int32>()
         """
     let symbol = getSymbolByCursor src
     Assert.True(symbol.AsType.IsAlias)
+
+[<Fact>]
+let ``Get get a function symbol``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething(x: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.~^~GetSomething()
+    """
+    |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "GetSomething(x: int32): ()"
+
+[<Fact>]
+let ``Get get a function group symbol``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething(x: int32): () = ()
+    GetSomething(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.~^~GetSomething()
+    """
+    |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "GetSomething"
+
+[<Fact>]
+let ``Get get a function group symbol diagnostics``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    GetSomething(x: int32): () = ()
+    GetSomething(x: int32, y: int32): () = ()
+
+main(): () =
+    let c = C()
+    c.GetSomething()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GetSomething' has ambiguous functions.",
+                """
+    c.GetSomething()
+      ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+

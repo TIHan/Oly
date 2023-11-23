@@ -412,12 +412,40 @@ type OlyDocument with
             None
 
     member this.TryFindFunctionCallSymbol(line, column, ct) =
-        let boundModel = this.BoundModel
         let syntaxTree = this.SyntaxTree
 
         match syntaxTree.GetSourceText(ct).TryGetPosition(OlyTextPosition(line, column)) with
         | Some position ->
-            match syntaxTree.TryFindFunctionCallToken(position) with
+            this.TryFindFunctionCallSymbol(position, ct)
+        | _ ->
+            None
+
+    member this.TryFindFunctionCallSymbol(position, ct) : OlySymbol option =
+        let boundModel = this.BoundModel
+        let syntaxTree = this.SyntaxTree
+
+        match syntaxTree.TryFindNode(position, ct) with
+        | Some node ->
+            let rec loop (node: OlySyntaxNode) =
+                match node with
+                | :? OlySyntaxExpression as node ->
+                    match node with
+                    | OlySyntaxExpression.Call(expr, _) ->
+                        match expr with
+                        | OlySyntaxExpression.Name(name) ->
+                            OlyToken(name.LastIdentifier)
+                            |> Some
+                        | _ ->
+                            None
+                    | _ ->
+                        None
+                | _ ->
+                    if node.HasParent then
+                        loop node.Parent
+                    else
+                        None
+
+            match loop node with
             | Some token ->
                 boundModel.TryFindSymbol(token, ct)
             | _ ->
