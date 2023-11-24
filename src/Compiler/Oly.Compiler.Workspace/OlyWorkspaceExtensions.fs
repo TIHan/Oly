@@ -440,7 +440,7 @@ type OlyDocument with
                 | :? OlySyntaxPattern as node ->
                     match node with
                     | OlySyntaxPattern.Function(name, _, argList, _) ->
-                        let args = argList.ChildrenOfType
+                        let args = argList.Children |> ImArray.filter (fun x -> x.IsToken && x.TryGetToken().Value.IsComma)
 
                         let activeParameterIndex, activeParameterCount = 
                             let index =
@@ -448,13 +448,25 @@ type OlyDocument with
                                     0
                                 else
                                     args
-                                    |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
-                                    |> Option.defaultValue (args.Length - 1)
+                                    |> ImArray.tryFindIndex (fun x -> 
+                                        if position <= x.TextSpan.Start then
+                                            true
+                                        else
+                                            false
+                                    )
+                                    |> Option.defaultValue args.Length
                                      
-                            (index, args.Length)
+                            (index, args.Length + 1)
 
                         (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount, true)
                         |> Some
+
+                    | OlySyntaxPattern.Name _ ->
+                        if node.HasParent then
+                            loop node.Parent
+                        else
+                            None
+
                     | _ ->
                         None
 
@@ -466,17 +478,22 @@ type OlyDocument with
                             let activeParameterIndex, activeParameterCount = 
                                 match args with
                                 | OlySyntaxArguments.Arguments(_, argList, _, _) ->
-                                    let args = argList.ChildrenOfType
+                                    let args = argList.Children |> ImArray.filter (fun x -> x.IsToken && x.TryGetToken().Value.IsComma)
 
                                     let index =
                                         if args.IsEmpty then
                                             0
                                         else
                                             args
-                                            |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
-                                            |> Option.defaultValue (args.Length - 1)
+                                            |> ImArray.tryFindIndex (fun x -> 
+                                                if position <= x.TextSpan.Start then
+                                                    true
+                                                else
+                                                    false
+                                            )
+                                            |> Option.defaultValue args.Length
 
-                                    (index, args.Length)
+                                    (index, args.Length + 1)
                                 | _ ->
                                     (-1, 0)
 

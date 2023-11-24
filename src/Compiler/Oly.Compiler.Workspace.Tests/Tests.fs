@@ -1745,3 +1745,108 @@ main(): () =
     Assert.True(symbol.IsFunction)
     Assert.Equal(1, info.ActiveParameterIndex)
     Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get pattern syntax token 6`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (y: int32, z: int32) =
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(x,~^~ y)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get pattern syntax token 7`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (y: int32, z: int32) =
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(x,~^~y)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get pattern syntax token 8`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (y: int32, z: int32) =
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(x, y~^~)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get pattern syntax token 9`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (y: int32, z: int32) =
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(x, y ~^~ )
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(1, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``By cursor, get pattern syntax token 10`` () =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (y: int32, z: int32) =
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(x ~^~ , y)
+        """
+    let info = getFunctionCallInfoByCursor src
+    let symbol = info.Function
+    Assert.False(symbol.IsFunctionGroup)
+    Assert.True(symbol.IsFunction)
+    Assert.Equal(0, info.ActiveParameterIndex)
+    Assert.Equal(0, info.ActiveFunctionIndex)
