@@ -59,7 +59,12 @@ module internal SyntaxHelpers =
             member _.Tag = Tags.Terminal
         }
 
-type ISyntaxSeparatorList = interface end
+type ISyntaxSeparatorList = 
+    interface 
+
+    abstract TryFindIndexByRelativePosition : relativePosition: int32 -> int32
+
+    end
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
@@ -89,7 +94,32 @@ type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
         | List(head=head) -> Some head
         | _ -> None
 
-    interface ISyntaxSeparatorList
+    interface ISyntaxSeparatorList with
+
+        member this.TryFindIndexByRelativePosition(relativePosition) =
+            match this with
+            | Empty _ 
+            | Error -> 0
+            | _ ->
+                let rec loop totalWidth node i =
+                    match node with
+                    | Empty _ 
+                    | Error -> i - 1 
+                    | List(head, separatorToken, tail, _) ->
+                        match separatorToken with
+                        | SyntaxToken.Token _ ->
+                            if relativePosition <= (totalWidth + head.FullWidth) then
+                                i
+                            else
+                                loop (totalWidth + head.FullWidth + (separatorToken :> ISyntaxNode).FullWidth) tail (i + 1)
+                        | SyntaxToken.TokenWithTrivia(leadingTrivia, _, fullWidth) ->
+                            if relativePosition <= (totalWidth + head.FullWidth + (leadingTrivia :> ISyntaxNode).FullWidth) then
+                                i
+                            else
+                                loop (totalWidth + head.FullWidth + fullWidth) tail (i + 1)
+
+                loop 0 this 0           
+
     interface ISyntaxNode with
 
         member _.IsTerminal = false
