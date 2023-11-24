@@ -443,18 +443,15 @@ type OlyDocument with
                         let args = argList.ChildrenOfType
 
                         let activeParameterIndex, activeParameterCount = 
-                            let indexOpt =
+                            let index =
                                 if args.IsEmpty then
-                                    Some 0
+                                    0
                                 else
                                     args
                                     |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
-
-                            match indexOpt with
-                            | Some index ->                                       
-                                (index, args.Length)
-                            | _ ->
-                                (-1, 0)
+                                    |> Option.defaultValue (args.Length - 1)
+                                     
+                            (index, args.Length)
 
                         (OlyToken(name.LastIdentifier), activeParameterIndex, activeParameterCount, true)
                         |> Some
@@ -471,18 +468,15 @@ type OlyDocument with
                                 | OlySyntaxArguments.Arguments(_, argList, _, _) ->
                                     let args = argList.ChildrenOfType
 
-                                    let indexOpt =
+                                    let index =
                                         if args.IsEmpty then
-                                            Some 0
+                                            0
                                         else
                                             args
                                             |> ImArray.tryFindIndex (fun x -> x.FullTextSpan.IntersectsWith(position))
+                                            |> Option.defaultValue (args.Length - 1)
 
-                                    match indexOpt with
-                                    | Some index ->                                       
-                                        (index, args.Length)
-                                    | _ ->
-                                        (-1, 0)
+                                    (index, args.Length)
                                 | _ ->
                                     (-1, 0)
 
