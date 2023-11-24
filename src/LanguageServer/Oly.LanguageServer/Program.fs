@@ -480,6 +480,40 @@ type OlySymbol with
                 ),
             ActiveParameter = activeParameter
         )
+
+    member this.ToLspSignaturePatternInfo(activeParameter) =
+        match this.AsValue.ReturnType with
+        | Some(returnTy) ->
+            if returnTy.IsTuple then
+                SignatureInformation(
+                    Label = $"{this.Name}{returnTy.SignatureText}",
+                    Documentation = StringOrMarkupContent(this.Name),
+                    Parameters =
+                        (
+                        let items =
+                            returnTy.GetTupleItemSignatureTexts()
+                            |> Seq.map (fun text ->
+                                ParameterInformation(
+                                    Label = ParameterInformationLabel(text),
+                                    Documentation = StringOrMarkupContent("")
+                                )
+                            )
+                            |> Array.ofSeq
+                        Container(items)
+                        ),
+                    ActiveParameter = activeParameter
+                )
+            elif returnTy.IsUnit then
+                SignatureInformation(
+                    Label = $"{this.Name}",
+                    Documentation = StringOrMarkupContent(this.Name),
+                    Parameters = Container([||]),
+                    ActiveParameter = activeParameter
+                )
+            else
+                this.ToLspSignatureInfo(activeParameter)
+        | _ ->
+            this.ToLspSignatureInfo(activeParameter)
             
 type OlySymbol with
 
@@ -1322,7 +1356,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                 Signatures =
                                     (
                                     funcGroup.Functions
-                                    |> Seq.map (fun x -> x.ToLspSignatureInfo(activeParameter))
+                                    |> Seq.map (fun x -> if info.IsPattern then x.ToLspSignaturePatternInfo(activeParameter) else x.ToLspSignatureInfo(activeParameter))
                                     |> Array.ofSeq
                                     |> Container
                                     ),
@@ -1331,7 +1365,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             )
                         | func ->
                             return SignatureHelp(
-                                Signatures = Container([|func.ToLspSignatureInfo(activeParameter)|]),
+                                Signatures = Container([|if info.IsPattern then func.ToLspSignaturePatternInfo(activeParameter) else func.ToLspSignatureInfo(activeParameter)|]),
                                 ActiveParameter = activeParameter,
                                 ActiveSignature = activeSignature
                             )

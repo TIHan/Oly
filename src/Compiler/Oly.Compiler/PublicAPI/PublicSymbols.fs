@@ -226,6 +226,18 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     member _.IsUnit = ty.IsUnit_t
 
+    member _.GetTupleItemSignatureTexts() =
+        match stripTypeEquations ty with
+        | TypeSymbol.Tuple(elementTys, elementNames) ->
+            if elementTys.Length = elementNames.Length then
+                (elementNames, elementTys)
+                ||> ImArray.map2 (fun name ty -> $"{name}: {printTypeDefinition benv ty}")
+            else
+                elementTys
+                |> ImArray.map (fun ty -> printTypeDefinition benv ty)
+        | _ ->
+            ImArray.empty       
+
     member _.LogicalTypeParameterCount = 
         // REVIEW: This is kind of weird, why doesn't `ty.LogicalTypeParameterCount` return the same for tuples?
         match stripTypeEquations ty with
