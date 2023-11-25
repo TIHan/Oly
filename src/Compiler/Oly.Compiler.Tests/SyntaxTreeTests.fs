@@ -1979,3 +1979,31 @@ main(): () =
     Oly src
     |> withNoSyntaxDiagnostics
     |> ignore
+
+[<Fact>]
+let ``Error recovery for first argument in a call expression``() =
+    let src =
+        """
+main(): () =
+    M.F(, x)
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "Expected 'expression' after '('."
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Error recovery for first parameter in a function declaration expression``() =
+    let src =
+        """
+main(,x: int32): () =
+    ()
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "Expected 'parameter' after '('."
+        ]
+    |> ignore

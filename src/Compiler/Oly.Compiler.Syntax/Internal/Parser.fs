@@ -3843,11 +3843,6 @@ let tryParseNamedArgument state =
 let tryParseArguments state =
     let s = sp state
 
-    match bt tryLeftRightParenthesis state with
-    | Some(leftParenthesisToken, rightParenthesisToken) ->
-        SyntaxArguments.Arguments(leftParenthesisToken, SyntaxSeparatorList.Empty(), SyntaxSeparatorList.Empty(), rightParenthesisToken, ep s state) |> Some
-    | _ ->
-
     match bt LEFT_PARENTHESIS state with
     | Some(leftParenthesisToken) as previousTokenOpt ->
         let argumentList = parseSeparatorList previousTokenOpt COMMA "expression" tryParseArgument (fun x -> SyntaxExpression.Error(x) |> Some) state
