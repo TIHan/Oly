@@ -781,6 +781,7 @@ type OlyDocument with
                     let matchTyOpt = subModel.TryGetMatchType(token.Node, ct)
                     subModel.GetPatternFunctionSymbols()
                     |> Seq.iter (fun valueSymbol ->
+                        ct.ThrowIfCancellationRequested()
                         if not valueSymbol.Parameters.IsEmpty then
                             match matchTyOpt with
                             | Some(matchTy) when matchTy.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()

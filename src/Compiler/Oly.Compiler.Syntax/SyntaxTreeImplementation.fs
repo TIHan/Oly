@@ -904,7 +904,17 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 match this.TryGetParent() with
                 | null -> false
-                | parent -> parent.IsInMatchClause
+                | parent -> 
+                    match parent.InternalNode with
+                    | :? SyntaxMatchClause as matchClause ->
+                        // If 'this' is the targetExpr, then we consider the expression not in the match clause.
+                        match matchClause with
+                        | SyntaxMatchClause.MatchClause(targetExpr=targetExpr) when obj.ReferenceEquals(this.InternalNode, targetExpr) ->
+                            false
+                        | _ ->
+                            true
+                    | _ ->
+                        parent.IsInMatchClause
 
         member this.GetLocation() =
             OlySourceLocation(this)
