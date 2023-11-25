@@ -1071,14 +1071,16 @@ let invalidLocalBinding name =
 // ** Queries
 
 type QueryMemberFlags =
-    | StaticOrInstance =          0x0000
-    | Static =                    0x0001
-    | Instance =                  0x0010
-    | Overridable =               0x0100
+    | StaticOrInstance =          0x00000
+    | Static =                    0x00001
+    | Instance =                  0x00010
+    | Overridable =               0x00100
 
     /// This will by-pass any accessor logic.
-    | InstanceFunctionOverrides = 0x1010
+    | InstanceFunctionOverrides = 0x01010
     // TODO: Add StaticInstanceFunctionOverrides
+
+    | PatternFunction =           0x10001
 
 [<AutoOpen>]
 module EntitySymbolExtensions =
@@ -1275,7 +1277,14 @@ let filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags
         |> Seq.filter (canAccessValue ac)
 
 let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) =
-    filterFunctions queryMemberFlags funcFlags nameOpt ent.Functions
+    let isPatternFunction = queryMemberFlags &&& QueryMemberFlags.PatternFunction = QueryMemberFlags.PatternFunction
+    let funcs =
+        if isPatternFunction then
+            ent.Patterns
+            |> ImArray.map (fun x -> x.PatternFunction)     
+        else
+            ent.Functions
+    filterFunctions queryMemberFlags funcFlags nameOpt funcs
     |> filterValuesByAccessibility benv.ac queryMemberFlags
 
 // Finds the most specific functions of an entity

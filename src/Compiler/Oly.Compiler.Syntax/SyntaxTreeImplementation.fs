@@ -889,6 +889,23 @@ module OlySyntaxTreeExtensions =
                 | null -> false
                 | parent -> parent.IsInReturnTypeAnnotation
 
+        member this.IsInPattern =
+            match this.InternalNode with
+            | :? SyntaxPattern -> true
+            | _ ->
+                match this.TryGetParent() with
+                | null -> false
+                | parent -> parent.IsInPattern
+
+        member this.IsInMatchClause =
+            match this.InternalNode with
+            | :? SyntaxMatchClause -> true
+            | :? SyntaxMatchGuard -> false           
+            | _ ->
+                match this.TryGetParent() with
+                | null -> false
+                | parent -> parent.IsInMatchClause
+
         member this.GetLocation() =
             OlySourceLocation(this)
                 

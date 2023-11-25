@@ -1399,6 +1399,40 @@ alias TestAlias = ~^~
     |> containsOnlyCompletionLabelsByCursor ["TestClass"]
 
 [<Fact>]
+let ``By cursor, get completions for trying to use patterns`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): int32 = x
+
+main(): () =
+    match (1)
+    | ~^~
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 2`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    pattern P(x: int32): int32 = x
+
+main(): () =
+    match (1)
+    | ~^~
+    """
+    |> containsOnlyCompletionLabelsByCursor ["M.P"]
+
+[<Fact>]
 let ``By cursor, get call syntax token`` () =
     let src =
         """

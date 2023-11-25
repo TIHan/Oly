@@ -56,6 +56,8 @@ type OlyClassificationKind =
     | ConstantDefault
     | Directive
     | ConditionalDirective
+    | Pattern
+    | AbstractPattern
 
 type OlyClassificationModifierFlags =
     | None       = 0x00000
@@ -75,6 +77,11 @@ type OlyClassificationItem(kind: OlyClassificationKind, flags: OlyClassification
 let private classifyValueKind (valueSymbol: OlyValueSymbol) =
     if valueSymbol.IsParameter then
         OlyClassificationKind.Parameter
+    elif valueSymbol.IsPatternFunction then
+        if valueSymbol.IsAbstract then
+            OlyClassificationKind.AbstractPattern
+        else
+            OlyClassificationKind.Pattern
     elif valueSymbol.IsFunction then
         if valueSymbol.IsConstructor then
             if valueSymbol.Enclosing.IsStruct then
@@ -263,6 +270,7 @@ type OlyCompletionContext =
     | None
     | Unqualified of OlyBoundSubModel
     | UnqualifiedType of OlyBoundSubModel
+    | Patterns of OlyBoundSubModel
     | OpenDeclaration of OlyBoundSubModel
     | Symbol of OlySymbol * inStaticContext: bool
 
@@ -733,26 +741,29 @@ type OlyDocument with
                     else
                         match boundModel.TryGetSubModel(token, ct) with
                         | Some subModel ->
-                            let isInOpenDecl = isInOpenDeclaration token.Node.Parent
-
-                            if isInOpenDecl then
-                                OlyCompletionContext.OpenDeclaration subModel
-                            // TODO: This only checks return type annotations, we need to look at others.
-                            elif 
-                                subModel.SyntaxNode.IsInReturnTypeAnnotation || 
-                                subModel.SyntaxNode.IsParameterMissingTypeAnnotation || 
-                                subModel.SyntaxNode.IsType ||
-                                subModel.SyntaxNode.IsTypeDeclarationExpression then
-                                OlyCompletionContext.UnqualifiedType subModel
+                            if token.Node.IsInMatchClause then
+                                OlyCompletionContext.Patterns subModel
                             else
-                                if token.IsWhitespaceTrivia then
-                                    match boundModel.TryGetWhitespaceSubModel(token.Text.Length, token, ct) with
-                                    | Some subModel ->
-                                        OlyCompletionContext.Unqualified subModel
-                                    | _ ->
-                                        OlyCompletionContext.Unqualified subModel
+                                let isInOpenDecl = isInOpenDeclaration token.Node.Parent
+
+                                if isInOpenDecl then
+                                    OlyCompletionContext.OpenDeclaration subModel
+                                // TODO: This only checks return type annotations, we need to look at others.
+                                elif 
+                                    subModel.SyntaxNode.IsInReturnTypeAnnotation || 
+                                    subModel.SyntaxNode.IsParameterMissingTypeAnnotation || 
+                                    subModel.SyntaxNode.IsType ||
+                                    subModel.SyntaxNode.IsTypeDeclarationExpression then
+                                    OlyCompletionContext.UnqualifiedType subModel
                                 else
-                                    OlyCompletionContext.Unqualified subModel
+                                    if token.IsWhitespaceTrivia then
+                                        match boundModel.TryGetWhitespaceSubModel(token.Text.Length, token, ct) with
+                                        | Some subModel ->
+                                            OlyCompletionContext.Unqualified subModel
+                                        | _ ->
+                                            OlyCompletionContext.Unqualified subModel
+                                    else
+                                        OlyCompletionContext.Unqualified subModel
                         | _ ->
                             OlyCompletionContext.None
 
@@ -765,6 +776,23 @@ type OlyDocument with
                 match context with
                 | OlyCompletionContext.None ->
                     ()
+
+                | OlyCompletionContext.Patterns subModel ->
+                    subModel.GetPatternFunctionSymbols()
+                    |> Seq.iter (fun valueSymbol ->
+                        let kind = classifyValueKind valueSymbol
+                        let label =
+                            if valueSymbol.IsUnqualified then
+                                valueSymbol.Name
+                            else
+                                match valueSymbol.Enclosing.TryType with
+                                | Some(ty) ->
+                                    ty.Name + "." + valueSymbol.Name
+                                | _ ->
+                                    valueSymbol.Name
+                        completions.Add(OlyCompletionItem(label, kind, valueSymbol.SignatureText))
+                    )
+
                 | OlyCompletionContext.OpenDeclaration subModel ->
                     subModel.GetUnqualifiedNamespaceSymbols(containsText)
                     |> Seq.iter (fun namespaceSymbol ->

@@ -492,6 +492,19 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
             false
 
     override _.IsLocal = value.IsLocal
+    
+    member _.IsUnqualified =
+        match benv.senv.unqualifiedSymbols.TryGetValue(value.Name) with
+        | true, unqualifiedSymbol ->
+            match unqualifiedSymbol with
+            | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
+            | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
+            | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
+            | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
+            | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
+            | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
+        | _ ->
+            false
 
     member _.ReturnType = 
         match value with
@@ -797,6 +810,40 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                 Seq.empty
         )
         |> Seq.concat
+
+    /// Gets unqualified pattern functions.
+    /// Gets qualified pattern functions by one level.
+    member _.GetPatternFunctionSymbols() =
+        let symbols1 =
+            benv.senv.unqualifiedSymbols.Values
+            |> Seq.map (fun x -> 
+                match x with
+                | UnqualifiedSymbol.Function value when value.IsPatternFunction ->
+                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                | UnqualifiedSymbol.FunctionGroup(funcGroup) when funcGroup.IsPatternFunction ->
+                    seq { OlyFunctionGroupSymbol(boundModel, benv, syntax, funcGroup) :> OlyValueSymbol }
+                | _ ->
+                    Seq.empty
+            )
+            |> Seq.concat
+
+        let symbols2 =
+            benv.senv.unqualifiedTypes.Values
+            |> Seq.collect (fun tys ->
+                tys.Values
+                |> Seq.collect (fun tys ->
+                    tys
+                    |> ImArray.collect (fun ty ->
+                        ty.FindFunctions(benv, QueryMemberFlags.PatternFunction, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+                        |> ImArray.filter (fun x -> x.IsPatternFunction)
+                        |> ImArray.map (fun x ->
+                            OlyValueSymbol(boundModel, benv, syntax, x)
+                        )
+                    )
+                )
+            )
+
+        Seq.append symbols1 symbols2
 
     member this.GetUnqualifiedValueSymbols(containsText: string) =
         if String.IsNullOrWhiteSpace containsText then

@@ -248,7 +248,9 @@ type OlyClassificationKind with
         | OlyClassificationKind.MutableStaticField
         | OlyClassificationKind.StaticFunction 
         | OlyClassificationKind.StaticProperty
-        | OlyClassificationKind.StaticAbstractFunction ->
+        | OlyClassificationKind.StaticAbstractFunction
+        | OlyClassificationKind.Pattern
+        | OlyClassificationKind.AbstractPattern ->
             modifiers.Add("static")
         | _ ->
             ()
@@ -257,7 +259,8 @@ type OlyClassificationKind with
         | OlyClassificationKind.AbstractProperty
         | OlyClassificationKind.AbstractFunction
         | OlyClassificationKind.StaticAbstractProperty
-        | OlyClassificationKind.StaticAbstractFunction ->
+        | OlyClassificationKind.StaticAbstractFunction
+        | OlyClassificationKind.AbstractPattern ->
             modifiers.Add("abstract")
         | _ ->
             ()
@@ -317,6 +320,9 @@ type OlyClassificationKind with
             "macro"
         | OlyClassificationKind.KeywordControl ->
             "keyword"
+        | OlyClassificationKind.Pattern
+        | OlyClassificationKind.AbstractPattern ->
+            "enumMember"
         | _ ->
             "label"
 
@@ -372,6 +378,9 @@ type OlyClassificationKind with
             CompletionItemKind.Enum
         | OlyClassificationKind.EnumStruct ->
             CompletionItemKind.Enum
+        | OlyClassificationKind.Pattern
+        | OlyClassificationKind.AbstractPattern ->
+            CompletionItemKind.EnumMember
         | _ ->
             CompletionItemKind.Text
 
@@ -426,6 +435,9 @@ type OlyClassificationKind with
             SymbolKind.Key
         | OlyClassificationKind.KeywordControl ->
             SymbolKind.Key
+        | OlyClassificationKind.Pattern
+        | OlyClassificationKind.AbstractPattern ->
+            SymbolKind.EnumMember
         | _ ->
             SymbolKind.Object
 
