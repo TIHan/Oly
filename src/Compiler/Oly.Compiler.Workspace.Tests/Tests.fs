@@ -1433,6 +1433,150 @@ main(): () =
     |> containsOnlyCompletionLabelsByCursor ["M.P"]
 
 [<Fact>]
+let ``By cursor, get completions for trying to use patterns 3`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): int32 = x
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (x)
+    | ~^~
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 4`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): float32 = 0
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (x)
+    | P( ~^~ )
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P2"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 5`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): (int32, float32) = (0, 0)
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (x)
+    | P(y, ~^~ )
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P2"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 6`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): (int32, float32) = (0, 0)
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (x)
+    | P( ~^~ , y)
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 7`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): int32 = x
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (5: float32, x)
+    | (y, ~^~ )
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P"]
+
+[<Fact>]
+let ``By cursor, get completions for trying to use patterns 8`` () =
+    """
+#target "i: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+pattern P(x: int32): int32 = x
+
+pattern P2(x: float32): float32 = x
+
+M(x: int32): () =
+    match (5: float32, x)
+    | ( ~^~ , y)
+
+main(): () =
+    M(1)
+    """
+    |> containsOnlyCompletionLabelsByCursor ["P2"]
+
+[<Fact>]
 let ``By cursor, get call syntax token`` () =
     let src =
         """

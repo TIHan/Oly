@@ -778,19 +778,24 @@ type OlyDocument with
                     ()
 
                 | OlyCompletionContext.Patterns subModel ->
+                    let matchTyOpt = subModel.TryGetMatchType(token.Node, ct)
                     subModel.GetPatternFunctionSymbols()
                     |> Seq.iter (fun valueSymbol ->
-                        let kind = classifyValueKind valueSymbol
-                        let label =
-                            if valueSymbol.IsUnqualified then
-                                valueSymbol.Name
-                            else
-                                match valueSymbol.Enclosing.TryType with
-                                | Some(ty) ->
-                                    ty.Name + "." + valueSymbol.Name
-                                | _ ->
-                                    valueSymbol.Name
-                        completions.Add(OlyCompletionItem(label, kind, valueSymbol.SignatureText))
+                        if not valueSymbol.Parameters.IsEmpty then
+                            match matchTyOpt with
+                            | Some(matchTy) when matchTy.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()
+                            | _ ->
+                                let kind = classifyValueKind valueSymbol
+                                let label =
+                                    if valueSymbol.IsUnqualified then
+                                        valueSymbol.Name
+                                    else
+                                        match valueSymbol.Enclosing.TryType with
+                                        | Some(ty) ->
+                                            ty.Name + "." + valueSymbol.Name
+                                        | _ ->
+                                            valueSymbol.Name
+                                completions.Add(OlyCompletionItem(label, kind, valueSymbol.SignatureText))
                     )
 
                 | OlyCompletionContext.OpenDeclaration subModel ->

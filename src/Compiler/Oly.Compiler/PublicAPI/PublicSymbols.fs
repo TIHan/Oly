@@ -286,6 +286,12 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(boundModel, benv, location, ty.Enclosing)
 
+    member this.IsSimilarTo(ty: OlyTypeSymbol) =
+        areGeneralizedTypesEqual ty.Internal this.Internal
+
+    member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
+        subsumesTypeInEnvironment benv superTy.Internal this.Internal
+
 and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | UInt8 of value: uint8
     | Int8 of value: int8
@@ -844,6 +850,116 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
             )
 
         Seq.append symbols1 symbols2
+
+    /// Tries to return the type that a pattern expects to be matching on.
+    member this.TryGetMatchType(syntaxNode: OlySyntaxNode, ct: CancellationToken): OlyTypeSymbol option =
+
+        let matchIndexOpt =
+            let position = syntaxNode.TextSpan.End
+            let rec loop (node: OlySyntaxNode) =
+                match node with
+                | :? OlySyntaxPattern as node ->
+                    match node with
+                    | OlySyntaxPattern.Function(_, _, argList, _)
+                    | OlySyntaxPattern.Parenthesis(_, argList, _) ->
+                        (node :> OlySyntaxNode, argList.TryFindIndexByPosition(position))
+                        |> Some
+
+                    | _ ->
+                        Some(node, 0)
+
+                | :? OlySyntaxMatchClause ->
+                    Some(node, 0)
+
+                | _ ->
+                    if node.HasParent then
+                        loop node.Parent
+                    else
+                        None
+            loop syntaxNode
+
+        match matchIndexOpt with
+        | None -> None
+        | Some(syntaxNode, matchIndex) ->
+
+        let syntaxNodeOpt =
+            let rec loop finish (syntaxNode: OlySyntaxNode) =
+                match syntaxNode with
+                | :? OlySyntaxExpression as syntaxExpr ->
+                    match syntaxExpr with
+                    | OlySyntaxExpression.Match _ -> Some(syntaxNode)
+                    | _ -> None
+                | :? OlySyntaxPattern as syntaxPat ->
+                    match syntaxPat with
+                    | OlySyntaxPattern.Parenthesis _ ->
+                        if finish then
+                            Some(syntaxNode)
+                        else
+                            if syntaxNode.HasParent then
+                                loop true syntaxNode.Parent
+                            else
+                                None
+                    | _ ->
+                        Some(syntaxNode)
+                | _ ->
+                    if syntaxNode.HasParent then
+                        loop finish syntaxNode.Parent
+                    else
+                        None
+            loop false syntaxNode
+
+        match syntaxNodeOpt with
+        | None -> None
+        | Some syntaxNode ->
+            let tree = boundModel.GetBoundTree(ct)
+            let mutable matchTyOpt = None
+
+            tree.ForEachForTooling((fun boundNode -> ct.ThrowIfCancellationRequested(); matchTyOpt.IsNone && nodeContains boundNode syntaxNode),
+                fun boundNode ->
+                    match boundNode with
+                    | :? BoundExpression as expr ->
+                        match expr with
+                        | BoundExpression.Match(syntax, _, matchExprs, _, _) when obj.ReferenceEquals(syntax, syntaxNode) ->
+                            if matchIndex < matchExprs.Length then
+                                let matchExpr = matchExprs[matchIndex]
+                                match matchExpr.TryEnvironment with
+                                | Some benv ->
+                                    let ty = matchExpr.Type 
+                                    if ty.IsSolved then
+                                        matchTyOpt <- Some(matchExpr.Syntax, benv, ty)
+                                | _ ->
+                                    ()
+                        | _ ->
+                            ()
+
+                    | :? BoundCasePattern as casePat ->
+                        match casePat with
+                        | BoundCasePattern.Function(syntaxInfo, pat, _, _) when obj.ReferenceEquals(syntaxInfo.Syntax, syntaxNode) ->
+                            match syntaxInfo.TryEnvironment with
+                            | Some benv ->
+                                let returnTy = pat.PatternFunction.ReturnType
+                                match stripTypeEquations returnTy with
+                                | TypeSymbol.Tuple(itemTys, _) when matchIndex < itemTys.Length ->
+                                    let ty = itemTys[matchIndex]
+                                    if ty.IsSolved then
+                                        matchTyOpt <- Some(syntaxInfo.Syntax, benv, ty)
+                                | ty when ty.IsSolved ->
+                                    matchTyOpt <- Some(syntaxInfo.Syntax, benv, ty)
+                                | _ ->
+                                    ()
+                            | _ ->
+                                ()
+                        | _ ->
+                            ()
+                           
+                    | _ ->
+                        ()
+            )
+
+            matchTyOpt
+            |> Option.map (fun (syntax, benv, ty) ->
+                OlyTypeSymbol(boundModel, benv, syntax, ty)
+            )
 
     member this.GetUnqualifiedValueSymbols(containsText: string) =
         if String.IsNullOrWhiteSpace containsText then

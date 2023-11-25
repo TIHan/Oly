@@ -987,10 +987,10 @@ let tryParseList tryParseNode state =
 
 // ** parenthesis, brackets, lists **
 
-let tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode state =
+let tryParseListWithSeparator tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
-    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode) state with
+    match bt3 tryParseNode tryParseSeparatorToken (tryParseListWithSeparator tryParseSeparatorToken nodeName tryParseNode tryErrorNode) state with
     | Some(node), Some(separatorToken), Some(rest) ->
         match rest with
         | SyntaxSeparatorList.Error ->
@@ -1018,33 +1018,51 @@ let tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode 
     | _ ->
         None
 
-let parseSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
+let parseSeparatorList (previousTokenForErrorRecoveryOpt: SyntaxToken option) tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
-    match bt3 tryParseNode separatorToken (tryParseListWithSeparator separatorToken nodeName tryParseNode tryErrorNode) state with
-    | Some(node), Some(separatorToken), Some(rest) ->
-        match rest with
-        | SyntaxSeparatorList.Error ->
-            match tryErrorNode (dummyToken()) with
-            | Some errorNode ->
-                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
+    // Error recovery for the first item.
+    let nodeOpt =
+        if isNextToken (fun x -> x.IsIdentifierOrOperatorOrKeyword) state then 
+            bt tryParseNode state
+        else
+            match previousTokenForErrorRecoveryOpt with
+            | Some(previousToken) ->
+                match bt (tryPeek tryParseSeparatorToken) state with
+                | Some _ -> 
+                    errorDo(ExpectedSyntaxAfterToken(nodeName, previousToken.RawToken), previousToken) state
+                    tryErrorNode (dummyToken())
+                | _ -> 
+                    bt tryParseNode state
             | _ ->
-                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
+                bt tryParseNode state
+
+    match nodeOpt with
+    | Some(node) ->
+        match bt2 tryParseSeparatorToken (tryParseListWithSeparator tryParseSeparatorToken nodeName tryParseNode tryErrorNode) state with
+        | Some(separatorToken), Some(rest) ->
+            match rest with
+            | SyntaxSeparatorList.Error ->
+                match tryErrorNode (dummyToken()) with
+                | Some errorNode ->
+                    SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
+                | _ ->
+                    SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
+            | _ ->
+                SyntaxSeparatorList.List(node, separatorToken, rest, ep s state)
+
+        | Some(separatorToken), _ ->
+            let listNode = 
+                match tryErrorNode (dummyToken()) with
+                | Some errorNode ->
+                    SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
+                | _ ->
+                    SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
+            errorDo(ExpectedSyntaxAfterToken(nodeName, separatorToken.RawToken), separatorToken) state
+            listNode
+
         | _ ->
-            SyntaxSeparatorList.List(node, separatorToken, rest, ep s state)
-
-    | Some(node), Some(separatorToken), _ ->
-        let listNode = 
-            match tryErrorNode (dummyToken()) with
-            | Some errorNode ->
-                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.List(errorNode, dummyToken(), SyntaxSeparatorList.Empty(), 0), ep s state)
-            | _ ->
-                SyntaxSeparatorList.List(node, separatorToken, SyntaxSeparatorList.Error, ep s state)
-        errorDo(ExpectedSyntaxAfterToken(nodeName, separatorToken.RawToken), separatorToken) state
-        listNode
-
-    | Some(node), _ , _ ->
-        SyntaxSeparatorList.List(node, dummyToken(), SyntaxSeparatorList.Empty(), ep s state)
+            SyntaxSeparatorList.List(node, dummyToken(), SyntaxSeparatorList.Empty(), ep s state)
 
     | _ ->
         SyntaxSeparatorList.Empty()
@@ -1127,10 +1145,10 @@ let tryParseBracketInnerPipesList tryParseNode state =
     | _ ->
         None
 
-let tryParseParenthesisSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
+let tryParseParenthesisSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     match bt LEFT_PARENTHESIS state with
-    | Some(leftParenToken) ->
-        let elementList = parseSeparatorList separatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
+    | Some(leftParenToken) as previousTokenOpt ->
+        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
         match bt tryRecoverableRightParenthesis state with
         | Some(rightParenToken) ->
             Some(leftParenToken, elementList, rightParenToken)
@@ -1141,12 +1159,12 @@ let tryParseParenthesisSeparatorList separatorToken nodeName tryParseNode tryErr
     | _ ->
         None
 
-let tryParseBracketsSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
+let tryParseBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
     match bt LEFT_BRACKET state with
-    | Some(leftBracketToken) ->
-        let elementList = parseSeparatorList separatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
+    | Some(leftBracketToken) as previousTokenOpt ->
+        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
         match bt tryRightBracket state with
         | Some(rightBracketToken) ->
             SyntaxBrackets.Brackets(leftBracketToken, elementList, rightBracketToken, ep s state) |> Some
@@ -1156,12 +1174,12 @@ let tryParseBracketsSeparatorList separatorToken nodeName tryParseNode tryErrorN
     | _ ->
         None
 
-let tryParseBracketInnerPipesSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
+let tryParseBracketInnerPipesSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
     match bt LEFT_BRACKET_INNER_PIPE state with
-    | Some(leftBracketInnerPipeToken) ->
-        let elementList = parseSeparatorList separatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
+    | Some(leftBracketInnerPipeToken) as previousTokenOpt ->
+        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
         match bt tryRightBracketInnerPipe state with
         | Some(rightBracketInnerPipeToken) ->
             SyntaxBracketInnerPipes.BracketInnerPipes(leftBracketInnerPipeToken, elementList, rightBracketInnerPipeToken, ep s state) |> Some
@@ -1171,12 +1189,12 @@ let tryParseBracketInnerPipesSeparatorList separatorToken nodeName tryParseNode 
     | _ ->
         None
 
-let tryParseCurlyBracketsSeparatorList separatorToken nodeName tryParseNode tryErrorNode state =
+let tryParseCurlyBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
     let s = sp state
 
     match bt LEFT_CURLY_BRACKET state with
-    | Some(leftCurlyBracketToken) ->
-        let elementList = parseSeparatorList separatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
+    | Some(leftCurlyBracketToken) as previousTokenOpt ->
+        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
         match bt tryRightCurlyBracket state with
         | Some(rightCurlyBracketToken) ->
             SyntaxCurlyBrackets.CurlyBrackets(leftCurlyBracketToken, elementList, rightCurlyBracketToken, ep s state) |> Some
@@ -3831,9 +3849,9 @@ let tryParseArguments state =
     | _ ->
 
     match bt LEFT_PARENTHESIS state with
-    | Some(leftParenthesisToken) ->
-        let argumentList = parseSeparatorList COMMA "expression" tryParseArgument (fun x -> SyntaxExpression.Error(x) |> Some) state
-        let namedArgumentList = parseSeparatorList COMMA "named argument" tryParseNamedArgument (fun _ -> None) state // TODO: Not passing a 'tryErrorNode', we should so we can get better recovery.
+    | Some(leftParenthesisToken) as previousTokenOpt ->
+        let argumentList = parseSeparatorList previousTokenOpt COMMA "expression" tryParseArgument (fun x -> SyntaxExpression.Error(x) |> Some) state
+        let namedArgumentList = parseSeparatorList None COMMA "named argument" tryParseNamedArgument (fun _ -> None) state // TODO: Not passing a 'tryErrorNode', we should so we can get better recovery.
         match bt tryRecoverableRightParenthesis state with
         | Some(rightParenthesisToken) ->
             SyntaxArguments.Arguments(leftParenthesisToken, argumentList, namedArgumentList, rightParenthesisToken, ep s state) |> Some
