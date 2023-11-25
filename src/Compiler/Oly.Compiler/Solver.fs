@@ -386,21 +386,25 @@ and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSy
 and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) =
     OlyAssert.True(tyArg.IsSolved)
 
-    match constr with
-    | ConstraintSymbol.Null ->
-        solveConstraintNull env syntaxNode tyArg
-    | ConstraintSymbol.Struct ->
-        solveConstraintStruct env syntaxNode tyArg
-    | ConstraintSymbol.NotStruct ->
-        solveConstraintNotStruct env syntaxNode tyArg
-    | ConstraintSymbol.Unmanaged ->
-        solveConstraintUnmanaged env syntaxNode tyArg
-    | ConstraintSymbol.Scoped ->
-        solveConstraintScoped env syntaxNode tyArg
-    | ConstraintSymbol.ConstantType(constTy) ->
-        solveConstraintConstantType env syntaxNode constTy.Value tyArg
-    | ConstraintSymbol.SubtypeOf(target) ->
-        solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
+    if tyArg.IsError_t then
+        // Error recovery: always assume the constraint is solved for an error type
+        true
+    else
+        match constr with
+        | ConstraintSymbol.Null ->
+            solveConstraintNull env syntaxNode tyArg
+        | ConstraintSymbol.Struct ->
+            solveConstraintStruct env syntaxNode tyArg
+        | ConstraintSymbol.NotStruct ->
+            solveConstraintNotStruct env syntaxNode tyArg
+        | ConstraintSymbol.Unmanaged ->
+            solveConstraintUnmanaged env syntaxNode tyArg
+        | ConstraintSymbol.Scoped ->
+            solveConstraintScoped env syntaxNode tyArg
+        | ConstraintSymbol.ConstantType(constTy) ->
+            solveConstraintConstantType env syntaxNode constTy.Value tyArg
+        | ConstraintSymbol.SubtypeOf(target) ->
+            solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
  
 and solveConstraints
         env 

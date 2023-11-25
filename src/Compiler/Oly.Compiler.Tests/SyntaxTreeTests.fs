@@ -2007,3 +2007,33 @@ main(,x: int32): () =
             "Expected 'parameter' after '('."
         ]
     |> ignore
+
+[<Fact>]
+let ``Error recovery for parameters in a function declaration expression``() =
+    let src =
+        """
+main(,): () =
+    ()
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "Expected 'parameter' after '('."
+            "Expected 'parameter' after ','."
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Error recovery for parameters in a function declaration expression 2``() =
+    let src =
+        """
+main(,, x: int32): () =
+    ()
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "Expected 'parameter' after '('."
+            "Expected 'parameter' after ','."
+        ]
+    |> ignore
