@@ -1496,11 +1496,11 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
 #endif
 
     if not isReceiver && expectedArgTy.IsByRef_t <> argTy.IsByRef_t && (not expectedArgTy.IsAnyPtr && not argTy.IsAnyPtr) then
-        failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
+        failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
 
     if argTy.Formal = expectedArgTy.Formal then
         if argTy <> expectedArgTy then
-            failwith $"Runtime Error: Expected type '{expectedArgTy.Name}' but got '{argTy.Name}'."
+            failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
         irArg
     else
         if expectedArgTy.IsVoid_t && argTy.IsUnit_t then
@@ -1555,20 +1555,20 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                         | OlyIRByRefKind.Read, OlyIRByRefKind.ReadWrite ->
                             let currentFunction = env.Function
                             let dumpExpr = Dump.DumpExpression irArg
-                            failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.Name}.{currentFunction.Name}:\n{dumpExpr}"
+                            failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.DebugText}.{currentFunction.Name}:\n{dumpExpr}"
                     | _ ->
                         // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
                         if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) then
                             if expectedArgTy.IsAbstract || expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt then
                                 irArg
                             else
-                                failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                                failwith $"Type {argTy.DebugText} is not a sub-type of {expectedArgTy.DebugText}."
                         elif (argTy.IsAnyPtr || argTy.IsAnyNativeInt) && (expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt) then
                             irArg
                         elif (argTy.IsEnum && argTy.RuntimeType.Value = expectedArgTy) || (expectedArgTy.IsEnum && expectedArgTy.RuntimeType.Value = argTy) then
                             irArg
                         else
-                            failwith $"Type {argTy.Name} is not a sub-type of {expectedArgTy.Name}."
+                            failwith $"Type {argTy.DebugText} is not a sub-type of {expectedArgTy.DebugText}."
 
 // TODO: We should try to replace 'importArgumentExpression' with just 'importExpression'.
 let importArgumentExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedArgTy: RuntimeType) (ilArg: OlyILExpression) =

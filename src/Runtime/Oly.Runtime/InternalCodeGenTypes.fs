@@ -514,7 +514,7 @@ type RuntimeEntity =
 
 let emptyEnclosing = RuntimeEnclosing.Namespace(ImArray.empty)
 
-[<NoComparison;CustomEquality;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
+[<NoComparison;CustomEquality;RequireQualifiedAccess;DebuggerDisplay("{DebugText}")>]
 type RuntimeType =
     | BaseObject
 
@@ -1078,6 +1078,13 @@ type RuntimeType =
 
         | _ ->
             false
+
+    member this.DebugText =
+        if this.TypeArguments.IsEmpty then
+            this.Name
+        else
+            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> x.DebugText) |> String.concat ","
+            $"{this.Name}<{tyArgsText}>" 
 
 [<Sealed;DebuggerDisplay("(witness) {Type} {TypeExtension}")>]
 type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: RuntimeType, tyExt: RuntimeType, abstractFuncOpt: RuntimeFunction option) =
