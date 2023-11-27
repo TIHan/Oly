@@ -291,48 +291,49 @@ type RuntimeEntity =
         if ((witnesses.IsEmpty && this.Witnesses.IsEmpty) || this.TypeArguments.IsEmpty || this.IsImported) then
             this
         else
-            let filteredWitnesses =
-                (this.TypeArguments, this.TypeParameters)
-                ||> ImArray.mapi2 (fun i tyArg tyPar ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            let tyExt = witness.TypeExtension
-                            let exists = 
-                                tyPar.ConstraintSubTypes.Value
-                                |> ImArray.exists (fun superTy ->
-                                    subsumesType superTy tyExt 
-                                )
-                            if exists then
-                                match witness.TypeVariableKind with
-                                | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
-                                    Some witness
-                                | OlyILTypeVariableKind.Function ->
-                                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                                    |> Some
-                                | _ ->
-                                    None
-                            else
-                                None
-                        else
-                            None
-                    )
-                )
-                |> ImArray.concat
-                |> ImArray.distinct
+            this
+            //let filteredWitnesses =
+            //    (this.TypeArguments, this.TypeParameters)
+            //    ||> ImArray.mapi2 (fun i tyArg tyPar ->
+            //        witnesses
+            //        |> ImArray.choose (fun (witness: RuntimeWitness) ->
+            //            if witness.Type.StripAlias() = tyArg.StripAlias() then
+            //                let tyExt = witness.TypeExtension
+            //                let exists = 
+            //                    tyPar.ConstraintSubTypes.Value
+            //                    |> ImArray.exists (fun superTy ->
+            //                        subsumesType superTy tyExt 
+            //                    )
+            //                if exists then
+            //                    match witness.TypeVariableKind with
+            //                    | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
+            //                        Some witness
+            //                    | OlyILTypeVariableKind.Function ->
+            //                        RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+            //                        |> Some
+            //                    | _ ->
+            //                        None
+            //                else
+            //                    None
+            //            else
+            //                None
+            //        )
+            //    )
+            //    |> ImArray.concat
+            //    |> ImArray.distinct
 
-            let entNew =
-                { this with Witnesses = filteredWitnesses }
+            //let entNew =
+            //    { this with Witnesses = filteredWitnesses }
 
-            let fields =
-                let enclosingTy = RuntimeType.Entity(entNew)
-                this.Fields
-                |> ImArray.map (fun x ->
-                    x.Substitute(enclosingTy)
-                )
+            //let fields =
+            //    let enclosingTy = RuntimeType.Entity(entNew)
+            //    this.Fields
+            //    |> ImArray.map (fun x ->
+            //        x.Substitute(enclosingTy)
+            //    )
 
-            entNew.Fields <- fields
-            entNew
+            //entNew.Fields <- fields
+            //entNew
 
     member this.AssemblyIdentity = this.ILAssembly.Identity
 
@@ -1401,6 +1402,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             Name = name
             TypeArguments = func.TypeArguments |> ImArray.map (fun x -> x :> IOlyIRTypeKey)
             ParameterTypes = func.Parameters |> ImArray.map (fun x -> x.Type)
+            Witnesses = func.Witnesses |> ImArray.map (fun x -> x.TypeExtension)
             ReturnType = func.ReturnType
             IsStatic = func.Flags.IsStatic
             IsConstructor = func.Flags.IsConstructor

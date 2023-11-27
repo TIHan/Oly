@@ -33,18 +33,38 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (t
             failwith "Unexpected formal function."
 
         let filteredWitnesses =
-            this.TypeArguments
-            |> ImArray.mapi (fun i tyArg ->
-                witnesses
-                |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                    if witness.Type.StripAlias() = tyArg.StripAlias() then
-                        RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                        |> Some
-                    else
-                        None
+            let enclosingWitnesses =
+
+                this.EnclosingType.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                            |> Some
+                        else
+                            None
+                    )
                 )
-            )
-            |> ImArray.concat
+                |> ImArray.concat
+                |> ImArray.distinct
+
+            let witnesses =
+                this.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                            |> Some
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+                |> ImArray.distinct
+
+            ImArray.append enclosingWitnesses witnesses
             |> ImArray.distinct
         if filteredWitnesses.IsEmpty then
             this
@@ -59,6 +79,29 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (t
                 ReturnType = state.ReturnType.SetWitnesses(filteredWitnesses)
             }
             |> RuntimeFunction
+
+let forceSetWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFunction) =
+    if witnesses.IsEmpty then
+        this
+    else
+        let isFormal = this.IsFormal
+
+        let state = this.State
+
+        let func =
+            { state with 
+                Witnesses = witnesses
+                Parameters = 
+                    state.Parameters 
+                    |> ImArray.map (fun x -> { x with Type = x.Type.SetWitnesses(witnesses) })
+                ReturnType = state.ReturnType.SetWitnesses(witnesses)
+            }
+            |> RuntimeFunction   
+        
+        if isFormal then
+            func.State.Formal <- func
+
+        func
 
 let createGenericContextFromFunction canErase (func: RuntimeFunction) =
     let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal
@@ -3721,11 +3764,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let funcTyArgs =
                                 x.TypeArguments
                                 |> ImArray.map (fun x -> x.Substitute(genericContext))
-                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
+                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> forceSetWitnessesToFunction witnesses)
                         else
                             // We should not have witnesses to pass here.
-                            if not witnesses.IsEmpty then
-                                OlyAssert.Fail("Did not expected witnesses for overrides function.")
+                        //    if not witnesses.IsEmpty then
+                          //      OlyAssert.Fail("Did not expected witnesses for overrides function.")
                             if x.EnclosingType.TypeParameters.IsEmpty then
                                 this.EmitFunction(x.Formal)
                             else
@@ -3736,7 +3779,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let flags = func.Flags
                 let flags =
                     if isErasingFunc then
-                        if func.TypeParameters.IsEmpty then
+                        if witnesses.IsEmpty && func.TypeParameters.IsEmpty then
                             flags
                         else
                             flags.SetGenericsErased()

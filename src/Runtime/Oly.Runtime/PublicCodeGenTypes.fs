@@ -33,6 +33,7 @@ type OlyIRFunctionSignatureKey =
     internal {
         Name: string
         TypeArguments: IOlyIRTypeKey imarray
+        Witnesses: IOlyIRTypeKey imarray
         ParameterTypes: IOlyIRTypeKey imarray
         ReturnType: IOlyIRTypeKey
         IsStatic: bool
@@ -47,13 +48,16 @@ type OlyIRFunctionSignatureKey =
             this.Name = o.Name &&
             this.TypeArguments.Length = o.TypeArguments.Length &&
             this.ParameterTypes.Length = o.ParameterTypes.Length &&
+            this.Witnesses.Length = o.Witnesses.Length &&
             this.IsStatic = o.IsStatic &&
             this.IsConstructor = o.IsConstructor &&
             this.ReturnType.IsEqualTo(o.ReturnType) &&
             (this.ParameterTypes, o.ParameterTypes)
             ||> ImArray.forall2 (fun parTy1 parTy2 -> parTy1.IsEqualTo(parTy2)) &&
             (this.TypeArguments, o.TypeArguments)
-            ||> ImArray.forall2 (fun tyArg1 tyArg2 -> tyArg1.IsEqualTo(tyArg2))
+            ||> ImArray.forall2 (fun tyArg1 tyArg2 -> tyArg1.IsEqualTo(tyArg2)) &&
+            (this.Witnesses, o.Witnesses)
+            ||> ImArray.forall2 (fun ty1 ty2 -> ty1.IsEqualTo(ty2))
         | _ ->
             false
 
