@@ -910,6 +910,43 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             receiverArgExprOpt
             |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
         else
+            if witnessArgs.IsEmpty |> not then
+                match value.Formal.Type.TryGetFunctionWithParameters() with
+                | ValueSome(parTys, returnTy) ->               
+                    let rec check (ty: TypeSymbol) =
+                        let tyArgs = ty.TypeArguments
+                        let tyPars = ty.TypeParameters
+                        if tyArgs.Length = tyPars.Length then
+                            (tyArgs, tyPars)
+                            ||> ImArray.iter2 (fun tyArg tyPar ->
+                                let exists =
+                                    tyPar.Constraints
+                                    |> ImArray.exists (fun x ->
+                                        match x with
+                                        | ConstraintSymbol.SubtypeOf(constrTy) ->
+                                            let constrTy = constrTy.Value
+                                            witnessArgs
+                                            |> ImArray.exists (fun x ->
+                                                match x.Solution with
+                                                | Some(WitnessSymbol.TypeExtension(tyExt, _)) ->
+                                                    subsumesType constrTy tyExt.AsType
+                                                | _ ->
+                                                    false
+                                            )
+                                        | _ ->
+                                            false
+                                    )
+                                check tyArg
+                                if exists then
+                                    acenv.cenv.diagnostics.Error("Witnesses are escaping the scope. (TODO: better error message)", 10, syntaxInfo.Syntax.BestSyntaxForReporting)
+                            )
+
+                    parTys
+                    |> ImArray.iter check
+
+                    check returnTy
+                | _ ->
+                    ()
             match value.Type.TryGetFunctionWithParameters() with
             | ValueSome(parTys, _) ->
                 match receiverArgExprOpt with

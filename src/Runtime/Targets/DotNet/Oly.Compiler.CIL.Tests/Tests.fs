@@ -18005,3 +18005,42 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "worked"
     |> ignore
+
+[<Fact>]
+let ``Complex witness arrangement 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+class EntityQuery<T> where T: unmanaged, IComponent
+
+class EntityDatabase =
+
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+        let query = EntityQuery<T>()
+        query
+
+    M<T>(): () where T: unmanaged, IComponent =
+        let _ = this.CreateQuery<T>()
+
+struct S
+
+#[open]
+extension SComponent =
+    inherits S
+    implements IComponent
+
+main(): () =
+    let db = EntityDatabase()
+    db.M<S>()
+    print("worked")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "worked"
+    |> ignore
