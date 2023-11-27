@@ -225,6 +225,7 @@ type RuntimeTypeParameter =
         Arity: int
         IsVariadic: bool
         ILConstraints: OlyILConstraint imarray
+        mutable ConstraintSubTypes: RuntimeType imarray Lazy
     }
 
     override this.GetHashCode() = this.Name.GetHashCode()
@@ -291,15 +292,27 @@ type RuntimeEntity =
             this
         else
             let filteredWitnesses =
-                this.TypeArguments
-                |> ImArray.mapi (fun i tyArg ->
+                (this.TypeArguments, this.TypeParameters)
+                ||> ImArray.mapi2 (fun i tyArg tyPar ->
                     witnesses
                     |> ImArray.choose (fun (witness: RuntimeWitness) ->
                         if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            match witness.TypeVariableKind with
-                            | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
-                                Some witness
-                            | _ ->
+                            let tyExt = witness.TypeExtension
+                            let exists = 
+                                tyPar.ConstraintSubTypes.Value
+                                |> ImArray.exists (fun superTy ->
+                                    subsumesType superTy tyExt 
+                                )
+                            if exists then
+                                match witness.TypeVariableKind with
+                                | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
+                                    Some witness
+                                | OlyILTypeVariableKind.Function ->
+                                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                                    |> Some
+                                | _ ->
+                                    None
+                            else
                                 None
                         else
                             None
@@ -422,9 +435,19 @@ type RuntimeEntity =
         if genericContext.IsEmpty then
             this
         else
+           
             let tyArgs =
                 this.TypeArguments
                 |> ImArray.map (fun x -> x.Substitute(genericContext))
+
+            let tyPars =
+                this.TypeParameters
+                |> ImArray.map (fun x ->
+                    if x.ConstraintSubTypes.Value.IsEmpty then
+                        x
+                    else
+                        { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
+                )
 
             let extends =
                 this.Extends
@@ -443,7 +466,8 @@ type RuntimeEntity =
                     Enclosing = this.Enclosing.Substitute(genericContext)
                     Extends = extends
                     Implements = implements
-                    TypeArguments = tyArgs }
+                    TypeArguments = tyArgs
+                    TypeParameters = tyPars }
 
             let fields =
                 let enclosingTy = RuntimeType.Entity(entNew)
@@ -466,6 +490,16 @@ type RuntimeEntity =
             this
         else
             let genericContext = GenericContext.Create(tyArgs)
+
+            let tyPars =
+                this.TypeParameters
+                |> ImArray.map (fun x ->
+                    if x.ConstraintSubTypes.Value.IsEmpty then
+                        x
+                    else
+                        { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
+                )
+
             let extends =
                 this.Extends
                 |> ImArray.map (fun x ->
@@ -493,7 +527,7 @@ type RuntimeEntity =
                 )
 
             entNew.Fields <- fields
-            entNew
+            { entNew with TypeParameters = tyPars }
 
     override this.GetHashCode() = this.Name.GetHashCode()
 
@@ -870,11 +904,11 @@ type RuntimeType =
         | ReferenceCell _
         | Array _
         | ByRef _ 
-        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty })
-        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty })
+        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
         | Function _ 
         | NativeFunctionPtr _ ->
-            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty })
+            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
         | _ -> 
             ImArray.empty
 
@@ -1095,7 +1129,7 @@ type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: Runti
 
     member _.Type: RuntimeType = ty
 
-    member _.TypeExtension = tyExt
+    member _.TypeExtension: RuntimeType = tyExt
 
     member _.AbstractFunction = abstractFuncOpt
 
@@ -1522,7 +1556,6 @@ let getAllDistinctInheritsAndImplements (ty: RuntimeType) : RuntimeType imarray 
 let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
     if superTy.StripAlias().IsObjectType then true
     else
-        let superTy = superTy.SetWitnesses(ImArray.empty) // TODO: We do this so the subsumption passes. We should instead not use 'subsumesType' at the site where the types have witnesses.
         if superTy = ty then true
         else
             let possibleTys = getAllDistinctInheritsAndImplements ty

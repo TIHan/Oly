@@ -23,93 +23,7 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
             ImArray.empty
     enclosingTyPars.AddRange(ilEntDef.TypeParameters)
 
-let passWitnessesToTypeByArguments (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (ilTyArgs: OlyILType imarray) (witnesses: RuntimeWitness imarray) genericContext =
-    if witnesses.IsEmpty then
-        ImArray.empty
-    else
-
-    let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
-    let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
-    let ilTyPars = getAllILTypeParameters ilAsm ilEntDef
-    ilTyArgs
-    |> ImArray.mapi (fun i ilTyArg ->
-        match ilTyArg with
-        | OlyILTypeVariable(index, kind) ->
-            witnesses
-            |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                match witness.TypeVariableKind, kind with
-                | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
-                | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
-                    let exists =
-                        (
-                            let ilTyPar = ilTyPars[i]
-                            match ilTyPar with
-                            | OlyILTypeParameter(constrs=ilConstrs) ->
-                                ilConstrs
-                                |> ImArray.exists (function
-                                    | OlyILConstraint.SubtypeOf(ilTy) ->
-                                        let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
-                                        witness.TypeExtension.Implements
-                                        |> ImArray.exists (fun extendTy -> extendTy = ty2)
-                                    | _ ->
-                                        false
-                                )
-                        )
-                 //   let exists = true
-                    if exists then
-                        RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                        |> Some
-                    else
-                        None
-                | _ ->
-                    None
-            )
-        | _ ->
-            ImArray.empty
-    )
-    |> ImArray.concat
-
-let passWitnessesToType (vm: OlyRuntime<_, _, _>) (ty: RuntimeType) (witnesses: RuntimeWitness imarray) genericContext =
-    ty.TypeArguments
-    |> ImArray.mapi (fun i tyArg ->
-        match tyArg with
-        | RuntimeType.Variable(index, kind) ->
-            witnesses
-            |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                match witness.TypeVariableKind, kind with
-                | OlyILTypeVariableKind.Type, OlyILTypeVariableKind.Type
-                | OlyILTypeVariableKind.Function, OlyILTypeVariableKind.Function when index = witness.TypeVariableIndex ->
-                    let exists =
-                        (
-                            let ilAsm = vm.Assemblies[ty.AssemblyIdentity].ilAsm
-                            let ilEntDef = ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
-                            let ilTyPar = ilEntDef.TypeParameters[i]
-                            match ilTyPar with
-                            | OlyILTypeParameter(constrs=ilConstrs) ->
-                                ilConstrs
-                                |> ImArray.exists (function
-                                    | OlyILConstraint.SubtypeOf(ilTy) ->
-                                        let ty2 = vm.ResolveType(ilAsm, ilTy, genericContext)
-                                        witness.TypeExtension.Implements
-                                        |> ImArray.exists (fun extendTy -> extendTy = ty2)
-                                    | _ ->
-                                        false
-                                )
-                        )
-                    if exists then
-                        RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                        |> Some
-                    else
-                        None
-                | _ ->
-                    None
-            )
-        | _ ->
-            ImArray.empty
-    )
-    |> ImArray.concat
-
-let setWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFunction) =
+let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (this: RuntimeFunction) =
     if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
         // If the function is not generic, then we do not need to set its witnesses
         //    since witnesses require that a function has at least one type parameter.
@@ -136,10 +50,6 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFun
             this
         else
             let state = this.State
-
-
-         //   let returnTyWitnesses =
-           //     passWitnessesToType state.Formal.ReturnType filteredWitnesses
 
             { state with 
                 Witnesses = filteredWitnesses
@@ -370,11 +280,22 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
     let tyPars =
         ilFuncSpec.TypeParameters
         |> ImArray.mapi (fun i ilTyPar ->
+            let constrSubTypes = 
+                ilTyPar.Constraints
+                |> ImArray.choose (fun ilConstr ->
+                    match ilConstr with
+                    | OlyILConstraint.SubtypeOf(constrTy) ->
+                        runtime.ResolveType(ilAsm, constrTy, GenericContext.Default)
+                        |> Some
+                    | _ ->
+                        None
+                )
             { 
                 Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                 Arity = ilTyPar.Arity
                 IsVariadic = ilTyPar.IsVariadic
                 ILConstraints = ilTyPar.Constraints
+                ConstraintSubTypes = Lazy<_>.CreateFromValue(constrSubTypes)
             } : RuntimeTypeParameter
         )
 
@@ -1605,7 +1526,7 @@ let importFunctionBody
         func.TypeArguments
         |> ImArray.map (fun x -> x.Substitute(genericContext))
 
-    let func = func.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction genericContext.PassedWitnesses
+    let func = func.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction genericContext.PassedWitnesses genericContext
     let enclosingTy = enclosingTy.StripExtension()
 
     let instanceTy =
@@ -2888,7 +2809,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let passedAndFilteredWitnesses =
                 vm.ResolveWitnesses(ilAsm, ilWitnesses, funcInst, passedWitnesses, genericContext)
 
-            func |> setWitnessesToFunction passedAndFilteredWitnesses
+            func |> setWitnessesToFunction passedAndFilteredWitnesses genericContext
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, ilFuncTyArgs, enclosing, genericContext) =
         resolveFunction ilAsm ilFuncSpec ilFuncTyArgs enclosing genericContext
@@ -3216,6 +3137,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             Arity = ilTyPar.Arity
                             IsVariadic = ilTyPar.IsVariadic
                             ILConstraints = ilTyPar.Constraints
+                            ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty)
                         } : RuntimeTypeParameter
                     )
 
@@ -3336,6 +3258,21 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 ent.StaticConstructor <- staticCtorOpt
 
+                tyPars
+                |> ImArray.iter (fun tyPar ->
+                    let constrSubTypes = 
+                        tyPar.ILConstraints
+                        |> ImArray.choose (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.SubtypeOf(constrTy) ->
+                                this.ResolveType(ilAsm, constrTy, GenericContext.CreateErasing(fullTyArgs))
+                                |> Some
+                            | _ ->
+                                None
+                        )
+                    tyPar.ConstraintSubTypes <- Lazy<_>.CreateFromValue(constrSubTypes)
+                )
+
                 ty
         else
             match asm.entRefCache.TryGetValue(ilEntDefOrRefHandle) with
@@ -3386,10 +3323,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if ilTyArgs.IsEmpty then
                     ty
                 else
-                    let filteredWitnesses = passWitnessesToTypeByArguments this ty ilTyArgs genericContext.PassedWitnesses genericContext
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
-                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(filteredWitnesses)
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(genericContext.PassedWitnesses)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
                 this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
 
@@ -3397,11 +3333,22 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let tyPars =
                 ilTyPars
                 |> ImArray.map (fun ilTyPar ->
+                    let constrSubTypes = 
+                        ilTyPar.Constraints
+                        |> ImArray.choose (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.SubtypeOf(constrTy) ->
+                                this.ResolveType(ilAsm, constrTy, GenericContext.Default)
+                                |> Some
+                            | _ ->
+                                None
+                        )
                     { 
                         Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                         Arity = ilTyPar.Arity
                         IsVariadic = ilTyPar.IsVariadic
                         ILConstraints = ilTyPar.Constraints
+                        ConstraintSubTypes = Lazy<_>.CreateFromValue(constrSubTypes)
                     } : RuntimeTypeParameter
                 )
             let innerTy = this.ResolveType(ilAsm, ilInnerTy, GenericContext.Default)
@@ -3774,7 +3721,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let funcTyArgs =
                                 x.TypeArguments
                                 |> ImArray.map (fun x -> x.Substitute(genericContext))
-                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses)
+                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
                         else
                             // We should not have witnesses to pass here.
                             if not witnesses.IsEmpty then
@@ -3923,7 +3870,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                         overridenFunc.MakeInstance(ty, funcTyArgs)
                                     else
                                         overridenFunc.MakeReference(ty)
-                                let funcInst = funcInst |> setWitnessesToFunction witnesses
+                                let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
                                 this.EmitFunction(funcInst) |> ignore
                     )
 

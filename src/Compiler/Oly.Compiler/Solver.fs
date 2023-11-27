@@ -291,7 +291,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 |> ignore
                 let appliedTyExt = 
                     // Note: This is necessary to do!
-                    if tyExt.IsFormal && not ty.IsFormal then
+                    if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not ty.IsFormal then
                         applyEntity ty.TypeArguments tyExt
                     else
                         tyExt
@@ -461,7 +461,7 @@ and solveConstraints
                                 let tyExt = tyExts[0]
                                 let appliedTyExt = 
                                     // Note: This is necessary to do!
-                                    if tyExt.IsFormal && not tyArg.IsFormal then
+                                    if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not tyArg.IsFormal then
                                         applyEntity tyArg.TypeArguments tyExt
                                     else
                                         tyExt

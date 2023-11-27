@@ -17989,6 +17989,9 @@ class EntityDatabase =
         let query = EntityQuery<T>()
         query
 
+    M<T>(): () where T: unmanaged, IComponent =
+        let _ = this.CreateQuery<T>()
+
 struct S
 
 #[open]
@@ -17998,7 +18001,7 @@ extension SComponent =
 
 main(): () =
     let db = EntityDatabase()
-    let _ = db.CreateQuery<S>()
+    db.M<S>()
     print("worked")
     """
     |> Oly
@@ -18015,17 +18018,17 @@ alias int32
 #[intrinsic("print")]
 print(__oly_object): ()
 
-interface IComponent
+interface IComponent<T> where T: unmanaged
 
-class EntityQuery<T> where T: unmanaged, IComponent
+class EntityQuery<T> where T: unmanaged, IComponent<T>
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent<T> =
         let query = EntityQuery<T>()
         query
 
-    M<T>(): () where T: unmanaged, IComponent =
+    M<T>(): () where T: unmanaged, IComponent<T> =
         let _ = this.CreateQuery<T>()
 
 struct S
@@ -18033,11 +18036,50 @@ struct S
 #[open]
 extension SComponent =
     inherits S
-    implements IComponent
+    implements IComponent<S>
 
 main(): () =
     let db = EntityDatabase()
     db.M<S>()
+    print("worked")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "worked"
+    |> ignore
+
+[<Fact>]
+let ``Complex witness arrangement 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent<T> where T: unmanaged
+
+class EntityQuery<T> where T: unmanaged, IComponent<T>
+
+class EntityDatabase =
+
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent<T> =
+        let query = EntityQuery<T>()
+        query
+
+    M<T>(): () where T: unmanaged, IComponent<T> =
+        let _ = this.CreateQuery<T>()
+
+struct S<U>
+
+#[open]
+extension SComponent =
+    inherits S<int32>
+    implements IComponent<S<int32>>
+
+main(): () =
+    let db = EntityDatabase()
+    db.M<S<int32>>()
     print("worked")
     """
     |> Oly

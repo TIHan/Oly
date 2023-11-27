@@ -1307,3 +1307,48 @@ CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Inv
     let ~^~x = T()
         """
     src |> hasSymbolSignatureTextByCursor "x: T"
+
+[<Fact>]
+let ``Witness would escape scope``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+class EntityQuery<T> where T: unmanaged, IComponent
+
+class EntityDatabase =
+
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+        let query = EntityQuery<T>()
+        query
+
+struct S
+
+#[open]
+extension SComponent =
+    inherits S
+    implements IComponent
+
+main(): () =
+    let db = EntityDatabase()
+    let _ = db.CreateQuery<S>()
+    print("worked")
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Witnesses are escaping the scope. (TODO: better error message)",
+                """
+    let _ = db.CreateQuery<S>()
+            ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+    
