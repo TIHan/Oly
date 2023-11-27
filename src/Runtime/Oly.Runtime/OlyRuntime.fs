@@ -24,7 +24,7 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
     enclosingTyPars.AddRange(ilEntDef.TypeParameters)
 
 let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (this: RuntimeFunction) =
-    if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
+    if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) || this.IsOverridesExternalOrExported then
         // If the function is not generic, then we do not need to set its witnesses
         //    since witnesses require that a function has at least one type parameter.
         this
@@ -81,7 +81,7 @@ let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (t
             |> RuntimeFunction
 
 let forceSetWitnessesToFunction (witnesses: RuntimeWitness imarray) (this: RuntimeFunction) =
-    if witnesses.IsEmpty then
+    if witnesses.IsEmpty || this.IsOverridesExternalOrExported then
         this
     else
         let isFormal = this.IsFormal

@@ -18131,3 +18131,42 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "worked"
     |> ignore
+
+[<Fact>]
+let ``Witness would escape scope``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+class EntityQuery<T> where T: unmanaged, IComponent
+
+class EntityDatabase =
+
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+        let query = EntityQuery<T>()
+        query
+
+struct S
+
+#[open]
+extension SComponent =
+    inherits S
+    implements IComponent
+
+main(): () =
+    let db = EntityDatabase()
+    let xs = db.CreateQuery<S>()
+    let x: EntityQuery<S> = xs
+    print("worked")
+        """
+    src
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "worked"
+    |> ignore

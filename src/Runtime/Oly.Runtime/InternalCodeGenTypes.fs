@@ -1390,8 +1390,16 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             | _ -> false
         )
 
+    member this.IsOverridesExternalOrExported =
+        this.Flags.IsVirtual &&
+        (
+            match this.Overrides with
+            | Some(func) -> func.IsExternal || func.IsExported
+            | _ -> false
+        )
+
     member this.CanGenericsBeErased =
-        not this.IsExternal && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty)) &&
+        not this.IsExternal && not this.IsExported && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty)) &&
         this.EnclosingType.CanGenericsBeErased
 
     /// REVIEW: Consider caching this?
