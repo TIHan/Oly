@@ -941,6 +941,64 @@ main(): () =
         )
 
 [<Fact>]
+let ``Multiple C# interfaces for different type extensions``() =
+    let csSrc =
+        """
+using System;
+
+public interface IExample
+{
+    int X { get; }
+}
+
+public interface IDoot
+{
+    int Y { get; }
+}
+
+public static class Program
+{
+    public static void Test<T>(T x) where T: IExample, IDoot
+    {
+        Console.Write(x.X);
+        Console.Write(x.Y);
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Test
+
+#[open]
+extension ExampleTest =
+    inherits Test
+    implements IExample
+
+    X: int32 get() = 123
+
+#[open]
+extension DootTest =
+    inherits Test
+    implements IDoot
+
+    Y: int32 get() = 456
+
+main(): () =
+    Program.Test<Test>(Test())
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123456"
+        )
+
+[<Fact>]
 let ``Second order generic on List``() =
     """
 #[intrinsic("int32")]
