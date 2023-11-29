@@ -400,6 +400,33 @@ main(): () =
           OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
 [<Fact>]
+let ``Lambda will get inlined 13``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+M(#[inline] f: () -> ()): () =
+    #[inline]
+    let cmd() =
+        f()
+
+    cmd()
+
+main(): () =
+    M(Work)
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
 let ``Lambda will not get inlined``() =
     let ir =
         """
