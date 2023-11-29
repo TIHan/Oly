@@ -425,9 +425,7 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
-
-    let forwardSubLocals = Dictionary<int, SubValue<_, _, _>>()
+let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
 
     let optimizeOperation irExpr =
         match irExpr with
@@ -452,7 +450,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
 
             | O.Call _
             | O.CallIndirect _ ->
-                match tryInlineFunction optenv irExpr with
+                match tryInlineFunction forwardSubLocals optenv irExpr with
                 | Some(inlinedExpr) -> inlinedExpr
                 | _ -> irExpr
 
@@ -475,8 +473,8 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             E.Operation(irTextRange, irNewOp)
             |> optimizeOperation
 
-    and handleExpressionAux irExpr : E<_, _, _> =
-        match irExpr with
+    and handleExpressionAux origExpr : E<_, _, _> =
+        match origExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr
             let newLocalIndex = localOffset + localIndex
@@ -495,7 +493,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
             let irNewBodyExpr = handleExpression irBodyExpr
 
             if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                irExpr
+                origExpr
             else
                 E.Let(name, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
 
@@ -514,7 +512,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 let irNewFalseTargetExpr = handleExpression irFalseTargetExpr
 
                 if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
-                    irExpr
+                    origExpr
                 else
                     E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
 
@@ -528,7 +526,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 let irNewBodyExpr = handleExpression irBodyExpr
 
                 if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
-                    irExpr
+                    origExpr
                 else
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
 
@@ -562,7 +560,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 )
 
             if irNewBodyExpr = irBodyExpr && not didChange then
-                irExpr
+                origExpr
             else
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
@@ -572,14 +570,14 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
 
             if hasSideEffect optenv irNewExpr1 then
                 if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-                    irExpr
+                    origExpr
                 else
                     E.Sequential(irNewExpr1, irNewExpr2)
             else
                 irNewExpr2
 
-        | E.Operation(irTextRange, irOp) ->
-            match irOp with
+        | E.Operation(origTextRange, origOp) ->
+            match origOp with
 
             // Arguments
 
@@ -588,31 +586,44 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
-                        E.Operation(irTextRange,
+                        E.Operation(origTextRange,
                             O.CallIndirect(argTys, E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy)), newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             | O.CallIndirect(argTys, E.Operation(op=O.LoadField(field, E.Value(value=V.Argument(argIndex, _)), _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
                 match argMap[argIndex] with
                 | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
+
+                    let receiverExpr =
+                        let receiverExpr = ctorArgExprs[field.RuntimeField.Value.Index]
+                        //match receiverExpr with
+                        //| E.Value(textRange, V.Local(localIndex, _)) ->
+                        //    match forwardSubLocals.TryGetValue(localIndex) with
+                        //    | true, SubValue.NewClosure(_, cloFunc, cloArgExprs, resultTy) ->
+                        //        E.Operation(textRange, O.New(cloFunc, cloArgExprs, resultTy))
+                        //    | _ ->
+                        //        receiverExpr
+                        //| _ ->
+                        receiverExpr
+
                     let expr =
-                        E.Operation(irTextRange,
-                            O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
+                        E.Operation(origTextRange,
+                            O.CallIndirect(argTys, receiverExpr, newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp  
+                    handleOperation origTextRange origExpr origOp  
                     
             | O.CallIndirect(argTys, E.Operation(op=O.LoadFieldAddress(field, E.Value(value=V.Argument(argIndex, _)), _, _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
@@ -620,32 +631,53 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
-                        E.Operation(irTextRange,
+                        E.Operation(origTextRange,
                             O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp  
+                    handleOperation origTextRange origExpr origOp  
 
             // Locals
+
+            | O.Call(func, argExprs, resultTy) when func.IsInlineable && func.HasEnclosingClosureType ->
+                let newArgExprs =
+                    argExprs
+                    |> ImArray.map (fun argExpr ->
+                        let argExpr = handleExpression argExpr
+                        match argExpr with
+                        | E.Value(textRange, V.Local(localIndex, _)) ->
+                            match forwardSubLocals.TryGetValue(localIndex) with
+                            | true, SubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                                E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+                            | _ ->
+                                argExpr
+                        | _ ->
+                            argExpr
+                    )
+                let expr = E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
+                match tryInlineFunction forwardSubLocals optenv expr with
+                | Some(expr) -> expr
+                | _ -> 
+                    handleOperation origTextRange origExpr origOp
 
             | O.CallIndirect(argTys, E.Value(value=V.Local(localIndex, _)), argExprs, resultTy) ->
                 match forwardSubLocals.TryGetValue(localIndex) with
                 | true, SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
-                        E.Operation(irTextRange,
+                        E.Operation(origTextRange,
                             O.CallIndirect(argTys, E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy)), newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             | O.CallIndirect(argTys, E.Operation(op=O.LoadField(field, E.Value(value=V.Local(localIndex, _)), _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
@@ -653,15 +685,15 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
-                        E.Operation(irTextRange,
+                        E.Operation(origTextRange,
                             O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp  
+                    handleOperation origTextRange origExpr origOp  
                     
             | O.CallIndirect(argTys, E.Operation(op=O.LoadFieldAddress(field, E.Value(value=V.Local(localIndex, _)), _, _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
@@ -669,15 +701,15 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
-                        E.Operation(irTextRange,
+                        E.Operation(origTextRange,
                             O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
-                    match tryInlineFunction optenv expr with
+                    match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        handleOperation irTextRange irExpr irOp
+                        handleOperation origTextRange origExpr origOp
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             // Arguments/Locals
 
@@ -693,7 +725,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                             | E.Value(value=V.Argument(argIndex, _)) ->
                                 match argMap[argIndex] with
                                 | SubValue.NewClosure(_, ctor, argExprs, innerResultTy) ->
-                                     E.Operation(irTextRange, O.New(ctor, argExprs, innerResultTy))
+                                     E.Operation(origTextRange, O.New(ctor, argExprs, innerResultTy))
                                 | SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                                     E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy))
                                 | _ ->
@@ -701,7 +733,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                             | E.Value(value=V.Local(localIndex, _)) ->
                                 match forwardSubLocals.TryGetValue(localIndex) with
                                 | true, SubValue.NewClosure(_, ctor, argExprs, innerResultTy) ->
-                                     E.Operation(irTextRange, O.New(ctor, argExprs, innerResultTy))
+                                     E.Operation(origTextRange, O.New(ctor, argExprs, innerResultTy))
                                 | true, SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                                     E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy))
                                 | _ ->
@@ -710,7 +742,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                                 handleExpression argExpr                                    
                         )
 
-                    E.Operation(irTextRange,
+                    E.Operation(origTextRange,
                         O.LoadFunction(
                             func,
                             E.Operation(NoRange, O.New(ctor, newArgExprs, innerResultTy)),
@@ -719,7 +751,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                     )
 
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             // Arguments
 
@@ -728,7 +760,7 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     ctorArgExprs[field.RuntimeField.Value.Index]
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             // Locals
 
@@ -737,23 +769,15 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                 | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     ctorArgExprs[field.RuntimeField.Value.Index]
                 | _ ->
-                    handleOperation irTextRange irExpr irOp
+                    handleOperation origTextRange origExpr origOp
 
             | _ ->
-                handleOperation irTextRange irExpr irOp
+                handleOperation origTextRange origExpr origOp
 
         | E.Value(textRange, irValue) ->
             match irValue with
             | V.Local(localIndex, resultTy) ->
-                let newLocalIndex = localOffset + localIndex
-
-                match forwardSubLocals.TryGetValue(newLocalIndex) with
-                | true, SubValue.NewClosure(localIndex, _, _, _) ->
-                    ()
-                | _ ->
-                    ()
-
-                E.Value(textRange, V.Local(newLocalIndex, resultTy))
+                E.Value(textRange, V.Local(localOffset + localIndex, resultTy))
             | V.LocalAddress(localIndex, kind, resultTy) ->
                 let fixedLocalIndex = localOffset + localIndex
                 optenv.localManager.MarkAddressExposed(fixedLocalIndex)
@@ -847,10 +871,10 @@ let inlineFunction (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset
                     OlyAssert.Fail($"ArgumentAddress: bad forwardsub {sub}")
 
             | _ ->
-                irExpr
+                origExpr
 
         | _ ->
-            irExpr
+            origExpr
 
     and handleExpression irExpr =
         let irExpr = handleExpressionAux irExpr
@@ -877,7 +901,7 @@ let isPassthroughExpression argCount irExpr =
 let tryGetFunctionBody optenv func =
     optenv.tryGetFunctionBody func
 
-let tryInlineFunction optenv irExpr =
+let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) optenv irExpr =
     match irExpr with
     | E.Operation(irTextRange, O.CallIndirect(_, E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)), irArgExprs, resultTy)) ->
         let irCallExprToInline =
@@ -888,7 +912,7 @@ let tryInlineFunction optenv irExpr =
                     resultTy
                 )
             )
-        tryInlineFunction optenv irCallExprToInline
+        tryInlineFunction forwardSubLocals optenv irCallExprToInline
 
     | E.Operation(irTextRange, O.CallIndirect(_, E.Value(value=V.Function(irFunc, _)), irArgExprs, resultTy)) ->
         let irCallExprToInline =
@@ -898,7 +922,7 @@ let tryInlineFunction optenv irExpr =
                     resultTy
                 )
             )
-        tryInlineFunction optenv irCallExprToInline
+        tryInlineFunction forwardSubLocals optenv irCallExprToInline
 
     | E.Operation(irTextRange, O.Call(irFunc, irArgExprs, resultTy)) 
             when (irFunc.IsInlineable) ->
@@ -1010,7 +1034,7 @@ let tryInlineFunction optenv irExpr =
                 |> ignore
 
             let irFinalExpr =
-                inlineFunction optenv func localOffset argMap irFuncBody
+                inlineFunction forwardSubLocals optenv func localOffset argMap irFuncBody
 
             let irInlinedExpr =
                 (irFinalExpr, argMap)
@@ -1035,11 +1059,13 @@ let tryInlineFunction optenv irExpr =
         None
 
 let InlineFunctions optenv (irExpr: E<_, _, _>) =
+
+    let forwardSubLocals = Dictionary<int, SubValue<_, _, _>>()
     
     let optimizeOperation irExpr =
         match irExpr with
         | E.Operation _ ->
-            match tryInlineFunction optenv irExpr with
+            match tryInlineFunction forwardSubLocals optenv irExpr with
             | Some irInlinedExpr -> irInlinedExpr
             | _ -> irExpr
         | _ ->
