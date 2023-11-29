@@ -450,6 +450,34 @@ main(): () =
         () // Pass
 
 [<Fact>]
+let ``Lambda will not get inlined 2``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+M1(#[inline] mutable f: () -> ()): () =
+    f <- f
+    f()
+
+#[inline]
+M2(#[inline] f: () -> ()): () =
+    M1(() -> f())
+
+main(): () =
+    M2(Work)
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+    | _ ->
+        () // Pass
+
+[<Fact>]
 let ``Scoped lambda will get inlined``() =
     let ir =
         """
