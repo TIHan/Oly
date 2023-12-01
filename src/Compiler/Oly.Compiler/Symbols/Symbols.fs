@@ -196,6 +196,8 @@ type AssemblySymbol =
 [<AbstractClass>]
 type EntitySymbol() =
 
+    let mutable qualifiedName: string = null
+
     member val Id: int64 = newId()
 
     abstract Kind : EntityKind
@@ -237,7 +239,39 @@ type EntitySymbol() =
     /// Mutability
     /// Do not use directly! Use the extension member 'IsUnmanaged'.
     /// This is just meant for storage.
-    member val LazyIsUnmanaged: bool voption = ValueNone with get, set           
+    member val LazyIsUnmanaged: bool voption = ValueNone with get, set   
+    
+    member this.QualifiedName =
+        if isNull qualifiedName then
+            qualifiedName <-
+                let rec loop enclosing : string imarray =
+                    match enclosing with
+                    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
+                        (loop ent.Enclosing).Add(ent.Name)
+                    | EnclosingSymbol.Entity(ent) ->
+                        let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
+                        let name =
+                            if ilTyParCount = 0 then
+                                ent.Name
+                            else
+                                ent.Name + "````" + ilTyParCount.ToString()                               
+                        (loop ent.Enclosing).Add(name).Add("::")
+                    | _ ->
+                        ImArray.empty
+
+                if this.IsNamespace then
+                    (loop this.Enclosing).Add(this.Name)
+                    |> String.concat "."
+                else
+                    let ilTyParCount = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length
+                    let name =
+                        if ilTyParCount = 0 then
+                            this.Name
+                        else
+                            this.Name + "````" + ilTyParCount.ToString()  
+                    (loop this.Enclosing).Add(name)
+                    |> String.concat "."
+        qualifiedName
 
     interface ISymbol
 
@@ -1505,7 +1539,7 @@ type EnclosingSymbol =
         | Witness(_, ent) -> ent.TypeArguments
         | _ -> ImArray.empty
 
-    member this.TypeParameters =
+    member this.TypeParameters: TypeParameterSymbol imarray =
         match this with
         | Entity(ent) -> ent.TypeParameters
         | Witness(_, ent) -> ent.TypeParameters
@@ -4583,36 +4617,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsTypeConstructor =
-                not this.TypeParameters.IsEmpty && this.IsFormal
-
-            member this.QualifiedName: QualifiedName =
-                let rec loop enclosing : string imarray =
-                    match enclosing with
-                    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-                        (loop ent.Enclosing).Add(ent.Name)
-                    | EnclosingSymbol.Entity(ent) ->
-                        let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
-                        let name =
-                            if ilTyParCount = 0 then
-                                ent.Name
-                            else
-                                ent.Name + "````" + ilTyParCount.ToString()                               
-                        (loop ent.Enclosing).Add(name).Add("::")
-                    | _ ->
-                        ImArray.empty
-
-                if this.IsNamespace then
-                    (loop this.Enclosing).Add(this.Name)
-                    |> String.concat "."
-                else
-                    let ilTyParCount = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length
-                    let name =
-                        if ilTyParCount = 0 then
-                            this.Name
-                        else
-                            this.Name + "````" + ilTyParCount.ToString()  
-                    (loop this.Enclosing).Add(name)
-                    |> String.concat "."
+                not this.TypeParameters.IsEmpty && this.IsFormal         
                     
             member this.FullNamespacePath =
                 if not this.IsNamespace then
