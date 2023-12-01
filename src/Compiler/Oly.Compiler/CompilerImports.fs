@@ -1975,11 +1975,17 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                 ilAsm.EntityDefinitions
                 |> Seq.iter (fun (ilEntDefHandle, _) ->
                     ct.ThrowIfCancellationRequested()
-                    let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
-                    ct.ThrowIfCancellationRequested()
-                    let qualName = ent.QualifiedName
-                    this.AddEntity(qualName, ent)
-                    f ent
+
+                    let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
+                    match ilEntDef.Enclosing with
+                    | OlyILEnclosing.Namespace _ ->
+                        let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
+                        ct.ThrowIfCancellationRequested()
+                        let qualName = ent.QualifiedName
+                        this.AddEntity(qualName, ent)
+                        f ent
+                    | _ ->
+                        ()
                 )
 
                 ilAsm.ForEachPrimitiveType(fun (ilTy, ilEntDefHandle) ->
