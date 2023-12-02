@@ -368,7 +368,10 @@ let substitute
                             let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
 
                             let newArgExprs =
-                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
+                                if appliedNewValue.Type.IsTypeVariable then
+                                    argExprs
+                                else
+                                    BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
 
                             BoundExpression.Call(
                                 syntaxInfo,
@@ -396,7 +399,10 @@ let substitute
                                 appliedValue
 
                         let newArgExprs =
-                            BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
+                            if appliedValue.Type.IsTypeVariable then
+                                argExprs
+                            else
+                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
 
                         BoundExpression.Call(
                             syntaxInfo,
@@ -478,7 +484,7 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (tyParLookup: Re
 
     ctor
 
-let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDictionary<_, _>) attrs (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: EntitySymbol) =
+let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDictionary<_, _>) attrs (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: EntitySymbol) =
     let invokePars, invokeReturnTy =
         let invokePars =
             pars
@@ -519,12 +525,6 @@ let createClosureInvoke (lambdaFlags: LambdaFlags) (tyParLookup: ReadOnlyDiction
             memberFlags
         else
             memberFlags ||| MemberFlags.Instance
-
-    let name =
-        if lambdaFlags.HasFlag(LambdaFlags.Static) then
-            closure.Name
-        else
-            "Invoke"
 
     let enclosing =
         if lambdaFlags.HasFlag(LambdaFlags.Static) then
@@ -643,13 +643,13 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         )
     )
 
-let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (ctor: IFunctionSymbol) (invoke: IFunctionSymbol) =
+let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (extraInst: TypeSymbol imarray) (ctor: IFunctionSymbol) (invoke: IFunctionSymbol) =
     Assert.ThrowIfNot(ctor.Formal = ctor)
     Assert.ThrowIfNot(ctor.IsConstructor)
 
     let syntaxTree = cenv.tree.SyntaxTree
 
-    let ctor = ctor.ApplyConstructor(freeTyVars |> ImArray.map (fun x -> x.AsType))
+    let ctor = ctor.ApplyConstructor((freeTyVars |> ImArray.map (fun x -> x.AsType)).AddRange(extraInst))
         
     let ctorArgExprs =
         freeLocals
@@ -692,6 +692,7 @@ type ClosureInfo =
         TypeParameterLookup: ReadOnlyDictionary<int64, TypeSymbol>
         LambdaBodyExpression: E
         BindingInfo: (LocalBindingInfoSymbol) option
+        ExtraTypeArguments: TypeSymbol imarray
     }
 
 let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) origExpr =
@@ -798,6 +799,36 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         )
 
         // ------------------------------------------------------------------------
+
+        let extraTyPars, extraTyParsLookup =
+            let extraTyPars =
+                if funcTy.IsScopedFunction then
+                    ImArray.empty
+                else
+
+                let mutable index = closureTyPars.Length
+                freeLocals
+                |> ImArray.choosei (fun i x ->
+                    if x.IsMutable then
+                        None
+                    else
+                        match stripTypeEquations x.Type with
+                        | TypeSymbol.Function(kind=FunctionKind.Normal) ->
+                            let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(x.Type))
+                            let constrs = ImArray.createOne constr |> ref
+                            let tyPar = TypeParameterSymbol("__oly_" + i.ToString(), index, 0, false, TypeParameterKind.Type, constrs)
+                            index <- index + 1
+                            Some(KeyValuePair(i, tyPar))
+                        | _ ->
+                            None
+                )
+            (
+                (extraTyPars |> ImArray.map (fun x -> x.Value)),
+                extraTyPars
+                |> Dictionary
+            )
+
+        let closureTyPars = closureTyPars.AddRange(extraTyPars)
         
         let funcTy = funcTy.Substitute(closureTyParLookup)        
         closureBuilder.SetTypeParameters(Pass0, closureTyPars)
@@ -821,7 +852,10 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 let name = checkFieldName name i
 
                 let field =
-                    let fieldTy = x.Type.Substitute(closureTyParLookup)
+                    let fieldTy = 
+                        match extraTyParsLookup.TryGetValue(i) with
+                        | true, tyPar -> tyPar.AsType
+                        | _ -> x.Type.Substitute(closureTyParLookup)
                     let fieldTy =
                         if x.IsMutable then
                             TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
@@ -852,11 +886,24 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             )
 
         closureBuilder.SetFields(Pass2, fields)
+
+        let invokeName =
+            match bindingInfoOpt with
+            | Some(bindingInfo) -> bindingInfo.Value.Name
+            | _ -> "Invoke"
         
         let ctor = createClosureConstructor freeLocals tyParLookup fields closureBuilder.Entity
-        let invoke = createClosureInvoke lambdaFlags tyParLookup attrs pars invokeTyPars funcTy closureBuilder.Entity
+        let invoke = createClosureInvoke invokeName lambdaFlags tyParLookup attrs pars invokeTyPars funcTy closureBuilder.Entity
         
         closureBuilder.SetFunctions(Pass2, [ctor;invoke] |> ImArray.ofSeq)
+
+        let extraTyArgs =
+            extraTyParsLookup
+            |> Seq.sortBy (fun x -> x.Key)
+            |> Seq.map (fun x ->
+                freeLocals[x.Key].Type
+            )
+            |> ImArray.ofSeq
 
         let info =
             {
@@ -869,6 +916,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 TypeParameterLookup = tyParLookup
                 LambdaBodyExpression = bodyExpr
                 BindingInfo = bindingInfoOpt
+                ExtraTypeArguments = extraTyArgs
             }
 
         toClosureExpression cenv info
@@ -890,7 +938,7 @@ let toClosureExpression cenv (info: ClosureInfo) =
     let ctorDefExpr = createClosureConstructorMemberDefinitionExpression cenv ctor
     let invokeDefExpr = createClosureInvokeMemberDefinitionExpression cenv bindingInfoOpt freeLocals pars tyParLookup invoke bodyExpr
         
-    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars ctor invoke
+    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars info.ExtraTypeArguments ctor invoke
 
     let syntaxTree = cenv.tree.SyntaxTree   
     E.CreateSequential(syntaxTree,
