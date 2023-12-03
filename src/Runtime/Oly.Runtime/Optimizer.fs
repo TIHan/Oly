@@ -491,22 +491,25 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
 
     let newArgExprs =
         argExprs
-        |> ImArray.map (fun argExpr ->
-            match argExpr with
-            | E.Value(textRange, V.Local(localIndex, _)) ->
-                match forwardSubLocals.TryGetValue(localIndex) with
-                | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
-                    let cloCtor, cloArgExprs, cloResultTy = 
-                        transformConstructorCallToUseMoreSpecificTypeArgument
-                            forwardSubLocals
-                            optenv
-                            cloCtor
-                            cloArgExprs
-                            cloResultTy
-                    E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+        |> ImArray.mapi (fun i argExpr ->
+            if i = 0 then
+                match argExpr with
+                | E.Value(textRange, V.Local(localIndex, _)) ->
+                    match forwardSubLocals.TryGetValue(localIndex) with
+                    | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                        let cloCtor, cloArgExprs, cloResultTy = 
+                            transformConstructorCallToUseMoreSpecificTypeArgument
+                                forwardSubLocals
+                                optenv
+                                cloCtor
+                                cloArgExprs
+                                cloResultTy
+                        E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+                    | _ ->
+                        argExpr
                 | _ ->
                     argExpr
-            | _ ->
+            else
                 argExpr
         )
     let func =
@@ -536,34 +539,38 @@ let recordForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>
                 when irCtor.IsClosureInstanceConstructor && 
                         argExprs |> ImArray.forall (canSafelyPropagateForNewClosure optenv) ->
             forwardSubLocals[localIndex] <- ForwardSubValue.NewClosure(localIndex, irCtor, argExprs, resultTy)
+
         | _ ->
             ()
 
 let handleLiberalForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) origExpr =
-    match origExpr with
-    | E.Value(origTextRange, value) ->
-        match value with
-        | V.Local(localIndex, resultTy) ->
-            match forwardSubLocals.TryGetValue(localIndex) with
-            | true, subValue ->
-                match subValue with
-                | ForwardSubValue.Local(localIndex, _) ->
-                    E.Value(origTextRange, V.Local(localIndex, resultTy))
-                    |> handleLiberalForwardSub forwardSubLocals optenv
-                | ForwardSubValue.Argument(argIndex) ->
-                    E.Value(origTextRange, V.Argument(argIndex, resultTy))
-                | ForwardSubValue.NewClosure(_, ctor, ctorArgExprs, _) ->
-                    E.Operation(origTextRange, O.New(ctor, ctorArgExprs, resultTy))
-                | ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, _) ->
-                    E.Operation(origTextRange, O.LoadFunction(func, receiverExpr, resultTy))
+    if optenv.IsDebuggable then
+        origExpr
+    else
+        match origExpr with
+        | E.Value(origTextRange, value) ->
+            match value with
+            | V.Local(localIndex, resultTy) ->
+                match forwardSubLocals.TryGetValue(localIndex) with
+                | true, subValue ->
+                    match subValue with
+                    | ForwardSubValue.Local(localIndex, _) ->
+                        E.Value(origTextRange, V.Local(localIndex, resultTy))
+                        |> handleLiberalForwardSub forwardSubLocals optenv
+                    | ForwardSubValue.Argument(argIndex) ->
+                        E.Value(origTextRange, V.Argument(argIndex, resultTy))
+                    | ForwardSubValue.NewClosure(_, ctor, ctorArgExprs, _) ->
+                        E.Operation(origTextRange, O.New(ctor, ctorArgExprs, resultTy))
+                    | ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, _) ->
+                        E.Operation(origTextRange, O.LoadFunction(func, receiverExpr, resultTy))
+                    | _ ->
+                        origExpr
                 | _ ->
                     origExpr
             | _ ->
                 origExpr
         | _ ->
             origExpr
-    | _ ->
-        origExpr
 
 let tryInlineCallIndirect (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) argTys receiverExpr argExprs resultTy =
     match receiverExpr with
@@ -632,14 +639,26 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             let irNewRhsExpr = handleExpression irRhsExpr
             let newLocalIndex = localOffset + localIndex
 
-            recordForwardSub forwardSubLocals optenv newLocalIndex irNewRhsExpr
+            let rec normalize irNewRhsExpr =
+                match irNewRhsExpr with
+                | E.Let(name2, localIndex2, rhsExpr2, bodyExpr2) ->
+                    E.Let(
+                        name2,
+                        localIndex2,
+                        rhsExpr2,
+                        normalize bodyExpr2
+                    )
+                | _ ->
+                    recordForwardSub forwardSubLocals optenv newLocalIndex irNewRhsExpr
 
-            let irNewBodyExpr = handleExpression irBodyExpr
+                    let irNewBodyExpr = handleExpression irBodyExpr
 
-            if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                origExpr
-            else
-                E.Let(name, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
+                    if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
+                        origExpr
+                    else
+                        E.Let(name, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
+
+            normalize irNewRhsExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
             let irNewConditionExpr = handleExpression irConditionExpr
@@ -1199,14 +1218,26 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr
 
-            recordForwardSub forwardSubLocals optenv localIndex irNewRhsExpr
+            let rec normalize irNewRhsExpr =
+                match irNewRhsExpr with
+                | E.Let(name2, localIndex2, rhsExpr2, bodyExpr2) ->
+                    E.Let(
+                        name2,
+                        localIndex2,
+                        rhsExpr2,
+                        normalize bodyExpr2
+                    )
+                | _ ->
+                    recordForwardSub forwardSubLocals optenv localIndex irNewRhsExpr
 
-            let irNewBodyExpr = handleExpression irBodyExpr
+                    let irNewBodyExpr = handleExpression irBodyExpr
 
-            if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                irExpr
-            else
-                E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                    if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+
+            normalize irNewRhsExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
             let irNewConditionExpr = handleExpression irConditionExpr
