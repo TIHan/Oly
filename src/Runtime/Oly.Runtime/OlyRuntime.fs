@@ -24,41 +24,7 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
     enclosingTyPars.AddRange(ilEntDef.TypeParameters)
 
 let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (this: RuntimeFunction) =
-    if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
-        // If the function is not generic, then we do not need to set its witnesses
-        //    since witnesses require that a function has at least one type parameter.
-        this
-    else
-        if this.IsFormal then
-            failwith "Unexpected formal function."
-
-        let filteredWitnesses =
-            this.TypeArguments
-            |> ImArray.mapi (fun i tyArg ->
-                witnesses
-                |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                    if witness.Type.StripAlias() = tyArg.StripAlias() then
-                        RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                        |> Some
-                    else
-                        None
-                )
-            )
-            |> ImArray.concat
-            |> ImArray.distinct
-        if filteredWitnesses.IsEmpty then
-            this
-        else
-            let state = this.State
-
-            { state with 
-                Witnesses = filteredWitnesses
-                Parameters = 
-                    state.Parameters 
-                    |> ImArray.map (fun x -> { x with Type = x.Type.SetWitnesses(filteredWitnesses) })
-                ReturnType = state.ReturnType.SetWitnesses(filteredWitnesses)
-            }
-            |> RuntimeFunction
+    this.SetWitnesses(witnesses)
 
 let createGenericContextFromFunction canErase (func: RuntimeFunction) =
     let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal

@@ -1193,7 +1193,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
     member _.Flags = state.Flags
     member _.Attributes = state.Attributes
     member _.Overrides = state.Overrides
-    member _.Witnesses = state.Witnesses
+    member _.Witnesses: RuntimeWitness imarray = state.Witnesses
     member _.ILAssembly = state.ILAssembly
     member _.ILFunctionDefinitionHandle = state.ILFunctionDefinitionHandle
     member _.Kind = state.Kind
@@ -1425,6 +1425,43 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
                 )
             | _ ->
                 false
+
+    member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
+        if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
+            // If the function is not generic, then we do not need to set its witnesses
+            //    since witnesses require that a function has at least one type parameter.
+            this
+        else
+            if this.IsFormal then
+                failwith "Unexpected formal function."
+
+            let filteredWitnesses =
+                this.TypeArguments
+                |> ImArray.mapi (fun i tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                            |> Some
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+                |> ImArray.distinct
+            if filteredWitnesses.IsEmpty then
+                this
+            else
+                let state = this.State
+
+                { state with 
+                    Witnesses = filteredWitnesses
+                    Parameters = 
+                        state.Parameters 
+                        |> ImArray.map (fun x -> { x with Type = x.Type.SetWitnesses(filteredWitnesses) })
+                    ReturnType = state.ReturnType.SetWitnesses(filteredWitnesses)
+                }
+                |> RuntimeFunction
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
 type RuntimeAttribute =

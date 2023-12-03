@@ -800,10 +800,14 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
 
         // ------------------------------------------------------------------------
 
+        // This will add extra type parameters with constraints to a type function.
+        // We do this to potentially allow captured closures to inline themselves if they can.
+        // The inline optimization is handled in the runtime and looks for a specific pattern with
+        // type arguments of a type function which can be replaced by a closure type.
         let extraTyPars, extraTyParsLookup =
             let extraTyPars =
-                let disableSpecialInline = true
-                if disableSpecialInline || funcTy.IsScopedFunction then
+                // Do not do this for scoped functions.
+                if funcTy.IsScopedFunction then
                     ImArray.empty
                 else
 

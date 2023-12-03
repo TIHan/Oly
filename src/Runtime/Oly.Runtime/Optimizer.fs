@@ -452,8 +452,7 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
     let enclosingTyArgs = enclosingTy.TypeArguments
 
     // No type arguments to transform.
-    let disableSpecialInline = true
-    if disableSpecialInline || enclosingTyArgs.IsEmpty then
+    if enclosingTyArgs.IsEmpty then
         (irCtor, argExprs, resultTy)
     else
         let mutable didChangeTyArg = false
@@ -476,7 +475,7 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
             )
             
         if didChangeTyArg then
-            let ctor = ctor.Formal.MakeInstance(enclosingTy.Formal.Apply(enclosingTyArgs.MoveToImmutable()), ctor.TypeArguments)
+            let ctor = ctor.Formal.MakeInstance(enclosingTy.Formal.Apply(enclosingTyArgs.MoveToImmutable()).SetWitnesses(enclosingTy.Witnesses), ctor.TypeArguments).SetWitnesses(ctor.Witnesses)
 
             let emittedCtor = optenv.emitFunction(optenv.func, ctor)
             let resultTy = optenv.emitType(ctor.EnclosingType)
@@ -515,7 +514,7 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
             match newArgExprs[0] with
             | E.Operation(_, O.New(cloCtor, _, _)) when cloCtor.HasEnclosingClosureType ->
                 if irFunc.RuntimeFunction.EnclosingType <> cloCtor.RuntimeFunction.EnclosingType then
-                    let rfunc = irFunc.RuntimeFunction.Formal.MakeInstance(cloCtor.RuntimeFunction.EnclosingType, irFunc.RuntimeFunction.TypeArguments)
+                    let rfunc = irFunc.RuntimeFunction.Formal.MakeInstance(cloCtor.RuntimeFunction.EnclosingType, irFunc.RuntimeFunction.TypeArguments).SetWitnesses(irFunc.RuntimeFunction.Witnesses)
                     let emittedFunc = optenv.emitFunction(optenv.func, rfunc)
                     OlyIRFunction(emittedFunc, rfunc)
                 else
