@@ -392,7 +392,7 @@ let OptimizeImmediateConstantFolding irExpr =
         irExpr
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
-type SubValue<'Type, 'Function, 'Field> =
+type ForwardSubValue<'Type, 'Function, 'Field> =
     | Local of localIndex: int * isNew: bool
     | LocalAddress of localIndex: int * kind: OlyIRByRefKind
     | Argument of argIndex: int
@@ -444,7 +444,7 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) optenv (irCtor: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) resultTy =
+let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irCtor: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) resultTy =
     OlyAssert.True(irCtor.IsClosureInstanceConstructor)
 
     let ctor = irCtor.RuntimeFunction
@@ -464,7 +464,7 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
                 match argExpr with
                 | E.Value(_, V.Local(localIndex, _)) ->
                     match forwardSubLocals.TryGetValue(localIndex) with
-                    | true, SubValue.LoadInlineableFunction(_, irFunc, funcReceiverExpr, _) when irFunc.HasEnclosingClosureType && canInline optenv irFunc.RuntimeFunction ->
+                    | true, ForwardSubValue.LoadInlineableFunction(_, irFunc, funcReceiverExpr, _) when irFunc.HasEnclosingClosureType && canInline optenv irFunc.RuntimeFunction ->
                         enclosingTyArgs[i] <- irFunc.RuntimeFunction.EnclosingType
                         didChangeTyArg <- true
                         funcReceiverExpr
@@ -486,7 +486,7 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
         else
             (irCtor, argExprs, resultTy)
 
-let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
+let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
     OlyAssert.True(irFunc.IsClosureInstanceInvoke)
 
     let newArgExprs =
@@ -495,7 +495,7 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
             match argExpr with
             | E.Value(textRange, V.Local(localIndex, _)) ->
                 match forwardSubLocals.TryGetValue(localIndex) with
-                | true, SubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
                     let cloCtor, cloArgExprs, cloResultTy = 
                         transformConstructorCallToUseMoreSpecificTypeArgument
                             forwardSubLocals
@@ -527,7 +527,33 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
 
     (func, newArgExprs)
 
-let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: SubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
+let handleLiberalForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) origExpr =
+    match origExpr with
+    | E.Value(origTextRange, value) ->
+        match value with
+        | V.Local(localIndex, resultTy) ->
+            match forwardSubLocals.TryGetValue(localIndex) with
+            | true, subValue ->
+                match subValue with
+                | ForwardSubValue.Local(localIndex, _) ->
+                    E.Value(origTextRange, V.Local(localIndex, resultTy))
+                    |> handleLiberalForwardSub forwardSubLocals optenv
+                | ForwardSubValue.Argument(argIndex) ->
+                    E.Value(origTextRange, V.Argument(argIndex, resultTy))
+                | ForwardSubValue.NewClosure(_, ctor, ctorArgExprs, _) ->
+                    E.Operation(origTextRange, O.New(ctor, ctorArgExprs, resultTy))
+                | ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, _) ->
+                    E.Operation(origTextRange, O.LoadFunction(func, receiverExpr, resultTy))
+                | _ ->
+                    origExpr
+            | _ ->
+                origExpr
+        | _ ->
+            origExpr
+    | _ ->
+        origExpr
+
+let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: ForwardSubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
 
     let optimizeOperation irExpr =
         match irExpr with
@@ -540,7 +566,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | O.StoreArgument(argIndex, irRhsExpr, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.Local(localIndex, _) ->
+                | ForwardSubValue.Local(localIndex, _) ->
                     OlyAssert.True(optenv.IsLocalMutable(localIndex))
                     E.Operation(irTextRange, O.Store(localIndex, irRhsExpr, resultTy))
 
@@ -581,11 +607,11 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
             // Record forward-sub locals.
             match irNewRhsExpr with
             | E.Operation(op=O.LoadFunction(func, argExpr, resultTy)) when canInline optenv func.RuntimeFunction && canSafelyPropagate optenv argExpr ->
-                forwardSubLocals[newLocalIndex] <- SubValue.LoadInlineableFunction(newLocalIndex, func, argExpr, resultTy)
+                forwardSubLocals[newLocalIndex] <- ForwardSubValue.LoadInlineableFunction(newLocalIndex, func, argExpr, resultTy)
             | E.Operation(op=O.New(irCtor, argExprs, resultTy)) 
                     when irCtor.IsClosureInstanceConstructor && 
                          argExprs |> ImArray.forall (canSafelyPropagateForNewClosure optenv) ->
-                forwardSubLocals[newLocalIndex] <- SubValue.NewClosure(newLocalIndex, irCtor, argExprs, resultTy)
+                forwardSubLocals[newLocalIndex] <- ForwardSubValue.NewClosure(newLocalIndex, irCtor, argExprs, resultTy)
             | _ ->
                 ()
 
@@ -682,7 +708,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | O.CallIndirect(argTys, E.Value(value=V.Argument(argIndex, _)), argExprs, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
+                | ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
                         E.Operation(origTextRange,
@@ -698,7 +724,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
             | O.CallIndirect(argTys, E.Operation(op=O.LoadField(field, E.Value(value=V.Argument(argIndex, _)), _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
                 match argMap[argIndex] with
-                | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
 
                     let receiverExpr =
@@ -706,7 +732,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
                         match receiverExpr with
                         | E.Value(textRange, V.Local(localIndex, _)) ->
                             match forwardSubLocals.TryGetValue(localIndex) with
-                            | true, SubValue.LoadInlineableFunction(_, func, funcReceiverExpr, resultTy) ->
+                            | true, ForwardSubValue.LoadInlineableFunction(_, func, funcReceiverExpr, resultTy) ->
                                 E.Operation(textRange, O.LoadFunction(func, funcReceiverExpr, resultTy))
                             | _ ->
                                 receiverExpr
@@ -727,11 +753,11 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
             | O.CallIndirect(argTys, E.Operation(op=O.LoadFieldAddress(field, E.Value(value=V.Argument(argIndex, _)), _, _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
                 match argMap[argIndex] with
-                | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
                         E.Operation(origTextRange,
-                            O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
+                            O.CallIndirect(argTys, handleLiberalForwardSub forwardSubLocals optenv ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
@@ -750,7 +776,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
                         match argExpr with
                         | E.Value(textRange, V.Local(localIndex, _)) ->
                             match forwardSubLocals.TryGetValue(localIndex) with
-                            | true, SubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                            | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
                                 E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
                             | _ ->
                                 argExpr
@@ -770,7 +796,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | O.CallIndirect(argTys, E.Value(value=V.Local(localIndex, _)), argExprs, resultTy) ->
                 match forwardSubLocals.TryGetValue(localIndex) with
-                | true, SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
+                | true, ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
                         E.Operation(origTextRange,
@@ -786,11 +812,11 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
             | O.CallIndirect(argTys, E.Operation(op=O.LoadField(field, E.Value(value=V.Local(localIndex, _)), _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
                 match forwardSubLocals.TryGetValue(localIndex) with
-                | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | true, ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
                         E.Operation(origTextRange,
-                            O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
+                            O.CallIndirect(argTys, handleLiberalForwardSub forwardSubLocals optenv ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
@@ -802,11 +828,11 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
             | O.CallIndirect(argTys, E.Operation(op=O.LoadFieldAddress(field, E.Value(value=V.Local(localIndex, _)), _, _)), argExprs, resultTy)
                     when field.RuntimeEnclosingType.IsClosure ->
                 match forwardSubLocals.TryGetValue(localIndex) with
-                | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | true, ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     let newArgExprs = argExprs |> ImArray.map (handleExpression)
                     let expr =
                         E.Operation(origTextRange,
-                            O.CallIndirect(argTys, ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
+                            O.CallIndirect(argTys, handleLiberalForwardSub forwardSubLocals optenv ctorArgExprs[field.RuntimeField.Value.Index], newArgExprs, resultTy)
                         )
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
@@ -829,9 +855,9 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
                             match argExpr with
                             | E.Value(value=V.Local(localIndex, _)) ->
                                 match forwardSubLocals.TryGetValue(localIndex) with
-                                | true, SubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                                | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
                                     E.Operation(NoRange, O.New(cloCtor, cloArgExprs, cloResultTy))
-                                | true, SubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
+                                | true, ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
                                     E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy))
                                 | _ ->
                                    argExpr
@@ -854,7 +880,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | O.LoadField(field, E.Value(value=V.Argument(argIndex, _)), _) when field.RuntimeEnclosingType.IsClosure ->
                 match argMap[argIndex] with
-                | SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     ctorArgExprs[field.RuntimeField.Value.Index]
                 | _ ->
                     handleOperation origTextRange origExpr origOp
@@ -863,7 +889,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | O.LoadField(field, E.Value(value=V.Local(localIndex, _)), _) when field.RuntimeEnclosingType.IsClosure ->
                 match forwardSubLocals.TryGetValue(localIndex) with
-                | true, SubValue.NewClosure(_, _, ctorArgExprs, _) ->
+                | true, ForwardSubValue.NewClosure(_, _, ctorArgExprs, _) ->
                     ctorArgExprs[field.RuntimeField.Value.Index]
                 | _ ->
                     handleOperation origTextRange origExpr origOp
@@ -881,23 +907,23 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | V.Argument(argIndex, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.Local(localIndex, _) ->
+                | ForwardSubValue.Local(localIndex, _) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsLocalByRefType(localIndex))
                     E.Value(textRange, V.Local(localIndex, resultTy))
-                | SubValue.Argument(argIndex2) ->
+                | ForwardSubValue.Argument(argIndex2) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsArgumentByRefType(argIndex2))
                     E.Value(textRange, V.Argument(argIndex2, resultTy))
-                | SubValue.Constant(irConstant) ->
+                | ForwardSubValue.Constant(irConstant) ->
                     OlyAssert.False(func.IsArgumentByRefType(argIndex))
                     E.Value(textRange, V.Constant(irConstant, resultTy))
-                | SubValue.LoadInlineableFunction(newLocalIndex, _, _, _) ->
+                | ForwardSubValue.LoadInlineableFunction(newLocalIndex, _, _, _) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsLocalByRefType(newLocalIndex))
                     E.Value(textRange, V.Local(newLocalIndex, resultTy))
-                | SubValue.NewClosure(newLocalIndex, _, _, _) ->
+                | ForwardSubValue.NewClosure(newLocalIndex, _, _, _) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsLocalByRefType(newLocalIndex))
                     E.Value(textRange, V.Local(newLocalIndex, resultTy))
 
-                | SubValue.LocalAddress(localIndex, byRefKind) ->
+                | ForwardSubValue.LocalAddress(localIndex, byRefKind) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex))
                     OlyAssert.False(optenv.IsLocalByRefType(localIndex))
 #if DEBUG
@@ -912,7 +938,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) (opten
 
             | V.ArgumentAddress(argIndex, kind, resultTy) ->
                 match argMap[argIndex] with
-                | SubValue.Local(localIndex, _) ->
+                | ForwardSubValue.Local(localIndex, _) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsLocalByRefType(localIndex))
                     E.Value(textRange, V.LocalAddress(localIndex, kind, resultTy))
 
@@ -950,7 +976,7 @@ let isPassthroughExpression argCount irExpr =
 let tryGetFunctionBody optenv func =
     optenv.tryGetFunctionBody func
 
-let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) optenv irExpr =
+let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv irExpr =
     match irExpr with
     | E.Operation(irTextRange, O.CallIndirect(_, E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)), irArgExprs, resultTy)) ->
         let irCallExprToInline =
@@ -1008,9 +1034,11 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) opt
             if isPassthroughExpression irArgExprs.Length irFuncBodyExpr then
                 match irFuncBodyExpr with
                 | E.Operation(irTextRange, irOp) ->
+                    let irInlinedExpr = E.Operation(irTextRange, irOp.ReplaceArguments(irArgExprs))
                     let irInlinedExpr =
-                        E.Operation(irTextRange, irOp.ReplaceArguments(irArgExprs))
-                        |> InlineFunctions optenv
+                        match tryInlineFunction forwardSubLocals optenv irInlinedExpr with
+                        | Some expr -> expr
+                        | _ -> irInlinedExpr
                     popInline optenv func                 
                     Some irInlinedExpr
                 | _ ->
@@ -1064,40 +1092,40 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) opt
                         | E.Value(value=irValue) ->
                             match irValue with
                             | V.Local(localIndex, _) -> 
-                                SubValue.Local(localIndex, false)
+                                ForwardSubValue.Local(localIndex, false)
                             | V.LocalAddress(index=localIndex) -> 
-                                SubValue.Local(localIndex, false)
+                                ForwardSubValue.Local(localIndex, false)
                             | V.Argument(index=argIndex) -> 
-                                SubValue.Argument(argIndex)
+                                ForwardSubValue.Argument(argIndex)
                             | V.ArgumentAddress(index=argIndex) -> 
-                                SubValue.Argument(argIndex)
+                                ForwardSubValue.Argument(argIndex)
                             | V.Constant(constant, _) -> 
-                                SubValue.Constant(constant)
+                                ForwardSubValue.Constant(constant)
                             | _ -> 
                                 OlyAssert.Fail($"bad forwardsub {irValue}")
 
                         | E.Operation(op=O.LoadFunction(func, argExpr, resultTy)) ->
                             let newLocalIndex = optenv.CreateLocal(irFuncBody.ArgumentFlags[i])
-                            let subValue = SubValue.LoadInlineableFunction(newLocalIndex, func, argExpr, resultTy)
+                            let subValue = ForwardSubValue.LoadInlineableFunction(newLocalIndex, func, argExpr, resultTy)
                             forwardSubLocals[newLocalIndex] <- subValue
                             subValue
 
                         | E.Operation(op=O.New(ctor, argExprs, resultTy)) ->
                             let newLocalIndex = optenv.CreateLocal(irFuncBody.ArgumentFlags[i])
-                            let subValue = SubValue.NewClosure(newLocalIndex, ctor, argExprs, resultTy)
+                            let subValue = ForwardSubValue.NewClosure(newLocalIndex, ctor, argExprs, resultTy)
                             forwardSubLocals[newLocalIndex] <- subValue
                             subValue
 
                         | E.Let(_, _, E.Operation(op=O.New(ctor, argExprs, _)), E.Value(value=V.LocalAddress(_, _, _))) ->
                             let newLocalIndex = optenv.CreateLocal(irFuncBody.ArgumentFlags[i])
-                            let subValue = SubValue.NewClosure(newLocalIndex, ctor, argExprs, resultTy)
+                            let subValue = ForwardSubValue.NewClosure(newLocalIndex, ctor, argExprs, resultTy)
                             forwardSubLocals[newLocalIndex] <- subValue
                             subValue
 
                         | _ ->
                             OlyAssert.Fail($"bad forwardsub {irExpr}")
                     else                
-                        SubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
+                        ForwardSubValue.Local(optenv.CreateLocal(irFuncBody.ArgumentFlags[i]), true)
                 )
 
             let localOffset = optenv.LocalCount
@@ -1113,11 +1141,11 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) opt
                 (irFinalExpr, argMap)
                 ||> ImArray.foldBacki (fun irAccExpr i subValue ->
                     match subValue with
-                    | SubValue.Local(localIndex, true) ->
+                    | ForwardSubValue.Local(localIndex, true) ->
                         E.Let("tmp", localIndex, irArgExprs[i], irAccExpr)
-                    | SubValue.LoadInlineableFunction(localIndex, _, _, _) ->
+                    | ForwardSubValue.LoadInlineableFunction(localIndex, _, _, _) ->
                         E.Let("tmpFunc", localIndex, irArgExprs[i], irAccExpr)
-                    | SubValue.NewClosure(localIndex, _, _, _) ->
+                    | ForwardSubValue.NewClosure(localIndex, _, _, _) ->
                         E.Let("tmpClo", localIndex, irArgExprs[i], irAccExpr)
                     | _ ->
                         irAccExpr
@@ -1133,7 +1161,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, SubValue<_, _, _>>) opt
 
 let InlineFunctions optenv (irExpr: E<_, _, _>) =
 
-    let forwardSubLocals = Dictionary<int, SubValue<_, _, _>>()
+    let forwardSubLocals = Dictionary<int, ForwardSubValue<_, _, _>>()
     
     let optimizeOperation irExpr =
         match irExpr with
