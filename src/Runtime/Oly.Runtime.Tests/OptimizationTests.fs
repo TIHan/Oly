@@ -475,7 +475,7 @@ main(): () =
     let result = M(Work)
     result()
         """
-        |> getOptimizedIR "main"
+        |> getOptimizedIR "cmd"
     match ir with
     | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
         OlyAssert.Equal("Work", func.EmittedFunction.Name)

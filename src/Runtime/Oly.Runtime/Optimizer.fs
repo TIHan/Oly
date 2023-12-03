@@ -452,7 +452,8 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
     let enclosingTyArgs = enclosingTy.TypeArguments
 
     // No type arguments to transform.
-    if enclosingTyArgs.IsEmpty then
+    let disableSpecialInline = true
+    if disableSpecialInline || enclosingTyArgs.IsEmpty then
         (irCtor, argExprs, resultTy)
     else
         let mutable didChangeTyArg = false

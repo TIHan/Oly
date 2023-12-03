@@ -802,7 +802,8 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
 
         let extraTyPars, extraTyParsLookup =
             let extraTyPars =
-                if funcTy.IsScopedFunction then
+                let disableSpecialInline = true
+                if disableSpecialInline || funcTy.IsScopedFunction then
                     ImArray.empty
                 else
 
