@@ -444,7 +444,7 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irCtor: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) resultTy =
+let transformClosureConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irCtor: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) resultTy =
     OlyAssert.True(irCtor.IsClosureInstanceConstructor)
 
     let ctor = irCtor.RuntimeFunction
@@ -453,7 +453,7 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
 
     // No type arguments to transform.
     if enclosingTyArgs.IsEmpty then
-        (irCtor, argExprs, resultTy)
+        (irCtor, argExprs, resultTy, false)
     else
         let mutable didChangeTyArg = false
 
@@ -482,11 +482,11 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
 
             let irCtor = OlyIRFunction(emittedCtor, ctor)
 
-            (irCtor, newArgExprs, resultTy)
+            (irCtor, newArgExprs, resultTy, true)
         else
-            (irCtor, argExprs, resultTy)
+            (irCtor, argExprs, resultTy, false)
 
-let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
+let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
     OlyAssert.True(irFunc.IsClosureInstanceInvoke)
 
     // TODO: This has a minor issue in that we could substitute multiple locals with a new closure.
@@ -501,14 +501,17 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
                 | E.Value(textRange, V.Local(localIndex, _)) ->
                     match forwardSubLocals.TryGetValue(localIndex) with
                     | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
-                        let cloCtor, cloArgExprs, cloResultTy = 
-                            transformConstructorCallToUseMoreSpecificTypeArgument
+                        let cloCtor, cloArgExprs, cloResultTy, didChange = 
+                            transformClosureConstructorCallToUseMoreSpecificTypeArgument
                                 forwardSubLocals
                                 optenv
                                 cloCtor
                                 cloArgExprs
                                 cloResultTy
-                        E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+                        if didChange then
+                            E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+                        else
+                            argExpr
                     | _ ->
                         argExpr
                 | _ ->
@@ -833,7 +836,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
 
             | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType ->
                 let newArgExprs = argExprs |> ImArray.map (handleExpression)
-                let (func, newArgExprs) = transformFunctionToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc newArgExprs
+                let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc newArgExprs
                 E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
 
             | O.CallIndirect(argTys, E.Value(value=V.Local(localIndex, _)), argExprs, resultTy) ->
@@ -1200,7 +1203,7 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
                     irExpr
 
             | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType ->
-                let (func, newArgExprs) = transformFunctionToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc argExprs
+                let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc argExprs
                 E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
 
             | _ ->
