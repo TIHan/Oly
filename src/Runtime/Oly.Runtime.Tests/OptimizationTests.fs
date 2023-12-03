@@ -539,6 +539,246 @@ main(): () =
         OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
 [<Fact>]
+let ``Lambda will get inlined 18``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+M(#[inline] f: () -> ()): () -> () =
+    #[inline(never)]
+    let cmd<T>() =
+        f()
+
+    cmd<()>
+
+main(): () =
+    let result = M(Work)
+    result()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("cmd", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 19``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+M(#[inline] f: () -> ()): () -> () =
+    #[inline]
+    let cmd<T>() =
+        f()
+
+    cmd<()>
+
+main(): () =
+    let result = M(Work)
+    result()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 20``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+M(#[inline] f: () -> ()): () -> () =
+    #[inline(never)]
+    let cmd<T>() =
+        f()
+
+    cmd<()>
+
+main(): () =
+    let result = M(Work)
+    result()
+        """
+        |> getOptimizedIR "cmd"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 21``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f<T>() = Work()
+
+    #[inline(never)]
+    let cmd<T>() =
+        f<()>()
+
+    cmd<()>()
+        """
+        |> getOptimizedIR "cmd"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 22``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f<T>() = Work()
+
+    #[inline(never)]
+    let cmd<T>() =
+        f<T>()
+
+    cmd<()>()
+        """
+        |> getOptimizedIR "cmd"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 23``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f() = Work()
+
+    #[inline(never)]
+    let cmd() =
+        f()
+
+    cmd()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("cmd", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 24``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f<T>() = Work()
+
+    #[inline(never)]
+    let cmd<T>() =
+        f<T>()
+
+    cmd<()>()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("cmd", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 25``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f() = Work()
+
+    #[inline]
+    let cmd() =
+        f()
+
+    cmd()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Lambda will get inlined 26``() =
+    let ir =
+        """
+module Program
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    #[inline]
+    let f<T>() = Work()
+
+    #[inline]
+    let cmd<T>() =
+        f<T>()
+
+    cmd<()>()
+        """
+        |> getOptimizedIR "main"
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
+        OlyAssert.Equal("Work", func.EmittedFunction.Name)
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
 let ``Lambda will not get inlined``() =
     let ir =
         """
