@@ -377,6 +377,9 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 [<Sealed>]
 type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 'Function, 'Field>) =
 
+    member inline _.GetILAssembly(asmIdent): OlyILReadOnlyAssembly =
+        vm.Assemblies[asmIdent].ilAsm
+
     member inline _.ResolveType(ilAsm, ilTy, genericContext): RuntimeType =
         vm.ResolveType(ilAsm, ilTy, genericContext)
 
@@ -813,7 +816,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =           
             OlyAssert.False(func.EnclosingType.IsShape)
 
-            if func.Flags.IsInlineable then
+            let stripInlineFunctions = false
+            if stripInlineFunctions then
                 let dummyEmittedFunc = Unchecked.defaultof<_>
                 let irFunc = OlyIRFunction(dummyEmittedFunc, func)
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
@@ -850,7 +854,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 callExpr, resultTy
 
         match ilOp with
-        | OlyILOperation.LoadFunction(ilFuncInst, ilArgExpr) ->
+        | OlyILOperation.LoadFunction(ilFuncInst, ilReceiverExpr) ->
             let func = cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
             let argTys =
                 func.Parameters
@@ -865,14 +869,20 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let resultTy = RuntimeType.Function(argTys, returnTy, funcKind)
 
-            let argExpr, _ = importExpression cenv env (Some resultTy) ilArgExpr
+            let expectedArgTy =
+                if func.EnclosingType.IsAnyStruct then                   
+                    createByReferenceRuntimeType OlyIRByRefKind.Read func.EnclosingType
+                else
+                    func.EnclosingType
+
+            let receiverExpr = importReceiverExpression cenv env false expectedArgTy ilReceiverExpr
 
             let emittedFunc = cenv.EmitFunction(func)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
             E.Operation(
                 irTextRange,
-                O.LoadFunction(irFunc, argExpr, cenv.EmitType(resultTy))
+                O.LoadFunction(irFunc, receiverExpr, cenv.EmitType(resultTy))
             ),
             resultTy
 
@@ -1270,6 +1280,37 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         | OlyILOperation.CallIndirect(ilFunArg, ilArgs) ->
             let irFunArg, funArgTy = importExpression cenv env None ilFunArg
 
+            match funArgTy with
+            | RuntimeType.Entity(ent) when ent.IsClosure ->
+                let ilAsm = ent.ILAssembly
+                let ilInvokeFuncDefHandle =
+                    let ilEntDef = ilAsm.GetEntityDefinition(ent.ILEntityDefinitionHandle)
+                    ilEntDef.FunctionHandles
+                    |> Seq.filter (fun x ->
+                        let ilFuncDef = ilAsm.GetFunctionDefinition(x)
+                        not ilFuncDef.IsStatic && not ilFuncDef.IsConstructor
+                    )
+                    |> Seq.exactlyOne
+
+                let invokeFunc = cenv.ResolveFunctionDefinition(funArgTy, ilInvokeFuncDefHandle)
+
+                if invokeFunc.TypeParameters.IsEmpty |> not then
+                    raise(System.NotImplementedException("CallIndirect on generic closure invoke function."))
+
+                let emittedInvokeFunc = cenv.EmitFunction(invokeFunc)
+                let emittedReturnTy = cenv.EmitType(invokeFunc.ReturnType)
+
+                let irArgs = 
+                    let argTys = invokeFunc.Parameters |> ImArray.map (fun x -> x.Type)
+                    if argTys.Length = ilArgs.Length then
+                        (argTys, ilArgs)
+                        ||> ImArray.map2 (fun argTy ilArg -> importArgumentExpression cenv env argTy ilArg)
+                    else
+                        failwith "Invalid number of arguments for 'CallIndirect'."
+
+                O.Call(OlyIRFunction(emittedInvokeFunc, invokeFunc), irArgs |> ImArray.prependOne irFunArg, emittedReturnTy) |> asExpr, invokeFunc.ReturnType
+            | _ ->
+
             let argTys, returnTy =
                 match funArgTy with
                 | RuntimeType.Function(argTys, returnTy, _)
@@ -1416,8 +1457,10 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
     OlyAssert.False(argTy.IsModule)
 #endif
 
-    if not isReceiver && expectedArgTy.IsByRef_t <> argTy.IsByRef_t && (not expectedArgTy.IsAnyPtr && not argTy.IsAnyPtr) then
-        failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
+    if (not expectedArgTy.IsAnyPtr && not argTy.IsAnyPtr) then
+        // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
+        if not expectedArgTy.IsAbstract && expectedArgTy.IsByRef_t <> argTy.IsByRef_t then
+            failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
 
     if argTy.Formal = expectedArgTy.Formal then
         if argTy <> expectedArgTy then
@@ -1560,7 +1603,7 @@ let importFunctionBody
         )
     with
     | ex ->
-        let msg = $"Invalid Program in: {func.EnclosingType.Name}.{func.Name}"
+        let msg = $"Invalid Program in: {func.EnclosingType.Name}.{func.Name}\n{ex.StackTrace}\n\n"
         raise(AggregateException(msg, ex))
 
 [<NoEquality;NoComparison>]
@@ -2467,6 +2510,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             (fun (envFunc, func) ->
                 this.EmitFunctionFromEnvironment(envFunc, func)
             )
+            this.EmitType
             func
             funcBody.ArgumentFlags
             funcBody.LocalFlags

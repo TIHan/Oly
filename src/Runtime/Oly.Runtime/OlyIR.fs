@@ -930,7 +930,14 @@ module Dump =
                     | _ -> irFunc.EmittedFunction.ToString()
             $"{name} `{funcName}`\n{args}"
         | O.LoadFunction(irFunc, _, _) when irFunc.IsInlineable ->
-            $"{name} |i|\n {args}"
+            let funcName =
+                match irFunc.RuntimeFunctionOption with
+                | Some func -> func.Name
+                | _ ->
+                    match box irFunc.EmittedFunction with
+                    | null -> ""
+                    | _ -> irFunc.EmittedFunction.ToString()
+            $"{name} `{funcName}` |inlineable|\n {args}"
         | O.Store(n=n) ->
             $"{name} {n}\n{args}"
         | _ ->
@@ -938,13 +945,13 @@ module Dump =
         
     let DumpExpression<'Type, 'Function, 'Field> (e: E<'Type, 'Function, 'Field>) : string =
         match e with
-        | E.Let(_, localIndex, rhsE, bodyE) ->
+        | E.Let(name, localIndex, rhsE, bodyE) ->
             let args =
                 [rhsE;bodyE]
                 |> ImArray.ofSeq
                 |> ImArray.map (fun argE -> leafLine (DumpExpression argE))
                 |> String.concat "\n"
-            $"LET local {localIndex}\n{args}"
+            $"LET local {localIndex} `{name}`\n{args}"
     
         | E.Sequential(e1, e2) ->
             let args =

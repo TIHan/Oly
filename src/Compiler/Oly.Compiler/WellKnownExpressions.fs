@@ -287,7 +287,7 @@ let AddressOfMutable (expr: BoundExpression) =
         (ImArray.createOne expr)
         false
 
-let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression) =
+let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
     if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable then
         if exprTy.IsByRef_t then
@@ -299,11 +299,14 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                 if value.IsReadOnly && not exprTy.IsTypeVariable then
                     AddressOf expr
                 else
-                    AddressOfMutable expr
+                    if isMutable then
+                        AddressOfMutable expr
+                    else
+                        expr
             | BoundExpression.GetField(syntaxInfo, receiver, field) -> 
                 let expr = 
                     if field.Enclosing.IsType then
-                        let newReceiver = AddressOfReceiverIfPossible receiver.Type receiver
+                        let newReceiver = AddressOfReceiverIfPossibleAux isMutable receiver.Type receiver
                         if newReceiver = receiver then
                             expr
                         else
@@ -315,18 +318,29 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                     // Cannot take the address of a field from a newtype.
                     expr
                 elif exprTy.IsTypeVariable then
-                    AddressOfMutable expr
+                    if isMutable then
+                        AddressOfMutable expr
+                    else
+                        expr
                 elif field.IsReadOnly then
                     AddressOf expr
                 else
                     match stripTypeEquations receiver.Type with
                     | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct ->
                         match kind with
-                        | ByRefKind.ReadWrite -> AddressOfMutable expr
-                        | ByRefKind.Read -> AddressOf expr
+                        | ByRefKind.ReadWrite -> 
+                            if isMutable then
+                                AddressOfMutable expr
+                            else
+                                expr
+                        | ByRefKind.Read -> 
+                            AddressOf expr
                     | _ ->
                         if field.IsMutable then
-                            AddressOfMutable expr
+                            if isMutable then
+                                AddressOfMutable expr
+                            else
+                                expr
                         else
                             AddressOf expr
             | GetArrayElement(expr1, _) ->
@@ -337,17 +351,34 @@ let AddressOfReceiverIfPossible (enclosingTy: TypeSymbol) (expr: BoundExpression
                     | ArrayKind.Immutable ->
                         AddressOf expr
                     | ArrayKind.Mutable ->
-                        AddressOfMutable expr
+                        if isMutable then
+                            AddressOfMutable expr
+                        else
+                            expr
                 | _ ->
                     failwith "should not happen"
             | AutoDereferenced(expr2) ->
                 expr2
             | _ ->
-                let expr2, _ = createMutableLocalDeclarationReturnExpression expr
-                match expr2 with
-                | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
-                    BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOfMutable bodyExpr)
-                | _ ->
-                    failwith "should not happen"
+                if isMutable then
+                    let expr2, _ = createMutableLocalDeclarationReturnExpression expr
+                    match expr2 with
+                    | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
+                        BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOfMutable bodyExpr)
+                    | _ ->
+                        failwith "should not happen"
+                else
+                    let expr2, _ = createLocalDeclarationReturnExpression expr
+                    match expr2 with
+                    | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
+                        BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOf bodyExpr)
+                    | _ ->
+                        failwith "should not happen"
     else
         expr
+
+let AddressOfReceiverIfPossible enclosingTy expr =
+    AddressOfReceiverIfPossibleAux true enclosingTy expr
+
+let ReadOnlyAddressOfReceiverIfPossible enclosingTy expr =
+    AddressOfReceiverIfPossibleAux false enclosingTy expr

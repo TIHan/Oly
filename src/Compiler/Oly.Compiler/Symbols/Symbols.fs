@@ -3854,6 +3854,27 @@ type TypeSymbol =
         | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
         | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy, _)) -> 
             ValueSome(inputTy, outputTy)
+        | TypeSymbol.Variable(tyPar) when not tyPar.Constraints.IsEmpty ->
+            let funcOpt =
+                tyPar.Constraints
+                |> ImArray.tryPick (fun x ->
+                    match x with
+                    | ConstraintSymbol.SubtypeOf(ty) when ty.IsValueCreated ->
+                        match stripTypeEquations ty.Value with
+                        | TypeSymbol.Function _ ->
+                            match ty.Value.TryFunction with
+                            | ValueSome x -> Some x
+                            | _ -> None
+                        | _ ->
+                            None
+                    | _ ->
+                        None
+                )
+            match funcOpt with
+            | Some func ->
+                ValueSome func
+            | _ ->
+                ValueNone
         | _ -> 
             ValueNone
 
@@ -4718,6 +4739,7 @@ module SymbolExtensions =
                 | EntityKind.Newtype when this.Extends.Length = 1 -> this.Extends.[0].IsAnyStruct
                 | EntityKind.Enum when this.RuntimeType.IsSome -> this.RuntimeType.Value.IsAnyStruct
                 | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
+                | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false
     
