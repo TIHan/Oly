@@ -1175,7 +1175,36 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
     
     let optimizeOperation irExpr =
         match irExpr with
-        | E.Operation _ ->
+        | E.Operation(origTextRange, irOp) ->
+
+            // TODO: There is very similar logic in 'inlineFunction', we should combine them.
+            match irOp with
+            | O.Call(func, argExprs, resultTy) when func.HasEnclosingClosureType && canInline optenv func.RuntimeFunction ->
+                let newArgExprs =
+                    argExprs
+                    |> ImArray.map (fun argExpr ->
+                        match argExpr with
+                        | E.Value(textRange, V.Local(localIndex, _)) ->
+                            match forwardSubLocals.TryGetValue(localIndex) with
+                            | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
+                                E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
+                            | _ ->
+                                argExpr
+                        | _ ->
+                            argExpr
+                    )
+                let expr = E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
+                match tryInlineFunction forwardSubLocals optenv expr with
+                | Some(expr) -> expr
+                | _ -> 
+                    irExpr
+
+            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType ->
+                let (func, newArgExprs) = transformFunctionToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc argExprs
+                E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
+
+            | _ ->
+
             match tryInlineFunction forwardSubLocals optenv irExpr with
             | Some irInlinedExpr -> irInlinedExpr
             | _ -> irExpr
