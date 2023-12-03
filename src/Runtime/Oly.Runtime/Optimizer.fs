@@ -489,6 +489,10 @@ let transformConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dic
 let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
     OlyAssert.True(irFunc.IsClosureInstanceInvoke)
 
+    // TODO: This has a minor issue in that we could substitute multiple locals with a new closure.
+    //       Instead, we should find a way to simply create a tmp local for the new closure and use that.
+    //       Then we let dead code elimination take care of the rest.
+
     let newArgExprs =
         argExprs
         |> ImArray.mapi (fun i argExpr ->
@@ -876,41 +880,6 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     | Some(expr) -> expr
                     | _ ->
                         handleOperation origTextRange origExpr origOp
-                | _ ->
-                    handleOperation origTextRange origExpr origOp
-
-            // Arguments/Locals
-
-            | O.LoadFunction(func, receiverExpr, resultTy) when canInline optenv func.RuntimeFunction ->
-                let receiverExpr = handleExpression receiverExpr
-                match receiverExpr with
-                | E.Operation(op=O.New(ctor, argExprs, innerResultTy)) 
-                        when ctor.IsClosureInstanceConstructor && 
-                             argExprs |> ImArray.forall (canSafelyPropagateForNewClosure optenv) ->
-                    let newArgExprs =
-                        argExprs
-                        |> ImArray.map (fun argExpr ->
-                            match argExpr with
-                            | E.Value(value=V.Local(localIndex, _)) ->
-                                match forwardSubLocals.TryGetValue(localIndex) with
-                                | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
-                                    E.Operation(NoRange, O.New(cloCtor, cloArgExprs, cloResultTy))
-                                | true, ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
-                                    E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy))
-                                | _ ->
-                                   argExpr
-                            | _ ->
-                                argExpr                                    
-                        )
-
-                    E.Operation(origTextRange,
-                        O.LoadFunction(
-                            func,
-                            E.Operation(NoRange, O.New(ctor, newArgExprs, innerResultTy)),
-                            resultTy
-                        )
-                    )
-
                 | _ ->
                     handleOperation origTextRange origExpr origOp
 
