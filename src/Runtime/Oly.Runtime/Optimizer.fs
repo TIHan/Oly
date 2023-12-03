@@ -527,6 +527,18 @@ let transformFunctionToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary
 
     (func, newArgExprs)
 
+let recordForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) localIndex rhsExpr =
+    if optenv.IsLocalMutable(localIndex) |> not then
+        match rhsExpr with
+        | E.Operation(op=O.LoadFunction(func, argExpr, resultTy)) when canInline optenv func.RuntimeFunction && canSafelyPropagate optenv argExpr ->
+            forwardSubLocals[localIndex] <- ForwardSubValue.LoadInlineableFunction(localIndex, func, argExpr, resultTy)
+        | E.Operation(op=O.New(irCtor, argExprs, resultTy)) 
+                when irCtor.IsClosureInstanceConstructor && 
+                        argExprs |> ImArray.forall (canSafelyPropagateForNewClosure optenv) ->
+            forwardSubLocals[localIndex] <- ForwardSubValue.NewClosure(localIndex, irCtor, argExprs, resultTy)
+        | _ ->
+            ()
+
 let handleLiberalForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) origExpr =
     match origExpr with
     | E.Value(origTextRange, value) ->
@@ -552,6 +564,22 @@ let handleLiberalForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_
             origExpr
     | _ ->
         origExpr
+
+let tryInlineCallIndirect (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) argTys receiverExpr argExprs resultTy =
+    match receiverExpr with
+    | E.Value(value=V.Local(localIndex, _)) ->
+        match forwardSubLocals.TryGetValue(localIndex) with
+        | true, ForwardSubValue.LoadInlineableFunction(_, func, receiverExpr, innerResultTy) ->
+            let receiverExpr = handleLiberalForwardSub forwardSubLocals optenv receiverExpr
+            let expr =
+                E.Operation(NoRange,
+                    O.CallIndirect(argTys, E.Operation(NoRange, O.LoadFunction(func, receiverExpr, innerResultTy)), argExprs, resultTy)
+                )
+            tryInlineFunction forwardSubLocals optenv expr
+        | _ ->
+            None
+    | _ ->
+        None
 
 let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: ForwardSubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
 
@@ -604,16 +632,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             let irNewRhsExpr = handleExpression irRhsExpr
             let newLocalIndex = localOffset + localIndex
 
-            // Record forward-sub locals.
-            match irNewRhsExpr with
-            | E.Operation(op=O.LoadFunction(func, argExpr, resultTy)) when canInline optenv func.RuntimeFunction && canSafelyPropagate optenv argExpr ->
-                forwardSubLocals[newLocalIndex] <- ForwardSubValue.LoadInlineableFunction(newLocalIndex, func, argExpr, resultTy)
-            | E.Operation(op=O.New(irCtor, argExprs, resultTy)) 
-                    when irCtor.IsClosureInstanceConstructor && 
-                         argExprs |> ImArray.forall (canSafelyPropagateForNewClosure optenv) ->
-                forwardSubLocals[newLocalIndex] <- ForwardSubValue.NewClosure(newLocalIndex, irCtor, argExprs, resultTy)
-            | _ ->
-                ()
+            recordForwardSub forwardSubLocals optenv newLocalIndex irNewRhsExpr
 
             let irNewBodyExpr = handleExpression irBodyExpr
 
@@ -999,6 +1018,9 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
             )
         tryInlineFunction forwardSubLocals optenv irCallExprToInline
 
+    | E.Operation(_, O.CallIndirect(argTys, receiverExpr, argExprs, resultTy)) ->
+        tryInlineCallIndirect forwardSubLocals optenv argTys receiverExpr argExprs resultTy
+
     | E.Operation(irTextRange, O.Call(irFunc, irArgExprs, resultTy)) when canInline optenv irFunc.RuntimeFunction ->
         let func = irFunc.RuntimeFunction
 
@@ -1176,6 +1198,9 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr
+
+            recordForwardSub forwardSubLocals optenv localIndex irNewRhsExpr
+
             let irNewBodyExpr = handleExpression irBodyExpr
 
             if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
