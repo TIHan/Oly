@@ -940,7 +940,7 @@ type BoundExpression with
                         argExpr.Syntax.Tree,
                         cloInvoke
                     )
-                let argExpr = WellKnownExpressions.AddressOfReceiverIfPossible argExprTy argExpr
+                let argExpr = WellKnownExpressions.ReadOnlyAddressOfReceiverIfPossible argExprTy argExpr
                 let resultExpr =
                     WellKnownExpressions.LoadFunction
                         argExpr

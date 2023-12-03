@@ -1273,12 +1273,21 @@ let hasSideEffectAux (optenv: optenv<_, _, _>) limit checkAddressExposed depth (
     | E.Value(value=value) when checkAddressExposed ->
         match value with
         | V.Local(localIndex, _) -> 
-            optenv.IsLocalMutable(localIndex) || optenv.IsLocalAddressExposed(localIndex)
+            optenv.IsLocalMutable(localIndex)
         | V.Argument(argIndex, _) ->
-            optenv.IsArgumentMutable(argIndex) || optenv.IsArgumentAddressExposed(argIndex)
-        | V.LocalAddress _
-        | V.ArgumentAddress _ ->
-            true
+            optenv.IsArgumentMutable(argIndex)
+        | V.LocalAddress(index=localIndex;kind=kind) ->
+            match kind with
+            | OlyIRByRefKind.Read ->
+                optenv.IsLocalMutable(localIndex)
+            | _ ->
+                true
+        | V.ArgumentAddress(index=argIndex;kind=kind) ->
+            match kind with
+            | OlyIRByRefKind.Read ->
+                optenv.IsArgumentMutable(argIndex)
+            | _ ->
+                true
         | _ ->
             false
     | E.Value _ -> false
