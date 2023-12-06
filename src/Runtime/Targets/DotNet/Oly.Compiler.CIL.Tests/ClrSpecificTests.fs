@@ -6205,3 +6205,28 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Static local function returning a pointer``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+main(): () =
+
+    static let f(x: int32) = print(x)
+
+    let ptr = &&f
+    ptr(7)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore

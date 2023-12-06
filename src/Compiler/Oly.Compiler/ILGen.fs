@@ -2092,6 +2092,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
         if not isValid && not (func.FunctionFlags.HasFlag(FunctionFlags.Extra)) then
             failwithf "Function '%s' does not exist on its enclosing type." func.Name
 #endif
+        let prevFunEnv = cenv.funEnv
         let cenv = cenv.NewFunction()
         let env = 
             { env with 
@@ -2118,6 +2119,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
                 ilBodyExpr
 
         ilFuncDef.BodyHandle.contents <- cenv.assembly.AddFunctionBody(OlyILFunctionBody(ilLocals, ilBodyExpr)) |> Some
+        cenv.funEnv <- prevFunEnv
 
 [<Sealed>]
 type OlyILAssemblyGenerator(asm: AssemblySymbol, isDebuggable) =

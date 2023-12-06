@@ -1293,7 +1293,8 @@ type OlyILAssembly =
         |> ImArray.filter (fun handle ->
             let funcDef = this.GetFunctionDefinition(handle)
             let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
-            this.GetStringOrEmpty(funcSpec.NameHandle) = name
+            let name2 = this.GetStringOrEmpty(funcSpec.NameHandle)
+            name2 = name
         )
         //match this.funcDefSet.TryGetValue(entDefHandle) with
         //| true, handles ->
