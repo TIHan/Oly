@@ -2746,7 +2746,7 @@ type TypeParameterKind =
     | Type
     | Function of index: int
 
-[<DebuggerDisplay("{DisplayName}")>]
+[<DebuggerDisplay("{DebugName}")>]
 [<Sealed>]
 type TypeParameterSymbol private (id: int64, name: string, index: int, arity: int, isVariadic: bool, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref, hiddenLinkOpt: TypeParameterSymbol option) as this =
 
@@ -2766,6 +2766,9 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
         (if arity = 0 then "" 
          else "<" + (Seq.init arity (fun _ -> "_") |> String.concat ", ") + ">"
         )
+
+    member this.DebugName = 
+        this.DisplayName + " - " + id.ToString()
 
     member _.Constraints = constrs.contents
 
@@ -3859,7 +3862,7 @@ type TypeSymbol =
                 tyPar.Constraints
                 |> ImArray.tryPick (fun x ->
                     match x with
-                    | ConstraintSymbol.SubtypeOf(ty) when ty.IsValueCreated ->
+                    | ConstraintSymbol.SubtypeOf(ty) ->
                         match stripTypeEquations ty.Value with
                         | TypeSymbol.Function _ ->
                             match ty.Value.TryFunction with

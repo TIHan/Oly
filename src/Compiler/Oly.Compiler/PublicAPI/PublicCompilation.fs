@@ -736,22 +736,14 @@ type OlyCompilation private (state: CompilationState) =
     member this.Version = state.version
 
     member this.GetILAssembly(ct) : Result<OlyILAssembly, OlyDiagnostic imarray> = 
-        let importDiags = this.GetImportDiagnostics(ct)
-        if checkHasErrors importDiags then
-            Result.Error(importDiags)
+        let diags = this.GetDiagnostics(ct)
+        if checkHasErrors diags then
+            Result.Error(diags)
         else
             let boundTrees = this.Bind(ct)
-
-            let hasErrors =
-                boundTrees
-                |> ImArray.exists (fun (_, diags) -> checkHasErrors diags)
-
-            if hasErrors then
-                Result.Error(this.GetDiagnostics(ct))
-            else
-                let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
-                CompilationPhases.generateAssembly state loweredBoundTrees ct
-                |> Result.Ok      
+            let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
+            CompilationPhases.generateAssembly state loweredBoundTrees ct
+            |> Result.Ok      
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity

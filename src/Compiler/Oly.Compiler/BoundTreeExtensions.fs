@@ -498,6 +498,11 @@ module private FreeVariablesHelper =
             | BoundExpression.Value(value=value) ->
                 if not (ignoredValues.Contains(value.Id)) then
                     visitType value.Type
+                    match value.Enclosing with
+                    | EnclosingSymbol.Witness(concreteTy, _) ->
+                        visitType concreteTy
+                    | _ ->
+                        ()
                 base.VisitExpression(expr)
 
             | BoundExpression.Let(bindingInfo=bindingInfo) ->
@@ -505,16 +510,94 @@ module private FreeVariablesHelper =
                 |> ImArray.iter (fun tyPar -> vars.Add(tyPar.Id) |> ignore)
                 base.VisitExpression(expr)
 
+            | BoundExpression.GetProperty(prop=prop)
+            | BoundExpression.SetProperty(prop=prop) ->
+                visitType prop.Type
+                match prop.Enclosing with
+                | EnclosingSymbol.Witness(concreteTy, _) ->
+                    visitType concreteTy
+                | EnclosingSymbol.Entity(ent) ->
+                    visitType ent.AsType
+                | _ ->
+                    ()
+                base.VisitExpression(expr)
+
+            | BoundExpression.SetValue(value=value) ->
+                if not (ignoredValues.Contains(value.Id)) then
+                    visitType value.Type
+                    match value.Enclosing with
+                    | EnclosingSymbol.Witness(concreteTy, _) ->
+                        visitType concreteTy
+                    | EnclosingSymbol.Entity(ent) ->
+                        visitType ent.AsType
+                    | _ ->
+                        ()
+                base.VisitExpression(expr)
+
+            | BoundExpression.GetField(field=field)
+            | BoundExpression.SetField(field=field) ->
+                visitType field.Type
+                match field.Enclosing with
+                | EnclosingSymbol.Entity(ent) ->
+                    visitType ent.AsType
+                | _ ->
+                    ()
+                base.VisitExpression(expr)
+
+            | BoundExpression.Literal(_, lit) ->
+                match lit with
+                | BoundLiteral.Constant(constantSymbol) ->
+                    match constantSymbol with
+                    | ConstantSymbol.External(func) ->
+                        visitType func.Type
+                        match func.Enclosing with
+                        | EnclosingSymbol.Witness(concreteTy, _) ->
+                            visitType concreteTy
+                        | EnclosingSymbol.Entity(ent) ->
+                            visitType ent.AsType
+                        | _ ->
+                            ()
+                    | _ ->
+                        visitType constantSymbol.Type
+                | BoundLiteral.ConstantEnum(constantSymbol, enumTy) ->
+                    visitType enumTy
+                    match constantSymbol with
+                    | ConstantSymbol.External(func) ->
+                        visitType func.Type
+                        match func.Enclosing with
+                        | EnclosingSymbol.Witness(concreteTy, _) ->
+                            visitType concreteTy
+                        | EnclosingSymbol.Entity(ent) ->
+                            visitType ent.AsType
+                        | _ ->
+                            ()
+                    | _ ->
+                        visitType constantSymbol.Type
+                | _ ->
+                    visitType lit.Type
+
+                base.VisitExpression(expr)
+
             | BoundExpression.Call(value=value) ->
+                match value.Enclosing with
+                | EnclosingSymbol.Witness(concreteTy, _) ->
+                    visitType concreteTy
+                | EnclosingSymbol.Entity(ent) ->
+                    visitType ent.AsType
+                | _ ->
+                    ()
                 value.TypeArguments
                 |> ImArray.iter (fun tyArg ->
                     visitType tyArg
                 )
 
                 // We do not want to check the formal value if it has type parameters.
-                if not value.TypeParameters.IsEmpty then
-                    ignoredValues.Add(value.Formal.Id) |> ignore
+                if value.TypeParameters.IsEmpty then
                     visitType value.Type
+                else
+                    ignoredValues.Add(value.Formal.Id) |> ignore
+                    if not value.IsFormal then
+                        visitType value.Type
 
                 base.VisitExpression(expr)
                     

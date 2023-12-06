@@ -307,7 +307,8 @@ and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol)
         match stripTypeEquations inputTy with
         | TypeSymbol.Unit -> ImArray.empty
         | TypeSymbol.Tuple(argTys, _) -> argTys
-        | _ -> ImArray.createOne inputTy
+        | _ -> 
+            ImArray.createOne inputTy
     let ilArgTys =
         argTys
         |> ImArray.map (emitILType cenv env)
@@ -1044,7 +1045,11 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 //#endif
                 enclosing.TypeParameters.Length 
         let tyPars = 
+            try
                 ent.TypeParameters |> ImArray.skip enclosingTyParCount
+            with
+            | _ ->
+                failwith $"Invalid type parameters to skip: {ent.QualifiedName}, length: {ent.TypeParameters.Length}, skip: {enclosingTyParCount}"
         emitILTypeParameters cenv env tyPars
 
     cenv.delayedEntityGenQueue.Enqueue(fun () ->         

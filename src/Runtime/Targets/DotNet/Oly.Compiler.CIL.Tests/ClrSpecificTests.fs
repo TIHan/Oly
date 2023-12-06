@@ -5957,3 +5957,251 @@ module Program =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "8_09_0"
+
+[<Fact>]
+let ``Complex lambda``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field funcs: List<() -> ()> = List()
+
+    #[inline]
+    M2<T, U, Z>(#[inline(never)] f: T -> ()): () =
+        f(unchecked default)
+    
+    #[inline]
+    M<T>(#[inline] f: T -> ()): () =
+        this.funcs.Add(
+            () ->
+                this.M2<_, int32, int32>(
+                    x -> 
+                        print("hello")
+                        f(x)
+                )
+        )
+
+main(): () =
+    let c = C()
+    c.M<int32>(x -> print(" world"))
+    let f = c.funcs.get_Item(0)
+    f()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello world"
+    |> ignore
+
+[<Fact>]
+let ``Complex lambda 2``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field funcs: List<() -> ()> = List()
+    public field moreFuncs: List<() -> ()> = List()
+
+    #[inline]
+    M2<T, U, Z>(#[inline(never)] f: T -> ()): () =
+        f(unchecked default)
+    
+    #[inline]
+    M<T>(#[inline] f: T -> ()): () =
+        this.funcs.Add(
+            () ->
+                this.M2<_, int32, int32>(
+                    x -> 
+                        this.moreFuncs.Add(
+                            () ->
+                                print("hello")
+                                f(x)
+                        )
+                )
+        )
+
+main(): () =
+    let c = C()
+    c.M<int32>(x -> print(" world"))
+    let f = c.funcs.get_Item(0)
+    f()
+    let f = c.moreFuncs.get_Item(0)
+    f()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello world"
+    |> ignore
+
+[<Fact>]
+let ``Complex lambda 3``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field funcs: List<() -> ()> = List()
+    public field moreFuncs: List<() -> ()> = List()
+
+    #[inline]
+    M2<T, U, Z>(#[inline(never)] f: T -> ()): () =
+        f(unchecked default)
+    
+    #[inline]
+    M<T, W, A>(#[inline] f: T -> ()): () =
+        this.funcs.Add(
+            () ->
+                this.M2<_, int32, int32>(
+                    x -> 
+                        this.moreFuncs.Add(
+                            () ->
+                                print("hello")
+                                f(x)
+                        )
+                )
+        )
+
+main(): () =
+    let c = C()
+    c.M<int32, __oly_object, __oly_object>(x -> print(" world"))
+    let f = c.funcs.get_Item(0)
+    f()
+    let f = c.moreFuncs.get_Item(0)
+    f()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello world"
+    |> ignore
+
+[<Fact>]
+let ``Complex lambda 4``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field funcs: List<() -> ()> = List()
+    public field moreFuncs: List<() -> ()> = List()
+
+    #[inline]
+    M2<T, U, Z>(#[inline(never)] f: T -> ()): () =
+        f(unchecked default)
+    
+    #[inline]
+    M<T, W, A, B, C>(#[inline] f: (T, B) -> ()): () =
+        this.funcs.Add(
+            () ->
+                this.M2<_, int32, int32>(
+                    x -> 
+                        this.moreFuncs.Add(
+                            () ->
+                                print("hello")
+                                f(x, unchecked default)
+                        )
+                )
+        )
+
+main(): () =
+    let c = C()
+    c.M<int32, __oly_object, __oly_object, int32, int32>((x, y) -> print(" world"))
+    let f = c.funcs.get_Item(0)
+    f()
+    let f = c.moreFuncs.get_Item(0)
+    f()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello world"
+    |> ignore
+
+[<Fact>]
+let ``Complex lambda should fail``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    public field funcs: List<() -> ()> = List()
+    public field moreFuncs: List<() -> ()> = List()
+
+    #[inline]
+    M2<T, U, Z>(#[inline(never)] f: T -> ()): () =
+        f(unchecked default)
+    
+    #[inline]
+    M<T, W, A, B, C>(#[inline] f: (T, B) -> ()): () =
+        this.funcs.Add(
+            () ->
+                this.M2<_, int32, int32>(
+                    x -> 
+                        this.moreFuncs.Add(
+                            () ->
+                                print("hello")
+                                f(x, unchecked default)
+                        )
+                )
+        )
+
+main(): () =
+    let c = C()
+    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+    let f = c.funcs.get_Item(0)
+    f()
+    let f = c.moreFuncs.get_Item(0)
+    f()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type '(int32, int32) -> ()' but is '? -> ?'.",
+                """
+    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+                                                         ^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
+                """
+    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+                                                         ^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
+                """
+    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+                                                         ^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

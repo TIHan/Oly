@@ -40,7 +40,7 @@ let rec solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy
     //     1. Perform inference type unification when checking the argument type.
     //     2. If '1.' fails, then see if the expected type subsumes the given type.
     //     3. If '2.' fails, then check for shape subsumption if the expected type is a shape.
-    if not (UnifyTypes Flexible expectedTy ty || subsumesTypeWith Flexible expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv Flexible expectedTy ty else false)) then 
+    if not (UnifyTypes Flexible expectedTy ty || subsumesTypeWith Flexible expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv Flexible expectedTy ty else false)) then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
 
 and solveFunctionInput env (syntaxNode: OlySyntaxNode) (expectedArgTys: TypeSymbol imarray) (argTysWithSyntax: (TypeSymbol * OlySyntaxNode) imarray) =

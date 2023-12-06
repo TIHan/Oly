@@ -265,6 +265,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     | TypeSymbol.Tuple(elementTys, _), ty
                     | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
                         UnifyTypes rigidity elementTys[0] ty
+                    | TypeSymbol.Tuple _, ty
+                    | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
+                        false
                     | _ ->
                         UnifyTypes rigidity inputTy1 inputTy2
                 ) &&
@@ -280,6 +283,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 | TypeSymbol.Tuple(elementTys, _), ty
                 | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
                     UnifyTypes rigidity elementTys[0] ty
+                | TypeSymbol.Tuple _, ty
+                | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
+                    false
                 | _ ->
                     UnifyTypes rigidity inputTy1 inputTy2
             ) &&
