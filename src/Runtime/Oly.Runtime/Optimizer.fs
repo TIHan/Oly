@@ -962,8 +962,10 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             origExpr
 
     and handleExpression irExpr =
-        let irExpr = handleExpressionAux irExpr
-        OptimizeImmediateConstantFolding irExpr
+        DebugStackGuard.Do(fun () ->
+            let irExpr = handleExpressionAux irExpr
+            OptimizeImmediateConstantFolding irExpr
+        )
 
     handleExpression irFuncBody.Expression
 
@@ -1214,7 +1216,12 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
         | _ ->
             OlyAssert.Fail("Expected operation")
 
-    let rec handleExpression irExpr : E<_, _, _> =
+    let rec handleExpression irExpr =
+        DebugStackGuard.Do(fun () ->
+            handleExpressionAux irExpr
+        )
+
+    and handleExpressionAux irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr
@@ -1862,9 +1869,10 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
 
     let rec handleExpression irExpr : E<_, _, _> =
         DebugStackGuard.Do(fun () ->
-            handleExpressionCore irExpr
+            handleExpressionAux irExpr
         )
-    and handleExpressionCore irExpr : E<_, _, _> =
+
+    and handleExpressionAux irExpr : E<_, _, _> =
         let irExpr = copyPropagationOptimizeExpression optenv items irExpr
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
@@ -2191,8 +2199,13 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                 irExpr
         | _ ->
             OlyAssert.Fail("Expected opertion")
+
+    and handleExpression irExpr =
+        DebugStackGuard.Do(fun () ->
+            handleExpressionAux irExpr
+        )
     
-    and handleExpression (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
+    and handleExpressionAux (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(name, letLocalIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression env irRhsExpr
@@ -2388,7 +2401,12 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
     
     analyzeExpression false irExpr
 
-    let rec handleExpression irExpr : E<_, _, _> =
+    let rec handleExpression irExpr =
+        DebugStackGuard.Do(fun () ->
+            handleExpressionAux irExpr
+        )
+
+    and handleExpressionAux irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             if doNotRemove.Contains(localIndex) then

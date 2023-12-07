@@ -159,6 +159,15 @@ module internal rec Helpers =
                                         match olyUnmodifiedType with
                                         | OlyILTypeEntity(olyEntInst) ->
                                             match olyEntInst with
+                                            | OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs) when olyTyArgs.IsEmpty && (olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition) ->
+                                                let olyEntRef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                                // TODO: Check namespace...
+                                                if name = "ValueType" then                                         
+                                                    OlyILTypeModified(olyModifier, olyUnmodifiedType)
+                                                else
+                                                    invalidType cenv "Unsupported .NET type."
+
                                             | OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs) when olyTyArgs.IsEmpty && (olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference) ->
                                                 let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
                                                 let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
@@ -167,6 +176,7 @@ module internal rec Helpers =
                                                     OlyILTypeModified(olyModifier, olyUnmodifiedType)
                                                 else
                                                     invalidType cenv "Unsupported .NET type."
+
                                             | _ ->
                                                 invalidType cenv "Unsupported .NET type."
                                                 

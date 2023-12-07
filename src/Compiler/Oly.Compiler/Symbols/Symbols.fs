@@ -1244,7 +1244,7 @@ let tryActualValue (enclosing: EnclosingSymbol) (tys: IReadOnlyDictionary<int64,
         else
             failwith "Invalid value symbol."
 
-let tryActualEntity tys (ent: EntitySymbol) =
+let tryActualEntity (tys: IReadOnlyDictionary<_, _>) (ent: EntitySymbol) =
     let tyArgs2 = 
         ent.TypeArguments 
         |> ImArray.map (fun x -> tryActualType tys x)
@@ -5021,7 +5021,7 @@ module SymbolHelpers =
         member this.GetActual(enclosing, tyArgs) =
             actualValue enclosing tyArgs this
 
-        member this.Substitute(tyParLookup: ReadOnlyDictionary<_, _>): IValueSymbol =
+        member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>): IValueSymbol =
             if tyParLookup.Count = 0 then
                 this
             else
@@ -5095,7 +5095,7 @@ module SymbolHelpers =
 
     type EntitySymbol with
 
-        member this.Substitute(tyParLookup: ReadOnlyDictionary<_, _>) =
+        member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>) =
             tryActualEntity tyParLookup this
 
         member this.Substitute(tyArgs: TypeArgumentSymbol imarray) =
@@ -5129,7 +5129,7 @@ module SymbolHelpers =
 
         /// Emplace in this context means that if the lookup was successful, the result itself
         /// MUST be a type parameter.
-        member this.EmplaceSubstitute(tyParLookup: ReadOnlyDictionary<_, TypeSymbol>) =
+        member this.EmplaceSubstitute(tyParLookup: IReadOnlyDictionary<_, TypeSymbol>) =
             if tyParLookup.Count = 0 then
                 this
             else
@@ -5141,7 +5141,7 @@ module SymbolHelpers =
 
         /// Emplace in this context means that if a type parameter lookup was successful, the result itself
         /// MUST be a type parameter.
-        static member EmplaceSubstitute(witnessArgs: WitnessSolution imarray, tyParLookup: ReadOnlyDictionary<_, TypeSymbol>) =
+        static member EmplaceSubstitute(witnessArgs: WitnessSolution imarray, tyParLookup: IReadOnlyDictionary<_, TypeSymbol>) =
             let result =
                 witnessArgs
                 |> ImArray.map (fun (witnessArg: WitnessSolution) ->
@@ -5171,7 +5171,7 @@ module SymbolHelpers =
 
     type TypeSymbol with
 
-        member this.Substitute(tyParLookup) =
+        member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>) =
             match stripTypeEquations this with
             | TypeSymbol.ForAll(tyPars, innerTy) ->
                 TypeSymbol.ForAll(tyPars, tryActualType tyParLookup innerTy)
@@ -5207,7 +5207,7 @@ module SymbolHelpers =
             | ConstraintSymbol.SubtypeOf(ty) ->
                 ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
 
-        member this.Substitute(tyParLookup: ReadOnlyDictionary<_, _>) =
+        member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>) =
             match this with
             | ConstraintSymbol.Null
             | ConstraintSymbol.Struct

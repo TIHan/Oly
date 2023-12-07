@@ -18131,3 +18131,141 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "worked"
     |> ignore
+
+[<Fact>]
+let ``Scoped lambda capturing a normal lambda``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+M(g: int32 -> ()): () =
+    let a() =
+        For(1, 
+            x -> 
+                let b() = g(x)
+                b()
+        )
+    a()
+
+main(): () =
+    M(x -> print(x))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+    |> ignore
+
+[<Fact>]
+let ``Scoped lambda capturing a normal lambda 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+M(g: int32 -> ()): () =
+    let mutable a =
+        () ->
+            For(1, 
+                x -> 
+                    let mutable b =
+                        () ->
+                            g(x)
+                    b()
+            )
+    a()
+
+main(): () =
+    M(x -> print(x))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+    |> ignore
+
+[<Fact>]
+let ``Pass function types from closures``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    public field X: int32 -> ()
+    public field Y: (int32, int32) -> ()
+
+    new(x: int32 -> (), y: (int32, int32) -> ()) =
+        {
+            X = x
+            Y = y
+        }
+
+class B =
+
+    public field A: A
+
+    new() =
+        let f(x: int32) = print(x)
+        let g(x: int32, /* inference */ y) =
+            print(x)
+        {
+            A = A(f, (x: int32, y: int32) -> g(x, y))
+        }
+
+main(): () =
+    let b = B()
+    let a = b.A
+
+    let f = a.X
+    let g = a.Y
+
+    f(1)
+    g(2, 3)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "12"
+    |> ignore

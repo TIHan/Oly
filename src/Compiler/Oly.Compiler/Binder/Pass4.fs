@@ -771,7 +771,9 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
             Some func.ReturnType
         else
             None
-    let _, rhsBodyExpr = bindLocalExpression cenv (envRhs.SetReturnable(true)) expectedRhsTyOpt syntaxRhs syntaxRhs
+
+    let envBody = envRhs.SetReturnable(true)
+    let _, rhsBodyExpr = bindLocalExpression cenv envBody expectedRhsTyOpt syntaxRhs syntaxRhs
 
     let rhsBodyExpr =
         if func.IsLocal then
@@ -1837,7 +1839,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
 
     let expr =
         // Specific checks for expressions on return.
-        if env.isReturnable then
+        if env.isReturnable && not env.isInLocalLambda then
             // Check constructor to ensure fields are set.
             match env.isInInstanceConstructorType with
             | Some(enclosingTy) ->
