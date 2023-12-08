@@ -18269,3 +18269,25 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "12"
     |> ignore
+
+[<Fact>]
+let ``Generic class with a static field``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class Option<T> =
+
+    static None: Option<T> get = unchecked default
+
+main(): () =
+    let x = Option<int32>.None
+    print(x)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+    |> ignore
