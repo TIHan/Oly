@@ -85,3 +85,27 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype should error with static fields``() =
+    let src =
+        """
+#[open]
+newtype Option<T> =
+    public field Value: T
+
+    static Some(value: T): Option<T> = Option(value)
+
+    static None: Option<T> get = unchecked default: Option<T>
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO static field.",
+                """
+static None: Option<T> get = unchecked default: Option<T>
+       ^^^^
+"""
+            )
+        ]
+    |> ignore
