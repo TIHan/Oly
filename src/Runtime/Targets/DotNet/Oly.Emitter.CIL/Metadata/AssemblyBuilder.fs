@@ -841,6 +841,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member _.PdbBuilder = pdbBuilder
 
+    member val internal IsDebuggable = false with get, set
+
     member val ModuleDefinitionHandle = moduleDefHandle
 
     member val TypeReferenceVoid: ClrTypeHandle = sysTy "Void" false
@@ -1147,6 +1149,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         metadataBuilder.AddCustomAttribute(asmDefHandle, this.DebuggableAttributeConstructor.Value.UnsafeLazilyEvaluateEntityHandle(), blobHandle)
         |> ignore
+
+        this.IsDebuggable <- true
     
     member this.Write(stream: IO.Stream, pdbStream: IO.Stream, isDebuggable: bool) =
         let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
@@ -1677,7 +1681,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     static let getShortBranchOpCode opCode =
         match opCode with
         | ILOpCode.Beq -> ILOpCode.Beq_s
-        | ILOpCode.Bge -> ILOpCode.Bge_un
+        | ILOpCode.Bge -> ILOpCode.Bge_s
         | ILOpCode.Bge_un -> ILOpCode.Bge_un_s
         | ILOpCode.Bgt -> ILOpCode.Bgt_s
         | ILOpCode.Bgt_un -> ILOpCode.Bgt_un_s
@@ -1982,7 +1986,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Skip ->
             failwith "Unexpected instruction."
 
-    static let estimateSizeOfInstr instr =
+    static let sizeOfInstr instr =
         match instr with
         | I.Conv_i ->
             1
@@ -2262,6 +2266,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     member _.Handle: ClrMethodHandle = handle
 
     member private this.PopulateMethodBody() =
+        let _isDebuggable = asmBuilder.IsDebuggable
+
         let localSig = asmBuilder.CreateStandaloneSignature(this.Locals)
         let localSigToken = MetadataTokens.GetRowNumber(localSig)
 
@@ -2362,7 +2368,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | _ ->
                 ()
 
-            totalSize <- totalSize + estimateSizeOfInstr instr
+            totalSize <- totalSize + sizeOfInstr instr
 
 #if DEBUG
         // Assert estimation size
@@ -2385,6 +2391,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let debugILOffsetStack = Stack()
         let localScopes = ImArray.builder()
 
+
+        let branchOffsets = ResizeArray()
+
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
 
@@ -2406,14 +2415,14 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Br labelId ->
                 let opCode = getBranchOpCode instr
                 let opCode =
-                    let offset = offsets[i] + estimateSizeOfInstr instr
+                    let offset = offsets[i] + sizeOfInstr instr
                     let labelOffset = labelOffsets[labelId]
                     let distance = labelOffset - offset
                     if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
                         getShortBranchOpCode opCode
                     else
                         opCode
-
+                
                 il.Branch(opCode, labels[labelId])
 
             | I.Label labelId ->
@@ -2488,6 +2497,14 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 methBodyStream.AddMethodBody(il, maxStack = maxStack + 8) 
             else
                 methBodyStream.AddMethodBody(il, maxStack = maxStack + 8, localVariablesSignature = localSig)
+
+        let bytes = il.CodeBuilder.ToArray()
+        System.Diagnostics.Debug.WriteLine("")
+        System.Diagnostics.Debug.WriteLine(name)
+        branchOffsets
+        |> Seq.iter (fun ofs ->
+            System.Diagnostics.Debug.WriteLine(bytes[ofs])           
+        )
 
         match firstDocument with
         | Some(_, document) ->

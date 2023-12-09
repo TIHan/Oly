@@ -60,11 +60,8 @@ module internal SyntaxHelpers =
         }
 
 type ISyntaxSeparatorList = 
-    interface 
 
     abstract TryFindIndexByRelativePosition : relativePosition: int32 -> int32
-
-    end
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =

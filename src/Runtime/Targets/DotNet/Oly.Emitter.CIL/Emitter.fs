@@ -621,31 +621,20 @@ module rec ClrCodeGen =
         tyArgHandles
         |> ImArray.map (handleTypeArgument asmBuilder)
 
-    let private tryGetLastInstruction cenv =
-        if cenv.buffer.Count > 0 then
-            cenv.buffer[cenv.buffer.Count - 1]
-            |> ValueSome
-        else
-            ValueNone
-
-    let private tryGetSecondToLastInstruction cenv =
-        if cenv.buffer.Count > 1 then
-            cenv.buffer[cenv.buffer.Count - 2]
-            |> ValueSome
-        else
-            ValueNone
-
-    let private setLastInstruction cenv instr =
-        if cenv.buffer.Count > 0 then
-            cenv.buffer[cenv.buffer.Count - 1] <- instr
-        else
-            OlyAssert.Fail("Cannot set last instruction as no instructions have been emitted.")
-
-    let private setSecondToLastInstruction cenv instr =
-        if cenv.buffer.Count > 1 then
-            cenv.buffer[cenv.buffer.Count - 2] <- instr
-        else
-            OlyAssert.Fail("Cannot set second-to-last instruction as not enough instructions have been emitted.")
+    let private tryGetLastInstructionSkipLabelsAndSequencePoints cenv =
+        let rec tryGet i =
+            if i >= 0 && i < cenv.buffer.Count then
+                let prev = cenv.buffer[i]
+                match prev with
+                | I.Label _
+                | I.SequencePoint _
+                | I.HiddenSequencePoint ->
+                    tryGet (i - 1)
+                | _ ->
+                    ValueSome prev
+            else
+                ValueNone
+        tryGet (cenv.buffer.Count - 1)
 
     let private setNotReturnable env =
         if env.isReturnable then { env with isReturnable = false }
@@ -1258,7 +1247,7 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irArg
             if irArg.ResultType.IsStruct then
                 failwith "Expected an address."
-            match tryGetLastInstruction cenv with
+            match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
             | ValueSome(I.Ldloc(i)) when irArg.ResultType.IsByRefOfStruct && not((cenv.locals[i] |> snd).IsByRefOfStruct) ->
                 failwith "Local address mis-matching."
             | _ ->
@@ -1580,17 +1569,15 @@ module rec ClrCodeGen =
 
     let emitDebugNopIfPossible cenv env : unit =
         if canEmitDebugNop cenv env then
-            match tryGetLastInstruction cenv with
+            match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
             | ValueSome(I.Nop) -> ()
             | _ ->
                 emitInstruction cenv I.Nop
 
     let emitDebugNopIfTypeVoid cenv env (ty: ClrTypeInfo) =
         if canEmitDebugNop cenv env then
-            match tryGetLastInstruction cenv with
-            | ValueSome(I.Nop)
-            | ValueSome(I.HiddenSequencePoint)
-            | ValueSome(I.SequencePoint _) -> ()
+            match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
+            | ValueSome(I.Nop) -> ()
             | _ ->
                 emitInstruction cenv I.Nop
 

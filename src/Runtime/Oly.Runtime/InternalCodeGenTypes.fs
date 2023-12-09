@@ -594,6 +594,7 @@ type RuntimeType =
             this
 
     member this.TryGetStaticConstructor() =
+        OlyAssert.True(this.IsFormal)
         match this with
         | Entity(ent) -> ent.StaticConstructor
         | _ -> None
@@ -1106,6 +1107,11 @@ type RuntimeType =
                 tyArgs1.Length = tyArgs2.Length &&
                 (tyArgs1, tyArgs2)
                 ||> ImArray.forall2 (=)
+
+            | ForAll(tyPars1, ty1), ForAll(tyPars2, ty2) when tyPars1.Length = tyPars2.Length ->
+                (tyPars1, tyPars2)
+                ||> ImArray.forall2 (=) &&
+                ty1 = ty2
 
             | _ -> 
                 false

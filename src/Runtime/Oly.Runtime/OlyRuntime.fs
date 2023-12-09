@@ -2350,14 +2350,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             emitted.[fullTyArgs] <- res
             res
 
-    and emitType (isTopLevelTyArg: bool) (ty: RuntimeType) =
+    and emitType (_isTopLevelTyArg: bool) (ty: RuntimeType) =
         if ty.IsBuiltIn then
             match ty with
             | RuntimeType.ForAll _ ->
-                if isTopLevelTyArg then
-                    raise(NotSupportedException("Top-level ForAll type."))
-                else
-                    failwith "Invalid use of ForAll type."
+                raise(NotSupportedException("Emitting 'ForAll' type."))
 
             | RuntimeType.ConstantInt32(value) ->
                 this.Emitter.EmitTypeConstantInt32(value)
@@ -3959,9 +3956,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             this.EmitFunction(false, func, None)
 
     member this.TryGetCallStaticConstructorExpression(enclosingTy: RuntimeType) =
-        match enclosingTy.TryGetStaticConstructor() with
+        match enclosingTy.Formal.TryGetStaticConstructor() with
         | Some func ->
-            let emittedStaticCtor = this.EmitFunction(func)
+            let emittedStaticCtor = this.EmitFunction(func.MakeReference(enclosingTy))
             let irFunc =
                 OlyIRFunction(emittedStaticCtor, func)
 

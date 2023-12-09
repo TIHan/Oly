@@ -90,14 +90,14 @@ module SymbolComparers =
         }
 
 type TypeVariableRigidity =
-    /// Can solve inference variables.
-    | Flexible
-
     /// No inference. Types must exactly match.
     | Rigid
 
-    /// No inference. Type variables can be equal if the indices are equal.
+    /// No inference. Similar to 'Rigid', but type variables can be equal if the indices are equal.
     | Indexable
+
+    /// Can solve inference variables. Type variables can be equal if the indices are equal.
+    | Flexible
 
     /// No inference, but is relaxed on type variables equality.
     | Generalizable
@@ -105,6 +105,69 @@ type TypeVariableRigidity =
     | IntegerGeneralizable
 
     | NumberGeneralizable
+
+// --------------------------------------------------------------------------------------------------------------------
+
+let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs (externalSolution: VariableSolutionSymbol) (solution: VariableSolutionSymbol) (ty2: TypeSymbol) =
+    let result0 =
+        if externalSolution.HasSolution then
+            let ty1 = externalSolution.Solution
+            ty1.FormalId = ty2.FormalId
+        else
+            true
+
+    if result0 then
+        let result =
+            (tyArgs, ty2.LogicalTypeArguments)
+            ||> ImArray.forall2 (fun ty1 ty2 ->
+                UnifyTypes rigidity ty1 ty2
+            )
+
+        if result then
+            let ty2 =
+                if ty2.TypeArguments.Length <> tyArgs.Length then
+                    // REVIEW: This is a tad inefficient, but not very common to hit among user code.
+                    let constrsList = ResizeArray()
+                    let formalTy2 = ty2.Formal
+                    let forallTyPars = 
+                        formalTy2.TypeParameters 
+                        |> ImArray.skip (ty2.TypeArguments.Length - tyArgs.Length)
+                        |> ImArray.mapi (fun i tyPar ->
+                            let constrs = ref tyPar.Constraints
+                            constrsList.Add(constrs)
+                            TypeParameterSymbol(tyPar.Name, i, tyPar.Arity, tyPar.IsVariadic, TypeParameterKind.Type, constrs)
+                        )
+                    let forallTyArgs = ty2.TypeArguments |> Seq.take (ty2.TypeArguments.Length - tyArgs.Length) |> ImArray.ofSeq
+                    let forallTyArgs = forallTyArgs.AddRange(forallTyPars |> ImArray.map (fun x -> x.AsType))
+                    constrsList
+                    |> Seq.iter (fun constrs ->
+                        constrs.contents <-
+                            constrs.contents
+                            |> ImArray.map (fun constr ->
+                                constr.Substitute(forallTyArgs)
+                            )
+                    )
+                    TypeSymbol.ForAll(forallTyPars, formalTy2.Apply(forallTyArgs))
+                else
+                    ty2
+
+            if externalSolution.HasSolution then
+                if UnifyTypes rigidity externalSolution.Solution ty2 then
+                    // TODO: This isn't properly tested. Should figure out what test could hit this path.
+                    solution.Solution <- applyType ty2 tyArgs
+                    true
+                else
+                    false
+            else
+                solution.Solution <- applyType ty2 tyArgs
+                // TODO: We should generalize the type.
+                externalSolution.Solution <- ty2
+                true
+            
+        else
+            false
+    else
+        false
 
 let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     if obj.ReferenceEquals(origTy1, origTy2) then true
@@ -234,7 +297,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.Variable(tyPar1), TypeSymbol.Variable(tyPar2) when (rigidity <> Generalizable) -> 
             match rigidity with
-            | Indexable ->
+            | Indexable
+            | Flexible ->
                 TypeParameterSymbol.ReasonablyEquals(tyPar1, tyPar2)
             | _ ->
                 tyPar1.Id = tyPar2.Id
@@ -242,7 +306,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.HigherVariable(tyPar1, tyArgs1), TypeSymbol.HigherVariable(tyPar2, tyArgs2) when (rigidity <> Generalizable) && tyArgs1.Length = tyArgs2.Length ->
             (
                 match rigidity with
-                | Indexable ->
+                | Indexable
+                | Flexible ->
                     TypeParameterSymbol.ReasonablyEquals(tyPar1, tyPar2)
                 | _ ->
                     tyPar1.Id = tyPar2.Id
@@ -365,59 +430,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 solution.Solution <- ty1
             true
 
-        | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), _ when (rigidity = Flexible) && (not solution.HasSolution) && tyArgs.Length = ty2.Arity ->
-            let result0 =
-                if externalSolution.HasSolution then
-                    let ty1 = externalSolution.Solution
-                    ty1.FormalId = ty2.FormalId
-                else
-                    true
-
-            if result0 then
-                let result =
-                    (tyArgs, ty2.TypeArguments)
-                    ||> Seq.forall2 (fun ty1 ty2 ->
-                        UnifyTypes rigidity ty1 ty2
-                    )
-
-                if result then
-                    let appliedTy = applyType ty2 tyArgs
-                    solution.Solution <- appliedTy
-                    if not externalSolution.HasSolution then
-                        // TODO: We should generalize the type.
-                        externalSolution.Solution <- ty2
-                    true
-                else
-                    false
-            else
-                false
-
-        | _, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when (rigidity = Flexible) && (not solution.HasSolution) && tyArgs.Length = ty1.Arity ->
-            let result0 =
-                if externalSolution.HasSolution then
-                    let ty2 = externalSolution.Solution
-                    ty2.FormalId = ty1.FormalId
-                else
-                    true
-
-            if result0 then
-                let result =
-                    (ty1.TypeArguments, tyArgs)
-                    ||> Seq.forall2 (fun ty1 ty2 ->
-                        UnifyTypes rigidity ty1 ty2
-                    )
-
-                if result then
-                    let appliedTy = applyType ty1 tyArgs
-                    solution.Solution <- appliedTy
-                    if not externalSolution.HasSolution then
-                        // TODO: We should generalize the type.
-                        externalSolution.Solution <- ty1
-                    true
-                else
-                    false
-            else
-                false
+        | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), ty
+        | ty, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when (rigidity = Flexible) && (not solution.HasSolution) && tyArgs.Length = ty.LogicalArity ->
+            solveHigherInferenceVariable rigidity tyArgs externalSolution solution ty
 
         | TypeSymbol.Variable(tyPar1), TypeSymbol.HigherVariable(tyPar2, _) when (rigidity <> Generalizable) ->
             tyPar1.Index = tyPar2.Index && tyPar1.Arity = tyPar2.Arity
@@ -1111,6 +1126,11 @@ type TypeSymbol with
 
         member this.Apply(tyArgs: TypeSymbol imarray) =
             applyType this tyArgs
+
+        member this.LogicalTypeArguments =
+            match this with
+            | TypeSymbol.Entity(ent) -> ent.LogicalTypeArguments
+            | _ -> this.TypeArguments
 
         /// Returns the type parameters of the entity but excludes its enclosing's type parameters.
         /// Useful when dealing with nested types.

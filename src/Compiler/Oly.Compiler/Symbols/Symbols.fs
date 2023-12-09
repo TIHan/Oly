@@ -3211,6 +3211,27 @@ type TypeSymbol =
         | Array _ -> 1
         | _ -> 0
 
+    member this.LogicalArity =
+        match stripTypeEquationsExceptAlias this with
+        | Variable(tyPar)
+        | HigherVariable(tyPar, _)
+        | InferenceVariable(Some tyPar, _)
+        | HigherInferenceVariable(Some tyPar, _, _, _)
+        | Error(tyParOpt = Some tyPar) -> tyPar.Arity
+        | Entity(ent) -> ent.LogicalTypeParameterCount
+        | Tuple(tyArgs, _) -> tyArgs.Length
+        | ForAll(tyPars, _) -> 
+#if DEBUG
+            OlyAssert.False(tyPars.IsEmpty)
+#endif
+            tyPars.Length
+        | Function _
+        | NativeFunctionPtr _ -> 2
+        | ByRef _ 
+        | NativePtr _ -> 1
+        | Array _ -> 1
+        | _ -> 0
+
     member this.TypeParameters: TypeParameterSymbol imarray =
         match stripTypeEquationsExceptAlias this with
         | Unit

@@ -4259,6 +4259,205 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Nested type calls should work 7``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+test<T<_>>(x: T<bool>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<bool>()
+    test(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
+let ``Nested type calls should work 8``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+class A<T<_>>
+
+test<T<_>>(x: T<A<T>>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<Test1<int32>.Test2<float32, utf16>.Test3>>()
+    test(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
+let ``Nested type calls should work 9``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+interface IA<T<_>>
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> where Z: IA<A> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+class A<T<_>> =
+    implements IA<A>
+
+test<T<_>>(x: T<A<T>>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<Test1<int32>.Test2<float32, utf16>.Test3>>()
+    test(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
+let ``Nested type calls should work 10``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+interface IA<T<_>>
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> where Z: IA<A> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+class A<T<_>> =
+    implements IA<A>
+
+test<T<_>>(x: T<A<T>>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<Test1<int32>.Test2<float32, utf16>.Test3>>()
+    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
 let ``A basic function marked with the inline attribute will be inlined by the runtime``() =
     let src =
         """
@@ -18280,12 +18479,13 @@ alias int32
 print(__oly_object): ()
 
 class Option<T> =
+    Value: T get = unchecked default
 
-    static None: Option<T> get = unchecked default
+    static None: Option<T> get = Option()
 
 main(): () =
     let x = Option<int32>.None
-    print(x)
+    print(x.Value)
     """
     |> Oly
     |> withCompile

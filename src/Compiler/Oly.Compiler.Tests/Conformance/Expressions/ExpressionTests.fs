@@ -9041,3 +9041,112 @@ main(): () =
         ]
     |> ignore
 
+[<Fact>]
+let ``Nested type calls should fail``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+class A<T<_>>
+
+test<T<_>>(x: T<A<T>>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<A>>()
+    test(t)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'A<A<A>>' but is 'Test3<A<A>>'.",
+                """
+    test(t)
+         ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Nested type calls should fail 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+class Test1<T> =
+
+    class Test2<U, V> =
+
+        new() = {}
+
+        class Test3<Z> =
+
+            new() = {}
+
+            static print(t: T, u: U, v: V, z: Z) : () =
+                print(t)
+                print(u)
+                print(v)
+                print(z)
+
+class A<T<_>>
+
+test<T<_>>(x: T<A<T>>): () = print("test")
+
+main(): () =
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<A>>()
+    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'Test3<A<<Z> Test3<Z>>>' but is 'Test3<A<A>>'.",
+                """
+    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
+                                                   ^
+"""
+            )
+        ]
+    |> ignore
