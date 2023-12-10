@@ -1196,12 +1196,12 @@ type OlyILAssembly =
 
     member this.AddFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, funcDef: OlyILFunctionDefinition) : OlyILFunctionDefinitionHandle =
         let handle = this.funcDefs.Add(funcDef)
-       // this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
+        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
         handle
 
     member this.SetFunctionDefinition(entDefHandle: OlyILEntityDefinitionHandle, handle: OlyILFunctionDefinitionHandle, funcDef) =
         this.funcDefs.Set(handle, funcDef)
-        //this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
+        this.SetFunctionDefinitionLookup(entDefHandle, handle, funcDef)
 
     member this.AddFieldDefinition(fieldDef: OlyILFieldDefinition) : OlyILFieldDefinitionHandle =
         this.fieldDefs.Add(fieldDef)
@@ -1288,21 +1288,21 @@ type OlyILAssembly =
         | _ -> ImArray.empty
 
     member this.FindFunctionDefinitions(entDefHandle: OlyILEntityDefinitionHandle, name: string) =
-        let entDef = this.GetEntityDefinition(entDefHandle)
-        entDef.FunctionHandles
-        |> ImArray.filter (fun handle ->
-            let funcDef = this.GetFunctionDefinition(handle)
-            let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
-            let name2 = this.GetStringOrEmpty(funcSpec.NameHandle)
-            name2 = name
-        )
-        //match this.funcDefSet.TryGetValue(entDefHandle) with
-        //| true, handles ->
-        //    match handles.TryGetValue(name) with
-        //    | true, handles -> handles.Keys |> ImArray.ofSeq
-        //    | _ -> ImArray.empty
-        //| _ ->
-        //    ImArray.empty
+        //let entDef = this.GetEntityDefinition(entDefHandle)
+        //entDef.FunctionHandles
+        //|> ImArray.filter (fun handle ->
+        //    let funcDef = this.GetFunctionDefinition(handle)
+        //    let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
+        //    let name2 = this.GetStringOrEmpty(funcSpec.NameHandle)
+        //    name2 = name
+        //)
+        match this.funcDefSet.TryGetValue(entDefHandle) with
+        | true, handles ->
+            match handles.TryGetValue(name) with
+            | true, handles -> handles.Keys |> ImArray.ofSeq
+            | _ -> ImArray.empty
+        | _ ->
+            ImArray.empty
 
     member this.AddPrimitiveType(builtInTy, entDefHandle) =
         this.primitiveTypes.Add(builtInTy, entDefHandle)

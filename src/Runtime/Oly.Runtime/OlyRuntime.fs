@@ -1630,42 +1630,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     |> Option.map (fun x -> this.ResolveFunction(ilAsm, x, GenericContext.Default))
                 RuntimeWitness(index, ilKind, ty, implTy, funcOpt)
 
-    let trySolveWitness enclosingTyParCount ilAsm ilFuncSpecHandle enclosing name (funcTyArgs: RuntimeType imarray) (genericContext: GenericContext) (passedWitnesses: RuntimeWitness imarray) =
-        match enclosing with
-        | RuntimeEnclosing.Witness(_, _, Some witness) ->
-            let tyParIndex = witness.TypeVariableIndex
-            let enclosingTy = witness.Type
-            let tyExt = witness.TypeExtension
-            let fixedGenericContext = genericContext.Set(tyExt.TypeArguments, funcTyArgs)
-
-            let witnessFormalFuncs =
-                passedWitnesses
-                |> ImArray.filter (fun witness -> witness.TypeVariableIndex = tyParIndex && witness.Type = enclosingTy)
-                |> ImArray.map (fun witness ->
-                    this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, witness.TypeExtension, funcTyArgs, genericContext)
-                    |> ImArray.map (fun func -> (witness.TypeExtension, func))
-                )
-                |> Seq.concat
-                |> ImArray.ofSeq
-
-            if witnessFormalFuncs.IsEmpty then
-                None
-            elif witnessFormalFuncs.Length > 1 then
-                failwith $"Multiple witness functions of '{name}' are found."
-            else
-                let enclosingTy, witnessFormalFunc = witnessFormalFuncs.[0]
-                if enclosingTy.TypeArguments.IsEmpty && witnessFormalFunc.TypeArguments.IsEmpty then
-                    witnessFormalFunc |> Some
-                else
-                    let witnessFuncTyArgs =
-                        witnessFormalFunc.TypeArguments
-                        |> ImArray.map (fun x -> x.Substitute(fixedGenericContext))
-
-                    witnessFormalFunc.MakeInstance(enclosingTy, witnessFuncTyArgs)
-                    |> Some
-        | _ ->
-            None
-
     let tryResolveFunction ilAsm1 (ilFuncSpec1: OlyILFunctionSpecification) (funcTyArgs: _ imarray) (enclosingTy1: RuntimeType) (genericContext: GenericContext) =
         let enclosingTyParCount1 = enclosingTy1.TypeParameters.Length
 
@@ -1808,7 +1772,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             funcs[0].MakeInstance(enclosing.AsType, funcTyArgs)
 
-    let findFormalFunctionsByTypeAndFunctionSignature (targetTy: RuntimeType) (targetFunc: RuntimeFunction) =
+    let findImmediateFormalFunctionsByTypeAndFunctionSignature (targetTy: RuntimeType) (targetFunc: RuntimeFunction) =
         let ty =
             if targetTy.IsPrimitive then
                 match tryGetPrimitiveType targetTy with
@@ -1816,20 +1780,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 | _ -> targetTy
             else
                 targetTy
+
         if ty.IsBuiltIn then ImArray.empty
         else
 
-        let asm = assemblies.[ty.AssemblyIdentity]
-        let ilEntDef = asm.ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
+        let ilAsm = assemblies.[ty.AssemblyIdentity].ilAsm
 
         let funcs =
-            ilEntDef.FunctionHandles
+            ilAsm.FindFunctionDefinitions(ty.ILEntityDefinitionHandle, targetFunc.Name)
             |> ImArray.choose (fun ilFuncDefHandle2 ->
-                let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
-                let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
-                let name = asm.ilAsm.GetStringOrEmpty(ilFuncSpec2.NameHandle)
+                let ilFuncDef2 = ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
+                let ilFuncSpec2 = ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
                 if 
-                    name = targetFunc.Name &&
                     ilFuncSpec2.TypeParameters.Length = targetFunc.TypeParameters.Length &&
                     ilFuncSpec2.Parameters.Length = targetFunc.Parameters.Length &&
                     ilFuncSpec2.IsInstance = targetFunc.Flags.IsInstance then
@@ -1846,8 +1808,64 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 else
                     None
             )
-
         funcs
+
+    let findFunctionsByTypeAndFunctionSignature (targetTy: RuntimeType) (targetFunc: RuntimeFunction) =
+        let targetFunc =
+            match targetFunc.Overrides with
+            | Some overridesFunc -> overridesFunc
+            | _ -> targetFunc
+        let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature targetTy targetFunc
+        if not funcs.IsEmpty then
+            funcs
+            |> ImArray.map (fun func -> func.MakeInstance(targetTy, targetFunc.TypeArguments))
+        else
+            // REVIEW: This behavior is reliant on the order of types in the 'getAllDistinctInheritsAndImplements' list.
+            //         Figure out rules for this.
+            let tys = getAllDistinctInheritsAndImplements targetTy
+            tys
+            |> ImArray.tryPick (fun ty ->
+                if subsumesType targetFunc.EnclosingType ty then
+                    let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature ty targetFunc
+                    if funcs.IsEmpty then
+                        None
+                    else
+                        funcs
+                        |> ImArray.map (fun func -> func.MakeInstance(ty, targetFunc.TypeArguments))
+                        |> Some
+                else
+                    None
+            )
+            |> Option.defaultValue ImArray.empty
+
+    let trySolveWitness enclosing (func: RuntimeFunction) (passedWitnesses: RuntimeWitness imarray) =
+        match enclosing with
+        | RuntimeEnclosing.Witness(_, abstractTy, Some witness) ->
+            let tyParIndex = witness.TypeVariableIndex
+            let enclosingTy = witness.Type
+            let tyExt = witness.TypeExtension
+
+            let witnessFormalFuncs =
+                passedWitnesses
+                |> ImArray.filter (fun witness -> witness.TypeVariableIndex = tyParIndex && witness.Type = enclosingTy)
+                |> ImArray.map (fun witness ->
+                    if subsumesType abstractTy witness.TypeExtension then
+                        findFunctionsByTypeAndFunctionSignature tyExt func
+                    else
+                        ImArray.empty
+                )
+                |> Seq.concat
+                |> ImArray.ofSeq
+
+            if witnessFormalFuncs.IsEmpty then
+                None
+            elif witnessFormalFuncs.Length > 1 then
+                failwith $"Multiple witness functions of '{func.Name}' are found."
+            else
+                witnessFormalFuncs[0]
+                |> Some
+        | _ ->
+            None
 
     let rec emitConstant ilAsm (ilConstantValue: OlyILConstant) (genericContext: GenericContext) : C<'Type, 'Function> * RuntimeType =
         match ilConstantValue with
@@ -2638,8 +2656,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | Some entryPoint -> entryPoint
         | _ -> failwith "Unable to find entry point."
 
-    member this.FindFormalFunctionsByTypeAndFunctionSignature(ty: RuntimeType, func: RuntimeFunction) : RuntimeFunction imarray =
-        findFormalFunctionsByTypeAndFunctionSignature ty func
+    member this.FindFunctionsByTypeAndFunctionSignature(ty: RuntimeType, func: RuntimeFunction) : RuntimeFunction imarray =
+        findFunctionsByTypeAndFunctionSignature ty func
 
     member this.EmitEntryPoint() =
         let entryPoint = this.FindEntryPoint()
@@ -2732,12 +2750,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 match ilEnclosing with
                 | OlyILEnclosing.Witness(ilTy, _) ->
                     let possibleWitnesses = this.FilterWitnesses(ilTy, passedWitnesses)
-                    vm.TryFindWitnessFunction(ilAsm, ilFuncSpecHandle, enclosing, funcInst, genericContext, possibleWitnesses)
+                    vm.TryFindWitnessFunction(enclosing, funcInst, possibleWitnesses)
                 | _ ->
                     None
 
             let findFuncs (ty: RuntimeType) =
-                vm.FindFormalFunctionsByTypeAndFunctionSignature(ty, funcInst)
+                vm.FindFunctionsByTypeAndFunctionSignature(ty, funcInst)
 
             let witnessFuncOpt =
                 let witnessFuncOpt2 =
@@ -2768,7 +2786,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 | _ ->
                     match enclosing with
                     | RuntimeEnclosing.Witness(realTy, enclosingTy, _) ->
-                        let enclosingWithRealTy = RuntimeEnclosing.Type(realTy)
                         let funcs = findFuncs realTy
 
                         if funcs.IsEmpty then
@@ -2814,7 +2831,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         else
                             if funcs.Length > 1 then
                                 failwith "Too many functions"
-                            funcs.[0].MakeInstance(enclosingWithRealTy, funcInst.TypeArguments)
+                            funcs.[0]
                     | _ ->
                         funcInst
 
@@ -3031,21 +3048,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         else
             Some possibleWitnesses[0]
 
-    member this.TryFindWitnessFunction(ilAsm, ilFuncSpecHandle, enclosing: RuntimeEnclosing, func: RuntimeFunction, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray) =
-        match enclosing with
-        | RuntimeEnclosing.Witness(_, abstractTy, _) ->
-            let name = func.Name
-            let genericContext =
-                if genericContext.IsErasing then
-                    GenericContext.CreateErasing(abstractTy.TypeArguments.AddRange(func.TypeArguments))
-                else
-                    GenericContext.Create(abstractTy.TypeArguments.AddRange(func.TypeArguments))
-
-            match trySolveWitness abstractTy.TypeParameters.Length ilAsm ilFuncSpecHandle enclosing name func.TypeArguments genericContext passedWitnesses with
-            | Some func -> Some func
-            | _ -> None
-        | _ ->
-            None
+    member this.TryFindWitnessFunction(enclosing: RuntimeEnclosing, func: RuntimeFunction, passedWitnesses: RuntimeWitness imarray) =
+        trySolveWitness enclosing func passedWitnesses
 
     member this.TryFindWitnessFunctionByAbstractFunction(ty: RuntimeType, abstractTy: RuntimeType, abstractFunc: RuntimeFunction, passedWitnesses: RuntimeWitness imarray) =
         let foundFuncOpt =
@@ -3059,7 +3063,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if (abstractFunc.Formal = possibleFunc.Formal) || (possibleFunc.EnclosingType.IsShape && abstractTy.IsShape && 
                                                                            possibleFunc.Name = abstractFunc.Name && 
                                                                            possibleFunc.TypeParameters.Length = abstractFunc.TypeParameters.Length) then
-                            let formalFuncs = findFormalFunctionsByTypeAndFunctionSignature x.TypeExtension abstractFunc
+                            let formalFuncs = 
+                                findFunctionsByTypeAndFunctionSignature x.TypeExtension abstractFunc 
+                                |> ImArray.map (fun x -> x.Formal)
                             formalFuncs
                             |> ImArray.map (fun formalFunc ->
                                 let enclosingTy = formalFunc.EnclosingType
