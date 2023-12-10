@@ -812,7 +812,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     // Basic devirtualization.
                     if (func.Flags.IsFinal || not func.Flags.IsVirtual) && isVirtualCall then
                         handle()
-                    elif isVirtualCall then                              
+                    elif isVirtualCall then
+                        if func.Flags.IsStatic && func.Flags.IsAbstract then
+                            failwith $"Invalid 'CallVirtual({func.EnclosingType.Name}.{func.Name})'."
                         O.CallVirtual(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr, func.ReturnType
                     else
                         handle()
@@ -1525,7 +1527,7 @@ let importFunctionBody
         let tyArgs =
             enclosingTy.TypeArguments
             |> ImArray.map (fun x -> x.Substitute(genericContext))
-        enclosingTy.Apply(tyArgs)
+        enclosingTy.Apply(tyArgs).SetWitnesses(genericContext.PassedWitnesses)
 
     let funcTyArgs =
         func.TypeArguments

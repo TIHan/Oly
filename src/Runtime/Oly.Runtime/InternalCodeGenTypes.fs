@@ -462,6 +462,7 @@ type RuntimeEntity =
                 )
 
             let entNew =
+                // TODO: What about witnesses?
                 { this with
                     Enclosing = this.Enclosing.Substitute(genericContext)
                     Extends = extends
