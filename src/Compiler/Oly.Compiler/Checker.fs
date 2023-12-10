@@ -97,31 +97,6 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
     generalizedTyPars
     |> ImmutableArray.CreateRange
 
-let checkAmbiguousFunctionsFromEntity env (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
-    let ambiguousFunctions: (IFunctionSymbol * IFunctionSymbol) seq =
-        ent.Formal.Functions
-        |> Seq.map (fun func ->
-            ent.AllLogicalInheritsAndImplements
-            |> Seq.tryPick (fun ent2 ->
-                ent2.Functions
-                |> Seq.tryPick (fun func2 ->
-                    if areLogicalFunctionSignaturesEqual func func2 then
-                        Some func2
-                    else
-                        None
-                )
-            )
-            |> Option.map (fun func2 ->
-                (func, func2)
-            )
-        )
-        |> Seq.choose id
-
-    ambiguousFunctions
-    |> Seq.iter (fun (func, func2) ->
-        env.diagnostics.Error(sprintf "The function '%s' is ambiguous due to '%s' having the same signature." func.Name (printEnclosing env.benv func2.Enclosing), 10, syntaxNode)
-    )
-
 let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match ty.Enclosing with
     | EnclosingSymbol.Local ->
@@ -411,6 +386,28 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 |> ImArray.ofSeq
             else
                 possibleFuncs
+
+        let possibleFuncs =
+            if possibleFuncs.IsEmpty && func.Enclosing.IsInterface && not ty.IsInterface then
+                let enclosingTy = func.Enclosing.AsType
+                ty.AllImplements
+                |> ImArray.collect (fun x ->
+                    if subsumesType enclosingTy x then
+                        x.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None)
+                        |> Seq.filter (fun x ->
+                            if x.IsVirtual then
+                                match x.FunctionOverrides with
+                                | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
+                                | _ -> false
+                            else
+                                false
+                        )
+                        |> ImArray.ofSeq
+                    else
+                        ImArray.empty
+                )
+            else
+                possibleFuncs
         
         match possibleFuncs |> List.ofSeq with
         | [] ->
@@ -421,14 +418,11 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
     )
 
 and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
-
     ent.Extends
     |> ImArray.iter (fun ty ->
         if not ty.IsInterface then
             env.diagnostics.Error(sprintf "Cannot inherit the construct '%s'." (printType env.benv ty), 10, syntaxNode)
     )
-
-    checkAmbiguousFunctionsFromEntity env syntaxNode ent
 
 and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) (ty: TypeSymbol) =
     if ty.IsError_t then ()

@@ -2121,15 +2121,16 @@ let bindValueModifiersAndKindAsMemberFlags
             cenv.diagnostics.Error("Interface static members can never have hide over existing members.", 10, syntaxValueDeclKind)
 
         if isExplicitOverrides then
-            cenv.diagnostics.Error("Interface members can never override. Remove 'overrides'.", 10, syntaxValueDeclKind)
+            if isExplicitDefault then
+                cenv.diagnostics.Error("Interface members cannot be marked with 'overrides' and 'default' together.", 10, syntaxValueDeclKind)
 
         if isExplicitLet then
             cenv.diagnostics.Error("Interfaces can never have let-bound members (yet).", 10, syntaxValueDeclKind)
 
         let memberFlags =
             if isExplicitStatic then
-                if isExplicitAbstract then
-                    if isExplicitDefault then
+                if isExplicitAbstract || isExplicitOverrides then
+                    if isExplicitDefault || isExplicitOverrides then
                         MemberFlags.Virtual
                     else
                         MemberFlags.Abstract
@@ -2143,7 +2144,7 @@ let bindValueModifiersAndKindAsMemberFlags
                     cenv.diagnostics.Error("Non-static interface members are always implicitly abstract. Remove 'abstract'.", 10, syntaxValueDeclKind)
 
                 let memberFlags = MemberFlags.NewSlot ||| MemberFlags.Instance
-                if isExplicitDefault then
+                if isExplicitDefault || isExplicitOverrides then
                     memberFlags ||| MemberFlags.Virtual
                 else
                     memberFlags ||| MemberFlags.Abstract

@@ -1422,11 +1422,12 @@ type EntitySymbol with
 
     member this.AllImplements: TypeSymbol imarray =
         if this.IsNewtype then
+            OlyAssert.True(this.Implements.IsEmpty)
             ImArray.empty
         else
             let results =
                 seq {
-                    for implementTy in this.Extends do
+                    for implementTy in this.Implements do
                         yield implementTy
                         yield! implementTy.AllImplements
                 }

@@ -18519,3 +18519,171 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
+
+[<Fact>]
+let ``Override static function within an interface``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    static overrides GetValue(): int32 = N
+
+class A =
+    implements IComponent<7, int32>
+
+M<N, T>(): () where T: IComponent<N, int32> where N: constant int32 =
+    print(T.GetValue())
+
+main(): () =
+    M<7, A>()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
+let ``Override static function within an interface 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    static overrides GetValue(): int32 = N
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+    implements IComponent<7, int32>
+
+M<N, T>(): () where T: IComponent<N, int32> where N: constant int32 =
+    print(T.GetValue())
+
+main(): () =
+    M<7, A>()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
+let ``Override static function within an interface 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    static overrides GetValue(): int32 = N
+
+class A =
+    implements IComponent<7, int32>
+
+M<N, T>(): () where T: IComponent =
+    print(T.GetValue())
+
+main(): () =
+    M<7, A>()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
+let ``Override static function within an interface 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    static overrides GetValue(): int32 = N
+
+class A
+
+#[open]
+extension AExtension =
+    inherits A
+    implements IComponent<7, int32>
+
+M<N, T>(): () where T: IComponent =
+    print(T.GetValue())
+
+main(): () =
+    M<7, A>()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
+let ``Override function within an interface``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    GetValue(): int32
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    overrides GetValue(): int32 = N
+
+class A =
+    implements IComponent<7, int32>
+
+M<N, T>(a: T): () where T: IComponent<N, int32> where N: constant int32 =
+    print(a.GetValue())
+
+main(): () =
+    M<7, A>(A())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore

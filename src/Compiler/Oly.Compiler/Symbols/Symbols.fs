@@ -1998,6 +1998,13 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
 #endif
         memberFlags <- memberFlags ||| MemberFlags.Virtual ||| MemberFlags.Sealed ||| MemberFlags.NewSlot
 
+    /// Mutability
+    member this.SetFinal_Pass3() =
+#if DEBUG
+        OlyAssert.True(this.IsVirtual)
+#endif
+        memberFlags <- memberFlags ||| MemberFlags.Sealed
+
     interface IFunctionSymbol with
         member _.Enclosing = enclosing
         member _.Attributes = attrs

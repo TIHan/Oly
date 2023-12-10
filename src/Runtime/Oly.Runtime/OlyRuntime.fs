@@ -3692,6 +3692,25 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if not isErasingFunc && func.Kind = RuntimeFunctionKind.Instance then
             failwith "Unexpected function instance."
 
+        match func.Overrides with
+        | Some(overrides) when overrides.Flags.IsInstance <> func.Flags.IsInstance ->
+            failwith $"Function '{func.Name}' has an invalid override."
+        | _ ->
+            ()
+
+        if func.Flags.IsAbstract && func.HasILFunctionBody then
+            failwith $"Function '{func.Name}' is abstract and cannot have an implementation."
+
+        if enclosingTy.IsInterface && func.Flags.IsInstance && func.Overrides.IsSome && not func.Flags.IsAbstract && not func.Flags.IsFinal then
+            failwith $"Function '{func.Name}' must be final."
+
+        // TODO: Uncomment this when we start to figure out the rules.
+        //if func.Flags.IsStatic && func.Overrides.IsSome then
+        //    if func.Flags.IsVirtual then
+        //        failwith $"Static function '{func.Name}' cannot be virtual."
+        //    if func.Flags.IsFinal then
+        //        failwith $"Static function '{func.Name}' cannot be final."
+
         match asm.FunctionDefinitionCache.TryGetValue(func.ILFunctionDefinitionHandle) with
         | true, (_, emitted) ->
             let key = struct(isErasingFunc, enclosingTy, funcTyArgs, witnesses, true)

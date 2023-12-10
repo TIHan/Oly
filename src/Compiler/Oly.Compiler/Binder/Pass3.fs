@@ -242,10 +242,18 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             elif mostSpecificFuncs.Length = 1 then
                 let overridenFunc = mostSpecificFuncs.[0]
 
-                // This forces the function to be a virtual/final/new-slot if it could override an interface function.
-                if func.IsInstance && not func.IsVirtual && not func.Enclosing.IsInterface &&
-                   overridenFunc.IsInstance && overridenFunc.Enclosing.IsInterface then
-                        func.SetVirtualFinalNewSlot_Pass3()
+                OlyAssert.Equal(func.IsInstance, overridenFunc.IsInstance)
+                
+                if func.IsInstance then
+                    if overridenFunc.Enclosing.IsInterface then
+                        if func.IsVirtual then
+                            if func.Enclosing.IsInterface then
+                                // This forces the function be final.
+                                func.SetFinal_Pass3()
+                        else
+                            if not func.Enclosing.IsInterface then
+                                // This forces the function to be a virtual/final/new-slot if it could override an interface function.
+                                func.SetVirtualFinalNewSlot_Pass3()
 
                 if not func.IsVirtual then
                     cenv.diagnostics.Error($"The member '{func.Name}' will hide over its base.", 10, syntax.Identifier)
@@ -280,28 +288,24 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 duplicateError func syntax.Identifier
 
         let rec handleFunc (func: FunctionSymbol) =
-            if not ent.IsInterface then  
-                if func.IsPatternFunction then
-                    match func.AssociatedFormalPattern with
-                    | Some pat ->
-                        match pat.PatternGuardFunction with
-                        | Some guardFunc ->
-                            handleFunc (guardFunc :?> FunctionSymbol)
-                        | _ -> ()
+            if func.IsPatternFunction then
+                match func.AssociatedFormalPattern with
+                | Some pat ->
+                    match pat.PatternGuardFunction with
+                    | Some guardFunc ->
+                        handleFunc (guardFunc :?> FunctionSymbol)
                     | _ -> ()
+                | _ -> ()
 
-                if tryOverride func then
-                    if not func.IsExplicitOverrides then
-                        checkFunc func
+            if tryOverride func then
+                if not func.IsExplicitOverrides then
+                    checkFunc func
+            else
+                if func.IsExplicitOverrides then
+                    cenv.diagnostics.Error($"The function '{printValue env.benv func}' cannot find a function to override.", 10, syntax.Identifier)
                 else
-                    if func.IsExplicitOverrides then
-                        cenv.diagnostics.Error($"The function '{printValue env.benv func}' cannot find a function to override.", 10, syntax.Identifier)
-                    else
-                        if doesFuncAlreadyExist func then
-                            duplicateError func syntax.Identifier
-
-            elif doesFuncAlreadyExist func then
-                duplicateError func syntax.Identifier
+                    if doesFuncAlreadyExist func then
+                        duplicateError func syntax.Identifier
 
         if binding.Value.IsProperty then           
             if not ent.IsInterface then

@@ -404,7 +404,7 @@ type RuntimeEntity =
     member this.IsExported =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
         entDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export _ -> true | _ -> false)
+        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
 
     member this.IsObjectType =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
@@ -821,8 +821,8 @@ type RuntimeType =
         | Float64
         | Bool
         | Char16
-        | NativeInt _
-        | NativeUInt _
+        | NativeInt
+        | NativeUInt
         | NativePtr _ 
         | NativeFunctionPtr _ 
         | Tuple _ -> true
@@ -1112,6 +1112,9 @@ type RuntimeType =
                 (tyPars1, tyPars2)
                 ||> ImArray.forall2 (=) &&
                 ty1 = ty2
+
+            | ConstantInt32(value1), ConstantInt32(value2) ->
+                value1 = value2
 
             | _ -> 
                 false

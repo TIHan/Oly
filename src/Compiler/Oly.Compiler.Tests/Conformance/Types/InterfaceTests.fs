@@ -730,3 +730,27 @@ class Add<T1, T2> =
 """
             )
         ]
+
+[<Fact>]
+let ``Overrides should fail if there is nothing to override for the interface``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent
+
+interface IComponent<N, T> where N: constant int32 where T: unmanaged =
+    inherits IComponent
+
+    static overrides GetValue(): int32 = N
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    static overrides GetValue(): int32 = N
+                     ^^^^^^^^
+"""
+            )
+        ]
