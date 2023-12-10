@@ -57,7 +57,7 @@ let createAutoPropertyValue (enclosing: EnclosingSymbol) attrs propName propTy (
 
     let associatedFormalPropId = ref None
     let backingFieldOpt =
-        if enclosingEnt.IsClass || enclosingEnt.IsStruct || enclosingEnt.IsModule then
+        if enclosingEnt.IsClassOrStructOrModuleOrNewtype then
             let backingFieldName = propName // Same name as the property, but it's private.
             let backingFieldMemberFlags =
                 if memberFlags.HasFlag(MemberFlags.Instance) then

@@ -18491,3 +18491,31 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "0"
     |> ignore
+
+[<Fact>]
+let ``Newtype should work with static auto-property backed by a static field``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+newtype Option<T> =
+    public field Value: T
+
+    static Some(value: T): Option<T> = Option(value)
+
+    static None: Option<T> get = unchecked default: Option<T>
+
+main(): () =
+    let x = Option<int32>.None
+    print(x.Value)
+        """
+    src
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+    |> ignore

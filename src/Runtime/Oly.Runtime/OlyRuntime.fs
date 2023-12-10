@@ -1959,7 +1959,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         // It's very important we emit the enclosing and field type before
         // we cache the emitted field. Without this, we could emit duplicate fields.
-        let enclosingTy = this.EmitType(field.EnclosingType)
+        let enclosingTy = field.EnclosingType
+        let enclosingTy = 
+            if enclosingTy.IsNewtype && field.IsStatic then
+                // We need to actually emit the newtype as a type definition here
+                // so the static field can be emitted correctly.
+                emitTypeDefinition enclosingTy
+            else
+                this.EmitType(enclosingTy)
         let fieldTy = this.EmitType(field.Type)
         match emitted.TryGetValue field.EnclosingType.TypeArguments with
         | ValueSome res -> res

@@ -1609,9 +1609,9 @@ type EnclosingSymbol =
         | Entity(ent) -> ent.IsNewtype
         | _ -> false
 
-    member this.IsClassOrStructOrModule =
+    member this.IsClassOrStructOrModuleOrNewtype =
         match this with
-        | Entity(ent) -> ent.IsClass || ent.IsStruct || ent.IsModule
+        | Entity(ent) -> ent.IsClassOrStructOrModuleOrNewtype
         | _ -> false
 
     member this.IsAbstract =
@@ -4794,8 +4794,11 @@ module SymbolExtensions =
             member this.IsInheritable =
                 match this.Kind with
                 | EntityKind.Interface
-                | EntityKind.Class _ -> not this.IsSealed
+                | EntityKind.Class -> not this.IsSealed
                 | _ -> false
+
+            member this.IsClassOrStructOrModuleOrNewtype =
+                this.IsClass || this.IsStruct || this.IsModule || this.IsNewtype
     
             member this.IsReadOnly =
                 this.Flags &&& EntityFlags.ReadOnly = EntityFlags.ReadOnly

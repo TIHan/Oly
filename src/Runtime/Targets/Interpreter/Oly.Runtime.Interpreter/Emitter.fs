@@ -1732,7 +1732,7 @@ type InterpreterRuntimeEmitter() =
                 fields.Add(field)
                 field
             | _ ->
-                raise (NotImplementedException())
+                raise(NotSupportedException())
 
         member this.EmitFieldInstance(_, _) =
             raise(NotSupportedException())

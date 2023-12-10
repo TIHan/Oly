@@ -167,9 +167,9 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
         )
 
     // Auto-properties
-    | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModule && bindingInfo.Value.IsAutoProperty ->
+    | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo None origExpr
-    | E.MemberDefinition(binding=BoundBinding.Implementation(syntaxInfo, bindingInfo, rhsExpr)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModule && bindingInfo.Value.IsAutoProperty ->
+    | E.MemberDefinition(binding=BoundBinding.Implementation(syntaxInfo, bindingInfo, rhsExpr)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo (Some rhsExpr) origExpr
 
 #if DEBUG
