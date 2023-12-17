@@ -3092,7 +3092,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         witnesses
         |> ImArray.filter (fun witness ->
             match ilTy with
-            | OlyILTypeVariable(tyVarIndex, tyVarKind) ->
+            | OlyILTypeVariable(tyVarIndex, tyVarKind)
+            | OlyILTypeHigherVariable(tyVarIndex, _, tyVarKind) ->
                 witness.TypeVariableIndex = tyVarIndex &&
                 (
                     match witness.TypeVariableKind, tyVarKind with
