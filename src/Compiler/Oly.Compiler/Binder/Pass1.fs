@@ -90,6 +90,20 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         let extends = bindExtends cenv env syntaxExtends
         let implements = bindImplements cenv env syntaxImplements
 
+        let extends =
+            if ent.IsEnum then
+                if extends.IsEmpty then
+                    entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
+                    extends 
+                else
+                    let runtimeTy = extends[0]
+                    if not runtimeTy.IsInteger then
+                        cenv.diagnostics.Error($"'{printEntity env.benv ent}' can only extend integers.", 10, syntaxExtends)
+                    entBuilder.SetRuntimeType(cenv.pass, runtimeTy)
+                    ImArray.empty
+            else
+                extends
+
         if ent.IsTypeExtension then
             implements
             |> ImArray.iter (fun implementsTy ->

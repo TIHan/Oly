@@ -6230,3 +6230,73 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "7"
     |> ignore
+
+[<Fact>]
+let ``Pattern match regression``() =
+    """
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("uint16")]
+alias uint16
+
+#[intrinsic("int32")]
+alias int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("constant")]
+#[import("intrinsic-CLR", "", "sizeof")]
+sizeof<require T>: int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum PacketKind =
+    | Invalid
+
+    | Heartbeat
+    | ConnectionRequested
+    | ConnectionAccepted
+    | Disconnect
+
+    | Unreliable
+    | UnreliableSequenced
+
+struct PacketUnreliableHeader =
+    public mutable field Kind: PacketKind = PacketKind.Invalid
+    public mutable field Channel: byte = 0
+    public mutable field SequenceId: uint16 = 0
+    public mutable field FragmentIndex: uint16 = 0
+    public mutable field FragmentCount: uint16 = 0
+    public mutable field TotalDataSize: int32 = 0
+
+getHeaderSize(kind: PacketKind): int32 =
+    match (kind)
+    | PacketKind.Heartbeat
+    | PacketKind.ConnectionRequested
+    | PacketKind.ConnectionAccepted
+    | PacketKind.Disconnect => sizeof<PacketKind>
+    | PacketKind.Unreliable => sizeof<PacketUnreliableHeader>
+    | PacketKind.UnreliableSequenced => sizeof<PacketUnreliableHeader>
+    | _ => -1
+
+getHeaderSize2(kind: PacketKind): int32 =
+    match (kind)
+    | PacketKind.Heartbeat => sizeof<PacketKind>
+    | PacketKind.ConnectionRequested => sizeof<PacketKind>
+    | PacketKind.ConnectionAccepted => sizeof<PacketKind>
+    | PacketKind.Disconnect => sizeof<PacketKind>
+    | PacketKind.Unreliable => sizeof<PacketUnreliableHeader>
+    | PacketKind.UnreliableSequenced => sizeof<PacketUnreliableHeader>
+    | _ => -1
+
+main(): () =
+    let size = getHeaderSize(PacketKind.Unreliable)
+    print(size)
+    let size = getHeaderSize2(PacketKind.Unreliable)
+    print(size)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1616"
+    |> ignore
