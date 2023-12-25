@@ -3356,7 +3356,7 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
     | Some(kind), Some(tyDefName) ->
         let tyPars = parseTypeParameters TypeParameterContext.Default state
         let constrClauseList = parseConstraintClauseList state
-        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false))) state with
+        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
         | Some(equalsToken), Some(body) ->
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
         | Some(equalsToken), _ ->
@@ -3368,7 +3368,7 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
         let tyPars = parseTypeParameters TypeParameterContext.Default state
         let constrClauseList = parseConstraintClauseList state
         errorDo(ExpectedSyntaxAfterSyntax("type declaration name", "type declaration kind"), kind) state
-        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false))) state with
+        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
         | Some(equalsToken), Some(body) ->
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
         | Some(equalsToken), _ ->
@@ -3410,20 +3410,21 @@ let __parseEntityDefinitionBody_Loop s expr state =
         let seqExpr = SyntaxExpression.Sequential(expr, expr2, ep s state)
         __parseEntityDefinitionBody_Loop s seqExpr state
 
-let parseEntityDefinitionBody isRoot state =
+let parseEntityDefinitionBody isRoot (kindOpt: SyntaxTypeDeclarationKind voption) state =
     let s = sp state
 
     let extends = 
-        // Example: alias byte = uint8
         let extendsTyOpt =
-            if isRoot then None
-            else tryParseEntityExtendsTypeIfNoNewLine state
+            match kindOpt with
+            // Example: alias byte = uint8
+            | ValueSome(SyntaxTypeDeclarationKind.Alias _) ->
+                tryParseEntityExtendsTypeIfNoNewLine state
+            | _ ->
+                alignRecover tryParseEntityExtendsInherits state
 
         match extendsTyOpt with
         | Some extendsTy -> extendsTy
-        | _ ->
-
-        alignRecover tryParseEntityExtendsInherits state |> Option.defaultWith (fun _ -> SyntaxExtends.Empty())
+        | _ -> SyntaxExtends.Empty()      
 
     let implements = alignRecover tryParseEntityImplements state |> Option.defaultWith (fun _ -> SyntaxImplements.Empty())
     let caseList = parseTypeDeclarationCaseList state
@@ -3816,7 +3817,7 @@ let tryParseRootNamespace state =
 
     match bt2 NAMESPACE (tryParseName TypeParameterContext.Default) state with
     | Some(namespaceToken), Some(name) ->
-        let body = parseEntityDefinitionBody true state
+        let body = parseEntityDefinitionBody true ValueNone state
         match bt (ignoreOffside END_OF_SOURCE) state with
         | Some(endOfSourceToken) ->
             SyntaxCompilationUnit.Namespace(namespaceToken, name, body, endOfSourceToken, ep s state) |> Some
@@ -3824,7 +3825,7 @@ let tryParseRootNamespace state =
             failwith "Expected end-of-source token."
     | Some(namespaceToken), _ ->
         errorDo(ExpectedSyntaxAfterToken("qualified name or identifier", Namespace), namespaceToken) state
-        let body = parseEntityDefinitionBody true state
+        let body = parseEntityDefinitionBody true ValueNone state
         match bt (ignoreOffside END_OF_SOURCE) state with
         | Some(endOfSourceToken) ->
             SyntaxCompilationUnit.Namespace(namespaceToken, SyntaxName.Identifier(dummyToken()), body, endOfSourceToken, ep s state) |> Some
@@ -3848,7 +3849,7 @@ let tryParseRootModule state =
 
         let constrClauseList = parseConstraintClauseList state
 
-        let body = parseEntityDefinitionBody true state
+        let body = parseEntityDefinitionBody true ValueNone state
         match bt (ignoreOffside END_OF_SOURCE) state with
         | Some(endOfSourceToken) ->
             SyntaxCompilationUnit.Module(attrs, accessor, moduleToken, name, constrClauseList, body, endOfSourceToken, ep s state) |> Some
@@ -3859,7 +3860,7 @@ let tryParseRootModule state =
 
         let constrClauseList = parseConstraintClauseList state
 
-        let body = parseEntityDefinitionBody true state
+        let body = parseEntityDefinitionBody true ValueNone state
         match bt (ignoreOffside END_OF_SOURCE) state with
         | Some(endOfSourceToken) ->
             SyntaxCompilationUnit.Module(attrs, accessor, moduleToken, SyntaxName.Identifier(dummyToken()), constrClauseList, body, endOfSourceToken, ep s state) |> Some
@@ -3880,7 +3881,7 @@ let parseRoot state =
     | Some result -> result
     | _ ->
 
-    let body = parseEntityDefinitionBody true state
+    let body = parseEntityDefinitionBody true ValueNone state
     match bt (ignoreOffside END_OF_SOURCE) state with
     | Some(endOfSourceToken) ->
         SyntaxCompilationUnit.AnonymousModule(body, endOfSourceToken, ep s state)
