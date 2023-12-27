@@ -1427,6 +1427,8 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
             failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
 
     if argTy.Formal = expectedArgTy.Formal then
+        if argTy.Witnesses.Length <> expectedArgTy.Witnesses.Length then
+            failwith $"Runtime Error: Expected '{expectedArgTy.Witnesses.Length}' witnesses but got '{argTy.Witnesses.Length}'."
         if argTy <> expectedArgTy then
             failwith $"Runtime Error: Expected type '{expectedArgTy.DebugText}' but got '{argTy.DebugText}'."
         irArg

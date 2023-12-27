@@ -18749,3 +18749,39 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "7"
     |> ignore
+
+[<Fact>]
+let ``Lambda captrues type parameter and witness``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+#[open]
+extension Int32Component =
+    inherits int32
+    implements IComponent
+
+mutable field F: () -> () = unchecked default
+
+#[inline(never)]
+M2<T>(): () = print("asdf")
+
+#[inline(never)]
+M<T>(): () where T: IComponent =
+    let f() =
+        M2<T>()
+    F <- f
+
+main(): () =
+    M<int32>()
+    F()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
