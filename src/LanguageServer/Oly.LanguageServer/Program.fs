@@ -1089,6 +1089,22 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
             do! autoOpenProjectsByDocumentIfNecessary documentPath ct
 
+            let solution = workspace.Solution
+            solution.GetDocuments(documentPath)
+            |> ImArray.iter (fun x ->
+                solution.GetProjectsDependentOnReference(x.Project.Path)
+                |> ImArray.iter (fun x ->
+                    x.Documents
+                    |> ImArray.iter (fun d ->
+                        try
+                            let cts = cancelAndGetCts d.Path
+                            ()
+                        with
+                        | _ -> ()
+                    )
+                )
+            )
+
             workspace.UpdateDocument(documentPath, sourceText, ct)
             let work =
                 backgroundTask {

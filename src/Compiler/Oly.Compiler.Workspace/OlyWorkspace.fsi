@@ -202,7 +202,6 @@ type OlyDefaultWorkspaceResourceService =
 [<Sealed>]
 type OlyWorkspace =
 
-    /// TODO: Remove this API.
     member Solution : OlySolution
 
     /// Updates documents by path with the given source text.
