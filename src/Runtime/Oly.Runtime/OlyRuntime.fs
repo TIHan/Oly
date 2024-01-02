@@ -2280,7 +2280,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         f()
 
                 // Properties are only emitted if the runtime target supports it and the type is exported.
-                if tyDef.IsExported then
+                if true then
                     ilEntDef.PropertyDefinitionHandles
                     |> ImArray.iter (fun ilPropDefHandle ->
                         let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
@@ -2289,17 +2289,27 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             if ilPropDef.Getter.IsNil then
                                 None
                             else
-                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
-                                |> this.EmitFunction
-                                |> Some
+                                if isGenericsErased then                               
+                                    this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Getter).MakeReference(tyDef)
+                                    |> this.EmitFunction
+                                    |> Some
+                                else
+                                    this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
+                                    |> this.EmitFunction
+                                    |> Some
 
                         let setterOpt =
                             if ilPropDef.Setter.IsNil then
                                 None
                             else
-                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
-                                |> this.EmitFunction
-                                |> Some
+                                if isGenericsErased then
+                                    this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Setter).MakeReference(tyDef)
+                                    |> this.EmitFunction
+                                    |> Some
+                                else
+                                    this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
+                                    |> this.EmitFunction
+                                    |> Some
 
                         let irAttrs =
                             ilPropDef.Attributes
@@ -2308,10 +2318,16 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             )
                             |> emitAttributes ilAsm
 
+                        let genericContext =
+                            if isGenericsErased then
+                                GenericContext.CreateErasing(tyDef.TypeArguments).SetPassedWitnesses(tyDef.Witnesses)
+                            else
+                                GenericContext.Default
+
                         emitter.EmitExportedProperty(
                             this.EmitType(tyDef),
                             ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
-                            this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, GenericContext.Default)),
+                            this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, genericContext)),
                             irAttrs,
                             getterOpt,
                             setterOpt                           
