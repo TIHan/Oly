@@ -2727,7 +2727,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 isMutable = field.isMutable
             }
 
-        member this.EmitExportedProperty(enclosingTy, name, ty, attrs, getterOpt, setterOpt) =
+        member this.EmitProperty(enclosingTy, name, ty, attrs, getterOpt, setterOpt) =
             match enclosingTy with
             | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
                 let canEmitProperty, isInstance =

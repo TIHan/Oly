@@ -136,7 +136,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         formalField: 'Field
             -> 'Field
 
-    abstract EmitExportedProperty :
+    abstract EmitProperty :
         enclosingTy: 'Type *
         name: string *
         ty: 'Type *
@@ -145,4 +145,4 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         setterOpt: 'Function option
             -> unit
 
-    // TODO: Add EmitExternalSemanticPattern
+    // TODO: Add EmitPattern, though there are no target runtimes that understand patterns.

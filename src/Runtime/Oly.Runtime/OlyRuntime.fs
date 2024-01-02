@@ -2170,8 +2170,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         tyDef.Extends
                         |> ImArray.map (fun x ->
+                            // Emit the type first before subscribing!
+                            let ty = this.EmitType(x)
                             this.SubscribeType(x, tyDef)
-                            this.EmitType(x)
+                            ty
                         )
 
                 let implementTys = 
@@ -2181,8 +2183,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         tyDef.Implements
                         |> ImArray.map (fun x ->
+                            // Emit the type first before subscribing!
+                            let ty = this.EmitType(x)
                             this.SubscribeType(x, tyDef)
-                            this.EmitType(x)
+                            ty
                         )
 
                 this.Emitter.EmitTypeDefinitionInfo(res, enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
@@ -2279,60 +2283,58 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     while delayed.TryDequeue(&f) do
                         f()
 
-                // Properties are only emitted if the runtime target supports it and the type is exported.
-                if true then
-                    ilEntDef.PropertyDefinitionHandles
-                    |> ImArray.iter (fun ilPropDefHandle ->
-                        let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
+                ilEntDef.PropertyDefinitionHandles
+                |> ImArray.iter (fun ilPropDefHandle ->
+                    let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
 
-                        let getterOpt =
-                            if ilPropDef.Getter.IsNil then
-                                None
+                    let getterOpt =
+                        if ilPropDef.Getter.IsNil then
+                            None
+                        else
+                            if isGenericsErased then                               
+                                this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Getter).MakeReference(tyDef)
+                                |> this.EmitFunction
+                                |> Some
                             else
-                                if isGenericsErased then                               
-                                    this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Getter).MakeReference(tyDef)
-                                    |> this.EmitFunction
-                                    |> Some
-                                else
-                                    this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
-                                    |> this.EmitFunction
-                                    |> Some
+                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
+                                |> this.EmitFunction
+                                |> Some
 
-                        let setterOpt =
-                            if ilPropDef.Setter.IsNil then
-                                None
-                            else
-                                if isGenericsErased then
-                                    this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Setter).MakeReference(tyDef)
-                                    |> this.EmitFunction
-                                    |> Some
-                                else
-                                    this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
-                                    |> this.EmitFunction
-                                    |> Some
-
-                        let irAttrs =
-                            ilPropDef.Attributes
-                            |> ImArray.choose (fun ilAttr ->
-                                this.TryResolveAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
-                            )
-                            |> emitAttributes ilAsm
-
-                        let genericContext =
+                    let setterOpt =
+                        if ilPropDef.Setter.IsNil then
+                            None
+                        else
                             if isGenericsErased then
-                                GenericContext.CreateErasing(tyDef.TypeArguments).SetPassedWitnesses(tyDef.Witnesses)
+                                this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Setter).MakeReference(tyDef)
+                                |> this.EmitFunction
+                                |> Some
                             else
-                                GenericContext.Default
+                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
+                                |> this.EmitFunction
+                                |> Some
 
-                        emitter.EmitExportedProperty(
-                            res,
-                            ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
-                            this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, genericContext)),
-                            irAttrs,
-                            getterOpt,
-                            setterOpt                           
+                    let irAttrs =
+                        ilPropDef.Attributes
+                        |> ImArray.choose (fun ilAttr ->
+                            this.TryResolveAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
                         )
+                        |> emitAttributes ilAsm
+
+                    let genericContext =
+                        if isGenericsErased then
+                            GenericContext.CreateErasing(tyDef.TypeArguments).SetPassedWitnesses(tyDef.Witnesses)
+                        else
+                            GenericContext.Default
+
+                    emitter.EmitProperty(
+                        res,
+                        ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
+                        this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, genericContext)),
+                        irAttrs,
+                        getterOpt,
+                        setterOpt                           
                     )
+                )
         
                 res
         | _ ->

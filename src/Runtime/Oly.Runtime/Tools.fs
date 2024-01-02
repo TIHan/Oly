@@ -31,8 +31,7 @@ type DummyEmitter(onEmitBody) =
 
         member _.Initialize(_) = ()
 
-        member _.EmitExportedProperty(_, _, _, _, _, _) =
-            raise(System.NotSupportedException())
+        member _.EmitProperty(_, _, _, _, _, _) = ()
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, name, tyParCount) =
             DummyType(name)

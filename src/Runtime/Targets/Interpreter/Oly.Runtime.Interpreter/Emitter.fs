@@ -1701,8 +1701,7 @@ type InterpreterRuntimeEmitter() =
         member this.EmitExternalType(_, _, _, _, _, _, _, _): InterpreterType = 
             raise(NotSupportedException())
 
-        member _.EmitExportedProperty(_, _, _, _, _, _) =
-            raise(NotSupportedException())
+        member _.EmitProperty(_, _, _, _, _, _) = ()
 
         member this.EmitField(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, irConstValueOpt): InterpreterField = 
             match enclosingTy with
