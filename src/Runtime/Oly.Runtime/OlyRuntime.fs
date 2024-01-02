@@ -2325,7 +2325,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 GenericContext.Default
 
                         emitter.EmitExportedProperty(
-                            this.EmitType(tyDef),
+                            res,
                             ilAsm.GetStringOrEmpty(ilPropDef.NameHandle),
                             this.EmitType(this.ResolveType(ilAsm, ilPropDef.Type, genericContext)),
                             irAttrs,

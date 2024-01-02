@@ -2751,7 +2751,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     )
                     |> ignore
             | _ ->
-                OlyAssert.Fail("Expected type definition.")
+                OlyAssert.Fail($"Expected type definition. {enclosingTy}")
 
         member this.EmitFunctionInstance(enclosingTy, func: ClrMethodInfo, tyArgs: imarray<ClrTypeInfo>): ClrMethodInfo = 
             let newHandle =
