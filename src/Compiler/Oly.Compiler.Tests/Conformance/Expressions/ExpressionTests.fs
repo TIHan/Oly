@@ -5296,7 +5296,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
             ("Type instantiation 'TMemory<int32>' is missing the constraint '{ set_Item(int32, __oly_float32): () }'.",
                 """
         this.Buffer[0] <- (1.0: __oly_float32)
-                   ^^^
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]

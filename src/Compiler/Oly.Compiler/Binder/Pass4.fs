@@ -1316,7 +1316,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
     let expr =
         match bindIdentifierAsFormalItem cenv env syntaxToCapture None resInfo ident with
         | ResolutionFormalItem.Value(_, value) ->
-            let syntaxInfo = BoundSyntaxInfo.User(syntaxBrackets, env.benv, None, None)
+            let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, None, None)
             bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
