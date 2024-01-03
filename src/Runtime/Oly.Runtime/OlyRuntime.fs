@@ -2288,6 +2288,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 |> ImArray.iter (fun ilPropDefHandle ->
                     let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
 
+                    // TODO: This could break if the getter or setter is an intrinsic function. We should handle it.
+
                     let getterOpt =
                         if ilPropDef.Getter.IsNil then
                             None
