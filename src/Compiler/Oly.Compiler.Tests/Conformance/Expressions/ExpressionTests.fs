@@ -8311,64 +8311,6 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Flatten array should compile``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-#[intrinsic("bool")]
-alias bool
-
-#[intrinsic("multiply")]
-(+)(int32, int32): int32
-
-#[intrinsic("multiply")]
-(*)(int32, int32): int32
-
-#[intrinsic("less_than")]
-(<)(int32, int32): bool
-
-#[intrinsic("get_element")]
-(`[]`)<T>(mutable T[], index: int32): T
-#[intrinsic("set_element")]
-(`[]`)<T>(mutable T[], index: int32, T): ()
-
-#[intrinsic("get_length")]
-private getLength<T>(mutable T[]): int32
-
-#[open]
-extension MutableArrayExtensions<T> =
-    inherits mutable T[]
-
-    Length: int32 
-        #[inline]
-        get() = getLength(this)
-
-module Array =
-
-    #[intrinsic("new_array")]
-    ZeroCreate<T>(size: int32): mutable T[]
-
-    Flatten<T, U>(arr: mutable T[], f: T -> (U, U, U)): mutable U[] =
-        let newArr = ZeroCreate<U>(arr.Length * 3)
-        let mutable i = 0
-        let mutable j = 0
-        while (i < arr.Length)
-            match (f(arr[i]))
-            | (x, y, z) =>
-                newArr[j] <- x
-                newArr[j + 1] <- y
-                newArr[j + 2] <- z
-                i <- i + 1
-                j <- j + 3
-        newArr
-        """
-    Oly src
-    |> withCompile
-    |> ignore
-
-[<Fact>]
 let ``Flatten array should compile 2``() =
     let src =
         """
@@ -9150,3 +9092,39 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should get symbol when using the indexer``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+
+main(): () =
+    let xs = mutable [1;2]
+    let x = ~^~xs[0]
+        """
+    src |> hasSymbolSignatureTextByCursor "xs: mutable int32[]"
+
+[<Fact>]
+let ``Should get symbol when using the indexer 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+
+main(): () =
+    let xs = mutable [1;2]
+    ~^~xs[0] <- 2
+        """
+    src |> hasSymbolSignatureTextByCursor "xs: mutable int32[]"
