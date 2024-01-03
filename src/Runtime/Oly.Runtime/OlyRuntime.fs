@@ -1976,9 +1976,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             failwithf "Field definition not cached: %A" field.Name
 
     and emitFieldNoCache (asm: RuntimeAssembly<_, _, _>) (emitted: RuntimeTypeArgumentListTable<_, _, _, _>) (field: RuntimeField) =
-        if field.EnclosingType.IsEnum && not(field.ILConstantValueOption.IsSome && field.IsStatic) then
-            failwith "Member functions on an 'enum' is not allowed."
-
         // It's very important we emit the enclosing and field type before
         // we cache the emitted field. Without this, we could emit duplicate fields.
         let enclosingTy = field.EnclosingType
@@ -2110,14 +2107,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         
                 let ilEntDef = ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
 
-                let runtimeTyOpt = 
-                    tyDef.RuntimeType
-                    |> Option.map (fun x ->
-                        // REVIEW: Do we need to subscribe the the runtime type?
-                        this.SubscribeType(x, tyDef)
-                        this.EmitType(x)
-                    )
-
                 let tyFlags =
                     if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
                         RuntimeTypeFlags.GenericsErased
@@ -2146,6 +2135,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let res = this.Emitter.EmitTypeDefinition(enclosingChoice, kind, flags, tyDef.Name, tyParCount)
                 emitted.[key] <- res
+
+                let runtimeTyOpt = 
+                    tyDef.RuntimeType 
+                    |> Option.map (fun x ->
+                        this.EmitType(x)
+                    )
 
                 let irAttrs = 
                     match tyDef with
@@ -3234,8 +3229,17 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeEntityDefinitionTypeArgumentWitnessListTable())
 
                 let runtimeTyOpt =
-                    ilEntDef.RuntimeType
-                    |> Option.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    if ent.IsEnum then
+                        let ilFieldDefHandles = ilEntDef.FieldDefinitionHandles
+                        if ilFieldDefHandles.IsEmpty then
+                            failwith "Enum is missing its principal field."
+                        else
+                            let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandles[0])
+                            if ilFieldDef.MemberFlags.HasFlag(OlyILMemberFlags.Static) then
+                                failwith "Enum is missing its principal field."
+                            Some(this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.CreateErasing(fullTyArgs)))
+                    else
+                        None
 
                 // Set RuntimeType first before Extends and Implements.
                 ent.RuntimeType <- runtimeTyOpt

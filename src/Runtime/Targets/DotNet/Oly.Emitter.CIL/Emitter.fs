@@ -2398,6 +2398,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     // If structs or enums extend an object, just use the proper type to inherit.
                     // Struct -> System.ValueType
                     // Enum -> System.Enum
+                    // TODO: We should not have to do this.
                     if isStruct && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
                         ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceValueType, false, false))
                     elif isEnum && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
@@ -2505,18 +2506,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         tyAttrs ||| TypeAttributes.NestedAssembly
 
             tyDefBuilder.Attributes <- tyAttrs
-
-            match enumRuntimeTyOpt with
-            | Some enumBaseTy ->
-                tyDefBuilder.AddFieldDefinition(
-                    FieldAttributes.Public ||| FieldAttributes.SpecialName ||| FieldAttributes.RTSpecialName,
-                    "value__",
-                    enumBaseTy.Handle,
-                    None
-                )
-                |> ignore
-            | _ ->
-                ()
 
             if isInterface then
                 if not extends.IsEmpty then
@@ -2669,6 +2658,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 let attrs =
                     if irConstValueOpt.IsSome then
                         attrs ||| FieldAttributes.Literal ||| FieldAttributes.HasDefault
+                    else
+                        attrs
+
+                let attrs =
+                    if enclosingTy.IsDefinitionEnum && not isStatic then
+                        attrs ||| FieldAttributes.SpecialName ||| FieldAttributes.RTSpecialName
                     else
                         attrs
 

@@ -17,7 +17,6 @@ type EntitySymbolBuilder private (
                                  tyParsHole: Ref<imarray<TypeParameterSymbol>>,
                                  extendsHole: Ref<imarray<TypeSymbol>>,
                                  implementsHole: Ref<imarray<TypeSymbol>>,
-                                 runtimeTyOptHole: Ref<option<TypeSymbol>>,
                                  entsHole: ResizeArray<EntitySymbol>) =
 
     let mutable bindings: (BindingInfoSymbol * bool) imarray = bindings
@@ -64,9 +63,15 @@ type EntitySymbolBuilder private (
 
     member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol) =
         OlyAssert.True(runtimeTy.IsSolved)
+        OlyAssert.True(ent.IsEnum)
         match pass with
         | Pass1 ->
-            runtimeTyOptHole.contents <- Some runtimeTy
+            let fields = fieldsHole.contents
+            if fields.IsEmpty then
+                let field = FieldSymbol(ImArray.empty, ent.AsEnclosing, MemberFlags.Private ||| MemberFlags.Instance, "value", runtimeTy, ValueFlags.Generated, ref None)
+                fieldsHole.contents <- ImArray.createOne field
+            else
+                failwith "cannot set runtime type as fields are not empty"
         | _ ->
             failwith "Invalid pass."
 
@@ -87,7 +92,13 @@ type EntitySymbolBuilder private (
     member this.SetFields(pass: CompilerPass, fields: IFieldSymbol imarray) =
         match pass with
         | Pass2 ->
-            fieldsHole.contents <- fields
+            if ent.IsEnum then
+                if ent.Fields.Length = 1 && ent.RuntimeType.IsSome then
+                    fieldsHole.contents <- fieldsHole.contents.AddRange(fields)
+                else
+                    failwith "Invalid SetFields."
+            else
+                fieldsHole.contents <- fields
         | _ ->
             failwith "Invalid pass."
 
@@ -150,10 +161,9 @@ type EntitySymbolBuilder private (
         let extendsHole = ref ImArray.empty
         let implementsHole = ref ImArray.empty
         let entsHole = ResizeArray()
-        let runtimeTyOptHole = ref None
 
-        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
-        EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, runtimeTyOptHole, entsHole)
+        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole)
+        EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, entsHole)
 
     static member CreateModule(containingAsmOpt, enclosing, flags, name) =
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module)

@@ -1117,12 +1117,12 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilFuncDefs
                 |> ImArray.ofSeq
 
-        let ilRuntimeTyOpt =
-            ent.RuntimeType
-            |> Option.map (fun ty -> emitILType cenv env ty)
+
+        if ent.IsEnum && ent.RuntimeType.IsNone then
+            failwith "Enum type is invalid to emit."
 
 #if DEBUG
-        if ilRuntimeTyOpt.IsSome then   
+        if ent.IsEnum || ent.IsNewtype then   
             OlyAssert.True(ilImplements.IsEmpty)
 #endif
 
@@ -1140,8 +1140,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilPatDefs,
                 ilEntDefHandles,
                 ilImplements,
-                ilExtends,
-                ilRuntimeTyOpt)
+                ilExtends)
 
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)
     )

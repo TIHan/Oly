@@ -51,10 +51,6 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
     let ent = ent
 
-    if ent.IsEnum then
-        // Int32 is default for enum declarations.
-        entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
-
     let defaultExtends (extends: TypeSymbol imarray) =
         if ent.IsAlias then
             extends
@@ -93,6 +89,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         let extends =
             if ent.IsEnum then
                 if extends.IsEmpty then
+                    // Int32 is default for enum declarations.
                     entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
                     extends 
                 else

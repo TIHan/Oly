@@ -228,13 +228,24 @@ type EntitySymbol() =
 
     abstract Implements : TypeSymbol imarray
 
-    abstract RuntimeType : TypeSymbol option
-
     abstract Formal : EntitySymbol
 
     abstract Attributes : AttributeSymbol imarray
 
     abstract Flags : EntityFlags
+
+    member this.RuntimeType =
+        if (this.IsEnum) then
+            if this.Fields.Length > 0 then
+                let field = this.Fields[0]
+                if field.IsInstance then
+                    Some field.Type
+                else
+                    None
+            else
+                None
+        else
+            None
 
     /// Mutability
     /// Do not use directly! Use the extension member 'IsUnmanaged'.
@@ -276,7 +287,7 @@ type EntitySymbol() =
     interface ISymbol
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, runtimeTyOpt: _ option ref, entsHole: ResizeArray<EntitySymbol>) =
+type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: ResizeArray<EntitySymbol>) =
     inherit EntitySymbol()
 
     // REVIEW: The first time this gets evaluated, we must already have the fields set.
@@ -326,7 +337,6 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.TypeArguments = tyPars.contents |> ImArray.map (fun (x: TypeParameterSymbol) -> x.AsType)
     override _.Implements = implements.contents
     override _.Extends = extends.contents
-    override _.RuntimeType = runtimeTyOpt.contents
     override _.TypeParameters = tyPars.contents
     override _.Kind = kind
     override _.ContainingAssembly = containingAsmOpt
@@ -572,8 +582,6 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     let mutable appliedProps = ValueNone
     [<VolatileField>]
     let mutable appliedPats = ValueNone
-    [<VolatileField>]
-    let mutable appliedRuntimeTyOpt = ValueNone
 
     let tyArgs = takeTypeArguments tyArgs ent.TypeParameters.Length
 
@@ -695,17 +703,6 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
                 inherits
         | ValueSome(inherits) ->
             inherits
-
-    override _.RuntimeType =
-        match appliedRuntimeTyOpt with
-        | ValueNone ->
-            if ent.RuntimeType.IsNone then None
-            else
-                let runtimeTyOpt = actualType tyArgs ent.RuntimeType.Value |> Some
-                appliedRuntimeTyOpt <- ValueSome runtimeTyOpt
-                runtimeTyOpt
-        | ValueSome(runtimeTyOpt) ->
-            runtimeTyOpt
 
     override _.Name = ent.Name
     override _.TypeArguments = tyArgs
@@ -1470,7 +1467,6 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
     override this.Properties = ImArray.empty
     override this.TypeArguments = ImArray.empty
     override this.TypeParameters = ImArray.empty
-    override this.RuntimeType = None
 
 [<RequireQualifiedAccess>]
 type EnclosingSymbol =

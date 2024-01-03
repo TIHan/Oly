@@ -106,8 +106,7 @@ let addEntity (ilAsm: OlyILAssembly) (ilEntDefHandle: OlyILEntityDefinitionHandl
             ImArray.empty,
             ImArray.empty,
             ImArray.empty,
-            ImArray.empty,
-            None
+            ImArray.empty
         )
 
     ilAsm.SetEntityDefinition(ilEntDefHandle, ilEntDef)

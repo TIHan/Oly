@@ -318,11 +318,6 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             ent.Implements
             |> ImArray.map (retargetType currentAsmIdent importer tyPars)
 
-    let lazyRuntimeTyOpt =
-        lazy
-            ent.RuntimeType
-            |> Option.map (retargetType currentAsmIdent importer tyPars)
-
     let lazyInstanceCtors =
         lazy
             ent.InstanceConstructors
@@ -350,7 +345,6 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Enclosing = enclosing
     override this.Entities = lazyEntities.Value
     override this.Extends = lazyExtends.Value
-    override this.RuntimeType = lazyRuntimeTyOpt.Value
     override this.Fields = lazyFields.Value
     override this.Flags = ent.Flags
     override this.Formal = this
@@ -1685,17 +1679,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
             lazyImplements <- implements
         lazyImplements
 
-    let mutable lazyRuntimeTyOpt = ValueNone: TypeSymbol option voption
-    let evalRuntimeTyOpt() =
-        match lazyRuntimeTyOpt with
-        | ValueSome(runtimeTyOpt) -> runtimeTyOpt
-        | _ ->
-            let runtimeTyOpt =
-                ilEntDef.RuntimeType
-                |> Option.map (importTypeSymbol cenv (evalTyPars()) ImArray.empty)
-            lazyRuntimeTyOpt <- ValueSome(runtimeTyOpt)
-            runtimeTyOpt
-
     let mutable lazyProps = Unchecked.defaultof<IPropertySymbol imarray>
     let evalProps() =
         if lazyProps.IsDefault then
@@ -1866,7 +1849,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     override _.InstanceConstructors = evalInstanceCtors()
     override _.Implements: TypeSymbol imarray = evalImplements()
     override _.Extends: TypeSymbol imarray = evalExtends()
-    override _.RuntimeType: TypeSymbol option = evalRuntimeTyOpt()
     override _.Kind: EntityKind = kind
     override _.Name: string = name
     override _.TypeArguments: TypeSymbol imarray = evalTyArgs()

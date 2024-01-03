@@ -192,13 +192,12 @@ type OlyILEntityDefinition =
         patDefs: OlyILPatternDefinitionHandle imarray *
         entDefs: OlyILEntityDefinitionHandle imarray *
         implements: OlyILType imarray *
-        extends: OlyILType imarray *
-        runtimeTyOpt: OlyILType option
+        extends: OlyILType imarray
 
     member this.UpdateKind(kind: OlyILEntityKind) =
         match this with
-        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, runtimeTyOpt) ->
-            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, runtimeTyOpt)
+        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits) ->
+            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits)
 
     member this.EntityDefinitionHandles =
         match this with
@@ -264,10 +263,6 @@ type OlyILEntityDefinition =
     member this.IsIntrinsic =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
-
-    member this.RuntimeType =
-        match this with
-        | OlyILEntityDefinition(runtimeTyOpt=runtimeTyOpt) -> runtimeTyOpt
 
 [<NoEquality;NoComparison>]
 type OlyILEntityInstance =

@@ -1185,13 +1185,6 @@ module internal rec Helpers =
                 importAsOlyILType cenv baseTy
                 |> ImArray.createOne
 
-        let olyRuntimeTyOpt =
-            if olyEntKind = OlyILEntityKind.Enum then
-                let olyFirstFieldTy = olyAsm.GetFieldDefinition(olyFields.[0]).Type
-                Some olyFirstFieldTy
-            else
-                None
-
         let olyProps =
             tyDef.GetProperties().ToImmutableArray()
             |> ImArray.choose (fun handle ->
@@ -1299,8 +1292,7 @@ module internal rec Helpers =
                 olyPatDefs,
                 olyNestedEntDefHandles,
                 (if isInterface then ImArray.empty else olyImplements),
-                (if isInterface then olyImplements else olyInherits),
-                olyRuntimeTyOpt
+                (if isInterface then olyImplements else olyInherits)
             )
         
         olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
