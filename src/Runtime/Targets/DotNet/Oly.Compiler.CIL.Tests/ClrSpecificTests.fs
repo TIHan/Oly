@@ -6369,3 +6369,118 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
+
+[<Fact>]
+let ``Mutable array enumerable extension should work``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("or")]
+(||)(bool, bool): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+
+#[intrinsic("cast")]
+Cast<T>(object): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+#[open]
+extension MutableArrayEnumerableExtension<T> =
+    inherits mutable T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    private GetEnumerator(): System.Collections.IEnumerator =
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            mutable field arr: mutable T[]
+            mutable field currentIndex: int32
+            mutable field current: object
+            mutable field currentTyped: T
+
+            new(arr: mutable T[]) =
+                {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+                this.currentTyped <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl(this)
+
+
+Test<T>(xs: System.Collections.Generic.IEnumerable<T>): () =
+    print(System.Linq.Enumerable.Count(xs))
+
+main(): () =
+    let xs = mutable [0;0]
+    Test<int32>(Cast(xs))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
