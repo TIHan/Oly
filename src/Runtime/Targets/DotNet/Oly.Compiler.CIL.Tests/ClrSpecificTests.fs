@@ -6300,3 +6300,72 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "1616"
     |> ignore
+
+[<Fact>]
+let ``Mutable array extension should work``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+main(): () =
+    let xs = mutable [0;0]
+    print(xs.Length)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Mutable array extension should work from reference``() =
+    let refSrc =
+        """
+module M
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+        """
+
+    """
+open static M
+
+main(): () =
+    let xs = mutable [0;0]
+    print(xs.Length)
+    """
+    |> OlyWithRef refSrc
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore

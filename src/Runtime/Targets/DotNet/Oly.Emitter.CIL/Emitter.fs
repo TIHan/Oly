@@ -2733,12 +2733,20 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 let canEmitProperty, isInstance =
                     match getterOpt, setterOpt with
                     | Some getter, Some setter ->
+                        if (not getter.enclosingTyHandle.IsTypeDefinition) then
+                            failwith "expected type definition"
+                        if (not setter.enclosingTyHandle.IsTypeDefinition) then
+                            failwith "expected type definition"
                         getter.IsInstance = setter.IsInstance, getter.IsInstance
                     | None, None ->
                         false, false
                     | Some getter, None ->
+                        if (not getter.enclosingTyHandle.IsTypeDefinition) then
+                            failwith "expected type definition"
                         true, getter.IsInstance
                     | None, Some setter ->
+                        if (not setter.enclosingTyHandle.IsTypeDefinition) then
+                            failwith "expected type definition"
                         true, setter.IsInstance
 
                 if canEmitProperty then

@@ -1213,7 +1213,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return! target.BuildProjectAsync(proj, ct)
             with
             | ex ->
-                return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message)))
+                return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
         }
 
     static member CreateCore(targetPlatforms: OlyBuild seq, rs: IOlyWorkspaceResourceService) =

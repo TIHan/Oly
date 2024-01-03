@@ -70,6 +70,11 @@ type ClrTypeHandle =
         | LazyTypeDefinition _ -> true
         | _ -> false
 
+    member this.IsTypeDefinition =
+        match this with
+        | ClrTypeHandle.LazyTypeDefinition _ -> true
+        | _ -> false
+
     member this.IsTypeSpecificationHandle =
         match this.StripModifiers() with
         | ClrTypeHandle.TypeSpecification _ -> true

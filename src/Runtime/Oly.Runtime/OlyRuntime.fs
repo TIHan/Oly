@@ -2283,6 +2283,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     while delayed.TryDequeue(&f) do
                         f()
 
+
                 ilEntDef.PropertyDefinitionHandles
                 |> ImArray.iter (fun ilPropDefHandle ->
                     let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)

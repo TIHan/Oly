@@ -2854,20 +2854,34 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                 
                 match propDef.GetterOption with
                 | Some getter ->
+                    let getterHandle = 
+                        let getterHandle = getter.UnsafeLazilyEvaluateEntityHandle()
+                        try
+                            MethodDefinitionHandle.op_Explicit(getterHandle)
+                        with
+                        | ex ->
+                            failwith $"Invalid cast for getter method definition handle. Handle kind: {getterHandle.Kind}\n Enclosing type: {fullyQualifiedName}"
                     metadataBuilder.AddMethodSemantics(
                         PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
                         MethodSemanticsAttributes.Getter, 
-                        MethodDefinitionHandle.op_Explicit(getter.UnsafeLazilyEvaluateEntityHandle())
+                        getterHandle
                     )
                 | _ ->
                     ()
                 
                 match propDef.SetterOption with
-                | Some getter ->
+                | Some setter ->
+                    let setterHandle = 
+                        let setterHandle = setter.UnsafeLazilyEvaluateEntityHandle()
+                        try
+                            MethodDefinitionHandle.op_Explicit(setter.UnsafeLazilyEvaluateEntityHandle())
+                        with
+                        | _ ->
+                            failwith $"Invalid cast for setter method definition handle. Handle kind: {setterHandle.Kind}\n Enclosing type: {fullyQualifiedName}"
                     metadataBuilder.AddMethodSemantics(
                         PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
                         MethodSemanticsAttributes.Setter, 
-                        MethodDefinitionHandle.op_Explicit(getter.UnsafeLazilyEvaluateEntityHandle())
+                        setterHandle
                     )
                 | _ ->
                     ()
