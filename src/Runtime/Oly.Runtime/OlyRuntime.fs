@@ -3983,13 +3983,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 vm.EmitFunctionDefinition(enclosingTy, formalFunc, genericContext)
 
                         let emittedFunc = 
-                            match func.Kind with
-                            | RuntimeFunctionKind.Formal -> failwith "Unexpected formal function."
-                            | RuntimeFunctionKind.Instance ->
-                                let funcTyArgs = func.TypeArguments |> ImArray.map (fun x -> this.EmitTypeArgument(x))
-                                this.Emitter.EmitFunctionInstance(this.EmitType(func.EnclosingType), emittedFuncDef, funcTyArgs)
-                            | RuntimeFunctionKind.Reference ->
-                                this.Emitter.EmitFunctionReference(this.EmitType(func.EnclosingType), emittedFuncDef)
+                            if genericContext.IsErasingType && func.TypeParameters.IsEmpty then
+                                // This is an interesting case where the enclosing type is being erased and
+                                // the function is a reference, in which case we do not need to emit a function reference.
+                                emittedFuncDef
+                            else
+                                match func.Kind with
+                                | RuntimeFunctionKind.Formal -> failwith "Unexpected formal function."
+                                | RuntimeFunctionKind.Instance ->
+                                    let funcTyArgs = func.TypeArguments |> ImArray.map (fun x -> this.EmitTypeArgument(x))
+                                    this.Emitter.EmitFunctionInstance(this.EmitType(func.EnclosingType), emittedFuncDef, funcTyArgs)
+                                | RuntimeFunctionKind.Reference ->
+                                    this.Emitter.EmitFunctionReference(this.EmitType(func.EnclosingType), emittedFuncDef)
 
                         emitted.[key] <- emittedFunc
                         emittedFunc

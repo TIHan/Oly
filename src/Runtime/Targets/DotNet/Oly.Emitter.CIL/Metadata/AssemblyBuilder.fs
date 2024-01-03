@@ -2859,7 +2859,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                         try
                             MethodDefinitionHandle.op_Explicit(getterHandle)
                         with
-                        | ex ->
+                        | _ ->
                             failwith $"Invalid cast for getter method definition handle. Handle kind: {getterHandle.Kind}\n Enclosing type: {fullyQualifiedName}"
                     metadataBuilder.AddMethodSemantics(
                         PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
