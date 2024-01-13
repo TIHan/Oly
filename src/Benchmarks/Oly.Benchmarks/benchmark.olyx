@@ -1,0 +1,26 @@
+#target "dotnet: net8"
+
+#reference "C:/work/Evergreen/src/managed/AssetManager/AssetManager.olyx"
+
+open static Game.AssetManager
+
+class A
+class B
+class C
+
+main(): () =
+    let manager = AssetManager<object>(o -> ())
+    manager.Register("doot", () -> return System.Object())
+    let x = manager.Get(0)
+
+    let manager = AssetManager<A>(o -> ())
+    manager.Register("doot", () -> return A())
+    let x = manager.Get(0)
+
+    let manager = AssetManager<B>(o -> ())
+    manager.Register("doot", () -> return B())
+    let x = manager.Get(0)
+
+    let manager = AssetManager<C>(o -> ())
+    manager.Register("doot", () -> return C())
+    let x = manager.Get(0)

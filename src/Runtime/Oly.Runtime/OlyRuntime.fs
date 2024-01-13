@@ -1528,12 +1528,16 @@ let importFunctionBody
     let enclosingTy =
         let tyArgs =
             enclosingTy.TypeArguments
-            |> ImArray.map (fun x -> x.Substitute(genericContext))
+            |> ImArray.map (fun x -> 
+                x.Substitute(genericContext)
+            )
         enclosingTy.Apply(tyArgs).SetWitnesses(genericContext.PassedWitnesses)
 
     let funcTyArgs =
         func.TypeArguments
-        |> ImArray.map (fun x -> x.Substitute(genericContext))
+        |> ImArray.map (fun x -> 
+            x.Substitute(genericContext)
+        )
 
     let func = func.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction genericContext.PassedWitnesses genericContext
     let enclosingTy = enclosingTy.StripExtension()
@@ -2496,10 +2500,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             (fun targetFunc -> 
                 let enclosingTyArgs =
                     targetFunc.EnclosingType.TypeArguments
-                    |> ImArray.map (fun x -> x.Substitute(genericContext))
+                    |> ImArray.map (fun x ->
+                        x.Substitute(genericContext)
+                    )
                 let funcTyArgs =
                     targetFunc.TypeArguments
-                    |> ImArray.map (fun x -> x.Substitute(genericContext))
+                    |> ImArray.map (fun x -> 
+                        x.Substitute(genericContext)
+                    )
 
                 let canErase = canPossiblyEraseGenericFunction func targetFunc 
                 let genericContext = createGenericContextFromFunction canErase targetFunc
@@ -2745,7 +2753,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith $"Multiple fields of '{name}' are found."
             else
                 let asm = assemblies[ilAsm.Identity]
-                { fields.[0] with EnclosingType = enclosingTy; Type = fields.[0].Type.Substitute(genericContext) }
+                let fieldTy = fields[0].Type
+                { fields.[0] with EnclosingType = enclosingTy; Type = fieldTy.Substitute(genericContext) }
                 |> asm.RuntimeFieldReferenceCache.Intern
 
     member this.ResolveFunctionDefinition(enclosingTy: RuntimeType, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
@@ -3203,10 +3212,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeEntity.TypeParameters = fullTyPars
                         RuntimeEntity.TypeArguments = fullTyArgs
                         RuntimeEntity.Witnesses = ImArray.empty
-                        RuntimeEntity.Extends = ImArray.empty
-                        RuntimeEntity.Implements = ImArray.empty
-                        RuntimeEntity.RuntimeType = None
-                        RuntimeEntity.Fields = ImArray.empty
+                        RuntimeEntity.ExtendsLazy = Lazy<_>.CreateFromValue(ImArray.empty)
+                        RuntimeEntity.ImplementsLazy = Lazy<_>.CreateFromValue(ImArray.empty)
+                        RuntimeEntity.RuntimeTypeLazy = Lazy<_>.CreateFromValue(None)
+                        RuntimeEntity.FieldsLazy = Lazy<_>.CreateFromValue(ImArray.empty)
 
                         RuntimeEntity.Info =
                             {
@@ -3240,7 +3249,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         None
 
                 // Set RuntimeType first before Extends and Implements.
-                ent.RuntimeType <- runtimeTyOpt
+                ent.RuntimeTypeLazy <- Lazy<_>.CreateFromValue(runtimeTyOpt)
 
                 let extends =
                     ilEntDef.Extends
@@ -3266,8 +3275,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     ilEntDef.Implements
                     |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
 
-                ent.Extends <- extends
-                ent.Implements <- implements
+                ent.ExtendsLazy <- Lazy<_>.CreateFromValue(extends)
+                ent.ImplementsLazy <- Lazy<_>.CreateFromValue(implements)
 
                 let fields =
                     ilEntDef.FieldDefinitionHandles
@@ -3275,7 +3284,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         this.ResolveField(RuntimeType.Entity(ent), ilAsm, i, ilFieldDefHandle)
                     )
 
-                ent.Fields <- fields
+                ent.FieldsLazy <- Lazy<_>.CreateFromValue(fields)
 
                 let attrs =
                     ilEntDef.Attributes
@@ -3779,11 +3788,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     |> Option.map (fun x -> 
                         // We must pass witnesses to the overriden function.
                         if x.EnclosingType.CanGenericsBeErased && isErasingFunc then
-                            let enclosingTy = x.EnclosingType.Substitute(genericContext)
+                            let enclosingTy = 
+                                x.EnclosingType.Substitute(genericContext)
                             let genericContext = GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
                             let funcTyArgs =
                                 x.TypeArguments
-                                |> ImArray.map (fun x -> x.Substitute(genericContext))
+                                |> ImArray.map (fun x -> 
+                                    x.Substitute(genericContext)
+                                )
                             this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
                         else
                             // We should not have witnesses to pass here.
@@ -3792,7 +3804,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             if x.EnclosingType.TypeParameters.IsEmpty then
                                 this.EmitFunction(x.Formal)
                             else
-                                let enclosingTy = x.EnclosingType.Substitute(genericContext)
+                                let enclosingTy = 
+                                    x.EnclosingType.Substitute(genericContext)
                                 this.EmitFunction(x.Formal.MakeReference(enclosingTy))
                     )
 

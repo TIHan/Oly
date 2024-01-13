@@ -284,10 +284,10 @@ type RuntimeEntity =
         TypeParameters: RuntimeTypeParameter imarray
         TypeArguments: RuntimeType imarray
         Witnesses: RuntimeWitness imarray
-        mutable Extends: RuntimeType imarray
-        mutable Implements: RuntimeType imarray
-        mutable RuntimeType: RuntimeType option
-        mutable Fields: RuntimeField imarray
+        mutable ExtendsLazy: RuntimeType imarray Lazy
+        mutable ImplementsLazy: RuntimeType imarray Lazy
+        mutable RuntimeTypeLazy: RuntimeType option Lazy
+        mutable FieldsLazy: RuntimeField imarray Lazy
 
         Info: RuntimeEntityInfo
     }
@@ -301,6 +301,11 @@ type RuntimeEntity =
     member this.Formal = this.Info.Formal
     member this.Attributes = this.Info.Attributes
     member this.StaticConstructor = this.Info.StaticConstructor
+
+    member this.Extends = this.ExtendsLazy.Value
+    member this.Implements = this.ImplementsLazy.Value
+    member this.Fields = this.FieldsLazy.Value
+    member this.RuntimeType = this.RuntimeTypeLazy.Value
 
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
         // Imported types do not support witnesses.
@@ -340,14 +345,13 @@ type RuntimeEntity =
             let entNew =
                 { this with Witnesses = filteredWitnesses }
 
-            let fields =
-                let enclosingTy = RuntimeType.Entity(entNew)
-                this.Fields
-                |> ImArray.map (fun x ->
-                    x.Substitute(enclosingTy)
-                )
-
-            entNew.Fields <- fields
+            entNew.FieldsLazy <-
+                lazy
+                    let enclosingTy = RuntimeType.Entity(entNew)
+                    this.Fields
+                    |> ImArray.map (fun x ->
+                        x.Substitute(enclosingTy)
+                    )
             entNew
 
     member this.AssemblyIdentity = this.ILAssembly.Identity
@@ -474,35 +478,36 @@ type RuntimeEntity =
                         { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
                 )
 
-            let extends =
-                this.Extends
-                |> ImArray.map (fun x ->
-                    x.Substitute(genericContext)
-                )
-
-            let implements =
-                this.Implements
-                |> ImArray.map (fun x ->
-                    x.Substitute(genericContext)
-                )
-
             let entNew =
                 // TODO: What about witnesses?
                 { this with
                     Enclosing = this.Enclosing.Substitute(genericContext)
-                    Extends = extends
-                    Implements = implements
+                    ExtendsLazy =
+                        lazy
+                            this.Extends
+                            |> ImArray.map (fun x ->
+                                x.Substitute(genericContext)
+                            )
+                    ImplementsLazy =
+                        lazy
+                            this.Implements
+                            |> ImArray.map (fun x ->
+                                x.Substitute(genericContext)
+                            )
+                    RuntimeTypeLazy =
+                        lazy
+                            this.RuntimeType
+                            |> Option.map (fun x -> x.Substitute(genericContext))
                     TypeArguments = tyArgs
                     TypeParameters = tyPars }
 
-            let fields =
-                let enclosingTy = RuntimeType.Entity(entNew)
-                this.Fields
-                |> ImArray.map (fun x ->
-                    x.Substitute(enclosingTy)
-                )
-
-            entNew.Fields <- fields
+            entNew.FieldsLazy <-
+                lazy
+                    let enclosingTy = RuntimeType.Entity(entNew)
+                    this.Fields
+                    |> ImArray.map (fun x ->
+                        x.Substitute(enclosingTy)
+                    )
             entNew
 
     member this.Apply(tyArgs: RuntimeType imarray) =
@@ -526,33 +531,34 @@ type RuntimeEntity =
                         { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
                 )
 
-            let extends =
-                this.Extends
-                |> ImArray.map (fun x ->
-                    x.Substitute(genericContext)
-                )
-
-            let implements =
-                this.Implements
-                |> ImArray.map (fun x ->
-                    x.Substitute(genericContext)
-                )
-
             let entNew =
                 { this with
                     Enclosing = this.Enclosing.Substitute(genericContext)
-                    Extends = extends
-                    Implements = implements
+                    ExtendsLazy =
+                        lazy
+                            this.Extends
+                            |> ImArray.map (fun x ->
+                                x.Substitute(genericContext)
+                            )
+                    ImplementsLazy = 
+                        lazy
+                            this.Implements
+                            |> ImArray.map (fun x ->
+                                x.Substitute(genericContext)
+                            )
+                    RuntimeTypeLazy =
+                        lazy
+                            this.RuntimeType
+                            |> Option.map (fun x -> x.Substitute(genericContext))
                     TypeArguments = tyArgs }
 
-            let fields =
-                let enclosingTy = RuntimeType.Entity(entNew)
-                this.Fields
-                |> ImArray.map (fun x ->
-                    x.Apply(enclosingTy)
-                )
-
-            entNew.Fields <- fields
+            entNew.FieldsLazy <- 
+                lazy
+                    let enclosingTy = RuntimeType.Entity(entNew)
+                    this.Fields
+                    |> ImArray.map (fun x ->
+                        x.Apply(enclosingTy)
+                    )
             { entNew with TypeParameters = tyPars }
 
     override this.GetHashCode() = this.Name.GetHashCode()

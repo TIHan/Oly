@@ -653,7 +653,7 @@ type OlyDefaultWorkspaceResourceService() =
         member _.LoadProjectConfigurationAsync(_projectFilePath: OlyPath, ct: CancellationToken) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
-                return OlyProjectConfiguration(String.Empty, ImArray.empty, false)
+                return OlyProjectConfiguration(String.Empty, ImArray.empty, true)
             }
 
 [<NoComparison;NoEquality>]

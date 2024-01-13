@@ -3,12 +3,17 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net7</TargetFramework>
-	<ServerGarbageCollection>true</ServerGarbageCollection>
+	<!--<ServerGarbageCollection>true</ServerGarbageCollection>-->
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="benchmark.olyx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <Compile Include="Program.fs" />
   </ItemGroup>
+
+  <ItemGroup />
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.13.1" />
@@ -18,8 +23,8 @@
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
     <ProjectReference Include="..\..\Runtime\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj" />
-    <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Interpreter\Oly.Runtime.Interpreter.fsproj" />
   </ItemGroup>
 
 </Project>
