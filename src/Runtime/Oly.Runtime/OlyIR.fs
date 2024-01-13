@@ -186,10 +186,6 @@ type OlyIRFunction<'Type, 'Function, 'Field>
         else
             false
 
-    member internal this.GetEnclosingClosureTypeFields() =
-        OlyAssert.Equal(true, this.HasEnclosingClosureType)
-        runtimeFunc.Value.EnclosingType.Fields
-
     internal new(func: 'Function, runtimeFunc) =
         OlyIRFunction(func, Some runtimeFunc)
 
