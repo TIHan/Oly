@@ -216,19 +216,11 @@ type OlyIRField<'Type, 'Function, 'Field>
         | _ -> failwith "assert"
 
     static member internal AreEqual(field1: OlyIRField<'Type, 'Function, 'Field>, field2: OlyIRField<'Type, 'Function, 'Field>) =
-        obj.ReferenceEquals(field1.EmittedField, field2.EmittedField)
-        //match field1.RuntimeField, field2.RuntimeField with
-        //| Some(runtimeField1), Some(runtimeField2) -> 
-        //    if runtimeField1 = runtimeField2 then
-        //        true
-        //    elif runtimeField1.Formal = runtimeField2.Formal then
-        //        runtimeField1.Name = runtimeField2.Name &&
-        //        runtimeField1.EnclosingType.Equals(runtimeField2.EnclosingType) &&
-        //        runtimeField1.Type.Equals(runtimeField2.Type)
-        //    else
-        //        false
-        //| _ -> 
-        //    false
+        match field1.RuntimeField, field2.RuntimeField with
+        | Some(runtimeField1), Some(runtimeField2) -> 
+            runtimeField1 = runtimeField2
+        | _ -> 
+            false
 
     new(emittedField: 'Field) =
         OlyIRField(emittedField, None)

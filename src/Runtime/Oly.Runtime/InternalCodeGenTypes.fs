@@ -1518,7 +1518,7 @@ type RuntimeAttribute =
 
     member this.Name = this.Constructor.Name
     
-[<ReferenceEquality;NoComparison;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
+[<CustomEquality;NoComparison;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
 type RuntimeField =
     {
         mutable Formal: RuntimeField
@@ -1570,6 +1570,27 @@ type RuntimeField =
             EnclosingType = enclosingTy
             Type = this.Type.Substitute(genericContext)
         }
+
+    override this.GetHashCode() = this.Index
+
+    override this.Equals(o) =
+        if obj.ReferenceEquals(this, o) then true
+        else
+            match o with
+            | :? RuntimeField as field ->
+                // We do not need to check the field type as they should be the same if the following below are true.
+                this.Index = field.Index &&
+                this.Name = field.Name &&
+                this.EnclosingType = field.EnclosingType
+#if DEBUG
+                &&
+                (
+                    OlyAssert.True(this.Type = field.Type)
+                    true
+                )
+#endif
+            | _ ->
+                false
 
 type RuntimeType with
 
