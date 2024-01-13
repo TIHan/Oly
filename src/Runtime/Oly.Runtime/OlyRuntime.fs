@@ -1908,41 +1908,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let func = this.ResolveFunction(ilAsm, ilFuncInst, GenericContext.Default, ImArray.empty)
             C.External(this.EmitFunction(func)), func.ReturnType
 
-    let expandFields isGenericsErased (ty: RuntimeType) =
-        let fields =
-            // Variadic expansion of fields.
-            match ty.TryGetVariadicTypeArgument() with
-            | ValueSome(variadicTyArg) ->
-                if not isGenericsErased then
-                    failwith "Expected generic erasure for variadics."
-                let fields = ty.Fields
-                if fields.IsEmpty then
-                    ImArray.empty
-                else
-                    let lastField = fields[fields.Length - 1]
-                    if lastField.Type = variadicTyArg then
-                        match lastField.Type with
-                        | RuntimeType.Tuple(expandingFieldTys, _) ->
-                            let headFields = fields.RemoveAt(fields.Length - 1)
-                            let tailFields =
-                                expandingFieldTys
-                                |> ImArray.mapi (fun i fieldTy ->
-                                    { lastField with
-                                        Formal = lastField
-                                        Name = lastField.Name + i.ToString()
-                                        Type = fieldTy
-                                    }
-
-                                )
-                            headFields.AddRange(tailFields)
-                        | _ ->
-                            fields
-                    else
-                        fields
-            | _ ->
-                ty.Fields
-        fields
-
     let rec emitField (field: RuntimeField) =
         let asm = assemblies.[field.AssemblyIdentity]
 
@@ -2193,7 +2158,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if not mustDelayFuncs then
                     isEmittingTypeDefinition <- false
 
-                let fields = expandFields isGenericsErased tyDef
+                let fields = tyDef.Fields
                 let fields =
                     if tyDef.IsNewtype then
                         // Do not emit an instance field for newtypes.
