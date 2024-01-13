@@ -2124,6 +2124,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         tyDef.TypeParameters
                         |> ImArray.map (fun tyPar -> 
+                            // REVIEW: Should we be passing a default generic context here?
                             OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints GenericContext.Default)
                         )
 
