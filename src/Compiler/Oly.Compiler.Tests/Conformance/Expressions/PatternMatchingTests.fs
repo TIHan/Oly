@@ -124,7 +124,6 @@ pattern addOne(x: __oly_int32): __oly_int32 = __oly_add(x, 1)
 test(x: __oly_int32): () =
     match (x)
     | addOne(~^~y) => ()
-    | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "y: __oly_int32"
 
@@ -136,7 +135,6 @@ pattern addOne(x: __oly_int32): __oly_int32 = __oly_add(x, 1)
 test(x: __oly_int32): () =
     match (x)
     | ~^~addOne(y) => ()
-    | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "pattern addOne(x: __oly_int32): __oly_int32"
 
@@ -148,7 +146,6 @@ pattern getFloat(x: __oly_int32): __oly_float32 = 5
 test(x: __oly_int32): () =
     match (x)
     | getFloat(~^~y) => ()
-    | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "y: __oly_float32"
 
@@ -160,7 +157,6 @@ pattern getFloat(x: __oly_int32): __oly_float32 = 5
 test(x: __oly_int32): () =
     match (x)
     | ~^~getFloat(y) => ()
-    | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "pattern getFloat(x: __oly_int32): __oly_float32"
 
@@ -172,7 +168,6 @@ pattern addOne(x: __oly_int32): __oly_int32 = __oly_add(x, 1)
 test(x: __oly_int32): () =
     match (x)
     | addOne(y) => ()
-    | _ => ()
         """
     Oly src
     |> withCompile
@@ -360,3 +355,95 @@ main(): () =
     let ~^~x = 2
         """
     src |> hasSymbolSignatureTextByCursor "x: int32"
+
+[<Fact>]
+let ``Use of bare option type for pattern matching should error as it is not exhaustive``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(===)<T>(o1: T, o2: T): bool where T: not struct
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!==)<T>(o1: T, o2: T): bool where T: not struct
+
+#[open]
+newtype Option<T> where T: not struct =
+    field Value: T
+
+    static Some(value: T): Option<T> = Option(value)
+    static None: Option<T> get = Option(unchecked default)
+
+    pattern Some(option: Option<T>): T when (option.Value !== unchecked default) =>
+        option.Value
+
+    pattern None(option: Option<T>): () when (option.Value === unchecked default) =>
+        ()
+
+class C
+
+main(): () =
+    let cOpt = Some(C())
+    match (cOpt)
+    | Some(_) => ()
+    | None => ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Match is not exhaustive.", """
+    match (cOpt)
+    ^^^^^
+""")
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of bare option type for pattern matching should error as it is not exhaustive 2``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(===)<T>(o1: T, o2: T): bool where T: not struct
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!==)<T>(o1: T, o2: T): bool where T: not struct
+
+#[open]
+newtype Option<T> where T: not struct =
+    field Value: T
+
+    static Some(value: T): Option<T> = Option(value)
+    static None: Option<T> get = Option(unchecked default)
+
+    pattern Some(option: Option<T>): T when (option.Value !== unchecked default) =>
+        option.Value
+
+    pattern None(option: Option<T>): () when (option.Value === unchecked default) =>
+        ()
+
+class C
+
+main(): () =
+    let cOpt = Some(C())
+    match (cOpt)
+    | None => ()
+    | Some(_) => ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Match is not exhaustive.", """
+    match (cOpt)
+    ^^^^^
+""")
+        ]
+    |> ignore

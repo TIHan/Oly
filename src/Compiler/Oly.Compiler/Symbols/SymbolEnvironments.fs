@@ -102,6 +102,7 @@ type ScopeEnvironment =
         // Unqualified
         unqualifiedTypes: IntMap<NameMap<TypeSymbol imarray>>
         unqualifiedSymbols: NameMap<UnqualifiedSymbol>
+        unqualifiedPatterns: NameMap<UnqualifiedSymbol>
 
         enclosingTyInst: IdMap<TypeSymbol imarray>
 
@@ -144,6 +145,7 @@ type BoundEnvironment =
                 unqualifiedTypes = IntMap.Empty
 
                 unqualifiedSymbols = NameMap.Empty
+                unqualifiedPatterns = NameMap.Empty
 
                 parameters = ImArray.empty
 
@@ -309,7 +311,7 @@ type BoundEnvironment =
                 if funcs.IsEmpty then
                     None
                 else
-                    FunctionGroupSymbol(funcGroup.Name, funcs, funcs[0].Parameters.Length) :> IFunctionSymbol
+                    FunctionGroupSymbol(funcGroup.Name, funcs, funcs[0].Parameters.Length, funcGroup.IsPatternFunction) :> IFunctionSymbol
                     |> Some
             | UnqualifiedSymbol.Function(func) when func.LogicalTypeParameterCount = arity ->
                 Some func
@@ -320,6 +322,13 @@ type BoundEnvironment =
 
     member this.TryGetUnqualifiedValue(name: string) =
         match this.senv.unqualifiedSymbols.TryGetValue(name) with
+        | true, s ->
+            Some s
+        | _ ->
+            None
+
+    member this.TryGetUnqualifiedPattern(name: string) =
+        match this.senv.unqualifiedPatterns.TryGetValue(name) with
         | true, s ->
             Some s
         | _ ->

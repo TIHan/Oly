@@ -1228,7 +1228,6 @@ main(): () =
     let a = A()
     match (a)
     | A.B(y) => ()
-    | _ => ()
         """
     Oly src
     |> withCompile

@@ -1046,8 +1046,13 @@ type PossibleValues =
     | Value of IValueSymbol
     | None
 
-let tryFindIdentifierAsPossibleValues (cenv: cenv) (env: BinderEnvironment) syntaxNode (ident: string) =
-    match env.benv.TryGetUnqualifiedValue(ident) with
+let tryFindIdentifierAsPossibleValues (cenv: cenv) (env: BinderEnvironment) syntaxNode isPattern (ident: string) =
+    let result =
+        if isPattern then
+            env.benv.TryGetUnqualifiedPattern(ident)
+        else
+            env.benv.TryGetUnqualifiedValue(ident)
+    match result with
     | Some unqualified ->
         match unqualified with
         | UnqualifiedSymbol.Local value -> 
@@ -1077,16 +1082,16 @@ let tryFindIdentifierAsPossibleValues (cenv: cenv) (env: BinderEnvironment) synt
     | _ ->
         PossibleValues.None
 
-let tryBindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (ident: string) : IValueSymbol option =
-    let possibleValues = tryFindIdentifierAsPossibleValues cenv env syntaxNode ident
+let tryBindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode isPattern (ident: string) : IValueSymbol option =
+    let possibleValues = tryFindIdentifierAsPossibleValues cenv env syntaxNode isPattern ident
     match possibleValues with
     | PossibleValues.None -> None
     | PossibleValues.Value value -> Some (value)
     | PossibleValues.Function func -> Some (func :> IValueSymbol)
     | PossibleValues.FunctionGroup funcGroup -> Some (funcGroup :> IValueSymbol)
 
-let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args: ImmutableArray<ArgumentInfo>) (ident: string) =
-    match tryBindIdentifierAsValue cenv env syntaxNode ident with
+let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args: ImmutableArray<ArgumentInfo>) isPattern (ident: string) =
+    match tryBindIdentifierAsValue cenv env syntaxNode isPattern ident with
     | Some value -> value
     | _ -> 
         if canReportMissingIdentifier cenv ident then
@@ -1138,7 +1143,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                         match resArgs.TryGetCount() with
                         | ValueSome(count) -> count
                         | _ -> 0
-                    FunctionGroupSymbol(principalFunc.Name, funcs |> ImArray.ofSeq, fakeParCount) :> IValueSymbol
+                    FunctionGroupSymbol(principalFunc.Name, funcs |> ImArray.ofSeq, fakeParCount, principalFunc.IsPattern) :> IValueSymbol
             | [field] ->
                 field :> IValueSymbol
             | _ ->
@@ -1199,7 +1204,7 @@ let bindIdentifierAsHigherTypeVariable (cenv: cenv) env (tys: ImmutableArray<Typ
         invalidType ()
 
 let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) isPatternContext (ident: string) =
-    match tryBindIdentifierAsValue cenv env syntaxNode ident with
+    match tryBindIdentifierAsValue cenv env syntaxNode isPatternContext ident with
     | Some value ->
         match value with
         | :? FunctionGroupSymbol as funcGroup ->
@@ -1212,7 +1217,6 @@ let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (
 
             let funcs =
                 funcGroup.Functions
-                |> ImArray.filter (fun x -> x.IsPatternFunction = isPatternContext)
                 |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
 
             if funcs.IsEmpty then
@@ -1226,11 +1230,7 @@ let tryBindIdentifierAsValueForExpression cenv env (syntaxNode: OlySyntaxNode) (
             if value.IsFunction then
                 match resArgs with
                 | ResolutionArguments.NotAFunctionCall -> None
-                | _ -> 
-                    if value.AsFunction.IsPatternFunction = isPatternContext then
-                        ResolutionFormalItem.Value(None, value) |> Some
-                    else
-                        None
+                | _ -> ResolutionFormalItem.Value(None, value) |> Some
             else
                 ResolutionFormalItem.Value(None, value) |> Some
     | _ ->

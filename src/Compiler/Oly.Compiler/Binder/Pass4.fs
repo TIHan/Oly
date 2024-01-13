@@ -235,7 +235,7 @@ let private bindPatternByResolutionItem
                     elif funcs.Length = 1 then
                         funcs[0]
                     else
-                        FunctionGroupSymbol(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length)
+                        FunctionGroupSymbol(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length, funcGroup.IsPatternFunction)
                 let callExpr = 
                     bindValueAsCallExpressionWithOptionalSyntaxName
                         cenv
@@ -475,7 +475,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                             if baseCtors.IsEmpty then
                                 env, None
                             else
-                                let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length)
+                                let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length, false)
                                 env.SetUnqualifiedValue(funcGroup), None
                         else
                             let mightBeReadOnly = not isExplicitMutable
@@ -999,6 +999,19 @@ let private bindMatchClause (cenv: cenv) (env: BinderEnvironment) solverEnv expe
     | _ ->
         failwith "New pattern matching syntax not handled."
 
+let private isCasePatternExhaustive (catchCase: BoundCasePattern) =
+    match catchCase with
+    | BoundCasePattern.Discard _
+    | BoundCasePattern.Local _ -> true
+    | BoundCasePattern.Function(_, pat, _, casePatArgs) -> 
+        if pat.PatternGuardFunction.IsNone then
+            casePatArgs
+            |> ImArray.forall isCasePatternExhaustive
+        else
+            false
+    | _ -> 
+        false
+
 let private checkExhaustiveness (cenv: cenv) (_env: BinderEnvironment) syntaxNode matchClauses =
     let rows =
         let rec loop (matchPattern: BoundMatchPattern) =
@@ -1054,15 +1067,19 @@ let private checkExhaustiveness (cenv: cenv) (_env: BinderEnvironment) syntaxNod
         }
         |> ImArray.ofSeq
 
+    let mutable hasError = false
     let mutable isMatchExhaustive = true
     for columnIndex = 0 to columns.Length - 1 do
         let columnRows = columns.[columnIndex]
 
-        let mutable isExhaustive = false
+        let mutable wasPreviousExhaustive = false
+        let mutable isExhaustive = true
+        let mutable isLastRowExhaustive = true
         for columnRowIndex = 0 to columnRows.Length - 1 do
-            match columnRows.[columnRowIndex] with
-            | rowIndex, BoundCasePattern.Discard _
-            | rowIndex, BoundCasePattern.Local _ ->
+            let isLastRow = columnRowIndex = (columnRows.Length - 1)
+            let rowIndex, casePat = columnRows.[columnRowIndex]
+
+            if isCasePatternExhaustive casePat then
                 let disjunctionRows, hasGuard = rows.[rowIndex]
 
                 if not hasGuard then                    
@@ -1070,27 +1087,35 @@ let private checkExhaustiveness (cenv: cenv) (_env: BinderEnvironment) syntaxNod
                         disjunctionRows
                         |> ImArray.exists (fun (_, disjunctionRow) ->
                             disjunctionRow
-                            |> ImArray.forall (function
-                                | BoundCasePattern.Discard _
-                                | BoundCasePattern.Local _ -> true
-                                | _ -> false
-                            )
+                            |> ImArray.forall isCasePatternExhaustive
                         )
 
-                    if areAllDiscards then
-                        isExhaustive <- true
-            | rowIndex, _ -> 
-                if isExhaustive then
-                    let disjunctionRows, _ = rows.[rowIndex]
-                    disjunctionRows
-                    |> ImArray.iter (fun (syntaxMatchPattern, _) ->
-                        cenv.diagnostics.Error("Specified pattern will never be matched.", 10, syntaxMatchPattern)
-                    )
+                    if isExhaustive && not areAllDiscards then
+                        isExhaustive <- false
+                        if isLastRow then
+                            isLastRowExhaustive <- false
+                else
+                    isExhaustive <- false
+                    if isLastRow then
+                        isLastRowExhaustive <- false
+            else
+                isExhaustive <- false
+                if isLastRow then
+                    isLastRowExhaustive <- false
+            
+            if wasPreviousExhaustive then
+                let disjunctionRows, _ = rows.[rowIndex]
+                disjunctionRows
+                |> ImArray.iter (fun (syntaxMatchPattern, _) ->
+                    cenv.diagnostics.Error("Specified pattern will never be matched.", 10, syntaxMatchPattern)
+                    hasError <- true
+                )
+            wasPreviousExhaustive <- isExhaustive
 
-        if not isExhaustive then
+        if not isLastRowExhaustive then
             isMatchExhaustive <- false
 
-    if not isMatchExhaustive then
+    if not isMatchExhaustive && not hasError then
         // TODO: More descriptive error message.
         cenv.diagnostics.Error("Match is not exhaustive.", 10, syntaxNode)
 
@@ -1144,7 +1169,23 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
                     match syntaxFieldPat with
                     | OlySyntaxFieldPattern.FieldPattern(syntaxName, _, syntaxExpr) ->
                         let fieldName = syntaxName.LastIdentifier.ValueText
-                        match fields |> ImArray.tryFind (fun x -> x.Name = fieldName) with
+                        let tryFindField() =
+                            fields 
+                            |> ImArray.tryFind (fun x -> 
+                                if x.Name = fieldName then
+                                    true
+                                else
+                                    match x.AssociatedFormalPropertyId with
+                                    | Some(formalPropId) ->
+                                        // TODO/REVIEW: Extrinsic could pick up properties from extensions, do we want that?
+                                        ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryField.IntrinsicAndExtrinsic, fieldName)
+                                        |> Seq.tryExactlyOne
+                                        |> Option.filter (fun x -> x.Formal.Id = formalPropId)
+                                        |> Option.isSome
+                                    | _ ->
+                                        false
+                            )
+                        match tryFindField() with
                         | Some(field) ->
                             if not(currentFieldSet.Add(fieldName)) then
                                 cenv.diagnostics.Error($"Field '{fieldName}' has already been assigned.", 10, syntaxConstructTy)

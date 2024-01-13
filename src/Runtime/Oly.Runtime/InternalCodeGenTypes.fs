@@ -262,29 +262,45 @@ type RuntimeParameter =
         | _ ->
             false
 
+[<NoComparison;NoEquality;RequireQualifiedAccess>]
+type RuntimeEntityInfo =
+    {
+        Name: string
+        ILAssembly: OlyILReadOnlyAssembly
+        ILEntityDefinitionHandle: OlyILEntityDefinitionHandle
+        ILEntityKind: OlyILEntityKind
+        ILEntityFlags: OlyILEntityFlags
+        ILPropertyDefinitionLookup: ImmutableDictionary<OlyILFunctionDefinitionHandle, OlyILPropertyDefinitionHandle>
+
+        mutable Formal: RuntimeEntity
+        mutable Attributes: RuntimeAttribute imarray
+        mutable StaticConstructor: RuntimeFunction option
+    }
+
 [<NoComparison;CustomEquality;RequireQualifiedAccess>]
 type RuntimeEntity =
     {
         Enclosing: RuntimeEnclosing
-        Name: string
         TypeParameters: RuntimeTypeParameter imarray
         TypeArguments: RuntimeType imarray
         Witnesses: RuntimeWitness imarray
         mutable Extends: RuntimeType imarray
         mutable Implements: RuntimeType imarray
         mutable RuntimeType: RuntimeType option
-        mutable Formal: RuntimeEntity
         mutable Fields: RuntimeField imarray
-        mutable Attributes: RuntimeAttribute imarray
 
-        mutable StaticConstructor: RuntimeFunction option
-
-        ILAssembly: OlyILReadOnlyAssembly
-        ILEntityDefinitionHandle: OlyILEntityDefinitionHandle
-        ILEntityKind: OlyILEntityKind
-        ILEntityFlags: OlyILEntityFlags
-        ILPropertyDefinitionLookup: ImmutableDictionary<OlyILFunctionDefinitionHandle, OlyILPropertyDefinitionHandle>
+        Info: RuntimeEntityInfo
     }
+
+    member this.Name = this.Info.Name
+    member this.ILAssembly = this.Info.ILAssembly
+    member this.ILEntityDefinitionHandle = this.Info.ILEntityDefinitionHandle
+    member this.ILEntityKind = this.Info.ILEntityKind
+    member this.ILEntityFlags = this.Info.ILEntityFlags
+    member this.ILPropertyDefinitionLookup = this.Info.ILPropertyDefinitionLookup
+    member this.Formal = this.Info.Formal
+    member this.Attributes = this.Info.Attributes
+    member this.StaticConstructor = this.Info.StaticConstructor
 
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
         // Imported types do not support witnesses.
@@ -435,10 +451,19 @@ type RuntimeEntity =
         if genericContext.IsEmpty then
             this
         else
-           
+            let origTyArgs = this.TypeArguments
             let tyArgs =
-                this.TypeArguments
+                origTyArgs
                 |> ImArray.map (fun x -> x.Substitute(genericContext))
+
+            let isSame =
+                (origTyArgs, tyArgs)
+                ||> ImArray.forall2 (=)
+
+            // If the type arguments did not change, then return as we do not want to allocate another Entity.
+            if isSame then
+                this
+            else
 
             let tyPars =
                 this.TypeParameters
@@ -960,9 +985,13 @@ type RuntimeType =
                 this
             else
                 if ent.TypeParameters.IsEmpty then
-                    Entity(ent)
+                    this
                 else
-                    Entity(ent.Substitute(genericContext))
+                    let newEnt = ent.Substitute(genericContext)
+                    if obj.ReferenceEquals(ent, newEnt) then
+                        this
+                    else
+                        Entity(newEnt)
         | ByRef(elementTy, kind) ->
             ByRef(elementTy.Substitute(genericContext), kind)
         | NativePtr(elementTy) ->

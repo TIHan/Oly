@@ -6484,3 +6484,124 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
+
+[<Fact>]
+let ``Try/catch should work in a lambda``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+main(): () =
+    let localLambda() =
+        try
+            throw System.Exception("success")
+            1
+        catch (ex: System.Exception) =>
+            print(ex.Message)
+            2
+    print(localLambda())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "success2"
+    |> ignore
+
+[<Fact>]
+let ``Try/catch should work in a static lambda``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+main(): () =
+    static let localLambda() =
+        try
+            throw System.Exception("success")
+            1
+        catch (ex: System.Exception) =>
+            print(ex.Message)
+            2
+    print(localLambda())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "success2"
+    |> ignore
+
+[<Fact>]
+let ``Try/catch should work in a match``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(===)<T>(o1: T, o2: T): bool where T: not struct
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!==)<T>(o1: T, o2: T): bool where T: not struct
+
+#[open]
+newtype Option<T> where T: not struct =
+    field Value: T
+
+    static Some(value: T): Option<T> = Option(value)
+    static None: Option<T> get = Option(unchecked default)
+
+    pattern Some(option: Option<T>): T when (option.Value !== unchecked default) =>
+        option.Value
+
+    pattern None(option: Option<T>): () when (option.Value === unchecked default) =>
+        ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+class C
+
+M(cOpt: Option<C>): int32 =
+    match (cOpt)
+    | Some(c) =>
+        try
+            throw System.Exception("success")
+            1
+        catch (ex: System.Exception) =>
+            print(ex.Message)
+            2
+    | _ =>
+        0
+
+main(): () =
+    print(M(Some(C())))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "success2"
+    |> ignore

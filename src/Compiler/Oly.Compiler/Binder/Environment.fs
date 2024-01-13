@@ -290,8 +290,37 @@ type BinderEnvironment =
                 }
         }
 
+    static member private SetUnqualifiedValue(unqualifiedSymbols: NameMap<UnqualifiedSymbol>, unqualified, value: IValueSymbol) =
+        let unqualifiedSymbols =
+            if value.IsLocal then
+                unqualifiedSymbols.SetItem(value.Name, unqualified)
+            else
+                match unqualifiedSymbols.TryGetValue(value.Name) with
+                | true, current ->
+                    match current with
+                    | UnqualifiedSymbol.Local _ ->
+                        unqualifiedSymbols.SetItem(value.Name, unqualified)
+                    | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
+                        unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo funcGroup value))
+                    | UnqualifiedSymbol.Function(func) ->
+                        unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo func value))
+                    | UnqualifiedSymbol.Field(field) ->
+                        unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo field value))
+                    | UnqualifiedSymbol.Property(prop) ->
+                        unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo prop value))
+                    | UnqualifiedSymbol.AmbiguousValues(values) ->
+                        unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(values.Add(value)))
+                | _ ->
+                    unqualifiedSymbols.SetItem(value.Name, unqualified)
+        unqualifiedSymbols
+
     member this.SetUnqualifiedValue(value: IValueSymbol) =
-        let unqualifiedSymbols = this.benv.senv.unqualifiedSymbols
+        let isPatFunc = value.IsFunction && value.AsFunction.IsPatternFunction
+        let unqualifiedSymbols = 
+            if isPatFunc then
+                this.benv.senv.unqualifiedPatterns
+            else
+                this.benv.senv.unqualifiedSymbols
         let unqualified = value.ToUnqualified()
         if value.IsFunction then
             let funcs =
@@ -312,7 +341,7 @@ type BinderEnvironment =
                     if funcs.Length = 1 then
                         UnqualifiedSymbol.Function(funcs[0])
                     else
-                        let funcGroup = FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length)
+                        let funcGroup = FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length, isPatFunc)
                         UnqualifiedSymbol.FunctionGroup(funcGroup)
                 let unqualifiedSymbols =
                     let defaultCase() =
@@ -376,47 +405,49 @@ type BinderEnvironment =
                     | _ ->
                         defaultCase()
 
+                if isPatFunc then
+                    { this with
+                        benv = 
+                            { this.benv with
+                                senv = 
+                                    { this.benv.senv with
+                                        unqualifiedPatterns = unqualifiedSymbols  
+                                    }
+                            }
+                    }
+                else
+                    { this with
+                        benv = 
+                            { this.benv with
+                                senv = 
+                                    { this.benv.senv with
+                                        unqualifiedSymbols = unqualifiedSymbols  
+                                    }
+                            }
+                    }
+        else
+            OlyAssert.False(isPatFunc)
+            if value.IsFieldConstant then
                 { this with
                     benv = 
                         { this.benv with
                             senv = 
                                 { this.benv.senv with
-                                    unqualifiedSymbols = unqualifiedSymbols  
+                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualified, value)
+                                    unqualifiedPatterns = BinderEnvironment.SetUnqualifiedValue(this.benv.senv.unqualifiedPatterns, unqualified, value)
                                 }
                         }
                 }
-        else
-            let unqualifiedSymbols =
-                if value.IsLocal then
-                    unqualifiedSymbols.SetItem(value.Name, unqualified)
-                else
-                    match unqualifiedSymbols.TryGetValue(value.Name) with
-                    | true, current ->
-                        match current with
-                        | UnqualifiedSymbol.Local _ ->
-                            unqualifiedSymbols.SetItem(value.Name, unqualified)
-                        | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
-                            unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo funcGroup value))
-                        | UnqualifiedSymbol.Function(func) ->
-                            unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo func value))
-                        | UnqualifiedSymbol.Field(field) ->
-                            unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo field value))
-                        | UnqualifiedSymbol.Property(prop) ->
-                            unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(ImArray.createTwo prop value))
-                        | UnqualifiedSymbol.AmbiguousValues(values) ->
-                            unqualifiedSymbols.SetItem(value.Name, UnqualifiedSymbol.AmbiguousValues(values.Add(value)))
-                    | _ ->
-                        unqualifiedSymbols.SetItem(value.Name, unqualified)
-            { this with
-                benv = 
-                    { this.benv with
-                        senv = 
-                            { this.benv.senv with
-                                unqualifiedSymbols =
-                                    unqualifiedSymbols.SetItem(value.Name, unqualified)
-                            }
-                    }
-            }
+            else
+                { this with
+                    benv = 
+                        { this.benv with
+                            senv = 
+                                { this.benv.senv with
+                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualified, value)
+                                }
+                        }
+                }
                 
 
     member this.SetEnclosing(enclosingSymbol: EnclosingSymbol) =
@@ -568,7 +599,7 @@ type BinderEnvironment =
         else this
 
     member this.UnqualifiedPatternExists(ident: string) =
-        match this.benv.senv.unqualifiedSymbols.TryGetValue ident with
+        match this.benv.senv.unqualifiedPatterns.TryGetValue ident with
         | true, UnqualifiedSymbol.FunctionGroup funcGroup ->
             funcGroup.Functions
             |> ImArray.exists (fun func ->

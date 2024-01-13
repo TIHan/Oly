@@ -499,18 +499,31 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
 
     override _.IsLocal = value.IsLocal
     
-    member _.IsUnqualified =
-        match benv.senv.unqualifiedSymbols.TryGetValue(value.Name) with
-        | true, unqualifiedSymbol ->
-            match unqualifiedSymbol with
-            | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
-            | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
-            | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
-            | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
-            | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
-            | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
-        | _ ->
-            false
+    member this.IsUnqualified =
+        if this.IsPatternFunction then
+            match benv.senv.unqualifiedPatterns.TryGetValue(value.Name) with
+            | true, unqualifiedSymbol ->
+                match unqualifiedSymbol with
+                | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
+                | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
+                | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
+            | _ ->
+                false
+        else
+            match benv.senv.unqualifiedSymbols.TryGetValue(value.Name) with
+            | true, unqualifiedSymbol ->
+                match unqualifiedSymbol with
+                | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
+                | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
+                | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
+                | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
+            | _ ->
+                false
 
     member _.ReturnType = 
         match value with
@@ -671,7 +684,7 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
         | AttributeSymbol.Open -> "open"
         | AttributeSymbol.Null -> "null"
         | AttributeSymbol.Import _ -> "import"
-        | AttributeSymbol.Export _ -> "export"
+        | AttributeSymbol.Export -> "export"
         | AttributeSymbol.Intrinsic _ -> "intrinsic"
         | AttributeSymbol.Inline _ -> "inline"
         | AttributeSymbol.Unmanaged _ -> "unmanaged"
@@ -821,7 +834,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
     /// Gets qualified pattern functions by one level.
     member _.GetPatternFunctionSymbols() =
         let symbols1 =
-            benv.senv.unqualifiedSymbols.Values
+            benv.senv.unqualifiedPatterns.Values
             |> Seq.map (fun x -> 
                 match x with
                 | UnqualifiedSymbol.Function value when value.IsPatternFunction ->

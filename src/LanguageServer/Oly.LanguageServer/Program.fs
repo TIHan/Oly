@@ -1885,7 +1885,17 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 backgroundTask {
                     match! workspace.BuildProjectAsync(doc.Project.Path, ct) with
                     | Ok result -> return { resultPath = result; error = null }
-                    | Error error -> return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
+                    | Error error -> 
+                        let diags =
+                            error
+                            |> Seq.groupBy (fun x -> match x.SyntaxTree with Some syntaxTree -> syntaxTree.Path | _ -> OlyPath.Create(request.DocumentPath))
+
+                        diags
+                        |> Seq.iter (fun (docPath, diags) ->
+                            let diags = diags |> Seq.map (fun x -> createDiagnostic x ct)
+                            server.PublishDiagnostics(Protocol.DocumentUri.From(docPath.ToString()), Nullable(), diags)
+                        )
+                        return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
                 }
             )
 

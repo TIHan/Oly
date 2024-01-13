@@ -203,6 +203,7 @@ module private Helpers =
             true            
 
         override this.VisitExpression(expr) =
+            // TODO/REVIEW: Should we handle match expressions? They get lowered to If/Else expressions so it doesn't impact later phases.
             match expr with
             | BoundExpression.Lambda(flags=flags) ->
                 if checkInnerLambdas || flags.HasFlag(LambdaFlags.Continuation) then
@@ -237,6 +238,15 @@ module private Helpers =
             | BoundExpression.SetValue(value=value) ->
                 if checkValue value.Formal then
                     freeLocals.[value.Formal.Id] <- (None, value.Formal)
+                base.VisitExpression(expr)
+
+            | E.Try(catchCases=catchCases) ->
+                catchCases
+                |> ImArray.iter (function
+                    | BoundCatchCase.CatchCase(_, par, _) ->
+                        if not (locals.Add(par.Id)) then
+                            failwithf "Local already added - name: %s id: %i" par.Name par.Id
+                )
                 base.VisitExpression(expr)
                     
             | _ ->

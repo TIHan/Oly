@@ -6832,8 +6832,6 @@ test(x: int32, y: int32): () =
     | (z, w) =>
         print(z)
         print(w)
-    | _ => 
-        ()
 
 main(): () =
     test(123, 555)
@@ -6934,8 +6932,6 @@ test(x: int32, y: int32, z: int32, w: int32): () =
         print(c)
         print(d)
         print(e)
-    | _ => 
-        ()
 
 main(): () =
     test(1, 2, 3, 4)
@@ -7128,8 +7124,6 @@ test(x: int32): () =
     | Tuple(x, y) =>
         print(x)
         print(y)
-    | _ => 
-        ()
 
 main(): () =
     test(1)
@@ -7162,8 +7156,6 @@ test(x: int32): () =
         print(x)
         print(y)
         print(z)
-    | _ => 
-        ()
 
 main(): () =
     test(2)
@@ -8411,7 +8403,6 @@ pattern addOne(x: int32): int32 = __oly_add(x, 1)
 test(x: int32): () =
     match (x)
     | addOne(y) => print(y)
-    | _ => print(x)
 
 main(): () =
     test(1)
@@ -13193,7 +13184,6 @@ main(): () =
     match (Option(123))
     | Some(value) =>
         print(value)
-    | _ => ()
         """
     Oly src
     |> withCompile
@@ -13223,7 +13213,6 @@ module OptionPatterns<T> =
 test(x: Option<__oly_utf16>): () =
     match (x)
     | Some(_) => ()
-    | _ => ()
 
 main(): () =
     test(Option("test"))
@@ -13256,7 +13245,6 @@ module OptionPatterns<T> =
 test(x: Option<__oly_utf16>): () =
     match (x)
     | Some(y) => ()
-    | _ => ()
 
 main(): () =
     test(Option("test"))
@@ -13371,8 +13359,6 @@ main(): () =
     match ((x, (x, x)))
     | (y, _) => 
         print("pass")
-    | _ =>
-        print("fail")
         """
     Oly src
     |> withCompile
@@ -13391,7 +13377,7 @@ main(): () =
     match (x, x, x)
     | _, y, _
     | _, _, y
-    | y, _, _ => 
+    | y, _, _ when (true) => 
         print("pass")
         print(y)
     | _ => 
@@ -13406,6 +13392,15 @@ main(): () =
 let ``Regression - pattern match (large) should work with Or cases when binding a value``() =
     let src =
         """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
 #[intrinsic("print")]
 print(__oly_object): ()
 
@@ -13416,7 +13411,7 @@ main(): () =
     | _, _, y, _, _, _, _, _, _, _
     | y, _, _, _, _, _, _, _, _, _
     | _, _, _, _, y, _, _, _, _, _ 
-    | _, _, _, _, _, _, _, y, _, _ => 
+    | _, _, _, _, _, _, _, y, _, _ when (y == y) => 
         print("pass")
         print(y)
     | _ => 
@@ -13441,7 +13436,7 @@ main(): () =
     | 5, _, y, _, _, _, _, _, _, 5
     | y, 5, _, 5, _, _, _, _, _, _
     | _, _, _, _, y, _, _, 5, _, _ 
-    | _, 5, 5, _, _, _, _, y, _, _ => 
+    | _, 5, 5, _, _, _, _, y, _, _ when (true) => 
         print("pass")
         print(y)
     | _ => 

@@ -554,6 +554,8 @@ let createInitialBoundEnvironment asmIdent =
                 |> Seq.map (fun func -> System.Collections.Generic.KeyValuePair(func.Name, UnqualifiedSymbol.Function(func)))
                 |> NameMap.ofSeq
 
+            unqualifiedPatterns = NameMap.Empty
+
             parameters = ImArray.empty
 
             typeParameters = ImArray.empty

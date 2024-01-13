@@ -22,7 +22,7 @@ let scopeInInstanceConstructors (env: BinderEnvironment) (ent: EntitySymbol) =
     elif instanceCtors.Length = 1 then
         env.SetUnqualifiedValue(instanceCtors[0])
     else
-        env.SetUnqualifiedValue(FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length)) 
+        env.SetUnqualifiedValue(FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false)) 
 
 let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
@@ -142,13 +142,13 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                         ent.Functions
                         |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static
                         |> Seq.filter (fun func -> not func.IsConstructor)
-                        |> Seq.groupBy (fun func -> func.Name)
-                        |> Seq.map (fun (name, funcs) ->
+                        |> Seq.groupBy (fun func -> (func.Name, func.IsPatternFunction))
+                        |> Seq.map (fun ((name, isPattern), funcs) ->
                             let funcs = funcs |> ImArray.ofSeq
                             if funcs.Length = 1 then
                                 funcs[0]
                             else
-                                FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length) :> IFunctionSymbol
+                                FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length, isPattern) :> IFunctionSymbol
                                 
                         )
                         |> ImArray.ofSeq

@@ -6366,7 +6366,6 @@ module OptionPatterns<T> =
 test(x: Option<__oly_utf16>): () =
     match (x)
     | Some(_) => ()
-    | _ => ()
         """
     Oly src
     |> withCompile
@@ -7178,7 +7177,6 @@ alias CoolClassAlias = CoolClass
 main(): () =
     match (1)
     | ~^~CoolClassAlias.Test(x) => ()
-    | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "CoolClassAlias"
 
@@ -9128,3 +9126,20 @@ main(): () =
     ~^~xs[0] <- 2
         """
     src |> hasSymbolSignatureTextByCursor "xs: mutable int32[]"
+
+[<Fact>]
+let ``Regression - should be able to reference static property from module``() =
+    let src =
+        """
+module Module
+
+#[intrinsic("int32")]
+alias int32
+
+Value: int32 get = 1
+
+main(): () =
+    let x = Value
+        """
+    Oly src
+    |> shouldCompile

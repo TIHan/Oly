@@ -2244,11 +2244,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                         func.MakeReference(tyDef)
                                     else
                                         func
-                                match tyDef with
-                                | RuntimeType.Entity(ent) -> 
-                                    ent.StaticConstructor <- Some func
-                                | _ ->
-                                    ()
                                 this.EmitFunction(func) |> ignore
                             // Eagerly emit functions that override an external function.
                             // Generic functions that override external generic functions will be eagerly emitted - requires the target runtime to support generics.
@@ -3205,26 +3200,29 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ent =
                     {
                         RuntimeEntity.Enclosing = enclosing
-                        RuntimeEntity.Name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
                         RuntimeEntity.TypeParameters = fullTyPars
                         RuntimeEntity.TypeArguments = fullTyArgs
                         RuntimeEntity.Witnesses = ImArray.empty
                         RuntimeEntity.Extends = ImArray.empty
                         RuntimeEntity.Implements = ImArray.empty
                         RuntimeEntity.RuntimeType = None
-                        RuntimeEntity.Formal = Unchecked.defaultof<_>
                         RuntimeEntity.Fields = ImArray.empty
-                        RuntimeEntity.Attributes = ImArray.empty
 
-                        RuntimeEntity.StaticConstructor = None
+                        RuntimeEntity.Info =
+                            {
+                                RuntimeEntityInfo.Name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
+                                RuntimeEntityInfo.ILAssembly = ilAsm
+                                RuntimeEntityInfo.ILEntityDefinitionHandle = ilEntDefOrRefHandle
+                                RuntimeEntityInfo.ILEntityKind = ilEntDef.Kind
+                                RuntimeEntityInfo.ILEntityFlags = ilEntDef.Flags
+                                RuntimeEntityInfo.ILPropertyDefinitionLookup = ilPropDefLookup
 
-                        RuntimeEntity.ILAssembly = ilAsm
-                        RuntimeEntity.ILEntityDefinitionHandle = ilEntDefOrRefHandle
-                        RuntimeEntity.ILEntityKind = ilEntDef.Kind
-                        RuntimeEntity.ILEntityFlags = ilEntDef.Flags
-                        RuntimeEntity.ILPropertyDefinitionLookup = ilPropDefLookup
+                                RuntimeEntityInfo.Formal = Unchecked.defaultof<_>
+                                RuntimeEntityInfo.Attributes = ImArray.empty
+                                RuntimeEntityInfo.StaticConstructor = None
+                            }
                     }
-                ent.Formal <- ent
+                ent.Info.Formal <- ent
                 let ty = RuntimeType.Entity(ent)
                 asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeEntityDefinitionTypeArgumentWitnessListTable())
 
@@ -3283,7 +3281,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     ilEntDef.Attributes
                     |> ImArray.choose (fun x -> this.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
 
-                ent.Attributes <- attrs
+                ent.Info.Attributes <- attrs
 
                 let staticCtorOpt =
                     ilEntDef.FunctionHandles
@@ -3302,7 +3300,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             None
                     )
 
-                ent.StaticConstructor <- staticCtorOpt
+                ent.Info.StaticConstructor <- staticCtorOpt
 
                 tyPars
                 |> ImArray.iter (fun tyPar ->

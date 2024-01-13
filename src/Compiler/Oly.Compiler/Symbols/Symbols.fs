@@ -2080,7 +2080,7 @@ type InvalidFunctionSymbol(enclosing, name) =
 
 /// Technically an invalid value, but is useful for diagnostics/tooling purposes.
 [<Sealed;DebuggerDisplay("{Name}")>]
-type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunctionSymbol imarray, fakeParCount) =
+type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunctionSymbol imarray, fakeParCount, isPattern) =
 
     let id = newId()
     let errorTy = TypeSymbolError     
@@ -2163,20 +2163,24 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
 
         member this.IsBase = false
 
-        member this.Semantic = NormalFunction
+        member this.Semantic = 
+            if isPattern then
+                PatternFunction
+            else
+                NormalFunction
 
         member this.WellKnownFunction = WellKnownFunction.None
 
         member this.AssociatedFormalPattern = None
 
-    new(name: string, funcs: IFunctionSymbol imarray, fakeParCount) =
-        FunctionGroupSymbol(EnclosingSymbol.RootNamespace, name, funcs, fakeParCount)
+    new(name: string, funcs: IFunctionSymbol imarray, fakeParCount, isPattern) =
+        FunctionGroupSymbol(EnclosingSymbol.RootNamespace, name, funcs, fakeParCount, isPattern)
 
     static member Create(funcs: IFunctionSymbol imarray) =
         if funcs.Length <= 0 then
             failwith "assert"
         let principalFunc = funcs[0]
-        FunctionGroupSymbol(principalFunc.Name, funcs, principalFunc.Parameters.Length)
+        FunctionGroupSymbol(principalFunc.Name, funcs, principalFunc.Parameters.Length, false)
 
     static member CreateIfPossible(funcs: IFunctionSymbol imarray) =
         Assert.ThrowIfNot(not funcs.IsEmpty)
@@ -4384,7 +4388,7 @@ module SymbolExtensions =
                 let id = newId()
                 match this with
                 | :? FunctionGroupSymbol as funcGroup ->
-                    FunctionGroupSymbol(enclosing, funcGroup.Name, funcGroup.Functions, funcGroup.Functions[0].Parameters.Length) :> IValueSymbol
+                    FunctionGroupSymbol(enclosing, funcGroup.Name, funcGroup.Functions, funcGroup.Functions[0].Parameters.Length, (funcGroup: IValueSymbol).IsPattern) :> IValueSymbol
                 | :? IFunctionSymbol as func ->
                     { new IFunctionSymbol with
     

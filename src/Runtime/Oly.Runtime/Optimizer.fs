@@ -709,13 +709,14 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 |> ImArray.map (fun irCatchCase ->
                     match irCatchCase with
                     | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                        let newLocalIndex = localOffset + localIndex
                         let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
 
-                        if irNewCaseBodyExpr = irCaseBodyExpr then
+                        if irNewCaseBodyExpr = irCaseBodyExpr && localIndex = newLocalIndex then
                             irCatchCase
                         else
                             didChange <- true
-                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+                            OlyIRCatchCase.CatchCase(localName, newLocalIndex, irNewCaseBodyExpr, catchTy)
                 )
 
             let irNewFinallyBodyExprOpt =
