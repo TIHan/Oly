@@ -13,6 +13,9 @@
     <Compile Include="InternalCodeGenTypes.fs" />
     <Compile Include="OlyIR.fs" />
     <Compile Include="IOlyRuntimeEmitter.fs" />
+    <Compile Include="optenv.fs" />
+    <Compile Include="InlineFunctions.fsi" />
+    <Compile Include="InlineFunctions.fs" />
     <Compile Include="Optimizer.fsi" />
     <Compile Include="Optimizer.fs" />
     <Compile Include="OlyRuntime.fsi" />
