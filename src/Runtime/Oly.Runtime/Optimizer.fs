@@ -801,14 +801,14 @@ let cseEquals irExpr1 irExpr2 =
           cseEquals irReceiverExpr1 irReceiverExpr2
 
 
-        //| O.New(func1, argExprs1, _),
-        //  O.New(func2, argExprs2, _) 
-        //        when func1.IsClosureInstanceConstructor && func2.IsClosureInstanceConstructor &&
-        //             func1.RuntimeFunction = func2.RuntimeFunction &&
-        //             argExprs1.Length = argExprs2.Length &&
-        //             (argExprs1, argExprs2)
-        //             ||> ImArray.forall2 (cseEquals) ->
-        //    true
+        | O.New(func1, argExprs1, _),
+          O.New(func2, argExprs2, _) 
+                when func1.IsClosureInstanceConstructor && func2.IsClosureInstanceConstructor &&
+                     func1.RuntimeFunction = func2.RuntimeFunction &&
+                     argExprs1.Length = argExprs2.Length &&
+                     (argExprs1, argExprs2)
+                     ||> ImArray.forall2 (cseEquals) ->
+            true
 
         | _ ->
             false
@@ -859,12 +859,12 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                 | _ -> 
                     irExpr
 
-            //| O.New _ ->
-            //    match env.TryGetValue(irExpr) with
-            //    | true, irNewExpr ->
-            //        handleExpression env irNewExpr
-            //    | _ ->
-            //        irExpr
+            | O.New _ ->
+                match env.TryGetValue(irExpr) with
+                | true, irNewExpr ->
+                    handleExpression env irNewExpr
+                | _ ->
+                    irExpr
 
             | _ ->
                 irExpr
@@ -984,48 +984,46 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
 
             let irNewExpr1 = handleExpression env irExpr1
 
-            //let env, irNewExpr1 =
-            //    match irNewExpr1 with
-            //    | E.Operation(irTextRange, op) ->
-            //        let mutable env = env
-            //        let irNewArgExprs =
-            //            op.MapArguments(fun _ irArgExpr ->
-            //                match irArgExpr with
-            //                | E.Operation(_, op) ->
-            //                    match op with
-            //                    | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
-            //                        match env.TryGetValue(irArgExpr) with
-            //                        | true, irNewExpr ->
-            //                            handleExpression env irNewExpr
-            //                        | _ ->
-            //                            let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
-            //                            let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
-            //                            hoist.Add((localIndex, irArgExpr))
-            //                            env <- env.Set(irArgExpr, localExpr)
-            //                            localExpr
-            //                    | _ ->
-            //                        irArgExpr
-            //                | _ ->
-            //                    irArgExpr
-            //            )
-            //        env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
-            //    | _ ->
-            //        env, irNewExpr1
-
-            let irNewExpr1 =
-                (hoist, irNewExpr1)
-                ||> Seq.foldBack (fun (localIndex, rhsExpr) expr ->
-                    E.Let("cse", localIndex, rhsExpr,
-                        expr
-                    )
-                )
+            let env, irNewExpr1 =
+                match irNewExpr1 with
+                | E.Operation(irTextRange, op) ->
+                    let mutable env = env
+                    let irNewArgExprs =
+                        op.MapArguments(fun _ irArgExpr ->
+                            match irArgExpr with
+                            | E.Operation(_, op) ->
+                                match op with
+                                | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
+                                    match env.TryGetValue(irArgExpr) with
+                                    | true, irNewExpr ->
+                                        handleExpression env irNewExpr
+                                    | _ ->
+                                        let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
+                                        let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
+                                        hoist.Add((localIndex, irArgExpr))
+                                        env <- env.Set(irArgExpr, localExpr)
+                                        localExpr
+                                | _ ->
+                                    irArgExpr
+                            | _ ->
+                                irArgExpr
+                        )
+                    env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
+                | _ ->
+                    env, irNewExpr1
 
             let irNewExpr2 = handleExpression env irExpr2
     
             if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
                 irExpr
             else
-                E.Sequential(irNewExpr1, irNewExpr2)
+                let newExpr = E.Sequential(irNewExpr1, irNewExpr2)
+                (hoist, newExpr)
+                ||> Seq.foldBack (fun (localIndex, rhsExpr) expr ->
+                    E.Let("cse", localIndex, rhsExpr,
+                        expr
+                    )
+                )
     
         | E.Operation(irTextRange, irOp) ->
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression env irArgExpr)

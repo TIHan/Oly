@@ -477,8 +477,28 @@ main(): () =
         """
         |> getOptimizedIR "main"
     match ir with
-    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) ->
-        OlyAssert.Equal("cmd", func.EmittedFunction.Name)
+    | OlyIRExpression.Let(_, localIndex, rhsExpr, bodyExpr) ->
+        match rhsExpr with
+        | OlyIRExpression.Operation(_, OlyIROperation.New _) ->
+            match bodyExpr with
+            | OlyIRExpression.Sequential(
+                OlyIRExpression.Operation(_, OlyIROperation.Call(_, argExprs1, _)),
+                OlyIRExpression.Operation(_, OlyIROperation.Call(_, argExprs2, _))
+                ) when argExprs1.Length = 1 && argExprs2.Length = 1 ->
+                match argExprs1[0] with
+                | OlyIRExpression.Value(_, OlyIRValue.Local(targetLocalIndex1, _)) ->
+                    match argExprs2[0] with
+                    | OlyIRExpression.Value(_, OlyIRValue.Local(targetLocalIndex2, _)) ->
+                        OlyAssert.Equal(localIndex, targetLocalIndex1)
+                        OlyAssert.Equal(localIndex, targetLocalIndex2)
+                    | _ ->
+                        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+                | _ ->
+                    OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+            | _ ->
+                OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+        | _ ->
+            OlyAssert.Fail($"Unexpected pattern:\n{ir}")
     | _ ->
         OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
