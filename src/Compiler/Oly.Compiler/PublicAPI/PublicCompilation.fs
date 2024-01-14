@@ -466,14 +466,15 @@ module private CompilationPhases =
                 let loweredBoundTree =
                     boundTree
                     |> PatternMatchCompilation.Lower ct
-                  //  |> outputTree
+                   // |> outputTree
                     |> CommonLowering.Lower ct
+                    //|> outputTree
                     |> Optimizer.Lower ct { LocalValueElimination = not state.options.Debuggable; BranchElimination = true }
                   //  |> outputTree
                     |> RefCellLowering.Lower
                    // |> outputTree
                     |> LambdaLifting.Lower
-                   // |> outputTree
+                    //|> outputTree
                 loweredBoundTree, diags
             )
 

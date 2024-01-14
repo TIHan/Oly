@@ -6283,11 +6283,11 @@ getHeaderSize(kind: PacketKind): int32 =
 getHeaderSize2(kind: PacketKind): int32 =
     match (kind)
     | PacketKind.Heartbeat => sizeof<PacketKind>
-    | PacketKind.ConnectionRequested => sizeof<PacketKind>
-    | PacketKind.ConnectionAccepted => sizeof<PacketKind>
-    | PacketKind.Disconnect => sizeof<PacketKind>
+  //  | PacketKind.ConnectionRequested => sizeof<PacketKind>
+  //  | PacketKind.ConnectionAccepted => sizeof<PacketKind>
+  //  | PacketKind.Disconnect => sizeof<PacketKind>
     | PacketKind.Unreliable => sizeof<PacketUnreliableHeader>
-    | PacketKind.UnreliableSequenced => sizeof<PacketUnreliableHeader>
+  //  | PacketKind.UnreliableSequenced => sizeof<PacketUnreliableHeader>
     | _ => -1
 
 main(): () =

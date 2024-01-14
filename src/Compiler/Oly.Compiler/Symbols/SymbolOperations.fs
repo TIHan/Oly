@@ -700,10 +700,8 @@ let areLogicalFunctionSignaturesEqual (func1: IFunctionSymbol) (func2: IFunction
         func1.LogicalParameterCount = func2.LogicalParameterCount &&
         func1.TypeParameters.Length = func2.TypeParameters.Length &&
         (
-            (func1.TypeParameters, func2.TypeParameters)
-            ||> ImArray.forall2 (fun tyPar1 tyPar2 -> 
-                TypeParameterSymbol.ReasonablyEquals(tyPar1, tyPar2)
-            )
+            (func1.TypeArguments, func2.TypeArguments)
+            ||> ImArray.forall2 (UnifyTypes TypeVariableRigidity.Indexable)
         ) &&
         (
             (func1.LogicalParameters, func2.LogicalParameters)
