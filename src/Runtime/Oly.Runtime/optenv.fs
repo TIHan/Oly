@@ -190,6 +190,55 @@ module internal Helpers =
     let hasSideEffect optenv (irExpr: E<_, _, _>) =
         hasSideEffectAux optenv SideEffectDepthLimit false 0 irExpr
 
+    let rec canSafelyPropagateForNewClosure optenv (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=value) ->
+            match value with
+            | V.Local _
+            | V.LocalAddress _
+            | V.Argument _
+            | V.ArgumentAddress _ -> true
+            | _ -> false
+        | E.Operation(op=O.LoadFunction(_, receiverExpr, _)) ->
+            canSafelyPropagate optenv receiverExpr
+        | _ -> 
+            canSafelyPropagate optenv expr
+
+    and canSafelyPropagate optenv (expr: E<_, _, _>) =
+        match expr with
+        | E.Operation(op=op) ->
+            match op with
+            | O.New(irFunc, _, _) -> 
+                if irFunc.IsClosureInstanceConstructor then
+                    let mutable anyArgsHaveSideEffects = false
+                    op.ForEachArgument(fun _ irArgExpr -> 
+                        if not anyArgsHaveSideEffects then
+                            anyArgsHaveSideEffects <- canSafelyPropagateForNewClosure optenv irArgExpr |> not
+                    )
+                    not anyArgsHaveSideEffects
+                else
+                    false
+            | _ ->
+                false
+        | E.Let(localIndex=localIndex;rhsExpr=rhsExpr;bodyExpr=bodyExpr) ->
+            match rhsExpr with
+            | E.Sequential _
+            | E.Let _ -> false
+            | _ ->
+
+            match bodyExpr with
+            | E.Sequential _
+            | E.Let _ -> false
+            | _ ->
+
+            match bodyExpr with
+            | E.Value(value=V.LocalAddress(localIndex2, _, _)) when localIndex = localIndex2 ->
+                canSafelyPropagate optenv rhsExpr
+            | _ ->
+                false
+        | _ ->
+            false
+
     let areConstantsDefinitelyEqual (c1: C<'Type, 'Function>) (c2: C<'Type, 'Function>) =
         match c1, c2 with
         | C.UInt8(value1), C.UInt8(value2) -> value1 = value2

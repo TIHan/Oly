@@ -800,6 +800,16 @@ let cseEquals irExpr1 irExpr2 =
           O.LoadField(irField2, irReceiverExpr2, _) when OlyIRField.AreEqual(irField1, irField2) ->
           cseEquals irReceiverExpr1 irReceiverExpr2
 
+
+        //| O.New(func1, argExprs1, _),
+        //  O.New(func2, argExprs2, _) 
+        //        when func1.IsClosureInstanceConstructor && func2.IsClosureInstanceConstructor &&
+        //             func1.RuntimeFunction = func2.RuntimeFunction &&
+        //             argExprs1.Length = argExprs2.Length &&
+        //             (argExprs1, argExprs2)
+        //             ||> ImArray.forall2 (cseEquals) ->
+        //    true
+
         | _ ->
             false
     | _ ->
@@ -837,6 +847,7 @@ type CseEnv<'Type, 'Function, 'Field> =
         this.Subexpressions.TryGetValue(irExpr, &value)
 
 let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
+    
     let rec handleOperation (env: CseEnv<_, _, _>) irExpr =
         match irExpr with
         | E.Operation(_, irOp) ->
@@ -847,6 +858,14 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                     handleExpression env irNewExpr
                 | _ -> 
                     irExpr
+
+            //| O.New _ ->
+            //    match env.TryGetValue(irExpr) with
+            //    | true, irNewExpr ->
+            //        handleExpression env irNewExpr
+            //    | _ ->
+            //        irExpr
+
             | _ ->
                 irExpr
         | _ ->
@@ -961,7 +980,46 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
     
         | E.Sequential(irExpr1, irExpr2) ->
+            let hoist = List()
+
             let irNewExpr1 = handleExpression env irExpr1
+
+            //let env, irNewExpr1 =
+            //    match irNewExpr1 with
+            //    | E.Operation(irTextRange, op) ->
+            //        let mutable env = env
+            //        let irNewArgExprs =
+            //            op.MapArguments(fun _ irArgExpr ->
+            //                match irArgExpr with
+            //                | E.Operation(_, op) ->
+            //                    match op with
+            //                    | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
+            //                        match env.TryGetValue(irArgExpr) with
+            //                        | true, irNewExpr ->
+            //                            handleExpression env irNewExpr
+            //                        | _ ->
+            //                            let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
+            //                            let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
+            //                            hoist.Add((localIndex, irArgExpr))
+            //                            env <- env.Set(irArgExpr, localExpr)
+            //                            localExpr
+            //                    | _ ->
+            //                        irArgExpr
+            //                | _ ->
+            //                    irArgExpr
+            //            )
+            //        env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
+            //    | _ ->
+            //        env, irNewExpr1
+
+            let irNewExpr1 =
+                (hoist, irNewExpr1)
+                ||> Seq.foldBack (fun (localIndex, rhsExpr) expr ->
+                    E.Let("cse", localIndex, rhsExpr,
+                        expr
+                    )
+                )
+
             let irNewExpr2 = handleExpression env irExpr2
     
             if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
@@ -1179,36 +1237,40 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
         localToNormalizedLocalMap.Add(localIndex, newLocalIndex)
         newLocalIndex
 
-    let getLocal localIndex =
-        localToNormalizedLocalMap[localIndex]
+    let getLocal (localScope: ImmutableHashSet<int>) localIndex =
+        let newLocalIndex = localToNormalizedLocalMap[localIndex]
+        if localScope.Contains(newLocalIndex) |> not then
+            failwith $"Local '{newLocalIndex}' not in scope."
+        newLocalIndex
 
-    let handleOperation origOp : O<_, _, _> =
+    let handleOperation (localScope: ImmutableHashSet<int>) origOp : O<_, _, _> =
         match origOp with
         | O.Store(localIndex, irRhsExpr, resultTy) ->
-            O.Store(getLocal localIndex, irRhsExpr, resultTy)
+            O.Store(getLocal localScope localIndex, irRhsExpr, resultTy)
         | _ ->
             origOp
 
-    let rec handleLinearExpression origExpr : E<_, _, _> =
+    let rec handleLinearExpression (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
         match origExpr with
         | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr =
                 match irRhsExpr with
                 | E.Let _
                 | E.Sequential _ ->
-                    handleLinearExpression irRhsExpr
+                    handleLinearExpression localScope irRhsExpr
                 | _ ->
-                    handleExpression irRhsExpr
+                    handleExpression localScope irRhsExpr
 
             let newLocalIndex = addLocal localIndex
+            let localScope = localScope.Add(newLocalIndex)
 
             let irNewBodyExpr =
                 match irBodyExpr with
                 | E.Let _
                 | E.Sequential _ ->
-                    handleLinearExpression irBodyExpr
+                    handleLinearExpression localScope irBodyExpr
                 | _ ->
-                    handleExpression irBodyExpr
+                    handleExpression localScope irBodyExpr
 
             if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
                 origExpr
@@ -1220,17 +1282,17 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                 match irExpr1 with
                 | E.Let _
                 | E.Sequential _ ->
-                    handleLinearExpression irExpr1
+                    handleLinearExpression localScope irExpr1
                 | _ ->
-                    handleExpression irExpr1
+                    handleExpression localScope irExpr1
 
             let irNewExpr2 =
                 match irExpr2 with
                 | E.Let _
                 | E.Sequential _ ->
-                    handleLinearExpression irExpr2
+                    handleLinearExpression localScope irExpr2
                 | _ ->
-                    handleExpression irExpr2
+                    handleExpression localScope irExpr2
 
             if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
                 origExpr
@@ -1240,25 +1302,25 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
         | _ ->
             failwith "Invalid linear expression"
 
-    and handleExpression origExpr : E<_, _, _> =
+    and handleExpression (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
         match origExpr with
         | E.Let _
         | E.Sequential _ ->
-            handleLinearExpression origExpr
+            handleLinearExpression localScope origExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression irConditionExpr
+            let irNewConditionExpr = handleExpression localScope irConditionExpr
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.True, _)) ->
-                handleExpression irTrueTargetExpr
+                handleExpression localScope irTrueTargetExpr
 
             | E.Value(value=V.Constant(C.False, _)) ->
-                handleExpression irFalseTargetExpr
+                handleExpression localScope irFalseTargetExpr
 
             | _ ->
-                let irNewTrueTargetExpr = handleExpression irTrueTargetExpr
-                let irNewFalseTargetExpr = handleExpression irFalseTargetExpr
+                let irNewTrueTargetExpr = handleExpression localScope irTrueTargetExpr
+                let irNewFalseTargetExpr = handleExpression localScope irFalseTargetExpr
 
                 if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
                     origExpr
@@ -1266,13 +1328,13 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                     E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
 
         | E.While(irConditionExpr, irBodyExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression irConditionExpr
+            let irNewConditionExpr = handleExpression localScope irConditionExpr
 
             match irNewConditionExpr with
             | E.Value(value=V.Constant(C.False, _)) ->
                 E.None(NoRange, resultTy)
             | _ ->
-                let irNewBodyExpr = handleExpression irBodyExpr
+                let irNewBodyExpr = handleExpression localScope irBodyExpr
 
                 if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
                     origExpr
@@ -1280,7 +1342,7 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                     E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
 
         | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
-            let irNewBodyExpr = handleExpression irBodyExpr
+            let irNewBodyExpr = handleExpression localScope irBodyExpr
 
             let mutable didChange = false
             let irNewCatchCases =
@@ -1289,7 +1351,8 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                     match irCatchCase with
                     | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
                         let newLocalIndex = addLocal localIndex
-                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
+                        let localScope = localScope.Add(newLocalIndex)
+                        let irNewCaseBodyExpr = handleExpression localScope irCaseBodyExpr
 
                         if newLocalIndex = localIndex && irNewCaseBodyExpr = irCaseBodyExpr then
                             irCatchCase
@@ -1301,7 +1364,7 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
             let irNewFinallyBodyExprOpt =
                 irFinallyBodyExprOpt
                 |> Option.map (fun irExpr ->
-                    let irNewExpr = handleExpression irExpr
+                    let irNewExpr = handleExpression localScope irExpr
                     if irNewExpr = irExpr then
                         irExpr
                     else
@@ -1315,14 +1378,14 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Operation(irTextRange, irOp) ->
-            let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
+            let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression localScope irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
                 if irNewArgExprs[i] <> irArgExpr then
                     areSame <- false
             )
             if areSame then
-                let irNewOp = handleOperation irOp
+                let irNewOp = handleOperation localScope irOp
                 if irOp = irNewOp then
                     origExpr
                 else
@@ -1330,18 +1393,18 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
             else                    
                 let irNewOp = 
                     irOp.ReplaceArguments(irNewArgExprs)
-                    |> handleOperation
+                    |> handleOperation localScope
                 E.Operation(irTextRange, irNewOp)
 
         | E.Value(irTextRange, V.Local(localIndex, resultTy)) ->
-            E.Value(irTextRange, V.Local(getLocal localIndex, resultTy))
+            E.Value(irTextRange, V.Local(getLocal localScope localIndex, resultTy))
         | E.Value(irTextRange, V.LocalAddress(localIndex, irByRefKind, resultTy)) ->
-            E.Value(irTextRange, V.LocalAddress(getLocal localIndex, irByRefKind, resultTy))
+            E.Value(irTextRange, V.LocalAddress(getLocal localScope localIndex, irByRefKind, resultTy))
 
         | _ ->
             origExpr
 
-    let finalExpr = handleExpression principalExpr
+    let finalExpr = handleExpression ImmutableHashSet.Empty principalExpr
     finalExpr, { optenv with argLocalManager = normalizedLocals }
 
 // -------------------------------------------------------------------------------------------------------------

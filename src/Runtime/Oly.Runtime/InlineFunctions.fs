@@ -53,55 +53,6 @@ let popInline optenv (func: RuntimeFunction) =
     | _ ->
         ()
 
-let canSafelyPropagateForNewClosure optenv (expr: E<_, _, _>) =
-    match expr with
-    | E.Value(value=value) ->
-        match value with
-        | V.Local _
-        | V.LocalAddress _
-        | V.Argument _
-        | V.ArgumentAddress _ -> true
-        | _ -> false
-    | E.Operation(op=O.LoadFunction(_, receiverExpr, _)) ->
-        canSafelyPropagate optenv receiverExpr
-    | _ -> 
-        canSafelyPropagate optenv expr
-
-let canSafelyPropagate optenv (expr: E<_, _, _>) =
-    match expr with
-    | E.Operation(op=op) ->
-        match op with
-        | O.New(irFunc, _, _) -> 
-            if irFunc.IsClosureInstanceConstructor then
-                let mutable anyArgsHaveSideEffects = false
-                op.ForEachArgument(fun _ irArgExpr -> 
-                    if not anyArgsHaveSideEffects then
-                        anyArgsHaveSideEffects <- canSafelyPropagateForNewClosure optenv irArgExpr |> not
-                )
-                not anyArgsHaveSideEffects
-            else
-                false
-        | _ ->
-            false
-    | E.Let(localIndex=localIndex;rhsExpr=rhsExpr;bodyExpr=bodyExpr) ->
-        match rhsExpr with
-        | E.Sequential _
-        | E.Let _ -> false
-        | _ ->
-
-        match bodyExpr with
-        | E.Sequential _
-        | E.Let _ -> false
-        | _ ->
-
-        match bodyExpr with
-        | E.Value(value=V.LocalAddress(localIndex2, _, _)) when localIndex = localIndex2 ->
-            canSafelyPropagate optenv rhsExpr
-        | _ ->
-            false
-    | _ ->
-        false
-
 let isPassthroughExpression argCount irExpr =
     match irExpr with
     | E.Operation(_, irOp) when irOp.ArgumentCount = argCount ->
@@ -163,12 +114,16 @@ let transformClosureConstructorCallToUseMoreSpecificTypeArgument (forwardSubLoca
         else
             (irCtor, argExprs, resultTy, false)
 
-let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
+let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
     OlyAssert.True(irFunc.IsClosureInstanceInvoke)
 
     // TODO: This has a minor issue in that we could substitute multiple locals with a new closure.
     //       Instead, we should find a way to simply create a tmp local for the new closure and use that.
     //       Then we let dead code elimination take care of the rest.
+
+    if optenv.IsDebuggable then
+        (irFunc, argExprs)
+    else
 
     let newArgExprs =
         argExprs
@@ -196,23 +151,26 @@ let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dicti
             else
                 argExpr
         )
-    let func =
+    let func, didChange =
         if newArgExprs.Length > 0 then
             match newArgExprs[0] with
             | E.Operation(_, O.New(cloCtor, _, _)) when cloCtor.HasEnclosingClosureType ->
                 if irFunc.RuntimeFunction.EnclosingType <> cloCtor.RuntimeFunction.EnclosingType then
                     let rfunc = irFunc.RuntimeFunction.Formal.MakeInstance(cloCtor.RuntimeFunction.EnclosingType, irFunc.RuntimeFunction.TypeArguments).SetWitnesses(irFunc.RuntimeFunction.Witnesses)
                     let emittedFunc = optenv.emitFunction(optenv.func, rfunc)
-                    OlyIRFunction(emittedFunc, rfunc)
+                    OlyIRFunction(emittedFunc, rfunc), true
                 else
-                    irFunc
+                    irFunc, false
 
             | _ ->
-                irFunc
+                irFunc, false
         else
-            irFunc
+            irFunc, false
 
-    (func, newArgExprs)
+    if didChange then
+        (func, newArgExprs)
+    else
+        (func, argExprs)
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type ForwardSubValue<'Type, 'Function, 'Field> =
@@ -240,7 +198,8 @@ let recordForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>
             ()
 
 let handleLiberalForwardSub (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) origExpr =
-    if optenv.IsDebuggable then
+    // TODO: Decide whether to keep this or not.
+    if true || optenv.IsDebuggable then
         origExpr
     else
         match origExpr with
@@ -515,7 +474,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             E.Operation(irTextRange, irNewOp)
             |> optimizeOperation
 
-    and handleExpressionAux origExpr : E<_, _, _> =
+    and handleExpressionAux (origExpr: E<_, _, _>) : E<_, _, _> =
         match origExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression irRhsExpr

@@ -907,14 +907,22 @@ module Dump =
 
         match o with
         | O.Call(func=irFunc)
-        | O.CallVirtual(func=irFunc)
-        | O.New(func=irFunc)->
+        | O.CallVirtual(func=irFunc) ->
             let funcName =
                 match irFunc.RuntimeFunctionOption with
                 | Some func -> func.Name
                 | _ ->
                     match box irFunc.EmittedFunction with
-                    | null -> ""
+                    | null -> "(unable to determine function name)"
+                    | _ -> irFunc.EmittedFunction.ToString()
+            $"{name} `{funcName}`\n{args}"
+        | O.New(func=irFunc)->
+            let funcName =
+                match irFunc.RuntimeFunctionOption with
+                | Some func -> func.EnclosingType.Name
+                | _ ->
+                    match box irFunc.EmittedFunction with
+                    | null -> "(unable to determine constructor name)"
                     | _ -> irFunc.EmittedFunction.ToString()
             $"{name} `{funcName}`\n{args}"
         | O.LoadFunction(irFunc, _, _) when irFunc.IsInlineable ->
