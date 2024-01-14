@@ -220,22 +220,23 @@ module internal Helpers =
                     false
             | _ ->
                 false
-        | E.Let(localIndex=localIndex;rhsExpr=rhsExpr;bodyExpr=bodyExpr) ->
-            match rhsExpr with
-            | E.Sequential _
-            | E.Let _ -> false
-            | _ ->
+        // TODO: This is wrong below. We can't propagate Let declarations because more than one could lead to duplicate local indices.
+        //| E.Let(localIndex=localIndex;rhsExpr=rhsExpr;bodyExpr=bodyExpr) ->
+        //    match rhsExpr with
+        //    | E.Sequential _
+        //    | E.Let _ -> false
+        //    | _ ->
 
-            match bodyExpr with
-            | E.Sequential _
-            | E.Let _ -> false
-            | _ ->
+        //    match bodyExpr with
+        //    | E.Sequential _
+        //    | E.Let _ -> false
+        //    | _ ->
 
-            match bodyExpr with
-            | E.Value(value=V.LocalAddress(localIndex2, _, _)) when localIndex = localIndex2 ->
-                canSafelyPropagate optenv rhsExpr
-            | _ ->
-                false
+        //    match bodyExpr with
+        //    | E.Value(value=V.LocalAddress(localIndex2, _, _)) when localIndex = localIndex2 ->
+        //        canSafelyPropagate optenv rhsExpr
+        //    | _ ->
+        //        false
         | _ ->
             false
 
