@@ -521,10 +521,10 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
 
     let rec handleExpression irExpr : E<_, _, _> =
         DebugStackGuard.Do(fun () ->
-            handleExpressionAux irExpr
+            handleExpressionAuxCopyPropagation irExpr
         )
 
-    and handleExpressionAux irExpr : E<_, _, _> =
+    and handleExpressionAuxCopyPropagation irExpr : E<_, _, _> =
         let irExpr = copyPropagationOptimizeExpression optenv items irExpr
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
@@ -871,12 +871,40 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
         | _ ->
             OlyAssert.Fail("Expected opertion")
 
+    and handleSequentialExpression1 (env: CseEnv<_, _, _>) (hoist: List<_>) irNewExpr1 =
+        match irNewExpr1 with
+        | E.Operation(irTextRange, op) ->
+            let mutable env = env
+            let irNewArgExprs =
+                op.MapArguments(fun _ irArgExpr ->
+                    match irArgExpr with
+                    | E.Operation(_, op) ->
+                        match op with
+                        | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
+                            match env.TryGetValue(irArgExpr) with
+                            | true, irNewExpr ->
+                                handleExpression env irNewExpr
+                            | _ ->
+                                let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
+                                let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
+                                hoist.Add((localIndex, irArgExpr))
+                                env <- env.Set(irArgExpr, localExpr)
+                                localExpr
+                        | _ ->
+                            irArgExpr
+                    | _ ->
+                        irArgExpr
+                )
+            env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
+        | _ ->
+            env, irNewExpr1
+
     and handleExpression irExpr =
         DebugStackGuard.Do(fun () ->
-            handleExpressionAux irExpr
+            handleExpressionAuxCse irExpr
         )
     
-    and handleExpressionAux (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
+    and handleExpressionAuxCse (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(name, letLocalIndex, irRhsExpr, irBodyExpr) ->
             let irNewRhsExpr = handleExpression env irRhsExpr
@@ -984,33 +1012,7 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
 
             let irNewExpr1 = handleExpression env irExpr1
 
-            let env, irNewExpr1 =
-                match irNewExpr1 with
-                | E.Operation(irTextRange, op) ->
-                    let mutable env = env
-                    let irNewArgExprs =
-                        op.MapArguments(fun _ irArgExpr ->
-                            match irArgExpr with
-                            | E.Operation(_, op) ->
-                                match op with
-                                | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
-                                    match env.TryGetValue(irArgExpr) with
-                                    | true, irNewExpr ->
-                                        handleExpression env irNewExpr
-                                    | _ ->
-                                        let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
-                                        let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
-                                        hoist.Add((localIndex, irArgExpr))
-                                        env <- env.Set(irArgExpr, localExpr)
-                                        localExpr
-                                | _ ->
-                                    irArgExpr
-                            | _ ->
-                                irArgExpr
-                        )
-                    env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
-                | _ ->
-                    env, irNewExpr1
+            let env, irNewExpr1 = handleSequentialExpression1 env hoist irNewExpr1
 
             let irNewExpr2 = handleExpression env irExpr2
     
@@ -1111,10 +1113,10 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
 
     let rec handleExpression irExpr =
         DebugStackGuard.Do(fun () ->
-            handleExpressionAux irExpr
+            handleExpressionAuxDeadCodeElimination irExpr
         )
 
-    and handleExpressionAux irExpr : E<_, _, _> =
+    and handleExpressionAuxDeadCodeElimination irExpr : E<_, _, _> =
         match irExpr with
         | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
             if doNotRemove.Contains(localIndex) then
@@ -1249,58 +1251,65 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
             origOp
 
     let rec handleLinearExpression (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
-        match origExpr with
-        | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
-            let irNewRhsExpr =
-                match irRhsExpr with
-                | E.Let _
-                | E.Sequential _ ->
-                    handleLinearExpression localScope irRhsExpr
-                | _ ->
-                    handleExpression localScope irRhsExpr
+        DebugStackGuard.Do(fun () ->
+            match origExpr with
+            | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
+                let irNewRhsExpr =
+                    match irRhsExpr with
+                    | E.Let _
+                    | E.Sequential _ ->
+                        handleLinearExpression localScope irRhsExpr
+                    | _ ->
+                        handleExpression localScope irRhsExpr
 
-            let newLocalIndex = addLocal localIndex
-            let localScope = localScope.Add(newLocalIndex)
+                let newLocalIndex = addLocal localIndex
+                let localScope = localScope.Add(newLocalIndex)
 
-            let irNewBodyExpr =
-                match irBodyExpr with
-                | E.Let _
-                | E.Sequential _ ->
-                    handleLinearExpression localScope irBodyExpr
-                | _ ->
-                    handleExpression localScope irBodyExpr
+                let irNewBodyExpr =
+                    match irBodyExpr with
+                    | E.Let _
+                    | E.Sequential _ ->
+                        handleLinearExpression localScope irBodyExpr
+                    | _ ->
+                        handleExpression localScope irBodyExpr
 
-            if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                origExpr
-            else
-                E.Let(irTextRange, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
+                if newLocalIndex = localIndex && irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
+                    origExpr
+                else
+                    E.Let(irTextRange, newLocalIndex, irNewRhsExpr, irNewBodyExpr)
 
-        | E.Sequential(irExpr1, irExpr2) ->
-            let irNewExpr1 =
-                match irExpr1 with
-                | E.Let _
-                | E.Sequential _ ->
-                    handleLinearExpression localScope irExpr1
-                | _ ->
-                    handleExpression localScope irExpr1
+            | E.Sequential(irExpr1, irExpr2) ->
+                let irNewExpr1 =
+                    match irExpr1 with
+                    | E.Let _
+                    | E.Sequential _ ->
+                        handleLinearExpression localScope irExpr1
+                    | _ ->
+                        handleExpression localScope irExpr1
 
-            let irNewExpr2 =
-                match irExpr2 with
-                | E.Let _
-                | E.Sequential _ ->
-                    handleLinearExpression localScope irExpr2
-                | _ ->
-                    handleExpression localScope irExpr2
+                let irNewExpr2 =
+                    match irExpr2 with
+                    | E.Let _
+                    | E.Sequential _ ->
+                        handleLinearExpression localScope irExpr2
+                    | _ ->
+                        handleExpression localScope irExpr2
 
-            if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-                origExpr
-            else
-                E.Sequential(irNewExpr1, irNewExpr2)
+                if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
+                    origExpr
+                else
+                    E.Sequential(irNewExpr1, irNewExpr2)
 
-        | _ ->
-            failwith "Invalid linear expression"
+            | _ ->
+                failwith "Invalid linear expression"
+        )
 
-    and handleExpression (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
+    and handleExpression localScope origExpr =
+        DebugStackGuard.Do(fun () ->
+            handleExpressionAuxNormalizeLocals localScope origExpr
+        )
+
+    and handleExpressionAuxNormalizeLocals (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
         match origExpr with
         | E.Let _
         | E.Sequential _ ->
@@ -1653,7 +1662,12 @@ let optimizeAssertionPropagateExpression (optenv: optenv<'Type, 'Function, 'Fiel
     | _ ->
         irExpr  
 
-let assertionPropagateExpression (optenv: optenv<'Type, 'Function, 'Field>) (origEnv: AssertionEnv<'Type, 'Function, 'Field>) (irExpr: E<'Type, 'Function, 'Field>) : E<'Type, 'Function, 'Field> =
+let assertionPropagateExpression optenv origEnv irExpr =
+    DebugStackGuard.Do(fun() ->
+        assertionPropagateExpressionAux optenv origEnv irExpr
+    )
+
+let assertionPropagateExpressionAux (optenv: optenv<'Type, 'Function, 'Field>) (origEnv: AssertionEnv<'Type, 'Function, 'Field>) (irExpr: E<'Type, 'Function, 'Field>) : E<'Type, 'Function, 'Field> =
     let irExpr = optimizeAssertionPropagateExpression optenv origEnv irExpr
     match irExpr with
     | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
