@@ -10,7 +10,7 @@ type DebugStackGuard =
 #if DEBUG
         3
 #else
-        20
+        15
 #endif
 
 
