@@ -585,6 +585,14 @@ module Lexer =
             | _ ->
                 lexer.currentColumn <- endColumn + 1
             StringLiteral(DoubleQuotation, text, terminalToken, newLineCount, lexer.currentColumn)
+        | '\\' -> // escaping
+            advance lexer
+            match peek lexer with
+            | '"' ->
+                advance lexer
+                scanStringLiteral lexer newLineCount endColumn began
+            | _ ->
+                scanStringLiteral lexer newLineCount endColumn began
         | c ->
             let newLineCount, endColumn =
                 if c = '\n' then

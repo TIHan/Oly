@@ -44,8 +44,16 @@
 		"keywords": {
 			"patterns": [
 				{
+					"name": "keyword.other",
+					"match": "->|<-|=>"
+				},
+				{
 					"name": "keyword.control",
-					"match": "\\b(match|when|if|else|while|try|catch|finally|import|export)\\b"
+					"match": "let!"
+				},
+				{
+					"name": "keyword.control",
+					"match": "\\b(match|when|if|else|while|try|catch|finally|import|export|return|and|or|not)\\b"
 				},
 				{
 					"name": "keyword",
@@ -60,10 +68,6 @@
 					"match": "\\b(true|false|null|default)\\b"
 				},
 				{
-					"name": "keyword.control.less",
-					"match": "\\b(return|and|or|not)\\b"
-				},
-				{
 					"name": "storage.modifier",
 					"match": "\\b(sealed|abstract|static|overrides|public|private|protected|internal)\\b"
 				},
@@ -74,10 +78,6 @@
 				{
 					"match": "(?<=module|type|class|enum|interface|struct|shape|extension|attribute|data|constraint|newtype)\\s+[a-zA-Zα-ωΑ-Ω_]+\\d*?(?=\\s|\\<|\\b)",
 					"name": "entity.name.type"
-				},
-				{
-					"name": "keyword.other",
-					"match": "->|<-|=>|let!"
 				}
 			]
 		},
