@@ -19,6 +19,7 @@ open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.ILGen
 open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
+open Oly.Compiler.Internal.SymbolEnvironments
 
 type OlyCompilationOptions =
     {
@@ -446,6 +447,22 @@ module private CompilationPhases =
     let lowering (state: CompilationState) (boundTrees: (BoundTree * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
 
+        // TODO: We should create this earlier, such as in the initial state.
+        let g = 
+            {
+                ImplicitExtendsForStruct = state.lazyInitialState.GetValue(ct).env.benv.implicitExtendsForStruct
+                BaseObjectConstructor =
+                    // REVIEW: This is very fast considering there will not be a lot of functions on the object type.
+                    //         But, there could be in the future.
+                    match state.lazyInitialState.GetValue(ct).env.TryFindConcreteEntityByType(TypeSymbol.BaseObject) with
+                    | ValueSome x ->
+                        x.Functions
+                        |> ImArray.filter (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
+                        |> ImArray.tryExactlyOne
+                    | _ -> 
+                        None
+            }
+
         let map f = 
             if state.options.Parallel then
                 ImArray.Parallel.map f
@@ -473,7 +490,7 @@ module private CompilationPhases =
                   //  |> outputTree
                     |> RefCellLowering.Lower
                    // |> outputTree
-                    |> LambdaLifting.Lower
+                    |> LambdaLifting.Lower g
                     //|> outputTree
                 loweredBoundTree, diags
             )

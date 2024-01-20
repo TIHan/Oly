@@ -108,7 +108,7 @@ type OlyIRAttribute<'Type, 'Function> =
 type OlyIRValue<'Type, 'Function, 'Field> =
     | Unit of resultTy: 'Type
     | Null of resultTy: 'Type
-    | DefaultStruct of resultTy: 'Type
+    | Default of resultTy: 'Type
     | FunctionPtr of func: 'Function * resultTy: 'Type
     | Function of func: OlyIRFunction<'Type, 'Function, 'Field> * resultTy: 'Type
     | Local of index: int32 * resultTy: 'Type
@@ -123,7 +123,7 @@ type OlyIRValue<'Type, 'Function, 'Field> =
         match this with
         | Unit(resultTy)
         | Null(resultTy)
-        | DefaultStruct(resultTy)
+        | Default(resultTy)
         | FunctionPtr(resultTy=resultTy)
         | Function(resultTy=resultTy)
         | Local(resultTy=resultTy)
@@ -885,7 +885,7 @@ module Dump =
 
     let DumpValue (v: V<_, _, _>) : string =
         match v with
-        | V.DefaultStruct _ -> "defaultstruct"
+        | V.Default _ -> "defaultstruct"
         | V.Null _ -> "null"
         | V.Unit _ -> "unit"
         | V.FunctionPtr _ -> "functionptr" // TODO: what function? V.FunctionPtr needs OlyIRFunction...

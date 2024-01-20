@@ -325,7 +325,7 @@ let private bindTopLevelValueDeclaration
 let private canAddImplicitDefaultConstructor (ent: EntitySymbol) =
     not ent.IsCompilerIntrinsic && 
     not ent.IsImported && 
-    ((ent.IsClass || ent.IsStruct || ent.IsNewtype || ent.IsModule) && not ent.IsAlias)
+    ((ent.IsClass || ent.IsStruct || ent.IsNewtype || ent.IsModule) && not ent.IsAlias && not ent.IsEnum)
 
 let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbolBuilder) =
     let ent = entBuilder.Entity

@@ -945,8 +945,8 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
         if ent.Functions.Length <> 2 then
             failwith "Closure has too many member functions."
 
-        if not ent.Extends.IsEmpty then
-            failwith "Closures are not allowed to extend a type."
+        //if not ent.Extends.IsEmpty then
+        //    failwith "Closures are not allowed to extend a type."
 
         if not ent.Implements.IsEmpty then
             failwith "Closures are not allowed to implement a type."
@@ -1407,6 +1407,14 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
+
+        // TODO: Just turn this into an assert since it is technically legal to do it in the Oly runtime.
+        match value.Enclosing with
+        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsAnyStruct ->
+            failwith "Virtual call on a struct function."
+        | _ ->
+            ()
+            
         GenCallExpression cenv possiblyReturnableEnv syntaxInfo receiverOpt witnessArgs argExprs value isVirtualCall
 
     | E.EntityDefinition(_, body, ent) ->

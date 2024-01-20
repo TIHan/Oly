@@ -44,6 +44,7 @@ type EntitySymbolBuilder private (
         |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
 #endif
         match pass with
+        | LambdaLifting
         | Pass1
         | Pass0 (*Pass0 is for intrinsic types*) ->
             extendsHole.contents <- extends

@@ -206,7 +206,7 @@ module private Helpers =
             // TODO/REVIEW: Should we handle match expressions? They get lowered to If/Else expressions so it doesn't impact later phases.
             match expr with
             | BoundExpression.Lambda(flags=flags) ->
-                if checkInnerLambdas || flags.HasFlag(LambdaFlags.Continuation) then
+                if checkInnerLambdas || flags.HasFlag(LambdaFlags.Scoped) then
                     Iterator.HandlePossibleLambda((fun x -> not(locals.Contains(x.Formal.Id)) && predicate x), canCache, true, expr, freeLocals, locals)
                     
 

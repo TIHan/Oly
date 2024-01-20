@@ -63,29 +63,34 @@ let private gate = obj()
 //  }
 //}"""
 
+let ilverify (ms: MemoryStream) =
+    let tmpFile = Path.GetTempFileName()
+    try File.Delete tmpFile with | _ -> ()
+    let tmpFile = Path.ChangeExtension(tmpFile, ".dll")
+    use fs = new FileStream(tmpFile, FileMode.Create)
+    try
+        let bytes = ms.GetBuffer()
+        fs.Write(bytes, 0, bytes.Length)
+        fs.Dispose()
+
+        let ilverifyReferenceArgs =
+            TestUtilities.Configuration.defaultReferences
+            |> ImArray.map (fun x -> $"-r \"{x.Path.ToString().Replace('/', '\\')}\"")
+            |> String.concat " "
+        let ilverify = new ExternalProcess("ilverify", $"{tmpFile} -g ReturnPtrToStack {ilverifyReferenceArgs}")
+
+        let task = ilverify.RunAsync(Threading.CancellationToken.None)
+        let result = task.Result
+        if String.IsNullOrWhiteSpace(result.Errors) |> not then
+            failwith result.Errors
+    finally
+        try File.Delete(tmpFile) with | _ -> ()
+
+let private runILVerify = true
+
 let run (ms: MemoryStream, expectedOutput: string) =
-    //let tmpFile = Path.GetTempFileName()
-    //try File.Delete tmpFile with | _ -> ()
-    //let tmpFile = Path.ChangeExtension(tmpFile, ".dll")
-    //let tmpJsonConfigFile = Path.ChangeExtension(tmpFile, ".runtimeconfig.json")
-
-    //try
-    //    let fs = new FileStream(tmpFile, FileMode.Create)
-    //    let bytes = ms.GetBuffer()
-    //    fs.Write(bytes, 0, bytes.Length)
-    //    fs.Dispose()
-
-    //    File.WriteAllText(tmpJsonConfigFile, runtimeconfigJson)
-
-    //    use dotnet = new Oly.Core.ExternalProcess("dotnet", tmpFile)
-    //    let result = dotnet.RunAsync(Threading.CancellationToken.None).Result
-    //    if result.Output.EndsWith("\r\n") then             
-    //        Assert.Equal(expectedOutput + "\r\n", result.Output)
-    //    else
-    //        Assert.Equal(expectedOutput, result.Output)
-    //finally
-    //    try File.Delete tmpFile with | _ -> ()
-    //    try File.Delete tmpJsonConfigFile with | _ -> ()
+    if runILVerify then
+        ilverify ms
 
     let context = AssemblyLoadContext(Guid.NewGuid().ToString(), isCollectible=true)
     try

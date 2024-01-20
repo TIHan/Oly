@@ -284,7 +284,7 @@ module OlyExpressionHelpers =
 
     let (|DefaultStruct|_|) expr =
         match expr with
-        | OlyIRExpression.Value(_, OlyIRValue.DefaultStruct(irTy)) ->
+        | OlyIRExpression.Value(_, OlyIRValue.Default(irTy)) ->
             Some irTy
         | _ ->
             None

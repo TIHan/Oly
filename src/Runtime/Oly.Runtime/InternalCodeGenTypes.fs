@@ -1068,6 +1068,7 @@ type RuntimeType =
                 | "native_uint" -> RuntimeType.NativeUInt
                 | "native_int" -> RuntimeType.NativeInt
                 | "native_ptr" -> RuntimeType.NativePtr(this.TypeArguments[0])
+                | "void" -> RuntimeType.Void
                 | _ ->
                     raise(System.NotImplementedException("intrinsic type stripping: " + name))
             | _ ->

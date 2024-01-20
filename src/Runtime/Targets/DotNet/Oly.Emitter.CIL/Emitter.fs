@@ -386,6 +386,10 @@ module rec ClrCodeGen =
             ``ValueTuple`5_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`6_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`7_GetItemFields``: ClrFieldHandle imarray
+
+            ``Object_.ctor``: ClrMethodHandle
+
+            ``Unsafe_AsPointer``: ClrMethodHandle
         }
 
     [<NoEquality;NoComparison>]
@@ -853,13 +857,14 @@ module rec ClrCodeGen =
             // No need to do it ourselves; just simply skip it.
             ()
 
-        | O.LoadArrayLength(irReceiver, rank, _) ->
+        | O.LoadArrayLength(irReceiver, rank, resultTy) ->
             GenArgumentExpression cenv env irReceiver
 
             if rank > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
                 emitInstruction cenv I.Ldlen
+                emitConv cenv (getPrimitiveTypeCode cenv resultTy)
 
         | O.LoadArrayElement(irReceiver, irIndexArgs, resultTy) ->
             GenArgumentExpression cenv env irReceiver
@@ -1300,8 +1305,8 @@ module rec ClrCodeGen =
         | V.Null _ -> I.Ldnull |> emitInstruction cenv
         | V.Constant(irConstant, _) ->
             match irConstant with
-            | C.True _ -> I.LdcI4(1) |> emitInstruction cenv
-            | C.False _ -> I.LdcI4(0) |> emitInstruction cenv
+            | C.True -> I.LdcI4(1) |> emitInstruction cenv
+            | C.False -> I.LdcI4(0) |> emitInstruction cenv
             | C.Int8(v) -> I.LdcI4(int32 v) |> emitInstruction cenv
             | C.UInt8(v) -> 
                 I.LdcI4(int32 v) |> emitInstruction cenv
@@ -1360,20 +1365,17 @@ module rec ClrCodeGen =
                     ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
             I.Newobj(ctor, methInfo.Parameters.Length) |> emitInstruction cenv
 
-        | V.DefaultStruct(ty) ->
-            if ty.IsStruct then
-                match ty.Handle with
-                | ClrTypeHandle.NativePointer _
-                | ClrTypeHandle.FunctionPointer _ ->
-                    I.LdcI4(0) |> emitInstruction cenv
-                    I.Conv_u |> emitInstruction cenv
-                | _ ->
-                    let localIndex = cenv.NewLocal(ty)
-                    emitInstruction cenv (I.Ldloca(localIndex))
-                    emitInstruction cenv (I.Initobj(ty.Handle))
-                    emitInstruction cenv (I.Ldloc(localIndex))
-            else
-                OlyAssert.Fail("Expected struct type.")
+        | V.Default(ty) ->
+            match ty.Handle with
+            | ClrTypeHandle.NativePointer _
+            | ClrTypeHandle.FunctionPointer _ ->
+                I.LdcI4(0) |> emitInstruction cenv
+                I.Conv_u |> emitInstruction cenv
+            | _ ->
+                let localIndex = cenv.NewLocal(ty)
+                emitInstruction cenv (I.Ldloca(localIndex))
+                emitInstruction cenv (I.Initobj(ty.Handle))
+                emitInstruction cenv (I.Ldloc(localIndex))
 
     let canTailCall cenv (func: ClrMethodInfo) =
         cenv.emitTailCalls && 
@@ -2158,6 +2160,16 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         createTuple_GetItemField count i
                     )
 
+            let objectCtor =
+                match vm.TryFindFunction(("System.Object", 0), ".ctor", 0, ImArray.empty, ("System.Void", 0), OlyFunctionKind.Instance) with
+                | Some x -> x.handle
+                | _ -> failwith "Unable to find 'System.Object..ctor'"
+
+            let unsafeAsPointerFunc =
+                match vm.TryFindFunction(("System.Runtime.CompilerServices.Unsafe", 0), "AsPointer", 1, 1, OlyFunctionKind.Static) with
+                | Some x -> x.handle
+                | _ -> failwith "Unable to find 'System.Runtime.CompilerServices.Unsafe.AsPointer'"
+
             g <-
                 {
                     ``ValueTuple`2`` = ``ValueTuple`2``
@@ -2173,6 +2185,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``ValueTuple`5_GetItemFields`` = createTuple_GetItemFields 5
                     ``ValueTuple`6_GetItemFields`` = createTuple_GetItemFields 6
                     ``ValueTuple`7_GetItemFields`` = createTuple_GetItemFields 7
+
+                    ``Object_.ctor`` = objectCtor
+
+                    ``Unsafe_AsPointer`` = unsafeAsPointerFunc
                 } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
@@ -2548,10 +2564,14 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 methDefBuilder.BodyInstructions <-
                     [
                         I.Ldarg 0
+                        I.Call(g.``Object_.ctor``, 0)
+
+                        I.Ldarg 0
                         I.Ldarg 1
                         if extendedTy.IsStruct then
                             I.Ldobj(extendedTy.Handle)
                         I.Stfld instanceFieldHandle
+
                         I.Ret
                     ]
                     |> ImArray.ofSeq
@@ -2570,8 +2590,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     methDefBuilder.BodyInstructions <-
                         [
                             I.Ldarg 0
+                            I.Call(g.``Object_.ctor``, 0)
+
+                            I.Ldarg 0
                             I.Ldarg 1
                             I.Stfld instanceFieldHandle
+
                             I.Ret
                         ]
                         |> ImArray.ofSeq

@@ -45,8 +45,11 @@ let analysisLocalLambdaExpression (cenv: cenv) origExpr =
 
 let analysisLocalExpression (cenv: cenv) (origExpr: E) =
     match origExpr with
-    | E.Lambda(flags=flags) when not(flags.HasFlag(LambdaFlags.Static)) && not(flags.HasFlag(LambdaFlags.Continuation)) && not(flags.HasFlag(LambdaFlags.Scoped)) ->
-        analysisLocalLambdaExpression cenv origExpr
+    | E.Lambda(flags=flags) when not(flags.HasFlag(LambdaFlags.Static)) && not(flags.HasFlag(LambdaFlags.Continuation)) ->
+        if flags.HasFlag(LambdaFlags.Scoped) then
+            origExpr
+        else
+            analysisLocalLambdaExpression cenv origExpr
 
     | _ ->
         origExpr

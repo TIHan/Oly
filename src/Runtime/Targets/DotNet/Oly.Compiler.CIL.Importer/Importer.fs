@@ -1056,6 +1056,9 @@ module internal rec Helpers =
                 | "UIntPtr" ->
                     (OlyILAttribute.Intrinsic(importRawString cenv "native_uint"), OlyILTypeNativeUInt)
                     |> ValueSome
+                | "Void" ->
+                    (OlyILAttribute.Intrinsic(importRawString cenv "void"), OlyILTypeVoid)
+                    |> ValueSome
                 | _ ->
                     ValueNone
             else

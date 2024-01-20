@@ -684,7 +684,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterType.Char16 ->
                 InterpreterValue.Constant(OlyIRConstant.Char16(char 0), resultTy) |> asExpr
             | _ ->
-                InterpreterValue.DefaultStruct(resultTy) |> asExpr
+                InterpreterValue.Default(resultTy) |> asExpr
         else
             InterpreterValue.Null(resultTy) |> asExpr
 
@@ -1055,7 +1055,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 stack.Push(null)
             | InterpreterValue.Null _ ->
                 stack.Push(null)
-            | InterpreterValue.DefaultStruct(resultTy) ->
+            | InterpreterValue.Default(resultTy) ->
                 match resultTy with
                 | ty when ty.IsStruct ->
                     let instance = InterpreterInstanceOfType(resultTy, false, true, resultTy.Inherits, resultTy.Implements)
@@ -1087,7 +1087,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                             instance.SetFieldState(field.Name, Unchecked.defaultof<bool>)
                         | ty ->
                             if ty.IsStruct then
-                                pushValue stack (InterpreterValue.DefaultStruct(ty))
+                                pushValue stack (InterpreterValue.Default(ty))
                                 instance.SetFieldState(field.Name, stack.Pop())
                             else
                                 instance.SetFieldState(field.Name, null)

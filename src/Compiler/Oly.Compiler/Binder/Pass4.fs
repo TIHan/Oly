@@ -467,7 +467,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             match currentEnclosing env with
             | EnclosingSymbol.Entity(ent) when not ent.Extends.IsEmpty && ent.IsClass && bindingInfo.Value.IsFunction ->
                 let baseTy = ent.Extends.[0]
-                match baseTy.TryEntity with
+                match env.TryFindConcreteEntityByType(baseTy) with
                 | ValueSome baseEnt ->
                     if bindingInfo.Value.IsInstance then
                         if bindingInfo.Value.IsConstructor then
@@ -1676,7 +1676,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let implicitBaseCtorCallExprOpt =
             match syntaxConstructTy, env.isInInstanceConstructorType with
             | OlySyntaxConstructType.Anonymous _, Some(ty) ->
-                if not ty.Inherits.IsEmpty && not(ty.Inherits.Length = 1 && ty.Inherits[0].IsBaseObject_t) && not ty.IsAnyStruct then
+                if not ty.Inherits.IsEmpty && not ty.IsAnyStruct then
                     let implicitParameterlessBaseInstanceCtorOpt =
                         if env.implicitThisOpt.IsNone then
                             None
@@ -1697,7 +1697,10 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                                 None
                     match implicitParameterlessBaseInstanceCtorOpt with
                     | None ->
-                        cenv.diagnostics.Error($"Cannot implicitly call parameterless base constructor for type '{printType env.benv ty}' as it does not exist.", 10, syntaxConstructTy)
+                        // This is a special case. 
+                        // The Oly runtime does not require that we need to call the base object constructor.
+                        if ty.Inherits[0].IsBaseObject_t |> not then
+                            cenv.diagnostics.Error($"Cannot implicitly call parameterless base constructor for type '{printType env.benv ty}' as it does not exist.", 10, syntaxConstructTy)
                         None
                     | Some(baseCtor) ->
                         let thisValue = env.implicitThisOpt.Value

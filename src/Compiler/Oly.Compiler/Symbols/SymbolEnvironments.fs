@@ -440,4 +440,11 @@ let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSym
             builder.ToImmutable()
             |> ImArray.distinctBy (fun x -> x.Id)
         ValueSome(filterMostSpecificExtensions tyExts)
+
+[<NoEquality;NoComparison>]
+type g =
+    {
+        ImplicitExtendsForStruct: TypeSymbol option
+        BaseObjectConstructor: IFunctionSymbol option
+    }
             

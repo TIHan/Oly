@@ -4986,6 +4986,7 @@ type CompilerPass =
     | Pass2
     | Pass3
     | Pass4
+    | LambdaLifting
 
 // -----------------------------------------------
 // - Substitution and application helpers

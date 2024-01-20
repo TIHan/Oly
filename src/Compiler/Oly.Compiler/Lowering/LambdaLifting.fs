@@ -16,6 +16,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal
+open Oly.Compiler.Internal.SymbolEnvironments
 
 let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
     match constant with
@@ -478,6 +479,7 @@ let canRewrite (expr: E) =
 [<NoEquality;NoComparison>]
 type cenv =
     {
+        g: g
         tree: BoundTree
         genNameNumber: int ref
         mutable enclosingTyPars: TypeParameterSymbol imarray
@@ -609,6 +611,23 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
                 E.CreateValue(syntaxTree, localPar)
             )
         )
+
+    let baseObjectCtorCall =
+        match cenv.g.BaseObjectConstructor with
+        | Some(baseCtor) when not closure.IsScoped ->
+            E.Call(BoundSyntaxInfo.Generated(syntaxTree),
+                Some thisExpr,
+                ImArray.empty,
+                ImArray.empty,
+                baseCtor,
+                false
+            )
+        | _ ->
+            E.None(BoundSyntaxInfo.Generated(syntaxTree))
+
+    let exprs =
+        setFieldExprs
+        |> ImArray.prependOne baseObjectCtorCall
     
     let ctorRhs =
         E.CreateLambda(
@@ -616,7 +635,7 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
             LambdaFlags.None,
             ctor.TypeParameters,
             ((ImArray.createOne thisPar).AddRange(ctorLocalPars)),
-            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateSequential(syntaxTree, setFieldExprs))
+            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateSequential(syntaxTree, exprs))
         )
     
     let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
@@ -768,6 +787,14 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 EntityFlags.Final ||| EntityFlags.Scoped
             else
                 EntityFlags.Final
+
+        let extends =
+            if lambdaFlags.HasFlag(LambdaFlags.Scoped) then
+                match cenv.g.ImplicitExtendsForStruct with
+                | Some ty -> ImArray.createOne ty
+                | _ -> ImArray.empty
+            else
+                ImArray.createOne TypeSymbol.BaseObject
         
         let closureBuilder = 
             EntitySymbolBuilder.CreateClosure(
@@ -776,6 +803,8 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 name,
                 entFlags
             )
+
+        closureBuilder.SetExtends(LambdaLifting, extends)
         
         let tyParLookup = Dictionary()
         let closureTyParLookup = Dictionary()
@@ -1248,9 +1277,10 @@ type Rewriter(cenv: cenv, core) =
         | _ ->
             base.Rewrite(expr)
 
-let Lower (tree: BoundTree) =
+let Lower (g: g) (tree: BoundTree) =
     let cenv =
         {
+            g = g
             enclosingTyPars = ImArray.empty
             funcTyPars = ImArray.empty
             tree = tree

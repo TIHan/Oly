@@ -18780,3 +18780,28 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "asdf"
     |> ignore
+
+[<Fact>]
+let ``Scoped closure should work when captured by a normal closure and mutating a local outside the scope``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(f: scoped () -> ()): () = f()
+
+main(): () =
+    let mutable x = 0
+
+    let f() =
+        M(() -> x <- 5)
+        
+    f()
+    print(x)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"
+    |> ignore

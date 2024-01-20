@@ -471,7 +471,7 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
     let asExpr irValue =
         E.Value(irTextRange, irValue)
 
-    if resultTy.IsAnyStruct then
+    if resultTy.IsAnyStruct || resultTy.IsTypeVariable then
         match resultTy.StripAliasAndNewtypeAndEnum() with
         | RuntimeType.Int8 ->
             V.Constant(C.Int8(0y), emittedTy) |> asExpr
@@ -496,7 +496,7 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
         | RuntimeType.Char16 ->
             V.Constant(C.Char16(char 0), emittedTy) |> asExpr
         | _ ->
-            V.DefaultStruct(emittedTy) |> asExpr
+            V.Default(emittedTy) |> asExpr
     else
         V.Null(emittedTy) |> asExpr
 
@@ -511,7 +511,6 @@ let importCatchCase (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Fun
 
 /// Uses CPS-style passing to help prevent stack overflows.
 let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) cont =
-    // TODO: Expand this to Let, and potentially others.
     match ilExpr with
     | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
         match ilExpr1 with
@@ -534,6 +533,24 @@ let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<
             | _ ->
                 let irExpr2, resultTy = importExpression cenv env expectedTyOpt ilExpr2
                 cont(E.Sequential(irExpr1, irExpr2), resultTy)
+
+    | OlyILExpression.Let(localIndex, ilRhsExpr, ilBodyExpr) ->
+        let ilLocal = env.ILLocals.[localIndex]
+        let localName = env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle)
+
+        // TODO: We *could* expand the CPS to rhs-expr.
+        let irRhsExpr = importArgumentExpression cenv env env.LocalTypes[localIndex] ilRhsExpr
+
+        match ilBodyExpr with
+        | OlyILExpression.Sequential _
+        | OlyILExpression.Let _ ->
+            importSequentialExpression cenv env expectedTyOpt ilBodyExpr (fun (bodyExpr, resultTy) ->
+                cont(E.Let(localName, localIndex, irRhsExpr, bodyExpr), resultTy)
+            )
+        | _ ->
+            let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr
+            cont(E.Let(localName, localIndex, irRhsExpr, irBodyExpr), resultTy)
+
     | _ ->
         OlyAssert.Fail("Invalid sequential expression.")
 
@@ -557,7 +574,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         let irBodyExpr = importArgumentExpression cenv env RuntimeType.Void ilBodyExpr
         E.While(irConditionExpr, irBodyExpr, cenv.EmittedTypeVoid), RuntimeType.Void
 
-    | OlyILExpression.Sequential _ ->
+    | OlyILExpression.Sequential _
+    | OlyILExpression.Let _ ->
         importSequentialExpression cenv env expectedTyOpt ilExpr id
 
     | OlyILExpression.Value(ilTextRange, ilValue) ->
@@ -716,13 +734,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             V.Function(OlyIRFunction(cenv.EmitFunction(func), func), cenv.EmitType(resultTy)) |> asExpr, resultTy
 
-    | OlyILExpression.Let(localIndex, ilRhsExpr, ilBodyExpr) ->
-        let ilLocal = env.ILLocals.[localIndex]
-        let localName = env.ILAssembly.GetStringOrEmpty(ilLocal.NameHandle)
-        let irRhsExpr = importArgumentExpression cenv env env.LocalTypes[localIndex] ilRhsExpr
-        let irBodyExpr, resultTy = importExpression cenv env expectedTyOpt ilBodyExpr
-        E.Let(localName, localIndex, irRhsExpr, irBodyExpr), resultTy
-
     | OlyILExpression.IfElse(ilConditionExpr, ilTrueTargetExpr, ilFalseTargetExpr) ->
         let conditionExpr, _ = importExpression cenv env (Some RuntimeType.Bool) ilConditionExpr
         let trueTargetExpr, resultTy = importExpression cenv env expectedTyOpt ilTrueTargetExpr
@@ -810,7 +821,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
                 let callExpr, resultTy =
                     // Basic devirtualization.
-                    if (func.Flags.IsFinal || not func.Flags.IsVirtual) && isVirtualCall then
+                    if func.EnclosingType.IsAnyStruct || ((func.Flags.IsFinal || not func.Flags.IsVirtual) && isVirtualCall) then
                         handle()
                     elif isVirtualCall then
                         if func.Flags.IsStatic && func.Flags.IsAbstract then
@@ -4066,28 +4077,35 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let ilFuncDef = ilAsm.GetFunctionDefinition(func.ILFunctionDefinitionHandle)
             let ilFuncBody = ilAsm.GetFunctionBody(ilFuncDef.BodyHandle.contents.Value)
 
-            try
-                let fields = func.EnclosingType.Fields |> ImArray.filter (fun field -> field.Flags.IsInstance)
-                let fieldSet = HashSet<RuntimeField>()
-                let rec check ilExpr =
-                    match ilExpr with
-                    | OlyILExpression.None _ -> ()
-                    | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
-                        check ilExpr1
-                        check ilExpr2
-                    | OlyILExpression.Operation(op=OlyILOperation.StoreField(ilFieldRef, OlyILExpression.Value(value=OlyILValue.Argument(0)), OlyILExpression.Value(value=OlyILValue.Argument(argIndex)))) ->
-                        let field = this.ResolveField(ilAsm, ilFieldRef, GenericContext.Default)
-                        if field.Formal = fields[argIndex - 1].Formal && fieldSet.Add(field.Formal) then
-                            ()
-                        else
-                            OlyAssert.Fail("Invalid closure constructor.")  
-                    | _ ->
+            let fields = func.EnclosingType.Fields |> ImArray.filter (fun field -> field.Flags.IsInstance)
+            let fieldSet = HashSet<RuntimeField>()
+            let rec check hasCtor ilExpr =
+                match ilExpr with
+                | OlyILExpression.None _ -> hasCtor
+
+                | OlyILExpression.Sequential(ilExpr1, ilExpr2) ->
+                    let hasCtor = check hasCtor ilExpr1
+                    check hasCtor ilExpr2
+
+                | OlyILExpression.Operation(op=OlyILOperation.Call(ilFuncInst, argExprs)) when argExprs.Length = 1 && not hasCtor ->
+                    let ctor = this.ResolveFunction(ilAsm, ilFuncInst, GenericContext.Default, ImArray.empty)
+                    if ctor.Flags.IsInstance && ctor.Flags.IsConstructor && ctor.EnclosingType = func.EnclosingType.Extends[0] then
+                        true
+                    else
                         OlyAssert.Fail("Invalid closure constructor.")
-                check ilFuncBody.BodyExpression
-                if fieldSet.Count <> fields.Length then
+
+                | OlyILExpression.Operation(op=OlyILOperation.StoreField(ilFieldRef, OlyILExpression.Value(value=OlyILValue.Argument(0)), OlyILExpression.Value(value=OlyILValue.Argument(argIndex)))) ->
+                    let field = this.ResolveField(ilAsm, ilFieldRef, GenericContext.Default)
+                    if field.Formal = fields[argIndex - 1].Formal && fieldSet.Add(field.Formal) then
+                        true// do not allow base constructor call after fields are set
+                    else
+                        OlyAssert.Fail("Invalid closure constructor.")
+
+                | _ ->
                     OlyAssert.Fail("Invalid closure constructor.")
-            with
-            | _ ->
+            check false ilFuncBody.BodyExpression
+            |> ignore
+            if fieldSet.Count <> fields.Length then
                 OlyAssert.Fail("Invalid closure constructor.")
 
     member this.ImportFunctionBody(
@@ -4311,6 +4329,117 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match tryFindType(fullyQualifiedTypeName, tyParCount) with
             | Some(ty) -> ty.Fields |> ImArray.tryFind (fun x -> x.Name = fieldName) |> Option.map this.EmitField
             | _ -> None
+
+        // TODO: This doesn't handle type variables well at all.
+        member this.TryFindFunction(
+                enclosingType: (string * int32),  
+                name: string,
+                typeParameterCount: int32,
+                parameterCount: int32,
+                kind: OlyFunctionKind): 'Function option =
+            match tryFindType(fst enclosingType, snd enclosingType) with
+            | Some(enclosingTy) ->
+                let isInstance = kind = OlyFunctionKind.Instance
+                let tyArgs =
+                    ImArray.init typeParameterCount (fun i -> RuntimeType.Variable(i, OlyILTypeVariableKind.Function))
+
+                let genericContext = GenericContext.Create(enclosingTy.TypeArguments, tyArgs)
+
+                let ilAsm = assemblies[enclosingTy.AssemblyIdentity].ilAsm
+                let ilFuncDefHandles = ilAsm.FindFunctionDefinitions(enclosingTy.ILEntityDefinitionHandle, name)
+                let funcs =
+                    ilFuncDefHandles
+                    |> ImArray.choose (fun ilFuncDefHandle ->
+                        let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+                        let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+                        if ilFuncSpec.Parameters.Length = parameterCount && ilFuncSpec.TypeParameters.Length = typeParameterCount then
+                            let (funcs, _) = tryResolveFunction ilAsm ilFuncSpec tyArgs enclosingTy genericContext
+                            if funcs.Length = 1 then
+                                let func = funcs[0]
+                                if func.Flags.IsInstance = isInstance then
+                                    Some func
+                                else
+                                    None                                           
+                            else
+                                None
+                        else
+                            None
+                    )
+
+                if funcs.Length = 1 then
+                    Some(this.EmitFunction(funcs[0]))
+                else
+                    None
+            | _ ->
+                None
+
+        // TODO: This doesn't handle type variables well at all.
+        member this.TryFindFunction(
+                enclosingType: (string * int32),  
+                name: string,
+                typeParameterCount: int32,
+                parameterTypes: (string * int32) imarray, 
+                returnType: (string * int32),
+                kind: OlyFunctionKind): 'Function option =
+            match tryFindType(fst enclosingType, snd enclosingType) with
+            | Some(enclosingTy) ->
+                let targetParTys =
+                    parameterTypes
+                    |> ImArray.map (fun (tyName, tyParCount) -> tryFindType(tyName, tyParCount))
+
+                let targetReturnTy = tryFindType(fst returnType, snd returnType)
+
+                let foundTypes = (targetParTys |> ImArray.forall (fun x -> x.IsSome)) && targetReturnTy.IsSome
+                if foundTypes then
+                    let targetReturnTy = targetReturnTy.Value
+                    let targetParTys =
+                        targetParTys
+                        |> ImArray.map (fun x -> x.Value)
+
+                    let isInstance = kind = OlyFunctionKind.Instance
+                    let tyArgs =
+                        ImArray.init typeParameterCount (fun i -> RuntimeType.Variable(i, OlyILTypeVariableKind.Function))
+
+                    let genericContext = GenericContext.Create(enclosingTy.TypeArguments, tyArgs)
+
+                    let ilAsm = assemblies[enclosingTy.AssemblyIdentity].ilAsm
+                    let ilFuncDefHandles = ilAsm.FindFunctionDefinitions(enclosingTy.ILEntityDefinitionHandle, name)
+                    let funcs =
+                        ilFuncDefHandles
+                        |> ImArray.choose (fun ilFuncDefHandle ->
+                            let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+                            let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+                            if ilFuncSpec.Parameters.Length = parameterTypes.Length && ilFuncSpec.TypeParameters.Length = typeParameterCount then
+                                let (funcs, _) = tryResolveFunction ilAsm ilFuncSpec tyArgs enclosingTy genericContext
+                                if funcs.Length = 1 then
+                                    let func = funcs[0]
+                                    if func.Flags.IsInstance = isInstance && func.Parameters.Length = parameterTypes.Length then
+                                        let sigMatches =
+                                            targetReturnTy = func.ReturnType &&
+                                            (
+                                                (targetParTys, func.Parameters |> ImArray.map (fun x -> x.Type))
+                                                ||> ImArray.forall2 (=)
+                                            )
+                                        if sigMatches then
+                                            Some func
+                                        else
+                                            None
+                                    else
+                                        None                                           
+                                else
+                                    None
+                            else
+                                None
+                        )
+
+                    if funcs.Length = 1 then
+                        Some(this.EmitFunction(funcs[0]))
+                    else
+                        None
+                else
+                    None
+            | _ ->
+                None
 
 
         

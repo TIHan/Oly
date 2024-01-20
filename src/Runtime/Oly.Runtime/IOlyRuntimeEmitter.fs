@@ -14,11 +14,17 @@ type OlyIRFunctionTier =
         | Tier0 true -> true
         | _ -> false
 
+type OlyFunctionKind =
+    | Static
+    | Instance
+
 type IOlyVirtualMachine<'Type, 'Function, 'Field> =
 
     abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
     abstract TryFindType : fullyQualifiedTypeName: string * tyParCount: int32 -> 'Type option
     abstract TryFindField : fullyQualifiedTypeName: string * tyParCount: int32 * fieldName: string -> 'Field option
+    abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterCount: int32 * kind: OlyFunctionKind -> 'Function option
+    abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterTypes: (string * int32) imarray * returnType: (string * int32) * kind: OlyFunctionKind -> 'Function option
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 

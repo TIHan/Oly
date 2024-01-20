@@ -11,6 +11,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
+[<NoEquality;NoComparison>]
 type cenv =
     {
         mutable bindAnonymousShapeTypeHole: cenv -> BinderEnvironment -> TypeParameterSymbol imarray -> OlySyntaxSeparatorList<OlySyntaxExpression> -> TypeSymbol
@@ -138,6 +139,11 @@ type BinderEnvironment =
                         }
                 }
             env
+
+    member this.TryFindConcreteEntityByType(ty: TypeSymbol) =
+        match ty.TryEntity with
+        | ValueSome ent -> ValueSome ent
+        | _ -> this.TryFindIntrinsicType ty
 
     member this.TryFindIntrinsicType(ty) =
         this.benv.TryFindEntityByIntrinsicType(ty)

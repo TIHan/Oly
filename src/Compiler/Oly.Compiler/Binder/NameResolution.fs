@@ -502,6 +502,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
 
     finalExpr
 
+// TODO: This really shouldn't be in NameResolution.
 let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (tyArgs: TypeArgumentSymbol imarray) (originalValue: IValueSymbol) : _ * IValueSymbol =
     let value = originalValue.Substitute(tyArgs)
 
@@ -564,7 +565,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         )
         
     let isVirtualCall =
-        if value.IsVirtual then
+        if value.IsVirtual && not(value.Enclosing.IsAnyStruct) then
             match receiverExprOpt with
             | Some(BoundExpression.Value(value=value)) ->
                 not value.IsBase
