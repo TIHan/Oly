@@ -2,30 +2,5 @@
 
 #reference "../core/core.olyx"
 
-abstract class A =
-
-    new() = { }
-
-    abstract default test(): int32 = 1
-
-abstract class B =
-    inherits A
-
-    new() = 
-        { }
-
-class C =
-    inherits B
-
-    new() = 
-        { }
-
-    test2(): int32 = base.test()
-    overrides test(): int32 = 2
-
 main(): () =
-    let c = C()
-    let result = c.test2()
-    let result2 = c.test()
-    print(result)
-    print(result2)
+    print("Hello World!")
