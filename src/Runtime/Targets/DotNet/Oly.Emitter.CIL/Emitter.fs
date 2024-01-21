@@ -526,14 +526,22 @@ module rec ClrCodeGen =
 
         asmBuilder.AddBlob(b)
 
-    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name =
+    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name (inputTys: ClrTypeInfo imarray) =
+
+        let stateTyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name + "_state", 0, true)
+        
+        inputTys
+        |> ImArray.iteri (fun i ty ->
+            stateTyDef.AddFieldDefinition(FieldAttributes.Public, "state" + i.ToString(), ty.Handle, None)
+            |> ignore
+        )
 
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true)
 
         tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
         tyDef.BaseType <- asmBuilder.TypeReferenceValueType
 
-        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceIntPtr) ("", asmBuilder.TypeReferenceIntPtr)
+        let parTys = ImArray.createTwo ("", ClrTypeHandle.ByRef(stateTyDef.Handle)) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Managed
@@ -543,6 +551,7 @@ module rec ClrCodeGen =
 
         ctor.BodyInstructions <-
             [
+
                 (I.Ldarg 0)
                 (I.Ldarg 1)
                 (I.Stfld ptrField)
@@ -2100,11 +2109,11 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         tyDef
 
-    let lazyScopedFunc =
-        lazy
-            let name = "__oly_scoped_func"
-            let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+    //let lazyScopedFunc =
+    //    lazy
+    //        let name = "__oly_scoped_func"
+    //        let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
+    //        ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
     
     let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
         let formalTyHandle = formalTy.Handle
@@ -2333,7 +2342,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
                     ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
             else
-                lazyScopedFunc.Value
+                let name = "__oly_scoped_func_" + (newUniqueId()).ToString()
+                let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name inputTys
+                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+                //lazyScopedFunc.Value
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum

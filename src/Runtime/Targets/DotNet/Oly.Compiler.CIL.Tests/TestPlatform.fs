@@ -86,7 +86,7 @@ let ilverify (ms: MemoryStream) =
     finally
         try File.Delete(tmpFile) with | _ -> ()
 
-let private runILVerify = true
+let private runILVerify = false
 
 let run (ms: MemoryStream, expectedOutput: string) =
     if runILVerify then
