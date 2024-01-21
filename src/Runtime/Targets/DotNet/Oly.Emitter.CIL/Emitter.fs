@@ -2131,14 +2131,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             asmBuilder.tr_UnmanagedFunctionPointerAttribute <- vm.TryFindType("System.Runtime.InteropServices.UnmanagedFunctionPointerAttribute") |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_CallingConvention <- vm.TryFindType("System.Runtime.InteropServices.CallingConvention") |> Option.map (fun x -> x.Handle)
 
-            // TODO: Uncomment this when we have the design right for ref structs.
-            //asmBuilder.tr_IsByRefLikeAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsByRefLikeAttribute") |> Option.map (fun x -> x.Handle)
+            asmBuilder.tr_IsByRefLikeAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsByRefLikeAttribute") |> Option.map (fun x -> x.Handle)
 
             match asmBuilder.tr_IsByRefLikeAttribute with
             | Some(isByRefLikeAttrHandle) ->
                 asmBuilder.tr_IsByRefLikeAttributeConstructor <- asmBuilder.CreateConstructor(isByRefLikeAttrHandle) |> Some
             | _ ->
-                ()
+                failwith "System.Runtime.CompilerServices.IsByRefLikeAttribute not found."
 
             match vm.TryFindType("System.ValueTuple", 2) with
             | None -> failwith "System.ValueTuple not found."
