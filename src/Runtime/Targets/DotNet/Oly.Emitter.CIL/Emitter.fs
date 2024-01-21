@@ -526,16 +526,7 @@ module rec ClrCodeGen =
 
         asmBuilder.AddBlob(b)
 
-    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name (inputTys: ClrTypeInfo imarray) =
-
-        let stateTyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name + "_state", 0, true)
-        
-        inputTys
-        |> ImArray.iteri (fun i ty ->
-            stateTyDef.AddFieldDefinition(FieldAttributes.Public, "state" + i.ToString(), ty.Handle, None)
-            |> ignore
-        )
-
+    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name =
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true)
 
         tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
@@ -2109,11 +2100,11 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         tyDef
 
-    //let lazyScopedFunc =
-    //    lazy
-    //        let name = "__oly_scoped_func"
-    //        let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
-    //        ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+    let lazyScopedFunc =
+        lazy
+            let name = "__oly_scoped_func"
+            let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
+            ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
     
     let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
         let formalTyHandle = formalTy.Handle
@@ -2140,13 +2131,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             asmBuilder.tr_UnmanagedFunctionPointerAttribute <- vm.TryFindType("System.Runtime.InteropServices.UnmanagedFunctionPointerAttribute") |> Option.map (fun x -> x.Handle)
             asmBuilder.tr_CallingConvention <- vm.TryFindType("System.Runtime.InteropServices.CallingConvention") |> Option.map (fun x -> x.Handle)
 
-            asmBuilder.tr_IsByRefLikeAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsByRefLikeAttribute") |> Option.map (fun x -> x.Handle)
+            //asmBuilder.tr_IsByRefLikeAttribute <- vm.TryFindType("System.Runtime.CompilerServices.IsByRefLikeAttribute") |> Option.map (fun x -> x.Handle)
 
-            match asmBuilder.tr_IsByRefLikeAttribute with
-            | Some(isByRefLikeAttrHandle) ->
-                asmBuilder.tr_IsByRefLikeAttributeConstructor <- asmBuilder.CreateConstructor(isByRefLikeAttrHandle) |> Some
-            | _ ->
-                failwith "System.Runtime.CompilerServices.IsByRefLikeAttribute not found."
+            //match asmBuilder.tr_IsByRefLikeAttribute with
+            //| Some(isByRefLikeAttrHandle) ->
+            //    asmBuilder.tr_IsByRefLikeAttributeConstructor <- asmBuilder.CreateConstructor(isByRefLikeAttrHandle) |> Some
+            //| _ ->
+            //    failwith "System.Runtime.CompilerServices.IsByRefLikeAttribute not found."
 
             match vm.TryFindType("System.ValueTuple", 2) with
             | None -> failwith "System.ValueTuple not found."
@@ -2342,10 +2333,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
                     ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
             else
-                let name = "__oly_scoped_func_" + (newUniqueId()).ToString()
-                let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name inputTys
-                ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
-                //lazyScopedFunc.Value
+                lazyScopedFunc.Value
 
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, _, tyParCount) =
             let isStruct = kind = OlyILEntityKind.Struct || kind = OlyILEntityKind.Enum
