@@ -541,7 +541,7 @@ module rec ClrCodeGen =
         tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
         tyDef.BaseType <- asmBuilder.TypeReferenceValueType
 
-        let parTys = ImArray.createTwo ("", ClrTypeHandle.ByRef(stateTyDef.Handle)) ("", asmBuilder.TypeReferenceIntPtr)
+        let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceIntPtr) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Managed
