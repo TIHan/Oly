@@ -1385,6 +1385,20 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Operation(irTextRange, irOp) ->
+#if DEBUG
+            match irOp with
+            | O.Call(irFunc, argExprs, _) ->
+                let func = irFunc.RuntimeFunction
+                // Verify use of 'base' calls.
+                if func.Flags.IsInstance && func.Flags.IsVirtual && not func.Flags.IsFinal && argExprs.Length > 0 && not(func.EnclosingType.IsAnyStruct) then
+                    match argExprs[0] with
+                    | E.Operation(op=O.Upcast(arg=E.Value(value=V.Argument(index=0)))) when func.EnclosingType <> optenv.func.EnclosingType && subsumesType func.EnclosingType optenv.func.EnclosingType ->
+                        ()
+                    | _ ->
+                        failwith "Invalid base call after inlining. This is a bug in the runtime."
+            | _ ->
+                ()
+#endif
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression localScope irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->

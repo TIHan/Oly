@@ -6605,3 +6605,57 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "success2"
     |> ignore
+
+[<Fact>]
+let ``Get assembly``() =
+    """
+open System
+
+#[intrinsic("constant")]
+#[import("intrinsic-CLR", "", "typeof")]
+typeof<require T>: Type
+
+class A
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(never)]
+consume(x: __oly_utf16): () = ()
+
+main(): () =
+    let ty = typeof<A>
+    let loc = ty.Assembly.Location
+    consume(loc)
+    print(123)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+    |> ignore
+
+[<Fact>]
+let ``Int32 ToString via a shape abstraction``() =
+    """
+open System
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+printSpecial<T>(mutable value: T): () where T: { mutable ToString(): string } =
+    print(value.ToString())
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let x = 456
+    printSpecial(x)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore

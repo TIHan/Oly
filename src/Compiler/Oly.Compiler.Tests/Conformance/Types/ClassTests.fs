@@ -1069,3 +1069,29 @@ class B =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Cannot use property setter as it is not defined``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A =
+
+    P: int32 get() = 123
+
+    Test(): () =
+        this.P <- 123
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Property 'P' cannot be set.",
+                """
+        this.P <- 123
+             ^
+"""
+            )
+        ]
+    |> ignore

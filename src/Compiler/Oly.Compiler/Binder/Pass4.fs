@@ -1562,7 +1562,7 @@ let private bindLocalValueDeclaration
                 env
 
         let envForRhsExpr = 
-            let env = { envWithValue with implicitThisOpt = None }.SetReturnable(false)
+            let env = envWithValue.SetReturnable(false)
             if bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction then
                 setIsInLocalLambda env
             else

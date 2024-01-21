@@ -55,7 +55,7 @@ let popInline optenv (func: RuntimeFunction) =
 
 let isPassthroughExpression argCount irExpr =
     match irExpr with
-    | E.Operation(_, irOp) when irOp.ArgumentCount = argCount ->
+    | E.Operation(_, irOp) when irOp.ArgumentCount = argCount && not(isBaseCall irOp) ->
         let mutable isPassthrough = true
         irOp.ForEachArgument (fun i irArgExpr ->
             match irArgExpr with
@@ -388,8 +388,31 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
                 optenv.CreateLocal(irFuncBody.LocalFlags[i])
                 |> ignore
 
+            let mutable hasInlineFailed = false
+
             let irFinalExpr =
-                inlineFunction forwardSubLocals optenv func localOffset argMap irFuncBody
+                inlineFunction forwardSubLocals optenv func localOffset argMap irFuncBody &hasInlineFailed
+
+            // Inlining can fail if we find a base call in the function's body.
+            //
+            // This is somewhat arbitrary. It isn't necessarily "wrong", but since Oly's main target is .NET,
+            // the ECMA spec says that you cannot make a base call if the 'this' parameter is not 'this'.
+            // Inlining can cause this rule to be broken for .NET. So, the Oly runtime adopted the same rule.
+            //
+            // The newly created locals will get cleaned up in normalization.
+            // Ideally, we should learn about this information earlier, but it is tricky since we determine inlineability before
+            // resolving the function's body. By 'resolving', it means the IL -> IR transformation, or importing phase.
+            // 
+            // This seems a little wasteful because we could be constantly trying to inline a function that cannot be inlined.
+            // However, we need this for correctness. If the runtime doesn't want to be wasteful, the front-end compilers should mark
+            // these functions as *never* to inline if they detect a base call in their body.
+            //
+            // We could be a little more optimistic in that we *could* inline the function that makes a base call IF
+            // we are inlining in the same enclosing type. But at the moment, this is conservative.
+            if hasInlineFailed then
+                popInline optenv func
+                None
+            else
 
             let irInlinedExpr =
                 (irFinalExpr, argMap)
@@ -429,7 +452,9 @@ let tryInlineCallIndirect (forwardSubLocals: Dictionary<int, ForwardSubValue<_, 
     | _ ->
         None
 
-let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: ForwardSubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) =
+let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (func: RuntimeFunction) localOffset (argMap: ForwardSubValue<_, _, _> imarray) (irFuncBody: OlyIRFunctionBody<_, _, _>) (hasInlineFailed: byref<bool>) =
+
+    let mutable didFailInline = false
 
     let optimizeOperation irExpr =
         match irExpr with
@@ -582,6 +607,9 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 irNewExpr2
 
         | E.Operation(origTextRange, origOp) ->
+            if isBaseCall origOp then
+                didFailInline <- true
+
             match origOp with
 
             // Arguments
@@ -802,7 +830,9 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             OptimizeImmediateConstantFolding irExpr
         )
 
-    handleExpression irFuncBody.Expression
+    let result = handleExpression irFuncBody.Expression
+    hasInlineFailed <- didFailInline
+    result
 
 let InlineFunctions optenv (irExpr: E<_, _, _>) =
 

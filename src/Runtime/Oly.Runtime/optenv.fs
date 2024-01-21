@@ -408,3 +408,14 @@ module internal Helpers =
                 irExpr
         | _ ->
             irExpr
+
+    let isBaseCall op =
+        match op with
+        | O.Call(irFunc, argExprs, _) ->
+            let func = irFunc.RuntimeFunction
+            if func.Flags.IsInstance && func.Flags.IsVirtual && not func.Flags.IsFinal && argExprs.Length > 0 && not(func.EnclosingType.IsAnyStruct) then
+                true
+            else
+                false
+        | _ ->
+            false

@@ -52,7 +52,7 @@ let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEnt
 let areSimpleILExpressions depth (ilExprs: OlyILExpression imarray) =
     ilExprs
     |> ImArray.forall (isSimpleILExpression depth)
-
+    
 let isSimpleILExpression depth (ilExpr: OlyILExpression) =
     match ilExpr with
     | OlyILExpression.None _
@@ -792,6 +792,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             
         let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =           
             OlyAssert.False(func.EnclosingType.IsShape)
+
+            // Verify use of 'base' calls.
+            if not isVirtualCall && func.Flags.IsInstance && func.Flags.IsVirtual && not func.Flags.IsFinal && irArgs.Length > 0 && not(func.EnclosingType.IsAnyStruct) then
+                match irArgs[0] with
+                | E.Operation(op=O.Upcast(arg=E.Value(value=V.Argument(index=0)))) when func.EnclosingType <> env.ArgumentTypes[0] && subsumesType func.EnclosingType env.ArgumentTypes[0] ->
+                    ()
+                | _ ->
+                    failwith $"Invalid base call. {func.EnclosingType.Name}.{func.Name}"
 
             let stripInlineFunctions = false
             if stripInlineFunctions then

@@ -999,7 +999,9 @@ and analyzeExpressionAux acenv aenv (expr: E) =
         analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver
         checkValue acenv aenv syntaxNode field
 
-    | E.GetProperty(receiverOpt=receiverOpt) ->
+    | E.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
+        if not prop.Getter.IsSome then
+            acenv.cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.Syntax)
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
 

@@ -931,13 +931,11 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
             ()
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
 
-    | BoundExpression.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+    | BoundExpression.GetProperty(prop=prop) ->
         // We can have a GetProperty expression even if the property does not have a getter.
         // The reason is because we initially bind to a GetProperty before potentially turning it into a SetProperty.
         if prop.Getter.IsSome then
             checkReceiverOfExpression env expr
-        else
-            env.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.Syntax)
 
     | BoundExpression.Lambda _ ->
         checkImmediateLambdaExpression env expr
