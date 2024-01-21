@@ -915,3 +915,157 @@ class C =
     Oly src
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Can use 'base'``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    abstract default M(): () = ()
+
+class B =
+    inherits A
+
+    Test(): () =
+        base.M()
+        """
+    Oly src
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Can use 'base' property getter``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    P: int32 abstract default get() = 123
+
+class B =
+    inherits A
+
+    Test(): () =
+        let result = base.P
+        """
+    Oly src
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Can use 'base' property setter``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    P: int32 abstract default set(value) = ()
+
+class B =
+    inherits A
+
+    Test(): () =
+        base.P <- 123
+        """
+    Oly src
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Cannot use 'base' inside a lambda``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    abstract default M(): () = ()
+
+class B =
+    inherits A
+
+    Test(): () =
+        let f() =
+            base.M()
+        f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Improper use of 'base'.",
+                """
+            base.M()
+            ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot assign 'base' to a new value``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    abstract default M(): () = ()
+
+class B =
+    inherits A
+
+    Test(): () =
+        let x = base
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Improper use of 'base'.",
+                """
+        let x = base
+                ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot access fields from 'base'``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+abstract default class A =
+
+    public field X: int32 = 0
+
+    abstract default M(): () = ()
+
+class B =
+    inherits A
+
+    Test(): () =
+        let x = base.X
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Improper use of 'base'.",
+                """
+        let x = base.X
+                ^^^^
+"""
+            )
+        ]
+    |> ignore

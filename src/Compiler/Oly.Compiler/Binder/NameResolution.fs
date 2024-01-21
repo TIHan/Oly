@@ -149,6 +149,16 @@ type ResolutionItem =
         | Invalid(syntax) -> syntax
         | Error(syntax) -> syntax
 
+let private determineVirtual receiverExprOpt (value: IValueSymbol) =
+    if value.IsVirtual && not(value.Enclosing.IsAnyStruct) then
+        match receiverExprOpt with
+        | Some(BoundExpression.Value(value=value)) ->
+            not value.IsBase
+        | _ ->
+            true
+    else
+        false
+
 let getSyntaxArgumentsAsSyntaxExpressions (cenv: cenv) (syntaxArgs: OlySyntaxArguments) =
     match syntaxArgs with
     | OlySyntaxArguments.Arguments(_, syntaxArgList, syntaxNamedArgList, _) ->
@@ -451,17 +461,18 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
 
     | :? IPropertySymbol as prop ->
         match receiverInfoOpt with
-        | Some({ expr = Some receiver }) ->
+        | Some({ expr = (Some receiverExpr) as receiverExprOpt }) ->
             let receiverExpr =
                 if prop.Enclosing.IsType then
-                    AddressOfReceiverIfPossible prop.Enclosing.AsType receiver
+                    AddressOfReceiverIfPossible prop.Enclosing.AsType receiverExpr
                 else
-                    receiver
-            let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol)
+                    receiverExpr
+            let isVirtual = determineVirtual receiverExprOpt prop
+            let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, isVirtual)
             checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
             expr
         | _ ->
-            E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol)
+            E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
     | _ ->
         createValueExpr syntaxInfo value
 
@@ -564,15 +575,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 expr
         )
         
-    let isVirtualCall =
-        if value.IsVirtual && not(value.Enclosing.IsAnyStruct) then
-            match receiverExprOpt with
-            | Some(BoundExpression.Value(value=value)) ->
-                not value.IsBase
-            | _ ->
-                true
-        else
-            false
+    let isVirtual = determineVirtual receiverExprOpt value
 
     let receiverOpt =
         // Implicitly include 'this' as the receiver for the base constructor call.
@@ -597,7 +600,8 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             E.GetProperty(
                 syntaxInfo,
                 receiverOpt,
-                value.AsProperty
+                value.AsProperty,
+                isVirtual
             )
 
         checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) getPropertyExpr
@@ -629,7 +633,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             witnessArgs,
             argExprs,
             value,
-            isVirtualCall
+            isVirtual
         ), value
 
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =

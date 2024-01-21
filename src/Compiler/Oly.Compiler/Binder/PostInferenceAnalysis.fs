@@ -339,7 +339,10 @@ and checkPattern acenv aenv syntaxNode (pat: IPatternSymbol) =
     pat.PatternGuardFunction |> Option.iter (fun func -> checkValue acenv aenv syntaxNode func)
 
 and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
-    if value.IsPattern then
+    if value.IsBase then
+        if not value.IsFunction then
+            acenv.cenv.diagnostics.Error($"Improper use of 'base'.", 0, syntaxNode)
+    elif value.IsPattern then
         checkPattern acenv aenv syntaxNode (value :?> IPatternSymbol)
     else
         checkEnclosing acenv aenv syntaxNode value.Enclosing
@@ -1050,8 +1053,12 @@ and analyzeExpressionAux acenv aenv (expr: E) =
         analyzeBindingInfo acenv aenv syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
         analyzeExpression acenv aenv bodyExpr
 
-    | E.Value(_, value) ->
-        checkValue acenv aenv syntaxNode value
+    | E.Value(syntaxInfo, value) ->
+        match syntaxInfo.TrySyntaxName with
+        | Some(syntaxName) ->
+            checkValue acenv aenv syntaxName value
+        | _ ->
+            checkValue acenv aenv syntaxNode value
 
     | E.Literal(_, literal) ->
         analyzeLiteral acenv aenv syntaxNode literal

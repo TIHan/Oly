@@ -463,7 +463,10 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
     match syntaxBinding with
     | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, syntaxRhs) ->
 
-        let env1, implicitBaseOpt =
+        // TODO: This needs cleanup. If we create a 'base' value, that means we absolutely have access to 'this'. It's a bug otherwise.
+        //       So, re-write to guarantee that when 'base' is in scope, we have access to 'this'.
+
+        let env1 =
             match currentEnclosing env with
             | EnclosingSymbol.Entity(ent) when not ent.Extends.IsEmpty && ent.IsClass && bindingInfo.Value.IsFunction ->
                 let baseTy = ent.Extends.[0]
@@ -473,21 +476,21 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                         if bindingInfo.Value.IsConstructor then
                             let baseCtors = createBaseInstanceConstructors "base" baseEnt
                             if baseCtors.IsEmpty then
-                                env, None
+                                env
                             else
                                 let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length, false)
-                                env.SetUnqualifiedValue(funcGroup), None
+                                env.SetUnqualifiedValue(funcGroup)
                         else
                             let mightBeReadOnly = not isExplicitMutable
                             let baseValue = createBaseValue "base" false mightBeReadOnly baseEnt
                             let env = env.SetUnqualifiedValue(baseValue)
-                            env, Some baseValue
+                            env
                     else
-                        env, None
+                        env
                 | _ ->
-                    env, None
+                    env
             | _ ->
-                env, None
+                env
 
         let env2, implicitThisOpt =
             match currentEnclosing env with
@@ -507,7 +510,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             (env2, bindingInfo.Value.TypeParameters)
             ||> ImArray.fold scopeInTypeParameter
 
-        let rhsExpr = bindMemberValueRightSideExpression cenv { env3 with implicitThisOpt = implicitThisOpt } syntaxBindingDecl implicitBaseOpt bindingInfo syntaxRhs
+        let rhsExpr = bindMemberValueRightSideExpression cenv { env3 with implicitThisOpt = implicitThisOpt } syntaxBindingDecl bindingInfo syntaxRhs
         let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingInfo rhsExpr
         let binding =
             BoundBinding.Implementation(
@@ -543,7 +546,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             let env1 =
                 (env, guardFunc.TypeParameters)
                 ||> ImArray.fold scopeInTypeParameter
-            let condExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken None bindingGuardInfo syntaxCondExpr
+            let condExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken bindingGuardInfo syntaxCondExpr
             let bindingGuardInfo = BindingFunction(guardFunc)
             let bindingGuardInfo, condExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingGuardInfo condExpr
             let bindingGuard =
@@ -556,7 +559,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             let env1 =
                 (env, func.TypeParameters)
                 ||> ImArray.fold scopeInTypeParameter
-            let rhsExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken None bindingInfo syntaxRhsExpr
+            let rhsExpr = bindMemberValueRightSideExpression cenv env1 syntaxWhenToken bindingInfo syntaxRhsExpr
             let bindingInfo = BindingFunction(func)
             let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxBinding bindingInfo rhsExpr
             let binding =
@@ -764,7 +767,7 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
     let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2, NormalSequential)
     env2, boundExpression
 
-let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) implicitBaseOpt (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
+let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
     let envRhs = envOfBinding
     let expectedRhsTyOpt =
         if not func.IsConstructor then
@@ -779,20 +782,6 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
         if func.IsLocal then
             checkExpression cenv env expectedRhsTyOpt rhsBodyExpr
         else
-            rhsBodyExpr
-
-    let rhsBodyExpr =
-        match implicitBaseOpt with
-        | Some baseValue ->
-            let syntaxInfo = BoundSyntaxInfo.Generated(cenv.syntaxTree)
-            BoundExpression.Let(
-                syntaxInfo,
-                BindingLocal(baseValue),
-                BoundExpression.Value(syntaxInfo, pars[0]),
-                rhsBodyExpr
-                
-            )
-        | _ ->
             rhsBodyExpr
 
     let rhsExpr = 
@@ -816,7 +805,7 @@ let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expected
     | _ ->
         rhsExpr
 
-let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (implicitBaseOpt: ILocalParameterSymbol option) (binding: BindingInfoSymbol) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
+let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (binding: BindingInfoSymbol) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding, pars =
         // TODO: Do we need to do anything else here? Handle other bindings?
         match binding with
@@ -867,7 +856,7 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
     match binding with
     | BindingFunction(func=func)
     | BindingPattern(_, func) ->
-        bindFunctionRightSideExpression cenv env envOfBinding implicitBaseOpt syntaxRhs pars func
+        bindFunctionRightSideExpression cenv env envOfBinding syntaxRhs pars func
     | _ ->
         bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
@@ -887,7 +876,7 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
 
     match binding with
     | BindingLocalFunction(func=func) ->
-        bindFunctionRightSideExpression cenv env envOfBinding None syntaxRhs func.Parameters func
+        bindFunctionRightSideExpression cenv env envOfBinding syntaxRhs func.Parameters func
     | _ ->
         bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
@@ -1436,7 +1425,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
                 BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhs)
 
-            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop) ->
+            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
                 if prop.Setter.IsNone then
                     cenv.diagnostics.Error($"Property '{prop.Name}' cannot be set.", 10, syntaxInfo.SyntaxNameOrDefault)
                 let receiverExprOpt =
@@ -1446,7 +1435,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                         receiverOpt
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
-                BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhs)
+                BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhs, isVirtual)
 
             // Undo the automatic dereference when we are trying to set the value of the by-ref.
             | AutoDereferenced(undoDerefLhsExpr) ->

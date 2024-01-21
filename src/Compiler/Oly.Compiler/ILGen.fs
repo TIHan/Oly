@@ -1428,6 +1428,8 @@ and GenExpression (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
             OlyILExpressionNone
 
     | E.Value(value=value) ->
+        OlyAssert.False(value.IsBase)
+
         match stripTypeEquations value.Type with
         | TypeSymbol.Unit -> OlyILExpressionNone
         | _ -> GenValueExpression cenv possiblyReturnableEnv ilTextRange ValueNone ImArray.empty value ImArray.empty

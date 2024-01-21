@@ -188,6 +188,38 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
             if value.IsInstance && not value.Enclosing.IsImported then
                 cenv.diagnostics.Error($"'{value.Name}' cannot be imported as its enclosing is not imported.", 10, syntaxNode)
 
+let private checkBaseValueUsage (cenv: cenv) (env: BinderEnvironment) expr =
+    match expr with
+    | E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, baseValue)), witnessArgs, argExprs, func, (* isVirtual *) false)
+            when baseValue.IsBase ->
+        OlyAssert.True(func.IsInstance)
+        OlyAssert.False(func.IsConstructor)
+        OlyAssert.True(func.IsFunction)
+        match env.implicitThisOpt with
+        | Some(thisValue) ->
+            E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, func, false)
+        | _ ->
+            expr
+
+    | E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, baseValue)), prop, false) ->
+        OlyAssert.True(prop.IsInstance)
+        match env.implicitThisOpt with
+        | Some(thisValue) ->
+            E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, false)
+        | _ ->
+            expr
+
+    | E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, baseValue)), prop, rhsExpr, false) ->
+        OlyAssert.True(prop.IsInstance)
+        match env.implicitThisOpt with
+        | Some(thisValue) ->
+            E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, rhsExpr, false)
+        | _ ->
+            expr
+
+    | _ ->
+        expr
+
 let private autoDereferenceExpression expr =
     match expr with
     | E.Call(value=value) ->
@@ -758,3 +790,4 @@ let private checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env argE
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
     // If the expression is used as an argument, then we will skip eager inference in function overloads.
     checkCallExpression cenv env env.isPassedAsArgument expectedTyOpt false expr
+    |> checkBaseValueUsage cenv env

@@ -179,34 +179,16 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 #endif
 
     // Get/Set property calls
-    | E.GetProperty(syntaxInfo, receiverOpt, prop) ->
+    | E.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
         match prop.Getter with
         | Some getter ->
-            let isVirtualCall =
-                if not getter.IsConcrete then
-                    match receiverOpt with
-                    | Some(E.Value(value=value)) ->
-                        not value.IsBase
-                    | _ ->
-                        true
-                else
-                    false
-            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.empty, getter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.empty, getter, isVirtual)
         | _ ->
             origExpr
-    | E.SetProperty(syntaxInfo, receiverOpt, prop, rhs) ->
+    | E.SetProperty(syntaxInfo, receiverOpt, prop, rhs, isVirtual) ->
         match prop.Setter with
         | Some setter ->
-            let isVirtualCall =
-                if not setter.IsConcrete then
-                    match receiverOpt with
-                    | Some(E.Value(value=value)) ->
-                        not value.IsBase
-                    | _ ->
-                        true
-                else
-                    false
-            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.createOne rhs, setter, isVirtualCall)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.createOne rhs, setter, isVirtual)
         | _ ->
             origExpr
 

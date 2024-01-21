@@ -156,22 +156,22 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 else
                     BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs)
 
-            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop) ->
+            | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
                 let newReceiverOpt = receiverOpt |> Option.map this.Rewrite
 
                 if newReceiverOpt = receiverOpt then
                     expr
                 else
-                    BoundExpression.GetProperty(syntaxInfo, newReceiverOpt, prop)
+                    BoundExpression.GetProperty(syntaxInfo, newReceiverOpt, prop, isVirtual)
 
-            | BoundExpression.SetProperty(syntaxInfo, receiverOpt, prop, rhs) ->
+            | BoundExpression.SetProperty(syntaxInfo, receiverOpt, prop, rhs, isVirtual) ->
                 let newRhs = this.Rewrite(rhs)
                 let newReceiverOpt = receiverOpt |> Option.map this.Rewrite
 
                 if newReceiverOpt = receiverOpt && newRhs = rhs then
                     expr
                 else
-                    BoundExpression.SetProperty(syntaxInfo, newReceiverOpt, prop, newRhs)
+                    BoundExpression.SetProperty(syntaxInfo, newReceiverOpt, prop, newRhs, isVirtual)
 
             | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic) ->
                 let newExpr1 = this.Rewrite(expr1)
