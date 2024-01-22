@@ -537,7 +537,7 @@ module rec ClrCodeGen =
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Managed
 
-        let ptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "ptr", asmBuilder.TypeReferenceIntPtr, None)
+        let thisptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "thisptr", asmBuilder.TypeReferenceIntPtr, None)
         let fnptrField = tyDef.AddFieldDefinition(FieldAttributes.Public, "fnptr", asmBuilder.TypeReferenceIntPtr, None)
 
         ctor.BodyInstructions <-
@@ -545,7 +545,7 @@ module rec ClrCodeGen =
 
                 (I.Ldarg 0)
                 (I.Ldarg 1)
-                (I.Stfld ptrField)
+                (I.Stfld thisptrField)
 
                 (I.Ldarg 0)
                 (I.Ldarg 2)
@@ -842,6 +842,12 @@ module rec ClrCodeGen =
 
             else
                 GenArgumentExpression cenv env receiverExpr
+
+                match receiverExpr.ResultType.TryByRefElementType with
+                | ValueSome(elemTy) ->
+                    I.Conv_u |> emitInstruction cenv
+                | _ ->
+                    ()
 
                 emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 

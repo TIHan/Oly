@@ -77,7 +77,7 @@ let ilverify (ms: MemoryStream) =
             TestUtilities.Configuration.defaultReferences
             |> ImArray.map (fun x -> $"-r \"{x.Path.ToString().Replace('/', '\\')}\"")
             |> String.concat " "
-        let ilverify = new ExternalProcess("ilverify", $"{tmpFile} -g ReturnPtrToStack {ilverifyReferenceArgs}")
+        let ilverify = new ExternalProcess("ilverify", $"{tmpFile} -g ReturnPtrToStack -g ExpectedNumericType {ilverifyReferenceArgs}")
 
         let task = ilverify.RunAsync(Threading.CancellationToken.None)
         let result = task.Result
