@@ -2414,14 +2414,14 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Brfalse labelId
             | I.Br labelId ->
                 let opCode = getBranchOpCode instr
-                let opCode =
-                    let offset = offsets[i] + sizeOfInstr instr
-                    let labelOffset = labelOffsets[labelId]
-                    let distance = labelOffset - offset
-                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
-                        getShortBranchOpCode opCode
-                    else
-                        opCode
+                //let opCode =
+                //    let offset = offsets[i] + sizeOfInstr instr
+                //    let labelOffset = labelOffsets[labelId]
+                //    let distance = labelOffset - offset
+                //    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                //        getShortBranchOpCode opCode
+                //    else
+                //        opCode
                 
                 il.Branch(opCode, labels[labelId])
 
