@@ -6,11 +6,14 @@
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
 	<ServerGarbageCollection>true</ServerGarbageCollection>
+	<Configurations>Debug;Release;Checked</Configurations>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" />
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Checked|AnyCPU'" />
 
   <ItemGroup>
     <Compile Include="TestPlatform.fs" />

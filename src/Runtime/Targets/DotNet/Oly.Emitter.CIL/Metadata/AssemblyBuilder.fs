@@ -2023,9 +2023,11 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Ldlen ->
             1
 
-        | I.Ldtoken _
-        | I.Sizeof _ ->
+        | I.Ldtoken _ ->
             1 + 4
+
+        | I.Sizeof _ ->
+            2 + 4
 
         | I.Initobj _ ->
             2 + 4
@@ -2083,12 +2085,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 else
                     1 + 1
             else
-                1 + 2
+                4 + 2
         | I.Ldarga value ->
             if value <= int Byte.MaxValue && value >= int Byte.MinValue then
                 1 + 1
             else
-                1 + 2
+                4 + 2
         | I.LdindRef ->
             1
         | I.Ldloc value ->
@@ -2098,17 +2100,17 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 else
                     1 + 1
             else
-                1 + 2
+                4 + 2
         | I.Ldloca value ->
             if value <= int Byte.MaxValue && value >= int Byte.MinValue then
                 1 + 1
             else
-                1 + 2
+                4 + 2
         | I.Starg value ->
             if value <= int Byte.MaxValue && value >= int Byte.MinValue then
                 1 + 1
             else
-                1 + 2
+                4 + 2
         | I.Stloc value ->
             if value <= int Byte.MaxValue && value >= int Byte.MinValue then
                 if value >= 0 && value <= 3 then
@@ -2116,7 +2118,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 else
                     1 + 1
             else
-                1 + 2
+                4 + 2
 
         | I.Ldind_i4 ->
             1
@@ -2266,8 +2268,6 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
     member _.Handle: ClrMethodHandle = handle
 
     member private this.PopulateMethodBody() =
-        let _isDebuggable = asmBuilder.IsDebuggable
-
         let localSig = asmBuilder.CreateStandaloneSignature(this.Locals)
         let localSigToken = MetadataTokens.GetRowNumber(localSig)
 
@@ -2281,7 +2281,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         //---------------------------------------------------------
 
-#if DEBUG
+#if DEBUG || CHECKED
         let labels = Dictionary<int, _>()
 
         let mutable dummyIL = createInstructionEncoder()
@@ -2297,8 +2297,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         let mutable maxStack = 0
 
+        let dummyOffsets = List()
+
+        if dummyIL.Offset <> 0 then
+            failwith "Dummy IL should have started with 0 offset"
+
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
+
+            dummyOffsets.Add(dummyIL.Offset)
 
             match instr with
             | I.Beq labelId
@@ -2347,7 +2354,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 ()
 
             | _ ->
+                let originalOffset = dummyIL.Offset
                 emitInstr asmBuilder &maxStack &dummyIL instr
+                let offset = dummyIL.Offset
+                if originalOffset = offset then
+                    failwithf "IL emitter should have emitted instruction %A" instr
+                elif (offset - originalOffset) <> sizeOfInstr instr then
+                    failwithf "Invalid estimated size of instruction - %A - expected: %A, actual: %A, index: %A" instr (offset - originalOffset) (sizeOfInstr instr) i
 #endif
 
         let labels = Dictionary<int, _>()
@@ -2370,7 +2383,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             totalSize <- totalSize + sizeOfInstr instr
 
-#if DEBUG
+#if DEBUG || CHECKED
         // Assert estimation size
         // In Debug, we emit the IL instructions twice.
         OlyAssert.Equal(dummyIL.Offset, totalSize)
@@ -2414,14 +2427,14 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Brfalse labelId
             | I.Br labelId ->
                 let opCode = getBranchOpCode instr
-                //let opCode =
-                //    let offset = offsets[i] + sizeOfInstr instr
-                //    let labelOffset = labelOffsets[labelId]
-                //    let distance = labelOffset - offset
-                //    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
-                //        getShortBranchOpCode opCode
-                //    else
-                //        opCode
+                let opCode =
+                    let offset = offsets[i] + sizeOfInstr instr
+                    let labelOffset = labelOffsets[labelId]
+                    let distance = labelOffset - offset
+                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                        getShortBranchOpCode opCode
+                    else
+                        opCode
                 
                 il.Branch(opCode, labels[labelId])
 

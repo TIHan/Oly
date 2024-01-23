@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net7</TargetFramework>
+    <Configurations>Debug;Release;Checked</Configurations>
   </PropertyGroup>
 
   <ItemGroup>

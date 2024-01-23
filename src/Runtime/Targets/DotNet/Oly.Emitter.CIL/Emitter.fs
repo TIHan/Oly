@@ -388,8 +388,6 @@ module rec ClrCodeGen =
             ``ValueTuple`7_GetItemFields``: ClrFieldHandle imarray
 
             ``Object_.ctor``: ClrMethodHandle
-
-            ``Unsafe_AsPointer``: ClrMethodHandle
         }
 
     [<NoEquality;NoComparison>]
@@ -843,11 +841,9 @@ module rec ClrCodeGen =
             else
                 GenArgumentExpression cenv env receiverExpr
 
-                match receiverExpr.ResultType.TryByRefElementType with
-                | ValueSome(elemTy) ->
+                // Converts a byref to a native int.
+                if receiverExpr.ResultType.IsByRef_t then
                     I.Conv_u |> emitInstruction cenv
-                | _ ->
-                    ()
 
                 emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 
@@ -2170,11 +2166,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | Some x -> x.handle
                 | _ -> failwith "Unable to find 'System.Object..ctor'"
 
-            let unsafeAsPointerFunc =
-                match vm.TryFindFunction(("System.Runtime.CompilerServices.Unsafe", 0), "AsPointer", 1, 1, OlyFunctionKind.Static) with
-                | Some x -> x.handle
-                | _ -> failwith "Unable to find 'System.Runtime.CompilerServices.Unsafe.AsPointer'"
-
             g <-
                 {
                     ``ValueTuple`2`` = ``ValueTuple`2``
@@ -2192,8 +2183,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``ValueTuple`7_GetItemFields`` = createTuple_GetItemFields 7
 
                     ``Object_.ctor`` = objectCtor
-
-                    ``Unsafe_AsPointer`` = unsafeAsPointerFunc
                 } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =

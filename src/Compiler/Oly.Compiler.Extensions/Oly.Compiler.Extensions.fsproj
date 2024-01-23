@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net7</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Configurations>Debug;Release;Checked</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
