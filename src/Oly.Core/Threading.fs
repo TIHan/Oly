@@ -4,7 +4,7 @@ open System
 open System.Threading.Tasks
 
 [<AbstractClass;Sealed>]
-type DebugStackGuard =
+type StackGuard =
 
     static member MaxDepth with get() = 
 #if DEBUG
@@ -17,14 +17,14 @@ type DebugStackGuard =
     [<DefaultValue(false)>]
     [<ThreadStatic>]
     static val mutable private currentDepth: int32
-    static member CurrentDepth with get() = DebugStackGuard.currentDepth and set(value) = DebugStackGuard.currentDepth <- value
+    static member CurrentDepth with get() = StackGuard.currentDepth and set(value) = StackGuard.currentDepth <- value
 
     static member inline Do<'T>([<InlineIfLambda>] f: unit -> 'T) =
-        DebugStackGuard.CurrentDepth <- DebugStackGuard.CurrentDepth + 1
+        StackGuard.CurrentDepth <- StackGuard.CurrentDepth + 1
         try
-            if DebugStackGuard.CurrentDepth % DebugStackGuard.MaxDepth = 0 then
+            if StackGuard.CurrentDepth % StackGuard.MaxDepth = 0 then
                 Task.Run(fun () -> f()).Result
             else
                 f()
         finally
-            DebugStackGuard.CurrentDepth <- DebugStackGuard.CurrentDepth - 1
+            StackGuard.CurrentDepth <- StackGuard.CurrentDepth - 1

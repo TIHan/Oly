@@ -47,7 +47,7 @@ let createProjectWeakReference src workspace =
     WeakReference<OlyProject>(proj), WeakReference<OlyCompilation>(comp), WeakReference<OlySyntaxTree>(syntaxTree)
 
 let createDocument src (workspace: OlyWorkspace) =
-#if DEBUG
+#if DEBUG || CHECKED
     let isDebuggable = true
 #else
     let isDebuggable = false

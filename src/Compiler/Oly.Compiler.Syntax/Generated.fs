@@ -179,7 +179,7 @@ type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxA
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -262,7 +262,7 @@ type OlySyntaxName internal (tree, start: int, parent, internalNode: SyntaxName)
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -338,7 +338,7 @@ type OlySyntaxBlittable internal (tree, start: int, parent, internalNode: Syntax
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -391,7 +391,7 @@ type OlySyntaxBlittableOptional internal (tree, start: int, parent, internalNode
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -453,7 +453,7 @@ type OlySyntaxAttribute internal (tree, start: int, parent, internalNode: Syntax
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -578,7 +578,7 @@ type OlySyntaxHashAttribute internal (tree, start: int, parent, internalNode: Sy
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -631,7 +631,7 @@ type OlySyntaxAttributes internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -693,7 +693,7 @@ type OlySyntaxConstraint internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -797,7 +797,7 @@ type OlySyntaxConstraintClause internal (tree, start: int, parent, internalNode:
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -859,7 +859,7 @@ type OlySyntaxTypeParameters internal (tree, start: int, parent, internalNode: S
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -928,7 +928,7 @@ type OlySyntaxTypeConstructor internal (tree, start: int, parent, internalNode: 
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -990,7 +990,7 @@ type OlySyntaxTupleElement internal (tree, start: int, parent, internalNode: Syn
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1059,7 +1059,7 @@ type OlySyntaxType internal (tree, start: int, parent, internalNode: SyntaxType)
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1205,7 +1205,7 @@ type OlySyntaxMutability internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1267,7 +1267,7 @@ type OlySyntaxParameter internal (tree, start: int, parent, internalNode: Syntax
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1343,7 +1343,7 @@ type OlySyntaxTypeArguments internal (tree, start: int, parent, internalNode: Sy
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1405,7 +1405,7 @@ type OlySyntaxParameters internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1467,7 +1467,7 @@ type OlySyntaxLambdaKind internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1529,7 +1529,7 @@ type OlySyntaxReturnTypeAnnotation internal (tree, start: int, parent, internalN
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1591,7 +1591,7 @@ type OlySyntaxFunctionName internal (tree, start: int, parent, internalNode: Syn
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1653,7 +1653,7 @@ type OlySyntaxBindingDeclaration internal (tree, start: int, parent, internalNod
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1757,7 +1757,7 @@ type OlySyntaxPropertyBinding internal (tree, start: int, parent, internalNode: 
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1810,7 +1810,7 @@ type OlySyntaxGuardBinding internal (tree, start: int, parent, internalNode: Syn
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1872,7 +1872,7 @@ type OlySyntaxBinding internal (tree, start: int, parent, internalNode: SyntaxBi
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -1955,7 +1955,7 @@ type OlySyntaxLetPatternBinding internal (tree, start: int, parent, internalNode
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2008,7 +2008,7 @@ type OlySyntaxTypeDeclarationKind internal (tree, start: int, parent, internalNo
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2140,7 +2140,7 @@ type OlySyntaxLiteral internal (tree, start: int, parent, internalNode: SyntaxLi
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2314,7 +2314,7 @@ type OlySyntaxFieldPattern internal (tree, start: int, parent, internalNode: Syn
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2376,7 +2376,7 @@ type OlySyntaxNamedArgument internal (tree, start: int, parent, internalNode: Sy
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2429,7 +2429,7 @@ type OlySyntaxArguments internal (tree, start: int, parent, internalNode: Syntax
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2491,7 +2491,7 @@ type OlySyntaxElseIfOrElseExpression internal (tree, start: int, parent, interna
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2560,7 +2560,7 @@ type OlySyntaxCatchOrFinallyExpression internal (tree, start: int, parent, inter
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2629,7 +2629,7 @@ type OlySyntaxValueDeclarationPremodifier internal (tree, start: int, parent, in
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2719,7 +2719,7 @@ type OlySyntaxValueDeclarationPostmodifier internal (tree, start: int, parent, i
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2772,7 +2772,7 @@ type OlySyntaxValueDeclarationKind internal (tree, start: int, parent, internalN
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2869,7 +2869,7 @@ type OlySyntaxExtends internal (tree, start: int, parent, internalNode: SyntaxEx
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -2938,7 +2938,7 @@ type OlySyntaxImplements internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3000,7 +3000,7 @@ type OlySyntaxTypeDeclarationCase internal (tree, start: int, parent, internalNo
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3062,7 +3062,7 @@ type OlySyntaxTypeDeclarationBody internal (tree, start: int, parent, internalNo
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3124,7 +3124,7 @@ type OlySyntaxTypeDeclarationName internal (tree, start: int, parent, internalNo
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3186,7 +3186,7 @@ type OlySyntaxPattern internal (tree, start: int, parent, internalNode: SyntaxPa
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3276,7 +3276,7 @@ type OlySyntaxMatchGuard internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3338,7 +3338,7 @@ type OlySyntaxMatchPattern internal (tree, start: int, parent, internalNode: Syn
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3414,7 +3414,7 @@ type OlySyntaxMatchClause internal (tree, start: int, parent, internalNode: Synt
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3467,7 +3467,7 @@ type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: Sy
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3529,7 +3529,7 @@ type OlySyntaxCompilationUnit internal (tree, start: int, parent, internalNode: 
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->
@@ -3598,7 +3598,7 @@ type OlySyntaxExpression internal (tree, start: int, parent, internalNode: Synta
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->

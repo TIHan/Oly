@@ -149,7 +149,7 @@ let optimizeImmediateExpression cenv origExpr =
     //       for each local that we want to eliminate. We should stop this and instead
     //       do full single passes.
 
-#if DEBUG
+#if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
         Assert.ThrowIf(binding.Info.Value.IsLocal)
         origExpr

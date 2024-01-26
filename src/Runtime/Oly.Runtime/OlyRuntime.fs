@@ -426,7 +426,7 @@ type env<'Type, 'Function, 'Field> =
         let expectedArgTy = expectedArgTy.StripAlias()
         let argTy = argTy.StripAlias()
 
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.False(expectedArgTy.IsTypeExtension)
         OlyAssert.False(expectedArgTy.IsModule)
         OlyAssert.False(argTy.IsTypeExtension)
@@ -812,7 +812,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 let irFunc = OlyIRFunction(emittedFunc, func)
 
                 let handle() =
-//#if DEBUG
+//#if DEBUG || CHECKED
 //                    Log(
 //                        let witnesses = func.Witnesses
 //                        let witnessText = 
@@ -1361,7 +1361,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.Call(ilFuncInst, ilArgs) ->
             let func = resolveFunction ilFuncInst
-#if DEBUG
+#if DEBUG || CHECKED
             Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
@@ -1379,7 +1379,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.CallVirtual(ilFuncInst, ilArgs) ->
             let func = resolveFunction ilFuncInst
-#if DEBUG
+#if DEBUG || CHECKED
             Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
@@ -1400,7 +1400,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
 let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let (irExpr, actualTy) as result = 
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             importExpressionAux cenv env expectedTyOpt ilExpr
         )
 
@@ -1422,7 +1422,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
     let expectedArgTy = expectedArgTy.StripAliasAndNewtype()
     let argTy = argTy.StripAliasAndNewtype()
 
-#if DEBUG
+#if DEBUG || CHECKED
     OlyAssert.False(expectedArgTy.IsTypeExtension)
     OlyAssert.False(expectedArgTy.IsModule)
     OlyAssert.False(argTy.IsTypeExtension)
@@ -1435,7 +1435,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
         else
             irArg, argTy
 
-#if DEBUG
+#if DEBUG || CHECKED
     OlyAssert.False(argTy.IsTypeExtension)
     OlyAssert.False(argTy.IsModule)
 #endif
@@ -2047,7 +2047,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if not isGenericsErased && not tyDef.IsFormal then
             failwith "Expected formal type."
 
-//#if DEBUG
+//#if DEBUG || CHECKED
 //        let typeShouldNotBeEmitted = 
 //            if tyDef.IsClosure then
 //                let ilEntDef = asm.ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
@@ -3355,7 +3355,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match ilEntInst with
             | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs) ->
                 let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
-#if DEBUG
+#if DEBUG || CHECKED
                 OlyAssert.Equal(ty.TypeParameters.Length, ilTyArgs.Length)
 #endif
                 if ilTyArgs.IsEmpty then
@@ -3854,7 +3854,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let emittedFunc = this.Emitter.EmitFunctionDefinition(externalInfoOpt, emittedEnclosingTy, flags, func.Name, tyPars, pars, returnTy, overrides, sigKey, irAttrs)
                 emitted.[key] <- emittedFunc
 
-#if DEBUG
+#if DEBUG || CHECKED
                 Log(
                     let witnessText = 
                         if witnesses.IsEmpty then

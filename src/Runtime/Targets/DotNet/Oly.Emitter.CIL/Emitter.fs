@@ -3045,7 +3045,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let output = ImArray.builder()
 
             let bodyResult = 
-#if DEBUG
+#if DEBUG || CHECKED
                 // We do this in Debug to prevent stack overflows due to lack of tail calls.
                 // It would be a fair amount of work to do so otherwise since we rely on recursive patterns.
                 async { 

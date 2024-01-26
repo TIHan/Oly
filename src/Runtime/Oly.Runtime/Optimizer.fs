@@ -191,16 +191,12 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
         | _ ->
             OlyAssert.Fail("Expected opertion")
 
-//#if DEBUG
     and optimizeExpression irExpr : E<_, _, _> =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             optimizeExpressionCore irExpr
         )
 
     and optimizeExpressionCore irExpr : E<_, _, _> =
-//#else
-//    and optimizeExpression irExpr : E<_, _, _> =
-//#endif
         match irExpr with
         // Normalize sequential expressions
         | E.Let(name, localIndex, E.Sequential(expr1, expr2), bodyExpr) ->
@@ -520,7 +516,7 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
             OlyAssert.Fail("Expected operation")
 
     let rec handleExpression irExpr : E<_, _, _> =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             handleExpressionAuxCopyPropagation irExpr
         )
 
@@ -900,7 +896,7 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
             env, irNewExpr1
 
     and handleExpression irExpr =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             handleExpressionAuxCse irExpr
         )
     
@@ -1112,7 +1108,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
     analyzeExpression false irExpr
 
     let rec handleExpression irExpr =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             handleExpressionAuxDeadCodeElimination irExpr
         )
 
@@ -1251,7 +1247,7 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
             origOp
 
     let rec handleLinearExpression (localScope: ImmutableHashSet<int>) origExpr : E<_, _, _> =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             match origExpr with
             | E.Let(irTextRange, localIndex, irRhsExpr, irBodyExpr) ->
                 let irNewRhsExpr =
@@ -1305,7 +1301,7 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
         )
 
     and handleExpression localScope origExpr =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             handleExpressionAuxNormalizeLocals localScope origExpr
         )
 
@@ -1385,7 +1381,7 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
                 E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
 
         | E.Operation(irTextRange, irOp) ->
-#if DEBUG
+#if DEBUG || CHECKED
             match irOp with
             | O.Call(irFunc, argExprs, _) ->
                 let func = irFunc.RuntimeFunction
@@ -1440,7 +1436,7 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
         (irTier: OlyIRFunctionTier) =
-#if DEBUG
+#if DEBUG || CHECKED
     Log(
         let witnesses = func.Witnesses
         let witnessText = 
@@ -1677,7 +1673,7 @@ let optimizeAssertionPropagateExpression (optenv: optenv<'Type, 'Function, 'Fiel
         irExpr  
 
 let assertionPropagateExpression optenv origEnv irExpr =
-    DebugStackGuard.Do(fun() ->
+    StackGuard.Do(fun() ->
         assertionPropagateExpressionAux optenv origEnv irExpr
     )
 

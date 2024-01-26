@@ -1006,7 +1006,7 @@ type RuntimeType =
             this
 
     member this.Apply(tyArgs: RuntimeType imarray) =
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.Equal(this.TypeParameters.Length, tyArgs.Length)
 #endif
 
@@ -1583,7 +1583,7 @@ type RuntimeField =
                 this.Index = field.Index &&
                 this.Name = field.Name &&
                 this.EnclosingType = field.EnclosingType
-#if DEBUG
+#if DEBUG || CHECKED
                 &&
                 (
                     OlyAssert.True(this.Type = field.Type)

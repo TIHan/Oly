@@ -39,7 +39,7 @@ type EntitySymbolBuilder private (
             failwith "Invalid pass."
 
     member _.SetExtends(pass: CompilerPass, extends: TypeSymbol imarray) = 
-#if DEBUG
+#if DEBUG || CHECKED
         extends
         |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
 #endif
@@ -52,7 +52,7 @@ type EntitySymbolBuilder private (
             failwith "Invalid pass."
 
     member _.SetImplements(pass: CompilerPass, implements: TypeSymbol imarray) = 
-#if DEBUG
+#if DEBUG || CHECKED
         implements
         |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
 #endif
@@ -129,7 +129,7 @@ type EntitySymbolBuilder private (
             failwith "Invalid pass."
 
     member _.SetTypeParameters(pass: CompilerPass, tyParsToSet: TypeParameterSymbol imarray) =
-#if DEBUG
+#if DEBUG || CHECKED
         if ent.Enclosing.TypeParameters.Length > tyParsToSet.Length then
             failwith "Enclosing type parameter count is greater than the entity's type parameter count."
 

@@ -163,7 +163,7 @@ type BinderEnvironment =
             | true, group -> group
             | _ -> AggregatedNamespaceSymbol(ent.Name, ent.Enclosing, ImArray.empty)
 
-#if DEBUG
+#if DEBUG || CHECKED
         let exists = group.Namespaces |> ImArray.exists (fun x -> x.Id = ent.Id)
         if exists then failwith "assert"
 #endif
@@ -187,7 +187,7 @@ type BinderEnvironment =
         | ValueSome ent when ent.IsNamespace -> failwith "Cannot add a namespace as a type."
         | _  ->
 
-#if DEBUG
+#if DEBUG || CHECKED
         if ty.IsTypeConstructor then
             OlyAssert.True(ty.Arity >= arity)
 #endif
@@ -203,7 +203,7 @@ type BinderEnvironment =
             else
                 match arityGroup.TryGetValue(name) with
                 | true, tys ->
-#if DEBUG
+#if DEBUG || CHECKED
                     let exists = tys |> ImArray.exists (fun x -> areTypesEqual x ty && x.FormalId = ty.FormalId)
                     OlyAssert.False(exists)
 #endif                  
@@ -232,7 +232,7 @@ type BinderEnvironment =
             OlyAssert.Fail("Cannot add a namespace as a type.")
         | _ ->
 
-#if DEBUG
+#if DEBUG || CHECKED
         if ty.IsTypeConstructor then
             OlyAssert.True(ty.Arity >= arity)
 #endif
@@ -243,7 +243,7 @@ type BinderEnvironment =
             | _ -> NameMap.empty
         let arityGroup = arityGroup.SetItem(name, ImArray.createOne ty)
 
-#if DEBUG
+#if DEBUG || CHECKED
         arityGroup.Values
         |> Seq.iter (fun tys ->
             tys
@@ -363,7 +363,7 @@ type BinderEnvironment =
                         match result with
                         // Merge functions.
                         | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
-#if DEBUG
+#if DEBUG || CHECKED
                             let exists =
                                 funcGroup.Functions
                                 |> ImArray.exists (fun x ->
@@ -391,7 +391,7 @@ type BinderEnvironment =
 
                             unqualifiedSymbols.SetItem(name, create funcs)
                         | UnqualifiedSymbol.Function(func) ->
-#if DEBUG
+#if DEBUG || CHECKED
                             OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
 #endif
 

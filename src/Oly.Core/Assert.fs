@@ -25,6 +25,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member Equal<'T when 'T: equality> (expected: 'T, actual: 'T) =
         if expected <> actual then
@@ -33,6 +34,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member NotEqual<'T when 'T: equality> (expected: 'T, actual: 'T) =
         if expected = actual then
@@ -41,6 +43,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member EqualArray<'T when 'T: equality> (expected: 'T imarray, actual: 'T imarray) =
         if expected.Length = actual.Length then
@@ -53,6 +56,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member Contains<'T> (src: HashSet<'T>, expected: 'T) =
         if not(src.Contains(expected)) then
@@ -69,6 +73,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member ContainsKey<'TKey, 'TValue> (src: IDictionary<'TKey, 'TValue>, expectedKey: 'TKey) =
         if not(src.ContainsKey(expectedKey)) then
@@ -83,18 +88,21 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member True(actual: bool) =
         OlyAssert.Equal(true, actual)
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member False(actual: bool) =
         OlyAssert.Equal(false, actual)
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member NotNull(o: obj) =
         match o with

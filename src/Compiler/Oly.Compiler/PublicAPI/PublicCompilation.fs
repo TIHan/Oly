@@ -39,20 +39,20 @@ type OlyCompilationOptions =
             ImplicitExtendsForEnum = None
         }
 
-type private CompilationSignaturePass = (BinderPass4 * OlyDiagnostic imarray) imarray
+type private CompilationSignature = (BinderPass4 * OlyDiagnostic imarray) imarray
 
-type private ImplementationPass = BinderPass4 * OlyDiagnostic imarray
+type private CompilationUnitImplementation = BinderPass4 * OlyDiagnostic imarray
 
 [<NoComparison;NoEquality>]
 type private CompilationUnitImplementationState =
     {
         boundModel: OlyBoundModel
-        lazyImplPass: CacheValue<ImplementationPass>
+        lazyImplPass: CacheValue<CompilationUnitImplementation>
         syntaxDiagnostics: CacheValue<OlyDiagnostic imarray>
         semanticDiagnostics: CacheValue<OlyDiagnostic imarray>
     }
 
-    static member Create(asm, tryGetLocation, lazyImplPass: CacheValue<ImplementationPass>, syntaxTree: OlySyntaxTree) =
+    static member Create(asm, tryGetLocation, lazyImplPass: CacheValue<CompilationUnitImplementation>, syntaxTree: OlySyntaxTree) =
 
         let getPartialDeclTable =
             fun ct ->
@@ -253,7 +253,7 @@ type internal InitialState =
 
 let private importCompilations (ilAsmIdent: OlyILAssemblyIdentity) (importer: Importer) (comps: OlyCompilation seq) ct =
     for comp in comps do
-        let refBinders = CompilationPhases.signature comp.State ct
+        let refBinders = comp.LazySignaturePhase.GetValue(ct)
         refBinders
         |> ImArray.iter (fun (x: BinderPass4, _) ->
             importer.ImportAndRetargetEntity(ilAsmIdent, x.Entity)
@@ -539,7 +539,7 @@ type OlyCompilation private (state: CompilationState) =
                 )
             )
 
-    member internal this.LazySignaturePhase: CacheValue<CompilationSignaturePass> = lazySigPhase
+    member internal this.LazySignaturePhase: CacheValue<CompilationSignature> = lazySigPhase
 
     member internal this.State: CompilationState = state
 
@@ -618,6 +618,7 @@ type OlyCompilation private (state: CompilationState) =
             let cunits =
                 let asm = state.assembly
                     
+                // REVIEW: Would it be worth doing this in parallel?
                 state.cunits
                 |> Seq.map (fun pair ->
                     if OlyPath.Equals(pair.Key, syntaxTree.Path) then

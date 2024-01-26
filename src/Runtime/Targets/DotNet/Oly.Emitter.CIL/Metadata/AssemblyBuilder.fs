@@ -1181,7 +1181,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             | _ ->
                 MethodDefinitionHandle()
 
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.Equal(metadataBuilder.GetRowCount(TableIndex.MethodDef), pdbBuilder.Internal.GetRowCount(TableIndex.MethodDebugInformation))
 #endif
 

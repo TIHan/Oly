@@ -172,7 +172,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     | E.MemberDefinition(binding=BoundBinding.Implementation(syntaxInfo, bindingInfo, rhsExpr)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo (Some rhsExpr) origExpr
 
-#if DEBUG
+#if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
         Assert.ThrowIf(binding.Info.Value.IsLocal)
         origExpr

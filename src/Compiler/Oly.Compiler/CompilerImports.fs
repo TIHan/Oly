@@ -64,7 +64,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         lazy
             func.FunctionOverrides
             |> Option.map (fun x ->
-#if DEBUG
+#if DEBUG || CHECKED
                 match x.Enclosing.TryEntity with
                 | Some ent -> OlyAssert.False(ent.IsShape)
                 | _ -> ()

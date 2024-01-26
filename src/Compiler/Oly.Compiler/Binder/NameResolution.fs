@@ -2489,7 +2489,7 @@ let bindExtends (cenv: cenv) (env: BinderEnvironment) (syntaxExtends: OlySyntaxE
 
         | _ ->
             raise(InternalCompilerException())
-#if DEBUG
+#if DEBUG || CHECKED
     extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
 #endif
     extends
@@ -2505,7 +2505,7 @@ let bindImplements (cenv: cenv) (env: BinderEnvironment) (syntaxImplements: OlyS
 
         | _ ->
             raise(InternalCompilerException())
-#if DEBUG
+#if DEBUG || CHECKED
     implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
 #endif
     implements

@@ -1158,7 +1158,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     let newLazyLambdaBodyExpr =
                         LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
 
-#if DEBUG
+#if DEBUG || CHECKED
                     let freeLocalsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeLocals()
                     let freeTyVarsDebugOrig = lazyLambdaBodyExpr.Expression.GetFreeTypeVariables()
                     let freeLocalsDebug = newLazyLambdaBodyExpr.Expression.GetFreeLocals()

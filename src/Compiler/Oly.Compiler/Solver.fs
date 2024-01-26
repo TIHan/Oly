@@ -414,7 +414,7 @@ and solveConstraints
         (tyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
 
-#if DEBUG
+#if DEBUG || CHECKED
     match syntaxTyArgsOpt with
     | Some(syntaxTyArgs) ->
         OlyAssert.Equal(tyArgs.Length, syntaxTyArgs.Length)

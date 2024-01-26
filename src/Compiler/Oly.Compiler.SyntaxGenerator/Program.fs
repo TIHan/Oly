@@ -257,7 +257,7 @@ let computePublicNode cenv (node: XmlNode) =
     let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
 
     member private this.FullWidth =
-#if DEBUG
+#if DEBUG || CHECKED
         let fullWidth = (internalNode :> ISyntaxNode).FullWidth
         this.Children
         |> ImArray.iteri (fun i x ->

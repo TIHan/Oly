@@ -194,6 +194,7 @@ type AssemblySymbol =
 /// An entity is effectively equivalent to a named type.
 /// A namespace is also represented as an EntitySymbol and can be promoted to a type in certain cases.
 [<AbstractClass>]
+[<DebuggerDisplay("{Name}")>]
 type EntitySymbol() =
 
     let mutable qualifiedName: string = null
@@ -284,6 +285,8 @@ type EntitySymbol() =
                     |> String.concat "."
         qualifiedName
 
+    override this.ToString() = this.Name
+
     interface ISymbol
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
@@ -360,7 +363,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     match ty with
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.False(innerTy.IsFormal)
 #endif
         let tyArgs =
@@ -1410,7 +1413,7 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
 
     let nestedEnts =
         lazy
-#if DEBUG
+#if DEBUG || CHECKED
             let path = enclosing.FullNamespacePath.Add(name)
             ents
             |> ImArray.iter (fun x ->
@@ -1987,7 +1990,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
 
     /// Mutability
     member this.SetVirtualFinalNewSlot_Pass3() =
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.False(this.IsVirtual)
         OlyAssert.False(this.IsFinal)
         OlyAssert.False(this.IsNewSlot)
@@ -1996,7 +1999,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, member
 
     /// Mutability
     member this.SetFinal_Pass3() =
-#if DEBUG
+#if DEBUG || CHECKED
         OlyAssert.True(this.IsVirtual)
 #endif
         memberFlags <- memberFlags ||| MemberFlags.Sealed
@@ -2839,7 +2842,7 @@ type WitnessSymbol =
 [<Sealed>]
 type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IFunctionSymbol option) =
 
-#if DEBUG
+#if DEBUG || CHECKED
     do
         match funcOpt with
         | Some func ->
@@ -3207,7 +3210,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeParameters.Length
         | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 
-#if DEBUG
+#if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
 #endif
             tyPars.Length
@@ -3228,7 +3231,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.LogicalTypeParameterCount
         | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 
-#if DEBUG
+#if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
 #endif
             tyPars.Length
@@ -5256,7 +5259,7 @@ module SymbolHelpers =
 // -----------------------------------------------
 
 let assertNoForAllTypes (func: IFunctionSymbol) =
-#if DEBUG
+#if DEBUG || CHECKED
     match func.Enclosing with
     | EnclosingSymbol.Local -> ()
     | _ ->

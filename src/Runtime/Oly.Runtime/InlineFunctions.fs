@@ -264,7 +264,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
 
         match tryGetFunctionBody optenv func with
         | Some(irFuncBody) ->
-#if DEBUG
+#if DEBUG || CHECKED
             Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
@@ -799,7 +799,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 | ForwardSubValue.LocalAddress(localIndex, byRefKind) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex))
                     OlyAssert.False(optenv.IsLocalByRefType(localIndex))
-#if DEBUG
+#if DEBUG || CHECKED
                     match byRefKind with
                     | OlyIRByRefKind.Read -> OlyAssert.True(func.IsArgumentReadOnlyByRefType(argIndex))
                     | OlyIRByRefKind.ReadWrite -> OlyAssert.True(func.IsArgumentReadWriteByRefType(argIndex))
@@ -825,7 +825,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             origExpr
 
     and handleExpression irExpr =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             let irExpr = handleExpressionAux irExpr
             OptimizeImmediateConstantFolding irExpr
         )
@@ -877,7 +877,7 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
             OlyAssert.Fail("Expected operation")
 
     let rec handleExpression irExpr =
-        DebugStackGuard.Do(fun () ->
+        StackGuard.Do(fun () ->
             handleExpressionAux irExpr
         )
 

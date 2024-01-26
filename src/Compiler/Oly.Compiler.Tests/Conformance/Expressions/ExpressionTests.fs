@@ -9143,3 +9143,27 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Missing type annotation on property should error``() =
+    let src =
+        """
+class GpuFrameLayer =
+    VkFramebuffers get, set
+
+    new() =
+        {
+            VkFramebuffers = []
+        }
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The member declaration 'VkFramebuffers' must have an explicit type annotation.",
+                """
+    VkFramebuffers get, set
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

@@ -10,6 +10,14 @@ open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.Symbols
 open Oly.Metadata
 
+// All the binder passes, or phases.
+// Pass0, Pass1, Pass2, Pass3 will modify symbols; they are side-effectful.
+// Pass4 will not modify symbols.
+//
+// Do not cache results from Pass0, Pass1 or Pass2 as they are not safe.
+// Pass3 results are the signature and can be cached. Pass4 results can also be cached.
+
+
 /// Pass4 - Bind, check, and solve implementations.
 [<Sealed>]
 type BinderPass4 =

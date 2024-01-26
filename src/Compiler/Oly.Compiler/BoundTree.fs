@@ -1427,13 +1427,13 @@ let combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol seq) (ext
         // Concrete members take precedent.
         extMembers
         |> Seq.filter (fun extMember ->
-#if DEBUG
+#if DEBUG || CHECKED
             OlyAssert.True(extMember.Enclosing.IsTypeExtension)
 #endif
             let concreteMemberExists =
                 concreteMembers
                 |> Seq.exists (fun concreteMember ->
-#if DEBUG
+#if DEBUG || CHECKED
                     OlyAssert.False(concreteMember.Enclosing.IsTypeExtension)
 #endif
                     areValueSignaturesEqual concreteMember extMember

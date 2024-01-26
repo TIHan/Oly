@@ -172,7 +172,7 @@ let peekTokenSkipTriviaImpl state =
     state.start <- info.Start
     state.column <- info.Column
     state.newLine <- info.NewLine
-#if DEBUG
+#if DEBUG || CHECKED
     OlyAssert.True(state.column >= 0)
     OlyAssert.False(obj.ReferenceEquals(info.Token, null))
 #endif
@@ -203,7 +203,7 @@ let isOffsides column (state: ParserState) =
     else
         false
 
-#if DEBUG
+#if DEBUG || CHECKED
 let alignAux (p: _ -> _) (state: ParserState) isFlexible (onOffsides: _ -> _ -> _) =
 #else
 let inline alignAux ([<InlineIfLambda>] p: _ -> _) (state: ParserState) isFlexible ([<InlineIfLambda>] onOffsides: _ -> _ -> _) =
@@ -225,7 +225,7 @@ let inline alignAux ([<InlineIfLambda>] p: _ -> _) (state: ParserState) isFlexib
         state.offsideFlags <- prevOffsideFlags
         res
 
-#if DEBUG
+#if DEBUG || CHECKED
 let alignWithRecoveryAux (recovery: _ -> _ -> _ -> _) (p: _ -> _) state isFlexible =
 #else
 let inline alignWithRecoveryAux ([<InlineIfLambda>] recovery: _ -> _ -> _ -> _) ([<InlineIfLambda>] p: _ -> _) state isFlexible =
@@ -290,14 +290,14 @@ let inline tryFlexAlign ([<InlineIfLambda>] p: _ -> _) state =
         state.offsideFlags <- prevOffsideFlags
         None)
 
-#if DEBUG
+#if DEBUG || CHECKED
 let flexAlignWithRecovery (recovery: _ -> _ -> _ -> _) (p: _ -> _) state =
 #else
 let inline flexAlignWithRecovery ([<InlineIfLambda>] recovery: _ -> _ -> _ -> _) ([<InlineIfLambda>] p: _ -> _) state =
 #endif
     alignWithRecoveryAux recovery p state true
 
-#if DEBUG
+#if DEBUG || CHECKED
 let alignOrFlexAlignWithRecovery (recovery: _ -> _ -> _ -> _) (p: _ -> _) state =
 #else
 let inline alignOrFlexAlignWithRecovery ([<InlineIfLambda>] recovery: _ -> _ -> _ -> _) ([<InlineIfLambda>] p: _ -> _) state =
@@ -418,7 +418,7 @@ let inline tryPeek ([<InlineIfLambda>] p: _ -> _) state =
 
     res
 
-#if DEBUG
+#if DEBUG || CHECKED
 // We do not inline in Debug as the stack can become too large.
 // Release seems to be fine as many optimizations are applied.
 let backTrack p state =
@@ -445,7 +445,7 @@ let inline backTrack ([<InlineIfLambda>] p: _ -> _) state =
     | _ -> ()
     res
 
-#if DEBUG
+#if DEBUG || CHECKED
 // We do not inline in Debug as the stack can become too large.
 // Release seems to be fine as many optimizations are applied.
 let backTrack_nil p state =
@@ -597,7 +597,7 @@ let inline btLexer ([<InlineIfLambda>] p: _ -> _) state =
 
     let res = p state
 
-#if DEBUG
+#if DEBUG || CHECKED
     // This will always happen in DEBUG for testing purposes.
     if true then
 #else
@@ -642,7 +642,7 @@ let inline alignRecover ([<InlineIfLambda>] p: _ -> _) state =
             None
     ) p state
 
-#if DEBUG
+#if DEBUG || CHECKED
 let flexAlignRecover (p: _ -> _) state =
 #else
 let inline flexAlignRecover ([<InlineIfLambda>] p: _ -> _) state =
@@ -1299,7 +1299,7 @@ let sp state =
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
 let ep s state =
     let token = peekTokenSkipTrivia state
-#if DEBUG
+#if DEBUG || CHECKED
     OlyAssert.False(obj.ReferenceEquals(token, null))
     let value = (state.start - token.LeadingTriviaWidth) - s
     if value < 0 then
@@ -3083,13 +3083,9 @@ let parseExpressionAux context state =
             parseNextAlignedExpression s context res state
 
 let parseExpression context state =
-#if DEBUG
-    DebugStackGuard.Do(fun () ->
+    StackGuard.Do(fun () ->
         noAlign (parseExpressionAux context) state
     )
-#else
-    noAlign (parseExpressionAux context) state
-#endif
 
 let tryParseUpdateRecordExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
     if isNextToken (function With -> true | _ -> false) state then

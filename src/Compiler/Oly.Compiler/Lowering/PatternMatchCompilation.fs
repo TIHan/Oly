@@ -1335,7 +1335,7 @@ let Lower (ct: CancellationToken) (boundTree: BoundTree) =
     boundTree.RewriteExpression(fun origExpr ->
         ct.ThrowIfCancellationRequested()
         match origExpr with
-#if DEBUG
+#if DEBUG || CHECKED
         | E.MemberDefinition(binding=binding) ->
             Assert.ThrowIf(binding.Info.Value.IsLocal)
             origExpr
