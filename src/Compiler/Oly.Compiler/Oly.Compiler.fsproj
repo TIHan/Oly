@@ -5,6 +5,10 @@
     <Configurations>Debug;Release;Checked</Configurations>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <Tailcalls>False</Tailcalls>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="Symbols\Symbols.fs" />
     <Compile Include="Symbols\SymbolBuilders.fs" />

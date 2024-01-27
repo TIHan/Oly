@@ -1615,7 +1615,15 @@ let private bindLetPatternBinding (cenv: cenv) (env: BinderEnvironment) expected
     | _ ->
         OlyAssert.Fail("Unmatched syntax expression.")
 
+#if DEBUG || CHECKED
 let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
+    StackGuard.Do(fun () ->
+        bindLocalExpressionAuxAux cenv env expectedTyOpt syntaxToCapture syntaxExpr
+    )
+let private bindLocalExpressionAuxAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
+#else
+let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
+#endif
     cenv.ct.ThrowIfCancellationRequested()
 
     let env = env.SetEnclosing(EnclosingSymbol.Local)

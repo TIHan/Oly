@@ -287,7 +287,7 @@ and GenTupleNames cenv (names: string imarray) =
     names
     |> ImArray.map (fun x ->
         if String.IsNullOrWhiteSpace x then
-            Unchecked.defaultof<OlyILStringHandle>
+            OlyILTableIndex.GetNil(OlyILTableKind.String)
         else
             GenString cenv x
     )

@@ -739,7 +739,15 @@ and analyzeExpression acenv aenv (expr: E) =
     else
         analyzeExpressionAux acenv aenv expr
 
+#if DEBUG || CHECKED
 and analyzeExpressionAux acenv aenv (expr: E) =
+    StackGuard.Do(fun () ->
+        analyzeExpressionAuxAux acenv aenv expr
+    )
+and analyzeExpressionAuxAux acenv aenv (expr: E) =
+#else
+and analyzeExpressionAux acenv aenv (expr: E) =
+#endif
     acenv.cenv.ct.ThrowIfCancellationRequested()
 
     let syntaxNode = expr.Syntax

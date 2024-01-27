@@ -53,6 +53,8 @@ type OlyILTableIndex = OlyILTableIndex of OlyILTableKind * index: int32 with
     static member CreateFieldDefinition(index) =
         OlyILTableIndex(OlyILTableKind.FieldDefinition, index)
 
+    static member GetNil(kind) = OlyILTableIndex(kind, -1)
+
 type OlyILStringHandle = OlyILTableIndex
 type OlyILEntityReferenceHandle = OlyILTableIndex
 type OlyILEntityDefinitionHandle = OlyILTableIndex
@@ -1116,7 +1118,7 @@ type OlyILAssembly =
 
     member this.AddStringOrNilString(str: string) : OlyILStringHandle =
         if System.String.IsNullOrWhiteSpace str then
-            Unchecked.defaultof<_>
+            OlyILTableIndex.GetNil(OlyILTableKind.String)
         else
             this.strings.Add(str)
 
