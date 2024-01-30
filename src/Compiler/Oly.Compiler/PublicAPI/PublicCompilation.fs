@@ -118,7 +118,7 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
     member this.GetExtraDiagnostics() =
         unitState.extraDiags
 
-    member this.Update(asm, compRef: OlyCompilation ref, tryGetLocation, syntaxTree: OlySyntaxTree) =
+    member this.Update(asm, compRef: OlyCompilation ref, syntaxTree: OlySyntaxTree) =
         let implPass =
             CacheValue(fun ct ->
                 let compSigPass = compRef.contents.LazySignaturePhase.GetValue(ct)
@@ -126,6 +126,8 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                 let pass4, diags = sigPasses |> ImArray.find (fun (x, _) -> OlyPath.Equals(x.SyntaxTree.Path, syntaxTree.Path))
                 pass4, diags
             )
+
+        let tryGetLocation = OlyCompilation.tryGetLocation compRef
 
         let implState = CompilationUnitImplementationState.Create(asm, tryGetLocation, implPass, syntaxTree)
 
@@ -523,7 +525,7 @@ type OlyCompilation private (state: CompilationState) =
     let lazySigPhase =
         CacheValue(fun ct -> CompilationPhases.signature state ct)
 
-    static member private tryGetLocation (compRef: OlyCompilation ref) (identity: OlyILAssemblyIdentity, s: ISymbol, ct) =
+    static member internal tryGetLocation (compRef: OlyCompilation ref) (identity: OlyILAssemblyIdentity, s: ISymbol, ct) =
         if compRef.contents.AssemblyIdentity = identity then
             compRef.contents.State.cunits.Values
             |> Seq.tryPick (fun cunit ->
@@ -612,8 +614,6 @@ type OlyCompilation private (state: CompilationState) =
 
         if alreadyHasSyntaxTree then
             let compRef = ref Unchecked.defaultof<_>
-
-            let tryGetLocation = OlyCompilation.tryGetLocation compRef
                   
             let cunits =
                 let asm = state.assembly
@@ -622,9 +622,9 @@ type OlyCompilation private (state: CompilationState) =
                 state.cunits
                 |> Seq.map (fun pair ->
                     if OlyPath.Equals(pair.Key, syntaxTree.Path) then
-                        KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, tryGetLocation, syntaxTree))
+                        KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, syntaxTree))
                     else
-                        KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, tryGetLocation, pair.Value.BoundModel.SyntaxTree))
+                        KeyValuePair(pair.Key, pair.Value.Update(asm, compRef, pair.Value.BoundModel.SyntaxTree))
                 )
                 |> ImmutableDictionary.CreateRange
 

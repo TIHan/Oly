@@ -438,13 +438,13 @@ type BinderPass1(state: PassState) =
             }
         )
 
- //   let cachedValue = CacheValueWithArg<CompilerImports, _>(compute)
+    //let cachedValue = CacheValueWithArg<CompilerImports, _>(compute)
 
     member _.Entity = state.entBuilder.Entity
     
     member _.Bind(imports, ct) = 
         compute imports ct
-      //  cachedValue.GetValue(imports, ct)
+        //cachedValue.GetValue(imports, ct)
 
 [<Sealed>]
 type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>, syntaxTree: OlySyntaxTree) =
@@ -478,13 +478,13 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
             }
         )
 
-   // let cachedValue = CacheValue(compute)
+    //let cachedValue = CacheValue(compute)
 
     member _.PrePassEnvironment = prePassEnv
 
     member this.Bind(ct) =
         compute ct
-      //  cachedValue.GetValue(ct)
+    //    cachedValue.GetValue(ct)
 
 //*************************************************************************************************
 

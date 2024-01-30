@@ -2028,3 +2028,66 @@ main(): () =
     Assert.True(symbol.IsFunction)
     Assert.Equal(0, info.ActiveParameterIndex)
     Assert.Equal(0, info.ActiveFunctionIndex)
+
+[<Fact>]
+let ``Regression - Find a definition should work after the file was edited``() =
+    let src1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let src2 =
+        """
+#target "i: default"
+
+#reference "fakepath/Test.olyx"
+
+main(): () =
+    ~^~test((x: __oly_int32, y: __oly_int64) -> true)
+        """
+
+    let updatedSrc1 =
+        """
+#target "i: default"
+
+#[open]
+module Test
+
+class Edited
+
+test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
+    ()
+        """
+
+    let cursorPosition = src2.IndexOf("~^~")
+    let src2 = src2.Replace("~^~", "")
+
+    let path1 = OlyPath.Create("fakepath/Test.olyx")
+    let path2 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
+    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+
+    let testLocation isAfterUpdate =
+        let updateKindText = if isAfterUpdate then "after-update" else "before-update"
+
+        let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+        let doc = proj.Documents[0]
+        let callInfo = doc.TryFindFunctionCallInfo(cursorPosition, CancellationToken.None)
+        Assert.True(callInfo.IsSome, $"call info not found - {updateKindText}")
+        let func = callInfo.Value.Function
+        Assert.Equal("test", func.Name)
+        let loc = func.TryGetDefinitionLocation(CancellationToken.None)
+        Assert.True(loc.IsSome, $"location not found - {updateKindText}")
+
+
+    testLocation false
+    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    testLocation true
