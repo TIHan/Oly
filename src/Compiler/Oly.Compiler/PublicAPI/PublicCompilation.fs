@@ -196,11 +196,20 @@ type internal CompilationState =
     {
         options: OlyCompilationOptions
         lazyInitialState: CacheValue<InitialState>
+        lazySig: CacheValue<CompilationSignature>
         assembly: AssemblySymbol
         references: OlyCompilationReference imarray
         cunits: ImmutableDictionary<OlyPath, CompilationUnit>
         version: uint64
     }
+
+    member this.RefreshSignature() =
+        let mutable newState = this
+        newState <-
+            { this with
+                lazySig = CacheValue(fun ct -> CompilationPhases.signature newState ct)
+            }
+        newState
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>] 
 type OlyCompilationReference =
@@ -518,12 +527,11 @@ module private CompilationPhases =
 [<Sealed>] 
 type OlyCompilation private (state: CompilationState) =
 
+    let state = { state with version = state.version + 1UL }
+
     static let checkHasErrors (diags: OlyDiagnostic imarray) =
         diags
         |> ImArray.exists (fun x -> x.IsError)
-
-    let lazySigPhase =
-        CacheValue(fun ct -> CompilationPhases.signature state ct)
 
     static member internal tryGetLocation (compRef: OlyCompilation ref) (identity: OlyILAssemblyIdentity, s: ISymbol, ct) =
         if compRef.contents.AssemblyIdentity = identity then
@@ -541,7 +549,7 @@ type OlyCompilation private (state: CompilationState) =
                 )
             )
 
-    member internal this.LazySignaturePhase: CacheValue<CompilationSignature> = lazySigPhase
+    member internal this.LazySignaturePhase: CacheValue<CompilationSignature> = state.lazySig
 
     member internal this.State: CompilationState = state
 
@@ -579,6 +587,10 @@ type OlyCompilation private (state: CompilationState) =
         this.InitialSetSyntaxTreeBatch(cunits.Values |> Seq.map (fun x -> x.BoundModel.SyntaxTree) |> ImArray.ofSeq)
 
     member this.SetExtraDiagnostics(path: OlyPath, extraDiags) =
+        // !! DO NOT REFRESH THE SIGNATURE HERE !!
+        // It doesn't provide any benefit and it would cause other places
+        // that reference the signature to be stale.
+        // Such as GoToDefinition on an external symbol would not work.
         let cunit = state.cunits[path]
         let newCUnit = cunit.SetExtraDiagnostics(extraDiags)
         { state with
@@ -593,7 +605,6 @@ type OlyCompilation private (state: CompilationState) =
     /// Adds a syntax tree to the compilation.
     /// Will overwrite existing syntax trees.
     member this.SetSyntaxTree(syntaxTree: OlySyntaxTree) =
-
         let mutable alreadyHasSyntaxTree = false
 
         let syntaxTrees =
@@ -630,9 +641,8 @@ type OlyCompilation private (state: CompilationState) =
 
             let state =
                 { state with
-                    version = state.version + 1UL
                     cunits = cunits
-                }
+                }.RefreshSignature()
 
             compRef.contents <- OlyCompilation state
             compRef.contents
@@ -666,9 +676,8 @@ type OlyCompilation private (state: CompilationState) =
 
         let state =
             { state with
-                version = state.version + 1UL
                 cunits = cunits
-            }
+            }.RefreshSignature()
 
         compRef.contents <- OlyCompilation state
         compRef.contents
@@ -696,7 +705,7 @@ type OlyCompilation private (state: CompilationState) =
                     options = options
                     lazyInitialState = lazyInitialState
                     references = references
-                }
+                }.RefreshSignature()
 
             let c = OlyCompilation state
             c.InitialSetSyntaxTreeBatch(this.SyntaxTrees)
@@ -749,7 +758,7 @@ type OlyCompilation private (state: CompilationState) =
 
     member private this.Bind(ct) =
         ct.ThrowIfCancellationRequested()
-        let binders4 = lazySigPhase.GetValue(ct)
+        let binders4 = state.lazySig.GetValue(ct)
         CompilationPhases.implementation state binders4 ct
         
     member this.Version = state.version
@@ -782,6 +791,7 @@ type OlyCompilation private (state: CompilationState) =
             {
                 options = options
                 lazyInitialState = lazyInitialState
+                lazySig = CacheValue.FromValue(ImArray.empty)
                 assembly = asm
                 references = references
                 cunits = ImmutableDictionary.Empty
