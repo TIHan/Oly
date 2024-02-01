@@ -6172,6 +6172,12 @@ test<T<_>>(x: T): () = ()
               ^
 """
             )
+            ("Internal Warning: Type constructor is used illegally.",
+                """
+test<T<_>>(x: T): () = ()
+              ^
+"""
+            )
         ]
     |> ignore
 

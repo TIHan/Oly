@@ -45,7 +45,10 @@ let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: Enc
             else
                 ent.AsType
         let attrs = ImArray.empty
-        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy ty, false)) pars
+        let parInstanceTy = applyType ty ty.TypeArguments
+        if not parInstanceTy.IsError_t && parInstanceTy.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy (applyType ty ty.TypeArguments), false)) pars
     | EnclosingSymbol.Witness(witnessTy, _) ->
         let attrs = ImArray.empty
         ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy witnessTy, false)) pars
@@ -468,7 +471,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
 
         match enclosing with
         | EnclosingSymbol.Entity(ent) when not ent.IsInterface && not ent.IsModule && not ent.IsTypeExtension && not ent.IsAlias ->
-            let returnTy = TypeSymbol.Entity(ent)
+            let returnTy = applyType (TypeSymbol.Entity(ent)) ent.TypeArguments
             let env1, pars = bindParameters cenv env onlyBindAsType syntaxPars
 
             let funcFlags = funcFlags ||| FunctionFlags.Constructor
@@ -482,8 +485,9 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                             ty
                     match enclosing with
                     | EnclosingSymbol.Entity(ent) ->
-                        ImArray.prependOne (createLocalParameterValue(ImArray.empty, "", tryAddrTy ent.AsType, false)) pars
+                        ImArray.prependOne (createLocalParameterValue(ImArray.empty, "", tryAddrTy (applyType ent.AsType ent.TypeArguments), false)) pars
                     | EnclosingSymbol.Witness(concreteTy, _) ->
+                        failwith "Unexpected enclosing witness"
                         ImArray.prependOne (createLocalParameterValue(ImArray.empty, "", tryAddrTy concreteTy, false)) pars
                     | _ ->
                         pars

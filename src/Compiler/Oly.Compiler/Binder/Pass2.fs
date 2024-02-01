@@ -345,7 +345,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                         TypeSymbol.CreateByRef(ty, ByRefKind.ReadWrite)
                     else
                         ty
-                ImArray.createOne (createLocalParameterValue(ImArray.empty, "", tryAddrTy enclosingTy, false))
+                ImArray.createOne (createLocalParameterValue(ImArray.empty, "", tryAddrTy (applyType enclosingTy enclosingTy.TypeArguments), false))
 
             let parsWithInstance =
                 if ent.IsNewtype then
@@ -365,7 +365,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                     "__oly_ctor"
                     ImArray.empty
                     parsWithInstance
-                    enclosingTy
+                    (applyType enclosingTy enclosingTy.TypeArguments)
                     (MemberFlags.Instance ||| MemberFlags.Public)
                     FunctionFlags.ImplicitDefaultConstructor
                     WellKnownFunction.None
@@ -393,7 +393,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                 "__oly_static_ctor"
                 ImArray.empty
                 ImArray.empty
-                enclosingTy
+                (applyType enclosingTy enclosingTy.TypeArguments) // TODO: Can we just make this void?
                 MemberFlags.Public
                 FunctionFlags.ImplicitDefaultConstructor
                 WellKnownFunction.None

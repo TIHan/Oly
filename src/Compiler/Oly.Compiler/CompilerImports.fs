@@ -1380,6 +1380,13 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
                 ilPars
                 |> ImArray.map (importParameter cenv enclosingTyPars funcTyPars)
+#if DEBUG || CHECKED
+            pars
+            |> ImArray.iter (fun par ->
+                if par.Type.IsError_t && par.Type.IsTypeConstructor then
+                    failwith "Unexpected type constructor."
+            )
+#endif
             lock lockObj (fun () ->
                 if lazyPars.IsDefault then
                     lazyPars <- pars
@@ -1409,12 +1416,16 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 let returnTy = 
                     if isConstructor then
                         if isInstance then
-                            enclosingEnt.AsType
+                            applyType enclosingEnt.AsType enclosingEnt.TypeArguments
                         else
                             TypeSymbol.Unit
                     else
                         let tyPars = evalTyPars()
                         importTypeSymbol cenv enclosingEnt.TypeParameters tyPars ilFuncSpec.ReturnType
+#if DEBUG || CHECKED
+                if not returnTy.IsError_t && returnTy.IsTypeConstructor then
+                    failwith "Unexpected type constructor."
+#endif
                 returnTy
         lazyReturnTy
 

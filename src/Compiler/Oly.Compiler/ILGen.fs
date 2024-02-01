@@ -447,7 +447,12 @@ and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
 #endif
     match stripTypeEquations ty with
     | TypeSymbol.Unit -> OlyILTypeVoid
-    | ty -> emitILType cenv env ty
+    | ty -> 
+#if DEBUG || CHECKED
+        if ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+#endif
+        emitILType cenv env ty
 
 and getAssemblyIdentity (ent: EntitySymbol) =
     let asmIdentity =
@@ -526,6 +531,8 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
 #if DEBUG || CHECKED
         if not parTy.TypeParameters.IsEmpty && parTy.IsFormal then
             failwith "Unexpected formal type."
+        if parTy.IsTypeConstructor then
+            failwith "Unexpected type constructor."
 #endif
 
         OlyILParameter(nameHandle, emitILType cenv env parTy, canInlineClosure)
@@ -1223,6 +1230,10 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
         catchCases
         |> ImArray.map (function
             | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
+#if DEBUG || CHECKED
+                if value.Type.IsTypeConstructor then
+                    failwith "Unexpected type constructor."
+#endif
                 let ilTy = emitILType cenv env value.Type
                 let name = value.Name
                 let localId = value.Id
@@ -2012,7 +2023,11 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
             | ty -> ty.IsRealUnit
         let ilRhsExpr = GenExpression cenv { env with isReturnable = false } rhsExpr
         let value = bindingInfo.Value
-        let isMutable = value.IsMutable
+
+#if DEBUG || CHECKED
+        if value.Type.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+#endif
 
         let ilTy = emitILType cenv env value.Type
         let name = value.Name

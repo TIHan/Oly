@@ -657,7 +657,7 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
             if ent.Functions.IsEmpty then ImArray.empty
             else
                 let funcs = 
-                    let enclosing = EnclosingSymbol.Entity(this)
+                    let enclosing = this.AsEnclosing: EnclosingSymbol
                     ent.Functions
                     |> ImArray.map (fun x -> 
                         let tyArgs2 = 
@@ -738,9 +738,24 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
     let id = newId ()
     
     let pars =
-        lazy actualParameters tyArgs (func.Formal :?> IFunctionSymbol).Parameters
+        lazy 
+            let pars = actualParameters tyArgs (func.Formal :?> IFunctionSymbol).Parameters
+#if DEBUG || CHECKED
+            pars
+            |> ImArray.iter (fun par ->
+                if not par.Type.IsError_t && par.Type.IsTypeConstructor then
+                    failwith "Unexpected type constructor"
+            )
+#endif
+            pars
     
     let returnTy = actualType tyArgs (func.Formal :?> IFunctionSymbol).ReturnType
+
+#if DEBUG || CHECKED
+    do
+        if not returnTy.IsError_t && returnTy.IsTypeConstructor then
+            failwith "Unexpected type constructor"
+#endif
     
     let ty =
         lazy
@@ -1914,7 +1929,23 @@ type IFunctionSymbol =
     abstract AssociatedFormalPattern: IPatternSymbol option
 
 [<Sealed;DebuggerDisplay("{Name}")>]
-type FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
+type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalParameterSymbol imarray, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
+
+#if DEBUG || CHECKED
+    do
+        match funcTy.TryFunction with
+        | ValueSome(_, outputTy: TypeSymbol) when not outputTy.IsError_t && outputTy.IsTypeConstructor ->
+            failwith "Unexpected type constructor."
+        | _ ->
+            ()
+
+        pars
+        |> ImArray.iter (fun par ->
+            if not par.Type.IsError_t && par.Type.IsTypeConstructor then
+                failwith "Unexpected type constructor."
+        )
+#endif
+
     let id = newId ()
 
     let valueFlags =
@@ -2537,6 +2568,19 @@ type ILocalSymbol =
 
 [<Sealed>]
 type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
+    // REVIEW: I wonder how this will come back to haunt us....
+    //         A local symbol whose is a type constructor is illegal, even for error recovery.
+    //         We assume there is already an error reported if we encounter a type constructor here.
+    let ty =
+        if ty.IsTypeConstructor then
+            TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
+        else
+            ty
+//#if DEBUG || CHECKED
+//    do
+//        if not ty.IsError_t && ty.IsTypeConstructor then
+//            failwith "Unexpected type constructor."
+//#endif
     
     let id = newId ()
     let flags =
@@ -2606,6 +2650,19 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
 
 [<Sealed>]
 type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isBase: bool, isMutable) =
+    // REVIEW: I wonder how this will come back to haunt us....
+    //         A local symbol whose is a type constructor is illegal, even for error recovery.
+    //         We assume there is already an error reported if we encounter a type constructor here.
+    let ty =
+        if ty.IsTypeConstructor then
+            TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
+        else
+            ty
+//#if DEBUG || CHECKED
+//    do
+//        if not ty.IsError_t && ty.IsTypeConstructor then
+//            failwith "Unexpected type constructor."
+//#endif
     let id = newId()
 
     let valueFlags =
@@ -2674,6 +2731,19 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
 
 [<Sealed>]
 type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSymbol imarray, isGenerated) =
+    // REVIEW: I wonder how this will come back to haunt us....
+    //         A local symbol whose is a type constructor is illegal, even for error recovery.
+    //         We assume there is already an error reported if we encounter a type constructor here.
+    let ty =
+        if ty.IsTypeConstructor then
+            TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
+        else
+            ty
+//#if DEBUG || CHECKED
+//    do
+//        if not ty.IsError_t && ty.IsTypeConstructor then
+//            failwith "Unexpected type constructor."
+//#endif
     
     let id = newId ()
     let flags =
@@ -4735,7 +4805,8 @@ module SymbolExtensions =
                     OlyAssert.Fail("Entity must be a namespace in order to turn into a pseudo-type.")
                 TypeSymbol.Entity(this)
     
-            member this.AsEnclosing = EnclosingSymbol.Entity(this)
+            member this.AsEnclosing = 
+                EnclosingSymbol.Entity(this)
     
             member this.IsFormal =
                 this.Id = this.Formal.Id

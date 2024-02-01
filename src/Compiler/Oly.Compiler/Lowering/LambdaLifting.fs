@@ -513,7 +513,7 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (fields: IFieldS
             "__oly_ctor"
             ImArray.empty
             ctorPars
-            closure.AsType
+            (applyType closure.AsType closure.TypeArguments)
             (MemberFlags.Instance ||| MemberFlags.Public)
             ctorFlags
             WellKnownFunction.None

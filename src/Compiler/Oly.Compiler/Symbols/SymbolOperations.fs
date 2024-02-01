@@ -2058,7 +2058,7 @@ let createTemporaryValue valueTy =
 let createMutableLocalGeneratedValue name valueTy =
     LocalSymbol(name, valueTy, true, true)
 
-let createLocalParameterValue (attrs, name, ty, isMutable) =
+let createLocalParameterValue (attrs, name, ty: TypeSymbol, isMutable) =
     LocalParameterSymbol(attrs, name, ty, false, false, isMutable) :> ILocalParameterSymbol
 
 let private createLocalParameterThisValue (name, ty, isMutable) =

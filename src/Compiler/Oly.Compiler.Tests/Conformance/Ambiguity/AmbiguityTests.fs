@@ -158,6 +158,12 @@ fmap<F<_>, A, B>(ab: A -> B, fa: F<A>) : F<B> where F<_> : Functor =
          ^^^^^^^^^^
 """
         )
+        ("Internal Warning: Type constructor is used illegally.",
+            """
+    F<_>.fmap<_, _>(ab, fa)
+         ^^^^^^^^^^
+"""
+        )
     ]
     |> ignore
 
