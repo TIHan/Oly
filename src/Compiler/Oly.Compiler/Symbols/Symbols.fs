@@ -1052,7 +1052,7 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
         | TypeSymbol.HigherVariable(tyPar, tyArgs2) ->
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
             match tys.TryGetValue(tyPar.Id) with
-            | true, ty -> mkSolvedInferenceVariableType tyPar (applyType ty tyArgs3)
+            | true, ty -> applyType (mkSolvedInferenceVariableType tyPar ty) tyArgs3
             | _ -> TypeSymbol.HigherVariable(tyPar, tyArgs3)
 
         | TypeSymbol.Function(inputTy, returnTy, kind) ->
