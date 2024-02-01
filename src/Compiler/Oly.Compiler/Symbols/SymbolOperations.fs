@@ -159,9 +159,8 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
                 else
                     false
             else
-                solution.Solution <- applyType ty2 tyArgs
-                // TODO: We should generalize the type.
-                externalSolution.Solution <- ty2
+                solution.Solution <- applyType ty2.Formal tyArgs
+                externalSolution.Solution <- ty2.Formal
                 true
             
         else
