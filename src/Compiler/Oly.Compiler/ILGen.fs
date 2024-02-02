@@ -490,6 +490,8 @@ and emitILEnclosingForMember cenv env (func: IValueSymbol) =
     | EnclosingSymbol.Entity(ent) ->
         emitILEnclosingEntityNoNamespace cenv env ent
     | EnclosingSymbol.Witness(concreteTy, tr) ->
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
 and emitILEnclosingForEntity cenv env (ent: EntitySymbol) =
@@ -508,6 +510,8 @@ and emitILEnclosingForEntity cenv env (ent: EntitySymbol) =
     | EnclosingSymbol.RootNamespace ->
         OlyILEnclosing.Namespace(ImArray.empty, getAssemblyIdentity ent)
     | EnclosingSymbol.Witness(concreteTy, tr) ->
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
 and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =

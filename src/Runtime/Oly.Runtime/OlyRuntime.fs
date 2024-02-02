@@ -1299,7 +1299,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             | _ ->
 
             let argTys, returnTy =
-                match funArgTy with
+                match funArgTy.StripAliasAndNewtype() with
                 | RuntimeType.Function(argTys, returnTy, _)
                 | RuntimeType.NativeFunctionPtr(_, argTys, returnTy) ->
                     argTys, returnTy
@@ -2046,28 +2046,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         if not isGenericsErased && not tyDef.IsFormal then
             failwith "Expected formal type."
-
-//#if DEBUG || CHECKED
-//        let typeShouldNotBeEmitted = 
-//            if tyDef.IsClosure then
-//                let ilEntDef = asm.ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
-//                if ilEntDef.FunctionHandles.IsEmpty then
-//                    false
-//                else
-//                    ilEntDef.FunctionHandles
-//                    |> ImArray.exists (fun ilFuncDefHandle ->
-//                        let ilFuncDef = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
-//                        if not ilFuncDef.IsStatic then
-//                            ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.StackEmplace)
-//                        else
-//                            false
-//                    )
-//            else
-//                false
-
-//        if typeShouldNotBeEmitted then
-//            OlyAssert.Fail("Type should not be emitted")
-//#endif
         
         match asm.EntityDefinitionCache.TryGetValue(tyDef.ILEntityDefinitionHandle) with
         | true, (_, emitted) ->
@@ -2373,6 +2351,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match emitted.TryGetValue fullTyArgs with
         | ValueSome res -> res
         | _ ->
+#if DEBUG || CHECKED
+            (ty.TypeParameters, fullTyArgs)
+            ||> ImArray.iter2 (fun tyPar tyArg ->
+                if tyPar.Arity = 0 && tyArg.IsTypeConstructor then
+                    failwith "Unexpected type constructor."
+            )
+#endif
             let formalTy = emitType false ty.Formal
             let emittedFullTyArgs = fullTyArgs |> ImArray.map (fun x -> this.EmitTypeArgument(x))
             let res = this.Emitter.EmitTypeGenericInstance(formalTy, emittedFullTyArgs)

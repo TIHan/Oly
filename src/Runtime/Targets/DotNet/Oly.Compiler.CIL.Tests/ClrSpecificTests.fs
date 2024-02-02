@@ -6659,3 +6659,168 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "456"
     |> ignore
+
+let AdaptiveMonadTestSource =
+    """
+open System
+open System.Collections.Generic
+open System.Collections.Concurrent
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(Exception): TResult
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("not")]
+(!)(bool): bool
+
+#[inline]
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline] f: scoped T -> ()): () =
+    let xse = xs.GetEnumerator()
+    while (xse.MoveNext())
+        f(xse.Current)
+
+#[inline]
+(let!)<M<_>, A, B>(ma: M<A>, f: A -> M<B>): M<B> where M: Monad<M> =
+    M.Bind(ma, f)
+
+#[inline]
+(return)<M<_>, A>(value: A): M<A> where M: Monad<M> =
+    M.Return(value)
+
+interface Monad<M<_>> =
+
+    static abstract Bind<A, B>(ma: M<A>, f: A -> M<B>) : M<B>
+
+    static abstract Return<A>(a: A) : M<A>
+
+private class Subscription =
+    implements IDisposable
+
+    private Unsubscribe: () -> () get
+
+    new(unsubscribe: () -> ()) =
+        {
+            Unsubscribe = unsubscribe
+        }
+
+    Dispose(): () = this.Unsubscribe()
+
+private class Observer<T> =
+    implements IObserver<T>
+
+    field callback: T -> ()
+
+    new(callback: T -> ()) = { callback = callback }
+
+    OnCompleted(): () = ()
+
+    OnError(error: Exception): () =
+        throw error
+
+    OnNext(value: T): () =
+        this.callback(value)
+
+class Observable<T> =
+    implements IObservable<T>
+
+    field subscribers: ConcurrentDictionary<IObserver<T>, ()>
+    mutable field value: T
+
+    Subscribe(callback: T -> ()): IDisposable =
+        this.Subscribe(Observer(callback))
+
+    Subscribe(observer: IObserver<T>): IDisposable =
+        if (!this.subscribers.TryAdd(observer, ()))
+            throw InvalidOperationException("Observer already subscribed")
+        Subscription(
+            () -> 
+                let mutable value = unchecked default
+                let _ = this.subscribers.TryRemove(observer, &value)
+        )
+
+    Value: T
+        get() = this.value
+        set(value) =
+            this.value <- value
+            ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
+
+    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+
+#[open]
+newtype Adaptive<T> =
+    internal field Value: () -> Observable<T>
+
+extension AdaptiveMonad<T> =
+    inherits Adaptive<T>
+    implements Monad<Adaptive>
+
+    static overrides Bind<A, B>(ma: Adaptive<A>, f: A -> Adaptive<B>): Adaptive<B> =
+        let valueA = ma.Value()
+        let valueB = f(valueA.Value).Value()
+        let subscription =
+            valueA.Subscribe(
+                t -> valueB.Value <- f(t).Value().Value
+            )
+        Adaptive<B>(
+            () ->
+                valueB
+        )
+
+    static overrides Return<A>(a: A): Adaptive<A> =
+        let observable = Observable(a)
+        Adaptive<A>(
+            () -> observable
+        )
+    """
+
+[<Fact>]
+let ``Adaptive monad test``() =
+    $"""
+open extension AdaptiveMonad<int32>
+{AdaptiveMonadTestSource}
+
+main(): () =
+    let aval: Adaptive<int32> = return 123
+    let f =
+        () ->
+            let! result = aval
+            return 456
+    print(f().Value().Value)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
+
+[<Fact>]
+let ``Adaptive monad test with open extension wildcard``() =
+    $"""
+open extension AdaptiveMonad<_>
+{AdaptiveMonadTestSource}
+
+main(): () =
+    let aval: Adaptive<int32> = return 123
+    let f =
+        () ->
+            let! result = aval
+            return 456
+    print(f().Value().Value)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
