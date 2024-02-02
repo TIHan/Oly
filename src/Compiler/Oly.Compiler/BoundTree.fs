@@ -1612,3 +1612,45 @@ type ValueExplicitness =
         IsExplicitNew: bool
         IsExplicitField: bool
     }
+
+// --------------------------------------------------------------------
+
+let freshWitnesses (tyPar: TypeParameterSymbol) =
+    tyPar.Constraints
+    |> ImArray.choose (fun x -> 
+        match x.TryGetSubtypeOf() with
+        | ValueSome constrTy ->
+            match constrTy.TryEntity with
+            | ValueSome ent when ent.IsInterface ->
+                WitnessSolution(tyPar, ent, None)
+                |> Some
+            | _ ->
+                None
+        | _ ->
+            None
+    ) 
+
+let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
+    tyPar.Constraints
+    |> ImArray.choose (fun constr -> 
+        match constr.TryGetSubtypeOf() with
+        | ValueSome constrTy ->
+            match constrTy.TryEntity with
+            | ValueSome ent when ent.IsInterface || ent.IsShape ->
+                let ent = ent.Substitute(tyArgs)
+                if ent.IsShape then
+                    ent.Functions
+                    |> ImArray.map (fun func ->
+                        WitnessSolution(tyPar, ent, Some func)
+                    )
+                    |> Some
+                else
+                    WitnessSolution(tyPar, ent, None)
+                    |> ImArray.createOne
+                    |> Some
+            | _ ->
+                None 
+        | _ ->
+            None
+    )
+    |> ImArray.concat
