@@ -24,7 +24,11 @@ let mkVariableSolution() = VariableSolutionSymbol(false)
 let mkVariableType name = TypeSymbol.Variable(name)
 let mkInferenceVariableType tyParOpt = TypeSymbol.InferenceVariable(tyParOpt, mkVariableSolution())
 let mkHigherInferenceVariableType tyParOpt tyArgs = TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, mkVariableSolution(), mkVariableSolution())
-let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) = 
+let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
+//#if DEBUG || CHECKED
+//    if not ty.IsError_t && tyPar.HasArity && not ty.IsTypeConstructor then
+//        failwith "Expected type constructor."
+//#endif
     let varSolution = mkVariableSolution()
     varSolution.Solution <- ty
     TypeSymbol.InferenceVariable(Some tyPar, varSolution)
@@ -456,8 +460,13 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
 
         | TypeSymbol.Entity(ent) ->
             let tyArgs = 
-                ent.TypeArguments
-                |> ImArray.map instTy
+                (ent.TypeParameters, ent.TypeArguments)
+                ||> ImArray.map2 (fun tyPar tyArg ->
+                    if tyPar.HasArity && not tyArg.IsTypeVariable then
+                        tyArg
+                    else
+                        instTy tyArg
+                )
             TypeSymbol.Entity(applyEntity tyArgs ent.Formal)
 
         | TypeSymbol.RefCell(innerTy) ->
@@ -722,7 +731,14 @@ let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) : Entit
     else AppliedEntitySymbol(tyArgs, ent)
 
 let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
-    let tyArgs2 = ent.Formal.TypeArguments |> ImArray.map (fun x -> actualType tyArgs x)
+    let tyArgs2 = 
+        (ent.TypeParameters, ent.TypeArguments)
+        ||> ImArray.map2 (fun tyPar tyArg -> 
+            if tyPar.HasArity && not tyArg.IsTypeVariable then
+                tyArg
+            else
+                actualType tyArgs tyArg
+        )
     applyEntity tyArgs2 ent.Formal
 
 let actualParameter (tyArgs: TypeArgumentSymbol imarray) (par: ILocalParameterSymbol) =
@@ -1052,7 +1068,7 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
         | TypeSymbol.HigherVariable(tyPar, tyArgs2) ->
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
             match tys.TryGetValue(tyPar.Id) with
-            | true, ty -> mkSolvedInferenceVariableType tyPar (applyType ty tyArgs3)
+            | true, ty -> applyType (mkSolvedInferenceVariableType tyPar ty) tyArgs3
             | _ -> TypeSymbol.HigherVariable(tyPar, tyArgs3)
 
         | TypeSymbol.Function(inputTy, returnTy, kind) ->
@@ -1073,7 +1089,14 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
             TypeSymbol.Tuple(tyArgs |> ImArray.map instTy, names)
 
         | TypeSymbol.Entity(ent) ->
-            let tyArgs = ent.TypeArguments |> ImArray.map instTy
+            let tyArgs = 
+                (ent.TypeParameters, ent.TypeArguments)
+                ||> ImArray.map2 (fun tyPar tyArg ->
+                    if tyPar.HasArity && not tyArg.IsTypeVariable then
+                        tyArg
+                    else
+                        instTy tyArg
+                )
             TypeSymbol.Entity(applyEntity tyArgs ent.Formal)
 
         | TypeSymbol.RefCell(innerTy) ->
@@ -1261,8 +1284,13 @@ let tryActualValue (enclosing: EnclosingSymbol) (tys: IReadOnlyDictionary<int64,
 
 let tryActualEntity (tys: IReadOnlyDictionary<_, _>) (ent: EntitySymbol) =
     let tyArgs2 = 
-        ent.TypeArguments 
-        |> ImArray.map (fun x -> tryActualType tys x)
+        (ent.TypeParameters, ent.TypeArguments)
+        ||> ImArray.map2 (fun tyPar tyArg -> 
+            if tyPar.HasArity && not tyArg.IsTypeVariable then
+                tyArg
+            else
+                tryActualType tys tyArg
+        )
     applyEntity tyArgs2 ent.Formal
 
 let tryActualEnclosing tys (enclosing: EnclosingSymbol) =
@@ -1303,6 +1331,7 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                     else
                         // Because we have a second-order generic and our solution isn't a type constructor,
                         //     we must extract the type constructor out of it and reset the solution using it.
+                        // TODO: We should make this path illegal if we have a non-error type.
                         match stripTypeEquationsAux skipAlias skipModifiers ty2 with
                         | TypeSymbol.HigherVariable(tyPar2, _) ->
                             solution.Solution <- TypeSymbol.Variable(tyPar2)
@@ -2571,16 +2600,17 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
     // REVIEW: I wonder how this will come back to haunt us....
     //         A local symbol whose is a type constructor is illegal, even for error recovery.
     //         We assume there is already an error reported if we encounter a type constructor here.
+    // TODO: Remove this as we should never have to report this error.
     let ty =
         if ty.IsTypeConstructor then
-            TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
+            TypeSymbol.Error(None, Some "Internal Error: Type constructor is used illegally.")
         else
             ty
-//#if DEBUG || CHECKED
-//    do
-//        if not ty.IsError_t && ty.IsTypeConstructor then
-//            failwith "Unexpected type constructor."
-//#endif
+#if DEBUG || CHECKED
+    do
+        if not ty.IsError_t && ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+#endif
     
     let id = newId ()
     let flags =
@@ -2653,16 +2683,17 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
     // REVIEW: I wonder how this will come back to haunt us....
     //         A local symbol whose is a type constructor is illegal, even for error recovery.
     //         We assume there is already an error reported if we encounter a type constructor here.
+    // TODO: Remove this as we should never have to report this error.
     let ty =
         if ty.IsTypeConstructor then
-            TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
+            TypeSymbol.Error(None, Some "Internal Error: Type constructor is used illegally.")
         else
             ty
-//#if DEBUG || CHECKED
-//    do
-//        if not ty.IsError_t && ty.IsTypeConstructor then
-//            failwith "Unexpected type constructor."
-//#endif
+#if DEBUG || CHECKED
+    do
+        if not ty.IsError_t && ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+#endif
     let id = newId()
 
     let valueFlags =
@@ -2734,16 +2765,17 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
     // REVIEW: I wonder how this will come back to haunt us....
     //         A local symbol whose is a type constructor is illegal, even for error recovery.
     //         We assume there is already an error reported if we encounter a type constructor here.
+    // TODO: Remove this as we should never have to report this error.
     let ty =
         if ty.IsTypeConstructor then
             TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
         else
             ty
-//#if DEBUG || CHECKED
-//    do
-//        if not ty.IsError_t && ty.IsTypeConstructor then
-//            failwith "Unexpected type constructor."
-//#endif
+#if DEBUG || CHECKED
+    do
+        if not ty.IsError_t && ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+#endif
     
     let id = newId ()
     let flags =
@@ -3268,7 +3300,7 @@ type TypeSymbol =
                     "(type constructor) "
                 else
                     String.Empty    
-            prefix + this.Name + "<" + (this.TypeArguments |> Seq.map (fun x -> x.DebugName) |> String.concat ", ") + ">"
+            prefix + this.Name + "<" + (this.TypeArguments |> Seq.map (fun x -> if this.IsTypeConstructor then "_" else x.DebugName) |> String.concat ", ") + ">"
 
     member this.Arity =
         match stripTypeEquationsExceptAlias this with

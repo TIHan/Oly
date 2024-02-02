@@ -1162,6 +1162,9 @@ type RuntimeType =
     member this.DebugText =
         if this.TypeArguments.IsEmpty then
             this.Name
+        elif this.IsTypeConstructor then
+            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> "_") |> String.concat ","
+            $"(type constructor) {this.Name}<{tyArgsText}>" 
         else
             let tyArgsText = this.TypeArguments |> Seq.map (fun x -> x.DebugText) |> String.concat ","
             $"{this.Name}<{tyArgsText}>" 

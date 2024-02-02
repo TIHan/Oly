@@ -6172,7 +6172,7 @@ test<T<_>>(x: T): () = ()
               ^
 """
             )
-            ("Internal Warning: Type constructor is used illegally.",
+            ("Internal Error: Type constructor is used illegally.",
                 """
 test<T<_>>(x: T): () = ()
               ^
