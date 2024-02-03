@@ -226,7 +226,7 @@ f<T, U, V>(x: V, y: U) : V where U : Add<V, U, V> =
 let ``Constraint should compile 3``() =
     let src =
         """
-open extension MaybeMonadExtension<int32>
+open extension MaybeMonadExtension<_>
 
 #[intrinsic("int32")]
 alias int32
@@ -1347,6 +1347,75 @@ main(): () =
                 """
     let _ = db.CreateQuery<S>()
             ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Invalid use of a generic type constructor when calling a function``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface I<T<_>> =
+
+    static abstract M<A>(x: T<A>): ()
+
+class C<T>
+
+#[open]
+extension CI<T> =
+    inherits C<T>
+    implements I<C>
+
+    static overrides M<A>(x: C<A>): () = ()
+
+M<T<_>, U>(x: T<U>): () =
+    T<int32>.M(x)
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Member 'M' does not exist on type 'T<int32>'.",
+                """
+    T<int32>.M(x)
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Invalid use of a generic type constructor when calling a function 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface I<T<_>>
+
+class C<T> where T: struct
+
+#[open]
+extension CI<T> where T: struct =
+    inherits C<T>
+    implements I<C>
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot use 'C<T>' as a type constructor as it has type parameters with constraints.",
+                """
+    implements I<C>
+                 ^
 """
             )
         ]

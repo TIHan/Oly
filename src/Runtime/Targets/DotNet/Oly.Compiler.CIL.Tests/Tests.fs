@@ -433,7 +433,7 @@ let ``Example 2``() =
         """
 open extension Int32AddExtension
 open extension Float64AddExtension
-open extension MaybeMonadExtension<int32>
+open extension MaybeMonadExtension<_>
 
 #[intrinsic("int32")]
 alias int32
@@ -515,7 +515,7 @@ main() : () =
 let ``Example 3``() =
     let src =
         """
-open extension MaybeMonadExtension<int32>
+open extension MaybeMonadExtension<_>
 
 #[intrinsic("int32")]
 alias int32
@@ -4382,7 +4382,7 @@ class Test1<T> =
 
         new() = {}
 
-        class Test3<Z> where Z: IA<A> =
+        class Test3<Z> =
 
             new() = {}
 
@@ -4433,7 +4433,7 @@ class Test1<T> =
 
         new() = {}
 
-        class Test3<Z> where Z: IA<A> =
+        class Test3<Z> =
 
             new() = {}
 
@@ -5018,7 +5018,7 @@ main(): () =
 let ``Pass an extended type as an instance 4``() =
     let src =
         """
-open extension TestExtension<int32>
+open extension TestExtension<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -5062,7 +5062,7 @@ main(): () =
 let ``Pass an extended type as an instance 5``() =
     let src =
         """
-open extension TestExtension<int32>
+open extension TestExtension<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -5103,7 +5103,7 @@ main(): () =
 let ``Pass an extended type as an instance 6``() =
     let src =
         """
-open extension TestExtension<int32>
+open extension TestExtension<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -5144,7 +5144,7 @@ main(): () =
 let ``Pass an extended type as an instance 7``() =
     let src =
         """
-open extension TestExtension<int32>
+open extension TestExtension<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -5185,7 +5185,7 @@ main(): () =
 let ``Pass an extended type as an instance 8``() =
     let src =
         """
-open extension TestExtension<int32>
+open extension TestExtension<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -5226,8 +5226,8 @@ main(): () =
 let ``Pass an extended type as an instance 9``() =
     let src =
         """
-open extension TestExtension<int32>
-open extension TestExtension2<int32>
+open extension TestExtension<_>
+open extension TestExtension2<_>
 
 #[intrinsic("base_object")]
 alias object
@@ -10373,7 +10373,7 @@ module Array =
     #[intrinsic("new_array")]
     ZeroCreate<T>(size: int32): mutable T[]
 
-interface IMemory<T> where T: struct =
+interface IMemory<T> =
 
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
@@ -10384,7 +10384,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
     static abstract Allocate<T>(size: int32): TMemory<T> where T: struct
 
-struct DefaultMemory<T> where T: struct =
+struct DefaultMemory<T> =
     implements IMemory<T>
 
     private field Buffer: mutable T[]
@@ -10836,7 +10836,7 @@ module Array =
     #[intrinsic("new_array")]
     ZeroCreate<T>(size: int32): mutable T[]
 
-interface IMemory<T> where T: struct =
+interface IMemory<T> =
 
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
@@ -10849,7 +10849,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
     static abstract Free<T>(memory: TMemory<T>): () where T: struct
 
-struct DefaultMemory<T> where T: struct =
+struct DefaultMemory<T> =
     implements IMemory<T>
 
     private field Buffer: mutable T[]

@@ -5290,16 +5290,21 @@ module SymbolHelpers =
                         |> Option.map (fun func -> func.Substitute(tyParLookup) :?> IFunctionSymbol)
                     let witness =
                         let witness = witnessArg.Solution.Value
+                        // Important: If the witness type is a type constructor, do not substitute its values.
+                        //            Otherwise it would create a type that is not a type constructor and
+                        //            make the constraint solutions invalid.
                         match witness with
-                        | WitnessSymbol.Type(ty) ->
+                        | WitnessSymbol.Type(ty) when not ty.IsTypeConstructor ->
                             WitnessSymbol.Type(ty.Substitute(tyParLookup))
-                        | WitnessSymbol.TypeExtension(tyExt, funcOpt) ->
+                        | WitnessSymbol.TypeExtension(tyExt, funcOpt) when not tyExt.IsTypeConstructor ->
                             let funcOpt =
                                 funcOpt
                                 |> Option.map (fun func -> func.Substitute(tyParLookup) :?> IFunctionSymbol)
                             WitnessSymbol.TypeExtension(tyExt.Substitute(tyParLookup), funcOpt)
                         | WitnessSymbol.TypeParameter(tyPar) ->
                             WitnessSymbol.TypeParameter(tyPar.EmplaceSubstitute(tyParLookup))
+                        | _ ->
+                            witness
 
                     let subbedWitnessArg = WitnessSolution(tyPar, ent, funcOpt)
                     subbedWitnessArg.Solution <- Some witness

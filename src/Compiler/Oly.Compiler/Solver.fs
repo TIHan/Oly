@@ -270,7 +270,20 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
     | ValueNone -> false
     | ValueSome(tyExts) ->
         OlyAssert.False(tyExts.IsEmpty)
-        if tyExts.Length = 1 then
+
+        let tyExts =
+            tyExts
+            |> ImArray.filter (fun tyExt ->
+                if tyPar.HasArity then
+                    tyExt.IsTypeConstructor
+                else
+                    true
+            )
+
+        if tyExts.IsEmpty then
+            env.diagnostics.Error("Unable to solve. TODO better msg.", 10, syntaxNode)
+            true // Return true for recovery
+        elif tyExts.Length = 1 then
             let tyExt = tyExts[0]
             let mostSpecificTy = (tryFindMostSpecificTypeForExtension env.benv tyExt target).Value
 
@@ -279,8 +292,9 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
                 |> ImArray.choose (fun witness ->      
                     if witness.HasSolution then None
                     else
-                        if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
-                            Some witness
+                        if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && 
+                           subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
+                           Some witness
                         else
                             None
                 )

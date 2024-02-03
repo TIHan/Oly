@@ -1124,7 +1124,7 @@ let ``Mappable example``() =
         """
 open System
 open System.Collections.Generic
-open extension ListMappable<System.Int32>
+open extension ListMappable<_>
 
 #[intrinsic("add")]
 (+)(Int32, Int32): Int32
@@ -6660,7 +6660,8 @@ main(): () =
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
-let AdaptiveMonadTestSource =
+[<Fact>]
+let ``Adaptive monad test``() =
     """
 open System
 open System.Collections.Generic
@@ -6668,6 +6669,9 @@ open System.Collections.Concurrent
 
 #[intrinsic("int32")]
 alias int32
+
+#[intrinsic("float32")]
+alias float32
 
 #[intrinsic("bool")]
 alias bool
@@ -6698,7 +6702,7 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline] f: scoped T 
     M.Bind(ma, f)
 
 #[inline]
-(return)<M<_>, A>(value: A): M<A> where M: Monad<M> =
+(return)<M<_>, A>(value: A): M<A> where M: Monad<M> where A: struct =
     M.Return(value)
 
 interface Monad<M<_>> =
@@ -6764,34 +6768,34 @@ class Observable<T> =
 newtype Adaptive<T> =
     internal field Value: () -> Observable<T>
 
-extension AdaptiveMonad<T> =
-    inherits Adaptive<T>
-    implements Monad<Adaptive>
+    #[open]
+    extension NestedMonad =
+        inherits Adaptive<T>
+        implements Monad<Adaptive>
 
-    static overrides Bind<A, B>(ma: Adaptive<A>, f: A -> Adaptive<B>): Adaptive<B> =
-        let valueA = ma.Value()
-        let valueB = f(valueA.Value).Value()
-        let subscription =
-            valueA.Subscribe(
-                t -> valueB.Value <- f(t).Value().Value
+        static overrides Bind<A, B>(ma: Adaptive<A>, f: A -> Adaptive<B>): Adaptive<B> =
+
+            // This is to make sure we captured the T properly.
+            // In the test use case, the T will be object.
+            let xs = List<T>()
+            print(xs.GetType().Name)
+
+            let valueA = ma.Value()
+            let valueB = f(valueA.Value).Value()
+            let subscription =
+                valueA.Subscribe(
+                    t -> valueB.Value <- f(t).Value().Value
+                )
+            Adaptive<B>(
+                () ->
+                    valueB
             )
-        Adaptive<B>(
-            () ->
-                valueB
-        )
 
-    static overrides Return<A>(a: A): Adaptive<A> =
-        let observable = Observable(a)
-        Adaptive<A>(
-            () -> observable
-        )
-    """
-
-[<Fact>]
-let ``Adaptive monad test``() =
-    $"""
-open extension AdaptiveMonad<int32>
-{AdaptiveMonadTestSource}
+        static overrides Return<A>(a: A): Adaptive<A> =
+            let observable = Observable(a)
+            Adaptive<A>(
+                () -> observable
+            )
 
 main(): () =
     let aval: Adaptive<int32> = return 123
@@ -6800,27 +6804,15 @@ main(): () =
             let! result = aval
             return 456
     print(f().Value().Value)
-    """
-    |> Oly
-    |> withCompile
-    |> shouldRunWithExpectedOutput "456"
-    |> ignore
 
-[<Fact>]
-let ``Adaptive monad test with open extension wildcard``() =
-    $"""
-open extension AdaptiveMonad<_>
-{AdaptiveMonadTestSource}
-
-main(): () =
-    let aval: Adaptive<int32> = return 123
+    let aval: Adaptive<float32> = return (78: float32)
     let f =
         () ->
             let! result = aval
-            return 456
+            return (9.1: float32)
     print(f().Value().Value)
     """
     |> Oly
     |> withCompile
-    |> shouldRunWithExpectedOutput "456"
+    |> shouldRunWithExpectedOutput "List`1456List`19.1"
     |> ignore

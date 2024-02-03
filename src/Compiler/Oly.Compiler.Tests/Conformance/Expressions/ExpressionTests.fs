@@ -4499,7 +4499,7 @@ module Array =
     #[intrinsic("new_array")]
     ZeroCreate<T>(size: int32): mutable T[]
 
-interface IMemory<T> where T: struct =
+interface IMemory<T> =
 
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
@@ -4510,7 +4510,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
     static abstract Allocate<T>(size: int32): TMemory<T> where T: struct
 
-struct DefaultMemory<T> where T: struct =
+struct DefaultMemory<T> =
     implements IMemory<T>
 
     private field Buffer: mutable T[]
@@ -4615,7 +4615,7 @@ module Array =
     #[intrinsic("new_array")]
     ZeroCreate<T>(size: int32): mutable T[]
 
-interface IMemory<T> where T: struct =
+interface IMemory<T> =
 
     get_Item(index: int32): T
     set_Item(index: int32, item: T): ()
@@ -4626,7 +4626,7 @@ interface IMemoryAllocator<TMemory<_>> where TMemory<_>: IMemory =
 
     static abstract Allocate<T>(size: int32): TMemory<T> where T: struct
 
-struct DefaultMemory<T> where T: struct =
+struct DefaultMemory<T> =
     implements IMemory<T>
 
     private field Buffer: mutable T[]

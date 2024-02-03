@@ -2046,6 +2046,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         if not isGenericsErased && not tyDef.IsFormal then
             failwith "Expected formal type."
+
+        // Note: This only plays well if a canonicalized type is erased.
+        //       So this should only be true if the type itself can be erased.
+        let isCanon = tyDef.IsEntityCanonical
+#if DEBUG || Checked
+        if isCanon then
+            OlyAssert.True(isGenericsErased)
+#endif
         
         match asm.EntityDefinitionCache.TryGetValue(tyDef.ILEntityDefinitionHandle) with
         | true, (_, emitted) ->
@@ -2069,7 +2077,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let enclosingChoice =
                     match tyDef.Enclosing with
                     | RuntimeEnclosing.Namespace(path) -> Choice1Of2(path)
-                    | _ -> Choice2Of2(this.EmitType(tyDef.Enclosing.AsType))
+                    | _ -> 
+                        if isCanon then
+                            Choice1Of2(ImArray.empty)
+                        else
+                            Choice2Of2(this.EmitType(tyDef.Enclosing.AsType))
         
                 let ilEntDef = ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
 
@@ -2089,7 +2101,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 | ValueSome res -> res
                 | _ ->
 
-                let kind = ilEntDef.Kind
+                let kind = 
+                    // When we are emitting a type that is canonicalized by the runtime,
+                    // we only emit it as a struct.
+                    if isCanon then
+                        OlyILEntityKind.Struct
+                    else
+                        ilEntDef.Kind
 
                 let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
 
@@ -2126,7 +2144,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         )
 
                 let inheritTys =
-                    if tyDef.IsNewtype then
+                    if isCanon then
+                        ImArray.empty
+                    elif tyDef.IsNewtype then
                         OlyAssert.Equal(1, tyDef.Extends.Length)
                         ImArray.empty
                     else
@@ -2139,7 +2159,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         )
 
                 let implementTys = 
-                    if tyDef.IsNewtype then
+                    if isCanon then
+                        ImArray.empty
+                    elif tyDef.IsNewtype then
                         OlyAssert.Equal(0, tyDef.Implements.Length)
                         ImArray.empty
                     else
@@ -2158,7 +2180,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let fields = tyDef.Fields
                 let fields =
-                    if tyDef.IsNewtype then
+                    if isCanon then
+                        ImArray.empty
+                    elif tyDef.IsNewtype then
                         // Do not emit an instance field for newtypes.
                         fields |> ImArray.filter (fun x -> x.IsStatic)
                     else
@@ -2438,7 +2462,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ -> OlyAssert.Fail("Invalid type variable kind.")
                 this.Emitter.EmitTypeHigherVariable(index, emittedTyArgs, irKind)
 
-            | RuntimeType.Entity _ -> failwith "Invalid type."
+            | RuntimeType.Canonical ->
+                this.TypeBaseObject.Value
+
+            | RuntimeType.Entity _ -> 
+                failwith "Invalid type."
 
         elif ty.IsNewtype then
             emitType false (ty.Extends[0])
@@ -3110,7 +3138,20 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let possibleWitnesses = this.FilterWitnesses(ilTy, witnesses)
             let ty = this.ResolveType(ilAsm, ilTy, genericContext)
             let abstractTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
-            let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
+            let witnessOpt = 
+                this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
+                |> Option.map (fun witness ->
+                     if witness.TypeExtension.IsTypeConstructor && witness.TypeExtension.CanGenericsBeErased then
+                        RuntimeWitness(
+                            witness.TypeVariableIndex,
+                            witness.TypeVariableKind,
+                            witness.Type,
+                            witness.TypeExtension.Canonicalize(),
+                            witness.AbstractFunction
+                        )
+                     else
+                        witness
+                )
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
     member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
@@ -3195,6 +3236,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 RuntimeEntityInfo.ILEntityKind = ilEntDef.Kind
                                 RuntimeEntityInfo.ILEntityFlags = ilEntDef.Flags
                                 RuntimeEntityInfo.ILPropertyDefinitionLookup = ilPropDefLookup
+                                RuntimeEntityInfo.IsCanonical = false
 
                                 RuntimeEntityInfo.Formal = Unchecked.defaultof<_>
                                 RuntimeEntityInfo.Attributes = ImArray.empty

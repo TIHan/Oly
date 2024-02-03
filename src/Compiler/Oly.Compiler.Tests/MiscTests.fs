@@ -303,7 +303,7 @@ main (): () =
 let ``Example 4``() =
     let src =
         """
-open extension MaybeMonadExtension<int32>
+open extension MaybeMonadExtension<_>
 open extension Int32AddInt32Extension
 
 #[intrinsic("int32")]

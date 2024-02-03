@@ -233,10 +233,6 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
     let tyPars = ent.TypeParameters
     let tyArgs = ent.TypeArguments
 
-    let tyPars, tyArgs =
-        let skipAmount = tyPars.Length - syntaxTys.Length
-        tyPars |> ImArray.skip skipAmount, tyArgs |> ImArray.skip skipAmount
-
     (tyPars, tyArgs)
     ||> Seq.iteri2 (fun i tyPar tyArg ->
         if tyPar.Arity > 0 then
@@ -246,14 +242,19 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
                 if tyPar.Arity <> tyArg.Arity then
                     let syntaxTy = syntaxTys.[i]
                     env.diagnostics.Error(sprintf "Type instantiation '%s' has a type arity of %i, but expected %i." (printType env.benv tyArg) tyArg.Arity tyPar.Arity, 10, syntaxTy)
+                elif tyArg.TypeParameters |> ImArray.exists (fun x -> not x.Constraints.IsEmpty) then
+                    let syntaxTy = syntaxTys.[i]
+                    env.diagnostics.Error($"Cannot use '{printType env.benv tyArg}' as a type constructor as it has type parameters with constraints.", 10, syntaxTy)
     )
+
+    let skipAmount = tyPars.Length - syntaxTys.Length
 
     solveConstraints
         env
         skipUnsolved
         syntaxNode
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
-        tyArgs
+        (tyArgs |> ImArray.skip skipAmount)
         ImArray.empty (* type constructors do not support witnesses *)
 
 let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
