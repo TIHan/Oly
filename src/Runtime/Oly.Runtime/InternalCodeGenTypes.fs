@@ -618,20 +618,6 @@ type RuntimeType =
     // TODO: We should generalize constant types.
     | ConstantInt32 of value: int32
 
-    /// Runtime type only. Used as a placeholder to share generics.
-    /// Notes: At the moment, it is only used to allow emitting witness functions whose enlosing type is a type constructor.
-    | Canonical
-
-    member this.IsCanonical_t =
-        match this with
-        | Canonical -> true
-        | _ -> false
-
-    member this.IsEntityCanonical =
-        match this with
-        | Entity(ent) -> ent.Info.IsCanonical
-        | _ -> false
-
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
         OlyAssert.False(this.IsAlias)
         match this with
@@ -838,7 +824,6 @@ type RuntimeType =
         | HigherVariable(index, _, ilKind) -> $"__oly_higher_variable_{index}_{ilKind}"
         | ByRef(elementTy, _) -> $"__oly_by_reference_{elementTy.Name}"
         | ConstantInt32(value) -> value.ToString()
-        | Canonical -> "__oly_canon"
 
     member this.TypeArguments =
         match this with
@@ -1031,13 +1016,6 @@ type RuntimeType =
         | Entity(ent) -> ent
         | _ -> failwith "Expected entity"
 
-    member this.Canonicalize() =
-        OlyAssert.True(this.IsTypeConstructor)
-        OlyAssert.True(this.IsEntity_t)
-        OlyAssert.True(this.CanGenericsBeErased)
-        let tyArgs = ImArray.init this.TypeParameters.Length (fun _ -> RuntimeType.Canonical)
-        RuntimeType.Entity({ this.AsEntity with TypeArguments = tyArgs; Info = { this.AsEntity.Info with IsCanonical = true } })
-
     member this.Apply(tyArgs: RuntimeType imarray) =
 #if DEBUG || CHECKED
         OlyAssert.Equal(this.TypeParameters.Length, tyArgs.Length)
@@ -1185,9 +1163,6 @@ type RuntimeType =
 
             | ConstantInt32(value1), ConstantInt32(value2) ->
                 value1 = value2
-
-            | Canonical, Canonical ->
-                true
 
             | _ -> 
                 false

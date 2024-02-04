@@ -2600,6 +2600,16 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 tyDef.TypeDefinitionInfo.typeExtensionInfo <- ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle)
 
         member this.EmitTypeDefinition(enclosing, ilKind, irTyFlags, name, tyParCount) =
+            match enclosing with
+            | Choice2Of2(tyInfo) ->
+                match tyInfo.Handle with
+                | ClrTypeHandle.TypeSpecification _ ->
+                    failwith "Unexpected type specification."
+                | _ ->
+                    ()
+            | _ ->
+                ()
+
             let name =
                 if irTyFlags.IsGenericsErased then
                     name + newUniquePrivateTypeName()

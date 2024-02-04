@@ -494,7 +494,7 @@ extension MaybeMonadExtension<T> =
         Maybe<_>(a)
 
 (>>=)<Toot<_>, A, B>(ma: Toot<A>, f: A -> Toot<B>): Toot<B> where Toot: Monad<Toot>  =
-   Toot.Bind<_, _>(ma, f)
+   Toot<object>.Bind<_, _>(ma, f)
 
 transform (x: int32) : Maybe<float64> = Maybe<_>(228888.45)
 

@@ -734,8 +734,16 @@ let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
     let tyArgs2 = 
         (ent.TypeParameters, ent.TypeArguments)
         ||> ImArray.map2 (fun tyPar tyArg -> 
-            if tyPar.HasArity && not tyArg.IsTypeVariable then
-                tyArg
+            if tyPar.HasArity then
+                if tyArg.IsTypeVariable then
+                    tyArg
+                else
+                    let tyArg2 = tyArgs[tyPar.Index]
+                    if tyArg2.IsTypeConstructor then
+                        tyArg2
+                    else
+                        tyArg
+
             else
                 actualType tyArgs tyArg
         )

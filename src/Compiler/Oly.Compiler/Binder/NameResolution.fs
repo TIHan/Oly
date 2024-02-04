@@ -1143,8 +1143,14 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 invalidField ident (Some ty) :> IValueSymbol
 
     match value.Enclosing, stripTypeEquations ty with
-    | EnclosingSymbol.Entity(ent), TypeSymbol.Variable(_) ->
-        value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
+    | EnclosingSymbol.Entity(ent), TypeSymbol.Variable(tyPar) ->
+        // REVIEW: We need to look carefully at this when making changes.
+        if tyPar.HasArity then
+            // REVIEW: Should the object type actually be used for something like this?
+            // TODO: This should actually happen sooner when we bind the type instead of here.
+            value.WithEnclosing(EnclosingSymbol.Witness(applyType ty (ImArray.init tyPar.Arity (fun _ -> TypeSymbol.BaseObject)), ent))
+        else
+            value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
     | EnclosingSymbol.Entity(ent), TypeSymbol.HigherVariable(_, tyArgs) ->
         if ent.IsTypeConstructor then
             let appliedEnt =
