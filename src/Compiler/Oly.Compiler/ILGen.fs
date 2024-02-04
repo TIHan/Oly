@@ -194,8 +194,8 @@ and GenValueTypeArgumentsAndWitnessArguments cenv env (value: IValueSymbol) witn
     ilTyInst, ilWitnesses
 
 and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarray) (func: IFunctionSymbol) : OlyILFunctionInstance =
-    if func.TypeParameters.Length <> func.TypeArguments.Length then
-        failwith "Number of type instantiations do not match the count of the function's type parameters."
+    OlyAssert.False(func.Enclosing.IsTypeConstructor)
+    OlyAssert.Equal(func.TypeParameters.Length, func.TypeArguments.Length)
 
     let ilEnclosing = emitILEnclosingForMember cenv env func
     let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func
@@ -205,8 +205,8 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
 
 and GenFunctionAsILFunctionReference cenv env (func: IFunctionSymbol) : OlyILFunctionReference =
-    if func.TypeParameters.Length <> func.TypeArguments.Length then
-        failwith "Number of type instantiations do not match the count of the function's type parameters."
+    OlyAssert.False(func.Enclosing.IsTypeConstructor)
+    OlyAssert.Equal(func.TypeParameters.Length, func.TypeArguments.Length)
 
     let ilEnclosing = emitILEnclosingForMember cenv env func
     let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func

@@ -1326,7 +1326,7 @@ let tryComputeDependentType (inputValueTy: TypeSymbol) (innerTy: TypeSymbol) =
     | _ ->
         ValueNone
 
-let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
+let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: TypeSymbol) =
     match ty with
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         if solution.HasSolution then
@@ -1351,14 +1351,18 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                             solution.Solution <- ent.Formal.AsType
                             stripTypeEquationsAux skipAlias skipModifiers ty
                         | _ ->
-                            TypeSymbol.Error(Some tyPar, None)
+                            TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
                 | _ ->
                     stripTypeEquationsAux skipAlias skipModifiers ty2
             solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution
             strippedTy2
         else
             ty
+    | _ ->
+        failwith "Expected inference variable type."
 
+let private stripTypeEquations_HigherInferenceVariable skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
     | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
@@ -1371,7 +1375,11 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                 stripTypeEquationsAux skipAlias skipModifiers appliedTy
             else
                 ty
+    | _ ->
+        failwith "Expected higher inference variable type." 
 
+let private stripTypeEquations_EagerInferenceVariable skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
     | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then
             let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
@@ -1379,9 +1387,15 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
             strippedTy
         else
             ty
+    | _ ->
+        failwith "Expected eager inference variable type."
 
-    | TypeSymbol.Entity(ent) when not skipAlias ->
-        if ent.Kind = EntityKind.Alias then
+let private stripTypeEquations_Entity skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
+    | TypeSymbol.Entity(ent) ->
+        if skipAlias then
+            ty
+        elif ent.Kind = EntityKind.Alias then
             if ent.Extends.Length = 1 then
                 stripTypeEquationsAux skipAlias skipModifiers ent.Extends[0]
             else
@@ -1392,34 +1406,77 @@ let rec stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
                 TypeSymbolError
         else
             ty
+    | _ ->
+        failwith "Expected entity type."
 
+let private stripTypeEquations_Function skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
     // 'Function' is a built-in type whose formal definition has a variadic type parameter as a single argument.
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    | TypeSymbol.Function(inputTy, returnTy, kind) when inputTy.IsSolved ->
-        match inputTy with
-        | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
-            match stripTypeEquationsAux skipAlias skipModifiers inputTy with
-            | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy, kind)
-            | TypeSymbol.Unit -> TypeSymbol.CreateFunction(ImArray.empty, returnTy, kind)
-            | _ -> ty
-        | _ ->
+    | TypeSymbol.Function(inputTy, returnTy, kind) ->
+        if inputTy.IsSolved then
+            match inputTy with
+            | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
+                match stripTypeEquationsAux skipAlias skipModifiers inputTy with
+                | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy, kind)
+                | TypeSymbol.Unit -> TypeSymbol.CreateFunction(ImArray.empty, returnTy, kind)
+                | _ -> ty
+            | _ ->
+                ty
+        else
             ty
+    | _ ->
+        failwith "Expected function type."
 
+let private stripTypeEquations_Tuple skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
     // 'Tuple' is a built-in type whose formal definition has a variadic type parameter as a single argument.
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    | TypeSymbol.Tuple(argTys, _) when argTys.Length = 1 && argTys[0].IsSolved ->
-        match argTys[0] with
-        | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
-            match stripTypeEquationsAux skipAlias skipModifiers argTys[0] with
-            | TypeSymbol.Tuple _ as ty -> ty
-            | _ -> ty
-        | _ ->
+    | TypeSymbol.Tuple(argTys, _) ->
+        if argTys.Length = 1 && argTys[0].IsSolved then
+            match argTys[0] with
+            | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
+                match stripTypeEquationsAux skipAlias skipModifiers argTys[0] with
+                | TypeSymbol.Tuple _ as ty -> ty
+                | _ -> ty
+            | _ ->
+                ty
+        else
             ty
+    | _ ->
+        failwith "Expected tuple type."
 
+let private stripTypeEquations_DependentIndexer skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
     | TypeSymbol.DependentIndexer(inputValueTy, innerTy) ->
         match tryComputeDependentType inputValueTy innerTy with
         | ValueSome(ty) -> stripTypeEquationsAux skipAlias skipModifiers ty
         | _ -> ty
+    | _ ->
+        failwith "Expected dependent indexer type."
+
+let stripTypeEquationsAux skipAlias skipModifiers (ty: TypeSymbol) =
+    match ty with
+    | TypeSymbol.InferenceVariable _ ->
+        stripTypeEquations_InferenceVariable skipAlias skipModifiers ty
+
+    | TypeSymbol.HigherInferenceVariable _ ->
+        stripTypeEquations_HigherInferenceVariable skipAlias skipModifiers ty
+
+    | TypeSymbol.EagerInferenceVariable _ ->
+        stripTypeEquations_EagerInferenceVariable skipAlias skipModifiers ty
+
+    | TypeSymbol.Entity _ ->
+        stripTypeEquations_Entity skipAlias skipModifiers ty
+
+    | TypeSymbol.Function _ ->
+        stripTypeEquations_Function skipAlias skipModifiers ty
+
+    | TypeSymbol.Tuple _ ->
+        stripTypeEquations_Tuple skipAlias skipModifiers ty
+
+    | TypeSymbol.DependentIndexer _ ->
+        stripTypeEquations_DependentIndexer skipAlias skipModifiers ty
 
     | _ ->
         ty
