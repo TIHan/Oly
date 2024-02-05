@@ -65,6 +65,7 @@ type OlyAssert =
 
     [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
+    [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member NotContains<'T> (src: HashSet<'T>, expected: 'T) =
         if src.Contains(expected) then

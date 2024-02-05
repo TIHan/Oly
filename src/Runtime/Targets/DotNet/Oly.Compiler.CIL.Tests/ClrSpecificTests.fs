@@ -6660,8 +6660,7 @@ main(): () =
     |> shouldRunWithExpectedOutput "456"
     |> ignore
 
-[<Fact>]
-let ``Adaptive monad test``() =
+let AdaptiveMonadSrc =
     """
 open System
 open System.Collections.Generic
@@ -6766,7 +6765,7 @@ class Observable<T> =
 
 #[open]
 newtype Adaptive<T> =
-    internal field Value: () -> Observable<T>
+    public field Value: () -> Observable<T>
 
     #[open]
     extension NestedMonad =
@@ -6796,7 +6795,12 @@ newtype Adaptive<T> =
             Adaptive<A>(
                 () -> observable
             )
+    """
 
+[<Fact>]
+let ``Adaptive monad test``() =
+    $"""
+{AdaptiveMonadSrc}
 main(): () =
     let aval: Adaptive<int32> = return 123
     let f =
@@ -6813,6 +6817,102 @@ main(): () =
     print(f().Value().Value)
     """
     |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "List`1456List`19.1"
+    |> ignore
+
+[<Fact>]
+let ``Adaptive monad test 2``() =
+    $"""
+{AdaptiveMonadSrc}
+main(): () =
+    let g() =
+        let aval: Adaptive<int32> = return 123
+        let f =
+            () ->
+                let! result = aval
+                return 456
+        print(f().Value().Value)
+
+        let aval: Adaptive<float32> = return (78: float32)
+        let f =
+            () ->
+                let! result = aval
+                return (9.1: float32)
+        print(f().Value().Value)
+    g()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "List`1456List`19.1"
+    |> ignore
+
+[<Fact>]
+let ``Adaptive monad test with a reference``() =
+    let refSrc =
+        $"""
+module Prelude
+
+{AdaptiveMonadSrc}
+        """
+
+    let src =
+        """
+open static Prelude
+
+main(): () =
+    let aval: Adaptive<int32> = return 123
+    let f =
+        () ->
+            let! result = aval
+            return 456
+    print(f().Value().Value)
+
+    let aval: Adaptive<float32> = return (78: float32)
+    let f =
+        () ->
+            let! result = aval
+            return (9.1: float32)
+    print(f().Value().Value)
+        """
+
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "List`1456List`19.1"
+    |> ignore
+
+[<Fact>]
+let ``Adaptive monad test with a reference 2``() =
+    let refSrc =
+        $"""
+module Prelude
+
+{AdaptiveMonadSrc}
+        """
+
+    let src =
+        """
+open static Prelude
+
+main(): () =
+    let g() =
+        let aval: Adaptive<int32> = return 123
+        let f =
+            () ->
+                let! result = aval
+                return 456
+        print(f().Value().Value)
+
+        let aval: Adaptive<float32> = return (78: float32)
+        let f =
+            () ->
+                let! result = aval
+                return (9.1: float32)
+        print(f().Value().Value)
+    g()
+        """
+
+    OlyWithRef refSrc src
     |> withCompile
     |> shouldRunWithExpectedOutput "List`1456List`19.1"
     |> ignore

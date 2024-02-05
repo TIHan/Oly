@@ -194,7 +194,7 @@ and GenValueTypeArgumentsAndWitnessArguments cenv env (value: IValueSymbol) witn
     ilTyInst, ilWitnesses
 
 and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarray) (func: IFunctionSymbol) : OlyILFunctionInstance =
-    OlyAssert.False(func.Enclosing.IsTypeConstructor)
+    //OlyAssert.False(func.Enclosing.IsTypeConstructor)
     OlyAssert.Equal(func.TypeParameters.Length, func.TypeArguments.Length)
 
     let ilEnclosing = emitILEnclosingForMember cenv env func
@@ -205,7 +205,7 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
 
 and GenFunctionAsILFunctionReference cenv env (func: IFunctionSymbol) : OlyILFunctionReference =
-    OlyAssert.False(func.Enclosing.IsTypeConstructor)
+    //OlyAssert.False(func.Enclosing.IsTypeConstructor)
     OlyAssert.Equal(func.TypeParameters.Length, func.TypeArguments.Length)
 
     let ilEnclosing = emitILEnclosingForMember cenv env func

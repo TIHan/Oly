@@ -160,7 +160,15 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
                     false
             else
                 solution.Solution <- applyType ty2.Formal tyArgs
-                externalSolution.Solution <- ty2.Formal
+                match ty2.Formal with
+                | TypeSymbol.InferenceVariable(_, solution) ->
+                    if obj.ReferenceEquals(externalSolution, solution) then
+                        // Prevent circular reference.
+                        ()
+                    else
+                        externalSolution.Solution <- ty2.Formal
+                | _ ->
+                    externalSolution.Solution <- ty2.Formal
                 true
             
         else

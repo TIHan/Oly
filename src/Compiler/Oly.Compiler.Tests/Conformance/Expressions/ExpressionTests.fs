@@ -9033,7 +9033,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'A<A<A>>' but is 'Test3<A<A>>'.",
+            ("Expected type 'A<A>' but is 'Test3<A<A>>'.",
                 """
     test(t)
          ^
