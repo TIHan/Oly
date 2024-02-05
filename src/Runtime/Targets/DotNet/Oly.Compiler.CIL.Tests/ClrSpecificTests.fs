@@ -6952,5 +6952,5 @@ main(): () =
 
     OlyWithRef refSrc src
     |> withCompile
-    |> shouldRunWithExpectedOutput "List`1456List`19.1"
+    |> shouldRunWithExpectedOutput "List`1List`1456List`1List`19.1"
     |> ignore

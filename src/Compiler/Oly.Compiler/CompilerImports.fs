@@ -480,6 +480,11 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
         OlyAssert.Equal(tyPar.Name, newTyPar.Name)
         TypeSymbol.Variable(newTyPar)
 
+    | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+        let newTyPar = tyPars[tyPar.Index]
+        OlyAssert.Equal(tyPar.Name, newTyPar.Name)
+        TypeSymbol.HigherVariable(newTyPar, tyArgs |> ImArray.map (retargetType currentAsmIdent importer tyPars))
+
     | TypeSymbol.InferenceVariable(_, solution) when solution.HasSolution ->
         retargetType currentAsmIdent importer tyPars solution.Solution
 
