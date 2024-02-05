@@ -2887,22 +2887,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             |> ImArray.ofSeq
 
     member private this.AreFunctionSpecificationParametersEqual(enclosingTyParCount1: int, ilAsm1: OlyILReadOnlyAssembly, ilFuncSpec1: OlyILFunctionSpecification, scopeTyArgs1: GenericContext, enclosingTyParCount2: int, ilAsm2: OlyILReadOnlyAssembly, ilFuncSpec2: OlyILFunctionSpecification, scopeTyArgs2: GenericContext) =
-        //let validTyPars =
-        //    (ilFuncSpec1.TypeParameters, ilFuncSpec2.TypeParameters)
-        //    ||> ImArray.forall2 (fun tyPar1 tyPar2 -> (tyPar1.Arity > 0) = (tyPar2.Arity > 0))
-        // Note: Do not uncomment, unless you want to test something. Signatures are not dictated by arity on type parameters.
-        let validTyPars = true
-
-        if validTyPars then
-            let returnTy1 = this.ResolveType(ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
-            let returnTy2 = this.ResolveType(ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
-            if returnTy1 = returnTy2 then
-                (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
-                ||> ImArray.forall2 (fun x1 x2 ->
-                    this.ResolveType(ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(ilAsm2, x2.Type, scopeTyArgs2)
-                )
-            else
-                false
+        let returnTy1 = this.ResolveType(ilAsm1, ilFuncSpec1.ReturnType, scopeTyArgs1)
+        let returnTy2 = this.ResolveType(ilAsm2, ilFuncSpec2.ReturnType, scopeTyArgs2)
+        if returnTy1 = returnTy2 then
+            (ilFuncSpec1.Parameters, ilFuncSpec2.Parameters)
+            ||> ImArray.forall2 (fun x1 x2 ->
+                this.ResolveType(ilAsm1, x1.Type, scopeTyArgs1) = this.ResolveType(ilAsm2, x2.Type, scopeTyArgs2)
+            )
         else
             false
 
@@ -3358,8 +3349,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ty = ty.Apply(tyArgs)
                 let asm = assemblies.[ty.AssemblyIdentity]
                 asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
-            elif ty.IsTypeVariable then
-                ty
             else
                 failwith "Invalid type constructor."
 
