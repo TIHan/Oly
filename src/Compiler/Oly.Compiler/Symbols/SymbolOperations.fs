@@ -1260,8 +1260,8 @@ type TypeSymbol with
                 findMostSpecificIntrinsicFunctionsOfTypeParameter true tyPar
                 |> Seq.map (fun (func: IFunctionSymbol) ->
                     let enclosing = 
-                        func.Enclosing
-                        |> actualEnclosing tyArgs 
+                        func.Formal.Enclosing
+                        |> applyEnclosing tyArgs 
                     actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
                 )
             | _ ->
@@ -1923,6 +1923,12 @@ let findMostSpecificIntrinsicFunctionsOfTypeParameter isTyCtor (tyPar: TypeParam
     tys
     |> Seq.collect (fun ty -> 
         ty.Functions
+    )
+    |> Seq.filter (fun func -> 
+        (not func.IsFormal) ||
+        (not tyPar.HasArity) || 
+        (func.Formal.Enclosing.TypeParameterCount = 0) || 
+        (func.Formal.Enclosing.TypeParameterCount = tyPar.Arity)
     )
     |> ImArray.ofSeq
     |> filterMostSpecificFunctions

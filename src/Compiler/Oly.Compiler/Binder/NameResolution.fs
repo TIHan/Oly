@@ -484,23 +484,26 @@ let bindNameAsFormalItem (cenv: cenv) env syntaxToCaptureOpt (receiverInfoOpt: R
         raise(InternalCompilerException())
 
 let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) (syntaxInfo: BoundSyntaxInfo) (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) (originalValue: IValueSymbol) =
-    let tyArgOffset =
-        if not originalValue.IsInstance then
-            0
-        else
-            match originalValue.Enclosing with
-            | EnclosingSymbol.Entity(ent) ->
-                let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.Formal.Id)
-                enclosingTyInst.Length
-            | _ ->
+    if originalValue.IsInvalid then
+        E.Error(syntaxInfo)
+    else
+        let tyArgOffset =
+            if not originalValue.IsInstance then
                 0
-    let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
-    let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
+            else
+                match originalValue.Enclosing with
+                | EnclosingSymbol.Entity(ent) ->
+                    let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.Formal.Id)
+                    enclosingTyInst.Length
+                | _ ->
+                    0
+        let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
+        let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
-    let finalExpr, _ =
-        bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
+        let finalExpr, _ =
+            bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs tyArgs originalValue
 
-    finalExpr
+        finalExpr
 
 // TODO: This really shouldn't be in NameResolution.
 let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (tyArgs: TypeArgumentSymbol imarray) (originalValue: IValueSymbol) : _ * IValueSymbol =
@@ -1097,6 +1100,15 @@ let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args
 let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs isPatternContext (ident: string) =
     let ty = stripByRef ty
 
+    let ty =
+        match stripTypeEquations ty with
+        | TypeSymbol.Variable(tyPar) when tyPar.HasArity ->
+            // TODO: A type constructor should not be allowed in bindIdentifierAsMemberValue.
+            // REVIEW: Should the object type actually be used for something like this?
+            applyType ty (ImArray.init tyPar.Arity (fun _ -> TypeSymbol.BaseObject))
+        | _ ->
+            ty
+
     let value =
         let queryMemberFlags =
             if isStatic then
@@ -1143,14 +1155,8 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 invalidField ident (Some ty) :> IValueSymbol
 
     match value.Enclosing, stripTypeEquations ty with
-    | EnclosingSymbol.Entity(ent), TypeSymbol.Variable(tyPar) ->
-        // REVIEW: We need to look carefully at this when making changes.
-        if tyPar.HasArity then
-            // REVIEW: Should the object type actually be used for something like this?
-            // TODO: This should actually happen sooner when we bind the type instead of here.
-            value.WithEnclosing(EnclosingSymbol.Witness(applyType ty (ImArray.init tyPar.Arity (fun _ -> TypeSymbol.BaseObject)), ent))
-        else
-            value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
+    | EnclosingSymbol.Entity(ent), TypeSymbol.Variable _ ->
+        value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
     | EnclosingSymbol.Entity(ent), TypeSymbol.HigherVariable(_, tyArgs) ->
         if ent.IsTypeConstructor then
             let appliedEnt =
@@ -1168,7 +1174,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
             match ty with
             | TypeSymbol.Entity(ent) ->
                 value.WithEnclosing(EnclosingSymbol.Entity(ent))
-            | TypeSymbol.Variable(tyPar) ->
+            | TypeSymbol.Variable _ ->
                 value.WithEnclosing(EnclosingSymbol.Witness(ty, invalidEntity))
             | _ ->
                 value
@@ -1781,7 +1787,9 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                     //
                     // Note: We do not support "higher-rank" types.
                     cenv.diagnostics.Error($"'{printType env.benv constrTy}' cannot be a partially applied constraint as it contains second-order generic type parameters.", 10, syntaxConstrTy)
-                constrTy
+                    TypeSymbolError // we must return a error type for proper recovery
+                else
+                    constrTy
             else
                 constrTy
 

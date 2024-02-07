@@ -1342,24 +1342,37 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
         findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
+
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.InferenceVariable(Some tyPar, _) ->
+        OlyAssert.False(tyPar.HasArity)
+
         findMostSpecificIntrinsicFunctionsOfTypeParameter false tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> ImArray.ofSeq
+
     | TypeSymbol.HigherVariable(tyPar, tyArgs)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
+        OlyAssert.True(tyPar.HasArity)
+
         findMostSpecificIntrinsicFunctionsOfTypeParameter true tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> Seq.map (fun func ->
-            let enclosing = 
-                func.Enclosing
-                |> actualEnclosing tyArgs 
-            actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
+            if func.IsFormal then
+                if func.Enclosing.TypeParameterCount = 0 then
+                    func
+                else
+                    let enclosing =
+                        func.Enclosing
+                        |> applyEnclosing tyArgs
+                    actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
+            else
+                func
         )
         |> ImArray.ofSeq
+
     | _ ->
         ImArray.empty
 
@@ -1486,7 +1499,7 @@ let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
                 tyArgs 
                 |> Seq.take value.Enclosing.TypeParameters.Length 
                 |> ImmutableArray.CreateRange
-            applyEnclosing tyArgsForEnclosing value.Enclosing
+            applyEnclosing tyArgsForEnclosing value.Enclosing.Formal
 
         actualValue enclosing tyArgs value.Formal
     | _ ->

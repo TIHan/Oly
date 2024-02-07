@@ -288,6 +288,12 @@ module ImArray =
         |> Seq.distinctBy projection
         |> ofSeq
 
+    let inline take count (arr: imarray<'T>) =
+        // TOOD: Make this efficient
+        arr
+        |> Seq.take count
+        |> ofSeq
+
     let inline filter predicate (arr: imarray<'T>) : imarray<'T> =
         let builder = ImmutableArray.CreateBuilder(arr.Length)
         for i = 0 to arr.Length - 1 do

@@ -40,13 +40,13 @@ let mkHigherInferenceVariableType tyParOpt tyArgs =
     TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(false, true), mkVariableSolution())
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 //#if DEBUG || CHECKED
-//    if not ty.IsError_t && tyPar.HasArity && not ty.IsTypeConstructor then
+//    if tyPar.HasArity && not ty.IsTypeConstructor then
 //        failwith "Expected type constructor."
 //#endif
     let varSolution = VariableSolutionSymbol(false, tyPar.HasArity)
-    varSolution.Solution <- 
-        if varSolution.IsTypeConstructor then
-            ty.Formal // TODO: We should not have to do this. Instead we should just never pass a type who is not a type constructor if the type parameter is a type constructor.
+    varSolution.Solution <-
+        if tyPar.HasArity then
+            ty.Formal // REVIEW: Should we allow non-type-constructors to be passed?
         else
             ty
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
@@ -369,14 +369,6 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.Attributes = attrs.contents
     override _.Flags = lazyFlags.Value
 
-let takeTypeArguments (tyArgs: ImmutableArray<TypeSymbol>) tyParCount =
-    if tyArgs.IsEmpty then
-        ImmutableArray.Empty
-    else
-        tyArgs 
-        |> Seq.take tyParCount
-        |> ImmutableArray.CreateRange
-
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     // TODO: Add ty.IsFormal check.
     if tyArgs.IsEmpty then ty
@@ -405,7 +397,8 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         (applyEntity tyArgs ent.Formal).AsType
 
     | TypeSymbol.Variable(tyPar) when tyPar.Arity > 0 ->
-        TypeSymbol.HigherVariable(tyPar, takeTypeArguments tyArgs tyPar.Arity)
+        OlyAssert.Equal(tyPar.Arity, tyArgs.Length)
+        TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false))
@@ -436,7 +429,9 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution)
 
     | TypeSymbol.HigherVariable(tyPar, _) -> 
-        TypeSymbol.HigherVariable(tyPar, takeTypeArguments tyArgs tyPar.Arity)
+        // TODO: This isn't correct. We can't apply an already applied type.
+        OlyAssert.Equal(tyPar.Arity, tyArgs.Length)
+        TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.ByRef(_, kind) ->
         if tyArgs.Length <> 1 then
@@ -545,23 +540,14 @@ let actualTypes (tyArgs: TypeArgumentSymbol imarray) (tys: TypeSymbol seq) =
     |> Seq.map (actualType tyArgs)
     |> ImmutableArray.CreateRange
 
-let actualEnclosing (tyArgs: TypeSymbol imarray) (enclosing: EnclosingSymbol) =
-    match enclosing with
-    | EnclosingSymbol.Local
-    | EnclosingSymbol.RootNamespace -> enclosing
-    | EnclosingSymbol.Entity(ent) ->
-        EnclosingSymbol.Entity(actualEntity tyArgs ent)
-    | EnclosingSymbol.Witness(n, tr) ->
-        EnclosingSymbol.Witness(n, applyEntity tyArgs tr)
-
 let applyEnclosing (tyArgs: TypeArgumentSymbol imarray) (enclosing: EnclosingSymbol) =
     match enclosing with
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace -> enclosing
     | EnclosingSymbol.Entity(ent) ->
-        EnclosingSymbol.Entity(applyEntity tyArgs ent.Formal)
+        EnclosingSymbol.Entity(applyEntity tyArgs ent)
     | EnclosingSymbol.Witness(n, tr) ->
-        EnclosingSymbol.Witness(n, applyEntity tyArgs tr.Formal)
+        EnclosingSymbol.Witness(n, applyEntity tyArgs tr)
 
 let actualEntities (tyArgs: TypeArgumentSymbol imarray) (ents: EntitySymbol imarray) =
     ents
@@ -620,8 +606,11 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     inherit EntitySymbol()
 
     do
-        if not ent.IsFormal then
-            failwith "Expected formal entity."
+        OlyAssert.True(ent.IsFormal)
+        OlyAssert.True(ent.IsTypeConstructor)
+        OlyAssert.False(ent.TypeParameters.IsEmpty)
+        OlyAssert.False(tyArgs.IsEmpty)
+        OlyAssert.Equal(ent.TypeParameters.Length, tyArgs.Length)
 
     let tyArgs =
         // We have to do this to associate the entity's type parameter with passed type argument to apply.
@@ -647,9 +636,8 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     [<VolatileField>]
     let mutable appliedPats = ValueNone
 
-    let tyArgs = takeTypeArguments tyArgs ent.TypeParameters.Length
-
-    let enclosing = actualEnclosing tyArgs ent.Enclosing
+    // TODO: Fix me now!
+    let enclosing = applyEnclosing (tyArgs |> ImArray.take ent.Enclosing.TypeParameterCount) ent.Enclosing
 
     member _.DebugName = ent.Name
 
@@ -776,13 +764,18 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     override _.Flags = ent.Flags
 
 let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) : EntitySymbol =
-    if not ent.IsFormal then
-        failwith "Expected formal entity."
-    if tyArgs.IsEmpty then ent
-    elif tyArgs.Length <> ent.TypeParameters.Length then OlyAssert.Fail("Type arity should match type parameter count.")
-    else AppliedEntitySymbol(tyArgs, ent)
+    OlyAssert.True(ent.IsFormal)
+    OlyAssert.Equal(ent.TypeParameters.Length, tyArgs.Length)
+
+    if tyArgs.IsEmpty then 
+        ent
+    else 
+        OlyAssert.True(ent.IsTypeConstructor)
+        AppliedEntitySymbol(tyArgs, ent)
 
 let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
+    OlyAssert.True(ent.IsFormal)
+
     let tyArgs2 = 
         (ent.TypeParameters, ent.TypeArguments)
         ||> ImArray.map2 (fun tyPar tyArg -> 
@@ -799,7 +792,7 @@ let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
             else
                 actualType tyArgs tyArg
         )
-    applyEntity tyArgs2 ent.Formal
+    applyEntity tyArgs2 ent
 
 let actualParameter (tyArgs: TypeArgumentSymbol imarray) (par: ILocalParameterSymbol) =
     actualValue par.Enclosing tyArgs par :?> ILocalParameterSymbol
@@ -1661,6 +1654,13 @@ type EnclosingSymbol =
 
     interface ISymbol
 
+    member this.Formal =
+        match this with
+        | Entity(ent) -> EnclosingSymbol.Entity(ent.Formal)
+        | Witness(concreteTy, ent) -> EnclosingSymbol.Witness(concreteTy, ent.Formal)
+        | Local
+        | RootNamespace -> this
+
     member this.IsImported =
         match this with
         | Entity(ent) ->
@@ -1673,7 +1673,7 @@ type EnclosingSymbol =
         match this with
         | Entity(ent) ->
             ent.Attributes
-            |> ImArray.exists (function AttributeSymbol.Export _ -> true | _ -> false)
+            |> ImArray.exists (function AttributeSymbol.Export -> true | _ -> false)
         | _ ->
             false
 

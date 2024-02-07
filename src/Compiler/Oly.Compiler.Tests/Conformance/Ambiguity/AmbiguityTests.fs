@@ -152,10 +152,10 @@ fmap<F<_>, A, B>(ab: A -> B, fa: F<A>) : F<B> where F<_> : Functor =
                                                            ^^^^^^^
 """
         )
-        ("Unable to infer type at this location.",
+        ("Member 'fmap' does not exist on type 'F<?>'.",
             """
     F<_>.fmap<_, _>(ab, fa)
-         ^^^^^^^^^^
+         ^^^^
 """
         )
     ]
