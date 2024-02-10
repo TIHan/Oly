@@ -188,7 +188,7 @@ let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget:
                 if actualTarget.IsShape then
                     let constrTy =
                         if constrTy.IsTypeConstructor && constrTy.Arity = tyParTyArgs.Length then
-                            constrTy.Apply(tyParTyArgs)
+                            applyType constrTy tyParTyArgs
                         else
                             constrTy
                     if subsumesShape env.benv actualTarget constrTy then

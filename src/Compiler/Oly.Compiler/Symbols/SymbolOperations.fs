@@ -147,7 +147,7 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
                                 constr.Substitute(forallTyArgs)
                             )
                     )
-                    TypeSymbol.ForAll(forallTyPars, formalTy2.Apply(forallTyArgs))
+                    TypeSymbol.ForAll(forallTyPars, applyType formalTy2 forallTyArgs)
                 else
                     ty2
 
@@ -1129,9 +1129,6 @@ type TypeSymbol with
         static member DistinctByGeneralization(tys: TypeSymbol seq) =
             HashSet(tys, TypeSymbolGeneralizedComparer()) :> _ seq
 
-        member this.Apply(tyArgs: TypeSymbol imarray) =
-            applyType this tyArgs
-
         member this.LogicalTypeArguments =
             match this with
             | TypeSymbol.Entity(ent) -> ent.LogicalTypeArguments
@@ -1993,7 +1990,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
             let parTy = pars.[0].Type
             match enclosing.TryType with
             | Some(enclosingTy) ->
-                if not (enclosingTy.IsAnyStruct && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy, ByRefKind.ReadWrite)) parTy)) &&
+                if not (enclosingTy.IsAnyStruct && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
                    not (areTypesEqual enclosingTy parTy) then
                     failwith "First parameter of an instance constructor is not the same as the enclosing."
             | _ ->

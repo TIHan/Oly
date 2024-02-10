@@ -4356,108 +4356,6 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Nested type calls should work 9``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-#[intrinsic("utf16")]
-alias utf16
-
-#[intrinsic("float32")]
-alias float32
-
-#[intrinsic("base_object")]
-alias object
-
-#[intrinsic("print")]
-print(object): ()
-
-interface IA<T<_>>
-
-class Test1<T> =
-
-    class Test2<U, V> =
-
-        new() = {}
-
-        class Test3<Z> =
-
-            new() = {}
-
-            static print(t: T, u: U, v: V, z: Z) : () =
-                print(t)
-                print(u)
-                print(v)
-                print(z)
-
-class A<T<_>> =
-    implements IA<A>
-
-test<T<_>>(x: T<A<T>>): () = print("test")
-
-main(): () =
-    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<Test1<int32>.Test2<float32, utf16>.Test3>>()
-    test(t)
-        """
-    Oly src
-    |> withCompile
-    |> shouldRunWithExpectedOutput "test"
-    |> ignore
-
-[<Fact>]
-let ``Nested type calls should work 10``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-#[intrinsic("utf16")]
-alias utf16
-
-#[intrinsic("float32")]
-alias float32
-
-#[intrinsic("base_object")]
-alias object
-
-#[intrinsic("print")]
-print(object): ()
-
-interface IA<T<_>>
-
-class Test1<T> =
-
-    class Test2<U, V> =
-
-        new() = {}
-
-        class Test3<Z> =
-
-            new() = {}
-
-            static print(t: T, u: U, v: V, z: Z) : () =
-                print(t)
-                print(u)
-                print(v)
-                print(z)
-
-class A<T<_>> =
-    implements IA<A>
-
-test<T<_>>(x: T<A<T>>): () = print("test")
-
-main(): () =
-    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<Test1<int32>.Test2<float32, utf16>.Test3>>()
-    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
-        """
-    Oly src
-    |> withCompile
-    |> shouldRunWithExpectedOutput "test"
-    |> ignore
-
-[<Fact>]
 let ``A basic function marked with the inline attribute will be inlined by the runtime``() =
     let src =
         """
@@ -18804,4 +18702,34 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "5"
+    |> ignore
+
+[<Fact>]
+let ``Property as a function type alias``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+alias PropFunc = (int32, int32, int32) -> () 
+
+class C =
+
+    F: PropFunc
+        get = 
+            (x: int32, y: int32, z: int32) -> 
+                print(x)
+                print(y)
+                print(z)
+                print("hello")
+
+main(): () =
+    let c = C()
+    c.F(1, 2, 3)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123hello"
     |> ignore

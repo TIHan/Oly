@@ -28,27 +28,18 @@ let mkInferenceVariableType tyParOpt =
         TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(false, true))
     | _ ->
         TypeSymbol.CreateInferenceVariable(tyParOpt, mkVariableSolution())
-let mkHigherInferenceVariableType tyParOpt tyArgs = 
-#if DEBUG || CHECKED
-    match tyParOpt with
-    | Some (tyPar: TypeParameterSymbol) ->
-        OlyAssert.True(tyPar.HasArity)
-    | _ ->
-        ()
-#endif
-
+let mkHigherInferenceVariableType tyParOpt (tyArgs: TypeSymbol imarray) = 
     TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(false, true), mkVariableSolution())
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
-//#if DEBUG || CHECKED
-//    if tyPar.HasArity && not ty.IsTypeConstructor then
-//        failwith "Expected type constructor."
-//#endif
+#if DEBUG || CHECKED
+    if not ty.IsError_t then
+        if not tyPar.HasArity && ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+        if tyPar.HasArity && not ty.IsTypeConstructor then
+            failwith "Expected type constructor."
+#endif
     let varSolution = VariableSolutionSymbol(false, tyPar.HasArity)
-    varSolution.Solution <-
-        if tyPar.HasArity then
-            ty.Formal // REVIEW: Should we allow non-type-constructors to be passed?
-        else
-            ty
+    varSolution.Solution <- ty
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
@@ -370,22 +361,19 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.Flags = lazyFlags.Value
 
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
-    // TODO: Add ty.IsFormal check.
+    if ty.IsError_t then ty
+    else
+
+    OlyAssert.True(ty.IsFormal)
+    OlyAssert.Equal(ty.Arity, tyArgs.Length)
+
     if tyArgs.IsEmpty then ty
     else
 
     match ty with
-    | TypeSymbol.Error _ -> ty
-    | _ ->
-
-    if tyArgs.Length <> ty.Arity then failwith "Type arity should match type parameter count."
-    else
-
-    match ty with
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
-#if DEBUG || CHECKED
         OlyAssert.False(innerTy.IsFormal)
-#endif
+
         let tyArgs =
             (tyArgs, tyPars)
             ||> ImArray.map2 (fun tyArg tyPar ->
@@ -394,44 +382,14 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         substituteType tyArgs innerTy
 
     | TypeSymbol.Entity(ent) -> 
-        (applyEntity tyArgs ent.Formal).AsType
+        OlyAssert.True(ent.IsTypeConstructor)
+        (applyEntity tyArgs ent).AsType
 
     | TypeSymbol.Variable(tyPar) when tyPar.Arity > 0 ->
-        OlyAssert.Equal(tyPar.Arity, tyArgs.Length)
         TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false))
-
-    | TypeSymbol.HigherInferenceVariable(tyParOpt, _, externalSolution, _) -> 
-        OlyAssert.True(externalSolution.IsTypeConstructor)
-
-        let solution = VariableSolutionSymbol(false, false)
-        if externalSolution.HasSolution then
-            match externalSolution.Solution with
-            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution2, solution2) ->
-                OlyAssert.True(externalSolution2.IsTypeConstructor)
-
-                if solution2.HasSolution then
-                    solution.Solution <- solution2.Solution
-                elif externalSolution2.HasSolution then
-                    match externalSolution.Solution with
-                    | TypeSymbol.HigherInferenceVariable _ ->
-                        failwith "Unexpected higher inference variable type."
-                    | _ ->
-                        ()
-
-                    solution.Solution <- applyType externalSolution.Solution tyArgs
-                else
-                    solution.Solution <- TypeSymbol.Error(tyParOpt, Some "Internal Error: Expected a solved higher inference variable type.")
-            | _ ->
-                solution.Solution <- applyType externalSolution.Solution tyArgs
-        TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution)
-
-    | TypeSymbol.HigherVariable(tyPar, _) -> 
-        // TODO: This isn't correct. We can't apply an already applied type.
-        OlyAssert.Equal(tyPar.Arity, tyArgs.Length)
-        TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.ByRef(_, kind) ->
         if tyArgs.Length <> 1 then
@@ -450,8 +408,8 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         TypeSymbol.NativePtr(tyArgs[0])
 
     | TypeSymbol.Tuple _ ->
-        Assert.ThrowIfNot(ty.IsFormal)
-        Assert.ThrowIfNot(tyArgs.Length > 0)
+        OlyAssert.True(tyArgs.Length > 0)
+
         if tyArgs.Length = 1 then
             match stripTypeEquationsAndBuiltIn tyArgs[0] with
             | TypeSymbol.Unit ->
@@ -464,11 +422,11 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         else
             TypeSymbol.CreateTuple(tyArgs)
 
-    | TypeSymbol.Array(elementTy, rank, kind) ->
+    | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
         
     | _ ->
-        raise(NotImplementedException(ty.GetType().Name))
+        failwith "Unexpected type application"
 
 let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
     // TODO: This could be a little more memory efficient by not constructing new type symbols if they didn't change.
@@ -3002,6 +2960,12 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
     let ty = TypeSymbol.Variable(this)
     let mutable constrs = constrs
 
+    let higherTyPars =
+        if arity > 0 then
+            ImArray.init arity (fun i -> TypeParameterSymbol("_", i, 0, TypeParameterKind.Type, ref ImArray.empty))
+        else
+            ImArray.empty
+
     do
         if arity < 0 then
             failwith "Internal error: Arity must not be below zero."
@@ -3036,6 +3000,8 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
     member _.IsHidden = hiddenLinkOpt.IsSome
 
     member _.HiddenLink = hiddenLinkOpt
+
+    member _.HigherTypeParameters = higherTyPars
 
     /// Mutability
     member this.SetConstraints(newConstrs) =
@@ -3118,8 +3084,12 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) =
             solutionState
         and set (value: TypeSymbol) = 
 #if DEBUG || CHECKED
-            if isTyCtor && not value.IsTypeConstructor && not value.IsError_t then
-                failwith "Expected type constructor."
+            if not value.IsError_t then
+                if isTyCtor then
+                    if not value.IsTypeConstructor then
+                        failwith "Expected type constructor."
+                    if value.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
+                        failwith "Unexpected type parameter with arity."
 
             // Sanity check to make sure we do not create a circular reference. Not bullet-proof though.
             match value with
@@ -3182,19 +3152,64 @@ let private FormalNativePtrTypeParameters =
 let private FormalNativePtrType =
     TypeSymbol.NativePtr(FormalNativePtrTypeParameters[0].AsType)
 
-let private FormalArrayTypeParameters =
-    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
-    |> ImArray.createOne
+[<RequireQualifiedAccess>]
+module private FormalArray =
 
-let private FormalArrayType =
-    TypeSymbol.Array(FormalArrayTypeParameters[0].AsType, 1, ArrayKind.Immutable)
+    let TypeParameters =
+        TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+        |> ImArray.createOne
 
-let private FormalMutableArrayTypeParameters =
-    TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
-    |> ImArray.createOne
+    let private comparer =
+        { new IEqualityComparer<struct(int32 * ArrayKind)> with
 
-let private FormalMutableArrayType =
-    TypeSymbol.Array(FormalMutableArrayTypeParameters[0].AsType, 1, ArrayKind.Mutable)
+            member this.GetHashCode((rank, _)) = 
+                rank
+
+            member this.Equals((rank1, kind1), (rank2, kind2)) =
+                rank1 = rank2 && kind1 = kind2
+        }
+
+    let private lockObj = obj()
+    let private cache = System.Collections.Concurrent.ConcurrentDictionary(comparer)
+
+    let Get(rank: int32, kind: ArrayKind) : TypeSymbol =
+        let key = struct(rank, kind)
+        match cache.TryGetValue key with
+        | true, formalTy -> formalTy
+        | _ ->
+            lock lockObj (fun () ->
+                match cache.TryGetValue key with
+                | true, formalTy -> formalTy
+                | _ ->
+                    let formalTy = TypeSymbol.Array(TypeParameters[0].AsType, rank, kind)
+                    cache[key] <- formalTy
+                    formalTy
+            )
+
+[<RequireQualifiedAccess>]
+module private FormalNativeFunctionPtr =
+
+    let TypeParameters =
+        let returnTy = TypeParameterSymbol("TReturn", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+        let argsTy = TypeParameterSymbol("TArguments", 1, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+        ImArray.createTwo returnTy argsTy
+
+    let private lockObj = obj()
+    let private cache = System.Collections.Concurrent.ConcurrentDictionary()
+
+    let Get(ilCallConv) : TypeSymbol =
+        let key = ilCallConv
+        match cache.TryGetValue key with
+        | true, formalTy -> formalTy
+        | _ ->
+            lock lockObj (fun () ->
+                match cache.TryGetValue key with
+                | true, formalTy -> formalTy
+                | _ ->
+                    let formalTy = TypeSymbol.NativeFunctionPtr(ilCallConv, TypeParameters[0].AsType, TypeParameters[1].AsType)
+                    cache[key] <- formalTy
+                    formalTy
+            )
 
 let private FormalTupleTypeParameters: TypeParameterSymbol imarray =
     let tyPar = TypeParameterSymbol("TElements", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty)
@@ -3299,8 +3314,23 @@ type TypeSymbol =
         TypeSymbol.InferenceVariable(tyParOpt, solution)
 
     static member CreateHigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution) =
+#if DEBUG || CHECKED
+        match tyParOpt with
+        | Some (tyPar: TypeParameterSymbol) ->
+            OlyAssert.True(tyPar.HasArity)
+        | _ ->
+            ()
+
+        tyArgs
+        |> ImArray.iter (fun tyArg ->
+            OlyAssert.False(tyArg.IsTypeConstructor)
+        )
+#endif
         OlyAssert.True(externalSolution.IsTypeConstructor)
         TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution)
+
+    member this.ToInstantiation() =
+        applyType this this.TypeArguments
 
     member this.IsBuiltIn =
         match stripTypeEquations this with
@@ -3355,15 +3385,15 @@ type TypeSymbol =
             | _ -> false
 
     member this.Formal =
-        match stripTypeEquations this with
+        match stripTypeEquationsExceptAlias this with
         | TypeSymbol.Entity(ent) -> TypeSymbol.Entity(ent.Formal)
         | TypeSymbol.ByRef(_, kind) -> TypeSymbol.GetFormalByRef(kind)
         | TypeSymbol.Function(kind=FunctionKind.Normal) -> FormalNormalFunctionType
         | TypeSymbol.Function(kind=FunctionKind.Scoped) -> FormalScopedFunctionType
+        | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) -> FormalNativeFunctionPtr.Get(ilCallConv)
         | TypeSymbol.RefCell _ -> FormalRefCellType
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
-        | TypeSymbol.Array(_, 1, ArrayKind.Immutable) -> FormalArrayType
-        | TypeSymbol.Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayType
+        | TypeSymbol.Array(_, rank, kind) -> FormalArray.Get(rank, kind)
         | TypeSymbol.Tuple _ -> FormalTupleType
         | TypeSymbol.DependentIndexer _ -> FormalDependentIndexerType
         | TypeSymbol.HigherVariable(tyPar, _) ->
@@ -3483,11 +3513,6 @@ type TypeSymbol =
             prefix + this.Name + "<" + (this.TypeArguments |> Seq.map (fun x -> if this.IsTypeConstructor then "_" else x.DebugName) |> String.concat ", ") + ">"
 
     member this.Arity =
-        match this with
-        | InferenceVariable(Some tyPar, _)
-        | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
-        | _ ->
-
         match stripTypeEquationsExceptAlias this with
         | Variable(tyPar)
         | HigherVariable(tyPar, _)
@@ -3547,27 +3572,32 @@ type TypeSymbol =
         | Char16
         | Utf16 
         | ConstantInt32 _
-        | Variable _ 
         | Error _ 
-        | InferenceVariable _ 
         | BaseObject
         | NativeInt
         | NativeUInt
         | EagerInferenceVariable _ -> ImArray.empty
         | RefCell _ -> FormalRefCellTypeParameters
         | Function _ -> FormalFunctionTypeParameters
-        | HigherInferenceVariable(_, tyArgs, _, _)
-        | HigherVariable(_, tyArgs) -> tyArgs |> ImArray.mapi (fun i _ -> TypeParameterSymbol("_", i, 0, TypeParameterKind.Type, ref ImArray.empty))
         | ForAll(tyPars, _) -> tyPars
         | ByRef _ -> ByReferenceTypeParameters
         | Entity(ent) -> ent.TypeParameters
-        | Array(_, 1, ArrayKind.Immutable) -> FormalArrayTypeParameters
-        | Array(_, 1, ArrayKind.Mutable) -> FormalMutableArrayTypeParameters
-        | Array _ -> TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
+        | Array _ -> FormalArray.TypeParameters
         | Tuple _ -> FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
         | DependentIndexer _ -> FormalDependentIndexerTypeParameters
+
+        | Variable(tyPar)
+        | HigherVariable(tyPar, _)
+        | InferenceVariable(Some tyPar, _) 
+        | HigherInferenceVariable(Some tyPar, _, _, _) ->
+            tyPar.HigherTypeParameters
+        | InferenceVariable _ ->
+            ImArray.empty
+        | HigherInferenceVariable(_, tyArgs, _, _) ->
+            // REVIEW: Perhaps higher inference variables ALWAYS need a type parameter associated with.
+            tyArgs |> ImArray.mapi (fun i _ -> TypeParameterSymbol("_", i, 0, TypeParameterKind.Type, ref ImArray.empty))
 
     member this.TypeArguments : TypeArgumentSymbol imarray =
         match stripTypeEquationsExceptAlias this with
@@ -3586,10 +3616,8 @@ type TypeSymbol =
         | Bool
         | Char16
         | Utf16 
-        | ConstantInt32 _
-        | Variable _ 
+        | ConstantInt32 _ 
         | Error _ 
-        | InferenceVariable _ 
         | BaseObject
         | NativeInt
         | NativeUInt
@@ -3619,6 +3647,13 @@ type TypeSymbol =
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
         | DependentIndexer(inputValueTy, innerTy) -> ImArray.createTwo inputValueTy innerTy
+
+        | Variable(tyPar)
+        | InferenceVariable(Some tyPar, _) ->
+            tyPar.HigherTypeParameters
+            |> ImArray.map (fun x -> x.AsType)
+        | InferenceVariable _ ->
+            ImArray.empty
 
     member this.FormalId =
         match stripTypeEquationsExceptAlias this with
@@ -3739,15 +3774,7 @@ type TypeSymbol =
         (not this.IsAnyStruct) || this.IsAnyTypeVariableWithNotStructConstraint
 
     member this.IsTypeConstructor =
-        match stripTypeEquations this with
-        | ForAll _ -> true
-        | Variable(tyPar) -> tyPar.Arity > 0
-        | Entity(ent) -> ent.IsTypeConstructor
-        | InferenceVariable(Some tyPar, _) -> tyPar.Arity > 0
-        | Error(Some tyPar, _) -> tyPar.Arity > 0
-        | ByRef _ 
-        | Function _ -> this.IsFormal
-        | _ -> false
+        this.Arity > 0 && this.IsFormal
 
     member this.RuntimeType =
         match stripTypeEquations this with
@@ -4121,52 +4148,53 @@ type TypeSymbol =
         | _ -> true
 
     member this.IsFormal =
-        match this.TryEntity with
-        | ValueSome ent -> ent.Id = ent.Formal.Id
-        | _ ->
-            // TODO: This may not all be right. What about tuple, function, etc?
-            match stripTypeEquations this with
-            | ForAll _ -> true
-            | (Tuple _ as ty) -> obj.ReferenceEquals(ty, Types.Tuple)
-            | (NativePtr _ as ty) -> obj.ReferenceEquals(ty, Types.NativePtr)
-            | Variable _
-            | Void
-            | NativeInt
-            | NativeUInt
-            | BaseObject
-            | Unit
-            | Int8
-            | UInt8
-            | Int16
-            | UInt16
-            | Int32
-            | UInt32 
-            | Int64
-            | UInt64
-            | Float32 
-            | Float64 
-            | Bool
-            | Char16 
-            | Utf16 -> true
-            | ByRef(elementTy, kind) ->
-                match elementTy with
-                | TypeSymbol.Variable(tyPar) ->
-                    obj.ReferenceEquals(tyPar, ByReferenceTypeParameters[0])
-                | _ ->
-                    false
-            | Function(kind=FunctionKind.Normal) as ty ->
-                obj.ReferenceEquals(FormalNormalFunctionType, ty)
-            | Function(kind=FunctionKind.Scoped) as ty ->
-                obj.ReferenceEquals(FormalScopedFunctionType, ty)
-            | RefCell _ as ty ->
-                obj.ReferenceEquals(FormalRefCellType, ty)
-            | Array(_, 1, ArrayKind.Immutable) as ty ->
-                obj.ReferenceEquals(FormalArrayType, ty)
-            | Array(_, 1, ArrayKind.Mutable) as ty ->
-                obj.ReferenceEquals(FormalMutableArrayType, ty)
-            | DependentIndexer _ as ty ->
-                obj.ReferenceEquals(FormalDependentIndexerType, ty)
-            | _ -> false
+        match stripTypeEquationsExceptAlias this with
+        | Entity(ent) -> ent.Id = ent.Formal.Id
+        | ForAll _ -> true
+        | (Tuple _ as ty) -> obj.ReferenceEquals(ty, Types.Tuple)
+        | (NativePtr _ as ty) -> obj.ReferenceEquals(ty, Types.NativePtr)
+        | Variable _
+        | Void
+        | NativeInt
+        | NativeUInt
+        | BaseObject
+        | Unit
+        | Int8
+        | UInt8
+        | Int16
+        | UInt16
+        | Int32
+        | UInt32 
+        | Int64
+        | UInt64
+        | Float32 
+        | Float64 
+        | Bool
+        | Char16 
+        | Utf16 -> true
+        | ByRef(elementTy, _) ->
+            match elementTy with
+            | TypeSymbol.Variable(tyPar) ->
+                obj.ReferenceEquals(tyPar, ByReferenceTypeParameters[0])
+            | _ ->
+                false
+        | Function(kind=FunctionKind.Normal) as ty ->
+            obj.ReferenceEquals(FormalNormalFunctionType, ty)
+        | Function(kind=FunctionKind.Scoped) as ty ->
+            obj.ReferenceEquals(FormalScopedFunctionType, ty)
+        | NativeFunctionPtr(ilCallConv, _, _) as ty ->
+            obj.ReferenceEquals(FormalNativeFunctionPtr.Get(ilCallConv), ty)
+        | RefCell _ as ty ->
+            obj.ReferenceEquals(FormalRefCellType, ty)
+        | Array(_, rank, kind) as ty ->
+            obj.ReferenceEquals(FormalArray.Get(rank, kind), ty)
+        | DependentIndexer _ as ty ->
+            obj.ReferenceEquals(FormalDependentIndexerType, ty)
+
+        | InferenceVariable(Some tyPar, _) -> tyPar.Arity > 0
+
+        | _ -> 
+            false
 
     /// TODO: Rename to "TryAnyFunction".
     member this.TryFunction =

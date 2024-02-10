@@ -1459,7 +1459,9 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
     bind cenv env resTyArity false syntaxTy
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
-    if resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty then
+    if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then
+        ty
+    elif resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty then
         if not ty.IsTypeConstructor then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
         ty
@@ -1523,35 +1525,30 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 let env = env.UnsetIsInOpenDeclaration()
                 bindTypeArgumentsAsTypes cenv env tyArities (syntaxTyArgsRoot, syntaxTyArgs)
 
+        // TODO: This could use some cleanup.
+        //       We need to check the number of type argument and make sure they are valid.
         let tyArgs =
             if hasOpenDeclWildCard then
                 ImArray.empty
             else
-                if ty.TypeParameters.Length > partialTyInst.Length then
-                    let enclosingTyInst =
-                        ty.TypeArguments
-                        |> Seq.take (ty.TypeParameters.Length - partialTyInst.Length)
-                        |> Seq.map (fun x ->
-                            match x with
-                            // Handles generic local type definitions.
-                            | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
-                                tyPar.HiddenLink.Value.AsType
-                            | _ ->
-                                x
-                        )
-                        |> ImArray.ofSeq
-                    enclosingTyInst.AddRange(partialTyInst)
-                else
-                    partialTyInst
+                let tyArgs =
+                    if ty.TypeParameters.Length > partialTyInst.Length then
+                        let enclosingTyInst =
+                            ty.TypeArguments
+                            |> Seq.take (ty.TypeParameters.Length - partialTyInst.Length)
+                            |> Seq.map (fun x ->
+                                match x with
+                                // Handles generic local type definitions.
+                                | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
+                                    tyPar.HiddenLink.Value.AsType
+                                | _ ->
+                                    x
+                            )
+                            |> ImArray.ofSeq
+                        enclosingTyInst.AddRange(partialTyInst)
+                    else
+                        partialTyInst
 
-        let ty =
-            if hasOpenDeclWildCard then
-                ty
-
-            // TODO: This check is a bit weird. A type parameter who is a generic type constructor, T<_>, will not have any type parameters, but it will have arity. Fix this.
-            elif ty.Arity = tyArgs.Length then
-                ty.Apply(tyArgs)
-            else
                 if not ty.IsError_t (* error recovery *) then
                     if ty.TypeParameters.Length <> tyArgs.Length || (ty.HasTypeVariableArity && resTyArity.IsZero) then
                         let syntaxNode =
@@ -1560,6 +1557,39 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                             else
                                 syntaxTyArgsRoot
                         cenv.diagnostics.Error("Type argument count do not match the type parameter count.", 10, syntaxNode)
+
+                if ty.Arity = tyArgs.Length then
+                    (ty.TypeParameters, tyArgs)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        if tyArg.IsError_t then
+                            tyArg
+                        elif not tyPar.HasArity && tyArg.IsTypeConstructor then
+                            cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used a type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
+                            TypeSymbol.Error(Some tyPar, None)
+                        elif tyPar.HasArity then
+                            if tyArg.IsTypeConstructor then
+                                if tyArg.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
+                                    cenv.diagnostics.Error($"'{printType env.benv tyArg}' has type parameters that require type constructors, therefore, cannot be used as a type constructor.", 10, syntaxTyArgsRoot)
+                                    TypeSymbol.Error(Some tyPar, None)
+                                else
+                                    tyArg
+                            else
+                                cenv.diagnostics.Error($"'{printType env.benv tyArg}' is not a type constructor for an instantiation that does expect one.", 10, syntaxTyArgsRoot)
+                                TypeSymbol.Error(Some tyPar, None)
+                        else
+                            tyArg
+                    )
+                else
+                    tyArgs
+
+        let ty =
+            if hasOpenDeclWildCard then
+                ty
+
+            // TODO: This check is a bit weird. A type parameter who is a generic type constructor, T<_>, will not have any type parameters, but it will have arity. Fix this.
+            elif ty.Arity = tyArgs.Length then
+                applyType ty.Formal tyArgs 
+            else
                 ty
 
         if not env.skipCheckTypeConstructor then
@@ -1840,7 +1870,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                         match syntaxConstrTy with
                         | OlySyntaxType.Shape(syntaxCurlyBrakcets) ->
                             let constrTy = cenv.bindAnonymousShapeTypeHole cenv env tyPars syntaxCurlyBrakcets.Element
-                            constrTy.Apply(tyArgs)
+                            applyType constrTy tyArgs
                         | _ ->
                             raise(InternalCompilerUnreachedException())
             | _ ->
@@ -1895,14 +1925,14 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
 let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit -> unit>) (lookup: Dictionary<TypeParameterSymbol, ConstraintSymbol imarray>) (hash: HashSet<_>) (syntaxConstrClause: OlySyntaxConstraintClause) =
     match syntaxConstrClause with
     | OlySyntaxConstraintClause.ConstraintClause(_, syntaxTy, _, syntaxConstrList) ->
-        let ty, isTyCtor = 
+        let ty, isConstructing = 
             match syntaxTy with
             | OlySyntaxType.Name(syntaxName) ->
-                let isTyCtor =
+                let isConstructing =
                     match syntaxName with
                     | OlySyntaxName.Generic _ -> true
                     | _ -> false
-                bindType cenv env None ResolutionTypeArity.Any syntaxTy, isTyCtor
+                bindType cenv env None ResolutionTypeArity.Any syntaxTy, isConstructing
             | _ ->
                 TypeSymbolError, false
 
@@ -1918,7 +1948,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<u
                 cenv.diagnostics.Error("Expected a type parameter for the constraint.", 10, syntaxTy)
                 invalidTypeParameter TypeParameterKind.Type
 
-        if not (hash.Add(struct(tyPar.Id, isTyCtor))) then
+        if not (hash.Add(struct(tyPar.Id, isConstructing))) then
             cenv.diagnostics.Error(sprintf "'%s' already has specified constraints." (printType env.benv tyPar.AsType), 10, syntaxTy)
         else
             let resTyArity =

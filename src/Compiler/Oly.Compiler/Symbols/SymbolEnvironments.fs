@@ -34,7 +34,7 @@ type ResolutionTypeArity =
 
     member this.IsAny_t =
         match this with
-        | Any _ -> true
+        | Any -> true
         | _ -> false
 
     member this.IsSecondOrder_t =

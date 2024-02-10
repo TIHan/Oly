@@ -6172,12 +6172,6 @@ test<T<_>>(x: T): () = ()
               ^
 """
             )
-            ("Internal Error: Type constructor is used illegally.",
-                """
-test<T<_>>(x: T): () = ()
-              ^
-"""
-            )
         ]
     |> ignore
 
@@ -9033,10 +9027,10 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'A<A>' but is 'Test3<A<A>>'.",
+            ("'A<T>' has type parameters that require type constructors, therefore, cannot be used as a type constructor.",
                 """
-    test(t)
-         ^
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<A>>()
+                                                      ^^^
 """
             )
         ]
@@ -9088,10 +9082,10 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Test3<A<<Z> Test3<Z>>>' but is 'Test3<A<A>>'.",
+            ("'A<T>' has type parameters that require type constructors, therefore, cannot be used as a type constructor.",
                 """
-    test<Test1<int32>.Test2<float32, utf16>.Test3>(t)
-                                                   ^
+    let t = Test1<int32>.Test2<float32, utf16>.Test3<A<A>>()
+                                                      ^^^
 """
             )
         ]

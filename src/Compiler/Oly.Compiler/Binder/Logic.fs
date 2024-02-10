@@ -45,10 +45,8 @@ let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: Enc
             else
                 ent.AsType
         let attrs = ImArray.empty
-        let parInstanceTy = applyType ty ty.TypeArguments
-        if not parInstanceTy.IsError_t && parInstanceTy.IsTypeConstructor then
-            failwith "Unexpected type constructor."
-        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy (applyType ty ty.TypeArguments), false)) pars
+        let parInstanceTy = applyType ty.Formal ty.TypeArguments
+        ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy parInstanceTy, false)) pars
     | EnclosingSymbol.Witness(witnessTy, _) ->
         let attrs = ImArray.empty
         ImArray.prependOne (createLocalParameterValue(attrs, "", tryAddrTy witnessTy, false)) pars

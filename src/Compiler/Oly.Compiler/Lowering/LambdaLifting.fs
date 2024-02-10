@@ -419,7 +419,12 @@ let substitute
                         let allTyArgs =
                             (value.AllTypeParameters, value.AllTypeArguments) 
                             ||> ImArray.map2 (fun tyPar tyArg -> 
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
+                                let newTyArg = tyArg.Substitute(tyParLookup)
+                                // REVIEW: This is a little curious, but perhaps it is ok.
+                                if tyPar.HasArity then
+                                    mkSolvedInferenceVariableType tyPar newTyArg.Formal
+                                else
+                                    mkSolvedInferenceVariableType tyPar newTyArg
                             )
                         
                         let appliedValue = 
