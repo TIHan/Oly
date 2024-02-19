@@ -1797,3 +1797,31 @@ class B =
     |> Oly
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous class name that was defined in the same compilation unit``() =
+    let src2 =
+        """
+module Test.A
+
+class C
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+class C
+
+M(c: C): () = ()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+
+    OlyTwo src1 src2
+    |> withCompile
+    |> ignore
