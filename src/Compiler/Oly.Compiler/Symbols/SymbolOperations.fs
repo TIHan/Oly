@@ -1307,7 +1307,11 @@ type TypeSymbol with
             | TypeSymbol.NativePtr _
             | TypeSymbol.NativeFunctionPtr _ -> true
             | TypeSymbol.Entity(ent) -> ent.IsUnmanaged
-            | _ -> false
+            | TypeSymbol.Tuple(itemTys, _) ->
+                itemTys
+                |> ImArray.forall (fun x -> x.IsUnmanaged)
+            | _ -> 
+                false
 
 type EntitySymbol with
 
