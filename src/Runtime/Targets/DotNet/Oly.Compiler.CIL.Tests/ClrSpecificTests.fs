@@ -6954,3 +6954,83 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "List`1List`1456List`1List`19.1"
     |> ignore
+
+[<Fact>]
+let ``byref captured in scoped lambda``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(never)]
+M(f: scoped () -> ()): () =
+    f()
+
+#[inline(never)]
+M2(m: byref<Matrix4x4>): () =
+    M(() -> print(m.M11))
+
+#[inline(never)]
+M3(): () =
+    let mutable m = Matrix4x4.Identity
+    M2(&m)
+
+main(): () =
+    M3()
+        """
+
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
+    |> ignore
+
+[<Fact>]
+let ``inref captured in scoped lambda``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline(never)]
+M(f: scoped () -> ()): () =
+    f()
+
+#[inline(never)]
+M2(m: inref<Matrix4x4>): () =
+    M(() -> print(m.M11))
+
+#[inline(never)]
+M3(): () =
+    let m = Matrix4x4.Identity
+    M2(&m)
+
+main(): () =
+    M3()
+        """
+
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
+    |> ignore

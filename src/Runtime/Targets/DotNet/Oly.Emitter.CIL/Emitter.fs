@@ -2651,8 +2651,14 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let fieldTy =
                 // If the field type is a byref, then emit it as a native-pointer if IsByRefLike doesn't exist.
                 match fieldTy.TryByRefElementType with
-                | ValueSome elementTy when asmBuilder.tr_IsByRefLikeAttributeConstructor.IsNone ->
-                    ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddNativePointer(elementTy.Handle), false, true)
+                | ValueSome elementTy ->
+                    if asmBuilder.tr_IsByRefLikeAttributeConstructor.IsNone then
+                        ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddNativePointer(elementTy.Handle), false, true)
+                    elif fieldTy.IsReadOnly then
+                        // IMPORTANT: We cannot emit a read-only byref as a field, so emit it as a normal byref.
+                        ClrTypeInfo.ByRef(elementTy, false, ClrTypeHandle.CreateByRef(elementTy.Handle))
+                    else
+                        fieldTy
                 | _ ->
                     fieldTy
             let fieldTyHandle = fieldTy.Handle
