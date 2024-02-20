@@ -447,3 +447,66 @@ main(): () =
 """)
         ]
     |> ignore
+
+[<Fact>]
+let ``Ignore multiple patterns should compile``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (x: int32, y: int32) when (true) =>
+    (x, x)
+
+main(): () =
+    match (1)
+    | P(y, _) =>
+        ()
+    | _ =>
+        ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Ignore multiple patterns should compile 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (x: int32, y: int32, z: int32) when (true) =>
+    (x, x, x)
+
+main(): () =
+    match (1)
+    | P(y, _, _) =>
+        ()
+    | _ =>
+        ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Ignore multiple patterns should compile 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+pattern P(x: int32): (x: int32, y: int32, z: int32, w: int32) when (true) =>
+    (x, x, x, x)
+
+main(): () =
+    match (1)
+    | P(y, _, _, _) =>
+        ()
+    | _ =>
+        ()
+        """
+    Oly src
+    |> shouldCompile
+    |> ignore

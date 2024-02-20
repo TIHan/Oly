@@ -785,6 +785,20 @@ let transformTargetExpression (cenv: cenv) matchPatternLookup i targetExpr =
     | _ ->
         targetExpr
 
+#if DEBUG || CHECKED
+let checkBodyExpressionForInsert (expr: E) =
+    match expr with
+    | E.None _ 
+    | E.Let _
+    | E.IfElse _
+    | Ignore _ -> true
+    | E.Sequential(_, expr1, expr2, _) ->
+        checkBodyExpressionForInsert expr1 &&
+        checkBodyExpressionForInsert expr2
+    | _ -> 
+        false
+#endif
+
 let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
     (expr.FlattenSequentialExpressions(), exprToInsert)
     ||> Seq.foldBack (fun letExpr expr ->
@@ -794,16 +808,23 @@ let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
                 Assert.ThrowIfNot(
                     match bodyExpr with
                     | E.None _ 
-                    | E.Let _ -> true
-                    | E.IfElse _ -> true
+                    | E.Let _
+                    | E.IfElse _
+                    | E.Sequential _
                     | Ignore _ -> true
                     | _ -> false
                 )
+
+#if DEBUG || CHECKED
+                OlyAssert.True(checkBodyExpressionForInsert bodyExpr)
+#endif
+
                 match bodyExpr with
                 | E.None _ ->
                     E.Let(syntaxInfo, bindingInfo, rhsExpr, expr)
                 | E.Let _ 
                 | E.IfElse _
+                | E.Sequential _
                 | Ignore _ ->
                     E.Let(syntaxInfo, bindingInfo, rhsExpr, transform bodyExpr)
                 | _ ->

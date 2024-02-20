@@ -60,7 +60,7 @@ type OlyAssert =
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member Contains<'T> (src: HashSet<'T>, expected: 'T) =
         if not(src.Contains(expected)) then
-            OlyAssertionException "Assertion failed."
+            OlyAssertionException "Contains assertion failed."
             |> raise
 
     [<DebuggerHidden>]
@@ -69,7 +69,7 @@ type OlyAssert =
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member NotContains<'T> (src: HashSet<'T>, expected: 'T) =
         if src.Contains(expected) then
-            OlyAssertionException "Assertion failed."
+            OlyAssertionException "NotContains assertion failed."
             |> raise
 
     [<DebuggerHidden>]
@@ -78,7 +78,7 @@ type OlyAssert =
     [<MethodImpl(MethodImplOptions.NoInlining)>]
     static member ContainsKey<'TKey, 'TValue> (src: IDictionary<'TKey, 'TValue>, expectedKey: 'TKey) =
         if not(src.ContainsKey(expectedKey)) then
-            OlyAssertionException "Assertion failed."
+            OlyAssertionException "ContainsKey assertion failed."
             |> raise
 
     [<DebuggerHidden>]

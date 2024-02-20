@@ -928,6 +928,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceValueTuple`3`` = sysTy "ValueTuple`3" true
     member val ``TypeReferenceValueTuple`4`` = sysTy "ValueTuple`4" true
     member val ``TypeReferenceValueTuple`5`` = sysTy "ValueTuple`5" true
+    member val ``TypeReferenceValueTuple`6`` = sysTy "ValueTuple`6" true
+    member val ``TypeReferenceValueTuple`7`` = sysTy "ValueTuple`7" true
 
     member val tr_InAttribute: ClrTypeHandle option = None with get, set
     member val tr_IsReadOnlyAttribute: ClrTypeHandle option = None with get, set
@@ -1481,8 +1483,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         | 3 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`3``, tyInst)
         | 4 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`4``, tyInst)
         | 5 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`5``, tyInst)
+        | 6 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`6``, tyInst)
+        | 7 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`7``, tyInst)
         | _ ->
-            raise(System.NotImplementedException("other tuple lengths"))
+            raise(System.NotSupportedException("Tuple item count larger than 7"))
 
     member this.AddTupleType(tyInst: ClrTypeHandle imarray) =
         match tyInst.Length with
@@ -1490,8 +1494,10 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         | 3 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`3``, tyInst)
         | 4 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`4``, tyInst)
         | 5 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`5``, tyInst)
+        | 6 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`6``, tyInst)
+        | 7 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`7``, tyInst)
         | _ ->
-            raise(System.NotImplementedException("other tuple lengths"))
+            raise(System.NotSupportedException("Tuple item count larger than 7"))
 
     member this.AddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =
         let valueTupleTy = this.AddValueTupleType(tyInst)
