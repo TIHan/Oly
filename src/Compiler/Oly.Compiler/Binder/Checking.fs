@@ -599,6 +599,15 @@ let private lateCheckCalleeExpression cenv env expr =
                 ()
         | _ ->
             ()
+
+    | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+        if prop.Getter.IsNone || not (canAccessValue env.benv.ac prop.Getter.Value) then
+            cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
+
+    | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+        if prop.Setter.IsNone || not (canAccessValue env.benv.ac prop.Setter.Value) then
+            cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
+
     | _ ->
         ()
 

@@ -601,6 +601,10 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         BoundExpression.ErrorWithNamespace(syntax, env.benv, namespaceEnt)
     | ResolutionItem.Error(syntax) ->
         BoundExpression.Error(BoundSyntaxInfo.User(syntax, env.benv))
+
+    | ResolutionItem.Property(syntaxToCapture, syntaxNameOpt, receiverInfoOpt, prop) ->
+        bindPropertyAsGetPropertyExpression cenv env syntaxToCapture receiverInfoOpt syntaxNameOpt prop
+
     | ResolutionItem.Type(syntaxName, ty) ->
         let constTyParOpt =
             match ty.TryTypeParameter with
@@ -708,14 +712,30 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
     match syntaxCallBodyExpr with
     | OlySyntaxExpression.Name(syntaxName) ->
         let resTyArity = typeResolutionArityOfName syntaxName
-        let resInfo = ResolutionInfo.Create(ValueSome argExprs, resTyArity, ResolutionContext.ValueOnly)     
-        bindNameAsItem cenv env (Some syntaxToCapture) receiverInfoOpt resInfo syntaxName
-        |> bindItemAsExpression cenv env
+        let resInfo = ResolutionInfo.Create(ValueSome argExprs, resTyArity, ResolutionContext.ValueOnly)
+        let expr =
+            bindNameAsItem cenv env (Some syntaxToCapture) receiverInfoOpt resInfo syntaxName
+            |> bindItemAsExpression cenv env
+
+        match expr with
+        | E.GetProperty(syntaxInfo, _, _, _) ->
+            let expr = checkExpression cenv env None expr
+            let bridge = createLocalBridgeValue expr.Type
+            let callExpr = E.Call(syntaxInfo, None, ImArray.empty, argExprs, bridge, false)
+            BoundExpression.Let(
+                syntaxInfo,
+                BindingLocal(bridge),
+                expr,
+                callExpr
+            )
+        | _ ->
+            expr
 
     | OlySyntaxExpression.Call(syntaxCallBodyExpr2, syntaxArgs2) ->
         let syntaxArgs2 = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs2
-        let expr = bindCallExpression cenv env syntaxCallBodyExpr receiverInfoOpt syntaxCallBodyExpr2 syntaxArgs2
-        let expr = checkExpression cenv env None expr
+        let expr = 
+            bindCallExpression cenv env syntaxCallBodyExpr receiverInfoOpt syntaxCallBodyExpr2 syntaxArgs2
+            |> checkExpression cenv env None
 
         let bridge = createLocalBridgeValue expr.Type
         match syntaxCallBodyExpr2.TryName with
@@ -1279,7 +1299,7 @@ let private resolveLetBindFunction (cenv: cenv) (env: BinderEnvironment) syntaxT
 
     let value =
         match bindIdentifierAsFormalItem cenv env syntaxNode None resInfo ident with
-        | ResolutionFormalItem.Value(_, value) ->
+        | ResolutionFormalItem.Value(_, value) when value.IsFunction ->
             let resItem = resolveFormalValue cenv env syntaxToCapture syntaxNode None resInfo (cenv.syntaxTree.DummyNode, ImArray.empty) value
             match resItem with
             | ResolutionItem.Expression(BoundExpression.Value(value=value)) -> value
@@ -1397,8 +1417,32 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
 
     env, BoundExpression.NewArray(syntaxToCapture, env.benv, elements, arrayTy)
 
+/// Binds a OlySyntaxName to a BoundExpression. However, the resulting BoundExpression is not checked.
+let private bindNameAsExpressionWithoutChecking (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxToCapture syntaxName =
+    let resInfo = ResolutionInfo.Create(ValueNone, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
+    let resInfo =
+        // If the expected type is a function, our resInfo should include the arg types.
+        match expectedTyOpt with
+        | Some(ty) ->
+            if ty.IsFunction_t then
+                { resInfo with resArgs = ResolutionArguments.ByFunctionType(ty) }
+            else
+                resInfo
+        | _ ->
+            resInfo
+    bindNameAsItem cenv env (Some syntaxToCapture) None resInfo syntaxName
+    |> bindItemAsExpression cenv env
+    |> AutoDereferenceIfPossible
+
 let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLhs syntaxRhs =
-    let _, lhs = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxLhs syntaxLhs
+    let lhs = 
+        match syntaxLhs with
+        | OlySyntaxExpression.Name(syntaxName) ->
+            bindNameAsExpressionWithoutChecking cenv (env.SetReturnable(false)) None syntaxLhs syntaxName
+        | _ ->
+            bindLocalExpression cenv (env.SetReturnable(false)) None syntaxLhs syntaxLhs
+            |> snd
+
     let _, rhs = bindLocalExpression cenv (env.SetReturnable(false)) (Some lhs.Type) syntaxRhs syntaxRhs
 
     let expr =
@@ -1755,22 +1799,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         bindParenthesisExpression cenv env expectedTyOpt syntaxToCapture syntaxExprList
 
     | OlySyntaxExpression.Name syntaxName ->
-        let resInfo = ResolutionInfo.Create(ValueNone, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
-        let resInfo =
-            // If the expected type is a function, our resInfo should include the arg types.
-            match expectedTyOpt with
-            | Some(ty) ->
-                if ty.IsFunction_t then
-                    { resInfo with resArgs = ResolutionArguments.ByFunctionType(ty) }
-                else
-                    resInfo
-            | _ ->
-                resInfo
-        let expr = 
-            bindNameAsItem cenv env (Some syntaxExpr) None resInfo syntaxName
-            |> bindItemAsExpression cenv env
-            |> AutoDereferenceIfPossible
-
+        let expr = bindNameAsExpressionWithoutChecking cenv env expectedTyOpt syntaxExpr syntaxName
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Literal syntaxLiteral ->

@@ -134,6 +134,7 @@ type ResolutionItem =
     | Parenthesis of syntaxToCapture: OlySyntaxExpression * syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression> * syntaxMemberExprOpt: OlySyntaxExpression option
     | Expression of BoundExpression
     | Pattern of syntax: OlySyntaxNode * IPatternSymbol * witnessArgs: WitnessSolution imarray
+    | Property of syntax: OlySyntaxNode * syntaxNameOpt: OlySyntaxName option * receiverInfoOpt: ReceiverInfo option * IPropertySymbol
     | Invalid of syntax: OlySyntaxNode
     | Error of syntax: OlySyntaxNode
 
@@ -146,6 +147,7 @@ type ResolutionItem =
         | Parenthesis(syntaxToCapture=syntaxExpr) -> syntaxExpr :> OlySyntaxNode
         | Expression(expr) -> expr.Syntax
         | Pattern(syntax, _, _) -> syntax
+        | Property(syntax, _, _, _) -> syntax
         | Invalid(syntax) -> syntax
         | Error(syntax) -> syntax
 
@@ -423,7 +425,35 @@ let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode 
     | _ ->
         bindIdentifierWithNoReceiverAsFormalItem cenv env syntaxNode resInfo ident
 
+let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receiverInfoOpt syntaxNameOpt (prop: IPropertySymbol) =
+    let syntaxInfo =
+        BoundSyntaxInfo.User(
+            syntaxToCapture, 
+            env.benv, 
+            syntaxNameOpt,
+            receiverInfoOpt
+            |> Option.bind (fun x ->
+                match x.item with
+                | ReceiverItem.Type(ty) -> Some ty
+                | _ -> None
+            )
+        )
+    match receiverInfoOpt with
+    | Some({ expr = (Some receiverExpr) }) ->
+        let receiverExpr =
+            if prop.Enclosing.IsType then
+                AddressOfReceiverIfPossible prop.Enclosing.AsType receiverExpr
+            else
+                receiverExpr
+        let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, false)
+        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
+        checkVirtualUsage cenv env expr
+    | _ ->
+        E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
+
 let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: OlySyntaxNode) (receiverInfoOpt: ReceiverInfo option) (syntaxNameOpt: OlySyntaxName option) (value: IValueSymbol) =
+    OlyAssert.False(value.IsProperty)
+
     let createValueExpr syntaxInfo (value: IValueSymbol) =
         // If the value is invalid, we probably have a syntax name that isn't valid.
         // Therefore, try to get the syntax name from the main syntax node.
@@ -448,20 +478,6 @@ let bindValueAsFieldOrNotFunctionExpression (cenv: cenv) env (syntaxToCapture: O
             E.GetField(syntaxInfo, receiver, field)
         | _ ->
             createValueExpr syntaxInfo field
-
-    | :? IPropertySymbol as prop ->
-        match receiverInfoOpt with
-        | Some({ expr = (Some receiverExpr) }) ->
-            let receiverExpr =
-                if prop.Enclosing.IsType then
-                    AddressOfReceiverIfPossible prop.Enclosing.AsType receiverExpr
-                else
-                    receiverExpr
-            let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, false)
-            checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
-            checkVirtualUsage cenv env expr
-        | _ ->
-            E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
     | _ ->
         createValueExpr syntaxInfo value
 
@@ -577,13 +593,6 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 receiverExprOpt
         else
             receiverExprOpt
-
-    match value with
-    | :? IPropertySymbol as prop when prop.Getter.IsNone ->
-        let syntaxNode = syntaxInfo.SyntaxNameOrDefault
-        cenv.diagnostics.Error($"Property '{prop.Name}' cannot be used for an indirect call because it does not have a 'get' function.", 10, syntaxNode)
-    | _ ->
-        ()
 
     if value.IsProperty then
         let getPropertyExpr =
@@ -711,6 +720,8 @@ let tryBindNameAsNamespace (cenv: cenv) env (receiverInfoOpt: ReceiverInfo optio
         None
 
 let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNode) (receiverInfoOpt: ReceiverInfo option) (resInfo: ResolutionInfo) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) (value: IValueSymbol) =
+    OlyAssert.False(value.IsProperty)
+
     let syntaxNameOpt =
         match syntaxNode with
         | :? OlySyntaxName as syntaxName -> Some syntaxName
@@ -896,7 +907,15 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                     | Some(OlySyntaxName.Generic _ as syntaxRootName) -> syntaxRootName
                     | _ -> syntaxName
 
-                resolveFormalValue cenv env syntaxToCapture syntaxRootName receiverInfoOpt resInfo (syntaxTyArgsRoot, syntaxTyArgs) value
+                if value.IsProperty then
+                    ResolutionItem.Property(syntaxToCapture, Some syntaxRootName, receiverInfoOpt, value.AsProperty)
+                else
+                    let syntaxRootName =
+                        match syntaxParentNameOpt with
+                        | Some(OlySyntaxName.Generic _ as syntaxRootName) -> syntaxRootName
+                        | _ -> syntaxName
+
+                    resolveFormalValue cenv env syntaxToCapture syntaxRootName receiverInfoOpt resInfo (syntaxTyArgsRoot, syntaxTyArgs) value
 
         | OlySyntaxName.Generic(syntaxInnerName, syntaxTyArgs) ->
             let resInfo = 
@@ -946,6 +965,9 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                 | Some syntaxExpr ->
                     let receiverExprOpt =
                         if value.IsFunction then None
+                        elif value.IsProperty then
+                            bindPropertyAsGetPropertyExpression cenv env syntaxExpr receiverInfoOpt (Some syntaxHeadName) value.AsProperty
+                            |> Some
                         else
                             bindValueAsFieldOrNotFunctionExpression cenv env syntaxExpr receiverInfoOpt (Some syntaxHeadName) value 
                             |> Some

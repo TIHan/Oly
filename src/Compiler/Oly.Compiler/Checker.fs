@@ -709,14 +709,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     and check (isWitnessShape: bool) (receiver: BoundExpression) : bool =
         match receiver with
         | BoundExpression.Value(value=value) ->
-            if (not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRef then
+            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRef) && not value.IsInvalid then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsAnyStruct && not field.IsMutable then
+                if field.Type.IsAnyStruct && not field.IsMutable && not field.IsInvalid then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -741,13 +741,13 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env value.Type rhs
-        if not value.IsMutable then
+        if not value.IsMutable && not value.IsInvalid then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env field.Type rhs
         if check false receiver then
-            if not field.IsMutable then
+            if not field.IsMutable && not field.IsInvalid then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->

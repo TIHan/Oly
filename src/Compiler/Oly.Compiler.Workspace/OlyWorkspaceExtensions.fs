@@ -861,8 +861,10 @@ type OlyDocument with
                             let kind = classifyFunctionGroupKind funcGroup
                             completions.Add(OlyCompletionItem(funcGroup.Name, kind, funcGroup.SignatureText))
                         | :? OlyValueSymbol as value ->
-                            let kind = classifyValueKind value
-                            completions.Add(OlyCompletionItem(value.Name, kind, value.SignatureText))
+                            // Do not include fields that are used to back properties
+                            if (not value.IsBackingFieldForProperty) then
+                                let kind = classifyValueKind value
+                                completions.Add(OlyCompletionItem(value.Name, kind, value.SignatureText))
                         | :? OlyTypeSymbol as ty ->
                             let kind = classifyTypeKind ty
                             completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))

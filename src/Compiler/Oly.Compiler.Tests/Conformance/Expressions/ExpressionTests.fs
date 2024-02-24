@@ -6966,7 +6966,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Property 'X' cannot be used for an indirect call because it does not have a 'get' function.",
+            ("Unable to get property value as 'X' does not have a getter.",
             """
     TestModule.X(123)
                ^
@@ -6991,7 +6991,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Property 'X' cannot be used for an indirect call because it does not have a 'get' function.",
+            ("Unable to get property value as 'X' does not have a getter.",
             """
     t.X(123)
       ^
@@ -9163,6 +9163,62 @@ class GpuFrameLayer =
                 """
     VkFramebuffers get, set
     ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not be able to access private setter``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A =
+
+    Prop: int32 get, private set = 1
+
+main(): () =
+    let a = A()
+    let result = a.Prop // can access getter
+    a.Prop <- 5
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to set property value as 'Prop' does not have a setter.",
+                """
+    a.Prop <- 5
+      ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not be able to access private setter 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A =
+
+    public Prop: int32 get, private set = 1
+
+main(): () =
+    let a = A()
+    let result = a.Prop // can access getter
+    a.Prop <- 5
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to set property value as 'Prop' does not have a setter.",
+                """
+    a.Prop <- 5
+      ^^^^
 """
             )
         ]

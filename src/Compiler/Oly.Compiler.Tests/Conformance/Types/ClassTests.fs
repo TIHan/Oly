@@ -1093,5 +1093,11 @@ class A =
              ^
 """
             )
+            ("Unable to set property value as 'P' does not have a setter.",
+                """
+        this.P <- 123
+             ^
+"""
+            )
         ]
     |> ignore

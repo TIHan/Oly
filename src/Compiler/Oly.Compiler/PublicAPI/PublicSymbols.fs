@@ -552,6 +552,8 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
 
     member this.IsField = value.IsField
 
+    member this.IsBackingFieldForProperty = value.IsField && (value :?> IFieldSymbol).AssociatedFormalPropertyId.IsSome
+
     member this.IsFieldConstant =
         match value with
         | :? IFieldSymbol as field -> field.Constant.IsSome
