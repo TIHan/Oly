@@ -9223,3 +9223,25 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should error about return type if the last expression is a while loop``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+M(): int32 =
+    while (true) ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO",
+                """
+    while (true) ()
+    ^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
