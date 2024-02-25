@@ -7034,3 +7034,67 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "1"
     |> ignore
+
+[<Fact>]
+let ``Should properly infer lambda argument against overloads``() =
+    let src =
+        """
+module Test
+
+open System.Collections.Generic
+
+class A =
+
+    X: __oly_int32 get = 1
+
+class B =
+
+    Y: __oly_int32 get = 2
+
+M(xs: A[], f: A -> ()): () = ()
+M<T>(xs: T[], f: T -> ()): () = ()
+M<T>(xs: IEnumerable<T>, f: T -> ()): () = ()
+
+Consume(o: __oly_object): () = ()
+
+main(): () =
+    let xs1 = []: A[]
+    let xs2 = []: B[]
+    let xs3 = List<B>()
+    M(xs1, x -> Consume(x.X))
+    M(xs2, x -> Consume(x.Y))
+    M(xs3, x -> Consume(x.Y))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
+
+[<Fact>]
+let ``Should properly infer scoped lambda argument against overloads``() =
+    let src =
+        """
+module Test
+
+open System.Collections.Generic
+
+class A =
+
+    X: __oly_int32 get = 1
+
+class B =
+
+    Y: __oly_int32 get = 2
+
+M<T>(xs: mutable T[], f: scoped T -> ()): () = ()
+M<T>(xs: T[], f: scoped T -> ()): () = ()
+M<T>(xs: IEnumerable<T>, f: scoped T -> ()): () = ()
+
+Consume(o: __oly_object): () = ()
+
+main(): () =
+    let xs4 = Dictionary<__oly_int32, B>()
+    M(xs4, (mutable pair) -> Consume(pair.Value.Y))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""

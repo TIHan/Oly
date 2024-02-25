@@ -1825,3 +1825,59 @@ main(): () =
     OlyTwo src1 src2
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Should properly infer lambda argument against overloads``() =
+    let src =
+        """
+module Test
+
+class A =
+
+    X: __oly_int32 get = 1
+
+class B =
+
+    Y: __oly_int32 get = 2
+
+M(xs: A[], f: A -> ()): () = ()
+M(xs: B[], f: B -> ()): () = ()
+
+Consume(o: __oly_object): () = ()
+
+main(): () =
+    let xs1 = []: A[]
+    let xs2 = []: B[]
+    M(xs1, x -> Consume(x.X))
+    M(xs2, x -> Consume(x.Y))
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should properly infer lambda argument against overloads 2``() =
+    let src =
+        """
+module Test
+
+class A =
+
+    X: __oly_int32 get = 1
+
+class B =
+
+    Y: __oly_int32 get = 2
+
+M(xs: A[], f: A -> ()): () = ()
+M<T>(xs: T[], f: T -> ()): () = ()
+
+Consume(o: __oly_object): () = ()
+
+main(): () =
+    let xs1 = []: A[]
+    let xs2 = []: B[]
+    M(xs1, x -> Consume(x.X))
+    M(xs2, x -> Consume(x.Y))
+        """
+    Oly src
+    |> shouldCompile

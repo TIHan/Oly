@@ -317,17 +317,19 @@ let private tryOverloadedCallExpression
             checkLambdaArguments()
             Some expr
         else
-            checkLambdaArguments()
+            
             let funcs2 = filterFunctionsForOverloadingPart3 skipEager resArgs expectedTyOpt funcs
             let funcs = if funcs2.IsEmpty then funcs else funcs2
 
             let funcs = filterByRefReturnTypes argExprs funcs
             if funcs.IsEmpty then
+                checkLambdaArguments()
                 None
             else       
                 let func = FunctionGroupSymbol.CreateIfPossible(funcs)
-                bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
-                |> Some
+                let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
+                checkLambdaArguments()
+                Some expr
 
 let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
