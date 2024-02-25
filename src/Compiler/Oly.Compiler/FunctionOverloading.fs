@@ -292,7 +292,15 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
             else
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy -> 
-                    UnifyTypes rigidity argTy par.Type
+                    let parTy =
+                        // TODO: This should be part implicit rules.
+                        match stripTypeEquations par.Type with
+                        | TypeSymbol.Function(inputTy, outputTy, FunctionKind.Scoped) ->
+                            // If the parameter is a scoped function, then treat it as a normal function.
+                            TypeSymbol.Function(inputTy, outputTy, FunctionKind.Normal)
+                        | parTy ->
+                            parTy
+                    subsumesTypeWith rigidity parTy argTy
                 )
         )
 
@@ -323,7 +331,11 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
     let specificFuncs =
         let specificFuncs2 = findSpecificFuncs IntegerGeneralizable
         if specificFuncs2.IsEmpty then       
-            findSpecificFuncs NumberGeneralizable
+            let specificFuncs3 = findSpecificFuncs NumberGeneralizable
+            if specificFuncs3.IsEmpty then
+                findSpecificFuncs Generalizable
+            else
+                specificFuncs3
         else
             specificFuncs2
 
