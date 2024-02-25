@@ -9245,3 +9245,55 @@ M(): int32 =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should error on a call of missing arguments from an alias type of a function type``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+alias Function = int32 -> ()
+
+M(f: Function): () =
+    f()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+    f()
+    ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error on a call of missing arguments from an alias type of a function type from a property``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+alias Function = int32 -> ()
+
+class C =
+
+    Call: Function get = unchecked default
+
+M(c: C): () =
+    c.Call()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+    c.Call()
+      ^^^^^^
+"""
+            )
+        ]
+    |> ignore
