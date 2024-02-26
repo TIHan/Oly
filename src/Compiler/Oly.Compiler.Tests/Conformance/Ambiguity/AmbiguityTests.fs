@@ -1881,3 +1881,31 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should properly infer the array initializer correctly``() =
+    let src =
+        """
+main(): () =
+    let xs1 = [1;2;3]: __oly_object[]
+    let xs2 = mutable [1;2;3]: mutable __oly_object[]
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should properly infer the array initializer correctly 2``() =
+    let src =
+        """
+class A =
+
+    V: __oly_int32 get = 1
+
+main(): () =
+    let a = A()
+
+    let xs1 = [a.V;a.V;a.V]: __oly_object[]
+    let xs2 = mutable [a.V;a.V;a.V]: mutable __oly_object[]
+        """
+    Oly src
+    |> shouldCompile
