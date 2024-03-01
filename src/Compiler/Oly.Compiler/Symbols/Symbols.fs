@@ -2691,6 +2691,7 @@ type ILocalSymbol =
     inherit IValueSymbol
 
 [<Sealed>]
+[<DebuggerDisplay("{Name}")>]
 type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
     // REVIEW: I wonder how this will come back to haunt us....
     //         A local symbol whose is a type constructor is illegal, even for error recovery.

@@ -18733,3 +18733,44 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "123hello"
     |> ignore
+
+[<Fact>]
+let ``Mutable value should be mutated in a match case that is in a closure``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+pattern P(x: int32): () when (x == 5) =>
+    ()
+
+M(f: () -> ()): () =
+    f()
+
+main(): () =
+    let x = 5
+
+    let mutable abc = 0
+
+    M(
+        () ->
+            match (x)
+            | P =>
+                abc <- 13
+            | _ =>
+                ()
+    )
+
+    print(abc)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "13"

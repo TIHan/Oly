@@ -27,49 +27,26 @@ type cenv =
 
 let analysisLocalLambdaExpression (cenv: cenv) origExpr =
     match origExpr with
-    | E.Lambda _ ->
-       
-        let freeMutableValues = origExpr.GetImmediateFreeLocals()
-        if freeMutableValues.Count > 0 then
-            freeMutableValues.Values
-            |> Seq.iter (fun (syntaxNameOpt, x) ->
+    | E.Lambda _ ->      
+        let freeLocals = origExpr.GetFreeLocals()
+        if freeLocals.Count > 0 then
+            freeLocals.Values
+            |> Seq.iter (fun (_, x) ->
                 if x.IsMutable then
                     cenv.locals.Add(x.Id) |> ignore
             )
-            origExpr
-        else
-            origExpr
+        origExpr
 
     | _ ->
         failwith "Expected lambda."
 
 let analysisLocalExpression (cenv: cenv) (origExpr: E) =
     match origExpr with
-    | E.Lambda(flags=flags) when not(flags.HasFlag(LambdaFlags.Static)) && not(flags.HasFlag(LambdaFlags.Continuation)) ->
-        if flags.HasFlag(LambdaFlags.Scoped) then
-            origExpr
-        else
-            analysisLocalLambdaExpression cenv origExpr
+    | E.Lambda(flags=flags) when not(flags.HasFlag(LambdaFlags.Static)) && not(flags.HasFlag(LambdaFlags.Scoped)) ->
+        analysisLocalLambdaExpression cenv origExpr
 
     | _ ->
         origExpr
-
-let rewriteLocalLambdaExpression (cenv: cenv) origExpr =
-    match origExpr with
-    | E.Lambda _ ->
-       
-        let freeMutableValues = origExpr.GetFreeMutableLocals()
-        if freeMutableValues.Count > 0 then
-            freeMutableValues.Values
-            |> Seq.iter (fun (syntaxNameOpt, x) ->
-                cenv.locals.Add(x.Id) |> ignore
-            )
-            raise(System.NotImplementedException())
-        else
-            origExpr
-
-    | _ ->
-        failwith "Expected lambda."
 
 let rewritePreorderLocalExpression (cenv: cenv) (origExpr: E) =
     match origExpr with

@@ -1307,7 +1307,7 @@ type OlyBoundModel internal (
 
     let rec getParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (logicalPars: ILocalParameterSymbol romem) =
         (syntaxPars.Values.AsMemory(), logicalPars)
-        ||> ROMem.iter2 (fun syntaxPar par ->
+        ||> ROMem.tryIter2 (fun syntaxPar par ->
             getParameterSymbol addSymbol benv predicate syntaxPar par
         )
 
