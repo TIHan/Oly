@@ -107,7 +107,7 @@ type AttributeSymbol =
         | Import _ 
         | Export
         | Intrinsic _ 
-        | Blittable _ 
+        | Blittable 
         | Pure ->
             AttributeFlags.AllowOnFunction ||| AttributeFlags.AllowOnType
         | Inline _
@@ -122,7 +122,7 @@ let attributesContainImport (attrs: AttributeSymbol imarray) =
 
 let attributesContainExport (attrs: AttributeSymbol imarray) =
     attrs
-    |> ImArray.exists (function AttributeSymbol.Export _ -> true | _ -> false)
+    |> ImArray.exists (function AttributeSymbol.Export -> true | _ -> false)
 
 let attributesContainIntrinsic (attrs: AttributeSymbol imarray) =
     attrs
@@ -172,7 +172,7 @@ let tryAttributesUnmanagedFlags (attrs: AttributeSymbol imarray) =
     tryAttributesUnmanagedArgument attrs
     |> Option.map (fun x -> x.ToFunctionFlags())
 
-[<System.Flags>]
+[<Flags>]
 type EntityFlags =
     | None              = 0x000000000L
 
@@ -191,6 +191,21 @@ type EntityFlags =
     | Scoped            = 0x010000000L
 
     | Invalid           = 0x100000000L
+
+/// These flags are not persisted in IL metadata.
+/// The only use is to cache information so that the computation for that information is done once (usually).
+/// (usually) means that it technically could happen multiple times on different threads since there will be no locks.
+[<Flags>]
+type EntityCachedFlags =
+    | Empty         = 0b00000
+
+    // If it is not unmanaged, then it is not blittable.
+    | NotUnmanaged  = 0b00011
+    | NotBlittable  = 0b00010
+
+    // If it is blittable, then it is unmanaged.
+    | Unmanaged     = 0b01000
+    | Blittable     = 0b11000
 
 [<Struct;RequireQualifiedAccess>]
 type AssemblySymbol = 
@@ -248,7 +263,7 @@ type EntitySymbol() =
 
     abstract Flags : EntityFlags
 
-    member this.RuntimeType =
+    member this.TryEnumUnderlyingType =
         if (this.IsEnum) then
             if this.Fields.Length > 0 then
                 let field = this.Fields[0]
@@ -262,10 +277,12 @@ type EntitySymbol() =
             None
 
     /// Mutability
-    /// Do not use directly! Use the extension member 'IsUnmanaged'.
+    /// Do not use directly! Use the extension member 'IsUnmanaged' and `IsBlittable`.
     /// This is just meant for storage.
-    member val LazyIsUnmanaged: bool voption = ValueNone with get, set   
+    member val __CachedFlags : EntityCachedFlags = EntityCachedFlags.Empty with get, set 
     
+    // TODO/REVIEW: This is weird, but it is trying to create a unique qualified name.
+    //              It would be preferrable to have a qualified name that is consistent with the syntax.
     member this.QualifiedName =
         if isNull qualifiedName then
             qualifiedName <-
@@ -1530,7 +1547,8 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
     | ConstraintSymbol.Null
     | ConstraintSymbol.Struct
     | ConstraintSymbol.NotStruct 
-    | ConstraintSymbol.Unmanaged 
+    | ConstraintSymbol.Unmanaged
+    | ConstraintSymbol.Blittable
     | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.ConstantType(ty) ->
         ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
@@ -2601,8 +2619,8 @@ type ConstantSymbol =
         | UInt64 _ -> TypeSymbol.UInt64
         | Float32 _ -> TypeSymbol.Float32
         | Float64 _ -> TypeSymbol.Float64
-        | True _
-        | False _ -> TypeSymbol.Bool
+        | True
+        | False -> TypeSymbol.Bool
         | Char16 _ -> TypeSymbol.Char16
         | Utf16 _ -> TypeSymbol.Utf16
         | Array(elementTy, _) -> TypeSymbol.CreateArray(elementTy)
@@ -2935,6 +2953,7 @@ type ConstraintSymbol =
     | Struct
     | NotStruct
     | Unmanaged
+    | Blittable
     | Scoped
     | ConstantType of Lazy<TypeSymbol>
     | SubtypeOf of Lazy<TypeSymbol>
@@ -3777,9 +3796,9 @@ type TypeSymbol =
     member this.IsTypeConstructor =
         this.Arity > 0 && this.IsFormal
 
-    member this.RuntimeType =
+    member this.TryEnumUnderlyingType =
         match stripTypeEquations this with
-        | Entity(ent) -> ent.RuntimeType
+        | Entity(ent) -> ent.TryEnumUnderlyingType
         | _ -> None
 
     member this.Inherits =
@@ -3799,7 +3818,8 @@ type TypeSymbol =
                 | ConstraintSymbol.Null
                 | ConstraintSymbol.Struct
                 | ConstraintSymbol.NotStruct 
-                | ConstraintSymbol.Unmanaged 
+                | ConstraintSymbol.Unmanaged
+                | ConstraintSymbol.Blittable
                 | ConstraintSymbol.Scoped
                 | ConstraintSymbol.ConstantType _ -> None
                 | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
@@ -5088,7 +5108,7 @@ module SymbolExtensions =
                     | Some realTy -> realTy.IsAnyStruct
                     | _ -> false
                 | EntityKind.Newtype when this.Extends.Length = 1 -> this.Extends.[0].IsAnyStruct
-                | EntityKind.Enum when this.RuntimeType.IsSome -> this.RuntimeType.Value.IsAnyStruct
+                | EntityKind.Enum when this.TryEnumUnderlyingType.IsSome -> this.TryEnumUnderlyingType.Value.IsAnyStruct
                 | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
@@ -5557,7 +5577,8 @@ module SymbolHelpers =
             | ConstraintSymbol.Null
             | ConstraintSymbol.Struct
             | ConstraintSymbol.NotStruct 
-            | ConstraintSymbol.Unmanaged 
+            | ConstraintSymbol.Unmanaged
+            | ConstraintSymbol.Blittable
             | ConstraintSymbol.Scoped -> this
             | ConstraintSymbol.ConstantType(ty) ->
                 ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
@@ -5569,7 +5590,8 @@ module SymbolHelpers =
             | ConstraintSymbol.Null
             | ConstraintSymbol.Struct
             | ConstraintSymbol.NotStruct 
-            | ConstraintSymbol.Unmanaged 
+            | ConstraintSymbol.Unmanaged
+            | ConstraintSymbol.Blittable
             | ConstraintSymbol.Scoped -> this
             | ConstraintSymbol.ConstantType(ty) ->
                 ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))

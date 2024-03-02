@@ -1310,6 +1310,40 @@ type TypeSymbol with
             | TypeSymbol.Tuple(itemTys, _) ->
                 itemTys
                 |> ImArray.forall (fun x -> x.IsUnmanaged)
+            | TypeSymbol.Variable(tyPar) ->
+                tyPar.Constraints 
+                |> ImArray.exists (function ConstraintSymbol.Unmanaged | ConstraintSymbol.Blittable -> true | _ -> false)
+            | _ -> 
+                false
+
+        member this.IsBlittable =
+            match stripTypeEquations this with
+            | TypeSymbol.Int8
+            | TypeSymbol.UInt8
+            | TypeSymbol.Int16
+            | TypeSymbol.UInt16
+            | TypeSymbol.Int32
+            | TypeSymbol.UInt32 
+            | TypeSymbol.Int64
+            | TypeSymbol.UInt64
+            | TypeSymbol.Float32 
+            | TypeSymbol.Float64
+            | TypeSymbol.NativeInt
+            | TypeSymbol.NativeUInt -> true
+            | TypeSymbol.NativePtr(elementTy) -> elementTy.IsBlittable
+            | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
+                match ilCallConv with
+                | Oly.Metadata.OlyILCallingConvention.Blittable ->
+                    true
+                | _ ->
+                    false
+            | TypeSymbol.Entity(ent) -> ent.IsBlittable
+            | TypeSymbol.Tuple(itemTys, _) ->
+                itemTys
+                |> ImArray.forall (fun x -> x.IsBlittable)
+            | TypeSymbol.Variable(tyPar) ->
+                tyPar.Constraints 
+                |> ImArray.exists (function ConstraintSymbol.Blittable -> true | _ -> false)
             | _ -> 
                 false
 
@@ -1539,7 +1573,6 @@ type EntitySymbol with
         |> Seq.append (this.Functions)
 
     static member private CheckUnmanaged(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
-        let ty: TypeSymbol = stripTypeEquations ty
         match ty.TryEntity with
         | ValueSome(ent) ->
             ent.CheckUnmanaged(hash)
@@ -1549,36 +1582,108 @@ type EntitySymbol with
     member private this.CheckUnmanaged(hash: HashSet<EntitySymbol>) =
         if this.IsAnyStruct then
             if hash.Add(this) then
-                match this.RuntimeType with
+                match this.TryEnumUnderlyingType with
                 | Some(runtimeTy) -> EntitySymbol.CheckUnmanaged(hash, runtimeTy)
                 | _ ->
                     if this.IsAlias && this.Extends.Length > 0 then
                         EntitySymbol.CheckUnmanaged(hash, this.Extends[0])
                     else
-                        let fields = this.Fields
-                        if fields.IsEmpty || (fields |> ImArray.exists (fun x -> x.IsInstance) |> not) then
-                            true
-                        else
-                            let result =
-                                fields
-                                |> ImArray.forall (fun x -> x.IsStatic || EntitySymbol.CheckUnmanaged(hash, x.Type))
-                            result
+                        this.Fields 
+                        |> ImArray.filter (fun x -> x.IsInstance)
+                        |> ImArray.forall (fun x -> EntitySymbol.CheckUnmanaged(hash, x.Type))
             else
                 true
         else
             false
 
-    member this.IsUnmanaged =
-        match this.LazyIsUnmanaged with
-        | ValueSome(result) -> result
+    static member private CheckBlittable(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+        match ty.TryEntity with
+        | ValueSome(ent) ->
+            ent.CheckBlittable(hash)
         | _ ->
+            ty.IsBlittable
+
+    member private this.CheckBlittable(hash: HashSet<EntitySymbol>) =
+        if this.IsAnyStruct then
+            if hash.Add(this) then
+                match this.TryEnumUnderlyingType with
+                | Some(runtimeTy) -> EntitySymbol.CheckBlittable(hash, runtimeTy)
+                | _ ->
+                    if this.IsAlias && this.Extends.Length > 0 then
+                        EntitySymbol.CheckBlittable(hash, this.Extends[0])
+                    else
+                        this.Fields 
+                        |> ImArray.filter (fun x -> x.IsInstance)
+                        |> ImArray.forall (fun x -> EntitySymbol.CheckBlittable(hash, x.Type))
+            else
+                true
+        else
+            false
+
+    // TODO: We should move this elsewhere to ensure we only use this in particular compiler passes.
+    member this.IsUnmanaged =
+        let flags = this.__CachedFlags
+        if flags.HasFlag(EntityCachedFlags.NotUnmanaged) then
+            false
+        else if flags.HasFlag(EntityCachedFlags.Unmanaged) then
+            true
+        else
             if this.IsAnyStruct then
-                let hash = HashSet<EntitySymbol>(EntitySymbolComparer()) // TODO: allocation, maybe a an object pool would be better?
+                // If the fields are empty, then this will always return true.
+                // However, it is possible that the fields could be empty due to
+                // what compiler pass we are in, so it could be a false positive.
+                // Because of that possbility, we do not cache this result.
+                // If we can ensure we only call IsUnmanaged in compiler pass 3 and 4,
+                // then we can get rid of this logic.
+                let strippedTy = stripTypeEquations this.AsType
+                if strippedTy.Fields.IsEmpty then
+                    true
+                else
+                
+                // TODO: Allocation, maybe a an object pool would be better?
+                //       We only try to do this once so maybe it is ok.
+                let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
                 let result = this.CheckUnmanaged(hash)
-                this.LazyIsUnmanaged <- ValueSome(result)
+                if result then
+                    this.__CachedFlags <- flags ||| EntityCachedFlags.Unmanaged
+                else
+                    this.__CachedFlags <- flags ||| EntityCachedFlags.NotUnmanaged
                 result
             else
-                this.LazyIsUnmanaged <- ValueSome(false)
+                this.__CachedFlags <- flags ||| EntityCachedFlags.NotUnmanaged
+                false
+
+    // TODO: We should move this elsewhere to ensure we only use this in particular compiler passes.
+    member this.IsBlittable =
+        let flags = this.__CachedFlags
+        if flags.HasFlag(EntityCachedFlags.NotBlittable) then
+            false
+        else if flags.HasFlag(EntityCachedFlags.Blittable) then
+            true
+        else
+            if this.IsAnyStruct then
+                // If the fields are empty, then this will always return true.
+                // However, it is possible that the fields could be empty due to
+                // what compiler pass we are in, so it could be a false positive.
+                // Because of that possbility, we do not cache this result.
+                // If we can ensure we only call IsBlittable in compiler pass 3 and 4,
+                // then we can get rid of this logic.
+                let strippedTy = stripTypeEquations this.AsType
+                if strippedTy.Fields.IsEmpty then
+                    true
+                else
+
+                // TODO: Allocation, maybe a an object pool would be better?
+                //       We only try to do this once so maybe it is ok.
+                let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
+                let result = this.CheckBlittable(hash)
+                if result then
+                    this.__CachedFlags <- flags ||| EntityCachedFlags.Blittable
+                else
+                    this.__CachedFlags <- flags ||| EntityCachedFlags.NotBlittable
+                result
+            else
+                this.__CachedFlags <- flags ||| EntityCachedFlags.NotBlittable
                 false
 
 
@@ -1595,7 +1700,8 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
                             | ConstraintSymbol.Null
                             | ConstraintSymbol.Struct
                             | ConstraintSymbol.NotStruct 
-                            | ConstraintSymbol.Unmanaged 
+                            | ConstraintSymbol.Unmanaged
+                            | ConstraintSymbol.Blittable
                             | ConstraintSymbol.Scoped
                             | ConstraintSymbol.ConstantType _ -> false
                             | ConstraintSymbol.SubtypeOf(superTy) ->
@@ -1637,7 +1743,8 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.Null
                 | ConstraintSymbol.Struct
                 | ConstraintSymbol.NotStruct 
-                | ConstraintSymbol.Unmanaged 
+                | ConstraintSymbol.Unmanaged
+                | ConstraintSymbol.Blittable
                 | ConstraintSymbol.Scoped -> exists
                 | ConstraintSymbol.ConstantType(ty) ->
                     areTypesEqualWithRigidity rigidity superTy ty.Value

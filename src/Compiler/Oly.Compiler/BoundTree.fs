@@ -1203,7 +1203,7 @@ let filterFunctions (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFla
         ))
 
 [<RequireQualifiedAccess>]
-type QueryField =
+type QueryProperty =
     | Intrinsic
     | IntrinsicAndExtrinsic
 

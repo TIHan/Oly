@@ -1840,6 +1840,11 @@ let tryParseConstraint state =
         SyntaxConstraint.Unmanaged(unmanagedToken) |> Some
     | _ ->
 
+    match bt BLITTABLE state with
+    | Some(blittableToken) ->
+        SyntaxConstraint.Blittable(blittableToken) |> Some
+    | _ ->
+
     match bt SCOPED state with
     | Some(scopedToken) ->
         SyntaxConstraint.Scoped(scopedToken) |> Some
@@ -2617,7 +2622,7 @@ let isPossibleParenthesisOperator state =
     | _ -> false
 
 let tryParseParenthesisOrTupleOrLambdaExpression state =
-    if isNextToken (function LeftParenthesis | Identifier _ | Static _ -> true | _ -> false) state then
+    if isNextToken (function LeftParenthesis | Identifier _ | Static -> true | _ -> false) state then
         if isPossibleLambdaExpression state then
             tryParseLambdaExpression state
         else

@@ -63,47 +63,30 @@ module private Helpers =
     
         Seq.append props inheritedProps
     
-    let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
+    let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
-        let intrinsicFields =
-            match stripTypeEquations ty with
-            | TypeSymbol.Variable(tyPar) ->
-                tyPar.Constraints
-                |> Seq.choose (function
-                    | ConstraintSymbol.Null
-                    | ConstraintSymbol.Struct
-                    | ConstraintSymbol.NotStruct 
-                    | ConstraintSymbol.Unmanaged 
-                    | ConstraintSymbol.Scoped
-                    | ConstraintSymbol.ConstantType _ -> None
-                    | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
-                )
-                |> Seq.collect(fun ent ->
-                    filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-                )
-            | TypeSymbol.Entity(ent) ->
-                findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
-            | _ ->
-                Seq.empty
-    
-        //let extrinsicFields =
-        //    match queryField with
-        //    | QueryField.IntrinsicAndExtrinsic ->
-        //        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-        //        | ValueSome (traitImpls) ->
-        //            traitImpls.Values
-        //            |> Seq.collect (fun trImpl ->
-        //                filterFields queryMemberFlags valueFlags nameOpt trImpl.Fields
-        //            )
-        //        | _ ->
-        //            Seq.empty
-        //    | _ ->
-        //        Seq.empty
-    
-        //Seq.append intrinsicFields extrinsicFields
-        intrinsicFields
+        match stripTypeEquations ty with
+        | TypeSymbol.Variable(tyPar) ->
+            tyPar.Constraints
+            |> Seq.choose (function
+                | ConstraintSymbol.Null
+                | ConstraintSymbol.Struct
+                | ConstraintSymbol.NotStruct 
+                | ConstraintSymbol.Unmanaged
+                | ConstraintSymbol.Blittable
+                | ConstraintSymbol.Scoped
+                | ConstraintSymbol.ConstantType _ -> None
+                | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
+            )
+            |> Seq.collect(fun ent ->
+                filterFields queryMemberFlags valueFlags nameOpt ent.Fields
+            )
+        | TypeSymbol.Entity(ent) ->
+            findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
+        | _ ->
+            Seq.empty
 
-    let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryField (ty: TypeSymbol) =
+    let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
         let intrinsicProps =
             match stripTypeEquations ty with
@@ -115,6 +98,7 @@ module private Helpers =
                     | ConstraintSymbol.Struct
                     | ConstraintSymbol.NotStruct 
                     | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Blittable
                     | ConstraintSymbol.Scoped
                     | ConstraintSymbol.ConstantType _ -> None
                     | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
@@ -128,8 +112,8 @@ module private Helpers =
                 Seq.empty
     
         let extrinsicProps =
-            match queryField with
-            | QueryField.IntrinsicAndExtrinsic ->
+            match queryProp with
+            | QueryProperty.IntrinsicAndExtrinsic ->
                 let results1 =
                     match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
                     | ValueSome (traitImpls) ->
@@ -758,11 +742,11 @@ type TypeSymbol with
         | _ ->
             Seq.empty
 
-    member this.FindFields(benv, queryMemberFlags, queryField) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None None queryField this
+    member this.FindFields(benv, queryMemberFlags) =
+        findFieldsOfType benv queryMemberFlags ValueFlags.None None this
 
-    member this.FindFields(benv, queryMemberFlags, queryField, name) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
+    member this.FindFields(benv, queryMemberFlags, name) =
+        findFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
 
     member this.FindProperties(benv, queryMemberFlags, queryField) =
         findPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
@@ -1214,6 +1198,7 @@ let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy
                     | ConstraintSymbol.Struct
                     | ConstraintSymbol.NotStruct 
                     | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Blittable
                     | ConstraintSymbol.Scoped -> true
                     | ConstraintSymbol.ConstantType(ty) ->
                         subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy ty.Value

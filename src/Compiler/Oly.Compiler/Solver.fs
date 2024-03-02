@@ -336,21 +336,14 @@ and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol i
         solveWitnessesByType env syntaxNode tyArgs witnessArgs target tyPar ty
 
 and solveConstraintNull env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    match stripTypeEquations tyArg with
-    | TypeSymbol.Variable(tyPar)
-    | TypeSymbol.HigherVariable(tyPar, _) ->
-        tyPar.Constraints 
-        |> ImArray.exists (function ConstraintSymbol.Null -> true | _ -> false)
-
-    | tyArg ->
-        tyArg.IsNullable
+    tyArg.IsNullable
 
 and solveConstraintStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
-        |> ImArray.exists (function ConstraintSymbol.Struct | ConstraintSymbol.Unmanaged -> true | _ -> false)
+        |> ImArray.exists (function ConstraintSymbol.Struct | ConstraintSymbol.Unmanaged | ConstraintSymbol.Blittable -> true | _ -> false)
 
     | tyArg ->
         tyArg.IsAnyStruct
@@ -366,14 +359,10 @@ and solveConstraintNotStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
         not tyArg.IsAnyStruct
 
 and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    match stripTypeEquations tyArg with
-    | TypeSymbol.Variable(tyPar)
-    | TypeSymbol.HigherVariable(tyPar, _) ->
-        tyPar.Constraints 
-        |> ImArray.exists (function ConstraintSymbol.Unmanaged -> true | _ -> false)
+    tyArg.IsUnmanaged
 
-    | tyArg ->
-        tyArg.IsUnmanaged
+and solveConstraintBlittable env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
+    tyArg.IsBlittable
 
 and solveConstraintScoped env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -383,12 +372,11 @@ and solveConstraintScoped env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSy
         |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false)
 
     | _ ->
-        true       
+        true // any type can work
 
 and solveConstraintConstantType env (syntaxNode: OlySyntaxNode) (constTy: TypeSymbol) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
-    | TypeSymbol.Variable(tyPar)
-    | TypeSymbol.HigherVariable(tyPar, _) ->
+    | TypeSymbol.Variable(tyPar) ->
         tyPar.Constraints 
         |> ImArray.exists (function ConstraintSymbol.ConstantType(constTy2) -> areTypesEqual constTy constTy2.Value | _ -> false)
 
@@ -413,6 +401,8 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
             solveConstraintNotStruct env syntaxNode tyArg
         | ConstraintSymbol.Unmanaged ->
             solveConstraintUnmanaged env syntaxNode tyArg
+        | ConstraintSymbol.Blittable ->
+            solveConstraintBlittable env syntaxNode tyArg
         | ConstraintSymbol.Scoped ->
             solveConstraintScoped env syntaxNode tyArg
         | ConstraintSymbol.ConstantType(constTy) ->

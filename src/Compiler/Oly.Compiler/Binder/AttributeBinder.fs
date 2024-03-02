@@ -30,7 +30,7 @@ let private tryAttributeConstant cenv syntaxNode =
             | BoundLiteral.ConstantEnum(constant, _) ->
                 constant
                 |> Some
-            | BoundLiteral.Error _ ->
+            | BoundLiteral.Error ->
                 None
         toConstant literal
     | BoundExpression.Call(value = (:? IFunctionSymbol as func)) when func.WellKnownFunction = WellKnownFunction.Constant ->
@@ -58,7 +58,7 @@ let private bindAttributeNamedArguments cenv env (value: IValueSymbol) syntaxArg
                     match value.Enclosing with
                     | EnclosingSymbol.Entity(ent) ->
                         let ty = ent.AsType
-                        match ty.FindFields(env.benv, QueryMemberFlags.Instance, QueryField.Intrinsic) |> Seq.tryFind (fun x -> x.Name = ident) with
+                        match ty.FindFields(env.benv, QueryMemberFlags.Instance) |> Seq.tryFind (fun x -> x.Name = ident) with
                         | Some(field) ->
                             let expr = bindAttributeExpression cenv env field.Type true syntaxExpr
                             match tryAttributeConstant cenv syntaxExpr expr with
@@ -67,7 +67,8 @@ let private bindAttributeNamedArguments cenv env (value: IValueSymbol) syntaxArg
                             | _ ->
                                 None
                         | _ ->
-                            match ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryField.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
+                            // REVIEW: Only intrinsic properties will work, which is fine. However, from a design standpoint, are there useful use cases for extrinsic properties?
+                            match ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
                             | Some(prop) ->
                                 let expr = bindAttributeExpression cenv env prop.Type true syntaxExpr
                                 match tryAttributeConstant cenv syntaxExpr expr with

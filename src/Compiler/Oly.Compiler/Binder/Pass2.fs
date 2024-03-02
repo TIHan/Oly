@@ -408,7 +408,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         let ty = ent.AsType
 
         let mutable hasExplicitNonEnumCase = false
-        let mutable runtimeTyOpt = (ent :> EntitySymbol).RuntimeType
+        let mutable runtimeTyOpt = (ent :> EntitySymbol).TryEnumUnderlyingType
         let mutable requireAllCasesAConstant = false
         let mutable autoIncrement = 0
         let fieldConstants =

@@ -1421,3 +1421,164 @@ main(): () =
         ]
     |> ignore
     
+[<Fact>]
+let ``Simple blittable constraint``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+M<T>(x: T): () where T: blittable = ()
+
+main(): () =
+    M(1)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Simple blittable constraint 2``() =
+    """
+struct A
+
+M<T>(x: T): () where T: blittable = ()
+
+main(): () =
+    M(A())
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Simple blittable constraint 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+struct A =
+    field X: int32 = 1
+
+M<T>(x: T): () where T: blittable = ()
+
+main(): () =
+    M(A())
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Simple blittable constraint solution should fail as bool is not blittable``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+M<T>(x: T): () where T: blittable = ()
+
+main(): () =
+    M(true)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'bool' is missing the constraint 'blittable'.",
+                """
+    M(true)
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple blittable constraint solution should fail as bool is not blittable 2``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+M<T>(x: T): () where T: blittable = ()
+
+struct A =
+    field X: bool = true
+
+main(): () =
+    M(A())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'A' is missing the constraint 'blittable'.",
+                """
+    M(A())
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple blittable constraint solution should fail as char is not blittable``() =
+    """
+#[intrinsic("char16")]
+alias char
+
+M<T>(x: T): () where T: blittable = ()
+
+main(): () =
+    M('a')
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'char' is missing the constraint 'blittable'.",
+                """
+    M('a')
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple blittable constraint solution should fail as char is not blittable 2``() =
+    """
+#[intrinsic("char16")]
+alias char
+
+M<T>(x: T): () where T: blittable = ()
+
+struct A =
+    field X: char = 'a'
+
+main(): () =
+    M(A())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'A' is missing the constraint 'blittable'.",
+                """
+    M(A())
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Simple unmanaged constraint solution should fail as A is not unmanaged``() =
+    """
+M<T>(x: T): () where T: unmanaged = ()
+
+class B
+
+struct A =
+    field X: B = B()
+
+main(): () =
+    M(A())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'A' is missing the constraint 'unmanaged'.",
+                """
+    M(A())
+    ^
+"""
+            )
+        ]

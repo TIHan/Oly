@@ -185,7 +185,7 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | _ -> true
 
     member _.Fields =
-        ty.FindFields(benv, QueryMemberFlags.StaticOrInstance, QueryField.IntrinsicAndExtrinsic)
+        ty.FindFields(benv, QueryMemberFlags.StaticOrInstance)
         |> Seq.map (fun x -> 
             OlyValueSymbol(boundModel, benv, location, x)
         )
@@ -197,7 +197,7 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         )
 
     member _.Properties =
-        ty.FindProperties(benv, QueryMemberFlags.StaticOrInstance, QueryField.IntrinsicAndExtrinsic)
+        ty.FindProperties(benv, QueryMemberFlags.StaticOrInstance, QueryProperty.IntrinsicAndExtrinsic)
         |> Seq.map (fun x ->
             OlyValueSymbol(boundModel, benv, location, x)
         )
@@ -1849,7 +1849,7 @@ type OlyBoundModel internal (
                         match syntaxBodyExpr with
                         | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, _) ->  
                             if ent.IsEnum then
-                                if (ent :> EntitySymbol).RuntimeType.IsSome then
+                                if (ent :> EntitySymbol).TryEnumUnderlyingType.IsSome then
                                     let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
                                     let ty = ent.AsType
                                     let mutable i = 0

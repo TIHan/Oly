@@ -131,7 +131,7 @@ type OlyILFunctionFlags =
     | RequiresExplicitTypeArguments = 0x001000
     | ParameterLess                 = 0x010000
 
-    | UnmanagedAllocationOnly           = 0x1000000
+    | UnmanagedAllocationOnly       = 0x1000000
 
 [<Flags>]
 type OlyILFieldFlags =
@@ -260,7 +260,7 @@ type OlyILEntityDefinition =
 
     member this.IsExported =
         this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export _ -> true | _ -> false)
+        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
 
     member this.IsIntrinsic =
         this.Attributes
@@ -306,6 +306,7 @@ type OlyILConstraint =
     | Struct
     | NotStruct
     | Unmanaged
+    | Blittable
     | Scoped
     | ConstantType of OlyILType
     | SubtypeOf of OlyILType
@@ -420,7 +421,7 @@ type OlyILFunctionDefinition =
 
     member this.IsExported =
         this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export _ -> true | _ -> false)
+        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
 
     member this.IsIntrinsic =
         this.Attributes
@@ -519,8 +520,8 @@ type OlyILConstant =
         | UInt64 _ -> OlyILTypeUInt64
         | Float32 _ -> OlyILTypeFloat32
         | Float64 _ -> OlyILTypeFloat64
-        | True _
-        | False _ -> OlyILTypeBool
+        | True
+        | False -> OlyILTypeBool
         | Array(elementTy, _) -> OlyILTypeArray(elementTy, 1, OlyILArrayKind.Immutable)
         | Char16 _ -> OlyILTypeChar16
         | Utf16 _ -> OlyILTypeUtf16

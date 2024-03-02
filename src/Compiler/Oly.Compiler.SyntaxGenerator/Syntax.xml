@@ -123,6 +123,9 @@
 	<Case name="Unmanaged">
 	  <Field name="unmanagedToken">SyntaxToken</Field>
 	</Case>
+	<Case name="Blittable">
+	  <Field name="blittableToken">SyntaxToken</Field>
+	</Case>
     <Case name="Scoped">
 	  <Field name="scopedToken">SyntaxToken</Field>
 	</Case>

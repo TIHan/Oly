@@ -94,7 +94,7 @@ type EntitySymbolBuilder private (
         match pass with
         | Pass2 ->
             if ent.IsEnum then
-                if ent.Fields.Length = 1 && ent.RuntimeType.IsSome then
+                if ent.Fields.Length = 1 && ent.TryEnumUnderlyingType.IsSome then
                     fieldsHole.contents <- fieldsHole.contents.AddRange(fields)
                 else
                     failwith "Invalid SetFields."

@@ -2031,6 +2031,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILConstraint.Struct -> OlyIRConstraint.Struct
             | OlyILConstraint.NotStruct -> OlyIRConstraint.NotStruct
             | OlyILConstraint.Unmanaged -> OlyIRConstraint.Unmanaged
+            | OlyILConstraint.Blittable -> OlyIRConstraint.Blittable
             | OlyILConstraint.Scoped -> OlyIRConstraint.Scoped
             | OlyILConstraint.ConstantType(ilTy) ->
                 let ty = this.ResolveType(ilAsm, ilTy, genericContext)

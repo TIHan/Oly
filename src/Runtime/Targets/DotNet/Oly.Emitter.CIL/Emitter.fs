@@ -283,11 +283,11 @@ type BlobBuilder with
             let mutable encoder = SignatureTypeEncoder(b)
             asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceDouble)
 
-        | C.True _ -> 
+        | C.True -> 
             let mutable encoder = SignatureTypeEncoder(b)
             asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
 
-        | C.False _ -> 
+        | C.False -> 
             let mutable encoder = SignatureTypeEncoder(b)
             asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
 
@@ -720,7 +720,7 @@ module rec ClrCodeGen =
         | I.BeginLocalScope _
         | I.EndLocalScope
         | I.SequencePoint _
-        | I.HiddenSequencePoint _ -> ()
+        | I.HiddenSequencePoint -> ()
         | _ ->
             cenv.UnsetRetEmitted()
         cenv.buffer.Add(instr)

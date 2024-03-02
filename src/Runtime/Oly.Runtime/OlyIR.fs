@@ -33,6 +33,7 @@ type OlyIRConstraint<'Type> =
     | Struct
     | NotStruct
     | Unmanaged
+    | Blittable
     | Scoped
     | ConstantType of 'Type
     | SubtypeOf of 'Type

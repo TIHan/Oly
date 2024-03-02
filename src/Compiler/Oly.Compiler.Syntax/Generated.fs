@@ -760,6 +760,13 @@ module OlySyntaxConstraint =
         | _ ->
             Option.None
 
+    let (|Blittable|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxConstraint.Blittable _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
+        | _ ->
+            Option.None
+
     let (|Scoped|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxConstraint.Scoped _ ->

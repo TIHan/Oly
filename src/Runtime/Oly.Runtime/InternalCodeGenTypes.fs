@@ -807,7 +807,7 @@ type RuntimeType =
         | NativeFunctionPtr _ -> "__oly_func_pointer"
         | Bool -> "__oly_bool"
         | Tuple _ -> "__oly_tuple"
-        | Utf16 _ -> "__oly_utf16"
+        | Utf16 -> "__oly_utf16"
         | Char16 -> "__oly_char16"
         | ReferenceCell _ -> "__oly_reference_cell"
         | Function(kind=kind) -> 

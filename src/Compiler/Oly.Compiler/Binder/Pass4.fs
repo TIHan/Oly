@@ -1187,7 +1187,7 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
                                     match x.AssociatedFormalPropertyId with
                                     | Some(formalPropId) ->
                                         // TODO/REVIEW: Extrinsic could pick up properties from extensions, do we want that?
-                                        ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryField.IntrinsicAndExtrinsic, fieldName)
+                                        ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.IntrinsicAndExtrinsic, fieldName)
                                         |> Seq.tryExactlyOne
                                         |> Option.filter (fun x -> x.Formal.Id = formalPropId)
                                         |> Option.isSome

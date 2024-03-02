@@ -185,6 +185,8 @@ and printConstraint benv constr =
         "not struct"
     | ConstraintSymbol.Unmanaged ->
         "unmanaged"
+    | ConstraintSymbol.Blittable ->
+        "blittable"
     | ConstraintSymbol.Scoped ->
         "scoped"
     | ConstraintSymbol.ConstantType(constTy) ->
@@ -324,6 +326,9 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
                         | ConstraintSymbol.Unmanaged ->
                             let isTyCtor = tyPar.HasArity
                             printTypeAux benv false isTyCtor tyPar.AsType + ": unmanaged"
+                        | ConstraintSymbol.Blittable ->
+                            let isTyCtor = tyPar.HasArity
+                            printTypeAux benv false isTyCtor tyPar.AsType + ": blittable"
                         | ConstraintSymbol.Scoped ->
                             let isTyCtor = tyPar.HasArity
                             printTypeAux benv false isTyCtor tyPar.AsType + ": scoped"

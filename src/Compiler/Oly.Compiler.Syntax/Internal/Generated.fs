@@ -505,6 +505,9 @@ type SyntaxConstraint =
     | Unmanaged
         of
         unmanagedToken: SyntaxToken
+    | Blittable
+        of
+        blittableToken: SyntaxToken
     | Scoped
         of
         scopedToken: SyntaxToken
@@ -547,6 +550,10 @@ type SyntaxConstraint =
                 match index with
                 | 0 -> unmanagedToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Blittable(blittableToken) ->
+                match index with
+                | 0 -> blittableToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | Scoped(scopedToken) ->
                 match index with
                 | 0 -> scopedToken :> ISyntaxNode
@@ -571,6 +578,7 @@ type SyntaxConstraint =
             | Struct _ -> 1
             | NotStruct _ -> 2
             | Unmanaged _ -> 1
+            | Blittable _ -> 1
             | Scoped _ -> 1
             | Type _ -> 1
             | Error _ -> 1
@@ -585,6 +593,8 @@ type SyntaxConstraint =
             | NotStruct(fullWidth=fullWidth) ->
                 fullWidth
             | Unmanaged(x) ->
+                (x :> ISyntaxNode).FullWidth
+            | Blittable(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Scoped(x) ->
                 (x :> ISyntaxNode).FullWidth

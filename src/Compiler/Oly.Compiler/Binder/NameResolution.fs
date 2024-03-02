@@ -1145,12 +1145,11 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
         if not funcs.IsEmpty then
             FunctionGroupSymbol.CreateIfPossible(funcs) :> IValueSymbol
         else
-            let queryField = QueryField.IntrinsicAndExtrinsic
-            let fields = ty.FindFields(env.benv, queryMemberFlags, queryField, ident) |> List.ofSeq
+            let fields = ty.FindFields(env.benv, queryMemberFlags, ident) |> List.ofSeq
 
             match fields with
             | [] ->
-                let propOpt = ty.FindProperties(env.benv, queryMemberFlags, queryField, ident) |> Seq.tryHead
+                let propOpt = ty.FindProperties(env.benv, queryMemberFlags, QueryProperty.IntrinsicAndExtrinsic, ident) |> Seq.tryHead
                 match propOpt with
                 | Some prop -> prop :> IValueSymbol
                 | _ ->
@@ -1934,6 +1933,9 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
 
     | OlySyntaxConstraint.Unmanaged _ ->
         Some ConstraintSymbol.Unmanaged
+
+    | OlySyntaxConstraint.Blittable _ ->
+        Some ConstraintSymbol.Blittable
 
     | OlySyntaxConstraint.Scoped _ ->
         Some ConstraintSymbol.Scoped

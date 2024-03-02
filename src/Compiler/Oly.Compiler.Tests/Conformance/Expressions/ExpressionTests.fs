@@ -9297,3 +9297,31 @@ M(c: C): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should be allowed to access constructor of private class that is in a namespace``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+main(): () =
+    let c = C()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should be allowed to access constructor of private class that is in a module``() =
+    let src =
+        """
+module TestModule
+
+private class C
+
+main(): () =
+    let c = C()
+        """
+    Oly src
+    |> shouldCompile

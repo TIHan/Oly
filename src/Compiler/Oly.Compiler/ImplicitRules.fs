@@ -116,8 +116,8 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
                 argTys
                 |> ImArray.map (fun x ->
                     match x.TryEntity with
-                    | ValueSome(ent) when ent.RuntimeType.IsSome ->
-                        ent.RuntimeType.Value
+                    | ValueSome(ent) when ent.TryEnumUnderlyingType.IsSome ->
+                        ent.TryEnumUnderlyingType.Value
                     | _ ->
                         x
                 )

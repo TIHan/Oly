@@ -96,17 +96,21 @@ let run (ms: MemoryStream, expectedOutput: string) =
     try
         let rasm = context.LoadFromStream(ms)
         ms.Dispose()
-        let mutable actual = null
-        lock gate (fun () ->
-            let builder = StringBuilder()
-            let writer = new StringWriter(builder)
-            Console.SetOut(writer)
-            if rasm.EntryPoint = null then
-                failwith "Entry point not found."
-            rasm.EntryPoint.Invoke(null, [||]) |> ignore
-            actual <- builder.ToString()
-            writer.Dispose()
-        )
-        Assert.Equal(expectedOutput, actual)
+        let mutable actualOutput = null
+        try
+            lock gate (fun () ->
+                let builder = StringBuilder()
+                let writer = new StringWriter(builder)
+                Console.SetOut(writer)
+                if rasm.EntryPoint = null then
+                    failwith "Entry point not found."
+                rasm.EntryPoint.Invoke(null, [||]) |> ignore
+                actualOutput <- builder.ToString()
+                writer.Dispose()
+            )
+        with
+        | ex ->
+            failwith $"Execution failed:\n{ex.Message}\n\n{ex.StackTrace}"
+        Assert.Equal(expectedOutput, actualOutput)
     finally
         context.Unload()

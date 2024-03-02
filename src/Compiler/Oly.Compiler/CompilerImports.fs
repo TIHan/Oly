@@ -365,6 +365,7 @@ let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSy
     | ConstraintSymbol.Struct
     | ConstraintSymbol.Null
     | ConstraintSymbol.Unmanaged
+    | ConstraintSymbol.Blittable
     | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.ConstantType(lazyTy) ->
         let ty = lazyTy.Value
@@ -784,6 +785,8 @@ let private importTypeParameterSymbols cenv (enclosingTyPars: TypeParameterSymbo
                     ConstraintSymbol.NotStruct
                 | OlyILConstraint.Unmanaged ->
                     ConstraintSymbol.Unmanaged
+                | OlyILConstraint.Blittable ->
+                    ConstraintSymbol.Blittable
                 | OlyILConstraint.Scoped ->
                     ConstraintSymbol.Scoped
                 | OlyILConstraint.ConstantType(ilTy) ->
@@ -1539,7 +1542,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
             let fieldTy = importTypeSymbol cenv enclosing.TypeParameters ImArray.empty ilFieldDef.Type
             if ilFieldDef.IsConstant && enclosing.IsEnum then
                 match enclosing.TryType with
-                | Some(enclosingTy) when enclosingTy.RuntimeType.IsSome && areTypesEqual enclosingTy.RuntimeType.Value fieldTy ->
+                | Some(enclosingTy) when enclosingTy.TryEnumUnderlyingType.IsSome && areTypesEqual enclosingTy.TryEnumUnderlyingType.Value fieldTy ->
                     enclosingTy
                 | _ ->
                     fieldTy

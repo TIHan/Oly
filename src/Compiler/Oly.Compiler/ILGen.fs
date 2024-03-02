@@ -557,6 +557,8 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
                     OlyILConstraint.NotStruct
                 | ConstraintSymbol.Unmanaged ->
                     OlyILConstraint.Unmanaged
+                | ConstraintSymbol.Blittable ->
+                    OlyILConstraint.Blittable
                 | ConstraintSymbol.Scoped ->
                     OlyILConstraint.Scoped
                 | ConstraintSymbol.ConstantType(constTy) ->
@@ -873,7 +875,7 @@ and GenConstant cenv env (constant: ConstantSymbol) =
         OlyILConstant.TypeVariable(index, ilKind)
     | ConstantSymbol.External(func) -> 
         OlyILConstant.External(GenFunctionAsILFunctionInstance cenv env ImArray.empty func, emitILType cenv env func.ReturnType)
-    | ConstantSymbol.Error _ -> failwith "Cannot emit constant."
+    | ConstantSymbol.Error -> failwith "Cannot emit constant."
 
 and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     match attr with
@@ -1122,7 +1124,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 |> ImArray.ofSeq
 
 
-        if ent.IsEnum && ent.RuntimeType.IsNone then
+        if ent.IsEnum && ent.TryEnumUnderlyingType.IsNone then
             failwith "Enum type is invalid to emit."
 
 #if DEBUG || CHECKED

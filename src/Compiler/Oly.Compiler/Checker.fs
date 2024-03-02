@@ -67,6 +67,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                         | ConstraintSymbol.Struct
                         | ConstraintSymbol.NotStruct
                         | ConstraintSymbol.Unmanaged
+                        | ConstraintSymbol.Blittable
                         | ConstraintSymbol.Scoped
                         | ConstraintSymbol.ConstantType _ ->
                             constr
