@@ -239,7 +239,8 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
     if exprTy.IsByRef_t then
         // We want to dereference non-generated expressions.
         match expr with
-        | BoundExpression.Value _ ->
+        | BoundExpression.Value _ 
+        | BoundExpression.GetProperty _ ->
             FromAddress expr
 
         | BoundExpression.Call(value=value) when not value.IsAddressOf ->

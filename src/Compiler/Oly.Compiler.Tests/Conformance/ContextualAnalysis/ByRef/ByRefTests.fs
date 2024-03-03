@@ -321,6 +321,47 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Byref return should be out-of-scope 6``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+struct A =
+    public mutable field X: int32 = 0
+
+    P: byref<int32>
+        mutable get() =
+            &this.X
+
+M2(): byref<int32> =
+    let mutable a = A()
+    let result = &M(&M(&a.P))
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'result' as it might escape its scope at this point.",
+                """
+    &result
+     ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Byref return should be able to return from inside a struct``() =
     """
 #[intrinsic("int32")]
