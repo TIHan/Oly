@@ -973,7 +973,7 @@ and analyzeExpressionAux acenv aenv (expr: E) =
                 | _ ->
                     ()
             match value.Type.TryGetFunctionWithParameters() with
-            | ValueSome(parTys, _) ->
+            | ValueSome(parTys, returnTy) ->
                 match receiverArgExprOpt with
                 | Some receiverArgExpr ->
                     analyzeReceiverExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) receiverArgExpr parTys[0]

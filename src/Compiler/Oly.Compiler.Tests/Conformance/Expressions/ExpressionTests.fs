@@ -9356,3 +9356,149 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    &M(&y)
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    &M(&y)
+    ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    let result = &M(&y)
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    &result
+    ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    &M(&M(&y))
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    &M(&M(&y))
+    ^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    let result = &M(&M(&y))
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    &result
+    ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
