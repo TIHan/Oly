@@ -9384,7 +9384,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Expression is scoped and might escape its scope at this point.",
                 """
     &M(&y)
     ^^^^^^
@@ -9421,7 +9421,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Expression is scoped and might escape its scope at this point.",
                 """
     &result
     ^^^^^^^
@@ -9457,7 +9457,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Expression is scoped and might escape its scope at this point.",
                 """
     &M(&M(&y))
     ^^^^^^^^^^
@@ -9494,7 +9494,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Expression is scoped and might escape its scope at this point.",
                 """
     &result
     ^^^^^^^
