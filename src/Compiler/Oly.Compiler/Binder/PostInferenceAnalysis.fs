@@ -21,6 +21,17 @@ type ScopeValues =
         ValueLambda: int32
     }
 
+// TODO: Add limits.
+type ScopeLimits =
+    | None = 0b0000
+
+[<Struct;NoEquality;NoComparison>]
+type ScopeResult =
+    {
+        ScopeValue: int32
+        ScopeLimits: ScopeLimits
+    }
+
 type acenv = 
     { 
         cenv: cenv 
@@ -449,12 +460,12 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
             else
                 aenv.limits
 
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
     | ValueSome(rhsExpr) ->
         if value.IsLocal then
-            analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
+            analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type |> ignore
         else
-            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
+            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr |> ignore
     | _ ->
         ()
 
@@ -732,7 +743,7 @@ and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool)
     if willBox && exprTy.IsScoped then
         reportScopedTypeBoxing acenv aenv.benv exprTy expr.Syntax.BestSyntaxForReporting
 
-and analyzeExpression acenv aenv (expr: E) =
+and analyzeExpression acenv aenv (expr: E) : ScopeResult =
     if aenv.isReturnable then
         match aenv.currentFunctionOpt with
         | Some func ->
@@ -754,13 +765,13 @@ and analyzeExpression acenv aenv (expr: E) =
         analyzeExpressionAux acenv aenv expr
 
 #if DEBUG || CHECKED
-and analyzeExpressionAux acenv aenv (expr: E) =
+and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
     StackGuard.Do(fun () ->
         analyzeExpressionAuxAux acenv aenv expr
     )
-and analyzeExpressionAuxAux acenv aenv (expr: E) =
+and analyzeExpressionAuxAux acenv aenv (expr: E) : ScopeResult =
 #else
-and analyzeExpressionAux acenv aenv (expr: E) =
+and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 #endif
     acenv.cenv.ct.ThrowIfCancellationRequested()
 
@@ -779,22 +790,24 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             ()
 
         checkValue acenv aenv syntaxNode value
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, exprTy) ->
         analyzeTypePermitByRef acenv aenv syntaxNode exprTy
 
         let aenvConditionExpr = { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true }
-        analyzeExpression acenv aenvConditionExpr conditionExpr
+        analyzeExpression acenv aenvConditionExpr conditionExpr |> ignore
 
-        analyzeExpression acenv aenv trueTargetExpr
-        analyzeExpression acenv aenv falseTargetExpr
+        analyzeExpression acenv aenv trueTargetExpr |> ignore
+        analyzeExpression acenv aenv falseTargetExpr |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Match(_, _, matchExprs, matchClauses, exprTy) ->
         analyzeTypePermitByRef acenv aenv syntaxNode exprTy
 
         let aenvMatchExpr = { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true }
         matchExprs
-        |> ImArray.iter (analyzeExpression acenv aenvMatchExpr)
+        |> ImArray.iter (analyzeExpression acenv aenvMatchExpr >> ignore)
 
         matchClauses
         |> ImArray.iter (function
@@ -804,33 +817,36 @@ and analyzeExpressionAux acenv aenv (expr: E) =
                 match conditionExprOpt with
                 | Some(conditionExpr) ->
                     let aenvConditionExpr = { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true }
-                    analyzeExpression acenv aenvConditionExpr conditionExpr
+                    analyzeExpression acenv aenvConditionExpr conditionExpr |> ignore
                 | _ ->
                     ()
 
-                analyzeExpression acenv aenv targetExpr
+                analyzeExpression acenv aenv targetExpr |> ignore
         )
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.While(_, conditionExpr, bodyExpr) ->
         let aenvConditionExpr = { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true }
-        analyzeExpression acenv aenvConditionExpr conditionExpr
-        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) bodyExpr
+        analyzeExpression acenv aenvConditionExpr conditionExpr |> ignore
+        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) bodyExpr |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
-        analyzeExpression acenv aenv bodyExpr
+        analyzeExpression acenv aenv bodyExpr |> ignore
 
         catchCases
         |> ImArray.iter (function
             | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
                 // TODO: 'syntaxNode' is not the accurate place for this.
                 analyzeType acenv aenv syntaxNode value.Type
-                analyzeExpression acenv aenv catchBodyExpr
+                analyzeExpression acenv aenv catchBodyExpr |> ignore
         )
 
         finallyBodyExprOpt
         |> Option.iter (fun finallyBodyExpr ->
-            analyzeExpression acenv (notReturnable aenv) finallyBodyExpr
+            analyzeExpression acenv (notReturnable aenv) finallyBodyExpr |> ignore
         )
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Witness(_, benv, _, bodyExpr, witnessArgOptRef, exprTy) ->
         OlyAssert.True(witnessArgOptRef.contents.IsNone)
@@ -851,11 +867,13 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             | _ ->
                 acenv.cenv.diagnostics.Error($"Unable to upcast type '{printType benv bodyTy}' to '{printType benv exprTy}.", 10, expr.Syntax)
 
-        analyzeExpression acenv aenv bodyExpr
+        analyzeExpression acenv aenv bodyExpr |> ignore
         analyzeType acenv aenv syntaxNode exprTy
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.ErrorWithNamespace _
-    | E.ErrorWithType _ -> ()
+    | E.ErrorWithType _ ->
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.NewTuple(_, argExprs, exprTy) ->
         // Context Analysis: UnmanagedAllocationOnly
@@ -874,8 +892,10 @@ and analyzeExpressionAux acenv aenv (expr: E) =
                     itemTys[i]
                 else
                     TypeSymbol.Error(None, None)
-            analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) argExpr itemTy
+            analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) argExpr itemTy |> ignore
         )
+
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.NewArray(_, _, argExprs, exprTy) ->
         // Context Analysis: UnmanagedAllocationOnly
@@ -889,8 +909,9 @@ and analyzeExpressionAux acenv aenv (expr: E) =
 
         argExprs
         |> ImArray.iter (fun argExpr -> 
-            analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) argExpr elementTy
+            analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) argExpr elementTy |> ignore
         )
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Typed(body=bodyExpr;ty=exprTy) -> 
         analyzeExpressionWithType acenv aenv bodyExpr exprTy
@@ -930,10 +951,10 @@ and analyzeExpressionAux acenv aenv (expr: E) =
 
         if value.IsFunctionGroup || (value.Type.FunctionParameterCount <> argCount) then
             logicalArgExprs 
-            |> ImArray.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
+            |> ImArray.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
 
             receiverArgExprOpt
-            |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
+            |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         else
             if witnessArgs.IsEmpty |> not then
                 match value.Formal.Type.TryGetFunctionWithParameters() with
@@ -976,12 +997,12 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             | ValueSome(parTys, returnTy) ->
                 match receiverArgExprOpt with
                 | Some receiverArgExpr ->
-                    analyzeReceiverExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) receiverArgExpr parTys[0]
+                    analyzeReceiverExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) receiverArgExpr parTys[0] |> ignore
                     for i = 1 to parTys.Length - 1 do
-                        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) logicalArgExprs[i - 1] parTys[i]
+                        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) logicalArgExprs[i - 1] parTys[i] |> ignore
                 | _ ->
                     for i = 0 to parTys.Length - 1 do
-                        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) logicalArgExprs[i] parTys[i]
+                        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) logicalArgExprs[i] parTys[i] |> ignore
             | _ -> 
                 ()
 
@@ -1002,7 +1023,7 @@ and analyzeExpressionAux acenv aenv (expr: E) =
         // Context Analysis: byref/byref-like
         match expr with
         | AddressOf(AutoDereferenced(expr)) -> 
-            analyzeExpression acenv aenv expr
+            analyzeExpression acenv aenv expr |> ignore
         | AddressOf(E.Value(syntaxInfo, value)) 
         | AddressOf(E.GetField(receiver=AddressOf(E.Value(syntaxInfo, value)))) ->
             checkScope syntaxInfo value
@@ -1011,34 +1032,43 @@ and analyzeExpressionAux acenv aenv (expr: E) =
         | _ ->
             ()
 
-    | E.None _ -> ()
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
+
+    | E.None _ ->
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.GetField(receiver=receiver) ->
-        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver
+        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.SetField(_, receiver, field, rhs) ->
-        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs field.Type
-        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver
+        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs field.Type |> ignore
+        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
         checkValue acenv aenv syntaxNode field
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.GetProperty(receiverOpt=receiverOpt;prop=prop) ->
         receiverOpt
-        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
+        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
-        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs prop.Type
+        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs prop.Type |> ignore
         receiverOpt
-        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope))
+        |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.SetValue(value=value;rhs=rhs) ->
-        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs value.Type
+        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs value.Type |> ignore
         checkValue acenv aenv syntaxNode value
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.SetContentsOfAddress(_, lhsExpr, rhsExpr) ->
-        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) lhsExpr
-        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhsExpr (stripByRef lhsExpr.Type)
+        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) lhsExpr |> ignore
+        analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhsExpr (stripByRef lhsExpr.Type) |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Lambda(_, lambdaFlags, _, pars, lazyBodyExpr, lazyTy, _, _) ->
         let aenv = handleLambda acenv aenv lambdaFlags pars
@@ -1060,16 +1090,18 @@ and analyzeExpressionAux acenv aenv (expr: E) =
         | _ ->
             ()
 
-        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = true; isLastExprOfScope = true } lazyBodyExpr.Expression
+        analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = true; isLastExprOfScope = true } lazyBodyExpr.Expression |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.MemberDefinition(_, binding) ->
         let aenv = (notLastExprOfScope aenv)
         let aenv = { aenv with memberFlags = binding.Info.Value.MemberFlags }
         Assert.ThrowIf(binding.Info.Value.IsLocal)
         analyzeBinding acenv aenv expr.Syntax binding
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Sequential(_, e1, e2, _) ->
-        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) e1
+        analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) e1 |> ignore
         analyzeExpression acenv aenv e2
 
     | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
@@ -1082,9 +1114,11 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             checkValue acenv aenv syntaxName value
         | _ ->
             checkValue acenv aenv syntaxNode value
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.Literal(_, literal) ->
         analyzeLiteral acenv aenv syntaxNode literal
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     | E.EntityDefinition(syntaxInfo=syntaxInfo;body=bodyExpr;ent=ent) ->
         let aenv = (notReturnable aenv)
@@ -1101,17 +1135,18 @@ and analyzeExpressionAux acenv aenv (expr: E) =
                 { aenv with benv = { aenv.benv with ac = { aenv.benv.ac with Entity = Some ent } } }
         ent.Attributes
         |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
-        analyzeExpression acenv aenv bodyExpr
+        analyzeExpression acenv aenv bodyExpr |> ignore
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
-    | E.Unit _ -> ()
-
-    | E.Error _ -> ()
+    | E.Unit _
+    | E.Error _ ->
+        { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
     
 let analyzeRoot acenv aenv (root: BoundRoot) =
     match root with
     | BoundRoot.Namespace(body=bodyExpr)
     | BoundRoot.Global(body=bodyExpr) ->
-        analyzeExpression acenv aenv bodyExpr
+        analyzeExpression acenv aenv bodyExpr |> ignore
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
     let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
