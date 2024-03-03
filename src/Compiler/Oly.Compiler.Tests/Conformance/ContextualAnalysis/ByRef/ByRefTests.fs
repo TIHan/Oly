@@ -117,3 +117,376 @@ main(): () = ()
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Should not be allowed to box a byref``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let mutable x = 1
+    print(&x)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'byref<int32>' is scoped and cannot be boxed.",
+                """
+    print(&x)
+          ^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    &M(&y)
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expression is scoped and might escape its scope at this point.",
+                """
+    &M(&y)
+    ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    let result = &M(&y)
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'result' as it might escape its scope at this point.",
+                """
+    &result
+     ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    &M(&M(&y))
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expression is scoped and might escape its scope at this point.",
+                """
+    &M(&M(&y))
+    ^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+M2(): byref<int32> =
+    let mutable y = 1
+    let result = &M(&M(&y))
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'result' as it might escape its scope at this point.",
+                """
+    &result
+     ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be out-of-scope 5``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+struct A =
+    public mutable field X: int32 = 0
+
+M2(): byref<int32> =
+    let mutable a = A()
+    let result = &M(&M(&a.X))
+    &result
+
+main(): () =
+    let result = M2()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'result' as it might escape its scope at this point.",
+                """
+    &result
+     ^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should be able to return from inside a struct``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<int32>): byref<int32> = &x
+
+struct A =
+    public mutable field X: int32 = 0
+
+    mutable M2(): byref<int32> =
+        let result = &M(&M(&this.X))
+        &result
+
+main(): () =
+    let a = A()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Byref return should error if a struct is returning itself``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct A =
+    public mutable field X: int32 = 0
+
+    mutable M(): byref<A> =
+        &this
+
+main(): () =
+    let a = A()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'this' as it might escape its scope at this point.",
+                """
+        &this
+         ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should error if a struct is returning itself 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<A>): byref<A> = &x
+
+struct A =
+    public mutable field X: int32 = 0
+
+    mutable M2(): byref<A> =
+        &M(&M(&this))
+
+main(): () =
+    let a = A()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expression is scoped and might escape its scope at this point.",
+                """
+        &M(&M(&this))
+        ^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should error if a struct is returning itself from an extension function``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct A =
+    public mutable field X: int32 = 0
+
+#[open]
+extension AExtensions =
+    inherits A
+
+    mutable M(): byref<A> =
+        &this
+
+main(): () =
+    let a = A()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'this' as it might escape its scope at this point.",
+                """
+        &this
+         ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Byref return should error if a struct is returning itself from an extrension function 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(x: byref<A>): byref<A> = &x
+
+struct A =
+    public mutable field X: int32 = 0
+
+#[open]
+extension AExtensions =
+    inherits A
+
+    mutable M2(): byref<A> =
+        &M(&M(&this))
+
+main(): () =
+    let a = A()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expression is scoped and might escape its scope at this point.",
+                """
+        &M(&M(&this))
+        ^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

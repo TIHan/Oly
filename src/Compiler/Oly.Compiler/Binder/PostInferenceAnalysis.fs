@@ -1,7 +1,7 @@
 ﻿[<RequireQualifiedAccess>]
 module internal Oly.Compiler.Internal.Binder.PostInferenceAnalysis
 
-open System.Threading
+open System
 open Oly.Core
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.BoundTree
@@ -14,10 +14,12 @@ open Oly.Compiler.Internal.BoundTreePatterns
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 
+[<Flags>]
 type ScopeLimits =
     | None                    = 0b0000
-    | StackReferringByRef     = 0b0001
-    | StackReferringByRefLike = 0b0010
+    | ByRef                   = 0b0001
+    | StackReferring          = 0b0010
+    | StackReferringByRef     = 0b0011
 
 [<Struct;NoEquality;NoComparison>]
 type ScopeValues =
@@ -31,7 +33,7 @@ let createScopeLimitsByType (ty: TypeSymbol) =
     if ty.IsByRef_t then
         ScopeLimits.StackReferringByRef
     elif ty.IsScoped then
-        ScopeLimits.StackReferringByRefLike
+        ScopeLimits.StackReferring
     else
         ScopeLimits.None
 
@@ -425,21 +427,6 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
             )
             analyzeTypePermitByRef  acenv aenv syntaxNode value.Type
 
-let rec getAddressReturningScope acenv aenv (expr: E) =
-    expr.GetReturningTargetExpressions()
-    |> ImArray.map (fun x ->
-        match x with
-        | AddressOf(expr) ->
-            getAddressReturningScope acenv aenv expr
-        | E.Value(value=value) ->
-            match acenv.scopes.TryGetValue value.Id with
-            | true, scope -> scope.Value
-            | _ -> -1
-        | _ ->
-            -1
-    )
-    |> ImArray.min
-
 let handleLambda acenv aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSymbol imarray) =
     let aenv = 
         if lambdaFlags.HasFlag(LambdaFlags.Scoped) then
@@ -455,7 +442,7 @@ let handleLambda acenv aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSym
     aenv
 
 let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsExprOpt: E voption) (value: IValueSymbol) =
-    let result =
+    let scopeResult =
         match rhsExprOpt with
         | ValueSome(E.Lambda(flags=lambdaFlags;pars=pars;body=lazyBodyExpr)) when value.IsFunction ->
             let aenv = handleLambda acenv aenv lambdaFlags pars
@@ -479,8 +466,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
 
         | ValueSome(rhsExpr) ->
             if value.IsLocal then
-                let isBridge = value.Name = LocalBridgeName
-                analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = not isBridge } rhsExpr value.Type
+                analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
             else
                 analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
 
@@ -494,17 +480,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
             { aenv with isMemberSig = true }
 
     if value.IsLocal && not(value.IsFunction) && not value.IsGenerated then
-        let scope =
-            if value.Type.IsByRef_t then
-                match rhsExprOpt with
-                | ValueSome rhsExpr ->
-                    getAddressReturningScope acenv aenv rhsExpr
-                | _ ->
-                    -1
-            else
-                aenv.scope
-        if scope <> -1 then
-            acenv.scopes[value.Id] <- { Value = scope; ValueLambda = aenv.scopeLambda; Limits = result.ScopeLimits }
+        acenv.scopes[value.Id] <- { Value = aenv.scope; ValueLambda = aenv.scopeLambda; Limits = scopeResult.ScopeLimits }
 
     let checkValueTy () =
         match value.LogicalType.TryGetFunctionWithParameters() with
@@ -747,31 +723,61 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
         | _ ->
             ()
 
-    let createScopeResult (value: IValueSymbol) =
+    let createScopeResult isThisOnly (value: IValueSymbol) =
         let (newScopeValue, newScopeLimits) =
             match acenv.scopes.TryGetValue value.Id with
             | true, scope -> (scope.Value, scope.Limits)
             | _ -> (0, ScopeLimits.None)
         if value.IsParameter then
-            { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits }
+            if isThisOnly then
+                // This prevents taking the address of 'this' and returning it.
+                { ScopeValue = newScopeValue + 1; ScopeLimits = newScopeLimits ||| ScopeLimits.StackReferringByRef }
+            else
+                { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits }
         else
-            { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits ||| ScopeLimits.StackReferringByRef }
+            let newScopeLimits2 =
+                if newScopeLimits.HasFlag(ScopeLimits.ByRef) then
+                    newScopeLimits
+                else
+                    newScopeLimits ||| ScopeLimits.StackReferringByRef
+            { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits2 }
+
+    let createScopeResultForReceiver (value: IValueSymbol) =
+        let (newScopeValue, newScopeLimits) =
+            match acenv.scopes.TryGetValue value.Id with
+            | true, scope -> (scope.Value, scope.Limits)
+            | _ -> (0, ScopeLimits.None)
+        let newScopeLimits2 =
+            if newScopeLimits.HasFlag(ScopeLimits.StackReferring) |> not then
+                ScopeLimits.ByRef
+            else
+                newScopeLimits ||| ScopeLimits.ByRef
+        { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits2 }
 
     // Context Analysis: byref/byref-like
     match expr with
     | AddressOf(AutoDereferenced(expr2)) -> 
         match expr2 with
-        | E.Value(value=value)
+        | E.Value(value=value) ->
+            createScopeResult value.IsThis value
         | E.GetField(receiver=AddressOf(E.Value(value=value))) ->
-            createScopeResult value
+            createScopeResult false value
         | _ ->
             analyzeExpression acenv (aenv |> notLastExprOfScope) expr2
-    | AddressOf(E.Value(value=value)) 
+
+    | AddressOf(E.Value(value=value)) ->
+        createScopeResult value.IsThis value
     | AddressOf(E.GetField(receiver=AddressOf(E.Value(value=value)))) ->
-        createScopeResult value
+        createScopeResult false value
+
     | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) when value.Type.IsScoped ->
-        checkScope syntaxInfo value
-        { ScopeValue = scopeValue; ScopeLimits = ScopeLimits.None } // TODO
+        if value.Type.IsByRef_t then
+            createScopeResultForReceiver value
+        else
+            // TODO: What is this doing here again?
+            checkScope syntaxInfo value
+            { ScopeValue = scopeValue; ScopeLimits = ScopeLimits.None }
+
     | _ ->
         { ScopeValue = scopeValue; ScopeLimits = scopeLimits }
 
@@ -1104,7 +1110,8 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                         | _ ->
                             reportExpressionOutOfScope acenv syntaxNode
                     | AddressOf(E.Value(syntaxInfo, value)) 
-                    | AddressOf(E.GetField(receiver=AddressOf(E.Value(syntaxInfo, value)))) ->
+                    | AddressOf(E.GetField(receiver=AddressOf(E.Value(syntaxInfo, value))))
+                    | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) ->
                         reportAddressOfValueOutOfScope acenv syntaxInfo.SyntaxNameOrDefault value
                     | _ ->
                         reportExpressionOutOfScope acenv syntaxNode
