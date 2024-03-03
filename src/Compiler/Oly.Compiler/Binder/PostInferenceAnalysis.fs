@@ -29,14 +29,6 @@ type ScopeValues =
         Limits: ScopeLimits
     }
 
-let createScopeLimitsByType (ty: TypeSymbol) =
-    if ty.IsByRef_t then
-        ScopeLimits.StackReferringByRef
-    elif ty.IsScoped then
-        ScopeLimits.StackReferring
-    else
-        ScopeLimits.None
-
 [<Struct;NoEquality;NoComparison>]
 type ScopeResult =
     {
