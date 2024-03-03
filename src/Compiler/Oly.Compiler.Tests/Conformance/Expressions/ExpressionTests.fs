@@ -9325,3 +9325,34 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should not be allowed to box a byref``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let mutable x = 1
+    print(&x)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'byref<int32>' is scoped and cannot be boxed.",
+                """
+    print(&x)
+          ^^
+"""
+            )
+        ]
+    |> ignore

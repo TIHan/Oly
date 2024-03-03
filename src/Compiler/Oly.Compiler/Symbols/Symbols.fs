@@ -3784,6 +3784,7 @@ type TypeSymbol =
             |> ImArray.exists (function
                 | ConstraintSymbol.Struct
                 | ConstraintSymbol.Unmanaged
+                | ConstraintSymbol.Blittable
                 | ConstraintSymbol.NotStruct -> true
                 | _ -> false
             )
@@ -3890,6 +3891,13 @@ type TypeSymbol =
         match stripTypeEquations this with
         | ByRef _ -> true
         | Entity(ent) -> ent.Flags.HasFlag(EntityFlags.Scoped)
+        | Variable(tyPar)
+        | HigherVariable(tyPar, _) ->
+            tyPar.Constraints
+            |> ImArray.exists (function
+                | ConstraintSymbol.Scoped -> true
+                | _ -> false
+            )
         | this -> this.IsScopedFunction
 
     member this.IsNativeFunctionPtr_t =

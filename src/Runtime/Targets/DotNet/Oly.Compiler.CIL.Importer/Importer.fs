@@ -39,6 +39,132 @@ module internal rec Helpers =
         else
             ilCallConv
 
+    let mapDotNetTypeToOlyType namespac name tyParCount olyTy (olyTyArgs: _ imarray) =
+        match namespac, name with
+        | "System", "Action" when tyParCount = 0 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`1" when tyParCount = 1 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`2" when tyParCount = 2 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`3" when tyParCount = 3 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`4" when tyParCount = 4 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`5" when tyParCount = 5 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`6" when tyParCount = 6 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`7" when tyParCount = 7 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`8" when tyParCount = 8 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`9" when tyParCount = 9 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`10" when tyParCount = 10 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`11" when tyParCount = 11 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`12" when tyParCount = 12 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`13" when tyParCount = 13 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`14" when tyParCount = 14 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`15" when tyParCount = 15 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+        | "System", "Action`16" when tyParCount = 16 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
+
+        | "System", "Func`1" when tyParCount = 1 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
+        | "System", "Func`2" when tyParCount = 2 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1], OlyILFunctionKind.Normal)
+        | "System", "Func`3" when tyParCount = 3 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2], OlyILFunctionKind.Normal)
+        | "System", "Func`4" when tyParCount = 4 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(3), olyTyArgs[3], OlyILFunctionKind.Normal)
+        | "System", "Func`5" when tyParCount = 5 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(4), olyTyArgs[4], OlyILFunctionKind.Normal)
+        | "System", "Func`6" when tyParCount = 6 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(5), olyTyArgs[5], OlyILFunctionKind.Normal)
+        | "System", "Func`7" when tyParCount = 7 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(6), olyTyArgs[6], OlyILFunctionKind.Normal)
+        | "System", "Func`8" when tyParCount = 8 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(7), olyTyArgs[7], OlyILFunctionKind.Normal)
+        | "System", "Func`9" when tyParCount = 9 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(8), olyTyArgs[8], OlyILFunctionKind.Normal)
+        | "System", "Func`10" when tyParCount = 10 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(9), olyTyArgs[9], OlyILFunctionKind.Normal)
+        | "System", "Func`11" when tyParCount = 11 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(10), olyTyArgs[10], OlyILFunctionKind.Normal)
+        | "System", "Func`12" when tyParCount = 12 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(11), olyTyArgs[11], OlyILFunctionKind.Normal)
+        | "System", "Func`13" when tyParCount = 13 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(12), olyTyArgs[12], OlyILFunctionKind.Normal)
+        | "System", "Func`14" when tyParCount = 14 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(13), olyTyArgs[13], OlyILFunctionKind.Normal)
+        | "System", "Func`15" when tyParCount = 15 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(14), olyTyArgs[14], OlyILFunctionKind.Normal)
+        | "System", "Func`16" when tyParCount = 16 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeFunction(olyTyArgs.RemoveAt(15), olyTyArgs[15], OlyILFunctionKind.Normal)
+
+        // TODO: Figure out what the item names can be for tuples. C# allows to express the item names for a tuple.
+        | "System", "ValueTuple`2" when tyParCount = 2 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+        | "System", "ValueTuple`3" when tyParCount = 3 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+        | "System", "ValueTuple`4" when tyParCount = 4 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+        | "System", "ValueTuple`5" when tyParCount = 5 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+        | "System", "ValueTuple`6" when tyParCount = 6 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+        | "System", "ValueTuple`7" when tyParCount = 7 ->
+            OlyAssert.Equal(tyParCount, olyTyArgs.Length)
+            OlyILTypeTuple(olyTyArgs, ImArray.empty)
+
+        | _ ->
+            olyTy
+
     type internal OlyTypeName =
 
         static member Check(olyTy, olyAsm: OlyILAssembly, namespacePathWithDots: string, name: string) =
@@ -92,7 +218,7 @@ module internal rec Helpers =
                 if shape.LowerBounds |> ImArray.forall (fun x -> x = 0) then
                     OlyILTypeArray(olyElementTy, shape.Rank, OlyILArrayKind.Mutable)
                 else
-                    OlyILTypeBaseObject // TODO:
+                    invalidType cenv "Unsupported .NET type."
 
             member this.GetByReferenceType(olyTy) =
                 OlyILTypeByRef(olyTy, OlyILByRefKind.ReadWrite)
@@ -217,7 +343,7 @@ module internal rec Helpers =
                 | PrimitiveTypeCode.Single -> OlyILTypeFloat32
                 | PrimitiveTypeCode.Double -> OlyILTypeFloat64
                 | PrimitiveTypeCode.Void -> OlyILTypeVoid
-                | PrimitiveTypeCode.TypedReference -> OlyILTypeBaseObject // TODO:
+                | PrimitiveTypeCode.TypedReference -> invalidType cenv "Unsupported .NET type."
                 | PrimitiveTypeCode.String -> OlyILTypeUtf16
                 | PrimitiveTypeCode.IntPtr -> OlyILTypeNativeInt
                 | PrimitiveTypeCode.UIntPtr -> OlyILTypeNativeUInt
@@ -235,23 +361,9 @@ module internal rec Helpers =
                 let tyDef = reader.GetTypeDefinition(handle)
                 let name = reader.GetString(tyDef.Name)
                 let namespac = reader.GetString(tyDef.Namespace)
-
                 let tyParCount = tyDef.GetGenericParameters().Count
-                match namespac, name with
-                | "System", "Action" when tyParCount = 0 ->
-                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Action`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Action`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Func`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
-                | "System", "Func`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1], OlyILFunctionKind.Normal)
-                | "System", "Func`3" when tyParCount = 3 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2], OlyILFunctionKind.Normal)
-                | _ ->
-                    olyTy
+
+                mapDotNetTypeToOlyType namespac name tyParCount olyTy olyTyArgs
 
             member this.GetTypeFromReference(reader, handle, rawTypeKind) =
                 let olyEntRefHandle = importTypeReferenceAsOlyILEntityReference cenv handle
@@ -262,25 +374,9 @@ module internal rec Helpers =
                 let tyRef = reader.GetTypeReference(handle)
                 let name = reader.GetString(tyRef.Name)
                 let namespac = reader.GetString(tyRef.Namespace)
-
                 let tyParCount = olyEntRef.FullTypeParameterCount
 
-                // TODO: This is duplicated, we should move this logic to a common place.
-                match namespac, name with
-                | "System", "Action" when tyParCount = 0 ->
-                    OlyILTypeFunction(ImArray.empty, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Action`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Action`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs, OlyILTypeVoid, OlyILFunctionKind.Normal)
-                | "System", "Func`1" when tyParCount = 1 ->
-                    OlyILTypeFunction(ImArray.empty, olyTyArgs[0], OlyILFunctionKind.Normal)
-                | "System", "Func`2" when tyParCount = 2 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(1), olyTyArgs[1], OlyILFunctionKind.Normal)
-                | "System", "Func`3" when tyParCount = 3 ->
-                    OlyILTypeFunction(olyTyArgs.RemoveAt(2), olyTyArgs[2], OlyILFunctionKind.Normal)
-                | _ ->
-                    olyTy
+                mapDotNetTypeToOlyType namespac name tyParCount olyTy olyTyArgs
 
             member this.GetTypeFromSpecification(reader, genericContext, handle, rawTypeKind) =
                 let olyTy = importTypeSpecificationAsOlyILType cenv handle
@@ -642,6 +738,53 @@ module internal rec Helpers =
                                 reader.GetString(tyRef.Namespace)
                             
                         namesp = "System.Runtime.CompilerServices" && name = "IsReadOnlyAttribute"
+                    | _ ->
+                        false
+                else
+                    false
+
+            | _ ->
+                false
+        )
+
+    let hasIsByRefLikeAttribute cenv (handles: CustomAttributeHandleCollection) =
+        let reader = cenv.reader
+
+        handles.ToImmutableArray()
+        |> ImArray.exists (fun x ->
+            let attr = reader.GetCustomAttribute(x)
+            match attr.Constructor.Kind with
+            | HandleKind.MethodDefinition ->
+                let methDef = reader.GetMethodDefinition(MethodDefinitionHandle.op_Explicit attr.Constructor)
+                let name = reader.GetString(methDef.Name)
+                if name = ".ctor" then
+                    let tyDef = reader.GetTypeDefinition(methDef.GetDeclaringType())
+                    let name = reader.GetString(tyDef.Name)
+                    let namesp =
+                        if tyDef.Namespace.IsNil then
+                            String.Empty
+                        else
+                            reader.GetString(tyDef.Namespace)
+
+                    namesp = "System.Runtime.CompilerServices" && name = "IsByRefLikeAttribute"
+                else
+                    false
+
+            | HandleKind.MemberReference ->
+                let memRef = reader.GetMemberReference(MemberReferenceHandle.op_Explicit attr.Constructor)
+                let name = reader.GetString(memRef.Name)
+                if name = ".ctor" then
+                    match memRef.Parent.Kind with
+                    | HandleKind.TypeReference ->
+                        let tyRef = reader.GetTypeReference(TypeReferenceHandle.op_Explicit memRef.Parent)
+                        let name = reader.GetString(tyRef.Name)
+                        let namesp =
+                            if tyRef.Namespace.IsNil then
+                                String.Empty
+                            else
+                                reader.GetString(tyRef.Namespace)
+                            
+                        namesp = "System.Runtime.CompilerServices" && name = "IsByRefLikeAttribute"
                     | _ ->
                         false
                 else
@@ -1098,6 +1241,12 @@ module internal rec Helpers =
             if not isEnum && not isStruct then
                 // By default, all reference types imported are assumed to be nullable.
                 olyEntFlags ||| OlyILEntityFlags.Nullable
+            else
+                olyEntFlags
+
+        let olyEntFlags =
+            if (olyEntKind = OlyILEntityKind.Struct) && hasIsByRefLikeAttribute cenv (tyDef.GetCustomAttributes()) then
+                olyEntFlags ||| OlyILEntityFlags.Scoped
             else
                 olyEntFlags
 

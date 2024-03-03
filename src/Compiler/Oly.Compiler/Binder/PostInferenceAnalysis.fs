@@ -67,6 +67,9 @@ let reportUnmanagedAllocationOnly acenv (syntaxNode: OlySyntaxNode) =
 let reportUnmanagedAllocationOnlyBoxing acenv (syntaxNode: OlySyntaxNode) =
     acenv.cenv.diagnostics.Error("Expression can potentially box and cause a managed allocation. Managed allocations are not allowed.", 10, syntaxNode.BestSyntaxForReporting)
 
+let reportScopedTypeBoxing acenv benv (ty: TypeSymbol) (syntaxNode: OlySyntaxNode) =
+    acenv.cenv.diagnostics.Error($"'{printType benv ty}' is scoped and cannot be boxed.", 10, syntaxNode.BestSyntaxForReporting)
+
 let reportAddressOfValueOutOfScope acenv (syntaxNode: OlySyntaxNode) (value: IValueSymbol) =
     acenv.cenv.diagnostics.Error($"Cannot take the address of '{value.Name}' as it might escape its scope at this point.", 10, syntaxNode)
 
@@ -707,16 +710,27 @@ and analyzeAttribute acenv aenv (syntaxNode: OlySyntaxNode) (attr: AttributeSymb
         ()
 
 and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
-    analyzeExpressionWithTypeAux acenv aenv expr expectedTy
+    analyzeExpressionWithTypeAux acenv aenv expr false expectedTy
     analyzeExpression acenv aenv expr
 
-and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
+and analyzeReceiverExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
+    analyzeExpressionWithTypeAux acenv aenv expr true expectedTy
+    analyzeExpression acenv aenv expr
+
+and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool) (expectedTy: TypeSymbol) =
+    let exprTy = expr.Type
+    let willBox = 
+        if exprTy.IsScoped then
+            not isReceiver && expectedTy.IsAnyNonStruct && not expectedTy.IsScoped
+        else
+            (exprTy.IsAnyStruct || exprTy.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint) && expectedTy.IsAnyNonStruct
+
     // Context Analysis: UnmanagedAllocationOnly
-    if aenv.IsInUnmanagedAllocationOnlyContext then
-        let exprTy = expr.Type
-        let willBox = (exprTy.IsAnyStruct || exprTy.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint) && expectedTy.IsAnyNonStruct
-        if willBox then
-            reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
+    if willBox && aenv.IsInUnmanagedAllocationOnlyContext then
+        reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
+
+    if willBox && exprTy.IsScoped then
+        reportScopedTypeBoxing acenv aenv.benv exprTy expr.Syntax.BestSyntaxForReporting
 
 and analyzeExpression acenv aenv (expr: E) =
     if aenv.isReturnable then
@@ -732,7 +746,7 @@ and analyzeExpression acenv aenv (expr: E) =
             | E.Let _ ->
                 ()
             | _ ->
-                analyzeExpressionWithTypeAux acenv aenv expr func.ReturnType
+                analyzeExpressionWithTypeAux acenv aenv expr (* isReceiver *) false func.ReturnType
             analyzeExpressionAux acenv aenv expr
         | _ ->
             analyzeExpressionAux acenv aenv expr
@@ -962,7 +976,7 @@ and analyzeExpressionAux acenv aenv (expr: E) =
             | ValueSome(parTys, _) ->
                 match receiverArgExprOpt with
                 | Some receiverArgExpr ->
-                    analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) receiverArgExpr parTys[0]
+                    analyzeReceiverExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) receiverArgExpr parTys[0]
                     for i = 1 to parTys.Length - 1 do
                         analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) logicalArgExprs[i - 1] parTys[i]
                 | _ ->
