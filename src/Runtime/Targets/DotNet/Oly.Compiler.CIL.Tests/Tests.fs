@@ -18774,3 +18774,43 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "13"
+
+[<Fact>]
+let ``Array of tuples in a ForEach loop funcion should work``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+ForEach<T>(xs: T[], f: T -> ()): () =
+    print("hello")
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, x -> ())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Array of tuples in a ForEach loop funcion should work 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+ForEach<T>(xs: T[], f: T -> ()): () =
+    print("hello")
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, (x, y) -> ())
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
