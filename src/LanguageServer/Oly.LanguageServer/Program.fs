@@ -1031,25 +1031,55 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         |> Seq.map (fun x -> OlyPath.Create(x))
         |> ImArray.ofSeq
 
+    let tryGetSourceText (documentPath: OlyPath) =
+        match textManager.TryGet(documentPath) with
+        | Some(sourceText, _) ->
+            Some sourceText
+        | _ ->
+            try
+                OlySourceText.FromFile(documentPath.ToString())
+                |> Some
+            with
+            | :? FileNotFoundException ->
+                None
+
     let documentIsUsedInProject (projectPath: OlyPath) (documentPath: OlyPath) =
         if OlyPath.Equals(projectPath, documentPath) then true
         else
-            let projSyntaxTree = OlySyntaxTree.Parse(projectPath, OlySourceText.FromFile(projectPath.ToString()), { OlyParsingOptions.Default with CompilationUnitConfigurationEnabled = true })
-            let config = projSyntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
+            match tryGetSourceText projectPath with
+            | Some(sourceText) ->
+                let projSyntaxTree = OlySyntaxTree.Parse(projectPath, sourceText, { OlyParsingOptions.Default with CompilationUnitConfigurationEnabled = true })
+                let config = projSyntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
 
-            let exists =
-                config.Loads
-                |> ImArray.exists (fun (_, x) ->
-                    let absolutePath = OlyPath.Combine(OlyPath.GetDirectory(projectPath), x)
-                    absolutePath.ContainsDirectoryOrFile(documentPath)
-                )
-            exists
+                let exists =
+                    config.Loads
+                    |> ImArray.exists (fun (_, x) ->
+                        let absolutePath = OlyPath.Combine(OlyPath.GetDirectory(projectPath), x)
+                        absolutePath.ContainsDirectoryOrFile(documentPath)
+                    )
+                exists
+            | _ ->
+                false
+
+    let autoOpenProjects ct =
+        getProjectFilesInClient()
+        |> ImArray.iter (fun x ->
+            match tryGetSourceText x with
+            | Some(sourceText) ->
+                workspace.UpdateDocument(x, sourceText, ct)
+            | _ ->
+                ()
+        )
 
     let autoOpenProjectsByDocument (documentPath: OlyPath) ct =
         getProjectFilesInClient()
         |> ImArray.iter (fun x ->
             if documentIsUsedInProject x documentPath then
-                workspace.UpdateDocument(x, OlySourceText.FromFile(x.ToString()), ct) 
+                match tryGetSourceText x with
+                | Some(sourceText) ->
+                    workspace.UpdateDocument(x, sourceText, ct) 
+                | _ ->
+                    ()
         )
 
     let autoOpenProjectsByDocumentIfNecessary (documentPath: OlyPath) ct =
@@ -1071,6 +1101,17 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Project.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Project.Path, ".json")).ToString())
                 let diags = doc.ToLspDiagnostics(ct)
                 server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
+        }
+
+    let refreshWorkspace ct =
+        backgroundTask {
+            autoOpenProjects ct
+            let! docs = workspace.GetAllDocumentsAsync(ct)
+            for doc in docs do
+                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.oly")
+                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.olyx")
+                if doc.IsProjectDocument then
+                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Path, ".json")).ToString())
         }
 
     member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
@@ -1556,44 +1597,35 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: ReferenceParams, ct: CancellationToken): Task<LocationContainer> = 
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
-                let currentSolution = doc.Project.Solution
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
                 | Some symbol ->
-                    let projs = currentSolution.GetProjects()
-                    let allSymbols =
-                        projs
-                        |> ImArray.map (fun proj ->
-                            proj.Documents
-                            |> ImArray.map (fun doc ->
-                                let symbols1 = getLocationsBySymbol symbol doc ct |> ImArray.ofSeq
-                            
-                                if symbol.IsLocal then
-                                    symbols1 |> Array.ofSeq
-                                else
-                                    let depsOn = currentSolution.GetProjectsDependentOnReference(doc.Project.Path).Add(doc.Project)
-                            
-                                    let symbols2 =
-                                        depsOn
-                                        |> Seq.map (fun x -> 
-                                            x.Documents
-                                            |> Seq.map (fun x ->
-                                                getLocationsBySymbol symbol x ct)
-                                            )
-                                            |> Seq.concat
-                                        |> Seq.concat
-                            
-                                    let finalSymbols =
-                                        Seq.append symbols1 symbols2
-                                        |> Array.ofSeq
-
-                                    finalSymbols
-                            )
-                            |> Array.concat
-                            |> Array.ofSeq
-                        )
-                        |> Array.concat
-                        |> Array.ofSeq
+                    let allSymbols = List()
+                    if symbol.IsInLocalScope then
+                        allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+                    else
+                        // TODO: We could optimize this where we don't have to refresh everything.
+                        do! refreshWorkspace ct // Ensure all projects are available in the workspace when finding references.
+                        let solution = workspace.Solution
+                        match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
+                        | Some(doc) ->
+                            // Re-find the symbol because the solution and projects could have changed.
+                            let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
+                            match symbolOpt with
+                            | Some symbol ->
+                                let originatingProj = doc.Project
+                                let projs = solution.GetProjectsDependentOnReference(originatingProj.Path).Add(originatingProj)
+                                projs
+                                |> ImArray.iter (fun proj ->
+                                    proj.Documents
+                                    |> ImArray.iter (fun doc ->
+                                        allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+                                    )
+                                )
+                            | _ ->
+                                ()
+                        | _ ->
+                            ()
                     return LocationContainer.From(allSymbols)                   
                 | _ ->
                     return LocationContainer.From([||])
@@ -1770,7 +1802,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     textResult
                                 elif symbol.IsParameter then
                                     sprintf "(parameter) %s" textResult
-                                elif symbol.IsLocal then
+                                elif symbol.IsInLocalScope then
                                     sprintf "(local) %s" textResult
                                 else
                                     textResult

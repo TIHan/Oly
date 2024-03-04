@@ -160,6 +160,8 @@ type OlySolution =
 
     member GetDocuments : documentPath: OlyPath -> OlyDocument imarray
 
+    member GetAllDocuments : unit -> OlyDocument imarray
+
     member HasProject : projectPath: OlyPath -> bool
 
     member GetProject : projectPath: OlyPath -> OlyProject
@@ -216,7 +218,10 @@ type OlyWorkspace =
     /// Get documents by path.
     member GetDocumentsAsync : documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
 
-    /// We should make this better.
+    /// Get all the documents in the workspace's solution.
+    member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
+
+    /// TODO: We should make this API better.
     member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.

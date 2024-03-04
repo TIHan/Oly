@@ -527,6 +527,12 @@ type OlySolution (state: SolutionState) =
         )
         |> ImArray.ofSeq
 
+    member this.GetAllDocuments() =
+        state.projects.Values
+        |> Seq.map (fun proj -> proj.Documents)
+        |> Seq.concat
+        |> ImArray.ofSeq
+
     member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
@@ -669,6 +675,7 @@ type WorkspaceMessage =
     | UpdateDocumentNoReply of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetDocuments of documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
+    | GetAllDocuments of ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | InvalidateProject of projectPath: OlyPath * ct: CancellationToken
     | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken * AsyncReplyChannel<unit>
@@ -721,13 +728,24 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 ()
         }
 
-    let checkProjects (documentPath: OlyPath) ct =
+    let checkProjectsByDocuments (docs: OlyDocument imarray) ct =
         async {
-            let docs = solution.GetDocuments(documentPath)
             let projs =
                 docs |> ImArray.map (fun x -> x.Project)
             for proj in projs do
                 do! checkProject proj ct
+        }
+
+    let checkProjectsThatContainDocument (documentPath: OlyPath) ct =
+        async {
+            let docs = solution.GetDocuments(documentPath)
+            do! checkProjectsByDocuments docs ct
+        }
+
+    let checkAllProjects ct =
+        async {
+            let docs = solution.GetAllDocuments()
+            do! checkProjectsByDocuments docs ct
         }
 
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
@@ -741,6 +759,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     with
                     | _ ->
                         ()
+
                 | InvalidateProject(projectPath, ct) ->
                     try
                         ct.ThrowIfCancellationRequested()
@@ -748,6 +767,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     with
                     | _ ->
                         ()
+
                 | ClearSolution(ct, reply) ->
                     try
                         try
@@ -764,10 +784,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             ()
                     finally
                         reply.Reply(())
+
                 | UpdateDocumentNoReply(documentPath, sourceText, ct) ->
                     try
                         ct.ThrowIfCancellationRequested()
-                        do! checkProjects documentPath ct
+                        do! checkProjectsThatContainDocument documentPath ct
                         do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
                         solution.GetDocuments(documentPath)
                         |> ImArray.iter (fun doc ->
@@ -778,10 +799,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         )
                     with
                     | _ -> ()
+
                 | UpdateDocument(documentPath, sourceText, ct, reply) ->
                     try
                         ct.ThrowIfCancellationRequested()
-                        do! checkProjects documentPath ct
+                        do! checkProjectsThatContainDocument documentPath ct
                         do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
                         let docs = this.Solution.GetDocuments(documentPath)
                         reply.Reply(docs)
@@ -793,13 +815,24 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             )
                         )
                     with
-                    | ex ->
+                    | _ ->
                         reply.Reply(ImArray.empty)
+
                 | GetDocuments(documentPath, ct, reply) ->
                     try
                         ct.ThrowIfCancellationRequested()
-                        do! checkProjects documentPath ct
+                        do! checkProjectsThatContainDocument documentPath ct
                         let docs = this.Solution.GetDocuments(documentPath)
+                        reply.Reply(docs)
+                    with
+                    | _ ->
+                        reply.Reply(ImArray.empty)
+
+                | GetAllDocuments(ct, reply) ->
+                    try
+                        ct.ThrowIfCancellationRequested()
+                        do! checkAllProjects ct
+                        let docs = this.Solution.GetAllDocuments()
                         reply.Reply(docs)
                     with
                     | _ ->
@@ -1202,6 +1235,12 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetDocuments(documentPath, ct, reply))
+        }
+
+    member this.GetAllDocumentsAsync(ct: CancellationToken): Task<OlyDocument imarray> =
+        backgroundTask {
+            ct.ThrowIfCancellationRequested()
+            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetAllDocuments(ct, reply))
         }
 
     member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =

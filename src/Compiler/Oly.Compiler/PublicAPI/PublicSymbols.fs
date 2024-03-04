@@ -14,6 +14,27 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.PrettyPrint
+open Oly.Compiler.Internal.CompilerImports
+
+let private stripRetargetedEntitySymbol (symbol: EntitySymbol) : EntitySymbol =
+    match symbol with
+    | :? RetargetedEntitySymbol as symbol ->
+        symbol.Original
+    | _ ->
+        symbol
+
+let private stripRetargetedValueSymbol (symbol: IValueSymbol) : IValueSymbol =
+    match symbol with
+    | :? RetargetedFieldSymbol as symbol ->
+        symbol.Original
+    | :? RetargetedFunctionSymbol as symbol ->
+        symbol.Original
+    | :? RetargetedPatternSymbol as symbol ->
+        symbol.Original
+    | :? RetargetedPropertySymbol as symbol ->
+        symbol.Original
+    | _ ->
+        symbol
 
 [<AbstractClass>]
 type OlySymbol internal (syntax: OlySyntaxNode) =
@@ -26,7 +47,7 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
 
     abstract IsSimilarTo: OlySymbol -> bool
 
-    abstract IsLocal: bool
+    abstract IsInLocalScope: bool
 
     member _.UseSyntax = syntax
 
@@ -95,7 +116,7 @@ type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol)
         | _ ->
             false
 
-    override this.IsLocal = false
+    override this.IsInLocalScope = false
 
     member _.Types =
         match tys with
@@ -179,7 +200,7 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | _ ->
             false
 
-    override this.IsLocal =
+    override this.IsInLocalScope =
         match ty with
         | TypeSymbol.Entity(ent) -> ent.IsLocal
         | _ -> true
@@ -394,7 +415,7 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
         | _ ->
             false
 
-    override this.IsLocal = false
+    override this.IsInLocalScope = false
 
 [<Sealed>][<DebuggerDisplay("{SignatureText}")>] 
 type OlyFunctionGroupSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location, funcGroup: FunctionGroupSymbol) =
@@ -422,7 +443,7 @@ type OlyFunctionGroupSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvi
         | _ ->
             false
 
-    override this.IsLocal =
+    override this.IsInLocalScope =
         funcGroup.IsLocal
 
     member _.Functions =
@@ -457,29 +478,31 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
     override this.IsSimilarTo(symbol) =
         match symbol with
         | :? OlyValueSymbol as symbol ->
-            match this.IsLocal, symbol.IsLocal with
+            match this.IsInLocalScope, symbol.IsInLocalScope with
             | true, true ->
                 this.Internal.Formal.Id = symbol.Internal.Formal.Id
             | false, false ->
-                if areValueSignaturesEqual this.Internal.Formal symbol.Internal.Formal then
+                let formal1 = stripRetargetedValueSymbol this.Internal.Formal
+                let formal2 = stripRetargetedValueSymbol symbol.Internal.Formal
+                if areValueSignaturesEqual formal1 formal2 then
                     true
                 else
-                    if this.IsProperty && symbol.IsField then
-                        match symbol.Internal with
+                    if formal1.IsProperty && formal2.IsField then
+                        match formal2 with
                         | :? IFieldSymbol as field ->
                             match field.AssociatedFormalPropertyId with
                             | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = this.Internal.Formal.Id
+                                associatedFormalPropId = formal1.Id
                             | _ ->
                                 false
                         | _ ->
                             false
-                    elif this.IsField && symbol.IsProperty then
-                        match this.Internal with
+                    elif formal1.IsField && formal2.IsProperty then
+                        match formal1 with
                         | :? IFieldSymbol as field ->
                             match field.AssociatedFormalPropertyId with
                             | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = symbol.Internal.Formal.Id
+                                associatedFormalPropId = formal2.Id
                             | _ ->
                                 false
                         | _ ->
@@ -497,7 +520,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             false
 
-    override _.IsLocal = value.IsLocal
+    override _.IsInLocalScope = value.IsLocal
     
     member this.IsUnqualified =
         if this.IsPatternFunction then
@@ -581,7 +604,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
 
     member this.IsOverridable = value.IsOverridable
 
-    member this.IsParameter = this.IsLocal && (value.ValueFlags &&& ValueFlags.Parameter = ValueFlags.Parameter)
+    member this.IsParameter = this.IsInLocalScope && (value.ValueFlags &&& ValueFlags.Parameter = ValueFlags.Parameter)
 
     member this.IsEntryPoint =
         match value with
@@ -717,7 +740,7 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
         | AttributeSymbol.Constructor(ctor, _, _, _) -> 
             OlyValueSymbol(boundModel, benv, location, ctor).SignatureText
 
-    override _.IsLocal = false
+    override _.IsInLocalScope = false
 
     override this.TryGetDefinitionLocation(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -781,7 +804,7 @@ type OlyDirectiveSymbol internal (syntaxNode: OlySyntaxNode, name: string, value
         | _ ->
             false
 
-    override _.IsLocal = false
+    override _.IsInLocalScope = false
 
     member _.Value = value
 
@@ -797,7 +820,7 @@ type OlyConditionalDirectiveSymbol internal (syntaxNode: OlySyntaxNode) =
 
     override this.IsSimilarTo(_) = false
 
-    override _.IsLocal = false
+    override _.IsInLocalScope = false
 
 // TODO: Weird name.
 [<Sealed>] 
