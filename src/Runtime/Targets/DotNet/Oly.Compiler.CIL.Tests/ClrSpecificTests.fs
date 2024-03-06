@@ -7098,3 +7098,43 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput ""
+
+
+[<Fact>]
+let ``Cannot clear a span of a class type alias as no overloads exist for it``() =
+    """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+alias AAlias = A
+
+class B =
+
+    A: AAlias get = A()
+
+    M(): () =
+        Span(this.A).Clear()
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            // TODO: Honestly, this shouldn't even report ambiguous functions.
+            //       It should actually say that there is no valid overload.
+            ("'.ctor' has ambiguous functions.",
+                """
+        Span(this.A).Clear()
+        ^^^^
+"""
+            )
+        ]
+    |> ignore

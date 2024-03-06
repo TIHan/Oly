@@ -644,7 +644,7 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         | _ ->
             bindCallExpression cenv env syntaxToCapture receiverInfoOpt syntaxCallBodyExpr syntaxArgs
 
-    | ResolutionItem.MemberIndexerCall(syntaxToCapture, syntaxReceiver, syntaxBrackets, syntaxMemberExprOpt, expectedTyOpt) ->
+    | ResolutionItem.MemberIndexerCall(syntaxToCapture, syntaxReceiver, syntaxBrackets, syntaxMemberExprOpt, (* TODO: get rid of this parameter? *) _expectedTyOpt) ->
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
             let _, expr = bindIndexer cenv env syntaxToCapture syntaxReceiver syntaxBrackets None

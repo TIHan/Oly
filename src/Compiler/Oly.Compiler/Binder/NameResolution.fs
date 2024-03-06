@@ -501,7 +501,13 @@ let bindNameAsFormalItem (cenv: cenv) env syntaxToCaptureOpt (receiverInfoOpt: R
 
 let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) (syntaxInfo: BoundSyntaxInfo) (receiverExprOpt: BoundExpression option) (argExprs: BoundExpression imarray) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) (originalValue: IValueSymbol) =
     if originalValue.IsInvalid then
-        E.Error(syntaxInfo)
+        E.Call(syntaxInfo,
+            receiverExprOpt,
+            ImArray.empty,
+            argExprs,
+            originalValue,
+            false
+        )
     else
         let tyArgOffset =
             if not originalValue.IsInstance then
