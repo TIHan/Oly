@@ -1300,11 +1300,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let argTys, returnTy =
                 match funArgTy.StripAliasAndNewtype() with
-                | RuntimeType.Function(argTys, returnTy, _)
+                | RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Normal)
                 | RuntimeType.NativeFunctionPtr(_, argTys, returnTy) ->
                     argTys, returnTy
-                | RuntimeType.ByRef(RuntimeType.Function(argTys, returnTy, _), _)
-                | RuntimeType.ByRef(RuntimeType.NativeFunctionPtr(_, argTys, returnTy), _) ->
+                | RuntimeType.ByRef(RuntimeType.Function(argTys, returnTy, OlyIRFunctionKind.Scoped), _) ->
                     argTys, returnTy
                 | _ ->
                     failwith "Invalid indirect call."

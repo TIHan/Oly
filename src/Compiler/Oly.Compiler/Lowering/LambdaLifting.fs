@@ -705,7 +705,7 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         )
     )
 
-let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (extraInst: TypeSymbol imarray) (ctor: IFunctionSymbol) (invoke: IFunctionSymbol) =
+let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (extraInst: TypeSymbol imarray) (ctor: IFunctionSymbol) =
     Assert.ThrowIfNot(ctor.Formal = ctor)
     Assert.ThrowIfNot(ctor.IsConstructor)
 
@@ -997,7 +997,7 @@ let toClosureExpression cenv (info: ClosureInfo) =
     let ctorDefExpr = createClosureConstructorMemberDefinitionExpression cenv ctor
     let invokeDefExpr = createClosureInvokeMemberDefinitionExpression cenv bindingInfoOpt freeLocals pars tyParLookup invoke bodyExpr
         
-    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars info.ExtraTypeArguments ctor invoke
+    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars info.ExtraTypeArguments ctor
 
     let syntaxTree = cenv.tree.SyntaxTree   
     E.CreateSequential(syntaxTree,

@@ -1983,7 +1983,20 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 OlyAssert.Equal(0, ilTyInst.Length)
                 OlyAssert.Equal(0, ilWitnesses.Length)
 
-                OlyILOperation.CallIndirect(ilFunArgExpr, ilArgExprs)
+                if value.Type.IsScopedFunction then
+                    let ilFunArgExpr =
+                        match ilFunArgExpr with
+                        | OlyILExpression.Value(ilTextRange, OlyILValue.Local n) ->
+                            OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(n, OlyILByRefKind.Read))
+                        | OlyILExpression.Value(ilTextRange, OlyILValue.Argument n) ->
+                            OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.Read))
+                        | OlyILExpression.Operation(_, OlyILOperation.LoadFieldAddress _) ->
+                            ilFunArgExpr
+                        | _ ->
+                            failwith "Invalid receiver for CallIndirect."
+                    OlyILOperation.CallIndirect(ilFunArgExpr, ilArgExprs)
+                else
+                    OlyILOperation.CallIndirect(ilFunArgExpr, ilArgExprs)
         
         OlyILExpression.Operation(ilTextRange, ilOp)
 
