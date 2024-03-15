@@ -213,7 +213,7 @@ type OlyWorkspace =
     /// Non-blocking.
     member UpdateDocument : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
-    member InvalidateProject : projectPath: OlyPath * ct: CancellationToken -> unit
+    member RemoveProject : projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
     member GetDocumentsAsync : documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>

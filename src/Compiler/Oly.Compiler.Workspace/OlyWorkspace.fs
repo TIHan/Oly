@@ -676,7 +676,7 @@ type WorkspaceMessage =
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetDocuments of documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetAllDocuments of ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
-    | InvalidateProject of projectPath: OlyPath * ct: CancellationToken
+    | RemoveProject of projectPath: OlyPath * ct: CancellationToken
     | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken * AsyncReplyChannel<unit>
 
@@ -760,10 +760,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         ()
 
-                | InvalidateProject(projectPath, ct) ->
+                | RemoveProject(projectPath, ct) ->
                     try
                         ct.ThrowIfCancellationRequested()
-                        solution <- solution.InvalidateProject(projectPath)
+                        solution <- solution.RemoveProject(projectPath)
                     with
                     | _ ->
                         ()
@@ -1223,8 +1223,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     member this.UpdateDocument(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.UpdateDocumentNoReply(documentPath, sourceText, ct))
 
-    member this.InvalidateProject(projectPath: OlyPath, ct: CancellationToken): unit =
-        mbp.Post(WorkspaceMessage.InvalidateProject(projectPath, ct))
+    member this.RemoveProject(projectPath: OlyPath, ct: CancellationToken): unit =
+        mbp.Post(WorkspaceMessage.RemoveProject(projectPath, ct))
 
     member this.UpdateDocumentAsync(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {

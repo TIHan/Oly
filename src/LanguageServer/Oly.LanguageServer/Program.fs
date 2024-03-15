@@ -997,7 +997,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
                 )
             if mustInvalidate then
-                workspace.InvalidateProject(proj.Path, CancellationToken.None)
+                workspace.RemoveProject(proj.Path, CancellationToken.None)
         )
 
     let invalidateEditor (filePath: string) =
