@@ -987,7 +987,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
 
     let invalidate (filePath: string) =
-        let solution = workspace.Solution
+        let solution = workspace.GetSolutionAsync(CancellationToken.None).Result
         let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
         solution.GetProjects()
         |> ImArray.iter (fun proj ->
@@ -1084,7 +1084,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let autoOpenProjectsByDocumentIfNecessary (documentPath: OlyPath) ct =
         backgroundTask {
-            if workspace.Solution.HasDocument(documentPath) |> not then
+            let! solution = workspace.GetSolutionAsync(ct)
+            if solution.HasDocument(documentPath) |> not then
                 autoOpenProjectsByDocument documentPath ct
         }
 
@@ -1454,8 +1455,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return Container<SymbolInformation>()
                 else
 
+                let! solution = workspace.GetSolutionAsync(CancellationToken.None)
+
                 let symbolInfos =
-                    workspace.Solution.GetProjects()
+                    solution.GetProjects()
                     |> ImArray.map (fun proj ->
                         proj.Documents
                         |> ImArray.map (fun doc ->
@@ -1606,7 +1609,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     else
                         // TODO: We could optimize this where we don't have to refresh everything.
                         do! refreshWorkspace ct // Ensure all projects are available in the workspace when finding references.
-                        let solution = workspace.Solution
+                        let! solution = workspace.GetSolutionAsync(ct)
                         match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
                         | Some(doc) ->
                             // Re-find the symbol because the solution and projects could have changed.

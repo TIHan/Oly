@@ -48,7 +48,7 @@
 			"explorer": [
 				{
 					"id": "oly.syntaxTree",
-					"name": "Syntax Tree",
+					"name": "Oly Syntax Tree",
 					"when": "resourceLangId == oly"
 				}
 			]
@@ -69,7 +69,7 @@
 			},
 			{
 				"command": "oly.compile",
-				"title": "Oly - Compile Project",
+				"title": "Compile Project",
 				"when": "resourceLangId == oly"
 			}
 		],

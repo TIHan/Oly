@@ -805,7 +805,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument documentPath ct
                         do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
-                        let docs = this.Solution.GetDocuments(documentPath)
+                        let docs = solution.GetDocuments(documentPath)
                         reply.Reply(docs)
                         docs
                         |> ImArray.iter (fun doc ->
@@ -822,7 +822,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument documentPath ct
-                        let docs = this.Solution.GetDocuments(documentPath)
+                        let docs = solution.GetDocuments(documentPath)
                         reply.Reply(docs)
                     with
                     | _ ->
@@ -832,7 +832,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkAllProjects ct
-                        let docs = this.Solution.GetAllDocuments()
+                        let docs = solution.GetAllDocuments()
                         reply.Reply(docs)
                     with
                     | _ ->
@@ -845,8 +845,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     do
         mbp.Start()
-
-    member _.Solution: OlySolution = solution
 
     member this.GetBuild(projPath: OlyPath) =   
         let solution = solution
@@ -1207,6 +1205,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return solutionResult
         }
 
+    member this.GetSolutionAsync(ct) =
+        backgroundTask {
+            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply))
+        }
+
     member this.UpdateDocumentAsyncCore(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<unit> =
         backgroundTask {
             let prevSolution = solution
@@ -1245,7 +1248,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
         backgroundTask {          
-            let! solution = mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply))
+            let! solution = this.GetSolutionAsync(ct)
             let proj = solution.GetProject(projectPath)
             let target = proj.SharedBuild
             try

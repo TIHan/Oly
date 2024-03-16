@@ -204,7 +204,7 @@ type OlyDefaultWorkspaceResourceService =
 [<Sealed>]
 type OlyWorkspace =
 
-    member Solution : OlySolution
+    member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
 
     /// Updates documents by path with the given source text.
     member UpdateDocumentAsync : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
