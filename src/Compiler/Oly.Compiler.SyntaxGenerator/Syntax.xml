@@ -374,6 +374,7 @@
 	    <Field name="accessor">SyntaxAccessor</Field>
 		<Field name="premodifierList">SyntaxValueDeclarationPremodifier SyntaxList</Field>
 		<Field name="kind">SyntaxValueDeclarationKind</Field>
+		<Field name="postmodifierList">SyntaxValueDeclarationPostmodifier SyntaxList</Field>
 	    <Field name="binding">SyntaxBinding</Field>
 	  </Case>
   </Node>
@@ -608,9 +609,6 @@
     </Case>
     <Case name="Default">
       <Field name="defaultToken">SyntaxToken</Field>
-    </Case>
-    <Case name="Mutable">
-      <Field name="mutableToken">SyntaxToken</Field>
     </Case>
 	<Case name="New">
 	  <Field name="newToken">SyntaxToken</Field>

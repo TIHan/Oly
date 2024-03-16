@@ -148,9 +148,9 @@ let ``Defining and using Vector3``() =
 #[import("CLR:System.Numerics", "System.Numerics", "Vector3")]
 struct Vector3 =
 
-    public mutable field X: float32
-    public mutable field Y: float32
-    public mutable field Z: float32
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
 
     new(x: float32, y: float32, z: float32)
 
@@ -458,7 +458,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private mutable field item: T
+    private field mutable item: T
 
     new(item: T) = { item = item }
 
@@ -490,7 +490,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private mutable field item: T
+    private field mutable item: T
 
     new(item: T) = { item = item }
 
@@ -522,7 +522,7 @@ print(object): ()
 
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     
-    private mutable field item: T
+    private field mutable item: T
 
     new(item: T) = { item = item }
 
@@ -532,7 +532,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private mutable field item: Hash<T>
+    private field mutable item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -572,7 +572,7 @@ interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    private mutable field item: T
+    private field mutable item: T
 
     new(item: T) = { item = item }
 
@@ -583,7 +583,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
 
-    private mutable field item: Hash<T>
+    private field mutable item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -623,7 +623,7 @@ interface IHash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
     
-    public mutable field item: T
+    public field mutable item: T
 
     new(item: T) = { item = item }
 
@@ -635,7 +635,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
 struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
     implements IHash<T>
 
-    public mutable field item: Hash<T>
+    public field mutable item: Hash<T>
 
     new(item: Hash<T>) = { item = item }
 
@@ -1436,7 +1436,7 @@ open System
 
 abstract class Test =
 
-   public mutable field X: Int32 =
+   public field mutable X: Int32 =
       let x = 123
       x
 
@@ -1688,15 +1688,15 @@ alias inref<T>
 struct StateMachine<A, B> =
     implements IAsyncStateMachine
 
-    public mutable field f: A -> Task<B> = unchecked default
+    public field mutable f: A -> Task<B> = unchecked default
 
-    public mutable field state: B = unchecked default
+    public field mutable state: B = unchecked default
 
-    public mutable field builder: AsyncTaskMethodBuilder<B> = unchecked default
+    public field mutable builder: AsyncTaskMethodBuilder<B> = unchecked default
 
-    public mutable field t: Task<A> = unchecked default
+    public field mutable t: Task<A> = unchecked default
 
-    mutable field u: TaskAwaiter<A> = unchecked default
+    field mutable u: TaskAwaiter<A> = unchecked default
 
     mutable MoveNext(): () =
         let mutable value = this.state
@@ -1802,7 +1802,7 @@ struct Test<T> where T: struct =
 
 struct Test2 =
 
-    public mutable field s: Test<__oly_int32> = default
+    public field mutable s: Test<__oly_int32> = default
 
 module Test =
     #[intrinsic("print")]
@@ -4931,7 +4931,7 @@ extension Vector3Extensions =
     static Right: Vector3 get() = Vector3.UnitX
 
 struct Transform =
-    public mutable field Matrix: Matrix4x4
+    public field mutable Matrix: Matrix4x4
 
     new(matrix: Matrix4x4) = { Matrix = matrix }
 
@@ -4977,11 +4977,11 @@ struct Transform =
         Transform(rotationMatrix * scaleMatrix)
 
 struct Camera =
-    public mutable field Transform: Transform = default
-    public mutable field Projection: Matrix4x4 = default
+    public field mutable Transform: Transform = default
+    public field mutable Projection: Matrix4x4 = default
 
-    mutable field yaw: float32 = default
-    mutable field pitch: float32 = default
+    field mutable yaw: float32 = default
+    field mutable pitch: float32 = default
 
 interface IComponent =
 
@@ -5106,7 +5106,7 @@ class Subscription<T> =
 class Observable<T> =
 
     field subscribers: System.Collections.Concurrent.ConcurrentDictionary<T -> (), ()>
-    mutable field value: T
+    field mutable value: T
 
     Subscribe(callback: T -> ()): Subscription<T> =
         let _ = this.subscribers[callback] <- ()
@@ -5239,7 +5239,7 @@ class Observable<T> =
     implements IObservable<T>
 
     field subscribers: ConcurrentDictionary<IObserver<T>, ()>
-    mutable field value: T
+    field mutable value: T
 
     Subscribe(callback: T -> ()): IDisposable =
         this.Subscribe(Observer(callback))
@@ -5359,7 +5359,7 @@ class Observable =
     implements IObservable<int32>
 
     field subscribers: ConcurrentDictionary<IObserver<int32>, ()>
-    mutable field value: int32
+    field mutable value: int32
 
     Subscribe(callback: int32 -> ()): IDisposable =
         this.Subscribe(Observer(callback))
@@ -6263,12 +6263,12 @@ enum PacketKind =
     | UnreliableSequenced
 
 struct PacketUnreliableHeader =
-    public mutable field Kind: PacketKind = PacketKind.Invalid
-    public mutable field Channel: byte = 0
-    public mutable field SequenceId: uint16 = 0
-    public mutable field FragmentIndex: uint16 = 0
-    public mutable field FragmentCount: uint16 = 0
-    public mutable field TotalDataSize: int32 = 0
+    public field mutable Kind: PacketKind = PacketKind.Invalid
+    public field mutable Channel: byte = 0
+    public field mutable SequenceId: uint16 = 0
+    public field mutable FragmentIndex: uint16 = 0
+    public field mutable FragmentCount: uint16 = 0
+    public field mutable TotalDataSize: int32 = 0
 
 getHeaderSize(kind: PacketKind): int32 =
     match (kind)
@@ -6433,10 +6433,10 @@ extension MutableArrayEnumerableExtension<T> =
         class Impl =
             implements System.Collections.Generic.IEnumerator<T>
 
-            mutable field arr: mutable T[]
-            mutable field currentIndex: int32
-            mutable field current: object
-            mutable field currentTyped: T
+            field mutable arr: mutable T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
 
             new(arr: mutable T[]) =
                 {
@@ -6741,7 +6741,7 @@ class Observable<T> =
     implements IObservable<T>
 
     field subscribers: ConcurrentDictionary<IObserver<T>, ()>
-    mutable field value: T
+    field mutable value: T
 
     Subscribe(callback: T -> ()): IDisposable =
         this.Subscribe(Observer(callback))

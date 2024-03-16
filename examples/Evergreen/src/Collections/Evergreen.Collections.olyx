@@ -1,6 +1,0 @@
-#target "dotnet: net7"
-#library
-
-#load "*.oly"
-
-#reference "../../../core/core.olyx"

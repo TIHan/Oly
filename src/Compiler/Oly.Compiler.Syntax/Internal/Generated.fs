@@ -1586,6 +1586,7 @@ type SyntaxPropertyBinding =
         accessor: SyntaxAccessor *
         premodifierList: SyntaxValueDeclarationPremodifier SyntaxList *
         kind: SyntaxValueDeclarationKind *
+        postmodifierList: SyntaxValueDeclarationPostmodifier SyntaxList *
         binding: SyntaxBinding *
         fullWidth: int
 
@@ -1599,18 +1600,19 @@ type SyntaxPropertyBinding =
 
         member this.GetSlot(index) =
             match this with
-            | Binding(attrs, accessor, premodifierList, kind, binding, _) ->
+            | Binding(attrs, accessor, premodifierList, kind, postmodifierList, binding, _) ->
                 match index with
                 | 0 -> attrs :> ISyntaxNode
                 | 1 -> accessor :> ISyntaxNode
                 | 2 -> premodifierList :> ISyntaxNode
                 | 3 -> kind :> ISyntaxNode
-                | 4 -> binding :> ISyntaxNode
+                | 4 -> postmodifierList :> ISyntaxNode
+                | 5 -> binding :> ISyntaxNode
                 | _ -> failwith "invalid slot"
 
         member this.SlotCount =
             match this with
-            | Binding _ -> 5
+            | Binding _ -> 6
 
         member this.FullWidth =
             match this with
@@ -2510,9 +2512,6 @@ type SyntaxValueDeclarationPremodifier =
     | Default
         of
         defaultToken: SyntaxToken
-    | Mutable
-        of
-        mutableToken: SyntaxToken
     | New
         of
         newToken: SyntaxToken
@@ -2543,10 +2542,6 @@ type SyntaxValueDeclarationPremodifier =
                 match index with
                 | 0 -> defaultToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Mutable(mutableToken) ->
-                match index with
-                | 0 -> mutableToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | New(newToken) ->
                 match index with
                 | 0 -> newToken :> ISyntaxNode
@@ -2558,7 +2553,6 @@ type SyntaxValueDeclarationPremodifier =
             | Overrides _ -> 1
             | Abstract _ -> 1
             | Default _ -> 1
-            | Mutable _ -> 1
             | New _ -> 1
 
         member this.FullWidth =
@@ -2570,8 +2564,6 @@ type SyntaxValueDeclarationPremodifier =
             | Abstract(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Default(x) ->
-                (x :> ISyntaxNode).FullWidth
-            | Mutable(x) ->
                 (x :> ISyntaxNode).FullWidth
             | New(x) ->
                 (x :> ISyntaxNode).FullWidth

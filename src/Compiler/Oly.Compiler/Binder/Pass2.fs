@@ -70,26 +70,26 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
 
     let getOrSet1 =
         match syntaxPropBindings[0] with
-        | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
+        | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, syntaxBinding) ->
             match syntaxValueDeclKind with
             | OlySyntaxValueDeclarationKind.None _
             | OlySyntaxValueDeclarationKind.Error _ -> ()
             | _ ->
                 cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-            bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
+            bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
         | _ ->
             raise(InternalCompilerUnreachedException())
 
     let getOrSetOpt2 =
         if syntaxPropBindings.Length = 2 then
             match syntaxPropBindings[1] with
-            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxBinding) ->
+            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, syntaxBinding) ->
                 match syntaxValueDeclKind with
                 | OlySyntaxValueDeclarationKind.None _
                 | OlySyntaxValueDeclarationKind.Error _ -> ()
                 | _ ->
                     cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind ImArray.empty syntaxBinding
+                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
                 Some bindingInfo
             | _ ->
                 raise(InternalCompilerUnreachedException())
@@ -145,10 +145,10 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
     let isAutoProp =
         syntaxPropBindings
         |> ImArray.forall (function
-            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _))
-            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
-            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _))
-            | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Get _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Get _, _, _))
+            | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
                 true
             | _ ->
                 false
@@ -158,8 +158,8 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
         if isAutoProp then
             syntaxPropBindings
             |> ImArray.exists (function
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Set _))
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, OlySyntaxBinding.Implementation(OlySyntaxBindingDeclaration.Set _, _, _)) ->
                     true
                 | _ ->
                     false

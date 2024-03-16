@@ -815,7 +815,7 @@ f() : () =
     |> ignore
 
 [<Fact>]
-let ``Type with mutable fields is valid``() =
+let ``Type with field mutables is valid``() =
     let src =
         """
 class Test =

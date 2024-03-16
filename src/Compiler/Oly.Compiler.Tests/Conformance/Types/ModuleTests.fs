@@ -70,7 +70,7 @@ module Entities<T1> =
         where T2: struct
         =
 
-        mutable field X: __oly_int32 = 1
+        field mutable X: __oly_int32 = 1
         """
     Oly src
     |> withCompile

@@ -93,14 +93,14 @@ ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
         )
 
 struct BitSet512 =
-    mutable field value0: uint64
-    mutable field value1: uint64 // 128
-    mutable field value2: uint64
-    mutable field value3: uint64 // 256
-    mutable field value4: uint64
-    mutable field value5: uint64
-    mutable field value6: uint64
-    mutable field value7: uint64 // 512
+    field mutable value0: uint64
+    field mutable value1: uint64 // 128
+    field mutable value2: uint64
+    field mutable value3: uint64 // 256
+    field mutable value4: uint64
+    field mutable value5: uint64
+    field mutable value6: uint64
+    field mutable value7: uint64 // 512
     new(value: uint64) =
         {
             value0 = value
@@ -242,9 +242,9 @@ class BitSet512EqualityComparer =
     Equals(x: BitSet512, y: BitSet512): bool = x == y
 
 class ByteStream =
-    mutable field buffer: mutable byte[]
-    mutable field position: int32
-    mutable field count: int32
+    field mutable buffer: mutable byte[]
+    field mutable position: int32
+    field mutable count: int32
 
     new() =
         {

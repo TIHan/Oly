@@ -215,7 +215,7 @@ alias int32
 alias obj
 
 struct S =
-    public mutable field X: obj
+    public field mutable X: obj
 
     #[unmanaged(allocation_only)]
     new() = { X = null }

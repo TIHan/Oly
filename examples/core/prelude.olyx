@@ -614,10 +614,10 @@ extension ArrayEnumerableExtension<T> =
         class Impl =
             implements System.Collections.Generic.IEnumerator<T>
 
-            mutable field arr: T[]
-            mutable field currentIndex: int32
-            mutable field current: object
-            mutable field currentTyped: T
+            field mutable arr: T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
 
             new(arr: T[]) =
                 {

@@ -386,7 +386,7 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
     | OlySyntaxExpression.OpenExtensionDeclaration _ ->
         env, BoundExpression.None(BoundSyntaxInfo.User(syntaxExpr, env.benv))
 
-    | OlySyntaxExpression.ValueDeclaration(_, _, syntaxValueDeclPremodifierList, _, _, syntaxBinding) ->
+    | OlySyntaxExpression.ValueDeclaration(_, _, _, _, syntaxValueDeclPostmodifierList, syntaxBinding) ->
         match bindingInfos.TryGetValue(syntaxBinding.Declaration) with
         | true, bindingInfo ->
             // TODO: We could probably make this more efficient...
@@ -394,8 +394,8 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
                 if bindingInfo.Value.IsProperty then
                     false
                 else
-                    syntaxValueDeclPremodifierList.ChildrenOfType
-                    |> ImArray.exists (function OlySyntaxValueDeclarationPremodifier.Mutable _ -> true | _ -> false)
+                    syntaxValueDeclPostmodifierList.ChildrenOfType
+                    |> ImArray.exists (function OlySyntaxValueDeclarationPostmodifier.Mutable _ -> true | _ -> false)
 
             let expr =
                 bindTopLevelBinding cenv env syntaxExpr isExplicitMutable bindingInfo syntaxBinding
@@ -428,7 +428,7 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
             (syntaxPropBindings, bindings)
             ||> ImArray.map2 (fun syntaxPropBinding bindingInfo ->
                 match syntaxPropBinding with
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, syntaxBinding) ->
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
                     bindTopLevelBinding cenv env syntaxParentNode false bindingInfo syntaxBinding
                 | _ ->
                     raise(InternalCompilerUnreachedException())

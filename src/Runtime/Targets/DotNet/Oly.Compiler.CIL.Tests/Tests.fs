@@ -1249,7 +1249,7 @@ let ``Mutate field``() =
     let src =
         """
 class Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1267,7 +1267,7 @@ let ``Mutate field 2``() =
     let src =
         """
 class Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1287,7 +1287,7 @@ let ``Mutate field 3``() =
     let src =
         """
 class Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 class Test2 =
@@ -1310,11 +1310,11 @@ let ``Mutate field value on nested struct``() =
     let src =
         """
 class Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1333,11 +1333,11 @@ let ``Mutate field value on nested struct on type with chained call``() =
     let src =
         """
 class Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 test(x: Test2) : Test2 = 
@@ -1359,11 +1359,11 @@ let ``Mutate field value on nested struct on struct with chained call``() =
     let src =
         """
 struct Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 test(x: Test2) : Test2 = 
@@ -1391,11 +1391,11 @@ let ``Mutate field value on nested struct on struct with chained call 2``() =
 (&)<T>(T): byref<T>
 
 struct Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: int32
+    public field mutable x: int32
     new(x: int32) = { x = x }
 
 main() : () =
@@ -1504,8 +1504,8 @@ let ``Able to use simple struct 2``() =
         """
 struct Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 main() : () =
@@ -1525,8 +1525,8 @@ let ``Able to use simple struct 3``() =
         """
 struct Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 test(mutable t: Test) : () =
@@ -1551,8 +1551,8 @@ let ``Able to use simple struct 4``() =
         """
 struct Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 test(mutable t: Test) : () =
@@ -1577,12 +1577,12 @@ let ``Able to use simple struct 5``() =
         """
 struct Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -1607,7 +1607,7 @@ let ``Able to use simple struct 6``() =
         """
 struct Test =
 
-    public mutable field x: int32
+    public field mutable x: int32
     public field y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
@@ -1651,12 +1651,12 @@ let ``Able to use simple struct 8``() =
         """
 struct Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -1679,8 +1679,8 @@ let ``Able to use simple mutable type``() =
         """
 class Test =
 
-    public mutable field x: int32
-    public mutable field y: int32
+    public field mutable x: int32
+    public field mutable y: int32
     new(x: int32, y: int32) = { x = x; y = y }
 
 main() : () =
@@ -3400,7 +3400,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable field x: int32
+    field mutable x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3436,7 +3436,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable field x: int32
+    field mutable x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3486,7 +3486,7 @@ class Test =
 
     new(x: int32) = { x = x }
 
-    mutable field x: int32
+    field mutable x: int32
     get_x(): int32 = this.x
     set_x(value: int32): () = this.x <- value
 
@@ -3538,7 +3538,7 @@ struct Test =
 
     new(x: int32) = { x = x }
 
-    mutable field x: int32
+    field mutable x: int32
     get_x(): int32 = this.x
     mutable set_x(value: int32): () = this.x <- value
 
@@ -3559,7 +3559,7 @@ main() : () =
     |> ignore
 
 [<Fact>]
-let ``Interface with a mutable field and struct impl and passing the interface as byref 2``() =
+let ``Interface with a field mutable and struct impl and passing the interface as byref 2``() =
     let src =
         """
 #[intrinsic("int32")]
@@ -3595,7 +3595,7 @@ struct Test =
 
     new(x: int32) = { x = x }
 
-    public mutable field x: int32
+    public field mutable x: int32
     get_x(): int32 = this.x
     mutable set_x(value: int32): () = this.x <- value
 
@@ -3604,7 +3604,7 @@ struct Test2 =
     
     new(t: ITest) = { t = t }
 
-    public mutable field t: ITest
+    public field mutable t: ITest
     get_t(): ITest = this.t
     mutable set_t(value: ITest): () = this.t <- value
 
@@ -9394,8 +9394,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct; where B: struct =
     struct Test =
 
-        public mutable field a: A = default
-        public mutable field b: B = default
+        public field mutable a: A = default
+        public field mutable b: B = default
 
     let mutable s: Test = default
     s.a <- a
@@ -9421,8 +9421,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test =
 
-        public mutable field a: A = default
-        public mutable field b: B = unchecked default
+        public field mutable a: A = default
+        public field mutable b: B = unchecked default
 
     let mutable s: Test = default
     s.a <- a
@@ -9448,8 +9448,8 @@ print(__oly_object): ()
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test<T> =
 
-        public mutable field a: A = default
-        public mutable field b: B = unchecked default
+        public field mutable a: A = default
+        public field mutable b: B = unchecked default
 
     let mutable s: Test<__oly_int32> = default
     s.a <- a
@@ -9531,7 +9531,7 @@ struct Test<T> where T: struct =
 
 struct Test2 =
 
-    public mutable field s: Test<__oly_int32> = default
+    public field mutable s: Test<__oly_int32> = default
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 
@@ -9562,7 +9562,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -9595,7 +9595,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -9628,7 +9628,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -10311,8 +10311,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -10779,9 +10779,9 @@ struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory>
     =  
 
-        public mutable field Indices: TMemory<int32>
-        public mutable field Count: int32
-        public mutable field Offset: int32
+        public field mutable Indices: TMemory<int32>
+        public field mutable Count: int32
+        public field mutable Offset: int32
 
         new() =
             {
@@ -10854,7 +10854,7 @@ alias byref<T>
 
 struct Test<T> where T: struct =
     
-    public mutable field Data1: mutable T[] = mutable [default;default]
+    public field mutable Data1: mutable T[] = mutable [default;default]
 
     mutable A(f: T -> ()): () =
         let data1 = this.Data1
@@ -10889,7 +10889,7 @@ alias byref<T>
 
 struct Test<T> where T: struct =
     
-    public mutable field Data1: mutable T[] = mutable [default;default]
+    public field mutable Data1: mutable T[] = mutable [default;default]
 
     mutable A(f: byref<T> -> ()): () =
         f(&this.Data1[0])
@@ -11071,14 +11071,14 @@ alias inref<T>
 (!=)(uint64, uint64): bool
 
 struct ComponentBitMask =
-    mutable field Page0: uint64 = 0
-    mutable field Page1: uint64 = 0
-    mutable field Page2: uint64 = 0
-    mutable field Page3: uint64 = 0
-    mutable field Page4: uint64 = 0
-    mutable field Page5: uint64 = 0
-    mutable field Page6: uint64 = 0
-    mutable field Page7: uint64 = 0
+    field mutable Page0: uint64 = 0
+    field mutable Page1: uint64 = 0
+    field mutable Page2: uint64 = 0
+    field mutable Page3: uint64 = 0
+    field mutable Page4: uint64 = 0
+    field mutable Page5: uint64 = 0
+    field mutable Page6: uint64 = 0
+    field mutable Page7: uint64 = 0
 
     #[inline]
     mutable get_Item(index: int32): byref<uint64> =
@@ -11162,7 +11162,7 @@ alias byref<T>
 (&)(uint64, uint64): uint64
 
 struct TestStruct =
-    mutable field A: uint64 = 0
+    field mutable A: uint64 = 0
 
     #[inline]
     mutable Set(index: int32, value: bool): () =
@@ -11242,7 +11242,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    public mutable field A: int32
+    public field mutable A: int32
 
     new(a: int32) = { A = a }
 
@@ -11276,7 +11276,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    public mutable field A: int32 = 0
+    public field mutable A: int32 = 0
 
     mutable GetByRefOfA(): byref<int32> = &this.A
 
@@ -11310,7 +11310,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    public mutable field A: int32 = 0
+    public field mutable A: int32 = 0
 
     mutable GetByRefOfA(): byref<int32> = &this.A
 
@@ -11318,7 +11318,7 @@ struct TestStruct =
         this.GetByRefOfA() <- 1    
         
 struct TestStruct2 =
-    public mutable field S: TestStruct = default
+    public field mutable S: TestStruct = default
 
     mutable SetA(): () =
         this.S.SetA()
@@ -11350,13 +11350,13 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct TestStruct =
-    public mutable field A: int32 = 0
+    public field mutable A: int32 = 0
 
     mutable SetA(): () =
         this.A <- 5    
         
 struct TestStruct2 =
-    public mutable field S: TestStruct = default
+    public field mutable S: TestStruct = default
 
     mutable SetA(): () =
         this.S.SetA()
@@ -11409,7 +11409,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable field Value: int32 = 123
+    field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
         print("normal")
@@ -11482,7 +11482,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable field Value: int32 = 123
+    field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
         print("normal")
@@ -11559,7 +11559,7 @@ interface ITest<T> =
 class TestClass =
     implements ITest<int32>
 
-    mutable field Value: int32 = 123
+    field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
         print("normal")
@@ -11623,7 +11623,7 @@ interface ITest<T> =
 class TestClass =
     implements ITest<int32>
 
-    mutable field Value: int32 = 123
+    field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
         print("normal")
@@ -11673,7 +11673,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -11717,7 +11717,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -11768,7 +11768,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -11819,7 +11819,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11860,7 +11860,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11901,7 +11901,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11940,7 +11940,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -11982,7 +11982,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -12026,7 +12026,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
 #[inline(never)]
 test(x: byref<__oly_int32>): () = x <- 99
@@ -12070,7 +12070,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 123
+    public field mutable X: __oly_int32 = 123
 
 #[inline]
 test(x: byref<Test>): byref<__oly_int32> =
@@ -13991,9 +13991,9 @@ print(object): ()
 
 struct Vector3 =
 
-    public mutable field X: float32 = 0
-    public mutable field Y: float32 = 0
-    public mutable field Z: float32 = 0
+    public field mutable X: float32 = 0
+    public field mutable Y: float32 = 0
+    public field mutable Z: float32 = 0
 
     static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
         let mutable v3 = Vector3()
@@ -14047,9 +14047,9 @@ print(object): ()
 
 struct Vector3 =
 
-    public mutable field X: float32 = 0
-    public mutable field Y: float32 = 0
-    public mutable field Z: float32 = 0
+    public field mutable X: float32 = 0
+    public field mutable Y: float32 = 0
+    public field mutable Z: float32 = 0
 
     static op_Addition(v1: Vector3, v2: Vector3): Vector3 = 
         let mutable v3 = Vector3()
@@ -14503,7 +14503,7 @@ alias int32
 print(__oly_object): ()
 
 struct TestStruct =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable MutateX(): () =
         this.X <- 123
@@ -14601,7 +14601,7 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 main(): () =
     let mutable xs = mutable [S1()]
@@ -14634,7 +14634,7 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 class C1 =
     public field XS: mutable S1[] = mutable [S1()]
@@ -14670,7 +14670,7 @@ alias byref<T>
 print(__oly_object): ()
 
 struct S1 =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 class C1 =
     public field XS: mutable S1[] = mutable [S1()]
@@ -14750,7 +14750,7 @@ module Test2 =
     struct N<T>
 
     struct M =
-        mutable field E: N<M> = default
+        field mutable E: N<M> = default
         """
     Oly src
     |> withCompile
@@ -15518,11 +15518,11 @@ alias int32
 print(__oly_object): ()
 
 struct Vector2 =
-    public mutable field X: int32 = 0
-    public mutable field Y: int32 = 0
+    public field mutable X: int32 = 0
+    public field mutable Y: int32 = 0
 
 class C =
-    public mutable field X: Vector2 = Vector2()
+    public field mutable X: Vector2 = Vector2()
 
 main(): () =
     let c = C()
@@ -15545,8 +15545,8 @@ alias int32
 print(__oly_object): ()
 
 struct Vector2 =
-    public mutable field X: int32 = 0
-    public mutable field Y: int32 = 0
+    public field mutable X: int32 = 0
+    public field mutable Y: int32 = 0
 
 class C =
     public X: Vector2 get = Vector2()
@@ -16219,7 +16219,7 @@ interface IA =
 
 struct S =
 
-    public mutable field x: __oly_int32 = 0
+    public field mutable x: __oly_int32 = 0
 
 #[open]
 extension SA =
@@ -16266,7 +16266,7 @@ interface IA =
 
 struct S =
 
-    public mutable field x: __oly_int32 = 0
+    public field mutable x: __oly_int32 = 0
 
 #[open]
 extension SA =
@@ -16309,7 +16309,7 @@ interface IA =
 
 struct S =
 
-    public mutable field x: __oly_int32 = 0
+    public field mutable x: __oly_int32 = 0
 
 #[open]
 extension SA =
@@ -16507,7 +16507,7 @@ alias int32
 print(__oly_object): ()
 
 struct Vector2 =
-    public mutable field X: int32
+    public field mutable X: int32
     new(x: int32) = { X = x }
 
 struct MouseInfo =
@@ -16560,7 +16560,7 @@ alias int32
 print(__oly_object): ()
 
 struct MouseInfo =
-    mutable field X: () -> () = () -> print("passed")
+    field mutable X: () -> () = () -> print("passed")
     mutable Delta: () -> () get() = this.X
 
 class InputSnapshot =
@@ -16602,7 +16602,7 @@ alias int32
 print(__oly_object): ()
 
 struct Vector2 =
-    public mutable field X: int32
+    public field mutable X: int32
     new(x: int32) = { X = x }
 
 struct MouseInfo =
@@ -16614,7 +16614,7 @@ struct MouseInfo =
     Delta: Vector2 get() = Vector2(this.X)
 
 class InputSnapshot =
-    public mutable field MouseInfo: MouseInfo = MouseInfo()
+    public field mutable MouseInfo: MouseInfo = MouseInfo()
 
 Test(snapshot: InputSnapshot): int32 =
     snapshot.MouseInfo.X <- 456
@@ -17287,7 +17287,7 @@ struct S =
 
 class S2 =
 
-    public mutable field S: S = S()
+    public field mutable S: S = S()
 
 M(x: S2): int32 =
     x.S.SideEffect()
@@ -17333,7 +17333,7 @@ struct S =
 
 class S2<T> =
 
-    public mutable field S: T = unchecked default
+    public field mutable S: T = unchecked default
 
 M(x: S2<S>): int32 =
     x.S.SideEffect()
@@ -17384,7 +17384,7 @@ struct S =
 
 class S2<T> where T: IA =
 
-    public mutable field S: T = unchecked default
+    public field mutable S: T = unchecked default
 
     GetX(): int32 = this.S.X
 
@@ -17829,7 +17829,7 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable Call(): () =
         this.X <- 5
@@ -17866,7 +17866,7 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable Call(): () =
         this.X <- 5
@@ -17905,7 +17905,7 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 M(f: scoped byref<S> -> ()): () = 
     let mutable s = S()
@@ -17943,13 +17943,13 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
-    public mutable field EntityId: EntityId = EntityId()
+    public field mutable X: int32 = 0
+    public field mutable EntityId: EntityId = EntityId()
 
 struct EntityId =
 
-    public mutable field Index: int32 = 0
-    public mutable field Version: uint32 = 0
+    public field mutable Index: int32 = 0
+    public field mutable Version: uint32 = 0
 
 M(entId: EntityId, f: scoped byref<S> -> ()): () = 
     let mutable s = S()
@@ -17991,13 +17991,13 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
-    public mutable field EntityId: EntityId = EntityId()
+    public field mutable X: int32 = 0
+    public field mutable EntityId: EntityId = EntityId()
 
 struct EntityId =
 
-    public mutable field Index: int32 = 0
-    public mutable field Version: uint32 = 0
+    public field mutable Index: int32 = 0
+    public field mutable Version: uint32 = 0
 
 M(entId: EntityId, f: scoped byref<S> -> ()): () = 
     let mutable s = S()
@@ -18039,13 +18039,13 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
-    public mutable field EntityId: EntityId = EntityId()
+    public field mutable X: int32 = 0
+    public field mutable EntityId: EntityId = EntityId()
 
 struct EntityId =
 
-    public mutable field Index: int32 = 0
-    public mutable field Version: uint32 = 0
+    public field mutable Index: int32 = 0
+    public field mutable Version: uint32 = 0
 
     #[inline(never)]
     Encode(): int32 = 7
@@ -18090,13 +18090,13 @@ print(__oly_object): ()
 
 struct S =
 
-    public mutable field X: int32 = 0
-    public mutable field EntityId: EntityId = EntityId()
+    public field mutable X: int32 = 0
+    public field mutable EntityId: EntityId = EntityId()
 
 struct EntityId =
 
-    public mutable field Index: int32 = 0
-    public mutable field Version: uint32 = 0
+    public field mutable Index: int32 = 0
+    public field mutable Version: uint32 = 0
 
     #[inline(never)]
     Encode(): int32 = 7
@@ -18659,7 +18659,7 @@ extension Int32Component =
     inherits int32
     implements IComponent
 
-mutable field F: () -> () = unchecked default
+field mutable F: () -> () = unchecked default
 
 #[inline(never)]
 M2<T>(): () = print("asdf")

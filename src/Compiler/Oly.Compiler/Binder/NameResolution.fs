@@ -2089,12 +2089,6 @@ let bindValueModifiersAndKindAsMemberFlags
             if isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'default' premodifier.", 10, syntaxToken)
             isExplicitDefault <- true
-        | OlySyntaxValueDeclarationPremodifier.Mutable(syntaxToken) ->
-            if isExplicitMutable || isExplicitNew || isExplicitConstant then
-                cenv.diagnostics.Error("Invalid use of 'mutable' premodifier.", 10, syntaxToken)
-            if isExplicitLet then
-                cenv.diagnostics.Error("'mutable' premodifers cannot be used on 'let' declarations. Use 'mutable' as a postmodifier instead.", 10, syntaxToken)
-            isExplicitMutable <- true
         | OlySyntaxValueDeclarationPremodifier.New(syntaxToken) ->
             if isExplicitAbstract || isExplicitOverrides || isExplicitDefault || isExplicitMutable || isExplicitNew || isExplicitField || isExplicitConstant then
                 cenv.diagnostics.Error("Invalid use of 'new' premodifier.", 10, syntaxToken)
@@ -2118,9 +2112,7 @@ let bindValueModifiersAndKindAsMemberFlags
 
     syntaxValueDeclPostmodifiers
     |> ImArray.iter (function
-        | OlySyntaxValueDeclarationPostmodifier.Mutable(syntaxMutableToken) ->
-            if not isExplicitLet then
-                cenv.diagnostics.Error("'mutable' postmodifers can only be used on 'let' declarations.", 10, syntaxMutableToken)
+        | OlySyntaxValueDeclarationPostmodifier.Mutable _ ->
             isExplicitMutable <- true
         | _ ->
             ()

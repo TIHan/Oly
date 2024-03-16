@@ -230,12 +230,12 @@ let ``Expected correct symbol on nested structs``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -245,7 +245,7 @@ main() : () =
     let mutable t = Test2(Test(7, 9))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field x: Test"
+    src |> hasSymbolSignatureTextByCursor "field mutable x: Test"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 2``() =
@@ -253,12 +253,12 @@ let ``Expected correct symbol on nested structs 2``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -268,7 +268,7 @@ main() : () =
     let mutable t = Test2(Test(7, 9))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "field mutable orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 3``() =
@@ -276,12 +276,12 @@ let ``Expected correct symbol on nested structs 3``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 test(mutable t: Test2) : () =
@@ -299,16 +299,16 @@ let ``Expected correct symbol on nested structs 4``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    public mutable field y: Test2
+    public field mutable y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -318,7 +318,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field y: Test2"
+    src |> hasSymbolSignatureTextByCursor "field mutable y: Test2"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 5``() =
@@ -326,16 +326,16 @@ let ``Expected correct symbol on nested structs 5``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    public mutable field y: Test2
+    public field mutable y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -345,7 +345,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field x: Test"
+    src |> hasSymbolSignatureTextByCursor "field mutable x: Test"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 6``() =
@@ -353,16 +353,16 @@ let ``Expected correct symbol on nested structs 6``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    public mutable field y: Test2
+    public field mutable y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -372,7 +372,7 @@ main() : () =
     let mutable t = Test3(Test2(Test(7, 9)))
     test(t)
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "field mutable orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on nested structs 7``() =
@@ -380,16 +380,16 @@ let ``Expected correct symbol on nested structs 7``() =
         """
 struct Test =
 
-    public mutable field orange: __oly_int32
-    public mutable field apple: __oly_int32
+    public field mutable orange: __oly_int32
+    public field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
 
 struct Test2 =
-    public mutable field x: Test
+    public field mutable x: Test
     new(x: Test) = { x = x }
 
 struct Test3 =
-    public mutable field y: Test2
+    public field mutable y: Test2
     new(y: Test2) = { y = y }
 
 test(mutable t: Test3) : () =
@@ -407,11 +407,11 @@ let ``Expected correct symbol on constructor construct``() =
         """
 struct Test =
 
-    mutable field orange: __oly_int32
-    mutable field apple: __oly_int32
+    field mutable orange: __oly_int32
+    field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { ~^~orange = x; apple = y }
         """
-    src |> hasSymbolSignatureTextByCursor "mutable field orange: __oly_int32"
+    src |> hasSymbolSignatureTextByCursor "field mutable orange: __oly_int32"
 
 [<Fact>]
 let ``Expected correct symbol on constructor construct 2``() =
@@ -419,8 +419,8 @@ let ``Expected correct symbol on constructor construct 2``() =
         """
 struct Test =
 
-    mutable field orange: __oly_int32
-    mutable field apple: __oly_int32
+    field mutable orange: __oly_int32
+    field mutable apple: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { orange = ~^~x; apple = y }
         """
     src |> hasSymbolSignatureTextByCursor "x: __oly_int32"
@@ -466,7 +466,7 @@ let ``Cannot mutate field value on struct 2``() =
     let src =
         """
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -516,7 +516,7 @@ let ``Cannot mutate field value on struct 5``() =
     let src =
         """
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(t: __oly_read_by_ref<Test>): () =
@@ -532,7 +532,7 @@ let ``Cannot mutate field value on struct 6``() =
     let src =
         """
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test(mutable t: __oly_read_by_ref<Test>): () =
@@ -552,7 +552,7 @@ class Test2 =
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -574,7 +574,7 @@ class Test2 =
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 main() : () =
@@ -592,7 +592,7 @@ let ``Cannot mutate field value on nested struct 3``() =
     let src =
         """
 class Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
@@ -614,7 +614,7 @@ let ``Cannot mutate field value on nested struct with chained call``() =
     let src =
         """
 class Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
@@ -638,11 +638,11 @@ let ``Can mutate field value on nested struct with chained call``() =
     let src =
         """
 class Test2 =
-    public mutable field test: Test
+    public field mutable test: Test
     new(test: Test) = { test = test }
 
 struct Test =
-    public mutable field x: __oly_int32
+    public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
 test() : Test2 =
@@ -1218,7 +1218,7 @@ let ``Should error on struct return instance function``() =
         """
 struct Test =
 
-    mutable field x: __oly_int32
+    field mutable x: __oly_int32
     field y: __oly_int32
     new(x: __oly_int32, y: __oly_int32) = { x = x; y = y }
 
@@ -1236,7 +1236,7 @@ let ``Should error when trying to set the receiver``() =
         """
 struct Test =
 
-    mutable field x: __oly_int32
+    field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     test() : () =
@@ -1254,7 +1254,7 @@ let ``Should error when trying to set the receiver 2 - NOW PASSES``() =
         """
 struct Test =
 
-    mutable field x: __oly_int32
+    field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     mutable test() : () =
@@ -1308,7 +1308,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct Test =
-    public mutable field X: int32 = 1
+    public field mutable X: int32 = 1
 
 test(): () =
     let x =
@@ -1372,7 +1372,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct Test =
-    public mutable field X: int32 = 1
+    public field mutable X: int32 = 1
 
 test(): () =
     let x =
@@ -1636,7 +1636,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field x: __oly_int32
+    field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1667,7 +1667,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field x: int32
+    field mutable x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1702,7 +1702,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field x: int32
+    field mutable x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -1740,7 +1740,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field x: int32
+    field mutable x: int32
     new(x: int32) = { x = x }
 
     test() : inref<__oly_int32> =
@@ -2915,7 +2915,7 @@ test(): () =
     |> ignore
 
 [<Fact>]
-let ``Type can have a mutable field for the shape``() =
+let ``Type can have a field mutable for the shape``() =
     let src =
         """
 struct TestStruct =
@@ -2933,7 +2933,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Type must have a mutable field for the shape``() =
+let ``Type must have a field mutable for the shape``() =
     let src =
         """
 struct TestStruct =
@@ -2961,7 +2961,7 @@ let ``Struct type that is instantiated as immutable cannot call a mutable functi
     let src =
         """
 struct TestStruct =
-    mutable field x: __oly_int32
+    field mutable x: __oly_int32
 
     mutable Change(): () =
         this.x <- 100
@@ -3743,7 +3743,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field X: __oly_int32 = 1
+    field mutable X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
@@ -3913,7 +3913,7 @@ alias byref<T>
 
 class Test<T> where T: struct =
 
-    mutable field X: T = default
+    field mutable X: T = default
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
@@ -3946,7 +3946,7 @@ alias byref<T>
 
 class Test<T> where T: struct =
 
-    mutable field X: T = default
+    field mutable X: T = default
 
     get_Item(index: __oly_int32): byref<T> = &this.X
 
@@ -4002,7 +4002,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4031,7 +4031,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4060,7 +4060,7 @@ interface IA =
 struct Test =
     implements IA
     
-    public mutable field X: __oly_int32 = 3
+    public field mutable X: __oly_int32 = 3
 
     mutable B(): () =
         this.X <- 5
@@ -4431,8 +4431,8 @@ private struct Chunk2<TMemory<_>, TComponent1, TComponent2>
 
 private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -4539,8 +4539,8 @@ internal struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -4651,8 +4651,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new() =
         {
@@ -4710,7 +4710,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field Buffer: mutable int32[] = unchecked default
+    field mutable Buffer: mutable int32[] = unchecked default
 
     mutable A(): () =
         let z: byref<_> = &this.Buffer
@@ -4760,7 +4760,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4814,7 +4814,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4860,7 +4860,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -4906,7 +4906,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -5098,7 +5098,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable field Value: int32 = 0
+    field mutable Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5158,7 +5158,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable field Value: int32 = 0
+    field mutable Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5213,7 +5213,7 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    mutable field Value: int32 = 0
+    field mutable Value: int32 = 0
 
     get_Item(index: int32): int32 =
         index
@@ -5280,7 +5280,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    public mutable field Buffer: TMemory<int32>
+    public field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -5472,7 +5472,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field X: __oly_int32 = 0
+    field mutable X: __oly_int32 = 0
 
     get_Item(): inref<__oly_int32> =
         let ~^~w = &this.X
@@ -5503,7 +5503,7 @@ alias inref<T>
 
 struct Test =
 
-    mutable field X: int32 = 0
+    field mutable X: int32 = 0
 
     mutable get_Item(): byref<int32> =
         let ~^~w = &this.X
@@ -5618,7 +5618,7 @@ alias inref<T>
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 0
+    public field mutable X: __oly_int32 = 0
 
 test(): () =
     let mutable t = Test()
@@ -5646,7 +5646,7 @@ alias inref<T>
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 0
+    public field mutable X: __oly_int32 = 0
 
 test(): () =
     let t = Test()
@@ -5706,7 +5706,7 @@ alias inref<T>
 
 class Test =
 
-    public mutable field X: __oly_int32 = 0
+    public field mutable X: __oly_int32 = 0
         """
     src |> hasSymbolSignatureTextByCursor "x: byref<__oly_int32>"
 
@@ -5975,7 +5975,7 @@ alias float64
 
 class Test =
 
-    public mutable field X: float32 = 5
+    public field mutable X: float32 = 5
 
 test(x1: float32, x2: float32, x3: float32): () = ()
 test(x1: int32, x2: int32, x3: int32): () = ()
@@ -6136,8 +6136,8 @@ test<A, B>(a: A, b: B): () =
     let test2<Z>() =
         struct Test<T> =
 
-            mutable field a: A = default
-            mutable field b: B = unchecked default
+            field mutable a: A = default
+            field mutable b: B = unchecked default
         ()
     test2<A>()
 
@@ -6203,7 +6203,7 @@ let ``Should error about expected return type``() =
     let src =
         """
 struct TStruct =
-    public mutable field X: __oly_int32 = 0
+    public field mutable X: __oly_int32 = 0
 
 Test(): TStruct =
     let mutable s = TStruct()
@@ -7155,7 +7155,7 @@ let ``Should get right signature for alias member field 2``() =
         """
 class CoolClass =
 
-    public static mutable field Test: __oly_int32 = 1
+    public static field mutable Test: __oly_int32 = 1
 
 alias CoolClassAlias = CoolClass
 
@@ -7649,7 +7649,7 @@ class C1 =
 
     private class PC2 =
 
-        public mutable field ShouldNotError: PC1 = unchecked default
+        public field mutable ShouldNotError: PC1 = unchecked default
         """
     Oly src
     |> withCompile
@@ -7664,7 +7664,7 @@ class C1 =
 
     internal class PC2 =
 
-        public mutable field ShouldNotError: PC1 = unchecked default
+        public field mutable ShouldNotError: PC1 = unchecked default
         """
     Oly src
     |> withCompile
@@ -7679,7 +7679,7 @@ class C1 =
 
     private class PC2 =
 
-        public mutable field ShouldNotError: PC1 = unchecked default
+        public field mutable ShouldNotError: PC1 = unchecked default
         """
     Oly src
     |> withCompile
@@ -7694,14 +7694,14 @@ class C1 =
 
     internal class PC2 =
 
-        public mutable field ShouldNotError: PC1 = unchecked default
+        public field mutable ShouldNotError: PC1 = unchecked default
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("'PC1' is less accessible than the member its used in.",
             """
-        public mutable field ShouldNotError: PC1 = unchecked default
+        public field mutable ShouldNotError: PC1 = unchecked default
                                              ^^^
 """
         )
@@ -8059,9 +8059,9 @@ alias float32
 
 struct Vector3 =
 
-    public mutable field X: float32
-    public mutable field Y: float32
-    public mutable field Z: float32
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
 
     new(x: float32) =
         {
@@ -8535,7 +8535,7 @@ print(__oly_object): ()
 
 struct Test =
 
-    public mutable field X: __oly_int32 = 1
+    public field mutable X: __oly_int32 = 1
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 

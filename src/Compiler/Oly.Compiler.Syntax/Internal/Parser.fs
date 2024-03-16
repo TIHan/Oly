@@ -2079,11 +2079,6 @@ let tryParseValueDeclarationPremodifier state =
         SyntaxValueDeclarationPremodifier.Default(defaultToken) |> Some
     | _ ->
 
-    match bt MUTABLE state with
-    | Some(mutableToken) ->
-        SyntaxValueDeclarationPremodifier.Mutable(mutableToken) |> Some
-    | _ ->
-
     match bt tryParseValueDeclarationNewPremodifier state with
     | Some(result) -> Some(result)
     | _ ->
@@ -2424,6 +2419,7 @@ let tryParsePropertyBinding state =
     let accessor = parseAccessor state
     let premodifiers = parseValueDeclarationPremodifierList state
     let kind = parseValueDeclarationKind state
+    let postmodifiers = parseValueDeclarationPostmodifierList state
 
     let sBinding = sp state
 
@@ -2433,19 +2429,19 @@ let tryParsePropertyBinding state =
         | SyntaxBindingDeclaration.Get _
         | SyntaxBindingDeclaration.Set _ ->
             let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
-            SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+            SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, postmodifiers, binding, ep s state) |> Some
         | _ ->
             match bt2 EQUAL (tryParseOffsideExpression SyntaxTreeContextLocal) state with
             | Some(equalsToken), Some(rhsExpr) ->
                 let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, rhsExpr, ep sBinding state)
-                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, postmodifiers, binding, ep s state) |> Some
             | Some(equalsToken), _ ->
                 errorDo(ExpectedSyntaxAfterToken("expression", Equal), equalsToken) state
                 let binding = SyntaxBinding.Implementation(getOrSetBindingDecl, equalsToken, SyntaxExpression.Error(dummyToken()), ep sBinding state)
-                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, postmodifiers, binding, ep s state) |> Some
             | _ ->
                 let binding = SyntaxBinding.Signature(getOrSetBindingDecl)
-                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, binding, ep s state) |> Some
+                SyntaxPropertyBinding.Binding(attrs, accessor, premodifiers, kind, postmodifiers, binding, ep s state) |> Some
     | _ ->
     
     None

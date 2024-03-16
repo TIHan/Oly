@@ -387,7 +387,7 @@ let private printField (benv: BoundEnvironment) (field: IFieldSymbol) =
         $"{field.Name}: {printType benv field.Type} = {printConstant benv field.Constant.Value}"
     else
         if field.IsMutable then
-            $"mutable field {field.Name}: {printType benv field.Type}"
+            $"field mutable {field.Name}: {printType benv field.Type}"
         else
             $"field {field.Name}: {printType benv field.Type}"
 

@@ -1803,10 +1803,10 @@ type OlySyntaxPropertyBinding internal (tree, start: int, parent, internalNode: 
 [<RequireQualifiedAccess>]
 module OlySyntaxPropertyBinding =
 
-    let (|Binding|_|) (node: OlySyntaxPropertyBinding) : ( OlySyntaxAttributes * OlySyntaxAccessor * OlySyntaxValueDeclarationPremodifier OlySyntaxList * OlySyntaxValueDeclarationKind * OlySyntaxBinding ) option =
+    let (|Binding|_|) (node: OlySyntaxPropertyBinding) : ( OlySyntaxAttributes * OlySyntaxAccessor * OlySyntaxValueDeclarationPremodifier OlySyntaxList * OlySyntaxValueDeclarationKind * OlySyntaxValueDeclarationPostmodifier OlySyntaxList * OlySyntaxBinding ) option =
         match node.Internal with
         | SyntaxPropertyBinding.Binding _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3], System.Runtime.CompilerServices.Unsafe.As node.Children[4])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3], System.Runtime.CompilerServices.Unsafe.As node.Children[4], System.Runtime.CompilerServices.Unsafe.As node.Children[5])
 
 [<Sealed;NoComparison>]
 type OlySyntaxGuardBinding internal (tree, start: int, parent, internalNode: SyntaxGuardBinding) as this =
@@ -2699,13 +2699,6 @@ module OlySyntaxValueDeclarationPremodifier =
     let (|Default|_|) (node: OlySyntaxValueDeclarationPremodifier) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxValueDeclarationPremodifier.Default _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
-    let (|Mutable|_|) (node: OlySyntaxValueDeclarationPremodifier) : ( OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxValueDeclarationPremodifier.Mutable _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
         | _ ->
             Option.None

@@ -302,7 +302,7 @@ namespace Test
 module TestModule =
 
     struct Item =
-        public mutable field X: int32 = 0
+        public field mutable X: int32 = 0
 
     #[intrinsic("int32")]
     alias int32

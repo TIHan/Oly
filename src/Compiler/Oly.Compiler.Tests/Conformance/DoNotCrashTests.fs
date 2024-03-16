@@ -77,7 +77,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -521,7 +521,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -638,7 +638,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -681,7 +681,7 @@ interface IMemory<T> where T: struct =
 
 struct Test<TMemory<_>> where TMemory<_>: IMemory =
 
-    mutable field Buffer: TMemory<int32>
+    field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
         {
@@ -776,8 +776,8 @@ internal struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {
@@ -886,8 +886,8 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     where TMemoryAllocator: IMemoryAllocator<TMemory> 
     =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new() =
         {
@@ -1050,8 +1050,8 @@ private struct Chunk2<TMemory<_>, TComponent1, TComponent2>
 
 private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
 
-    public mutable field Indices: TMemory<int32>
-    public mutable field Count: int32
+    public field mutable Indices: TMemory<int32>
+    public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
         {

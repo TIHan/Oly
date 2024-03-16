@@ -298,7 +298,7 @@ alias byref<T>
 M(x: byref<int32>): byref<int32> = &x
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 M2(): byref<int32> =
     let mutable a = A()
@@ -335,7 +335,7 @@ alias byref<T>
 M(x: byref<int32>): byref<int32> = &x
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     P: byref<int32>
         mutable get() =
@@ -376,7 +376,7 @@ alias byref<T>
 M(x: byref<int32>): byref<int32> = &x
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable M2(): byref<int32> =
         let result = &M(&M(&this.X))
@@ -401,7 +401,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable M(): byref<A> =
         &this
@@ -436,7 +436,7 @@ alias byref<T>
 M(x: byref<A>): byref<A> = &x
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
     mutable M2(): byref<A> =
         &M(&M(&this))
@@ -469,7 +469,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 #[open]
 extension AExtensions =
@@ -508,7 +508,7 @@ alias byref<T>
 M(x: byref<A>): byref<A> = &x
 
 struct A =
-    public mutable field X: int32 = 0
+    public field mutable X: int32 = 0
 
 #[open]
 extension AExtensions =
