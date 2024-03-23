@@ -7138,3 +7138,60 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should choose the correct overload for AsSpan``() =
+    """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+private _cast<T>(object): T
+
+#[unmanaged(allocation_only)]
+AsMutable<T>(arr: T[]): mutable T[] =
+    _cast(arr)
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[open]
+extension MutableArrayDotNetExtensions<T> =
+    inherits mutable T[]
+
+    AsSpan(): Span<T> = Span(this)
+    AsReadOnlySpan(): ReadOnlySpan<T> = ReadOnlySpan(this)
+
+#[open]
+extension ArrayDotNetExtensions<T> =
+    inherits T[]
+
+    AsSpan(): ReadOnlySpan<T> = AsMutable(this).AsReadOnlySpan()
+
+#[open]
+extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
+    inherits T[]
+
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = AsMutable(this).AsReadOnlySpan<TCast>()
+
+main(): () =
+    let xs = [1;2;3]
+    let xs2 = mutable [0;0;0]
+    xs.AsSpan().CopyTo(Span(xs2))
+    print(xs2[0])
+    print(xs2[1])
+    print(xs2[2])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"

@@ -754,3 +754,22 @@ interface IComponent<N, T> where N: constant int32 where T: unmanaged =
 """
             )
         ]
+
+[<Fact>]
+let ``Interface cannot implement an interface``() =
+    """
+interface IA
+
+interface IB =
+    implements IA
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO.",
+                """
+    implements IA
+    ^^^^^^^^^^^^^
+"""
+            )
+        ]
