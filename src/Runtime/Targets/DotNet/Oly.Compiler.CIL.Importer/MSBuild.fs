@@ -114,12 +114,20 @@ type MSBuild() =
     let getInfo (outputPath: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            let stub = createProjStub isExe targetName referenceInfos projReferenceInfos packageInfos
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
-            let dir = Directory.CreateDirectory(outputPath.ToString())
-            ct.ThrowIfCancellationRequested()
 
             try
+                let tmpFile = Path.GetTempFileName()
+                let dir =
+                    let dir = Path.GetDirectoryName(tmpFile)
+                    try Directory.Delete(dir, true) with | _ -> ()
+                    let dir = Directory.CreateDirectory(dir)
+                    try File.Delete(tmpFile) with | _ -> ()
+                    dir
+
+                let stub = createProjStub isExe targetName referenceInfos projReferenceInfos packageInfos
+                ct.ThrowIfCancellationRequested()
+
                 File.WriteAllText(Path.Combine(dir.FullName, "Program.cs"), programCs)
                 File.WriteAllText(Path.Combine(dir.FullName, $"{projectName}.csproj"), stub)
                 ct.ThrowIfCancellationRequested()
@@ -196,7 +204,7 @@ type MSBuild() =
                     return 
                         { 
                             ProjectPath = OlyPath.Create(projectPath)
-                            OutputPath = publishDir
+                            OutputPath = outputPath.ToString()
                             References = refs
                             ReferenceNames = refNames
                             DepsJson = depsJson
@@ -204,7 +212,8 @@ type MSBuild() =
                             FilesToCopy = filesToCopy
                         }
                 finally
-                    () // TODO: ??
+                    try File.Delete(tmpFile) with | _ -> ()
+                    try Directory.Delete(dir.FullName, true) with | _ -> ()
             finally
                 () // TODO: ??
         }
