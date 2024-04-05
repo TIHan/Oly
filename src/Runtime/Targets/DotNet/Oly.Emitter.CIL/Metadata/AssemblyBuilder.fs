@@ -1822,8 +1822,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             il.OpCode(ILOpCode.Mul)
         | I.Div ->
             il.OpCode(ILOpCode.Div)
+        | I.Div_un ->
+            il.OpCode(ILOpCode.Div_un)
         | I.Rem ->
             il.OpCode(ILOpCode.Rem)
+        | I.Rem_un ->
+            il.OpCode(ILOpCode.Rem_un)
         | I.Neg ->
             il.OpCode(ILOpCode.Neg)
 
@@ -2068,7 +2072,11 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             1
         | I.Div ->
             1
+        | I.Div_un ->
+            1
         | I.Rem ->
+            1
+        | I.Rem_un ->
             1
         | I.Neg ->
             1

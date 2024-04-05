@@ -288,7 +288,9 @@ type ClrInstruction =
     | Sub
     | Mul
     | Div
+    | Div_un
     | Rem
+    | Rem_un
     | Tail
     | Call of ClrMethodHandle * argCount: int
     | Calli of cc: SignatureCallingConvention * parTys: ClrTypeHandle imarray * returnTy: ClrTypeHandle

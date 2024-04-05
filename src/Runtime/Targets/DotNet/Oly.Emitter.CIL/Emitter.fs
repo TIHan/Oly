@@ -1052,12 +1052,18 @@ module rec ClrCodeGen =
         | O.Divide(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
-            I.Div |> emitInstruction cenv
+            if isUnsigned cenv resultTy then
+                I.Div_un |> emitInstruction cenv
+            else
+                I.Div |> emitInstruction cenv
             emitConvForOp cenv resultTy
         | O.Remainder(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
-            I.Rem |> emitInstruction cenv
+            if isUnsigned cenv resultTy then
+                I.Rem_un |> emitInstruction cenv
+            else
+                I.Rem |> emitInstruction cenv
             emitConvForOp cenv resultTy
 
         | O.Not(irArg, _) ->
@@ -1535,8 +1541,8 @@ module rec ClrCodeGen =
         handle = cenv.assembly.TypeReferenceUInt32 ||
         handle = cenv.assembly.TypeReferenceUInt64
 
-    let private isUnsigned (cenv: cenv) (expr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
-        let handle = expr.ResultType.Handle
+    let private isUnsigned (cenv: cenv) (ty: ClrTypeInfo) =
+        let handle = ty.Handle
         handle = cenv.assembly.TypeReferenceByte ||
         handle = cenv.assembly.TypeReferenceUInt16 ||
         handle = cenv.assembly.TypeReferenceUInt32 ||
