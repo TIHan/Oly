@@ -45,7 +45,7 @@ type ClrTypeHandle =
     | FunctionPointer of cc: SignatureCallingConvention * parTys: ClrTypeHandle imarray * returnTy: ClrTypeHandle
     | TypeReference of handle: TypeReferenceHandle * isValueType: bool * qualifiedName: string
     | TypeSpecification of handle: TypeSpecificationHandle * isValueType: bool * tyRefHandle: ClrTypeHandle * tyInst: ClrTypeHandle imarray
-    | LazyTypeDefinition of realHandle: Lazy<TypeDefinitionHandle> * isValueType: bool * fakeHandle: Lazy<TypeDefinitionHandle> * qualifiedName: string
+    | LazyTypeDefinition of realHandle: Lazy<TypeDefinitionHandle> * isValueType: bool * fakeHandle: TypeDefinitionHandle * qualifiedName: string
 
     static member Empty = ClrTypeHandle.None
 
@@ -150,7 +150,7 @@ type ClrTypeHandle =
         | TypeSpecification(handle=handle) ->
             TypeSpecificationHandle.op_Implicit handle
         | LazyTypeDefinition(fakeHandle=handle) -> 
-            TypeDefinitionHandle.op_Implicit handle.Value
+            TypeDefinitionHandle.op_Implicit handle
         | Array _ ->
            failwith "Array does not have a handle."
         | TypeVariable _ ->

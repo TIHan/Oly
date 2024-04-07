@@ -7195,3 +7195,57 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Scoped lambda captures a mutable struct``() =
+    """
+open System
+open System.Collections.Generic
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias (&)<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): T&
+
+M<T>(f: scoped () -> T): T =
+    f()
+
+struct Item =
+    public field Object: object = Object()
+    public field Object2: object = Object()
+
+class Collection =
+
+    Items: List<Item> get = List()
+
+    Add(): () =
+        this.Items.Add(Item())
+
+    Get(index: int32): Item =
+        let mutable item = this.Items.get_Item(index)
+        M(
+            () ->
+                print(item.Object2)
+                item
+        )
+
+main(): () =
+    let xs = Collection()
+    xs.Add()
+    let item = xs.Get(0)
+    print(item.Object2)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "System.ObjectSystem.Object"
+    |> ignore

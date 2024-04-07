@@ -8,9 +8,9 @@ open System.Reflection.Metadata
 open System.Reflection.Metadata.Ecma335
 open System.Collections.Immutable
 open System.Collections.Generic
-open System.Collections.Concurrent
 open System.Security.Cryptography
 open ClrPatterns
+open System.Diagnostics
 
 [<NoEquality;NoComparison>]
 type private DebugLocalScope =
@@ -428,7 +428,7 @@ type ClrPdbBuilder() =
 [<Sealed>]
 type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: AssemblyName, consoleAssembly: AssemblyName) as this =
 
-    let tyDefsByQualifiedName = ConcurrentDictionary<string, obj>()
+    let tyDefsByQualifiedName = Dictionary<string, obj>()
     let ilBuilder = BlobBuilder()
 
     let metadataBuilder = MetadataBuilder()
@@ -456,21 +456,22 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             let f = queue.Dequeue()
             f()
 
-    let tyDefQueue = System.Collections.Generic.Queue<unit -> unit>()
-    let mutable nextTyDefRowId = 1
     let mutable tyDefRowCount = 0
-    let fieldDefQueue = System.Collections.Generic.Queue()
-    let mutable nextFieldDefRowId = 1
     let mutable fieldDefRowCount = 0
-    let methDefQueue = System.Collections.Generic.Queue()
-    let mutable nextMethDefRowId = 1
     let mutable methDefRowCount = 0
-    let propDefQueue = System.Collections.Generic.Queue()
-    let mutable nextPropDefRowId = 1
     let mutable propDefRowCount = 0
+
+    let mutable nextTyDefRowId = 1
+    let tyDefQueue = System.Collections.Generic.Queue<unit -> unit>()
+
+    let mutable nextFieldDefRowId = 1
+    let fieldDefQueue = System.Collections.Generic.Queue()
+
+    let mutable nextMethDefRowId = 1
+    let methDefQueue = System.Collections.Generic.Queue()
+    
     let overrideQueue = System.Collections.Generic.Queue()
     let attrQueue = System.Collections.Generic.Queue()
-    let importMethQueue = System.Collections.Generic.Queue()
 
     let genericParamsQueue = System.Collections.Generic.PriorityQueue<_, int>()
 
@@ -495,21 +496,17 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         n
 
     let createTyDef qualifiedName (realWork: Lazy<_>) isValueType =
-        let lazyFakeHandle =
-            lazy
-                let n = MetadataTokens.TypeDefinitionHandle(getNextTyDefRowId())
-                tyDefRowCount <- tyDefRowCount + 1
-                tyDefQueue.Enqueue(fun () -> 
-                    let n2 = realWork.Value
-                    if not (n.Equals(n2)) then
-                        failwith "Invalid type definition handle."
-                    )
-                n
+        let fakeHandle = MetadataTokens.TypeDefinitionHandle(getNextTyDefRowId())
+        tyDefQueue.Enqueue(fun () -> 
+            let realHandle = realWork.Value
+            if not (fakeHandle.Equals(realHandle)) then
+                failwith "Invalid type definition handle."
+            )
         let res = 
             ClrTypeHandle.LazyTypeDefinition(
                 realWork, 
                 isValueType, 
-                lazyFakeHandle,
+                fakeHandle,
                 qualifiedName
             )
         res
@@ -1166,9 +1163,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         processQueue methDefQueue
         processQueue overrideQueue
         processQueue fieldDefQueue
-        processQueue propDefQueue
 
-        if methDefQueue.Count > 0 || overrideQueue.Count > 0 || fieldDefQueue.Count > 0 || tyDefQueue.Count > 0 || propDefQueue.Count > 0 then
+        if methDefQueue.Count > 0 || overrideQueue.Count > 0 || fieldDefQueue.Count > 0 || tyDefQueue.Count > 0 then
             failwith "Expected empty queues."
 
         processPriorityQueue genericParamsQueue
@@ -2697,6 +2693,7 @@ type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name
     member internal _.BuildAndCache() = handle.Value
 
 [<Sealed>]
+[<DebuggerDisplay("{FullyQualifiedName}")>]
 type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyParCount: int, isValueType: bool, isEnum: bool) as this =
 
     let fullyQualifiedName =
@@ -2851,7 +2848,8 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
             match enclosingTyHandle with
             | ClrTypeHandle.LazyTypeDefinition(_, _, fakeEnclosingTyDefHandle, _) ->
-                metadataBuilder.AddNestedType(tyDefHandle, fakeEnclosingTyDefHandle.Value)
+                OlyAssert.True(MetadataTokens.GetRowNumber(fakeEnclosingTyDefHandle) < MetadataTokens.GetRowNumber(tyDefHandle))
+                metadataBuilder.AddNestedType(tyDefHandle, fakeEnclosingTyDefHandle)
             | ClrTypeHandle.None ->
                 ()
             | _ ->
