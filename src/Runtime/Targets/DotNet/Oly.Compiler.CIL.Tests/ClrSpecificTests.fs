@@ -7217,6 +7217,7 @@ alias (&)<T>
 #[intrinsic("address_of")]
 (&)<T>(T): T&
 
+#[inline(never)]
 M<T>(f: scoped () -> T): T =
     f()
 

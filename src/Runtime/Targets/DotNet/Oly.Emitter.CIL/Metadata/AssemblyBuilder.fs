@@ -221,10 +221,11 @@ module private MetadataHelpers =
         signature
 
 [<Sealed>]
-type ClrLocal(name: string, ty: ClrTypeHandle) =
+type ClrLocal(name: string, ty: ClrTypeHandle, isPinned: bool) =
 
     member _.Name = name
     member _.Type = ty
+    member _.IsPinned = isPinned
 
 /// The specified Hash algorithm to use on portable pdb files.
 type private HashAlgorithm =
@@ -1070,7 +1071,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         locals
         |> ImArray.iter (fun local ->
-            MetadataHelpers.encodeType(localVarSignature.AddVariable().Type(local.Type.IsByRef_t), local.Type, this)
+            MetadataHelpers.encodeType(localVarSignature.AddVariable().Type(local.Type.IsByRef_t, local.IsPinned), local.Type, this)
         )
 
         signature

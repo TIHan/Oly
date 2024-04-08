@@ -154,6 +154,8 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
         | TypeDefinition(isClosure=isClosure) -> isClosure
         | ByRef _ -> false
 
+    member this.IsScopedClosure = this.IsClosure && this.IsStruct
+
     member this.IsTypeDefinitionInterface =
         match this with
         | TypeDefinition(isInterface=isInterface) -> isInterface
@@ -397,7 +399,7 @@ module rec ClrCodeGen =
             assembly: ClrAssemblyBuilder
             emitTailCalls: bool
             buffer: imarrayb<I>
-            locals: System.Collections.Generic.Dictionary<int, string * ClrTypeInfo>
+            locals: System.Collections.Generic.Dictionary<int, string * ClrTypeInfo * bool>
             dups: System.Collections.Generic.HashSet<int>
             irTier: OlyIRFunctionTier
             debugLocalsInScope: System.Collections.Generic.Dictionary<int, ClrDebugLocal>
@@ -416,7 +418,13 @@ module rec ClrCodeGen =
         member this.NewLocal(ty: ClrTypeInfo) =
             let localIndex = this.localCount.contents
             this.localCount.contents <- this.localCount.contents + 1
-            this.locals.[localIndex] <- (String.Empty, ty)
+            this.locals.[localIndex] <- (String.Empty, ty, false)
+            localIndex
+
+        member this.NewLocalPinned(ty: ClrTypeInfo) =
+            let localIndex = this.localCount.contents
+            this.localCount.contents <- this.localCount.contents + 1
+            this.locals.[localIndex] <- (String.Empty, ty, true)
             localIndex
 
         member this.NewLabel() =
@@ -829,6 +837,8 @@ module rec ClrCodeGen =
         match irOp with
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             if receiverExpr.ResultType.IsStruct then
+                // TODO: Assert or remove this.
+                failwith "this is dead"
                 GenArgumentExpression cenv env receiverExpr
                 let localIndex = cenv.NewLocal(receiverExpr.ResultType)
                 I.Stloc localIndex |> emitInstruction cenv
@@ -843,6 +853,7 @@ module rec ClrCodeGen =
 
                 // Converts a byref to a native int.
                 if receiverExpr.ResultType.IsByRef_t then
+                    OlyAssert.True(receiverExpr.ResultType.TryByRefElementType.Value.IsStruct)
                     I.Conv_u |> emitInstruction cenv
 
                 emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
@@ -1261,7 +1272,7 @@ module rec ClrCodeGen =
             if irArg.ResultType.IsStruct then
                 failwith "Expected an address."
             match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
-            | ValueSome(I.Ldloc(i)) when irArg.ResultType.IsByRefOfStruct && not((cenv.locals[i] |> snd).IsByRefOfStruct) ->
+            | ValueSome(I.Ldloc(i)) when irArg.ResultType.IsByRefOfStruct && not((let (_, x, _) = cenv.locals[i] in x).IsByRefOfStruct) ->
                 failwith "Local address mis-matching."
             | _ ->
                 ()
@@ -1689,7 +1700,7 @@ module rec ClrCodeGen =
             
             if hasNoDup then
                 let rhsExprTy = irRhsExpr.ResultType
-                cenv.locals.[n] <- (name, rhsExprTy)
+                cenv.locals.[n] <- (name, rhsExprTy, false)
             GenExpression cenv (setNotReturnable env) irRhsExpr
             if hasNoDup then
                 I.Stloc n |> emitInstruction cenv
@@ -2828,6 +2839,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             { func with handle = newHandle }
 
         member this.EmitFunctionDefinition(externalInfoOpt, enclosingTy, flags, name, tyPars, pars, returnTy, originalOverridesOpt, _, irAttrs) =
+            // Note on Scoped Closures:
+            //      - For scoped closures, its Invoke function cannot actually be an instance function. Instead, force it to be a static function.
             let name =
                 createMethodName
                     externalInfoOpt
@@ -2868,6 +2881,14 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         (seq { "this", cilTy })
                         pars
                     |> ImArray.ofSeq
+                else if enclosingTy.IsScopedClosure && not isCtor then
+                    let cilTy =
+                        let cilTy = enclosingTy
+                        ClrTypeInfo.ByRef(cilTy, false, ClrTypeHandle.CreateByRef(cilTy.Handle))
+                    Seq.append
+                        (seq { "this", cilTy })
+                        pars
+                    |> ImArray.ofSeq
                 else
                     pars
 
@@ -2898,7 +2919,19 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     cilReturnTy
                         
-            let isInstance = not isStatic && not isTypeExtension        
+            let isInstance = not isStatic && not isTypeExtension   
+            
+            let isInstance =
+                if enclosingTy.IsScopedClosure && not isCtor then
+                    false
+                else
+                    isInstance
+
+            let isStatic =
+                if enclosingTy.IsScopedClosure && not isCtor then
+                    true
+                else
+                    isStatic
 
             let tyPars = convertTyPars tyPars
                 
@@ -2997,14 +3030,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let pars =
                 if isStatic || isCtor then 
-                    //if isTypeExtension && not flags.IsStatic then
-                    //    let enclosingTy =
-                    //        match enclosingTy.TryTypeExtensionType with
-                    //        | ValueSome(enclosingTy, _, _) -> enclosingTy
-                    //        | _ -> enclosingTy
-                    //    ImArray.createOne("this", enclosingTy).AddRange(pars)
-                    //else
-                        pars
+                    pars
                 else
                     if enclosingTy.IsStruct then
                         // Perhaps, the OlyRuntime can give all parameters even for instance functions instead of us
@@ -3113,8 +3139,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     cenv.locals
                     |> Seq.sortBy (fun x -> x.Key)
                     |> Seq.map (fun x -> 
-                        let name, ty = x.Value
-                        ClrLocal(name, ty.Handle))
+                        let name, ty, isPinned = x.Value
+                        ClrLocal(name, ty.Handle, isPinned))
                     |> ImArray.ofSeq
                 methDefBuilder.BodyInstructions <- cenv.buffer.ToImmutable()
 
