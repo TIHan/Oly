@@ -7250,3 +7250,47 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "System.ObjectSystem.Object"
     |> ignore
+
+[<Fact>]
+let ``Catching an exception and returning -1 should be the right value``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+fail<TResult>(msg: string): TResult =
+    throw System.Exception(msg)
+
+#[inline(never)]
+ThrowSomething(cond: bool): int32 =
+    if (cond)
+        9
+    else
+        fail("a message for throw")
+
+test(): int32 =
+    try
+        ThrowSomething(false)
+    catch (ex: System.Exception) =>
+        -1
+
+main(): () =
+    let x = test()
+    print(x)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "-1"
