@@ -602,6 +602,7 @@ type internal Token =
     member this.IsTriviaExceptEndOfSource =
         match this with
         | Space _
+        | NewLine
         | CarriageReturn
         | CarriageReturnNewLine
         | SingleLineCommentStart
@@ -613,7 +614,7 @@ type internal Token =
         | Directive _ 
         | ConditionalDirective _
         | HashIf _
-        | HashEnd _ -> true
+        | HashEnd -> true
         | _ -> false
 
     member this.IsTrivia =

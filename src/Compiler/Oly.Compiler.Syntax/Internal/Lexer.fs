@@ -184,7 +184,7 @@ module Lexer =
         if c = '\n' then
             if lexer.wasPrevCarriageReturn then
                 lexer.wasPrevCarriageReturn <- false
-                lexer.currentColumn <- 0
+            lexer.currentColumn <- 0
 
         elif c = '\r' then
             lexer.wasPrevCarriageReturn <- true

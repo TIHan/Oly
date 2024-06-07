@@ -1640,7 +1640,7 @@ type EntitySymbol with
                     true
                 else
                 
-                // TODO: Allocation, maybe a an object pool would be better?
+                // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
                 let result = this.CheckUnmanaged(hash)
@@ -1673,7 +1673,7 @@ type EntitySymbol with
                     true
                 else
 
-                // TODO: Allocation, maybe a an object pool would be better?
+                // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
                 let result = this.CheckBlittable(hash)
