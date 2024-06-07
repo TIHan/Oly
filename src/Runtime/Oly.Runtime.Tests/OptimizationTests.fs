@@ -1286,3 +1286,71 @@ main(): () =
         OlyAssert.Fail($"Unexpected pattern:\n{ir}")
     | _ ->
         () // Pass
+
+[<Fact>]
+let ``Inconsequential while loop gets removed``() =
+    let ir =
+        """
+module Program
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let mutable i = 0
+    while (i < 100)
+        i <- i + 1
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.None _ ->
+        ()
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Inconsequential while loop gets removed 2``() =
+    let ir =
+        """
+module Program
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[inline(never)]
+Work(): () = ()
+
+main(): () =
+    let mutable i = 0
+    while (i < 100)
+        i <- i + 1
+    Work()
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) when func.EmittedFunction.Name = "Work" ->
+        ()
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")

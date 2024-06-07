@@ -823,12 +823,68 @@ module Patterns =
         | _ ->
             None
 
+    let (|IntegralOne|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Value(value=v) ->
+            match v with
+            | V.Constant(c, _) ->
+                match c with
+                | C.UInt8(1uy)
+                | C.UInt16(1us)
+                | C.UInt32(1u)
+                | C.UInt64(1UL)
+                | C.Int8(1y)
+                | C.Int16(1s)
+                | C.Int32(1)
+                | C.Int64(1L) ->
+                    Some()
+                | _ ->
+                    None
+            | _ ->
+                None
+        | _ ->
+            None
+
     let (|Null|_|) (expr: E<_, _, _>) =
         match expr with
         | E.Value(value=v) ->
             match v with
             | V.Null _ -> Some()
             | _ -> None
+        | _ ->
+            None
+
+    /// C#: for (var i = {RHS}; i < {CMP_OP2}; i++) { {BODY}; }
+    let (|SimpleForLoop|_|) (expr: E<_, _, _>) =
+        match expr with
+        | E.Let(_, iv, irRhsExpr, 
+                E.While(
+                    E.Operation(_, O.LessThan(E.Value(value=V.Local(iv1, _)), cmpOp2, _)),
+                    bodyExpr, 
+                    resultTy)
+            ) when iv = iv1 ->
+
+            match bodyExpr with
+            | E.Operation(_, 
+                    O.Store(ivStore, 
+                        E.Operation(_, O.Add(E.Value(value=V.Local(iv2, _)), IntegralOne, _)),
+                        _
+                    )
+                ) when iv = ivStore && iv = iv2 ->
+                Some(iv, irRhsExpr, cmpOp2, E.None(NoRange, resultTy), resultTy)
+
+            | E.Sequential(bodyExpr,
+                    E.Operation(_, 
+                        O.Store(ivStore, 
+                            E.Operation(_, O.Add(E.Value(value=V.Local(iv2, _)), IntegralOne, _)),
+                            _
+                        )
+                    )
+                ) when iv = ivStore && iv = iv2 ->
+                Some(iv, irRhsExpr, cmpOp2, bodyExpr, resultTy)
+
+            | _ ->
+                None
         | _ ->
             None
 
