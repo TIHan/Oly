@@ -156,14 +156,14 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     // LoadFunctionPtr lambda removal
     // Removes the wrapping lambda if this is a LoadFunctionPtr.
     // LoadFunctionPtr will now have a direct argument of the function value.
-    | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, LambdaWrappedFunctionCall(syntaxInfoFunc, func)) ->
+    | LoadFunctionPtrOfLambdaWrappedFunctionCall(syntaxInfo, funcLoadFunctionPtr, syntaxInfoFunc, func) ->
         E.Call(
             syntaxInfo,
             None,
             ImArray.empty,
             ImArray.createOne(E.Value(syntaxInfoFunc, func)),
             funcLoadFunctionPtr,
-            false
+            CallFlags.None
         )
 
     // Auto-properties
@@ -182,13 +182,13 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     | E.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
         match prop.Getter with
         | Some getter ->
-            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.empty, getter, isVirtual)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.empty, getter, if isVirtual then CallFlags.Virtual else CallFlags.None)
         | _ ->
             origExpr
     | E.SetProperty(syntaxInfo, receiverOpt, prop, rhs, isVirtual) ->
         match prop.Setter with
         | Some setter ->
-            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.createOne rhs, setter, isVirtual)
+            E.Call(syntaxInfo, receiverOpt, ImArray.empty, ImArray.createOne rhs, setter, if isVirtual then CallFlags.Virtual else CallFlags.None)
         | _ ->
             origExpr
 
@@ -335,7 +335,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                             ImArray.empty,
                             argExprs,
                             funcToCall,
-                            isVirtualCall
+                            if isVirtualCall then CallFlags.Virtual else CallFlags.None
                         )
 
                     E.Lambda(
@@ -429,7 +429,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                             ImArray.empty,
                                             ImArray.empty,
                                             baseDefaultInstanceCtor,
-                                            false
+                                            CallFlags.None
                                         ))
                                     | _ ->
                                         None

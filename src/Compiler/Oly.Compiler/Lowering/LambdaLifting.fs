@@ -625,7 +625,7 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
                 ImArray.empty,
                 ImArray.empty,
                 baseCtor,
-                false
+                CallFlags.None
             )
         | _ ->
             E.None(BoundSyntaxInfo.Generated(syntaxTree))
@@ -729,7 +729,7 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
             ImArray.empty,
             ctorArgExprs,
             ctor,
-            false
+            CallFlags.None
         )
 
     callCtorExpr
@@ -1188,7 +1188,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                             match expr with
                             | E.Value(syntaxInfo, value) when value.Formal.Id = func.Id ->
                                 E.Value(syntaxInfo, newFunc)
-                            | E.Call(syntaxInfo, None, witnessArgs, argExprs, value, false) when value.Formal.Id = func.Id ->
+                            | E.Call(syntaxInfo, None, witnessArgs, argExprs, value, flags) when value.Formal.Id = func.Id ->
                                 let newFunc = newFunc.Apply(value.TypeArguments.AddRange(freeTyVars |> Seq.map (fun x -> x.AsType)))
                                 let argExprs = argExprs.AddRange(newArgExprs)
                                 let argExprs =
@@ -1204,7 +1204,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                     | _ ->
                                         OlyAssert.Fail("should not happen")
 
-                                E.Call(syntaxInfo, None, witnessArgs, argExprs, newFunc, false)
+                                E.Call(syntaxInfo, None, witnessArgs, argExprs, newFunc, flags)
                             | _ ->
                                 expr
                         )

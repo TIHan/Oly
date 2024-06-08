@@ -29,8 +29,6 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
     let ent = entBuilder.Entity
 
-    let env = setSkipCheckTypeConstructor env
-
     let env = env.SetAccessorContext(ent)
     let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent

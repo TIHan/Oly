@@ -5334,6 +5334,7 @@ type CompilerPass =
     | Pass2
     | Pass3
     | Pass4
+    | PostInferenceAnalysis
     | LambdaLifting
 
 // -----------------------------------------------

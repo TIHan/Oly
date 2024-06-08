@@ -67,34 +67,41 @@ let (|FromAddress|_|) (expr: E) =
     | _ ->
         None
 
-/// This is a weird one, we rely on the syntax node of the lambda to equal that of the syntax node of the inner call.
-/// Sort of hacky. We only need this pattern if we want to get the pointer of a function. Maybe there is a better way....
-let (|LambdaWrappedFunctionCall|_|) (expr: E) =
-    match expr.Strip() with
-    | E.Lambda(syntaxInfo=syntaxInfoForLambda;pars=pars;body=lazyBodyExpr)  ->
-        match lazyBodyExpr.Expression with
-        | E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;args=argExprs;value=value) 
-                when syntaxInfoForLambda.Syntax = syntaxInfo.Syntax && value.IsFunction && pars.Length = argExprs.Length ->
-            let areSame =
-                (pars, argExprs)
-                ||> ImArray.forall2 (fun par argExpr ->
-                    match argExpr with
-                    | E.Value(_, arg) -> par.Id = arg.Id
-                    | _ -> false
-                )
-            if areSame then
-                Some(syntaxInfo, value :?> IFunctionSymbol)
-            else
-                None
-        | _ ->
-            None
-    | _ ->
-        None
-
 let (|LoadFunctionPtr|_|) (expr: E) =
     match expr.Strip() with
     | E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;value=value;args=args) when args.Length = 1 && value.IsLoadFunctionPtr ->
         Some(syntaxInfo, value :?> IFunctionSymbol, args[0])
+    | _ ->
+        None
+
+let (|LoadFunctionPtrOfLambdaWrappedFunctionCall|_|) (expr: E) =
+    match expr with
+    | LoadFunctionPtr(loadFuncPtrSyntaxInfo, loadFuncPtr, argExpr) ->
+        match argExpr.Strip() with
+        | E.Lambda(pars=pars;body=lazyBodyExpr)  ->
+            match lazyBodyExpr.Expression with
+            | E.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value) 
+                    when value.IsFunction && pars.Length = argExprs.Length ->
+                match receiverExprOpt with
+                | Some(E.Value _)
+                | None ->        
+                    let areSame =
+                        (pars, argExprs)
+                        ||> ImArray.forall2 (fun par argExpr ->
+                            match argExpr with
+                            | E.Value(_, arg) -> par.Id = arg.Id
+                            | _ -> false
+                        )
+                    if areSame then
+                        Some(loadFuncPtrSyntaxInfo, loadFuncPtr, syntaxInfo, value :?> IFunctionSymbol)
+                    else
+                        None
+                | _ ->
+                    None
+            | _ ->
+                None
+        | _ ->
+            None
     | _ ->
         None
 

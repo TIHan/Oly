@@ -227,7 +227,7 @@ let bindRootPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbo
         bindNamespaceOrModuleDefinitionPass3 cenv env entBuilder syntaxTyDefBody
 
     | OlySyntaxCompilationUnit.Module(syntaxAttrs, _, _, _, syntaxConstrClauseList, syntaxTyDefBody, _) ->
-        checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxConstrClauseList.ChildrenOfType entBuilder.Entity.TypeParameters
+        checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxConstrClauseList.ChildrenOfType entBuilder.Entity.TypeParameters
 
         let attrs = bindAttributes cenv env true syntaxAttrs
         entBuilder.SetAttributes(cenv.pass, attrs)
@@ -389,6 +389,7 @@ type BinderPass2(state: PassState) =
         bindSyntaxTreePass2 cenv state.env state.entBuilder state.syntaxTree
         BinderPass3(
             { state with
+                env = unsetSkipCheckTypeConstructor state.env
                 declTable = cenv.declTable.contents
                 diags = state.diags.AddRange(diagLogger.GetDiagnostics())
             }
@@ -600,6 +601,7 @@ let CreateDefaultBinderEnvironment asmIdent =
     }
 
 let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =
+    let env = setSkipCheckTypeConstructor env
     let prePassEnv =
         CacheValue(fun ct ->
             let declTable = BoundDeclarationTable()

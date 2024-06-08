@@ -668,3 +668,11 @@ let tryEvaluateLazyLiteral (diagnostics: OlyDiagnosticLogger) (lazyLiteral: Lazy
     | Error(diag) ->
         diagnostics.AddDiagnostic(diag)
         ValueNone
+
+let setSkipCheckTypeConstructor (env: BinderEnvironment) =
+    if env.skipCheckTypeConstructor then env
+    else { env with skipCheckTypeConstructor = true }
+
+let unsetSkipCheckTypeConstructor (env: BinderEnvironment) =
+    if env.skipCheckTypeConstructor then { env with skipCheckTypeConstructor = false }
+    else env

@@ -121,7 +121,7 @@ let toTargetJump(expr: E) =
             ImArray.empty,
             ImArray.empty,
             local,
-            false
+            CallFlags.None
         )
 
     let bindingInfo = BindingLocalFunction(local)
@@ -180,7 +180,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
             ImArray.empty,
             freeLocals |> ImArray.map (fun x -> E.Value(syntaxInfo, x)),
             local,
-            false
+            CallFlags.None
         )
 
     let bindingInfo = BindingLocalFunction(local)
@@ -311,7 +311,7 @@ let createCallExpression syntaxInfo (func: IFunctionSymbol) witnessArgs argExprs
         witnessArgs,
         argExprs,
         func,
-        func.IsVirtual
+        if func.IsVirtual then CallFlags.Virtual else CallFlags.None
     )
 
 let createLiteralInfo cenv syntax benv matchValueExpr literal =

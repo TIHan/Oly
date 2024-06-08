@@ -12,14 +12,6 @@ open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 
-let setSkipCheckTypeConstructor (env: BinderEnvironment) =
-    if env.skipCheckTypeConstructor then env
-    else { env with skipCheckTypeConstructor = true }
-
-let unsetSkipCheckTypeConstructor (env: BinderEnvironment) =
-    if env.skipCheckTypeConstructor then { env with skipCheckTypeConstructor = false }
-    else env
-
 let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
     let flags =
         if attributesContainOpen attrs then
@@ -37,8 +29,6 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
 
 /// Pass 0 - Type definition with type parameters.
 let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) =
-    let env = setSkipCheckTypeConstructor env
-
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
     let attrs = bindAttributes cenv env false syntaxAttrs
 
@@ -124,7 +114,6 @@ let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
     let ent = entBuilder.Entity
 
-    let env = setSkipCheckTypeConstructor env
     let env = env.SetAccessorContext(ent)  
 
     match syntaxEntDefBody with

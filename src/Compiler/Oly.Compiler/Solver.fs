@@ -16,12 +16,14 @@ type SolverEnvironment =
     {
         diagnostics: OlyDiagnosticLogger
         benv: BoundEnvironment
+        pass: CompilerPass
     }
 
-    static member Create(diagnostics, benv) =
+    static member Create(diagnostics, benv, pass) =
         {
             diagnostics = diagnostics
             benv = benv
+            pass = pass
         }
 
 let rec solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
@@ -411,7 +413,7 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
             solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
  
 and solveConstraints
-        env 
+        (env: SolverEnvironment) 
         (skipUnsolved: bool)
         (syntaxNode: OlySyntaxNode) 
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
@@ -424,6 +426,12 @@ and solveConstraints
         OlyAssert.Equal(tyArgs.Length, syntaxTyArgs.Length)
     | _ ->
         ()
+
+    match env.pass with
+    | Pass3
+    | Pass4 
+    | PostInferenceAnalysis -> ()
+    | _ -> failwith "Unexpected compiler pass"
 #endif
 
     tyArgs

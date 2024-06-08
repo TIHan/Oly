@@ -1411,9 +1411,12 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Unit _ ->
         OlyILExpression.Value(ilTextRange, OlyILValue.Unit)
 
-    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
+    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, flags) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
+        OlyAssert.False(flags.HasFlag(CallFlags.Partial))
+
+        let isVirtualCall = flags.HasFlag(CallFlags.Virtual)
 
         // TODO: Just turn this into an assert since it is technically legal to do it in the Oly runtime.
         match value.Enclosing with

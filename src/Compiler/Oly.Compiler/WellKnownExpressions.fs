@@ -12,7 +12,7 @@ let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
     let argExprs = [|expr|] |> ImArray.ofSeq
     let func = (freshenValue benv WellKnownFunctions.UnsafeCast).AsFunction
     UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, CallFlags.None)
 
 let ImplicitCast benv (expr: BoundExpression) castToType =
     let exprTy = expr.Type
@@ -39,13 +39,13 @@ let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.IgnoreFunction, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.IgnoreFunction, CallFlags.None)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(syntaxInfo, None, ImArray.empty, argExprs, WellKnownFunctions.equalFunc, false)
+    BoundExpression.Call(syntaxInfo, None, ImArray.empty, argExprs, WellKnownFunctions.equalFunc, CallFlags.None)
 
 let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
     EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
@@ -55,21 +55,21 @@ let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, CallFlags.None)
 
 let And (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, CallFlags.None)
 
 let Or (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
     if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
         failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, false)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, CallFlags.None)
 
 let LogicalAnd (expr1: BoundExpression) (expr2: BoundExpression) =
     let syntaxTree = expr1.Syntax.Tree
@@ -95,7 +95,7 @@ let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExp
         ImArray.empty, 
         argExprs,
         WellKnownFunctions.LoadTupleElement.Apply(tyArgs), 
-        false
+        CallFlags.None
     )
 
 let InlineAnd (expr1: BoundExpression) (expr2: BoundExpression) =
@@ -165,7 +165,7 @@ let LoadFunction (receiverExpr: BoundExpression) (expr: BoundExpression) funcTy 
         (ImArray.createOne funcTy)
         ImArray.empty
         (ImArray.createTwo receiverExpr expr)
-        false
+        CallFlags.None
 
 let LoadStaticFunction (expr: BoundExpression) funcTy =
     let syntaxTree = expr.Syntax.Tree
@@ -175,7 +175,7 @@ let LoadStaticFunction (expr: BoundExpression) funcTy =
         (ImArray.createOne funcTy)
         ImArray.empty
         (ImArray.createOne expr)
-        false
+        CallFlags.None
 
 let NewRefCell (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
@@ -186,7 +186,7 @@ let NewRefCell (expr: BoundExpression) =
         (ImArray.createOne exprTy)
         ImArray.empty
         (ImArray.createOne expr)
-        false
+        CallFlags.None
 
 let LoadRefCellContents (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
@@ -199,7 +199,7 @@ let LoadRefCellContents (expr: BoundExpression) =
             (ImArray.createOne elementTy)
             ImArray.empty
             (ImArray.createOne expr)
-            false
+            CallFlags.None
     | _ ->
         failwith "Invalid expression."
 
@@ -214,7 +214,7 @@ let StoreRefCellContents (receiver: BoundExpression) (rhs: BoundExpression) =
             (ImArray.createOne elementTy)
             ImArray.empty
             (ImArray.createTwo receiver rhs)
-            false
+            CallFlags.None
     | _ ->
         failwith "Invalid expression."
 
@@ -229,7 +229,7 @@ let FromAddress (expr: BoundExpression) =
             (ImArray.createOne elementTy)
             ImArray.empty
             (ImArray.createOne expr)
-            false
+            CallFlags.None
     | _ ->
         failwith "Invalid expression."
 
@@ -275,7 +275,7 @@ let AddressOf (expr: BoundExpression) =
         (ImArray.createOne expr.Type)
         ImArray.empty
         (ImArray.createOne expr)
-        false
+        CallFlags.None
 
 /// Creates a 'Call' expression to get the address
 /// based on the given expression. Expression type is a read/write ByRef type.
@@ -286,7 +286,7 @@ let AddressOfMutable (expr: BoundExpression) =
         (ImArray.createOne expr.Type)
         ImArray.empty
         (ImArray.createOne expr)
-        false
+        CallFlags.None
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type

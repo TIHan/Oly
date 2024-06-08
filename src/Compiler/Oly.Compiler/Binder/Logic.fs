@@ -291,7 +291,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         // We use 'tryIter2' to be resilient against any possible partially complete syntax.
         (syntaxPars.Values, pars)
         ||> ImArray.tryIter2 (fun syntaxPar par ->
-            checkParameter (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxPar func par
+            checkParameter (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxPar func par
         )
 
         func

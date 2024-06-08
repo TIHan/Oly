@@ -916,7 +916,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         let bodyTy = bodyExpr.Type   
         if subsumesTypeWith Generalizable exprTy bodyTy then
-            checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv)) bodyExpr.Syntax exprTy bodyTy
+            checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv, PostInferenceAnalysis)) bodyExpr.Syntax exprTy bodyTy
         else
             match tryFindTypeHasTypeExtensionImplementedType benv exprTy bodyTy with
             | ValueSome entSet when entSet.Count > 0 ->
@@ -986,7 +986,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         //         What are the pitfalls? It would make analysis more than just analysis, but doesn't retrying to solve constraints also mean that?
 
         // Re-check constraints
-        checkConstraintsFromCallExpression acenv.cenv.diagnostics false expr
+        checkConstraintsFromCallExpression acenv.cenv.diagnostics false PostInferenceAnalysis expr
 
         if not value.IsFunctionGroup then
             witnessArgs

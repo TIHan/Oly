@@ -786,7 +786,7 @@ and checkFunctionConstraints
         (witnessArgs: WitnessSolution imarray) =
     solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
 
-and checkConstraintsFromCallExpression diagnostics skipUnsolved (expr: BoundExpression) =
+and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
         // We cannot check constraints and witness for function groups, so skip it.
@@ -797,7 +797,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved (expr: BoundExpr
         | Some benv ->
 
             checkStructTypeCycle 
-                (SolverEnvironment.Create(diagnostics, benv))
+                (SolverEnvironment.Create(diagnostics, benv, pass))
                 syntaxInfo.SyntaxNameOrDefault
                 value.Type
             |> ignore
@@ -853,7 +853,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved (expr: BoundExpr
                 )
 
             checkFunctionConstraints 
-                (SolverEnvironment.Create(diagnostics, benv)) 
+                (SolverEnvironment.Create(diagnostics, benv, pass)) 
                 skipUnsolved
                 syntaxNode 
                 syntaxEnclosingTyArgsOpt

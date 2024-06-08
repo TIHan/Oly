@@ -18814,3 +18814,105 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Partial application unit to unit regression``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    Test(): () = print("hello")
+
+class B =
+
+    Add(f: () -> ()): () =
+        f()
+
+main(): () =
+    let a = A()
+    let b = B()
+    b.Add(a.Test)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Partial application unit to unit regression 2``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    Test(): () = print("hello")
+
+    Test(x: __oly_object): () = print("wrong")
+
+class B =
+
+    Add(f: () -> ()): () =
+        f()
+
+main(): () =
+    let a = A()
+    let b = B()
+    b.Add(a.Test)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Partial application unit to unit regression 3``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    Test(): () = print("hello")
+
+    Test(x: ()): () = print("wrong")
+
+class B =
+
+    Add(f: () -> ()): () =
+        f()
+
+main(): () =
+    let a = A()
+    let b = B()
+    b.Add(a.Test)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Partial application unit to unit regression 4``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A =
+
+    Test(): () = print("hello")
+
+    Test(x: ()): () = print("wrong")
+
+    Add(f: () -> ()): () =
+        f()
+
+    Call(): () =
+        this.Add(this.Test)
+
+main(): () =
+    let a = A()
+    a.Call()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"

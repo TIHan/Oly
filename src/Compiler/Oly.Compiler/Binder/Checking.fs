@@ -290,7 +290,8 @@ let private tryOverloadedCallExpression
         (receiverExprOpt: E option)
         (argExprs: E imarray)
         (isArgForAddrOf: bool)
-        (funcs: IFunctionSymbol imarray) =
+        (funcs: IFunctionSymbol imarray)
+        (flags: CallFlags) =
 
     let resArgs = 
         argExprs
@@ -300,7 +301,7 @@ let private tryOverloadedCallExpression
     | None -> None
     | Some funcs ->
         let checkLambdaArguments() =
-            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
+            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
             argExprs
             |> ImArray.iter (fun x ->
                 x.ForEachReturningTargetExpression(fun x ->
@@ -314,6 +315,16 @@ let private tryOverloadedCallExpression
             )
         if funcs.Length = 1 then
             let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (funcs[0], syntaxInfo.TrySyntaxName)
+            let expr =
+                // partial call / partial overloaded call
+                if flags.HasFlag(CallFlags.Partial) then
+                    match expr with
+                    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) ->
+                        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags ||| CallFlags.Partial)
+                    | expr ->
+                        expr
+                else
+                    expr
             checkLambdaArguments()
             Some expr
         else
@@ -351,7 +362,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
             ImArray.empty,
             argExprs,
             freshFunc,
-            func.IsVirtual && not func.IsFinal
+            if func.IsVirtual && not func.IsFinal then CallFlags.Virtual else CallFlags.None
         )
     
     let lambdaExpr =
@@ -451,10 +462,10 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (expr: E
 
 let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, _) ->
+    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->
 
         let checkLambdaArguments() =
-            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv)
+            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
             argExprs
             |> ImArray.iter (fun x ->           
                 x.ForEachReturningTargetExpression(fun x ->
@@ -481,7 +492,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
                 | _ ->
                     ()
                    
-            match tryOverloadedCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions with
+            match tryOverloadedCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions flags with
             | Some expr -> expr
             | _ -> expr
         | _ ->
@@ -540,9 +551,9 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) skipEage
 
 let private lateCheckCalleeExpression cenv env expr =
     match expr with
-    | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, argExpr) ->
-        match argExpr with
-        | LambdaWrappedFunctionCall(syntaxInfo, func) ->
+    | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, _) ->
+        match expr with
+        | LoadFunctionPtrOfLambdaWrappedFunctionCall(_, _, innerSyntaxInfo, func) ->
             match func.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys, returnTy) ->
                 // TODO: This is weird, all because this is to satisfy __oly_load_function_ptr type arguments.
@@ -554,8 +565,8 @@ let private lateCheckCalleeExpression cenv env expr =
                         argTys
                 let expectedFuncTy = TypeSymbol.CreateFunction(argTysWithoutInstance, returnTy, FunctionKind.Normal)
                 checkTypes
-                    (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
-                    syntaxInfo.Syntax 
+                    (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) 
+                    innerSyntaxInfo.Syntax 
                     expectedFuncTy
                     funcLoadFunctionPtr.Parameters[0].Type
 
@@ -567,15 +578,15 @@ let private lateCheckCalleeExpression cenv env expr =
 
                 let expectedReturnTy = TypeSymbol.CreateFunctionPtr(ilCallConv, argTys, returnTy)
                 checkTypes
-                    (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
-                    syntaxInfo.Syntax 
+                    (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) 
+                    innerSyntaxInfo.Syntax 
                     expectedReturnTy 
                     funcLoadFunctionPtr.ReturnType
 
                 if func.AllTypeParameterCount > 0 then
-                    cenv.diagnostics.Error("Getting the address of a function requires the function not be generic or enclosed by a generic type.", 10, syntaxInfo.Syntax)
+                    cenv.diagnostics.Error("Getting the address of a function requires the function not be generic or enclosed by a generic type.", 10, innerSyntaxInfo.Syntax)
             | _ ->
-                cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax)
+                cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, innerSyntaxInfo.Syntax)
         | _ ->
             cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax) 
     | _ ->
@@ -613,23 +624,60 @@ let private lateCheckCalleeExpression cenv env expr =
     | _ ->
         ()
 
-    checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
+    checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
+
+    let expr =
+        match expr with
+        | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags)
+            when flags.HasFlag(CallFlags.Partial) &&
+                 receiverExprOpt.IsSome && 
+                 argExprs.IsEmpty && 
+                 value.IsInstance && 
+                 value.IsFunction &&
+                 not value.IsFunctionGroup ->
+
+            let isVirtualCall = flags.HasFlag(CallFlags.Virtual)
+
+            let func = value.AsFunction
+
+            // partial application / partial call
+            // example: Add(a.FunctionCall)
+            let pars =
+                func.LogicalParameters 
+                |> ROMem.mapAsImArray (fun p ->
+                    createLocalParameterValue(ImArray.empty, p.Name, p.Type, false)
+                )
+            let argExprs =
+                pars
+                |> ImArray.map (fun x -> E.CreateValue(cenv.syntaxTree, x))
+            E.CreateLambda(BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                LambdaFlags.None,
+                ImArray.empty,
+                pars,
+                LazyExpression.CreateNonLazy(None, 
+                    fun _ ->
+                        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, if isVirtualCall then CallFlags.Virtual else CallFlags.None)
+                )
+            )
+        | _ ->
+            expr
+
     let expr = autoDereferenceExpression expr
     let recheckExpectedTy =
         match expectedTyOpt with
         | Some expectedTy when expectedTy.IsSolved ->
             let exprTy = expr.Type
             if exprTy.IsSolved then
-                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
             else
                 match expr with
                 | AutoDereferenced expr when expectedTy.IsByRef_t ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
                 | _ ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
             false
         | _ ->
             true
@@ -638,13 +686,13 @@ let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (exp
     | AutoDereferenced bodyExpr ->
         match bodyExpr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true bodyExpr
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass bodyExpr
         | _ ->
             ()
     | _ ->
         match expr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true expr 
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expr 
         | _ ->
             ()
 
@@ -652,7 +700,7 @@ let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (exp
     if recheckExpectedTy then
         match expectedTyOpt with
         | Some expectedTy ->
-            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
         | _ ->
             ()
 
@@ -715,7 +763,7 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
             | _ ->
                 argExpr
 
-        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) parTy argExpr
+        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) parTy argExpr
 
         let argExpr =
             match parTy.TryFunction, argExpr.Type.TryFunction with

@@ -26,7 +26,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     let ent = entBuilder.Entity
 
-    checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv)) syntaxConstrClauses ent.TypeParameters
+    checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
     let attrs = bindAttributes cenv envBody true syntaxAttrs
     entBuilder.SetAttributes(cenv.pass, attrs)
@@ -143,7 +143,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | OlySyntaxExtends.Inherits(_, syntaxTyList) ->
                 (syntaxTyList.ChildrenOfType, ent.Extends)
                 ||> ImArray.tryIter2 (fun syntaxTy ty ->
-                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxTy ty
+                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxTy ty
                 )
             | _ ->
                 ()
@@ -153,7 +153,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | OlySyntaxImplements.Implements(_, syntaxTyList) ->
                 (syntaxTyList.ChildrenOfType, ent.Implements)
                 ||> ImArray.tryIter2 (fun syntaxTy ty ->
-                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxTy ty
+                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxTy ty
                 )
             | _ ->
                 ()
@@ -375,7 +375,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         | BindingPattern(_, func) when not func.TypeParameters.IsEmpty ->
             match syntax with
             | OlySyntaxBindingDeclaration.Function(_, _, _, _, syntaxConstrClauseList) ->
-                checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxConstrClauseList.ChildrenOfType func.TypeParameters
+                checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxConstrClauseList.ChildrenOfType func.TypeParameters
             | _ ->
                 ()
         | _ ->
@@ -388,7 +388,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | OlySyntaxBindingDeclaration.Value(_, syntaxReturnTyAnnot) ->
                 match syntaxReturnTyAnnot with
                 | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxReturnTy) ->
-                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxReturnTy field.Type
+                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxReturnTy field.Type
                 | _ ->
                     ()
             | _ ->
@@ -422,12 +422,12 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
 
                 (syntaxParTys.AsMemory(), func.LogicalParameters)
                 ||> ROMem.tryIter2 (fun syntaxParTy par ->
-                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxParTy par.Type
+                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxParTy par.Type
                 )
 
                 match syntaxReturnTyAnnot with
                 | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxReturnTy) ->
-                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxReturnTy func.ReturnType
+                    checkTypeConstructorDepthWithType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxReturnTy func.ReturnType
                 | _ ->
                     ()
             | _ ->

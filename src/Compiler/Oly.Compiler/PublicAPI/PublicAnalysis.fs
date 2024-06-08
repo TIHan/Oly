@@ -350,7 +350,7 @@ module Patterns =
 
     let (|Call|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value;isVirtualCall=isVirtualCall), boundModel, ct)
+        | Expression(BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value;flags=flags), boundModel, ct)
                 when value.TryWellKnownFunction = ValueNone ->
             ct.ThrowIfCancellationRequested()
             let benv =
@@ -361,7 +361,7 @@ module Patterns =
                     failwith "Should have user syntax."
 
             let callKind =
-                if isVirtualCall then
+                if flags.HasFlag(CallFlags.Virtual) then
                     OlyCallKind.Virtual
                 else
                     OlyCallKind.Concrete

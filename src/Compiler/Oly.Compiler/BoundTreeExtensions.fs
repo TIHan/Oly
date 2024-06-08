@@ -1233,8 +1233,9 @@ let areTargetExpressionsEqual (expr1: E) (expr2: E) =
     if obj.ReferenceEquals(expr1, expr2) then true
     else
         match expr1, expr2 with
-        | E.Call(_, None, witnessArgs1, argExprs1, value1, false),
-            E.Call(_, None, witnessArgs2, argExprs2, value2, false) ->
+        | E.Call(_, None, witnessArgs1, argExprs1, value1, flags1),
+            E.Call(_, None, witnessArgs2, argExprs2, value2, flags2) ->
+            flags1 = flags2 &&
             value1.IsFunction &&
             areValueSignaturesEqual value1 value2 && 
             argExprs1.Length = argExprs2.Length &&

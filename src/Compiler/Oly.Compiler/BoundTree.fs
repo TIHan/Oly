@@ -25,6 +25,12 @@ type LambdaFlags =
     /// Only used in lambda-lifting
     | Bound                 = 0x1000000
 
+[<Flags>]
+type CallFlags =
+    | None    = 0b0000
+    | Virtual = 0b0001
+    | Partial = 0b0010
+
 type InlineArgumentSymbol with
 
     member this.ToLambdaFlags() =
@@ -293,7 +299,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         witnessArgs: WitnessSolution imarray * 
         args: ImmutableArray<BoundExpression> *
         value: IValueSymbol * 
-        isVirtualCall: bool
+        flags: CallFlags
 
     | Value of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol
     | SetValue of syntaxInfo: BoundSyntaxInfo * value: IValueSymbol * rhs: BoundExpression

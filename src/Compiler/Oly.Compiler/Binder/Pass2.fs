@@ -454,12 +454,10 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
 
 /// Pass 2 - Type declaration.
 let bindTypeDeclarationPass2 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxIdent (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
-    let envBody = setSkipCheckTypeConstructor env
-
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
-    bindTypeDeclarationBodyPass2 cenv envBody entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
+    bindTypeDeclarationBodyPass2 cenv env entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
 
     // TODO: We need to do this in the very top-level ModuleDefinition.
     checkEntityExport cenv env syntaxIdent entBuilder.Entity
@@ -531,8 +529,6 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
-
-    let env = setSkipCheckTypeConstructor env
 
     let env = env.SetAccessorContext(ent)
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))

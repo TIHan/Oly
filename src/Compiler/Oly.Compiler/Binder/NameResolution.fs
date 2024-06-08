@@ -175,7 +175,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
         let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
         match expectedTyOpt with
-        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
         | _ -> ()
         expr
     | OlySyntaxExpression.Name(syntaxName) ->
@@ -186,7 +186,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
             let tyPar = ty.TryTypeParameter.Value
             let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxName, env.benv), BoundLiteral.Constant(ConstantSymbol.TypeVariable(tyPar)))
             match expectedTyOpt with
-            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expectedTy expr
+            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
             | _ -> ()
             expr
         | _ ->
@@ -446,7 +446,7 @@ let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receive
             else
                 receiverExpr
         let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, false)
-        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) expr
+        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
         checkVirtualUsage cenv env expr
     | _ ->
         E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
@@ -506,7 +506,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
             ImArray.empty,
             argExprs,
             originalValue,
-            false
+            CallFlags.None
         )
     else
         let tyArgOffset =
@@ -573,7 +573,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         else
             (value, argExprs)
 
-    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv)) argExprs syntaxInfo.Syntax value   
+    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) argExprs syntaxInfo.Syntax value   
     let witnessArgs = createWitnessArguments cenv value
 
     let receiverExprOpt =
@@ -609,7 +609,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 false
             )
 
-        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv)) getPropertyExpr
+        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) getPropertyExpr
 
         let bridge = createLocalBridgeValue value.Type
 
@@ -620,7 +620,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
                 ImArray.empty,
                 argExprs,
                 bridge,
-                false
+                CallFlags.None
             )
 
         let expr =
@@ -638,7 +638,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
             witnessArgs,
             argExprs,
             value,
-            false
+            CallFlags.None
         ), value
 
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =
@@ -759,7 +759,7 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
                 ImArray.empty,
                 resInfo.argExprs,
                 func,
-                false
+                CallFlags.None
             )
             |> ResolutionItem.Expression
         else
@@ -778,6 +778,18 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
 
             bindValueAsCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo receiverExprOpt argExprs (syntaxTyArgsRoot, syntaxTyArgs) value
             |> ResolutionItem.Expression
+
+        elif receiverExprOpt.IsSome && not resInfo.resArgs.IsExplicit then
+            // TODO: FIXME - This does not handle type arguments.
+            OlyAssert.True(resInfo.argExprs.IsEmpty)
+            let isVirtualCall = value.IsVirtual && not value.IsFinal
+            let flags = CallFlags.Partial
+            let flags =
+                if isVirtualCall then flags ||| CallFlags.Virtual
+                else flags
+            E.Call(syntaxInfo, receiverExprOpt, ImArray.empty, resInfo.argExprs, value, flags)
+            |> ResolutionItem.Expression
+
         else
             if resInfo.InPatternOnlyContext then
                 cenv.diagnostics.Error("Invalid expression.", 10, syntaxNode)
@@ -1462,7 +1474,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
                 TypeSymbol.ConstantInt32(value)
             | BoundLiteral.NumberInference(lazyLiteral, literalTy) ->
-                checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral TypeSymbol.Int32 literalTy
+                checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral TypeSymbol.Int32 literalTy
                 match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
                 | ValueSome literal ->
                     match literal with
@@ -1626,7 +1638,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
             //         There may be situations where we want to do a similar thing
             //         when checking type constructors.
             checkTypeConstructor 
-                (SolverEnvironment.Create(cenv.diagnostics, env.benv)) 
+                (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) 
                 syntaxTyArgsRoot 
                 (* skipUnsolved *) true
                 syntaxTyArgs 
@@ -2537,7 +2549,7 @@ let bindLiteral cenv env expectedTyOpt syntaxLiteral =
     let literal = bindLiteralAux cenv syntaxLiteral
     match expectedTyOpt with
     | Some(expectedTy) ->
-        checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv)) syntaxLiteral expectedTy literal.Type
+        checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral expectedTy literal.Type
         stripLiteral literal
     | _ ->
         literal
@@ -2596,7 +2608,7 @@ let private determineVirtual receiverExprOpt (func: IFunctionSymbol) =
 
 let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
     match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, (* isVirtual *) false)
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.None)
             when value.IsFunction ->
 
         match receiverExprOpt with
@@ -2608,7 +2620,7 @@ let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
                 match env.implicitThisOpt with
                 | Some(thisValue) ->
                     OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, (* isVirtual *) false)
+                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, CallFlags.None)
                 | _ ->
                     expr
             else
@@ -2616,7 +2628,7 @@ let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
         | _ ->
             let isVirtual = determineVirtual receiverExprOpt value.AsFunction
             if isVirtual then
-                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, true)
+                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.Virtual)
             else
                 expr
 
