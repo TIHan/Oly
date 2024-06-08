@@ -242,7 +242,7 @@ let private bindPatternByResolutionItem
                         env
                         syntaxInfo
                         None
-                        argExprs
+                        (ValueSome argExprs)
                         (value, syntaxInfo.TrySyntaxName)
                 callExpr
             | _ ->
@@ -753,7 +753,7 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
                             | _ -> None
                         )
                     )
-                bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty bridge
+                bindValueAsCallExpression cenv env syntaxInfo None (ValueSome argExprs) ImArray.empty bridge
                 |> fst
                 |> checkExpression cenv env None
 
@@ -1324,7 +1324,7 @@ let private bindThrowExpression cenv (env: BinderEnvironment) syntaxNode syntaxA
         match bindIdentifierAsFormalItem cenv env syntaxNode None resInfo "throw" with
         | ResolutionFormalItem.Value(_, value) ->
             let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, None, None)
-            bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
+            bindValueAsCallExpression cenv env syntaxInfo None (ValueSome argExprs) ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
             invalidExpression syntaxNode env.benv
@@ -1367,7 +1367,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
         match bindIdentifierAsFormalItem cenv env syntaxToCapture None resInfo ident with
         | ResolutionFormalItem.Value(_, value) ->
             let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv, None, None)
-            bindValueAsCallExpression cenv env syntaxInfo None argExprs ImArray.empty value
+            bindValueAsCallExpression cenv env syntaxInfo None (ValueSome argExprs) ImArray.empty value
             |> fst
         | ResolutionFormalItem.Error ->
             invalidExpression syntaxToCapture env.benv
@@ -1584,7 +1584,7 @@ let private bindLocalValueDeclaration
                     env
                     syntaxInfo
                     None
-                    (ImArray.createTwo arg1 arg2)
+                    (ValueSome(ImArray.createTwo arg1 arg2))
                     ImArray.empty
                     bindValue
 

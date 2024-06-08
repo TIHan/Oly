@@ -314,7 +314,7 @@ let private tryOverloadedCallExpression
                 )
             )
         if funcs.Length = 1 then
-            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (funcs[0], syntaxInfo.TrySyntaxName)
+            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (funcs[0], syntaxInfo.TrySyntaxName)
             let expr =
                 // partial call / partial overloaded call
                 if flags.HasFlag(CallFlags.Partial) then
@@ -338,7 +338,7 @@ let private tryOverloadedCallExpression
                 None
             else       
                 let func = FunctionGroupSymbol.CreateIfPossible(funcs)
-                let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt argExprs (func, syntaxInfo.TrySyntaxName)
+                let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (func, syntaxInfo.TrySyntaxName)
                 checkLambdaArguments()
                 Some expr
 

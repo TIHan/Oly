@@ -968,7 +968,9 @@ let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterS
     if isStatic then
         checkStaticContextForFreeLocals env bodyExpr pars
 
-let freshenAndCheckValue env (argExprs: BoundExpression imarray) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
+let freshenAndCheckValue env (argExprsOpt: BoundExpression imarray voption) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
+    let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
+
     let valueTy = value.LogicalType
 
     if not value.IsFunction && valueTy.IsQuantifiedFunction then 
@@ -983,15 +985,18 @@ let freshenAndCheckValue env (argExprs: BoundExpression imarray) (syntaxNode: Ol
                 createMutableLocalValue value.Name freshTy
             else
                 createLocalValue value.Name freshTy
-        checkFunctionType env syntaxNode argExprs value2.LogicalType
+        if argExprsOpt.IsSome then
+            checkFunctionType env syntaxNode argExprs value2.LogicalType
         value2 :> IValueSymbol
     else
         if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then
-            checkFunctionType env syntaxNode argExprs valueTy
+            if argExprsOpt.IsSome then
+                checkFunctionType env syntaxNode argExprs valueTy
             value
         else
             let value2 = freshenValue env.benv value
-            checkFunctionType env syntaxNode argExprs value2.LogicalType
+            if argExprsOpt.IsSome then
+                checkFunctionType env syntaxNode argExprs value2.LogicalType
             value2
 
 let checkTypes (env: SolverEnvironment) syntaxNode (expectedTy: TypeSymbol) (ty: TypeSymbol) =
