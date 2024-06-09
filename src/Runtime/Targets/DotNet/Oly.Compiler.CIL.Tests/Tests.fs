@@ -18916,3 +18916,21 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Partial application unit to unit regression 5``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(z: T, f: T -> ()): () =
+    f(z)
+
+Test(x: ()): () = print("hello")
+
+main(): () =
+    M((), Test)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"

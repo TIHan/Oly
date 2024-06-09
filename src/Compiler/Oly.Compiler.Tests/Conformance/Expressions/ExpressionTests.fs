@@ -9325,3 +9325,29 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Partial application unit to unit should fail``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(z: T, f: T -> ()): () =
+    f(z)
+
+Test(): () = print("hello")
+
+main(): () =
+    M((), Test)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
+        ]
+    |> ignore
