@@ -677,8 +677,10 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOp
         match expectedTyOpt with
         | Some(expectedTy) when expectedTy.IsUnit_t ->
             env, BoundExpression.Unit(BoundSyntaxInfo.User(syntaxNode, env.benv))
-        | _ ->
+        | Some _ ->
             env, BoundExpression.None(BoundSyntaxInfo.User(syntaxNode, env.benv))
+        | _ ->
+            env, BoundExpression.Unit(BoundSyntaxInfo.User(syntaxNode, env.benv))
 
     // Body
     elif syntaxExprList.ChildrenOfType.Length = 1 then
