@@ -330,31 +330,13 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2))
         | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2) ->
             if kind1 = kind2 then
-                (
-                    match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
-                    | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
-                        UnifyTypes rigidity inputTy1 inputTy2
-                    | TypeSymbol.Tuple _, ty
-                    | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
-                        false
-                    | _ ->
-                        UnifyTypes rigidity inputTy1 inputTy2
-                ) &&
+                UnifyTypes rigidity inputTy1 inputTy2 &&
                 UnifyTypes rigidity returnTy1 returnTy2
             else
                 false
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
-            (
-                match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
-                | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-                | TypeSymbol.Tuple _, ty
-                | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
-                    false
-                | _ ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-            ) &&
+            UnifyTypes rigidity inputTy1 inputTy2 &&
             UnifyTypes rigidity returnTy1 returnTy2 &&
             ilCallConv1 = ilCallConv2
 
@@ -420,7 +402,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty2.Formal
             | _ ->
-                solution.Solution <- ty2
+                if ty2.IsVoid_t && tyParOpt.IsSome && not tyParOpt.Value.IsVariadic then
+                    solution.Solution <- TypeSymbol.Unit
+                else
+                    solution.Solution <- ty2
             true
 
         | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible) && not solution.HasSolution ->
@@ -428,7 +413,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty1.Formal
             | _ ->
-                solution.Solution <- ty1
+                if ty1.IsVoid_t && tyParOpt.IsSome && not tyParOpt.Value.IsVariadic then
+                    solution.Solution <- TypeSymbol.Unit
+                else
+                    solution.Solution <- ty1
             true
 
         | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), ty
