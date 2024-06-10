@@ -9342,7 +9342,20 @@ main(): () =
     """
     |> Oly
     |> withErrorHelperTextDiagnostics
+        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
         [
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
             ("Expected type '(()) -> ()' but is '() -> ()'.",
                 """
     M((), Test)
@@ -9351,3 +9364,43 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Partial application unit to unit should fail 2``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: () -> T): () =
+    let result = f()
+
+Test(): () = print("hello")
+
+main(): () =
+    M(Test)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
+        [
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), Test)
+          ^^^^
+"""
+            )
+        ]
+    |> ignore
+

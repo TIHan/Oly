@@ -20,6 +20,36 @@ let printTypeName isDefinition name =
     else
         name
 
+let private createTypeArgumentText benv isDefinition isFunc (tyArgs: TypeSymbol imarray) (names: string imarray) =
+    if Seq.isEmpty tyArgs then
+        "()"
+    else
+        if names.Length = tyArgs.Length then
+            "(" + 
+                (
+                    (tyArgs, names) 
+                    ||> Seq.map2 (fun tyArg name ->
+                        if String.IsNullOrWhiteSpace name then
+                            printTypeAux benv isDefinition false tyArg
+                        else
+                            name + ": " + printTypeAux benv isDefinition false tyArg
+                    ) 
+                    |> Seq.reduce (fun x y -> x + ", " + y)
+                ) 
+                + ")"
+        else
+            if tyArgs.Length = 1 && isFunc then
+                let ty = tyArgs[0]
+                if ty.IsUnit_t then
+                    "(" + printTypeAux benv isDefinition false ty + ")"
+                else
+                    printTypeAux benv isDefinition false ty
+            else
+                "(" + (tyArgs |> Seq.map (printTypeAux benv isDefinition false) |> Seq.reduce (fun x y -> x + ", " + y)) + ")"
+
+let private createVariadicTypeArgumentsText benv isDefinition isFunc (VariadicTypeArguments(tyArgs, names)) =
+    createTypeArgumentText benv isDefinition isFunc tyArgs names
+
 let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty: TypeSymbol) =
     match ty with
     | TypeSymbol.Error _ -> "?"
@@ -57,24 +87,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             printEntityAux benv isDefinition ent   
 
     | TypeSymbol.Tuple(tyArgs, names) -> 
-        if Seq.isEmpty tyArgs then
-            "()"
-        else
-            if names.Length = tyArgs.Length then
-                "(" + 
-                    (
-                        (tyArgs, names) 
-                        ||> Seq.map2 (fun tyArg name ->
-                            if String.IsNullOrWhiteSpace name then
-                                printTypeAux benv isDefinition false tyArg
-                            else
-                                name + ": " + printTypeAux benv isDefinition false tyArg
-                        ) 
-                        |> Seq.reduce (fun x y -> x + ", " + y)
-                    ) 
-                 + ")"
-            else
-                "(" + (tyArgs |> Seq.map (printTypeAux benv isDefinition false) |> Seq.reduce (fun x y -> x + ", " + y)) + ")"
+        createTypeArgumentText benv isDefinition false tyArgs names
 
     | TypeSymbol.Array(elementTy, rank, kind) -> 
         if rank <= 0 then
@@ -114,24 +127,24 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
                 tyPar.Name
         name + "<" + (tyArgs |> Seq.map (printTypeAux benv isDefinition true) |> String.concat ", ") + ">"
 
-    | TypeSymbol.Function(inputTy, returnTy, kind) -> 
+    | TypeSymbol.Function(inputTys, returnTy, kind) ->
         match kind with
         | FunctionKind.Normal ->
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            (createVariadicTypeArgumentsText benv isDefinition true inputTys) + " -> " + printTypeAux benv isDefinition false returnTy
         | FunctionKind.Scoped ->
-            "scoped " + printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            "scoped " + (createVariadicTypeArgumentsText benv isDefinition true inputTys) + " -> " + printTypeAux benv isDefinition false returnTy
 
-    | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
+    | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, returnTy) ->
         if ilCallConv.HasFlag(Oly.Metadata.OlyILCallingConvention.Blittable) then
             "static blittable " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            (createVariadicTypeArgumentsText benv isDefinition true inputTys) + " -> " + printTypeAux benv isDefinition false returnTy
         elif ilCallConv = Oly.Metadata.OlyILCallingConvention.Default then
             "static " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            (createVariadicTypeArgumentsText benv isDefinition true inputTys) + " -> " + printTypeAux benv isDefinition false returnTy
         else
             // TODO: This really isn't what we want, but it is ok for now.
             "static [" + (ilCallConv.ToString()) + "] " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            (createVariadicTypeArgumentsText benv isDefinition true inputTys) + " -> " + printTypeAux benv isDefinition false returnTy
 
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
         "<" + (tyPars |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">" + " " + printTypeAux benv isDefinition false innerTy

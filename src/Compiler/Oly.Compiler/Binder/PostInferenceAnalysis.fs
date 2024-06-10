@@ -127,14 +127,12 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
         UnifyTypes TypeVariableRigidity.Flexible ty TypeSymbolError
         |> ignore
 
-    | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-    | TypeSymbol.Function(inputTy, returnTy, _) ->
-        match inputTy with
-        | TypeSymbol.Tuple(tyArgs, _) ->
-            tyArgs
-            |> ImArray.iter (analyzeTypePermitByRef acenv aenv syntaxNode)
-        | _ ->
-            analyzeTypePermitByRef acenv aenv syntaxNode inputTy
+    | TypeSymbol.NativeFunctionPtr(_, inputTys, returnTy)
+    | TypeSymbol.Function(inputTys, returnTy, _) ->
+        inputTys.Types
+        |> ImArray.iter (fun ty ->
+            analyzeTypePermitByRef acenv aenv syntaxNode ty
+        )
         analyzeType acenv aenv syntaxNode returnTy
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->

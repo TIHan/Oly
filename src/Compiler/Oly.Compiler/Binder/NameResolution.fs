@@ -1431,12 +1431,12 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
         | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
             let outputTy = bind cenv env resTyArity false syntaxOutputTy
-            TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Normal)
+            TypeSymbol.CreateFunction(inputTy.AsParameters(), outputTy, FunctionKind.Normal)
 
         | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
             let outputTy = bind cenv env resTyArity false syntaxOutputTy
-            TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Scoped)
+            TypeSymbol.CreateFunction(inputTy.AsParameters(), outputTy, FunctionKind.Scoped)
 
         | OlySyntaxType.FunctionPtr(_, syntaxBlittableOptional, syntaxInputTy, _, syntaxOutputTy) ->
             let inputTy = bind cenv env resTyArity true syntaxInputTy
@@ -1447,7 +1447,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     Oly.Metadata.OlyILCallingConvention.Blittable
                 | _ ->
                     Oly.Metadata.OlyILCallingConvention.Default
-            TypeSymbol.CreateFunctionPtr(ilCallConv, inputTy, returnTy)
+            TypeSymbol.CreateFunctionPtr(ilCallConv, inputTy.AsParameters(), returnTy)
 
         | OlySyntaxType.WildCard _ ->
             if env.resolutionMustSolveTypes then

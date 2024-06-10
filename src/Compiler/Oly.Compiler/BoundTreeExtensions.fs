@@ -280,9 +280,9 @@ module private Helpers =
             | TypeSymbol.HigherVariable(_, tyArgs) ->
                 for i = 0 to tyArgs.Length - 1 do
                     implType tyArgs.[i]
-            | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-            | TypeSymbol.Function(inputTy, returnTy, _) ->
-                implType inputTy
+            | TypeSymbol.NativeFunctionPtr(_, inputTys, returnTy)
+            | TypeSymbol.Function(inputTys, returnTy, _) ->
+                inputTys.Types |> ImArray.iter implType
                 implType returnTy
             | TypeSymbol.ForAll(tyPars, innerTy) ->
                 // TODO: What to do with the type parameters?
@@ -406,9 +406,9 @@ module private Helpers =
                         add tyPar
                     for i = 0 to tyArgs.Length - 1 do
                         implType tyArgs.[i]
-                | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-                | TypeSymbol.Function(inputTy, returnTy, _) ->
-                    implType inputTy
+                | TypeSymbol.NativeFunctionPtr(_, inputTys, returnTy)
+                | TypeSymbol.Function(inputTys, returnTy, _) ->
+                    inputTys.Types |> ImArray.iter implType
                     implType returnTy
                 | TypeSymbol.ForAll(tyPars, innerTy) ->
                     tyPars
@@ -458,9 +458,9 @@ module private FreeVariablesHelper =
             | _ -> ()
 
             match stripTypeEquations ty with
-            | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-            | TypeSymbol.Function(inputTy, returnTy, _) ->
-                visitType inputTy
+            | TypeSymbol.NativeFunctionPtr(_, inputTys, returnTy)
+            | TypeSymbol.Function(inputTys, returnTy, _) ->
+                inputTys.Types |> ImArray.iter visitType
                 visitType returnTy
             | TypeSymbol.ForAll(tyPars, innerTy) ->
                 addTyPars tyPars

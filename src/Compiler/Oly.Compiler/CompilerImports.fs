@@ -515,13 +515,16 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
             let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
             TypeSymbol.Tuple(tyArgs, names)
 
-    | TypeSymbol.Function(inputTy, returnTy, kind) ->
+    | TypeSymbol.Function(inputTys, returnTy, kind) ->
         if ty.IsFormal then
             ty
         else
-            let inputTy = retargetType currentAsmIdent importer tyPars inputTy
+            let inputTys = 
+                match inputTys with
+                | VariadicTypeArguments(tys, names) ->
+                    VariadicTypeArguments(tys |> ImArray.map (retargetType currentAsmIdent importer tyPars), names)
             let returnTy = retargetType currentAsmIdent importer tyPars returnTy
-            TypeSymbol.Function(inputTy, returnTy, kind)
+            TypeSymbol.Function(inputTys, returnTy, kind)
 
     | _ ->
         if ty.Arity > 0 then
