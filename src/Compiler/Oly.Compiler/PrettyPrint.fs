@@ -53,7 +53,7 @@ let private createVariadicTypeArgumentsText benv isDefinition isFunc (VariadicTy
 let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty: TypeSymbol) =
     match ty with
     | TypeSymbol.Error _ -> "?"
-    | TypeSymbol.Unit -> "(())"
+    | TypeSymbol.Unit -> "()"
     | TypeSymbol.Void -> "()"
     | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then           

@@ -694,7 +694,11 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
                     | _ ->
                         cenv.diagnostics.Error("Parameter must have an explicit type annotation as it is part of a top-level function.", 10, syntaxIdent)
                         syntaxIdent.ValueText, TypeSymbolError
-        
+        let ty =
+            if ty.IsVoid_t then
+                TypeSymbol.Unit
+            else
+                ty
         let attrs = bindAttributes cenv env false syntaxAttrs
         let par = createLocalParameterValue(attrs, parName, ty, syntaxPar.IsMutable)
         recordValueDeclaration cenv par syntaxIdent
@@ -702,6 +706,11 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
 
     | OlySyntaxParameter.IdentifierWithTypeAnnotation(syntaxAttrs, _, syntaxIdent, _, syntaxTy) ->
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
+        let ty =
+            if ty.IsVoid_t then
+                TypeSymbol.Unit
+            else
+                ty
         let attrs = bindAttributes cenv env false syntaxAttrs
         let par = createLocalParameterValue(attrs, syntaxIdent.ValueText, ty, syntaxPar.IsMutable)
         recordValueDeclaration cenv par syntaxIdent
@@ -709,6 +718,11 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
 
     | OlySyntaxParameter.Type(syntaxAttrs, syntaxType) ->
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxType
+        let ty =
+            if ty.IsVoid_t then
+                TypeSymbol.Unit
+            else
+                ty
         let attrs = bindAttributes cenv env false syntaxAttrs
         let par = createLocalParameterValue(attrs, "", ty, false)
 
