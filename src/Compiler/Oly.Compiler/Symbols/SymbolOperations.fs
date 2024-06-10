@@ -176,6 +176,21 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
     else
         false
 
+let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: TypeSymbol imarray) : bool =
+    if tyArgs1.Length = 1 && tyArgs1[0].IsVariadicInferenceVariable then
+        // TODO: Kind of a hack using TypeSymbol.Tuple.
+        let inputTy = 
+            if tyArgs2.IsEmpty then
+                TypeSymbol.Unit
+            elif tyArgs2.Length = 1 then
+                tyArgs2[0]
+            else
+                TypeSymbol.Tuple(tyArgs2, ImArray.empty)
+
+        UnifyTypes rigidity tyArgs1[0] inputTy
+    else
+        false
+
 let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     if obj.ReferenceEquals(origTy1, origTy2) then true
     else
@@ -326,51 +341,47 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.ConstantInt32 n1, TypeSymbol.ConstantInt32 n2 -> n1 = n2
 
-        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2)
-        | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2))
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2) ->
-            if kind1 = kind2 then
-                UnifyTypes rigidity inputTy1 inputTy2 &&
-                UnifyTypes rigidity returnTy1 returnTy2
+        | TypeSymbol.Function(inputTys=inputTys1; returnTy=returnTy1; kind=kind1), TypeSymbol.Function(inputTys=inputTys2; returnTy=returnTy2; kind=kind2)
+        | TypeSymbol.Function(inputTys=inputTys1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTys=inputTys2; returnTy=returnTy2; kind=kind2))
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTys=inputTys1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTys=inputTys2; returnTy=returnTy2; kind=kind2) ->
+            if kind1 = kind2 && UnifyTypes rigidity returnTy1 returnTy2 then
+                // This handles the actual expansion of the variadic type.
+                if unifyVariadicTypes rigidity inputTys1.Types inputTys2.Types then
+                    true
+                elif unifyVariadicTypes rigidity inputTys2.Types inputTys1.Types then
+                    true
+                elif inputTys1.Length = inputTys2.Length then
+                    (inputTys1.Types, inputTys2.Types) ||> ImArray.forall2 (UnifyTypes rigidity)
+                else
+                    false
             else
                 false
 
-        | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
-            UnifyTypes rigidity inputTy1 inputTy2 &&
-            UnifyTypes rigidity returnTy1 returnTy2 &&
-            ilCallConv1 = ilCallConv2
+        | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTys1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTys2, returnTy2) ->
+            if ilCallConv1 = ilCallConv2 && UnifyTypes rigidity returnTy1 returnTy2 then
+                // This handles the actual expansion of the variadic type.
+                if unifyVariadicTypes rigidity inputTys1.Types inputTys2.Types then
+                    true
+                elif unifyVariadicTypes rigidity inputTys2.Types inputTys1.Types then
+                    true
+                elif inputTys1.Length = inputTys2.Length then
+                    ((inputTys1.Types, inputTys2.Types) ||> ImArray.forall2 (UnifyTypes rigidity))
+                else
+                    false
+            else
+                false
 
         | TypeSymbol.Tuple(tyArgs1, _), TypeSymbol.Tuple(tyArgs2, _) ->
-            // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-            if tyArgs1.Length = 1 && tyArgs1[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if tyArgs2.IsEmpty then
-                        TypeSymbol.Unit
-                    elif tyArgs2.Length = 1 then
-                        tyArgs2[0]
-                    else
-                        TypeSymbol.Tuple(tyArgs2, ImArray.empty)
-
-                UnifyTypes rigidity tyArgs1[0] inputTy
-
-            elif tyArgs2.Length = 1 && tyArgs2[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if tyArgs1.IsEmpty then
-                        TypeSymbol.Unit
-                    elif tyArgs1.Length = 1 then
-                        tyArgs1[0]
-                    else
-                        TypeSymbol.Tuple(tyArgs1, ImArray.empty)
-
-                UnifyTypes rigidity inputTy tyArgs2[0]
-
-            elif tyArgs1.Length <> tyArgs2.Length then
-                false
-            else
+            // This handles the actual expansion of the variadic type.
+            if unifyVariadicTypes rigidity tyArgs1 tyArgs2 then
+                true
+            elif unifyVariadicTypes rigidity tyArgs2 tyArgs1 then
+                true
+            elif tyArgs1.Length = tyArgs2.Length then
                 (tyArgs1, tyArgs2)
                 ||> Seq.forall2 (fun ty1 ty2 -> UnifyTypes rigidity ty1 ty2)
+            else
+                false
 
         | TypeSymbol.ForAll(tyPars=tyPars1; innerTy=innerTy1), TypeSymbol.ForAll(tyPars=tyPars2; innerTy=innerTy2) ->
             if tyPars1.Length = tyPars2.Length then
@@ -1805,9 +1816,9 @@ let private getTotalTypeVariableUseCountFromType (ty: TypeSymbol) =
             count <- count + 1
             for i = 0 to tyArgs.Length - 1 do
                 implType tyArgs.[i]
-        | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-        | TypeSymbol.Function(inputTy, returnTy, _) ->
-            implType inputTy
+        | TypeSymbol.NativeFunctionPtr(_, inputTys, returnTy)
+        | TypeSymbol.Function(inputTys, returnTy, _) ->
+            inputTys.Types |> ImArray.iter implType
             implType returnTy
         | TypeSymbol.ForAll(_, innerTy) ->
             implType innerTy

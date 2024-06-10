@@ -952,9 +952,13 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
         | _ ->
 
         match stripTypeEquations ty with
-        | TypeSymbol.Function(inputTy, returnTy, kind) ->
+        | TypeSymbol.Function(inputTys, returnTy, kind) ->
+            let inputTys =
+                match inputTys with
+                | VariadicTypeArguments(inputTys, inputNames) ->
+                    VariadicTypeArguments(inputTys |> ImArray.map (freshen tys explicitTyArgs), inputNames)
             TypeSymbol.Function(
-                freshen tys explicitTyArgs inputTy,
+                inputTys,
                 freshen tys explicitTyArgs returnTy,
                 kind
             )

@@ -302,15 +302,9 @@ and GenTypeParameterAsILTypeVariableInfo (env: env) (tyPar: TypeParameterSymbol)
 and emitILType cenv env ty =
     emitILTypeAux cenv env false true ty
 
-and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol) =
-    let argTys =
-        match stripTypeEquations inputTy with
-        | TypeSymbol.Void -> ImArray.empty
-        | TypeSymbol.Tuple(argTys, _) -> argTys
-        | _ -> 
-            ImArray.createOne inputTy
+and emitILFunctionTypeInfo cenv env (inputTys: TypeSymbol imarray) (returnTy: TypeSymbol) =
     let ilArgTys =
-        argTys
+        inputTys
         |> ImArray.map (emitILType cenv env)
 
     let ilReturnTy =
@@ -374,8 +368,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             OlyILTypeTuple(tyArgs |> ImArray.map (emitILType cenv env), ilNameHandles)
     | TypeSymbol.RefCell(ty) ->
         OlyILTypeRefCell(emitILType cenv env ty)
-    | TypeSymbol.Function(inputTy, outputTy, kind) ->
-        let ilArgTys, ilReturnTy = emitILFunctionTypeInfo cenv env inputTy outputTy
+    | TypeSymbol.Function(inputTys, outputTy, kind) ->
+        let ilArgTys, ilReturnTy = emitILFunctionTypeInfo cenv env inputTys.Types outputTy
         let ilKind =
             match kind with
             | FunctionKind.Normal ->
@@ -407,8 +401,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
     | TypeSymbol.NativeUInt -> OlyILTypeNativeUInt
     | TypeSymbol.NativePtr(elementTy) -> 
         OlyILTypeNativePtr(emitILType cenv env elementTy)
-    | TypeSymbol.NativeFunctionPtr(ilCc, inputTy, outputTy) ->
-        let ilArgTys, ilReturnTy = emitILFunctionTypeInfo cenv env inputTy outputTy
+    | TypeSymbol.NativeFunctionPtr(ilCc, inputTys, outputTy) ->
+        let ilArgTys, ilReturnTy = emitILFunctionTypeInfo cenv env inputTys.Types outputTy
         OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy)
     | TypeSymbol.Array(elementTy, rank, kind) -> 
         let ilKind =

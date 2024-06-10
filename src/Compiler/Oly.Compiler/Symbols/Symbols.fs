@@ -415,29 +415,18 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
-        TypeSymbol.Function(tyArgs[0], tyArgs[1], kind)
+        TypeSymbol.Function(VariadicTypeArguments(tyArgs[0].AsParameters(), ImArray.empty), tyArgs[1], kind)
 
     | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
         OlyAssert.Equal(2, tyArgs.Length)
-        TypeSymbol.NativeFunctionPtr(ilCallConv, tyArgs[0], tyArgs[1])
+        TypeSymbol.NativeFunctionPtr(ilCallConv, VariadicTypeArguments(tyArgs[0].AsParameters(), ImArray.empty), tyArgs[1])
 
     | TypeSymbol.NativePtr _ ->
         TypeSymbol.NativePtr(tyArgs[0])
 
     | TypeSymbol.Tuple _ ->
         OlyAssert.True(tyArgs.Length > 0)
-
-        if tyArgs.Length = 1 then
-            match stripTypeEquationsAndBuiltIn tyArgs[0] with
-            | TypeSymbol.Unit ->
-                OlyAssert.Fail("'applyType' tuple with single type argument of 'Unit'")
-            | TypeSymbol.Variable(tyPar)
-            | TypeSymbol.HigherVariable(tyPar, _) when tyPar.IsVariadic ->
-                TypeSymbol.Tuple(ImArray.createOne tyPar.AsType, ImArray.empty)
-            | _ ->
-                tyArgs[0]
-        else
-            TypeSymbol.CreateTuple(tyArgs)
+        TypeSymbol.CreateTuple(tyArgs)
 
     | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
@@ -456,11 +445,19 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             let tyArgs3 = tyArgs2 |> ImArray.map instTy
             applyType tyArgs.[tyPar.Index].Formal tyArgs3
 
-        | TypeSymbol.Function(inputTy, returnTy, kind) ->
-            TypeSymbol.Function(instTy inputTy, instTy returnTy, kind)
+        | TypeSymbol.Function(inputTys, returnTy, kind) ->
+            let inputTys =
+                match inputTys with
+                | VariadicTypeArguments(tys, _) ->
+                    VariadicTypeArguments(tys |> ImArray.map instTy, ImArray.empty)
+            TypeSymbol.Function(inputTys, instTy returnTy, kind)
 
-        | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
-            TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
+        | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, returnTy) ->
+            let inputTys =
+                match inputTys with
+                | VariadicTypeArguments(tys, _) ->
+                    VariadicTypeArguments(tys |> ImArray.map instTy, ImArray.empty)
+            TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, instTy returnTy)
 
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
@@ -1099,11 +1096,19 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
             | true, ty -> applyType (mkSolvedInferenceVariableType tyPar ty) tyArgs3
             | _ -> TypeSymbol.HigherVariable(tyPar, tyArgs3)
 
-        | TypeSymbol.Function(inputTy, returnTy, kind) ->
-            TypeSymbol.Function(instTy inputTy, instTy returnTy, kind)
+        | TypeSymbol.Function(inputTys, returnTy, kind) ->
+            let inputTys =
+                match inputTys with
+                | VariadicTypeArguments(tys, _) ->
+                    VariadicTypeArguments(tys |> ImArray.map instTy, ImArray.empty)
+            TypeSymbol.Function(inputTys, instTy returnTy, kind)
 
-        | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
-            TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
+        | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, returnTy) ->
+            let inputTys =
+                match inputTys with
+                | VariadicTypeArguments(tys, _) ->
+                    VariadicTypeArguments(tys |> ImArray.map instTy, ImArray.empty)
+            TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, instTy returnTy)
 
         | TypeSymbol.ForAll(tyPars, innerTy) ->
             tyPars
@@ -1452,18 +1457,16 @@ let private stripTypeEquations_Entity skipAlias skipModifiers (ty: TypeSymbol) =
 let private stripTypeEquations_Function skipAlias skipModifiers (ty: TypeSymbol) =
     match ty with
     // 'Function' is a built-in type whose formal definition has a variadic type parameter as a single argument.
-    // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    | TypeSymbol.Function(inputTy, returnTy, kind) ->
-        if inputTy.IsSolved then
+    | TypeSymbol.Function(inputTys, returnTy, kind) ->
+        match inputTys with
+        | VariadicTypeArguments(tys, _) when tys.Length = 1 && tys[0].IsSolved ->
+            let inputTy = tys[0]
             match inputTy with
             | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
-                match stripTypeEquationsAux skipAlias skipModifiers inputTy with
-                | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy, kind)
-                | TypeSymbol.Unit as inputTy -> TypeSymbol.CreateFunction(inputTy, returnTy, kind)
-                | _ -> ty
+                TypeSymbol.CreateFunction((stripTypeEquationsAux skipAlias skipModifiers inputTy).AsParameters(), returnTy, kind)
             | _ ->
                 ty
-        else
+        | _ ->
             ty
     | _ ->
         failwith "Expected function type."
@@ -3152,11 +3155,11 @@ let private FormalFunctionTypeParameters =
 
 let private FormalNormalFunctionType =
     let tyPars = FormalFunctionTypeParameters
-    TypeSymbol.Function(tyPars[0].AsType, tyPars[1].AsType, FunctionKind.Normal)
+    TypeSymbol.Function(VariadicTypeArguments(ImArray.createOne tyPars[0].AsType, ImArray.empty), tyPars[1].AsType, FunctionKind.Normal)
 
 let private FormalScopedFunctionType =
     let tyPars = FormalFunctionTypeParameters
-    TypeSymbol.Function(tyPars[0].AsType, tyPars[1].AsType, FunctionKind.Scoped)
+    TypeSymbol.Function(VariadicTypeArguments(ImArray.createOne tyPars[0].AsType, ImArray.empty), tyPars[1].AsType, FunctionKind.Scoped)
 
 let private FormalRefCellTypeParameters =
     TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
@@ -3226,7 +3229,7 @@ module private FormalNativeFunctionPtr =
                 match cache.TryGetValue key with
                 | true, formalTy -> formalTy
                 | _ ->
-                    let formalTy = TypeSymbol.NativeFunctionPtr(ilCallConv, TypeParameters[0].AsType, TypeParameters[1].AsType)
+                    let formalTy = TypeSymbol.NativeFunctionPtr(ilCallConv, VariadicTypeArguments(ImArray.createOne TypeParameters[0].AsType, ImArray.empty), TypeParameters[1].AsType)
                     cache[key] <- formalTy
                     formalTy
             )
@@ -3267,6 +3270,15 @@ type FunctionKind =
     | Normal
     | Scoped
 
+type VariadicTypeArguments =
+    | VariadicTypeArguments of parTys: TypeSymbol imarray * parNames: string imarray
+
+    member this.Types =
+        match this with
+        | VariadicTypeArguments(tys, _) -> tys
+
+    member this.Length = this.Types.Length
+
 [<RequireQualifiedAccess;DebuggerDisplay("{DebugName}")>]
 type TypeSymbol =
     | BaseObject
@@ -3291,12 +3303,12 @@ type TypeSymbol =
     | NativeInt
     | NativeUInt
     | NativePtr of elementTy: TypeSymbol
-    | NativeFunctionPtr of OlyILCallingConvention * inputTy: TypeSymbol * returnTy: TypeSymbol
+    | NativeFunctionPtr of OlyILCallingConvention * inputTys: VariadicTypeArguments * returnTy: TypeSymbol
     | Array of elementTy: TypeSymbol * rank: int * kind: ArrayKind
     | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
-    | Function of inputTy: TypeSymbol * returnTy: TypeSymbol * kind: FunctionKind
+    | Function of inputTys: VariadicTypeArguments * returnTy: TypeSymbol * kind: FunctionKind
     | ForAll of tyPars: ImmutableArray<TypeParameterSymbol> * innerTy: TypeSymbol
     | Variable of TypeParameterSymbol
     | HigherVariable of TypeParameterSymbol * tyArgs: TypeArgumentSymbol imarray
@@ -3636,15 +3648,9 @@ type TypeSymbol =
         | RefCell(elementTy) ->
             ImArray.createOne elementTy
 
-        | Function(inputTy, returnTy, _)
-        | NativeFunctionPtr(_, inputTy, returnTy) ->
-            let inputTy =
-                match stripTypeEquations inputTy with
-                | TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                    elementTys[0]
-                | _ ->
-                    inputTy
-            ImArray.createTwo inputTy returnTy
+        | Function(inputTys, returnTy, _)
+        | NativeFunctionPtr(_, inputTys, returnTy) ->
+            ImArray.appendOne returnTy inputTys.Types
                 
         | HigherInferenceVariable(_, tyArgs, _, _)
         | HigherVariable(_, tyArgs) -> tyArgs
@@ -4249,13 +4255,8 @@ type TypeSymbol =
 
     member this.FunctionParameterCount =
         match this.TryFunction with
-        | ValueSome(inputTy, _) ->
-            match inputTy with
-            | TypeSymbol.Void -> 0
-            | TypeSymbol.Tuple(argTys, _) -> argTys.Length
-            | _ -> 1
-        | _ -> 
-            0
+        | ValueSome(inputTys, _) -> inputTys.Length
+        | _ -> 0
 
     member this.FirstTypeArgument =
         this.TypeArguments[0]
@@ -4274,17 +4275,17 @@ type TypeSymbol =
 
     member this.TryGetFunctionWithParameters() =
         match stripTypeEquations this with
-        | TypeSymbol.Function(inputTy, outputTy, _)
-        | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
-        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy, outputTy, _)) -> 
-            ValueSome(inputTy.AsParameters(), outputTy)
+        | TypeSymbol.Function(inputTys, outputTy, _)
+        | TypeSymbol.NativeFunctionPtr(_, inputTys, outputTy)
+        | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTys, outputTy, _)) -> 
+            ValueSome(inputTys.Types, outputTy)
         | _ -> 
             ValueNone
 
     member this.FunctionArgumentTypes: TypeSymbol imarray =
         match this.TryFunction with
-        | ValueSome(inputTy, _) ->
-            inputTy.AsParameters()
+        | ValueSome(inputTys, _) ->
+            inputTys.Types
         | _ -> 
             ImArray.empty
 
@@ -4316,42 +4317,25 @@ type TypeSymbol =
     static member CreateMutableArray(elementTy: TypeSymbol) =
         TypeSymbol.CreateMutableArray(elementTy, 1)
 
-    static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
-        TypeSymbol.Function(inputTy, outputTy, kind)
+    static member CreateFunction(inputTys: TypeSymbol imarray, outputTy: TypeSymbol, kind) =
+        let inputTys = VariadicTypeArguments(inputTys, ImArray.empty)
+        TypeSymbol.Function(inputTys, outputTy, kind)
 
-    static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind) =
-        let inputTy =
-            if argTys.IsEmpty then
-                TypeSymbol.Void
-            elif argTys.Length = 1 then
-                argTys[0]
-            else
-                TypeSymbol.Tuple(argTys, ImArray.empty)
+    static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, inputTys: TypeSymbol imarray, returnTy: TypeSymbol, kind) =
+        let inputTys = VariadicTypeArguments(inputTys, ImArray.empty)
         if tyPars.IsEmpty then
-            TypeSymbol.Function(inputTy, returnTy, kind)
+            TypeSymbol.Function(inputTys, returnTy, kind)
         else
             tyPars
             |> ImArray.iter (fun tyPar ->
                 if tyPar.Kind = TypeParameterKind.Type then 
                     failwith $"Expected type parameter kind 'Function': '{tyPar.Name}'"
             )
-            TypeSymbol.ForAll(tyPars, TypeSymbol.Function(inputTy, returnTy, kind))
+            TypeSymbol.ForAll(tyPars, TypeSymbol.Function(inputTys, returnTy, kind))
 
-    static member CreateFunction(argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind: FunctionKind) =
-        TypeSymbol.CreateFunction(ImArray.empty, argTys, returnTy, kind)
-
-    static member CreateFunctionPtr(ilCallConv, inputTy: TypeSymbol, outputTy: TypeSymbol) =
-        TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, outputTy)
-
-    static member CreateFunctionPtr(ilCallConv, argTys: TypeSymbol imarray, returnTy: TypeSymbol) =
-        let inputTy =
-            if argTys.IsEmpty then
-                TypeSymbol.Void
-            elif argTys.Length = 1 then
-                argTys[0]
-            else
-                TypeSymbol.Tuple(argTys, ImArray.empty)
-        TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy)
+    static member CreateFunctionPtr(ilCallConv, inputTys: TypeSymbol imarray, outputTy: TypeSymbol) =
+        let inputTys = VariadicTypeArguments(inputTys, ImArray.empty)
+        TypeSymbol.NativeFunctionPtr(ilCallConv, inputTys, outputTy)
 
     interface ISymbol
 
@@ -4462,8 +4446,8 @@ module SymbolExtensions =
             member this.LogicalType =
                 if this.IsInstance && this.IsFunction then
                     match this.Type.TryFunction with
-                    | ValueSome(inputTy, outputTy) ->
-                        TypeSymbol.CreateFunction(inputTy.AsParameters().RemoveAt(0), outputTy, FunctionKind.Normal)
+                    | ValueSome(inputTys, outputTy) ->
+                        TypeSymbol.CreateFunction(inputTys.Types.RemoveAt(0), outputTy, FunctionKind.Normal)
                     | _ ->
                         this.Type
                 else
