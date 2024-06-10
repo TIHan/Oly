@@ -334,9 +334,6 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
                     | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
                         UnifyTypes rigidity inputTy1 inputTy2
-                    | TypeSymbol.Tuple(elementTys, _), ty
-                    | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                        UnifyTypes rigidity elementTys[0] ty
                     | TypeSymbol.Tuple _, ty
                     | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
                         false
@@ -352,9 +349,6 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
                 | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
                     UnifyTypes rigidity inputTy1 inputTy2
-                | TypeSymbol.Tuple(elementTys, _), ty
-                | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                    UnifyTypes rigidity elementTys[0] ty
                 | TypeSymbol.Tuple _, ty
                 | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
                     false
@@ -476,10 +470,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             rigidity = Generalizable && not solution.HasSolution
 
         | _ ->
-            if origTy1.IsRealUnit then
-                origTy2.IsRealUnit
-            else
-                false
+            false
     res
 
 // **********************************************************************

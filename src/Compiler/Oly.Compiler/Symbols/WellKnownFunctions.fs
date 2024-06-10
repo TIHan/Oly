@@ -80,7 +80,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.Print ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    areTypesEqual func.ReturnType TypeSymbol.Unit
+                    areTypesEqual func.ReturnType TypeSymbol.Void
 
             | WellKnownFunction.Throw ->
                 if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 1 then false
@@ -100,7 +100,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.Ignore ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    areTypesEqual func.ReturnType TypeSymbol.Unit
+                    areTypesEqual func.ReturnType TypeSymbol.Void
                         
             | WellKnownFunction.AddressOf ->
                 if func.Parameters.Length <> 1 then false
@@ -155,7 +155,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 else
                     func.Parameters[0].Type.IsAnyArray &&
                     func.Parameters[1].Type.IsInteger &&
-                    (areTypesEqual func.ReturnType TypeSymbol.Unit)
+                    (areTypesEqual func.ReturnType TypeSymbol.Void)
 
             | WellKnownFunction.NewMutableArray ->
                 // TODO: Handle multi-dimensional arrays.
@@ -408,7 +408,7 @@ let importAttrFunc =
             createLocalParameterValue(ImArray.empty, "path", TypeSymbol.Utf16, false)
             createLocalParameterValue(ImArray.empty, "name", TypeSymbol.Utf16, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.Unit
+    let returnTy = TypeSymbol.Void
     createFunctionValue EnclosingSymbol.RootNamespace attrs "import" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Import None false
 
 let AddressOfMutable =
@@ -542,7 +542,7 @@ let StoreRefCellContents =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.RefCell(tyPars.[0].AsType), false)
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.Unit
+    let returnTy = TypeSymbol.Void
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_store_ref_cell_contents" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.StoreRefCellContents None false
 
 let LoadTupleElement =
@@ -569,7 +569,7 @@ let PrintFunction =
         seq {
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.Unit
+    let returnTy = TypeSymbol.Void
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_print" ImArray.empty pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Print None false
 
 let IgnoreFunction =
@@ -578,5 +578,5 @@ let IgnoreFunction =
         seq {
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.Unit
+    let returnTy = TypeSymbol.Void
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_ignore" ImArray.empty pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Ignore None false

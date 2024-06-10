@@ -885,8 +885,8 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeChar16 -> TypeSymbol.Char16
     | OlyILType.OlyILTypeFloat32 -> TypeSymbol.Float32
     | OlyILType.OlyILTypeFloat64 -> TypeSymbol.Float64
-    | OlyILType.OlyILTypeUnit -> TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty)
-    | OlyILType.OlyILTypeVoid -> TypeSymbol.Unit
+    | OlyILType.OlyILTypeUnit -> TypeSymbol.Unit
+    | OlyILType.OlyILTypeVoid -> TypeSymbol.Void
     | OlyILType.OlyILTypeBaseObject -> TypeSymbol.BaseObject
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadWrite) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadWrite)
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.Read) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.Read)
@@ -1426,7 +1426,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         if isInstance then
                             applyType enclosingEnt.AsType enclosingEnt.TypeArguments
                         else
-                            TypeSymbol.Unit
+                            TypeSymbol.Void
                     else
                         let tyPars = evalTyPars()
                         importTypeSymbol cenv enclosingEnt.TypeParameters tyPars ilFuncSpec.ReturnType

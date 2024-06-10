@@ -502,7 +502,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     member this.Type: TypeSymbol =
         match this.FirstReturnExpression with
-        | While _ -> TypeSymbol.Unit
+        | While _ -> TypeSymbol.Void
         | IfElse(cachedExprTy=exprTy) -> exprTy
         | Match(cachedExprTy=exprTy) -> exprTy
         | Try(bodyExpr=bodyExpr) -> bodyExpr.Type
@@ -520,7 +520,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 |> ValueOption.defaultValue ty
         | Value(value=value) -> value.Type
         | Literal(_, boundLiteral) -> boundLiteral.Type
-        | MemberDefinition _ -> TypeSymbol.Unit
+        | MemberDefinition _ -> TypeSymbol.Void
         | GetField(field=field) -> field.Type
         | GetProperty(prop=prop) -> prop.Type
         | Typed(_, _, ty) -> ty
@@ -530,10 +530,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetContentsOfAddress _
         | SetField _
         | SetProperty _
-        | EntityDefinition _ -> TypeSymbol.Unit
-        | Unit _ -> TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty) // Real unit
+        | EntityDefinition _ -> TypeSymbol.Void
+        | Unit _ -> TypeSymbol.Unit
         | Lambda(cachedLambdaTy=cachedLambdaTy) -> cachedLambdaTy.Type
-        | None _ -> TypeSymbol.Unit
+        | None _ -> TypeSymbol.Void
         | Error _
         | ErrorWithNamespace _
         | ErrorWithType _ -> TypeSymbolError

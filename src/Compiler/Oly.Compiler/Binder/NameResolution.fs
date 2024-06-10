@@ -1318,32 +1318,25 @@ let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
             TypeSymbolError
 
 let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
-    let rec bind cenv env resTyArity isFuncInput syntaxTy =
+    let rec bind cenv env resTyArity syntaxTy =
         match syntaxTy with
         | OlySyntaxType.Name(syntaxName) ->
             bindNameAsType cenv env syntaxExprOpt resTyArity syntaxName
 
         | OlySyntaxType.Tuple(_, syntaxTupleElementList, _) ->
             match syntaxTupleElementList.ChildrenOfType |> List.ofSeq with
-            | [] -> TypeSymbol.Unit
+            | [] -> TypeSymbol.Void
             | [syntaxElement] -> 
-                let ty =
-                    match syntaxElement with
-                    | OlySyntaxTupleElement.Type(syntaxTy) ->
-                        bind cenv env resTyArity false syntaxTy
-                    | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(syntaxIdent, _, syntaxTy) ->
-                        cenv.diagnostics.Error("A single element tuple cannot have a name.", 10, syntaxIdent)
-                        bind cenv env resTyArity false syntaxTy
-                    | OlySyntaxTupleElement.Error _ ->
-                        TypeSymbolError
-                    | _ ->
-                        raise(InternalCompilerUnreachedException())
-
-                if isFuncInput then
-                    // TODO: Kind of a hack using TypeSymbol.Tuple.
-                    TypeSymbol.Tuple(ImArray.createOne ty, ImArray.empty)
-                else
-                    ty
+                match syntaxElement with
+                | OlySyntaxTupleElement.Type(syntaxTy) ->
+                    bind cenv env resTyArity syntaxTy
+                | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(syntaxIdent, _, syntaxTy) ->
+                    cenv.diagnostics.Error("A single element tuple cannot have a name.", 10, syntaxIdent)
+                    bind cenv env resTyArity syntaxTy
+                | OlySyntaxTupleElement.Error _ ->
+                    TypeSymbolError
+                | _ ->
+                    raise(InternalCompilerUnreachedException())
 
             | syntaxElements ->
                 let names = ImArray.builder()
@@ -1353,10 +1346,10 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                         match syntaxElement with
                         | OlySyntaxTupleElement.Type(syntaxTy) ->
                             names.Add("")
-                            bind cenv env resTyArity false syntaxTy
+                            bind cenv env resTyArity syntaxTy
                         | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(syntaxIdent, _, syntaxTy) ->
                             names.Add(syntaxIdent.ValueText)
-                            bind cenv env resTyArity false syntaxTy
+                            bind cenv env resTyArity syntaxTy
                         | OlySyntaxTupleElement.Error _ ->
                             names.Add("")
                             TypeSymbolError
@@ -1411,7 +1404,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
         | OlySyntaxType.Array(syntaxElementTy, syntaxBrackets) ->
             let rank = syntaxBrackets.Element.Children.Length + 1
-            let elementTy = bind cenv env resTyArity false syntaxElementTy
+            let elementTy = bind cenv env resTyArity syntaxElementTy
             if rank > 1 then
                 TypeSymbol.CreateArray(elementTy, rank)
             else
@@ -1419,7 +1412,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
         | OlySyntaxType.MutableArray(_, syntaxElementTy, syntaxBracketPipes) ->
             let rank = syntaxBracketPipes.Element.Children.Length + 1
-            let elementTy = bind cenv env resTyArity false syntaxElementTy
+            let elementTy = bind cenv env resTyArity syntaxElementTy
             if rank > 1 then
                 TypeSymbol.CreateMutableArray(elementTy, rank)
             else
@@ -1429,18 +1422,18 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             cenv.bindAnonymousShapeTypeHole cenv env ImArray.empty syntaxCurlyBrackets.Element
 
         | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) ->
-            let inputTy = bind cenv env resTyArity true syntaxInputTy
-            let outputTy = bind cenv env resTyArity false syntaxOutputTy
+            let inputTy = bind cenv env resTyArity syntaxInputTy
+            let outputTy = bind cenv env resTyArity syntaxOutputTy
             TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Normal)
 
         | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
-            let inputTy = bind cenv env resTyArity true syntaxInputTy
-            let outputTy = bind cenv env resTyArity false syntaxOutputTy
+            let inputTy = bind cenv env resTyArity syntaxInputTy
+            let outputTy = bind cenv env resTyArity syntaxOutputTy
             TypeSymbol.CreateFunction(inputTy, outputTy, FunctionKind.Scoped)
 
         | OlySyntaxType.FunctionPtr(_, syntaxBlittableOptional, syntaxInputTy, _, syntaxOutputTy) ->
-            let inputTy = bind cenv env resTyArity true syntaxInputTy
-            let returnTy = bind cenv env resTyArity false syntaxOutputTy
+            let inputTy = bind cenv env resTyArity syntaxInputTy
+            let returnTy = bind cenv env resTyArity syntaxOutputTy
             let ilCallConv =
                 match syntaxBlittableOptional with
                 | OlySyntaxBlittableOptional.Some(OlySyntaxBlittable.Blittable _) ->
@@ -1466,7 +1459,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             | _ -> cenv.diagnostics.Error("Explicit type arguments using '<' and '>' are not allowed on prefix types.", 10, syntaxTy)
 
             let ty = bindIdentifierAsType cenv env syntaxIdent (ResolutionTypeArity.FirstOrder 1) syntaxIdent.ValueText
-            let elementTy = bind cenv env ResolutionTypeArity.Any false syntaxElementTy
+            let elementTy = bind cenv env ResolutionTypeArity.Any syntaxElementTy
             if ty.Arity = 1 then
                 applyType ty (ImArray.createOne elementTy)
             else
@@ -1498,7 +1491,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
         | _ ->
             raise(InternalCompilerUnreachedException())
 
-    bind cenv env resTyArity false syntaxTy
+    bind cenv env resTyArity syntaxTy
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
     if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then

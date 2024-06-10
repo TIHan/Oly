@@ -305,7 +305,7 @@ and emitILType cenv env ty =
 and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol) =
     let argTys =
         match stripTypeEquations inputTy with
-        | TypeSymbol.Unit -> ImArray.empty
+        | TypeSymbol.Void -> ImArray.empty
         | TypeSymbol.Tuple(argTys, _) -> argTys
         | _ -> 
             ImArray.createOne inputTy
@@ -333,10 +333,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
     | TypeSymbol.BaseObject ->
         OlyILTypeBaseObject
     | TypeSymbol.Unit ->
-        if canEmitVoidForUnit then
-            OlyILTypeVoid
-        else
-            OlyILTypeUnit
+        OlyILTypeUnit
     | TypeSymbol.Void ->
         OlyILTypeVoid
     | TypeSymbol.Int8 ->
@@ -444,15 +441,11 @@ and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
 #if DEBUG || CHECKED
     if not ty.TypeParameters.IsEmpty && ty.IsFormal then
         failwith "Unexpected formal type."
+
+    if ty.IsTypeConstructor then
+        failwith "Unexpected type constructor."
 #endif
-    match stripTypeEquations ty with
-    | TypeSymbol.Unit -> OlyILTypeVoid
-    | ty -> 
-#if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
-            failwith "Unexpected type constructor."
-#endif
-        emitILType cenv env ty
+    emitILType cenv env ty
 
 and getAssemblyIdentity (ent: EntitySymbol) =
     let asmIdentity =
@@ -2039,10 +2032,7 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
       
     | BindingLocal(value) ->
         // TODO: Unit logic is a bit complex, we need to simplify it.
-        let mustBeRealUnit = 
-            match stripTypeEquations value.Type with
-            | TypeSymbol.Unit -> true
-            | ty -> ty.IsRealUnit
+        let mustBeRealUnit = value.Type.IsUnit_t
         let ilRhsExpr = GenExpression cenv { env with isReturnable = false } rhsExpr
         let value = bindingInfo.Value
 
@@ -2086,7 +2076,7 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
 
         if mustBeRealUnit then
             match stripTypeEquations rhsExpr.Type with
-            | ty when ty.IsRealUnit ->
+            | ty when ty.IsUnit_t ->
                 OlyILExpression.Let(ilLocal.Index, ilRhsExpr, ilBodyExpr)
             | _ ->
                 let ilNewRhsExpr =

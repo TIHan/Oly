@@ -303,7 +303,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                 if isExplicitSet then "set_" + propName
                 else "get_" + propName
             let returnTy =
-                if isExplicitSet then TypeSymbol.Unit
+                if isExplicitSet then TypeSymbol.Void
                 else propTy
     
             let func = bindFunction env funcName (false, ImArray.empty) returnTy syntaxNode syntaxPars
@@ -349,7 +349,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                                     true // Setter functions are always considered mutable.
                                 else
                                     false
-                            createFunctionValueSemantic enclosing ImArray.empty setterName ImArray.empty setterPars TypeSymbol.Unit memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
+                            createFunctionValueSemantic enclosing ImArray.empty setterName ImArray.empty setterPars TypeSymbol.Void memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
                             |> Some
                         else
                             None

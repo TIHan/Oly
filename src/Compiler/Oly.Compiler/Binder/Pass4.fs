@@ -39,7 +39,7 @@ let bindNameAsCasePattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solv
     
     let expectedTy =
         if expectedPatArgTys.IsEmpty then
-            TypeSymbol.Unit
+            TypeSymbol.Void
         elif expectedPatArgTys.Length = 1 then
             expectedPatArgTys[0]
         else
@@ -116,7 +116,7 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
     | OlySyntaxPattern.Parenthesis(_, syntaxPatList, _) ->
         // Unit
         if syntaxPatList.ChildrenOfType.IsEmpty then
-            checkTypes solverEnv syntaxPattern TypeSymbol.Unit matchTy
+            checkTypes solverEnv syntaxPattern TypeSymbol.Void matchTy
             env, BoundCasePattern.Discard(syntaxInfo)
 
         // Pattern in parenthesis
@@ -182,7 +182,7 @@ let private bindPatternByResolutionItem
             let returnTy = func.ReturnType
             match stripTypeEquations returnTy with
             | TypeSymbol.Tuple(argTys, _) -> argTys
-            | TypeSymbol.Unit -> ImArray.empty
+            | TypeSymbol.Void -> ImArray.empty
             | _ -> ImArray.createOne returnTy
         if expectedPatArgTys.Length <> returnTys.Length then
             cenv.diagnostics.Error($"Pattern '{func.Name}' expected '{returnTys.Length}' argument(s), but given '{expectedPatArgTys.Length}'.", 10, syntaxInfo.Syntax)
@@ -224,7 +224,7 @@ let private bindPatternByResolutionItem
                         match stripTypeEquations x.ReturnType with
                         | TypeSymbol.Tuple(tyArgs, _) ->
                             tyArgs.Length = syntaxPatArgs.Length
-                        | TypeSymbol.Unit ->
+                        | TypeSymbol.Void ->
                             syntaxPatArgs.IsEmpty
                         | _ ->
                             syntaxPatArgs.Length = 1
@@ -668,12 +668,14 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOp
     // Unit
     if syntaxExprList.ChildrenOfType.IsEmpty then
         match expectedTyOpt with
-        | Some(expectedTy) ->
+        | Some(expectedTy: TypeSymbol) when expectedTy.IsUnit_t ->
             checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode expectedTy TypeSymbol.Unit
+        | Some(expectedTy) ->
+            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode expectedTy TypeSymbol.Void
         | _ ->
             ()
         match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsRealUnit ->
+        | Some(expectedTy) when expectedTy.IsUnit_t ->
             env, BoundExpression.Unit(BoundSyntaxInfo.User(syntaxNode, env.benv))
         | _ ->
             env, BoundExpression.None(BoundSyntaxInfo.User(syntaxNode, env.benv))
@@ -777,7 +779,7 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
     let expr1 =
         match expr1 with
         | BoundExpression.Call(value=value) when value.IsFunctionGroup ->
-            checkExpression cenv env (Some TypeSymbol.Unit) expr1
+            checkExpression cenv env (Some TypeSymbol.Void) expr1
         | _ ->
             expr1
 
@@ -1257,10 +1259,10 @@ let private bindElseIfOrElseExpression (cenv: cenv) (env: BinderEnvironment) (ex
         env, BoundExpression.IfElse(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, trueTargetExpr, falseTargetExpr, expectedTy)
 
     | OlySyntaxElseIfOrElseExpression.None _ ->
-        let targetExpr = bindLocalExpression cenv env (Some TypeSymbol.Unit) syntaxTargetExpr syntaxTargetExpr |> snd
+        let targetExpr = bindLocalExpression cenv env (Some TypeSymbol.Void) syntaxTargetExpr syntaxTargetExpr |> snd
         env, BoundExpression.IfElse(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, targetExpr,
             BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree)),
-            TypeSymbol.Unit
+            TypeSymbol.Void
         )
 
     | _ ->
@@ -1272,7 +1274,7 @@ let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (
         catchCasesBuilder.ToImmutable(), None
 
     | OlySyntaxCatchOrFinallyExpression.Finally(_, syntaxFinallyBodyExpr) ->
-        let _, finallyBodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxFinallyBodyExpr syntaxFinallyBodyExpr
+        let _, finallyBodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Void) syntaxFinallyBodyExpr syntaxFinallyBodyExpr
         catchCasesBuilder.ToImmutable(), Some finallyBodyExpr
 
     | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxNextCatchOrFinallyExpr) ->
@@ -1858,7 +1860,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.While(_, _, syntaxConditionExpr, _, syntaxBodyExpr) ->
         let conditionExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Bool) syntaxConditionExpr syntaxConditionExpr |> snd
-        let bodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxBodyExpr syntaxBodyExpr |> snd
+        let bodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Void) syntaxBodyExpr syntaxBodyExpr |> snd
         env, E.While(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, bodyExpr)
 
     | OlySyntaxExpression.Match(syntaxMatchToken, _, syntaxExprList, _, syntaxMatchCaseList) ->
@@ -1942,7 +1944,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             BoundExpression.Witness(syntaxInfo, env.benv, castFunc, argExpr, ref None, expr.Type)
         | _ ->
             match expectedTyOpt with
-            | Some(expectedTy) when expectedTy.IsUnit_t && not expectedTy.IsRealUnit && expr.Type.IsRealUnit ->
+            | Some(expectedTy) when expectedTy.IsVoid_t && not expectedTy.IsUnit_t && expr.Type.IsUnit_t ->
                 Ignore expr
             | _ ->
                 expr

@@ -9381,24 +9381,11 @@ main(): () =
     """
     |> Oly
     |> withErrorHelperTextDiagnostics
-        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
         [
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
+            ("Expected type '() -> (())' but is '() -> ()'.",
                 """
-    M((), Test)
-          ^^^^
-"""
-            )
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
-                """
-    M((), Test)
-          ^^^^
-"""
-            )
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
-                """
-    M((), Test)
-          ^^^^
+    M(Test)
+      ^^^^
 """
             )
         ]

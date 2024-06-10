@@ -23,7 +23,8 @@ let printTypeName isDefinition name =
 let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty: TypeSymbol) =
     match ty with
     | TypeSymbol.Error _ -> "?"
-    | TypeSymbol.Unit -> "()"
+    | TypeSymbol.Unit -> "(())"
+    | TypeSymbol.Void -> "()"
     | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then           
             printTypeAux benv isDefinition isTyCtor solution.Solution
@@ -43,7 +44,6 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.Char16
     | TypeSymbol.BaseObject
     | TypeSymbol.Utf16
-    | TypeSymbol.Void
     | TypeSymbol.NativeInt
     | TypeSymbol.NativeUInt
     | TypeSymbol.NativePtr _
@@ -115,23 +115,27 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         name + "<" + (tyArgs |> Seq.map (printTypeAux benv isDefinition true) |> String.concat ", ") + ">"
 
     | TypeSymbol.Function(inputTy, returnTy, kind) -> 
+        let inputTyText = printTypeAux benv isDefinition false inputTy
+        let returnTyText = printTypeAux benv isDefinition false returnTy
         match kind with
         | FunctionKind.Normal ->
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            inputTyText + " -> " + returnTyText
         | FunctionKind.Scoped ->
-            "scoped " + printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            "scoped " + inputTyText + " -> " + returnTyText
 
     | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
+        let inputTyText = printTypeAux benv isDefinition false inputTy
+        let returnTyText = printTypeAux benv isDefinition false returnTy
         if ilCallConv.HasFlag(Oly.Metadata.OlyILCallingConvention.Blittable) then
             "static blittable " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            inputTyText + " -> " + returnTyText
         elif ilCallConv = Oly.Metadata.OlyILCallingConvention.Default then
             "static " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            inputTyText + " -> " + returnTyText
         else
             // TODO: This really isn't what we want, but it is ok for now.
             "static [" + (ilCallConv.ToString()) + "] " +
-            printTypeAux benv isDefinition false inputTy + " -> " + printTypeAux benv isDefinition false returnTy
+            inputTyText + " -> " + returnTyText
 
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
         "<" + (tyPars |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">" + " " + printTypeAux benv isDefinition false innerTy

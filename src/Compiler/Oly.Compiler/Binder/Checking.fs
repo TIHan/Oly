@@ -768,7 +768,7 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
         let argExpr =
             match parTy.TryFunction, argExpr.Type.TryFunction with
             | ValueSome(_, outputTy), ValueSome(_, argTy) when caller.TryWellKnownFunction.IsNone ->
-                if outputTy.IsRealUnit && argTy.IsUnit_t && not argTy.IsRealUnit then
+                if outputTy.IsUnit_t && argTy.IsVoid_t && not argTy.IsUnit_t then
                     match argExpr with
                     | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
                         E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,

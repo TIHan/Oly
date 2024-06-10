@@ -1459,7 +1459,7 @@ let private stripTypeEquations_Function skipAlias skipModifiers (ty: TypeSymbol)
             | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
                 match stripTypeEquationsAux skipAlias skipModifiers inputTy with
                 | TypeSymbol.Tuple(itemTys, _) -> TypeSymbol.CreateFunction(itemTys, returnTy, kind)
-                | TypeSymbol.Unit -> TypeSymbol.CreateFunction(ImArray.empty, returnTy, kind)
+                | TypeSymbol.Unit as inputTy -> TypeSymbol.CreateFunction(inputTy, returnTy, kind)
                 | _ -> ty
             | _ ->
                 ty
@@ -3395,15 +3395,6 @@ type TypeSymbol =
         | HigherInferenceVariable _ -> true
         | _ -> false
 
-    member this.IsRealUnit =
-        match stripTypeEquations this with
-        | TypeSymbol.Tuple(tyArgs, _) when tyArgs.Length = 1 ->
-            (match stripTypeEquations tyArgs.[0] with TypeSymbol.Unit -> true | _ -> false)
-        | _ ->
-            match this.TryImmedateTypeParameter with
-            | ValueSome _ when this.IsUnit_t -> true
-            | _ -> false
-
     member this.Formal =
         match stripTypeEquationsExceptAlias this with
         | TypeSymbol.Entity(ent) -> TypeSymbol.Entity(ent.Formal)
@@ -4260,7 +4251,7 @@ type TypeSymbol =
         match this.TryFunction with
         | ValueSome(inputTy, _) ->
             match inputTy with
-            | TypeSymbol.Unit -> 0
+            | TypeSymbol.Void -> 0
             | TypeSymbol.Tuple(argTys, _) -> argTys.Length
             | _ -> 1
         | _ -> 
@@ -4271,13 +4262,13 @@ type TypeSymbol =
 
     member this.AsParameters(): TypeSymbol imarray =
         match this with
-        | TypeSymbol.Unit -> ImArray.empty
+        | TypeSymbol.Void -> ImArray.empty
         | TypeSymbol.Tuple(argTys, _) -> argTys
         | _ -> ImArray.createOne this
 
     member inline this.ForEachParameter ([<InlineIfLambda>] f) =
         match this with
-        | TypeSymbol.Unit ->()
+        | TypeSymbol.Void -> ()
         | TypeSymbol.Tuple(argTys, _) -> argTys |> ImArray.iter f
         | _ -> f this
 
@@ -4331,14 +4322,9 @@ type TypeSymbol =
     static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind) =
         let inputTy =
             if argTys.IsEmpty then
-                TypeSymbol.Unit
+                TypeSymbol.Void
             elif argTys.Length = 1 then
-                match argTys[0] with
-                | TypeSymbol.Tuple _ 
-                | TypeSymbol.Unit ->
-                    TypeSymbol.Tuple(ImArray.createOne argTys[0], ImArray.empty)
-                | ty ->
-                    ty
+                argTys[0]
             else
                 TypeSymbol.Tuple(argTys, ImArray.empty)
         if tyPars.IsEmpty then
@@ -4360,14 +4346,9 @@ type TypeSymbol =
     static member CreateFunctionPtr(ilCallConv, argTys: TypeSymbol imarray, returnTy: TypeSymbol) =
         let inputTy =
             if argTys.IsEmpty then
-                TypeSymbol.Unit
+                TypeSymbol.Void
             elif argTys.Length = 1 then
-                match argTys[0] with
-                | TypeSymbol.Tuple _ 
-                | TypeSymbol.Unit ->
-                    TypeSymbol.Tuple(ImArray.createOne argTys[0], ImArray.empty)
-                | ty ->
-                    ty
+                argTys[0]
             else
                 TypeSymbol.Tuple(argTys, ImArray.empty)
         TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy)

@@ -95,7 +95,7 @@ let private filterFunctionsForOverloadingByMostGenericArgumentTypes (funcs: IFun
                 // TODO: Kind of a hack using TypeSymbol.Tuple.
                 let inputTy = 
                     if argTys.IsEmpty then
-                        TypeSymbol.Unit
+                        TypeSymbol.Void
                     elif argTys.Length = 1 then
                         argTys[0]
                     else

@@ -156,7 +156,8 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
             analyzeType acenv aenv syntaxNode elementTy
 
     | TypeSymbol.Void ->
-        diagnostics.Error($"'{printType benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
+        ()
+       // diagnostics.Error($"'{printType benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
 
     | TypeSymbol.Error(_, Some msg) ->
         diagnostics.Error(msg, 10, syntaxNode)

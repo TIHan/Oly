@@ -931,7 +931,7 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
             checkImmediateLambdaExpression env expr1
         | _ ->
             ()
-        solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
+        solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Void expr1.Type
 
     | BoundExpression.GetProperty(prop=prop) ->
         // We can have a GetProperty expression even if the property does not have a getter.
