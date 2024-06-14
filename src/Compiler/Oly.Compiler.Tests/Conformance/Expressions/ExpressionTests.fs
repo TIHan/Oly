@@ -9383,22 +9383,57 @@ main(): () =
     |> withErrorHelperTextDiagnostics
         // TODO: This has duplicate diagnostics, we should figure out how to only output one.
         [
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
+            ("Expected type '() -> (())' but is '() -> ()'.",
                 """
-    M((), Test)
-          ^^^^
+    M(Test)
+      ^^^^
 """
             )
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
+            ("Expected type '() -> (())' but is '() -> ()'.",
                 """
-    M((), Test)
-          ^^^^
+    M(Test)
+      ^^^^
 """
             )
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Inference solving to tuple for function input should result in a tuple of a tuple``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+ForEach<T>(xs: T[], f: T -> ()): () =
+    print("hello")
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, (x, y) -> ())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
+        [
+            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ?'.",
                 """
-    M((), Test)
-          ^^^^
+    ForEach(xs, (x, y) -> ())
+                ^^^^^^^^^^^^
+"""
+            )
+            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ()'.",
+                """
+    ForEach(xs, (x, y) -> ())
+                ^^^^^^^^^^^^
+"""
+            )
+            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ()'.",
+                """
+    ForEach(xs, (x, y) -> ())
+                ^^^^^^^^^^^^
 """
             )
         ]

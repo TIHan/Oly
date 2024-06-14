@@ -191,6 +191,15 @@ and GenValueTypeArgumentsAndWitnessArguments cenv env (value: IValueSymbol) witn
         |> ImArray.map (emitILTypeAux cenv env false true)
     let ilWitnesses = GenWitnessArguments cenv env witnessArgs
 
+#if DEBUG || CHECKED
+    ilTyInst
+    |> ImArray.iter (fun x ->
+        match x with
+        | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
+        | _ -> ()
+    )
+#endif
+
     ilTyInst, ilWitnesses
 
 and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarray) (func: IFunctionSymbol) : OlyILFunctionInstance =
@@ -201,6 +210,15 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func
 
     let ilTyInst, ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env func witnessArgs
+
+#if DEBUG || CHECKED
+    ilTyInst
+    |> ImArray.iter (fun x ->
+        match x with
+        | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
+        | _ -> ()
+    )
+#endif
 
     OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
 
@@ -256,6 +274,16 @@ and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
         | _ -> failwith "Expected a containing assembly when emitting a entity instance."
 
     let ilTyInst = emitILTypes cenv env ent.TypeArguments
+
+#if DEBUG || CHECKED
+    ilTyInst
+    |> ImArray.iter (fun x ->
+        match x with
+        | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
+        | _ -> ()
+    )
+#endif
+
     if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
         // Local to the assembly
         OlyILEntityInstance(GenEntityAsILEntityDefinition cenv env ent.Formal, ilTyInst)
@@ -1942,6 +1970,15 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                             OlyILOperation.Call(ilFuncInst, ilArgExprs)
             | _ ->
                 let ilTyInst, ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env value witnessArgs
+
+#if DEBUG || CHECKED
+                ilTyInst
+                |> ImArray.iter (fun x ->
+                    match x with
+                    | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
+                    | _ -> ()
+                )
+#endif
 
                 let ilFunArgExpr =
                     match ilReceiverOpt with

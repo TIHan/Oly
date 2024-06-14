@@ -57,7 +57,9 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             printEntityAux benv isDefinition ent   
 
     | TypeSymbol.Tuple(tyArgs, names) -> 
-        if Seq.isEmpty tyArgs then
+        if ty.IsRealUnit then
+            "(())"
+        elif Seq.isEmpty tyArgs then
             "()"
         else
             if names.Length = tyArgs.Length then

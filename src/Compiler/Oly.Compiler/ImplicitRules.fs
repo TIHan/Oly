@@ -7,6 +7,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.BoundTreePatterns
+open Oly.Compiler.Internal.WellKnownExpressions
 
 let private isIntrinsicBitwiseForEnum (func: IFunctionSymbol) =
     if func.TypeParameters.IsEmpty then
@@ -102,6 +103,18 @@ let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
 
             }
 
+let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =
+    if expectedTy.IsUnit_t && expr.Type.IsRealUnit then
+        Ignore expr
+    elif expectedTy.IsRealUnit && expr.Type.IsUnit_t then
+        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+            expr,
+            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+            NormalSequential
+        )
+    else
+        expr
+
 let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (argTys: TypeSymbol imarray) =
     // Implicits for Enums
     if hasAllEnumTypes argTys then
@@ -127,7 +140,49 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
     else
         funcs, argTys
 
-let ImplicitPassingArguments (benv: BoundEnvironment) (func: IFunctionSymbol) (argExprs: E imarray) =
+let private tryImplicitArguments (parTys: TypeSymbol imarray) (argExprs: E imarray) =
+    if (not parTys.IsEmpty) && parTys.Length = argExprs.Length then
+
+        // We lazily create a new argument expression array when it is needed.
+        let mutable newArgExprs = Unchecked.defaultof<E imarrayb>
+
+        let setNewArgExpr i newArgExpr =
+            if newArgExprs = Unchecked.defaultof<_> then
+                newArgExprs <- ImArray.builderWithSize argExprs.Length
+                newArgExprs.AddRange(argExprs)
+
+            newArgExprs[i] <- newArgExpr  
+
+        for i = 0 to argExprs.Length - 1 do
+            let argExpr = argExprs[i]
+            let parTy = parTys[i]
+            if parTy.IsScopedFunction then                          
+                match argExpr with
+                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
+                    let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
+                    setNewArgExpr i newArgExpr                           
+                | _ ->
+                    ()
+            else
+                let newArgExpr = tryMorphSimpleImplicit parTy argExpr
+                if newArgExpr <> argExpr then
+                    setNewArgExpr i newArgExpr
+
+        if newArgExprs = Unchecked.defaultof<_> then
+            ValueNone
+        else
+            newArgExprs.MoveToImmutable()
+            |> ValueSome
+    else
+        ValueNone
+
+let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) =
+    OlyAssert.True(funcTy.IsFunction_t)
+    match tryImplicitArguments funcTy.FunctionArgumentTypes argExprs with
+    | ValueSome(newArgExprs) -> newArgExprs
+    | _ -> argExprs
+
+let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol) (argExprs: E imarray) =
     // Implicits for Enums
     if isIntrinsicForEnum func && hasAllExpressionEnumTypes argExprs then
         let argTys = func.Parameters |> ImArray.map (fun x -> x.Type)
@@ -153,31 +208,27 @@ let ImplicitPassingArguments (benv: BoundEnvironment) (func: IFunctionSymbol) (a
         if func.IsFunctionGroup then
             func, argExprs
         else
-            let pars = func.LogicalParameters
-            if (not pars.IsEmpty) && pars.Length = argExprs.Length then
+            match tryImplicitArguments func.LogicalType.FunctionArgumentTypes argExprs with
+            | ValueSome(newArgExprs) -> func, newArgExprs
+            | _ -> func, argExprs
 
-                // We lazily create a new argument expression array when it is needed.
-                let mutable newArgExprs = Unchecked.defaultof<E imarrayb>
+let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) 
+            when not value.IsFunctionGroup && 
+                 value.Type.IsFunction_t && 
+                 value.LogicalType.FunctionParameterCount = argExprs.Length ->
+        match tryImplicitArguments value.LogicalType.FunctionArgumentTypes argExprs with
+        | ValueSome(newArgExprs) ->
+            E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, flags)
+        | _ ->
+            expr
+    | _ ->
+        expr
 
-                for i = 0 to argExprs.Length - 1 do
-                    let argExpr = argExprs[i]
-                    let par = pars[i]
-                    if par.Type.IsScopedFunction then                          
-                        match argExpr with
-                        | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
-                            let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
-
-                            if newArgExprs = Unchecked.defaultof<_> then
-                                newArgExprs <- ImArray.builderWithSize argExprs.Length
-                                newArgExprs.AddRange(argExprs)
-
-                            newArgExprs[i] <- newArgExpr                              
-                        | _ ->
-                            ()
-
-                if newArgExprs = Unchecked.defaultof<_> then
-                    func, argExprs
-                else
-                    func, newArgExprs.MoveToImmutable()
-            else
-                func, argExprs
+let ImplicitReturn (expectedTyOpt: TypeSymbol option) (expr: E) =
+    match expectedTyOpt with
+    | Some(expectedTy) ->
+        tryMorphSimpleImplicit expectedTy expr
+    | _ ->
+        expr

@@ -521,7 +521,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
                 | _ ->
                     0
         let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
-        let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
+        let tyArgs = bindTypeArguments cenv env originalValue.HasStrictInference tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
         let finalExpr, _ =
             bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprsOpt tyArgs originalValue
@@ -571,9 +571,12 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 
     let value, argExprs = 
         if value.IsFunction then
-            let func, argExprs = ImplicitPassingArguments env.benv value.AsFunction argExprs
+            let func, argExprs = ImplicitArgumentsForFunction env.benv value.AsFunction argExprs
             (func :> IValueSymbol, argExprs)
-        else
+        elif value.Type.IsFunction_t then
+            let argExprs = ImplicitArgumentsForFunctionType value.Type argExprs
+            (value, argExprs)
+        else           
             (value, argExprs)
 
     let argExprsOpt =
@@ -1339,7 +1342,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     | _ ->
                         raise(InternalCompilerUnreachedException())
 
-                if isFuncInput then
+                if isFuncInput && (ty.IsUnit_t || ty.IsAnyTuple) && not ty.IsRealUnit then
                     // TODO: Kind of a hack using TypeSymbol.Tuple.
                     TypeSymbol.Tuple(ImArray.createOne ty, ImArray.empty)
                 else
@@ -1700,7 +1703,7 @@ let bindTypeAndInferConstraints (cenv: cenv) (env: BinderEnvironment) syntaxTy =
     | _ ->
         env, bindType cenv env None ResolutionTypeArityZero syntaxTy
 
-let bindTypeArgument (cenv: cenv) env (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
+let bindTypeArgument (cenv: cenv) env isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
     let index = offset + n
     let tyPar = 
         if isLastTyParVariadic && index >= tyPars.Length then
@@ -1718,9 +1721,12 @@ let bindTypeArgument (cenv: cenv) env (tyPars: ImmutableArray<TypeParameterSymbo
                 else
                     ResolutionTypeArityZero
             bindType cenv env None resTyArity syntaxTyArg
-    mkSolvedInferenceVariableType tyPar ty
+    if isStrict then
+        mkSolvedStrictInferenceVariableType tyPar ty
+    else
+        mkSolvedInferenceVariableType tyPar ty
 
-let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) offset (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
+let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
     let expectedTypeParameterCount = tyPars.Length - offset
 
     if syntaxTyArgs.IsEmpty then
@@ -1746,7 +1752,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) offset (tyPars: Immu
 
             let tyArgsTail = 
                 syntaxTyArgs 
-                |> Seq.mapi (bindTypeArgument cenv env tyPars isLastTyParVariadic offset)
+                |> Seq.mapi (bindTypeArgument cenv env isStrict tyPars isLastTyParVariadic offset)
 
             let tyArgs =
                 if offset > 0 then
@@ -1764,7 +1770,10 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) offset (tyPars: Immu
                 let lastIndex = tyPars.Length - 1
                 let headTyArgs = tyArgs.RemoveRange(lastIndex, tyArgs.Length - lastIndex)
                 let tailTyArgs = tyArgs.RemoveRange(0, lastIndex)
-                headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
+                if isStrict then
+                    headTyArgs.Add(mkSolvedStrictInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
+                else
+                    headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
             else
                 tyArgs
                 

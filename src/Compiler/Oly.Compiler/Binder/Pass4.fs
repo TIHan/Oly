@@ -664,11 +664,11 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         | _ ->
             expr
 
-let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt syntaxNode (syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression>) =
+let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxNode (syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression>) =
     // Unit
     if syntaxExprList.ChildrenOfType.IsEmpty then
         match expectedTyOpt with
-        | Some(expectedTy) ->
+        | Some(expectedTy) when not expectedTy.IsRealUnit ->
             checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode expectedTy TypeSymbol.Unit
         | _ ->
             ()
@@ -1941,10 +1941,8 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
             let syntaxInfo = BoundSyntaxInfo.User(syntaxToCapture, env.benv)
             BoundExpression.Witness(syntaxInfo, env.benv, castFunc, argExpr, ref None, expr.Type)
         | _ ->
-            match expectedTyOpt with
-            | Some(expectedTy) when expectedTy.IsUnit_t && not expectedTy.IsRealUnit && expr.Type.IsRealUnit ->
-                Ignore expr
-            | _ ->
+            Oly.Compiler.Internal.ImplicitRules.ImplicitReturn
+                expectedTyOpt
                 expr
 
     env, expr

@@ -176,6 +176,32 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
     else
         false
 
+let private unifyVariadicInferenceVariable rigidity (variadicTyVar: TypeSymbol) (tyArgs: TypeSymbol imarray) : bool =
+    // This handles the actual expansion of the variadic type, which is stored as a tuple type.
+    if variadicTyVar.IsVariadicInferenceVariable then
+        // TODO: Kind of a hack using TypeSymbol.Tuple.
+        let inputTy = 
+            if tyArgs.IsEmpty then
+                TypeSymbol.Unit
+            elif tyArgs.Length = 1 then
+                tyArgs[0]
+            else
+                TypeSymbol.Tuple(tyArgs, ImArray.empty)
+
+        UnifyTypes rigidity variadicTyVar inputTy
+    else
+        false
+
+let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: TypeSymbol imarray) : bool =
+    // This handles the actual expansion of the variadic type, which is stored as a tuple type.
+    if tyArgs1.Length = 1 && tyArgs1[0].IsVariadicInferenceVariable then
+        unifyVariadicInferenceVariable rigidity tyArgs1[0] tyArgs2
+    else
+        false
+
+let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSymbol) : bool =
+    UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit = returnTy2.IsRealUnit
+
 let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     if obj.ReferenceEquals(origTy1, origTy2) then true
     else
@@ -334,16 +360,23 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
                     | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
                         UnifyTypes rigidity inputTy1 inputTy2
-                    | TypeSymbol.Tuple(elementTys, _), ty
-                    | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                        UnifyTypes rigidity elementTys[0] ty
+
+                    | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
+                    | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
+                        let elementTy = elementTys[0]
+                        if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
+                            UnifyTypes rigidity elementTy ty
+                        else
+                            UnifyTypes rigidity tupTy ty
+
                     | TypeSymbol.Tuple _, ty
                     | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
                         false
+
                     | _ ->
                         UnifyTypes rigidity inputTy1 inputTy2
                 ) &&
-                UnifyTypes rigidity returnTy1 returnTy2
+                unifyReturnType rigidity returnTy1 returnTy2
             else
                 false
 
@@ -352,44 +385,31 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
                 | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
                     UnifyTypes rigidity inputTy1 inputTy2
-                | TypeSymbol.Tuple(elementTys, _), ty
-                | ty, TypeSymbol.Tuple(elementTys, _) when elementTys.Length = 1 ->
-                    UnifyTypes rigidity elementTys[0] ty
+
+                | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
+                | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
+                    let elementTy = elementTys[0]
+                    if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
+                        UnifyTypes rigidity elementTy ty
+                    else
+                        UnifyTypes rigidity tupTy ty
+
                 | TypeSymbol.Tuple _, ty
                 | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
                     false
+
                 | _ ->
                     UnifyTypes rigidity inputTy1 inputTy2
             ) &&
-            UnifyTypes rigidity returnTy1 returnTy2 &&
+            unifyReturnType rigidity returnTy1 returnTy2 &&
             ilCallConv1 = ilCallConv2
 
         | TypeSymbol.Tuple(tyArgs1, _), TypeSymbol.Tuple(tyArgs2, _) ->
             // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-            if tyArgs1.Length = 1 && tyArgs1[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if tyArgs2.IsEmpty then
-                        TypeSymbol.Unit
-                    elif tyArgs2.Length = 1 then
-                        tyArgs2[0]
-                    else
-                        TypeSymbol.Tuple(tyArgs2, ImArray.empty)
-
-                UnifyTypes rigidity tyArgs1[0] inputTy
-
-            elif tyArgs2.Length = 1 && tyArgs2[0].IsVariadicInferenceVariable then
-                // TODO: Kind of a hack using TypeSymbol.Tuple.
-                let inputTy = 
-                    if tyArgs1.IsEmpty then
-                        TypeSymbol.Unit
-                    elif tyArgs1.Length = 1 then
-                        tyArgs1[0]
-                    else
-                        TypeSymbol.Tuple(tyArgs1, ImArray.empty)
-
-                UnifyTypes rigidity inputTy tyArgs2[0]
-
+            if unifyVariadicTypes rigidity tyArgs1 tyArgs2 then
+                true
+            elif unifyVariadicTypes rigidity tyArgs2 tyArgs1 then
+                true
             elif tyArgs1.Length <> tyArgs2.Length then
                 false
             else
@@ -426,7 +446,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty2.Formal
             | _ ->
-                solution.Solution <- ty2
+                if ty2.IsUnit_t && ty1.HasImmediateNonStrictInferenceVariableTypeParameter then
+                    solution.Solution <- TypeSymbolRealUnit
+                else
+                    solution.Solution <- ty2
             true
 
         | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible) && not solution.HasSolution ->
@@ -434,7 +457,10 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty1.Formal
             | _ ->
-                solution.Solution <- ty1
+                if ty1.IsUnit_t && ty2.HasImmediateNonStrictInferenceVariableTypeParameter then
+                    solution.Solution <- TypeSymbolRealUnit
+                else
+                    solution.Solution <- ty1
             true
 
         | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), ty

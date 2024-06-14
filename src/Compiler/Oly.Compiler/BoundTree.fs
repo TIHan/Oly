@@ -125,7 +125,7 @@ and [<Sealed>] LazyExpression (syntaxExprOpt: OlySyntaxExpression option, f: Oly
         match cache with
         | ValueSome _ -> failwith "Lazy expression already ran."
         | _ ->
-            let expr = f syntaxExprOpt
+            let expr : BoundExpression = f syntaxExprOpt
             f <- Unchecked.defaultof<_>
             syntaxExprOpt <- Unchecked.defaultof<_>
             cache <- ValueSome expr
@@ -409,7 +409,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | ErrorWithType(benv=benv) -> Some benv
         | Witness(benv=benv) -> Some benv
 
-    member this.Syntax =
+    member this.Syntax : OlySyntaxNode =
         match this with
         | While(syntaxInfo=syntaxInfo)
         | None(syntaxInfo=syntaxInfo)
@@ -531,7 +531,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetField _
         | SetProperty _
         | EntityDefinition _ -> TypeSymbol.Unit
-        | Unit _ -> TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty) // Real unit
+        | Unit _ -> TypeSymbolRealUnit
         | Lambda(cachedLambdaTy=cachedLambdaTy) -> cachedLambdaTy.Type
         | None _ -> TypeSymbol.Unit
         | Error _
@@ -940,7 +940,7 @@ type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =
     member _.Type = ty
     member _.Syntax = syntax
 
-let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParameterSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty (cache: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) : TypeSymbol =
+let freshenTypeAux (benv: BoundEnvironment) isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty (cache: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) : TypeSymbol =
     let tyArgOffset = tyPars.Length - explicitTyArgs.Length
     if tyArgOffset < 0 then
         failwith "Internal error: Invalid tyArgOffset, must be greater than or equal to zero."
@@ -976,7 +976,11 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
                 let ty = 
                     match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                     | Some ty -> ty
-                    | _ -> mkInferenceVariableType (Some tyPar)
+                    | _ -> 
+                        if isStrict then
+                            mkStrictInferenceVariableType (Some tyPar)
+                        else
+                            mkInferenceVariableType (Some tyPar)
                 tys.Add(tyPar, ty)
                 ty
 
@@ -988,7 +992,11 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
                     let ty = 
                         match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                         | Some ty -> ty
-                        | _ -> mkInferenceVariableType (Some tyPar)
+                        | _ -> 
+                            if isStrict then
+                                mkStrictInferenceVariableType (Some tyPar)
+                            else
+                                mkInferenceVariableType (Some tyPar)
                     tys.Add(tyPar, ty)
                     ty
             applyType inferenceTy (tyArgs |> ImArray.map (freshen tys explicitTyArgs))
@@ -1019,7 +1027,11 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
     // We do this specifically for inference variables as we want to maintain the type parameter.
     match ty with
     | TypeSymbol.InferenceVariable(Some tyPar, varSolution) when varSolution.HasSolution ->
-        mkSolvedInferenceVariableType tyPar (freshen cache explicitTyArgs varSolution.Solution)
+        let ty = (freshen cache explicitTyArgs varSolution.Solution)
+        if ty.HasImmediateStrictInferenceVariableTypeParameter then
+            mkSolvedStrictInferenceVariableType tyPar ty
+        else
+            mkSolvedInferenceVariableType tyPar ty
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, varSolution) when varSolution.HasSolution ->
         let newTyArgs = tyArgs |> ImArray.map (fun tyArg -> freshen cache explicitTyArgs tyArg)
         mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
@@ -1028,7 +1040,7 @@ let freshenTypeAux (benv: BoundEnvironment) (tyPars: ImmutableArray<TypeParamete
 
 let freshenType benv (tyPars: TypeParameterSymbol imarray) (explicitTyInst: TypeSymbol imarray) ty =
     let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
-    freshenTypeAux benv tyPars explicitTyInst ty cache
+    freshenTypeAux benv false tyPars explicitTyInst ty cache
 
 let rec tryExpressionValue (expression: BoundExpression) =
     match expression with
@@ -1491,13 +1503,14 @@ let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
     | :? IFieldSymbol -> value
     | :? IPropertySymbol
     | :? IFunctionSymbol ->
+        let isStrict = value.HasStrictInference
         let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
         let tyArgs =
             let tyPars = benv.GetScopedTypeParameters(value)
             let tyArgs = benv.GetScopedTypeArguments(value)
             tyArgs
             |> ImArray.map (fun ty ->
-                freshenTypeAux benv tyPars ImArray.empty ty cache
+                freshenTypeAux benv isStrict tyPars ImArray.empty ty cache
             )
 
         let enclosing = 

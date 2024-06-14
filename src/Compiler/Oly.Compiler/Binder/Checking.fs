@@ -377,7 +377,7 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
     lambdaExpr
 
 let private createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (syntaxTyArgsRoot, syntaxTyArgs) (func: IFunctionSymbol) =
-    let tyArgs = bindTypeArguments cenv env 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
+    let tyArgs = bindTypeArguments cenv env func.HasStrictInference 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
     createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs func
 
 let private tryOverloadPartialCallExpression
@@ -467,7 +467,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
         let checkLambdaArguments() =
             let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
             argExprs
-            |> ImArray.iter (fun x ->           
+            |> ImArray.iteri (fun i x ->           
                 x.ForEachReturningTargetExpression(fun x ->
                     match x with
                     | E.Lambda _ ->
@@ -625,6 +625,9 @@ let private lateCheckCalleeExpression cenv env expr =
         ()
 
     checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
+
+    let expr = Oly.Compiler.Internal.ImplicitRules.ImplicitCallExpression env.benv expr
+
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
@@ -666,6 +669,7 @@ let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (exp
             expr
 
     let expr = autoDereferenceExpression expr
+    let expr = Oly.Compiler.Internal.ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
         match expectedTyOpt with
         | Some expectedTy when expectedTy.IsSolved ->

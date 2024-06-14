@@ -5411,6 +5411,15 @@ print(__oly_object): ()
 #[intrinsic("address_of")]
 (&)<T>(T): inref<T>
 
+lock(lockObj: Object, f: () -> ()): () =
+    let mutable lockTaken = false
+    try
+        System.Threading.Monitor.Enter(lockObj, &lockTaken)
+        f()
+    finally
+        if (lockTaken)
+            System.Threading.Monitor.Exit(lockObj)
+
 lock<T>(lockObj: Object, f: () -> T): T =
     let mutable lockTaken = false
     try
@@ -5488,6 +5497,65 @@ module M =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "58"
+
+[<Fact>]
+let ``Custom delegate should error due to physical unit type``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[export]
+class Callback =
+
+    Invoke(bodyId1: uint32, bodyId2: uint32): () = ()
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+module M =
+
+    #[intrinsic("print")]
+    print(object): ()
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    typeof<require T>: System.Type
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    main(): () =
+        let callback = Callback()
+        let del = CreateDelegate(callback, &&callback.Invoke)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+                """
+        let del = CreateDelegate(callback, &&callback.Invoke)
+                                           ^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
 
 [<Fact>]
 let ``Custom delegate with return type``() =
