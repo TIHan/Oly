@@ -85,3 +85,32 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype should never allow getting access to underlying types fields``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+struct TestStruct =
+    public field X: int32 = 0
+
+newtype A =
+    field value: TestStruct
+
+main(): () =
+    let mutable a = A(TestStruct())
+    let value = a.X
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Member 'X' does not exist on type 'A'.",
+                """
+    let value = a.X
+                  ^
+"""
+            )
+        ]
+    |> ignore

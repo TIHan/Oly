@@ -29,16 +29,19 @@ module private Helpers =
         let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
     
         let inheritedFields =
-            ent.Extends
-            |> Seq.map (fun x ->
-                match x.TryEntity with
-                | ValueSome x ->
-                    findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
-                | _ ->
-                    Seq.empty
-            )
-            |> Seq.concat
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
+            if ent.IsEnumOrNewtype then
+                Seq.empty
+            else
+                ent.Extends
+                |> Seq.map (fun x ->
+                    match x.TryEntity with
+                    | ValueSome x ->
+                        findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
+                    | _ ->
+                        Seq.empty
+                )
+                |> Seq.concat
+                |> filterValuesByAccessibility benv.ac queryMemberFlags
     
         Seq.append inheritedFields fields
     

@@ -5133,6 +5133,12 @@ module SymbolExtensions =
             member this.IsNewtype =
                 this.Kind = EntityKind.Newtype
 
+            member this.IsEnumOrNewtype =
+                match this.Kind with
+                | EntityKind.Enum
+                | EntityKind.Newtype -> true
+                | _ -> false
+
             member this.IsNamespace =
                 this.Kind = EntityKind.Namespace
 
