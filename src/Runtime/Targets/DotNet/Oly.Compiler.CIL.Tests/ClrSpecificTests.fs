@@ -5411,15 +5411,6 @@ print(__oly_object): ()
 #[intrinsic("address_of")]
 (&)<T>(T): inref<T>
 
-lock(lockObj: Object, f: () -> ()): () =
-    let mutable lockTaken = false
-    try
-        System.Threading.Monitor.Enter(lockObj, &lockTaken)
-        f()
-    finally
-        if (lockTaken)
-            System.Threading.Monitor.Exit(lockObj)
-
 lock<T>(lockObj: Object, f: () -> T): T =
     let mutable lockTaken = false
     try

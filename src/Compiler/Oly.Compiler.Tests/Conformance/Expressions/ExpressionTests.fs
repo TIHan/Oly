@@ -9438,3 +9438,62 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Unit inference for return type of a function type should fail or pass?``() =
+    """
+M<T>(f: () -> T): () =
+    let result = f()
+
+main(): () =
+    M(() -> ())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
+        [
+            ("Expected type '() -> (())' but is '() -> ()'.",
+                """
+    M(() -> ())
+      ^^^^^^^^
+"""
+            )
+            ("Expected type '() -> (())' but is '() -> ()'.",
+                """
+    M(() -> ())
+      ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Unit inference for return type of a function type should fail or pass? 2``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: () -> T): () =
+    let result = f()
+
+main(): () =
+    M(() -> print("hello"))
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
+        [
+            ("Expected type '() -> (())' but is '() -> ()'.",
+                """
+        M(() -> print("hello"))
+                ^^^^^^^^^^^^^^
+"""
+            )
+            ("Expected type '() -> (())' but is '() -> ()'.",
+                """
+        M(() -> print("hello"))
+                ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

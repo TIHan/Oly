@@ -32,10 +32,13 @@ let private isIntrinsicForEnum (func: IFunctionSymbol) =
 let private hasAllEnumTypes (tys: TypeSymbol imarray) =
     tys |> ImArray.forall (fun x -> x.IsEnum)
 
-let private hasAllExpressionEnumTypes (exprs: E imarray) =
-    exprs |> ImArray.forall (fun x -> x.Type.IsEnum)
+let private isFirstExpressionAnEnumType (exprs: E imarray) =
+    if exprs.IsEmpty then
+        false
+    else
+        exprs[0].Type.IsEnum
 
-let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
+let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol) (ty: TypeSymbol) =
     match func with
     | :? FunctionGroupSymbol ->
         OlyAssert.Fail("Unexpected function group.")
@@ -43,13 +46,32 @@ let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
         OlyAssert.True(func.TryWellKnownFunction.IsSome)
         OlyAssert.True(func.TypeParameters.IsEmpty)
         OlyAssert.True(func.TypeArguments.IsEmpty)
+        OlyAssert.True(isIntrinsicForEnum func)
 
         let id = newId()
 
-        let funcTy =
+        let newPars =
+            func.Parameters
+            |> ImArray.map (fun par ->
+                createLocalParameterValue(par.Attributes, par.Name, ty, par.IsMutable)
+            )
+
+        let returnTy =
+            match func.TryWellKnownFunction with
+            | ValueSome(WellKnownFunction.Equal)
+            | ValueSome(WellKnownFunction.NotEqual) ->
+                TypeSymbol.Bool
+            | _ ->
+                ty
+
+        let funcTy = 
             match stripTypeEquations func.Type with
-            | TypeSymbol.Function(inputTy, _, kind) ->
-                TypeSymbol.Function(inputTy, returnTy, kind)
+            | TypeSymbol.Function(_, _, kind) ->
+                TypeSymbol.CreateFunction(
+                    ImArray.init func.Parameters.Length (fun _ -> ty),
+                    returnTy,
+                    kind
+                )
             | _ ->
                 OlyAssert.Fail("Unsupported type.")
 
@@ -81,9 +103,9 @@ let private alterReturnType (func: IFunctionSymbol) (returnTy: TypeSymbol) =
 
                 member _.IsPattern = false
     
-                member _.Formal = func.Formal
+                member this.Formal = func.Formal
     
-                member _.Parameters = func.Parameters
+                member _.Parameters = newPars
     
                 member _.ReturnType = returnTy
     
@@ -184,22 +206,15 @@ let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) 
 
 let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol) (argExprs: E imarray) =
     // Implicits for Enums
-    if isIntrinsicForEnum func && hasAllExpressionEnumTypes argExprs then
+    if isIntrinsicForEnum func && isFirstExpressionAnEnumType argExprs then
         let argTys = func.Parameters |> ImArray.map (fun x -> x.Type)
         if (not argTys.IsEmpty) && argTys.Length = argExprs.Length then
-            let func =
-                if isIntrinsicBitwiseForEnum func then
-                    // Alter return type.
-                    alterReturnType func argExprs[0].Type
-                else
-                    func
 
-            let argExprs =
-                (argExprs, argTys)
-                ||> ImArray.map2 (fun argExpr argTy ->
-                    // REVIEW: Should we alter the parameter types, like the return type, of the function instead of doing an implicit cast?
-                    Oly.Compiler.Internal.WellKnownExpressions.ImplicitCast benv argExpr argTy
-                )
+            let principalTy = argExprs[0].Type
+            let func =
+                alterParameterAndReturnTypesForEnumOperations
+                    func
+                    principalTy
 
             func, argExprs
         else

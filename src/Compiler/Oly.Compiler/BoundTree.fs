@@ -1109,6 +1109,7 @@ module EntitySymbolExtensions =
     type EntitySymbol with
 
         member this.ExtendsAndImplementsForMemberOverriding =
+            // TODO: If we make newtypes not extend anything, then this should not be needed.
             if this.IsNewtype then
                 ImArray.empty
             elif this.IsTypeExtension then
@@ -1317,6 +1318,7 @@ let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (que
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
+        // TODO: If we make newtypes not extend anything, then this should not be needed.
         if ent.IsNewtype then Seq.empty
         else
             let inheritedFuncs = ImArray.builder()

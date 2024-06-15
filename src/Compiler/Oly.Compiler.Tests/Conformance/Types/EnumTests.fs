@@ -91,10 +91,10 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'int32' but is 'ABC'.",
+            ("Expected type 'ABC' but is 'int32'.",
                 """
     let _result = ABC.A | 2
-                  ^^^^^
+                          ^
 """
             )
         ]

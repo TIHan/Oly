@@ -29,7 +29,8 @@ module private Helpers =
         let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
     
         let inheritedFields =
-            if ent.IsEnumOrNewtype then
+            // TODO: If we make newtypes not extend anything, then this should not be needed.
+            if ent.IsNewtype then
                 Seq.empty
             else
                 ent.Extends
