@@ -30,6 +30,20 @@ type GenericContext =
             passedWitnesses = ImArray.empty
         }
 
+    static member CreateFromEnclosingType(enclosingTy: RuntimeType, funcTyArgs: _ imarray) =
+        let enclosingTyArgs = enclosingTy.TypeArguments
+        if enclosingTyArgs.IsEmpty && funcTyArgs.IsEmpty then
+            OlyAssert.True(enclosingTy.Witnesses.IsEmpty)
+            GenericContext.Default
+        else
+            {
+                enclosingTyArgs = enclosingTyArgs
+                funcTyArgs = funcTyArgs
+                isTyErasing = false
+                isFuncErasing = false
+                passedWitnesses = enclosingTy.Witnesses
+            }
+
     static member Create(enclosingTyArgs: _ imarray) =
         if enclosingTyArgs.IsEmpty then
             GenericContext.Default
@@ -284,7 +298,7 @@ type RuntimeEntity =
         Enclosing: RuntimeEnclosing
         TypeParameters: RuntimeTypeParameter imarray
         TypeArguments: RuntimeType imarray
-        Witnesses: RuntimeWitness imarray
+        mutable Witnesses: RuntimeWitness imarray
         mutable ExtendsLazy: RuntimeType imarray Lazy
         mutable ImplementsLazy: RuntimeType imarray Lazy
         mutable RuntimeTypeLazy: RuntimeType option Lazy
@@ -308,43 +322,43 @@ type RuntimeEntity =
     member this.Fields = this.FieldsLazy.Value
     member this.RuntimeType = this.RuntimeTypeLazy.Value
 
+    member private this.FilterWitnesses(witnesses: RuntimeWitness imarray) =
+        (this.TypeArguments, this.TypeParameters)
+        ||> ImArray.mapi2 (fun i tyArg tyPar ->
+            witnesses
+            |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                if witness.Type.StripAlias() = tyArg.StripAlias() then
+                    let tyExt = witness.TypeExtension
+                    let exists = 
+                        tyPar.ConstraintSubTypes.Value
+                        |> ImArray.exists (fun superTy ->
+                            subsumesType superTy tyExt 
+                        )
+                    if exists then
+                        match witness.TypeVariableKind with
+                        | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
+                            Some witness
+                        | OlyILTypeVariableKind.Function ->
+                            RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                            |> Some
+                        | _ ->
+                            None
+                    else
+                        None
+                else
+                    None
+            )
+        )
+        |> ImArray.concat
+        |> ImArray.distinct
+
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
         // Imported types do not support witnesses.
         if ((witnesses.IsEmpty && this.Witnesses.IsEmpty) || this.TypeArguments.IsEmpty || this.IsImported) then
             this
         else
-            let filteredWitnesses =
-                (this.TypeArguments, this.TypeParameters)
-                ||> ImArray.mapi2 (fun i tyArg tyPar ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            let tyExt = witness.TypeExtension
-                            let exists = 
-                                tyPar.ConstraintSubTypes.Value
-                                |> ImArray.exists (fun superTy ->
-                                    subsumesType superTy tyExt 
-                                )
-                            if exists then
-                                match witness.TypeVariableKind with
-                                | OlyILTypeVariableKind.Type when i = witness.TypeVariableIndex ->
-                                    Some witness
-                                | OlyILTypeVariableKind.Function ->
-                                    RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                                    |> Some
-                                | _ ->
-                                    None
-                            else
-                                None
-                        else
-                            None
-                    )
-                )
-                |> ImArray.concat
-                |> ImArray.distinct
-
             let entNew =
-                { this with Witnesses = filteredWitnesses }
+                { this with Witnesses = this.FilterWitnesses(witnesses) }
 
             entNew.FieldsLazy <-
                 lazy
@@ -502,6 +516,23 @@ type RuntimeEntity =
                     TypeArguments = tyArgs
                     TypeParameters = tyPars }
 
+            let witnessesToSet =
+                genericContext.PassedWitnesses
+                |> ImArray.filter (fun witness ->
+                    this.TypeArguments
+                    |> ImArray.exists (fun tyArg ->
+                        match tyArg with
+                        | RuntimeType.Variable(index, ilKind)
+                        | RuntimeType.HigherVariable(index, _, ilKind) ->
+                            witness.TypeVariableIndex = index &&
+                            witness.TypeVariableKind = ilKind
+                        | _ ->
+                            false
+                    )
+                )
+
+            entNew.Witnesses <- entNew.FilterWitnesses(witnessesToSet)
+
             entNew.FieldsLazy <-
                 lazy
                     let enclosingTy = RuntimeType.Entity(entNew)
@@ -509,6 +540,7 @@ type RuntimeEntity =
                     |> ImArray.map (fun x ->
                         x.Substitute(enclosingTy)
                     )
+
             entNew
 
     member this.Apply(tyArgs: RuntimeType imarray) =
@@ -675,7 +707,7 @@ type RuntimeType =
         | ByRef(_, OlyIRByRefKind.ReadWrite) -> true
         | _ -> false
 
-    member this.Witnesses =
+    member this.Witnesses : RuntimeWitness imarray =
         match this.StripAlias() with
         | Entity(ent) -> ent.Witnesses
         | _ -> ImArray.empty
@@ -825,7 +857,7 @@ type RuntimeType =
         | ByRef(elementTy, _) -> $"__oly_by_reference_{elementTy.Name}"
         | ConstantInt32(value) -> value.ToString()
 
-    member this.TypeArguments =
+    member this.TypeArguments : RuntimeType imarray =
         match this with
         | Entity(ent) -> ent.TypeArguments
         | HigherVariable(tyArgs=tyArgs) -> tyArgs
@@ -1358,8 +1390,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             this.MakeReference(enclosingTy)
         else
 
-        let genericContext = 
-            GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
+        let genericContext = GenericContext.CreateFromEnclosingType(enclosingTy, funcTyArgs)
 
         { state with
             Enclosing = enclosing
@@ -1387,8 +1418,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             this
         else
 
-        let genericContext = 
-            GenericContext.Create(enclosingTy.TypeArguments, this.TypeArguments)
+        let genericContext = GenericContext.CreateFromEnclosingType(enclosingTy, this.TypeArguments)
 
         { state with
             Enclosing = RuntimeEnclosing.Type(enclosingTy)
@@ -1579,7 +1609,7 @@ type RuntimeField =
         if not this.IsFormal then
             failwith "Expected formal field."
 
-        let genericContext = GenericContext.Create(enclosingTy.TypeArguments)
+        let genericContext = GenericContext.Create(enclosingTy.TypeArguments).SetPassedWitnesses(enclosingTy.Witnesses)
 
         { this with
             EnclosingType = enclosingTy

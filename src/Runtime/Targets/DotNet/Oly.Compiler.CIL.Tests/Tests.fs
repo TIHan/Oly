@@ -18644,7 +18644,44 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Lambda captrues type parameter and witness``() =
+let ``Lambda captures type parameter and witness``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+#[open]
+extension Int32Component =
+    inherits int32
+    implements IComponent
+
+field mutable F: () -> () = unchecked default
+
+#[inline(never)]
+M2<T>(): () = print("asdf")
+
+#[inline(never)]
+M<T>(): () where T: IComponent =
+    let f() =
+        M2<T>()
+    f()
+    //F <- f
+
+main(): () =
+    M<int32>()
+   // F()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 2``() =
     """
 #[intrinsic("int32")]
 alias int32
@@ -18677,6 +18714,419 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 2-1``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+#[open]
+extension Int32Component =
+    inherits int32
+    implements IComponent
+
+field mutable F: () -> () = unchecked default
+
+#[inline(never)]
+M2<T>(): () = print("asdf")
+
+#[inline(never)]
+M<T>(): () where T: IComponent =
+    F <- () -> M2<T>()
+
+main(): () =
+    M<int32>()
+    F()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 2-2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+#[open]
+extension Int32Component =
+    inherits int32
+    implements IComponent
+
+field mutable F: () -> () = unchecked default
+
+#[inline(never)]
+M2<T>(): () where T: IComponent = print("asdf")
+
+#[inline(never)]
+M<T>(): () where T: IComponent =
+    F <- () -> M2<T>()
+
+main(): () =
+    M<int32>()
+    F()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 2-3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent =
+
+    static abstract default Print(): () = print("asdf")
+
+#[open]
+extension Int32Component =
+    inherits int32
+    implements IComponent
+
+field mutable F: () -> () = unchecked default
+
+#[inline(never)]
+M2<T>(): () where T: IComponent = T.Print()
+
+#[inline(never)]
+M<T>(): () where T: IComponent =
+    F <- () -> M2<T>()
+
+main(): () =
+    M<int32>()
+    F()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct TestStruct
+
+interface IComponent
+
+#[open]
+extension TestStructComponent =
+    inherits TestStruct
+    implements IComponent
+
+M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+    let mutable x = unchecked default
+    f(&x)
+
+#[inline(never)]
+M(): () =
+    M2<TestStruct>(
+        refTestStruct ->
+            print("asdf")
+    )
+
+main(): () =
+    M()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct TestStruct
+
+interface IComponent
+
+#[open]
+extension TestStructComponent =
+    inherits TestStruct
+    implements IComponent
+
+M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+    let mutable x = unchecked default
+    f(&x)
+
+#[inline(never)]
+M(): () =
+    M2<TestStruct>(
+        refTestStruct ->
+            M2<TestStruct>(
+                refTestStruct2 ->
+                    refTestStruct2 <- refTestStruct
+                    print("asdf")
+            )
+    )
+
+main(): () =
+    M()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "asdf"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 5``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct TestStruct =
+    public field mutable X: int32 = 0
+
+struct TestStruct2 =
+    public field mutable Y: int32 = 0
+
+interface IComponent
+
+#[open]
+extension TestStructComponent =
+    inherits TestStruct
+    implements IComponent
+
+#[open]
+extension TestStruct2Component =
+    inherits TestStruct2
+    implements IComponent
+
+M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+    let mutable x = unchecked default
+    f(&x)
+
+#[inline(never)]
+M(): () =
+    M2<TestStruct>(
+        refTestStruct ->
+            refTestStruct.X <- 456
+            M2<TestStruct2>(
+                refTestStruct2 ->
+                    refTestStruct2.Y <- refTestStruct.X
+                    print(refTestStruct2.Y)
+            )
+    )
+
+main(): () =
+    M()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 6``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct TestStruct =
+    public field mutable X: int32 = 0
+
+struct TestStruct2 =
+    public field mutable Y: int32 = 0
+
+interface IComponent
+
+#[open]
+extension TestStructComponent =
+    inherits TestStruct
+    implements IComponent
+
+#[open]
+extension TestStruct2Component =
+    inherits TestStruct2
+    implements IComponent
+
+struct TestG<T> =
+    public field mutable G: T = unchecked default
+
+M3<T>(f: scoped byref<TestG<T>> -> ()): () where T: IComponent =
+    let mutable x = unchecked default
+    f(&x)
+
+M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+    M3<T>(
+        g ->
+            f(&g.G)   
+    )
+
+#[inline(never)]
+M(): () =
+    M2<TestStruct>(
+        refTestStruct ->
+            refTestStruct.X <- 456
+            M2<TestStruct2>(
+                refTestStruct2 ->
+                    refTestStruct2.Y <- refTestStruct.X
+                    print(refTestStruct2.Y)
+            )
+    )
+
+main(): () =
+    M()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+    |> ignore
+
+[<Fact>]
+let ``Lambda captures type parameter and witness 6 - except its without the witness via no IComponent constraint``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct TestStruct =
+    public field mutable X: int32 = 0
+
+struct TestStruct2 =
+    public field mutable Y: int32 = 0
+
+interface IComponent
+
+#[open]
+extension TestStructComponent =
+    inherits TestStruct
+    implements IComponent
+
+#[open]
+extension TestStruct2Component =
+    inherits TestStruct2
+    implements IComponent
+
+struct TestG<T> =
+    public field mutable G: T = unchecked default
+
+M3<T>(f: scoped byref<TestG<T>> -> ()): () =
+    let mutable x = unchecked default
+    f(&x)
+
+M2<T>(f: scoped byref<T> -> ()): () =
+    M3<T>(
+        g ->
+            f(&g.G)   
+    )
+
+#[inline(never)]
+M(): () =
+    M2<TestStruct>(
+        refTestStruct ->
+            refTestStruct.X <- 456
+            M2<TestStruct2>(
+                refTestStruct2 ->
+                    refTestStruct2.Y <- refTestStruct.X
+                    print(refTestStruct2.Y)
+            )
+    )
+
+main(): () =
+    M()
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
     |> ignore
 
 [<Fact>]
@@ -18809,7 +19259,7 @@ ForEach<T>(xs: T[], f: T -> ()): () =
 
 main(): () =
     let xs = [(1, 2)]
-    ForEach(xs, (x, y) -> ())
+    ForEach(xs, ((x, y)) -> ())
     """
     |> Oly
     |> withCompile

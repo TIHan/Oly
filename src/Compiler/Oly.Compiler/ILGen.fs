@@ -80,6 +80,7 @@ type cenv =
         cachedDbgSrcs: Dictionary<OlyPath, OlyILDebugSourceHandle>
 
         extraFuncDefs: Dictionary<int64, ResizeArray<OlyILFunctionDefinitionHandle>>
+        extraFuncDefsEnclosing: Dictionary<int64, EntitySymbol>
 
         delayedEntityGenQueue: Queue<unit -> unit>
 
@@ -111,6 +112,7 @@ type cenv =
             cachedDbgSrcs = Dictionary(OlyPathEqualityComparer.Instance)
 
             extraFuncDefs = Dictionary()
+            extraFuncDefsEnclosing = Dictionary()
 
             delayedEntityGenQueue = Queue()
 
@@ -513,6 +515,10 @@ and emitILEnclosingForMember cenv env (func: IValueSymbol) =
         match env.context with
         | LocalContext.Namespace _ -> failwith "Expected to be in an enclosing entity context for a function."
         | LocalContext.Entity ent ->
+            let ent =
+                match cenv.extraFuncDefsEnclosing.TryGetValue func.Formal.Id with
+                | true, ent -> ent
+                | _ -> ent
             let ilEntInst = GenEntityAsILEntityInstance cenv env ent
             OlyILEnclosing.Entity(ilEntInst)
     | EnclosingSymbol.Entity(ent) ->
@@ -831,6 +837,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                 | _ ->
                     let funcDefs = ResizeArray()
                     cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
 
@@ -842,6 +849,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                 | _ ->
                     let funcDefs = ResizeArray()
                     cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
 

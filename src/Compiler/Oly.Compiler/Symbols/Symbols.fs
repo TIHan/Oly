@@ -4738,6 +4738,8 @@ module SymbolExtensions =
 
             member this.AsFunction = this :?> IFunctionSymbol
 
+            member this.AsField = this :?> IFieldSymbol
+
             member this.AsProperty = this :?> IPropertySymbol
 
             member this.MorphShapeConstructor(concreteTy, shapeTy: TypeSymbol) =

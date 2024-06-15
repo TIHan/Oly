@@ -209,6 +209,20 @@ let substitute
             ),
             (fun origExpr ->
                 match origExpr with
+                | BoundExpression.GetField(syntaxInfo, receiverExpr, field) ->
+                    if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
+                        origExpr
+                    else
+                        let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
+                        E.GetField(syntaxInfo, receiverExpr, newField)
+
+                | BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr) ->
+                    if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
+                        origExpr
+                    else
+                        let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
+                        E.SetField(syntaxInfo, receiverExpr, newField, rhsExpr)
+
                 | BoundExpression.Literal(syntaxInfo, literal) ->
                     let newLiteral = substituteLiteral(tyParLookup, literal)
 
@@ -220,21 +234,25 @@ let substitute
                 | BoundExpression.Value(syntaxInfo, value) ->
                     match valueLookup.TryGetValue value.Formal.Id with
                     | true, newValue -> 
-            
-                        let tyPars =
-                            // Special!
-                            if value.IsLocal && not newValue.IsLocal then
-                                newValue.TypeParameters
+
+                        let appliedNewValue = 
+                            if value.IsFunction then
+                                let tyPars =
+                                    // Special!
+                                    if value.IsLocal && not newValue.IsLocal then
+                                        newValue.TypeParameters
+                                    else
+                                        newValue.AllTypeParameters
+
+                                let allTyArgs =
+                                    (tyPars, value.AllTypeArguments)
+                                    ||> ImArray.map2 (fun tyPar tyArg ->
+                                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
+                                    )
+                                newValue.Formal.Substitute(allTyArgs)
                             else
-                                newValue.AllTypeParameters
+                                newValue
 
-                        let allTyArgs =
-                            (tyPars, value.AllTypeArguments)
-                            ||> ImArray.map2 (fun tyPar tyArg ->
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                            )
-
-                        let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
                         let valueExpr =
                             // Special!
                             if value.IsLocal && newValue.IsInstance then
@@ -269,13 +287,16 @@ let substitute
 
                         valueExpr
                     | _ ->
-                        let allTyArgs =
-                            (value.AllTypeParameters, value.AllTypeArguments) 
-                            ||> ImArray.map2 (fun tyPar tyArg -> 
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                            )
-
-                        let appliedValue = value.Formal.Substitute(allTyArgs)
+                        let appliedValue = 
+                            if value.IsFunction then
+                                let allTyArgs =
+                                    (value.AllTypeParameters, value.AllTypeArguments) 
+                                    ||> ImArray.map2 (fun tyPar tyArg -> 
+                                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
+                                    )
+                                value.Formal.Substitute(allTyArgs)
+                            else
+                                value
                         BoundExpression.Value(syntaxInfo, appliedValue)
 
                 | BoundExpression.SetValue(syntaxInfo, value, rhsExpr) ->
@@ -818,7 +839,8 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             freeTyVars
             |> ImArray.mapi (fun i x -> 
                 // TODO: Handle constraints.
-                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.IsVariadic, TypeParameterKind.Type, ref ImArray.empty)
+                let constrs = x.Constraints
+                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.IsVariadic, TypeParameterKind.Type, ref constrs)
                 tyParLookup[x.Id] <- tyPar.AsType
                 closureTyParLookup[x.Id] <- tyPar.AsType
                 tyPar
@@ -949,7 +971,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let invokeName =
             match bindingInfoOpt with
             | Some(bindingInfo) -> bindingInfo.Value.Name
-            | _ -> "Invoke"
+            | _ -> "Invoke"                    
         
         let ctor = createClosureConstructor freeLocals fields closureBuilder.Entity
         let invoke = createClosureInvoke invokeName lambdaFlags tyParLookup attrs pars invokeTyPars funcTy closureBuilder.Entity

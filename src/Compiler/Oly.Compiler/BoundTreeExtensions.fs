@@ -742,6 +742,10 @@ type TypeSymbol with
         | _ ->
             Seq.empty
 
+    member this.FindField(name: string) =
+        this.Fields
+        |> ImArray.find (fun x -> x.Name = name)
+
     member this.FindFields(benv, queryMemberFlags) =
         findFieldsOfType benv queryMemberFlags ValueFlags.None None this
 
