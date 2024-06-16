@@ -3447,11 +3447,7 @@ type TypeSymbol =
         | _ -> false
 
     member this.IsRealUnit =
-        if stripTypeEquations this = TypeSymbolRealUnit then
-            true
-        else
-            false
-            //this.HasImmediateNonStrictInferenceVariableTypeParameter && this.IsUnit_t
+        stripTypeEquations this = TypeSymbolRealUnit 
 
     member this.Formal =
         match stripTypeEquationsExceptAlias this with
