@@ -198,6 +198,13 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
 
     and optimizeExpressionCore irExpr : E<_, _, _> =
         match irExpr with
+        // Inconsequential loop
+        | SimpleForLoop(_, rhsExpr, condExpr, bodyExpr, resultTy)
+                when not(hasSideEffect optenv rhsExpr) &&
+                     not(hasSideEffect optenv condExpr) &&
+                     not(hasSideEffect optenv bodyExpr) ->
+            E.None(OlyIRDebugSourceTextRange.Empty, resultTy)
+
         // Normalize sequential expressions
         | E.Let(name, localIndex, E.Sequential(expr1, expr2), bodyExpr) ->
             E.Sequential(

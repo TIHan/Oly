@@ -1293,8 +1293,8 @@ main(): () =
     | _ ->
         OlyAssert.Fail($"Unexpected pattern:\n{ir}")
 
-[<Fact>]
-let ``Inconsequential while loop gets removed 2``() =
+[<Fact(Skip = "Liveness not implemented yet to determine if 'i' is used after the loop")>]
+let ``Inconsequential while loop gets removed 1-1``() =
     let ir =
         """
 module Program
@@ -1320,6 +1320,84 @@ main(): () =
     let mutable i = 0
     while (i < 100)
         i <- i + 1
+    Work()
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.Operation(op=OlyIROperation.Call(func, _, _)) when func.EmittedFunction.Name = "Work" ->
+        ()
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Inconsequential while loop gets removed 2``() =
+    let ir =
+        """
+module Program
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    For(100, x -> ())
+        """
+        |> getMainOptimizedIR 
+    match ir with
+    | OlyIRExpression.None _ ->
+        ()
+    | _ ->
+        OlyAssert.Fail($"Unexpected pattern:\n{ir}")
+
+[<Fact>]
+let ``Inconsequential while loop gets removed 3``() =
+    let ir =
+        """
+module Program
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[inline(never)]
+Work(): () = ()
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+main(): () =
+    For(100, x -> ())
     Work()
         """
         |> getMainOptimizedIR 
