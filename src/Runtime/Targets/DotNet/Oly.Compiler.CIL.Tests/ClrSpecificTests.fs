@@ -7202,6 +7202,7 @@ main(): () =
 let ``Should choose the correct overload for AsSpan``() =
     """
 open System
+open System.Runtime.InteropServices
 
 #[intrinsic("int32")]
 alias int32
@@ -7241,7 +7242,8 @@ extension ArrayDotNetExtensions<T> =
 extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
     inherits T[]
 
-    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = AsMutable(this).AsReadOnlySpan<TCast>()
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = 
+        Span<_>.op_Implicit(MemoryMarshal.Cast(AsMutable(this).AsSpan()))
 
 main(): () =
     let xs = [1;2;3]
