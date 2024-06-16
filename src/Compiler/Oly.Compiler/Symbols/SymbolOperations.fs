@@ -446,10 +446,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty2.Formal
             | _ ->
-                if ty2.IsUnit_t && ty1.HasImmediateNonStrictInferenceVariableTypeParameter then
-                    solution.Solution <- TypeSymbolRealUnit
-                else
-                    solution.Solution <- ty2
+                solution.Solution <- ty2
             true
 
         | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when (rigidity = Flexible) && not solution.HasSolution ->
@@ -457,10 +454,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             | Some(tyPar) when tyPar.Arity > 0 ->
                 solution.Solution <- ty1.Formal
             | _ ->
-                if ty1.IsUnit_t && ty2.HasImmediateNonStrictInferenceVariableTypeParameter then
-                    solution.Solution <- TypeSymbolRealUnit
-                else
-                    solution.Solution <- ty1
+                solution.Solution <- ty1
             true
 
         | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), ty

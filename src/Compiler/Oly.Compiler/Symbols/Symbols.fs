@@ -46,10 +46,7 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
             failwith "Expected type constructor."
 #endif
     let varSolution = VariableSolutionSymbol(false, tyPar.HasArity, false)
-    if ty.IsUnit_t then
-        varSolution.Solution <- TypeSymbolRealUnit
-    else
-        varSolution.Solution <- ty
+    varSolution.Solution <- ty
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 let mkSolvedStrictInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
@@ -1384,36 +1381,39 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         if solution.HasSolution then
             let ty2 = solution.Solution
-            let strippedTy2 =
-                match tyParOpt with
-                | Some(tyPar) when tyPar.Arity > 0 ->
-                    if ty2.IsTypeConstructor then
+            if tyParOpt.IsSome && not solution.IsStrict && ty2.IsUnit_t then
+                TypeSymbolRealUnit
+            else
+                let strippedTy2 =
+                    match tyParOpt with
+                    | Some(tyPar) when tyPar.Arity > 0 ->
+                        if ty2.IsTypeConstructor then
+                            stripTypeEquationsAux skipAlias skipModifiers ty2
+                        else
+                            // Because we have a second-order generic and our solution isn't a type constructor,
+                            //     we must extract the type constructor out of it and reset the solution using it.
+                            // TODO: We should make this path illegal if we have a non-error type.
+                            match stripTypeEquationsAux skipAlias skipModifiers ty2 with
+                            | TypeSymbol.HigherVariable(tyPar2, _) ->
+                                solution.Solution <- TypeSymbol.Variable(tyPar2)
+                                stripTypeEquationsAux skipAlias skipModifiers ty
+
+                            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
+                                OlyAssert.True(externalSolution.IsTypeConstructor)
+
+                                solution.Solution <- TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution)
+                                stripTypeEquationsAux skipAlias skipModifiers ty
+
+                            | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
+                                solution.Solution <- ent.Formal.AsType
+                                stripTypeEquationsAux skipAlias skipModifiers ty
+
+                            | _ ->
+                                TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
+                    | _ ->
                         stripTypeEquationsAux skipAlias skipModifiers ty2
-                    else
-                        // Because we have a second-order generic and our solution isn't a type constructor,
-                        //     we must extract the type constructor out of it and reset the solution using it.
-                        // TODO: We should make this path illegal if we have a non-error type.
-                        match stripTypeEquationsAux skipAlias skipModifiers ty2 with
-                        | TypeSymbol.HigherVariable(tyPar2, _) ->
-                            solution.Solution <- TypeSymbol.Variable(tyPar2)
-                            stripTypeEquationsAux skipAlias skipModifiers ty
-
-                        | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
-                            OlyAssert.True(externalSolution.IsTypeConstructor)
-
-                            solution.Solution <- TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution)
-                            stripTypeEquationsAux skipAlias skipModifiers ty
-
-                        | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                            solution.Solution <- ent.Formal.AsType
-                            stripTypeEquationsAux skipAlias skipModifiers ty
-
-                        | _ ->
-                            TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
-                | _ ->
-                    stripTypeEquationsAux skipAlias skipModifiers ty2
-            solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution
-            strippedTy2
+                solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution          
+                strippedTy2
         else
             ty
     | _ ->
@@ -3447,7 +3447,11 @@ type TypeSymbol =
         | _ -> false
 
     member this.IsRealUnit =
-        stripTypeEquations this = TypeSymbolRealUnit
+        if stripTypeEquations this = TypeSymbolRealUnit then
+            true
+        else
+            false
+            //this.HasImmediateNonStrictInferenceVariableTypeParameter && this.IsUnit_t
 
     member this.Formal =
         match stripTypeEquationsExceptAlias this with

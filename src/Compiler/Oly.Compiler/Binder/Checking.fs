@@ -470,7 +470,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
             |> ImArray.iteri (fun i x ->           
                 x.ForEachReturningTargetExpression(fun x ->
                     match x with
-                    | E.Lambda _ ->
+                    | E.Lambda(cachedLambdaTy=lazyTy) ->
                         // We must evaluate the lambda at this point.
                         checkImmediateExpression solverEnv false x
                     | _ ->
@@ -767,8 +767,6 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
             | _ ->
                 argExpr
 
-        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) parTy argExpr
-
         let argExpr =
             match parTy.TryFunction, argExpr.Type.TryFunction with
             | ValueSome(_, outputTy), ValueSome(_, argTy) when caller.TryWellKnownFunction.IsNone ->
@@ -792,6 +790,8 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
                     argExpr
             | _ ->
                 argExpr
+
+        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) parTy argExpr
 
         argExpr
 
