@@ -638,7 +638,12 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
             let expr = bindCallExpression cenv env syntaxToCapture receiverInfoOpt syntaxCallBodyExpr syntaxArgs
-            let expr = checkExpression cenv env None expr
+
+            // REVIEW: This is a little weird. We do not have to provide an expected type as we actually won't check against it.
+            //         However, having an expected type enables the use of overload resolution's final phase which is useful.
+            //         We could write this differently and just pass a flag of some kind instead of doing this hack.
+            let useOverloadingFinalPhase = (Some(mkInferenceVariableType None))
+            let expr = checkExpression cenv env useOverloadingFinalPhase expr
             bindMemberExpressionAsItem cenv env syntaxToCapture (expr |> Choice1Of2) syntaxMemberExpr
             |> bindItemAsExpression cenv env
         | _ ->
@@ -648,7 +653,12 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
             let _, expr = bindIndexer cenv env syntaxToCapture syntaxReceiver syntaxBrackets None
-            let expr = checkExpression cenv env None expr
+
+            // REVIEW: This is a little weird. We do not have to provide an expected type as we actually won't check against it.
+            //         However, having an expected type enables the use of overload resolution's final phase which is useful.
+            //         We could write this differently and just pass a flag of some kind instead of doing this hack.
+            let useOverloadingFinalPhase = (Some(mkInferenceVariableType None))
+            let expr = checkExpression cenv env useOverloadingFinalPhase expr
             bindMemberExpressionAsItem cenv env syntaxToCapture (expr |> Choice1Of2) syntaxMemberExpr
             |> bindItemAsExpression cenv env
         | _ ->
