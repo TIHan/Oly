@@ -5549,6 +5549,66 @@ module M =
     |> ignore
 
 [<Fact>]
+let ``Custom delegate should error due to physical unit type 2``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[export]
+class Callback =
+
+    Invoke(bodyId1: uint32, bodyId2: uint32): () = ()
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+module M =
+
+    #[intrinsic("print")]
+    print(object): ()
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    typeof<require T>: System.Type
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    main(): () =
+        let callback = Callback()
+        let ptr = &&callback.Invoke
+        let del = CreateDelegate(callback, ptr)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+                """
+        let del = CreateDelegate(callback, ptr)
+                                           ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Custom delegate with return type``() =
     let src =
         """
@@ -6245,18 +6305,6 @@ main(): () =
     |> withErrorHelperTextDiagnostics
         [
             ("Expected type '(int32, int32) -> ()' but is '? -> ?'.",
-                """
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
-                                                         ^^^^^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
-                """
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
-                                                         ^^^^^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
                 """
     c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
                                                          ^^^^^^^^^^^^^^^^^^^^

@@ -1016,7 +1016,7 @@ type BoundExpression with
         rewriter.Rewrite(this)
 
     static member TryImplicitCall_LoadFunction(argExpr: BoundExpression, argTy: TypeSymbol) =
-        if argTy.IsFunction_t then
+        if argTy.IsAnyFunction then
             let argExprTy = argExpr.Type
             if argExprTy.IsClosure then
                 let cloInvoke = argExprTy.GetClosureInvoke()

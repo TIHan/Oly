@@ -8188,11 +8188,24 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics
+        // TODO: There are duplicate errors. We should figure out how to produce only one.
         [
+            ("Expected type 'int32 -> ()' but is '() -> ?'.",
+            """
+            X = () -> ()
+                ^^^^^^^^
+"""
+            )
             ("Expected type 'int32 -> ()' but is '() -> ()'.",
             """
             X = () -> ()
                 ^^^^^^^^
+"""
+            )
+            ("Expected type 'int32 -> ()' but is '() -> ?'.",
+            """
+    t.X <- () -> ()
+           ^^^^^^^^
 """
             )
             ("Expected type 'int32 -> ()' but is '() -> ()'.",
@@ -9342,20 +9355,7 @@ main(): () =
     """
     |> Oly
     |> withErrorHelperTextDiagnostics
-        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
         [
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
-                """
-    M((), Test)
-          ^^^^
-"""
-            )
-            ("Expected type '(()) -> ()' but is '() -> ()'.",
-                """
-    M((), Test)
-          ^^^^
-"""
-            )
             ("Expected type '(()) -> ()' but is '() -> ()'.",
                 """
     M((), Test)
@@ -9371,6 +9371,35 @@ let ``Partial application unit to unit should fail 2``() =
 #[intrinsic("print")]
 print(__oly_object): ()
 
+M<T>(z: T, f: T -> ()): () =
+    f(z)
+
+Test(): () = print("hello")
+
+GetFunction(): () -> () =
+    Test
+
+main(): () =
+    M((), GetFunction())
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type '(()) -> ()' but is '() -> ()'.",
+                """
+    M((), GetFunction())
+          ^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Partial application unit to unit should pass``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
 M<T>(f: () -> T): () =
     let result = f()
 
@@ -9380,16 +9409,7 @@ main(): () =
     M(Test)
     """
     |> Oly
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Expected type '() -> (())' but is '() -> ()'.",
-                """
-    M(Test)
-      ^^^^
-"""
-            )
-        ]
-    |> ignore
+    |> shouldCompile
 
 [<Fact>]
 let ``Inference solving to tuple for function input should result in a tuple of a tuple``() =
@@ -9409,21 +9429,8 @@ main(): () =
     """
     |> Oly
     |> withErrorHelperTextDiagnostics
-        // TODO: This has duplicate diagnostics, we should figure out how to only output one.
         [
             ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ?'.",
-                """
-    ForEach(xs, (x, y) -> ())
-                ^^^^^^^^^^^^
-"""
-            )
-            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ()'.",
-                """
-    ForEach(xs, (x, y) -> ())
-                ^^^^^^^^^^^^
-"""
-            )
-            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ()'.",
                 """
     ForEach(xs, (x, y) -> ())
                 ^^^^^^^^^^^^
@@ -9455,6 +9462,81 @@ M<T>(f: () -> T): () =
 
 main(): () =
     M(() -> print("hello"))
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Unit inference for return type of a function type should pass 3``() =
+    """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: () -> T): () =
+    let result = f()
+
+main(): () =
+    let f = () -> print("hello")
+    M(f)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Unit inference for return type of a function type should pass 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: int32 -> T): () =
+    let result = f(1)
+
+main(): () =
+    let f = x -> print("hello")
+    M(f)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Unit inference for return type of a function type should pass 5``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: int32 -> T): () =
+    let result = f(1)
+
+main(): () =
+    let mutable f = x -> print("hello")
+    M(f)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Unit inference for return type of a function type should pass 6``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(f: int32 -> T): () =
+    let result = f(1)
+
+GetFunction(): int32 -> () =
+    x -> print("hello")
+
+main(): () =
+    M(GetFunction())
     """
     |> Oly
     |> shouldCompile

@@ -123,6 +123,7 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
             CacheValue(fun ct ->
                 let compSigPass = compRef.contents.LazySignaturePhase.GetValue(ct)
                 let sigPasses = compSigPass
+                // TODO: Instead of doing 'ImArray.find', this should have simply been a dictionary lookup.
                 let pass4, diags = sigPasses |> ImArray.find (fun (x, _) -> OlyPath.Equals(x.SyntaxTree.Path, syntaxTree.Path))
                 pass4, diags
             )

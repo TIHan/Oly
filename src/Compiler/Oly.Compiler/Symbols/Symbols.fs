@@ -3813,6 +3813,11 @@ type TypeSymbol =
         | HigherVariable _ -> true
         | _ -> false
 
+    member this.IsTypeVariableZeroArity =
+        match stripTypeEquations this with
+        | Variable(tyPar) -> tyPar.Arity = 0
+        | _ -> false
+
     member this.IsAnyTypeVariableWithNotStructConstraint =
         match stripTypeEquations this with
         | Variable(tyPar)
@@ -3938,11 +3943,16 @@ type TypeSymbol =
     member this.HasTypeParameter =
         this.TryTypeParameter.IsSome
 
-    /// TODO: Rename to "IsAnyFunction".
-    member this.IsFunction_t =
+    member this.IsAnyFunction =
         match stripTypeEquations this with
-        | Function _ -> true
-        | NativeFunctionPtr _ -> true
+        | Function _
+        | NativeFunctionPtr _
+        | ForAll(_, TypeSymbol.Function _) -> true
+        | _ -> false
+
+    member this.IsFunctionNotPtr =
+        match stripTypeEquations this with
+        | Function _
         | ForAll(_, TypeSymbol.Function _) -> true
         | _ -> false
 
@@ -3993,7 +4003,7 @@ type TypeSymbol =
 
     member this.IsQuantifiedFunction =
         match stripTypeEquations this with
-        | ForAll(_, ty) -> ty.IsFunction_t
+        | ForAll(_, ty) -> ty.IsAnyFunction
         | _ -> false
 
     member this.IsTypeExtension =

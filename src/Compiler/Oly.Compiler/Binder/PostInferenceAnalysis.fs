@@ -1152,7 +1152,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let aenv = handleLambda acenv aenv lambdaFlags pars
 
         OlyAssert.True(lazyBodyExpr.HasExpression)
-        OlyAssert.True(lazyTy.Type.IsFunction_t)
+        OlyAssert.True(lazyTy.Type.IsAnyFunction)
 
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then

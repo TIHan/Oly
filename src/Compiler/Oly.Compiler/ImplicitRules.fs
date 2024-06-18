@@ -1,4 +1,4 @@
-﻿module internal rec Oly.Compiler.Internal.ImplicitRules
+﻿module internal Oly.Compiler.Internal.ImplicitRules
 
 open Oly.Core
 open Oly.Compiler.Internal.Symbols
@@ -137,6 +137,133 @@ let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =
     else
         expr
 
+let private tryMorphPartialCall (expr: E) =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags)
+        when flags.HasFlag(CallFlags.Partial) &&
+                receiverExprOpt.IsSome && 
+                argExprs.IsEmpty && 
+                value.IsInstance && 
+                value.IsFunction &&
+                not value.IsFunctionGroup ->
+
+        let isVirtualCall = flags.HasFlag(CallFlags.Virtual)
+
+        let func = value.AsFunction
+
+        // partial application / partial call
+        // example: Add(a.FunctionCall)
+        let pars =
+            func.LogicalParameters 
+            |> ROMem.mapAsImArray (fun p ->
+                createLocalParameterValue(ImArray.empty, p.Name, p.Type, false)
+            )
+        let argExprs =
+            pars
+            |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
+        E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+            LambdaFlags.None,
+            ImArray.empty,
+            pars,
+            LazyExpression.CreateNonLazy(None, 
+                fun _ ->
+                    E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, if isVirtualCall then CallFlags.Virtual else CallFlags.None)
+            )
+        )
+    | _ ->
+        expr
+
+let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol) (expr: E) =
+    let expr = tryMorphSimpleImplicit expectedTy expr
+    let exprTy = expr.Type
+    if expectedTy.IsFunctionNotPtr && exprTy.IsFunctionNotPtr then
+        match expectedTy.TryFunction, exprTy.TryFunction with
+        | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_t ->
+            if (expectedReturnTy.IsRealUnit || (expectedReturnTy.IsTypeVariableZeroArity && not hasStrictInference)) && returnTy.IsUnit_t then
+                match expr with
+                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
+                    E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
+                        LazyExpression.CreateNonLazy(
+                            lazyLambdaBodyExpr.TrySyntax,
+                            fun _ ->
+                                E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                    lazyLambdaBodyExpr.Expression,
+                                    E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                    BoundSequentialSemantic.NormalSequential
+                                )
+                        )
+                    )
+                | _ ->
+                    // Create a lambda wrapper
+                    createLocalDeclarationExpression
+                        expr
+                        (fun syntaxInfo local -> 
+                            let pars =
+                                local.Type.FunctionArgumentTypes
+                                |> ImArray.map (fun parTy ->
+                                    createLocalParameterValue(ImArray.empty, System.String.Empty, parTy, false)
+                                )
+                            let argExprs =
+                                pars
+                                |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
+                            E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                LambdaFlags.None,
+                                ImArray.empty,
+                                pars,
+                                LazyExpression.CreateNonLazy(None, 
+                                    fun _ ->
+                                        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                            E.Call(syntaxInfo, None, ImArray.empty, argExprs, local, CallFlags.None),
+                                            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                            BoundSequentialSemantic.NormalSequential
+                                        )
+                                )
+                            )
+                        )
+                    |> fst
+            else
+                expr
+        | _ ->
+            expr
+    else
+        expr
+
+let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray) (argExprs: E imarray) =
+    if (not parTys.IsEmpty) && parTys.Length = argExprs.Length then
+
+        // We lazily create a new argument expression array when it is needed.
+        let mutable newArgExprs = Unchecked.defaultof<E imarrayb>
+
+        let setNewArgExpr i newArgExpr =
+            if newArgExprs = Unchecked.defaultof<_> then
+                newArgExprs <- ImArray.builderWithSize argExprs.Length
+                newArgExprs.AddRange(argExprs)
+
+            newArgExprs[i] <- newArgExpr  
+
+        for i = 0 to argExprs.Length - 1 do
+            let argExpr = argExprs[i]
+            let parTy = parTys[i]
+            if parTy.IsScopedFunction then                          
+                match argExpr with
+                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
+                    let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
+                    setNewArgExpr i newArgExpr                           
+                | _ ->
+                    ()
+            else
+                let newArgExpr = tryMorphArgumentImplicit hasStrictInference parTy argExpr
+                if newArgExpr <> argExpr then
+                    setNewArgExpr i newArgExpr
+
+        if newArgExprs = Unchecked.defaultof<_> then
+            ValueNone
+        else
+            newArgExprs.MoveToImmutable()
+            |> ValueSome
+    else
+        ValueNone
+
 let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (argTys: TypeSymbol imarray) =
     // Implicits for Enums
     if hasAllEnumTypes argTys then
@@ -162,45 +289,9 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
     else
         funcs, argTys
 
-let private tryImplicitArguments (parTys: TypeSymbol imarray) (argExprs: E imarray) =
-    if (not parTys.IsEmpty) && parTys.Length = argExprs.Length then
-
-        // We lazily create a new argument expression array when it is needed.
-        let mutable newArgExprs = Unchecked.defaultof<E imarrayb>
-
-        let setNewArgExpr i newArgExpr =
-            if newArgExprs = Unchecked.defaultof<_> then
-                newArgExprs <- ImArray.builderWithSize argExprs.Length
-                newArgExprs.AddRange(argExprs)
-
-            newArgExprs[i] <- newArgExpr  
-
-        for i = 0 to argExprs.Length - 1 do
-            let argExpr = argExprs[i]
-            let parTy = parTys[i]
-            if parTy.IsScopedFunction then                          
-                match argExpr with
-                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
-                    let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
-                    setNewArgExpr i newArgExpr                           
-                | _ ->
-                    ()
-            else
-                let newArgExpr = tryMorphSimpleImplicit parTy argExpr
-                if newArgExpr <> argExpr then
-                    setNewArgExpr i newArgExpr
-
-        if newArgExprs = Unchecked.defaultof<_> then
-            ValueNone
-        else
-            newArgExprs.MoveToImmutable()
-            |> ValueSome
-    else
-        ValueNone
-
 let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) =
-    OlyAssert.True(funcTy.IsFunction_t)
-    match tryImplicitArguments funcTy.FunctionArgumentTypes argExprs with
+    OlyAssert.True(funcTy.IsAnyFunction)
+    match tryImplicitArguments false funcTy.FunctionArgumentTypes argExprs with
     | ValueSome(newArgExprs) -> newArgExprs
     | _ -> argExprs
 
@@ -223,7 +314,7 @@ let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol
         if func.IsFunctionGroup then
             func, argExprs
         else
-            match tryImplicitArguments func.LogicalType.FunctionArgumentTypes argExprs with
+            match tryImplicitArguments func.HasStrictInference func.LogicalType.FunctionArgumentTypes argExprs with
             | ValueSome(newArgExprs) -> func, newArgExprs
             | _ -> func, argExprs
 
@@ -231,9 +322,9 @@ let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) 
             when not value.IsFunctionGroup && 
-                 value.Type.IsFunction_t && 
+                 value.Type.IsAnyFunction && 
                  value.LogicalType.FunctionParameterCount = argExprs.Length ->
-        match tryImplicitArguments value.LogicalType.FunctionArgumentTypes argExprs with
+        match tryImplicitArguments value.HasStrictInference value.LogicalType.FunctionArgumentTypes argExprs with
         | ValueSome(newArgExprs) ->
             E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, flags)
         | _ ->
@@ -242,6 +333,7 @@ let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
         expr
 
 let ImplicitReturn (expectedTyOpt: TypeSymbol option) (expr: E) =
+    let expr = tryMorphPartialCall expr
     match expectedTyOpt with
     | Some(expectedTy) ->
         tryMorphSimpleImplicit expectedTy expr

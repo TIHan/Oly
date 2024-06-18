@@ -673,7 +673,6 @@ alias int32
         [
             "Expected type 'X' but is 'T'."
             "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
-            "Expected type 'X -> T' but is 'X -> X'."
         ]
     |> ignore
 

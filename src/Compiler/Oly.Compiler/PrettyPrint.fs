@@ -242,7 +242,7 @@ and private printEntityAux (benv: BoundEnvironment) isDefinition (ent: EntitySym
             sprintf "%s%s"
                 (
                     let ty = tyArgs[0]
-                    if ty.IsFunction_t then
+                    if ty.IsAnyFunction then
                         "(" + printTypeAux benv isDefinition true ty + ")"
                     else
                         printTypeAux benv isDefinition true ty

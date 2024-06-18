@@ -257,10 +257,10 @@ let substitute
                             // Special!
                             if value.IsLocal && newValue.IsInstance then
                                 if newValue.IsFunction then
-                                    OlyAssert.True(value.Type.IsFunction_t)
+                                    OlyAssert.True(value.Type.IsAnyFunction)
                                     OlyAssert.False(newValue.IsConstructor)
                                     OlyAssert.True(newValue.Enclosing.IsClosure)
-                                    OlyAssert.True(value.Type.IsFunction_t)
+                                    OlyAssert.True(value.Type.IsAnyFunction)
                                     handleReceiverExpr newValue
                                 else
                                     OlyAssert.True(newValue.IsField)

@@ -263,8 +263,13 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
     if solveSubsumption() then 
         true
 
-    // Type parameters from types cannot solve for type extensions.
+    // Type parameters from types do not support witnesses.
+    // This isn't so much a limitation, but a design decision; augmenting a type with witnesses have usability issues for the end-user that isn't worth it.
+    // However, the Oly Runtime has limited support for it but is impossible to describe it in OlyIL.
+    //     The limited support is for implementation details when a type parameter is captured.
+    // Current design is a work-in-progress.
     elif tyPar.Kind = TypeParameterKind.Type then
+        // TODO: Instead of returning a 'bool', we should return a structure that represents why a constraint failed.
         false
     else
 

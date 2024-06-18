@@ -573,7 +573,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         if value.IsFunction then
             let func, argExprs = ImplicitArgumentsForFunction env.benv value.AsFunction argExprs
             (func :> IValueSymbol, argExprs)
-        elif value.Type.IsFunction_t then
+        elif value.Type.IsAnyFunction then
             let argExprs = ImplicitArgumentsForFunctionType value.Type argExprs
             (value, argExprs)
         else           

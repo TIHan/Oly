@@ -1012,7 +1012,7 @@ let checkParameter (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (func: I
     |> ImArray.iter (fun attr ->
         match attr with
         | AttributeSymbol.Inline(inlineArg) ->
-            if par.Type.IsFunction_t && not par.Type.IsNativeFunctionPtr_t then
+            if par.Type.IsAnyFunction && not par.Type.IsNativeFunctionPtr_t then
                 match inlineArg with
                 | InlineArgumentSymbol.None ->
                     if not func.IsInline then

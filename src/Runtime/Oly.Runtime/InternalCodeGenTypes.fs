@@ -922,11 +922,6 @@ type RuntimeType =
         | Function(kind=OlyIRFunctionKind.Scoped) -> true
         | _ -> false
 
-    member this.IsFunction_t =
-        match this.StripAll() with
-        | Function _ -> true
-        | _ -> false
-
     member this.IsInterface =
         match this with
         | Entity(ent) -> ent.IsInterface

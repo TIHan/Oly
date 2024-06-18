@@ -3,7 +3,6 @@ module internal rec Oly.Compiler.Internal.Binder.Binder
 
 open Oly.Compiler
 open Oly.Compiler.Syntax
-open Oly.Compiler.Syntax.Internal
 open System.Threading
 open Oly.Compiler.Internal.Binder
 open System.Collections.Generic
@@ -16,7 +15,6 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
-open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Core
 
@@ -359,12 +357,9 @@ type BinderPass3(state: PassState) =
                 diags = diags
             }
         ), diags
-
-  //  let cachedValue = CacheValue(compute)
     
     member _.Bind(ct) = 
         compute ct
-   //     cachedValue.GetValue(ct)
 
 [<Sealed>]
 type BinderPass2(state: PassState) =
@@ -394,12 +389,9 @@ type BinderPass2(state: PassState) =
                 diags = state.diags.AddRange(diagLogger.GetDiagnostics())
             }
         )
-
-  //  let cachedValue = CacheValue(compute)
     
     member _.Bind(ct) =
         compute ct
-      //  cachedValue.GetValue(ct)
 
 [<Sealed>]
 type BinderPass1(state: PassState) =
@@ -439,13 +431,10 @@ type BinderPass1(state: PassState) =
             }
         )
 
-    //let cachedValue = CacheValueWithArg<CompilerImports, _>(compute)
-
     member _.Entity = state.entBuilder.Entity
     
     member _.Bind(imports, ct) = 
         compute imports ct
-        //cachedValue.GetValue(imports, ct)
 
 [<Sealed>]
 type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>, syntaxTree: OlySyntaxTree) =
@@ -479,13 +468,10 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
             }
         )
 
-    //let cachedValue = CacheValue(compute)
-
     member _.PrePassEnvironment = prePassEnv
 
     member this.Bind(ct) =
         compute ct
-    //    cachedValue.GetValue(ct)
 
 //*************************************************************************************************
 

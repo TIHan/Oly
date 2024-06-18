@@ -1434,7 +1434,7 @@ let private bindNameAsExpressionWithoutChecking (cenv: cenv) (env: BinderEnviron
         // If the expected type is a function, our resInfo should include the arg types.
         match expectedTyOpt with
         | Some(ty) ->
-            if ty.IsFunction_t then
+            if ty.IsAnyFunction then
                 { resInfo with resArgs = ResolutionArguments.ByFunctionType(ty) }
             else
                 resInfo
@@ -1698,7 +1698,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.Lambda(syntaxLambdaKind, syntaxPars, _, syntaxBodyExpr) ->
         let env = setIsInLocalLambda env
-        bindLambdaExpression cenv env syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr
+        let env1, expr = bindLambdaExpression cenv env syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr
+        env1, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.UpdateRecord(syntaxBody, _, syntaxConstructTy) ->
         match syntaxConstructTy with

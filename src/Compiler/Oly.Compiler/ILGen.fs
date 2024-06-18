@@ -344,7 +344,7 @@ and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol)
         |> ImArray.map (emitILType cenv env)
 
     let ilReturnTy =
-        if returnTy.IsFunction_t then
+        if returnTy.IsAnyFunction then
             emitILType cenv env returnTy
         else
             GenReturnType cenv env returnTy
@@ -1706,7 +1706,7 @@ and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs:
                 OlyILExpression.Value(OlyILDebugSourceTextRange.Empty, OlyILValue.Unit)
             )
         else
-            if expectedArgTy.IsFunction_t && argExprTy.IsClosure then
+            if expectedArgTy.IsAnyFunction && argExprTy.IsClosure then
                 failwith "Should be handled earlier in lowering."
             else
                 ilArgExpr                

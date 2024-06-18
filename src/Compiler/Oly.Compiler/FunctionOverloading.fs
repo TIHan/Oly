@@ -54,7 +54,7 @@ let private canScore (func: IFunctionSymbol) =
 
     if argTys.IsEmpty then
         None
-    elif argTys.Length = 1 && argTys[0].IsFunction_t then
+    elif argTys.Length = 1 && argTys[0].IsAnyFunction then
         Some(argTys)
     else
         let rec exists (tys: TypeSymbol imarray) =
@@ -223,7 +223,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy ->
                     match argTy.TryGetFunctionWithParameters() with
-                    | ValueSome(argTys, _) when par.Type.IsFunction_t -> 
+                    | ValueSome(argTys, _) when par.Type.IsAnyFunction -> 
                         match par.Type.TryGetFunctionWithParameters() with
                         | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
                             // Variadic variables will always return true.

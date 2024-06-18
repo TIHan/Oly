@@ -380,6 +380,7 @@ let private createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env
     let tyArgs = bindTypeArguments cenv env func.HasStrictInference 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
     createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs func
 
+/// TODO: There is duplication when it comes to handling overloading for non-partial and partial calls. We should figure out a way to combine them.
 let private tryOverloadPartialCallExpression
         (cenv: cenv) 
         (env: BinderEnvironment) 
@@ -390,7 +391,7 @@ let private tryOverloadPartialCallExpression
 
     let resArgs =
         match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsFunction_t ->
+        | Some(expectedTy) when expectedTy.IsAnyFunction ->
             ResolutionArguments.ByFunctionType(expectedTy)
         | _ ->
             ResolutionArguments.Any
@@ -631,43 +632,6 @@ let private lateCheckCalleeExpression cenv env expr =
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
-
-    let expr =
-        match expr with
-        | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags)
-            when flags.HasFlag(CallFlags.Partial) &&
-                 receiverExprOpt.IsSome && 
-                 argExprs.IsEmpty && 
-                 value.IsInstance && 
-                 value.IsFunction &&
-                 not value.IsFunctionGroup ->
-
-            let isVirtualCall = flags.HasFlag(CallFlags.Virtual)
-
-            let func = value.AsFunction
-
-            // partial application / partial call
-            // example: Add(a.FunctionCall)
-            let pars =
-                func.LogicalParameters 
-                |> ROMem.mapAsImArray (fun p ->
-                    createLocalParameterValue(ImArray.empty, p.Name, p.Type, false)
-                )
-            let argExprs =
-                pars
-                |> ImArray.map (fun x -> E.CreateValue(cenv.syntaxTree, x))
-            E.CreateLambda(BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                LambdaFlags.None,
-                ImArray.empty,
-                pars,
-                LazyExpression.CreateNonLazy(None, 
-                    fun _ ->
-                        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, if isVirtualCall then CallFlags.Virtual else CallFlags.None)
-                )
-            )
-        | _ ->
-            expr
-
     let expr = autoDereferenceExpression expr
     let expr = Oly.Compiler.Internal.ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
@@ -766,32 +730,6 @@ let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index 
                     argExpr
             | _ ->
                 argExpr
-
-        let argExpr =
-            match parTy.TryFunction, argExpr.Type.TryFunction with
-            | ValueSome(_, outputTy), ValueSome(_, argTy) when caller.TryWellKnownFunction.IsNone ->
-                if outputTy.IsRealUnit && argTy.IsUnit_t && not argTy.IsRealUnit then
-                    match argExpr with
-                    | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
-                        E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
-                            LazyExpression.CreateNonLazy(
-                                lazyLambdaBodyExpr.TrySyntax,
-                                fun _ ->
-                                    E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                                        lazyLambdaBodyExpr.Expression,
-                                        E.Unit(BoundSyntaxInfo.Generated(cenv.syntaxTree)),
-                                        BoundSequentialSemantic.NormalSequential
-                                    )
-                            )
-                        )
-                    | _ ->
-                        OlyAssert.Fail("Expected lambda expression.")
-                else
-                    argExpr
-            | _ ->
-                argExpr
-
-        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) parTy argExpr
 
         argExpr
 
