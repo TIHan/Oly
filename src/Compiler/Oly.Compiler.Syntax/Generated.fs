@@ -781,17 +781,24 @@ module OlySyntaxConstraint =
         | _ ->
             Option.None
 
-    let (|Error|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxConstraint.Error _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
     let (|ConstantType|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken * OlySyntaxType ) option =
         match node.Internal with
         | SyntaxConstraint.ConstantType _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+        | _ ->
+            Option.None
+
+    let (|TraitType|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken * OlySyntaxType ) option =
+        match node.Internal with
+        | SyntaxConstraint.TraitType _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+        | _ ->
+            Option.None
+
+    let (|Error|_|) (node: OlySyntaxConstraint) : ( OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxConstraint.Error _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
         | _ ->
             Option.None
 

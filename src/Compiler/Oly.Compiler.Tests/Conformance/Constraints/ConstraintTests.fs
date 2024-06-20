@@ -253,7 +253,7 @@ extension MaybeMonadExtension<T> =
     static overrides Return<A>(a: A) : Maybe<A> =
       Maybe<_>(a)
 
-(>>=)<Test<_>, X, Y>(ma: Test<X>, f: X -> Test<Y>) : Test<Y> where Test: Monad<Test>  =
+(>>=)<Test<_>, X, Y>(ma: Test<X>, f: X -> Test<Y>) : Test<Y> where Test: trait Monad<Test>  =
    Test.Bind<_, _>(ma, f)
 
 transform (x: __oly_int32) : Maybe<__oly_float64> = Maybe<_>(228888.45)
@@ -462,7 +462,7 @@ interface Add<T1, T2, T3> =
 interface Add<T> =
    inherits Add<T, T, T>
 
-(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> = T1.add(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : trait Add<T1, T2, T3> = T1.add(x, y)
 
 extension Int32AddExtension =
     inherits __oly_int32
@@ -647,7 +647,7 @@ open extension Int32AddExtension
 main() : () =
     let x = Invoke<int32>(1)
 
-Invoke<T>(x: T) : () where T : Add<T, T, T> =
+Invoke<T>(x: T) : () where T : trait Add<T, T, T> =
     let call2<A, B>(a: A, b: B) = x
     let call<A, X>(a: A) : (X -> T) where X : Add<X, T, T> = 
         (x: X) -> x + call2(a, x)
@@ -659,7 +659,7 @@ extension Int32AddExtension =
     static overrides (+)(x: int32, y: int32) : int32 =
         __oly_add(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T, T, T> = T.(+)(x, y)
+(+)<T>(x: T, y: T) : T where T : trait Add<T, T, T> = T.(+)(x, y)
 
 interface Add<T1, T2, T3> =
 
@@ -672,7 +672,7 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
-            "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
+            "Type instantiation 'X' is missing the constraint 'trait Add<X, X, X>'."
         ]
     |> ignore
 
@@ -685,7 +685,7 @@ open extension Int32AddExtension
 main() : () =
     let x = Invoke<int32>(1)
 
-Invoke<T>(x: T) : () where T : Add<T, T, T> =
+Invoke<T>(x: T) : () where T : trait Add<T, T, T> =
     let call2<A, B>(a: A, b: B) = x
     let call<A, X>(a: A) : (X -> T) where X : Add<X, T, T> = 
         let f = (x: X) -> x + call2(a, x)
@@ -698,7 +698,7 @@ extension Int32AddExtension =
     static overrides (+)(x: int32, y: int32) : int32 =
         __oly_add(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T, T, T> = T.(+)(x, y)
+(+)<T>(x: T, y: T) : T where T : trait Add<T, T, T> = T.(+)(x, y)
 
 interface Add<T1, T2, T3> =
 
@@ -712,7 +712,7 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
-            "Type instantiation 'X' is missing the constraint 'Add<X, X, X>'."
+            "Type instantiation 'X' is missing the constraint 'trait Add<X, X, X>'."
             "Expected type 'X -> T' but is 'X -> X'."
             "Expected type 'X -> T' but is 'X -> X'."
         ]
@@ -898,7 +898,7 @@ extension TestExtension<T> =
 
     static overrides M(): () = ()
 
-test<T<_>>(): () where T: ITest; where T<_>: Test =
+test<T<_>>(): () where T: trait ITest; where T<_>: Test =
     T.M()
 
 main(): () =
@@ -925,7 +925,7 @@ extension TestExtension<T> =
 
     static overrides M(): () = ()
 
-test<T<_>>(): () where T: ITest; where T<_>: Test =
+test<T<_>>(): () where T: trait ITest; where T<_>: Test =
     T<()>.M()
 
 main(): () =
@@ -952,7 +952,7 @@ extension TestExtension<T> =
 
     static overrides M(): () = ()
 
-test<T<_>>(): () where T: ITest =
+test<T<_>>(): () where T: trait ITest =
     T<()>.M()
 
 main(): () =
@@ -979,7 +979,7 @@ extension TestExtension<T> =
 
     static overrides M(): () = ()
 
-test<T<_>>(): () where T: ITest =
+test<T<_>>(): () where T: trait ITest =
     T<()>.M()
 
 main(): () =
@@ -1004,7 +1004,7 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-test<T<_>>(): () where T: ITest =
+test<T<_>>(): () where T: trait ITest =
     T<()>.M()
 
 main(): () =
@@ -1029,7 +1029,7 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-test<T<_>>(): () where T: ITest =
+test<T<_>>(): () where T: trait ITest =
     T.M()
 
 main(): () =
@@ -1319,11 +1319,11 @@ print(__oly_object): ()
 
 interface IComponent
 
-class EntityQuery<T> where T: unmanaged, IComponent
+class EntityQuery<T> where T: unmanaged, trait IComponent
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, trait IComponent =
         let query = EntityQuery<T>()
         query
 
@@ -1578,6 +1578,40 @@ main(): () =
                 """
     M(A())
     ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Non-trait to trait constraint should pass``() =
+    """
+interface IA
+
+M<T>(): () where T: trait IA = ()
+
+M2<T>(): () where T: IA =
+    M<T>()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Trait to non-trait constraint should fail``() =
+    """
+interface IA
+
+M<T>(): () where T: IA = ()
+
+M2<T>(): () where T: trait IA =
+    M<T>()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type instantiation 'T' is missing the constraint 'IA'.",
+                """
+    M<T>()
+      ^
 """
             )
         ]

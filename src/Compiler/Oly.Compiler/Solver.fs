@@ -26,6 +26,11 @@ type SolverEnvironment =
             pass = pass
         }
 
+[<RequireQualifiedAccess>]
+type WitnessSolver =
+    | Subtype
+    | Trait
+
 let rec solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
     let res = UnifyTypes Flexible expectedTy ty
     if not res then
@@ -181,12 +186,12 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
                     env.diagnostics.Error($"'{printValueName abstractFunc}' has ambiguous functions.", 10, syntaxNode)                     
             )
 
-let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) : bool =
+let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) : bool =
     let possibleConstrs =
         tyPar.Constraints
         |> Seq.choose (fun constr ->
-            match constr.TryGetSubtypeOf() with
-            | ValueSome constrTy ->
+            match constr.TryGetAnySubtypeOf() with
+            | ValueSome constrTy when (solver = WitnessSolver.Trait) || not constr.IsTrait ->
                 if actualTarget.IsShape then
                     let constrTy =
                         if constrTy.IsTypeConstructor && constrTy.Arity = tyParTyArgs.Length then
@@ -228,7 +233,7 @@ let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (actualTarget:
         env.diagnostics.Error(sprintf "Unable to solve '%s' due to the possible implementations:\n    %s\nUse explicit type annotations." (printType env.benv (tyPar.AsType)) names, 10, syntaxNode)
         true // Return true for recovery
 
-let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
+let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 
     let ty =
         // Built-in types themselves are not entities, but an entity can be equivelant to a built-in type.
@@ -270,6 +275,10 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
     // Current design is a work-in-progress.
     elif tyPar.Kind = TypeParameterKind.Type then
         // TODO: Instead of returning a 'bool', we should return a structure that represents why a constraint failed.
+        false
+    else
+
+    if solver <> WitnessSolver.Trait then
         false
     else
 
@@ -330,17 +339,17 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgume
             env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             true // Return true for recovery
 
-and solveWitnesses env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) =
+and solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) =
     OlyAssert.True(tyArg.IsSolved)
 
     let ty = stripTypeEquations tyArg
     match ty with
     | TypeSymbol.HigherVariable(tyPar2, tyParTyArgs) ->
-        solveWitnessesByTypeParameter env syntaxNode target tyPar2 tyParTyArgs witnessArgs
+        solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 tyParTyArgs witnessArgs
     | TypeSymbol.Variable(tyPar2) ->
-        solveWitnessesByTypeParameter env syntaxNode target tyPar2 ImArray.empty witnessArgs
+        solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 ImArray.empty witnessArgs
     | _ ->
-        solveWitnessesByType env syntaxNode tyArgs witnessArgs target tyPar ty
+        solveWitnessesByType env syntaxNode solver tyArgs witnessArgs target tyPar ty
 
 and solveConstraintNull env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     tyArg.IsNullable
@@ -412,10 +421,12 @@ and solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol 
             solveConstraintBlittable env syntaxNode tyArg
         | ConstraintSymbol.Scoped ->
             solveConstraintScoped env syntaxNode tyArg
+        | ConstraintSymbol.SubtypeOf(target) ->
+            solveWitnesses env syntaxNode WitnessSolver.Subtype tyArgs witnessArgs target.Value tyPar tyArg
         | ConstraintSymbol.ConstantType(constTy) ->
             solveConstraintConstantType env syntaxNode constTy.Value tyArg
-        | ConstraintSymbol.SubtypeOf(target) ->
-            solveWitnesses env syntaxNode tyArgs witnessArgs target.Value tyPar tyArg
+        | ConstraintSymbol.TraitType(target) ->
+            solveWitnesses env syntaxNode WitnessSolver.Trait tyArgs witnessArgs target.Value tyPar tyArg
  
 and solveConstraints
         (env: SolverEnvironment) 
@@ -458,7 +469,7 @@ and solveConstraints
                 let subTys =
                     tyPar.Constraints
                     |> ImArray.choose (fun constr ->
-                        match constr.TryGetSubtypeOf() with
+                        match constr.TryGetAnySubtypeOf() with
                         | ValueSome(ty) -> Some ty
                         | _ -> None
                     )

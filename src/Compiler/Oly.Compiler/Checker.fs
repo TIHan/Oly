@@ -74,6 +74,9 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                         | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
                             ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                        | ConstraintSymbol.TraitType(oldConstrTy) ->
+                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                            ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
                     )
 
                 newTyPar.SetConstraints(newConstrs)
@@ -291,7 +294,7 @@ let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: Ol
     | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
         tyPar.Constraints
         |> ImArray.iter (fun constr ->
-            match constr.TryGetSubtypeOf() with
+            match constr.TryGetAnySubtypeOf() with
             // If the constraint type has any type parameter constructors, then we skip this check
             // as it has already failed elsewhere. We do not support further "higher-rank" types.
             | ValueSome(constrTy) when constrTy.TypeParameters |> ImArray.forall (fun x -> x.HasArity |> not) ->
@@ -324,7 +327,7 @@ let rec checkConstraintClauses (env: SolverEnvironment) (syntaxConstrClauses: Ol
         | ValueSome syntaxConstrs ->
             (syntaxConstrs, constrs)
             ||> ImArray.tryIter2 (fun syntaxConstr constr ->
-                match constr.TryGetSubtypeOf() with
+                match constr.TryGetAnySubtypeOf() with
                 | ValueSome constrTy ->
                     match syntaxConstr with
                     | OlySyntaxConstraint.Type(syntaxTy) ->       

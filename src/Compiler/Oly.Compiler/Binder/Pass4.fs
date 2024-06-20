@@ -731,10 +731,10 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
         | E.GetProperty(syntaxInfo, _, _, _) ->
             let expr = checkExpression cenv env None expr
             let bridge = createLocalBridgeValue expr.Type
-            let callExpr = E.Call(syntaxInfo, None, ImArray.empty, argExprs, bridge, CallFlags.None)
+            let callExpr, bridge = bindValueAsCallExpression cenv env syntaxInfo None (ValueSome argExprs) ImArray.empty bridge
             BoundExpression.Let(
                 syntaxInfo,
-                BindingLocal(bridge),
+                BindingLocal(bridge.AsLocal),
                 expr,
                 callExpr
             )

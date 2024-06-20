@@ -1858,6 +1858,14 @@ let tryParseConstraint state =
         SyntaxConstraint.ConstantType(constantToken, SyntaxType.Error(dummyToken()), ep s state) |> Some
     | _ ->
 
+    match bt2 TRAIT tryParseType state with
+    | Some(traitToken), Some(ty) ->
+        SyntaxConstraint.TraitType(traitToken, ty, ep s state) |> Some
+    | Some(traitToken), _ ->
+        errorDo(ExpectedSyntaxAfterToken("type", traitToken.RawToken), traitToken) state
+        SyntaxConstraint.TraitType(traitToken, SyntaxType.Error(dummyToken()), ep s state) |> Some
+    | _ ->
+
     match bt tryParseType state with
     | Some(ty) ->
         SyntaxConstraint.Type(ty) |> Some

@@ -493,7 +493,7 @@ open extension Int32AddExtension
 test2() : () =
     let x = ~^~test<_>(1)
 
-test<T>(x: T) : T where T : Add<T> = T.add(x, x)
+test<T>(x: T) : T where T : trait Add<T> = T.add(x, x)
 
 extension Int32AddExtension =
     inherits __oly_int32
@@ -508,7 +508,7 @@ interface Add<T1, T2, T3> =
 
    static abstract add(x: T1, y: T2) : T3
         """
-    src |> hasSymbolSignatureTextByCursor "static test<T>(x: T): T where T: Add<T>"
+    src |> hasSymbolSignatureTextByCursor "static test<T>(x: T): T where T: trait Add<T>"
 
 [<Fact>]
 let ``Order does not matter 3``() =
@@ -519,7 +519,7 @@ open extension Int32AddExtension
 test2(): () =
     let x = ~^~test<_>(1)
 
-test<T>(x: T): T where T: Add<T, T, T> = T.add(x, x)
+test<T>(x: T): T where T: trait Add<T, T, T> = T.add(x, x)
 
 extension Int32AddExtension =
     inherits __oly_int32
@@ -534,7 +534,7 @@ interface Add<T1, T2, T3> =
 
    static abstract add(x: T1, y: T2): T3
         """
-    src |> hasSymbolSignatureTextByCursor "static test<T>(x: T): T where T: Add<T, T, T>"
+    src |> hasSymbolSignatureTextByCursor "static test<T>(x: T): T where T: trait Add<T, T, T>"
 
 [<Fact>]
 let ``Order does not matter - but should fail due to missing interface``() =
@@ -770,6 +770,56 @@ interface IB =
                 """
     implements IA
     ^^^^^^^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Interface implementation not valid as the constraints are not the same - testing trait constraints``() =
+    """
+interface ISee
+
+interface IA =
+
+    M<T>(): () where T: trait ISee
+
+class A =
+    implements IA
+
+    M<T>(): () where T: ISee = ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+                """
+    M<T>(): () where T: ISee = ()
+    ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Interface implementation not valid as the constraints are not the same - testing trait constraints 2``() =
+    """
+interface ISee
+
+interface IA =
+
+    M<T>(): () where T: ISee
+
+class A =
+    implements IA
+
+    M<T>(): () where T: trait ISee = ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'trait ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+                """
+    M<T>(): () where T: trait ISee = ()
+    ^
 """
             )
         ]

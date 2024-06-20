@@ -129,7 +129,7 @@ let private checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol)
 let private checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.iter (fun x ->
-        match x.TryGetSubtypeOf() with
+        match x.TryGetAnySubtypeOf() with
         | ValueSome constrTy ->
             checkUsageTypeExport cenv syntaxNode name constrTy
         | _ ->

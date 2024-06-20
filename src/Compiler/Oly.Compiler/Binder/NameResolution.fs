@@ -250,7 +250,8 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                     let ctors =
                         tyPar.Constraints
                         |> ImArray.map (function
-                            | ConstraintSymbol.SubtypeOf(lazyTy) ->
+                            | ConstraintSymbol.SubtypeOf(lazyTy)
+                            | ConstraintSymbol.TraitType(lazyTy) ->
                                 let ty = lazyTy.Value
                                 if ty.IsShape then
                                     ty.Functions
@@ -1845,7 +1846,13 @@ let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPar
 
 let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit -> unit>) (tyPar: TypeParameterSymbol) (resTyArity: ResolutionTypeArity) syntaxConstr : ConstraintSymbol option =
     match syntaxConstr with
-    | OlySyntaxConstraint.Type(syntaxConstrTy) ->
+    | OlySyntaxConstraint.Type(syntaxConstrTy)
+    | OlySyntaxConstraint.TraitType(_, syntaxConstrTy) ->
+
+        let isTraitConstr =
+            match syntaxConstr with
+            | OlySyntaxConstraint.TraitType _ -> true
+            | _ -> false
 
         let resTyArity2 =
             if resTyArity.IsAny_t then
@@ -1931,8 +1938,14 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
             cenv.diagnostics.Error(sprintf "Cannot add additional constraints to the captured type parameter '%s'." tyPar.DisplayName, 10, syntaxConstr)
             None
         else
-            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
-            |> Some
+            if isTraitConstr then
+                if not constrTy.IsError_t && not constrTy.IsInterface && not constrTy.IsShape then
+                    cenv.diagnostics.Error("Interfaces and shapes are only allowed for trait constraints.", 10, syntaxConstrTy)
+                ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(constrTy))
+                |> Some
+            else
+                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
+                |> Some
 
     | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
         let resTyArity2 =

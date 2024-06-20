@@ -132,13 +132,17 @@
     <Case name="Type">
       <Field name="ty">SyntaxType</Field>
     </Case>
-    <Case name="Error">
-      <Field name="token">SyntaxToken</Field>
-    </Case>
 	<Case name="ConstantType">
       <Field name="constantToken">SyntaxToken</Field>
 	  <Field name="ty">SyntaxType</Field>
 	</Case>
+	<Case name="TraitType">
+      <Field name="traitToken">SyntaxToken</Field>
+	  <Field name="ty">SyntaxType</Field>
+	</Case>
+    <Case name="Error">
+      <Field name="token">SyntaxToken</Field>
+    </Case>
   </Node>
 
   <Node name="SyntaxConstraintClause">

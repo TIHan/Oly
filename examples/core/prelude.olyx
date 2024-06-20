@@ -952,16 +952,16 @@ module DotNet =
 (`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
-(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
-(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
-(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
-(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
-(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
-(-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
-(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
-(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
+(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
+(-)<T1, T2>(x: T1): T2 where T1: trait { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
 
 #[intrinsic("constant")]
 #[import("intrinsic-CLR", "", "typeof")]
@@ -971,7 +971,7 @@ typeof<require T>: System.Type
 sizeof<require T>: int32 =
     System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
 
-printLine<T>(mutable value: T): () where T: { mutable ToString(): string } =
+printLine<T>(mutable value: T): () where T: trait { mutable ToString(): string } =
     print(value.ToString() + "\n")
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)

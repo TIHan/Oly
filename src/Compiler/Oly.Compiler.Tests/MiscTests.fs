@@ -56,7 +56,7 @@ interface Add<T> =
 
     static abstract add(value1: T, value2: T) : T
 
-(+)<T>(value1: T, value2: T) : T where T : Add<T> =
+(+)<T>(value1: T, value2: T) : T where T : trait Add<T> =
     T.add(value1, value2)
 
 extension Int32AddExtension =
@@ -123,7 +123,7 @@ interface Add<T> =
 
     static abstract add(value1: T, value2: T) : (T)
 
-(+)<T>(value1: T, value2: T) : (T) where T : Add<T> =
+(+)<T>(value1: T, value2: T) : (T) where T : trait Add<T> =
     T.add(value1, value2)
 
 extension Int32AddExtension =
@@ -253,7 +253,7 @@ interface Add<T> =
 
    static abstract add(value1: T, value2: T): T
 
-(+)<T>(value1: T, value2: T): T where T: Add<T> =
+(+)<T>(value1: T, value2: T): T where T: trait Add<T> =
    T.add(value1, value2)
 
 extension Int32AddInt32Extension =
@@ -270,7 +270,7 @@ extension Int32AddFloat64Extension =
     static overrides add(x: __oly_float64, value2: __oly_float64): __oly_float64 =
       2.0
 
-f<T>(x: T, y: T): T where T: Add<T> = 
+f<T>(x: T, y: T): T where T: trait Add<T> = 
    class X<U> =
        public field x: T
        field y: U
@@ -279,7 +279,7 @@ f<T>(x: T, y: T): T where T: Add<T> =
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
 
-test<T>(x: T, y: T): T where T: Add<T> =
+test<T>(x: T, y: T): T where T: trait Add<T> =
    T.add(x, y)
 
 main (): () =
@@ -325,7 +325,7 @@ interface Add<T> =
 
    static abstract add(x: T, y: T): T
 
-(+)<T>(x: T, y: T): T where T: Add<T> = T.add(x, y)
+(+)<T>(x: T, y: T): T where T: trait Add<T> = T.add(x, y)
 
 interface Functor<F<_>> =
 
@@ -353,7 +353,7 @@ extension MaybeMonadExtension<T> =
     static overrides Return<A>(a: A): Maybe<A> =
         Maybe<_>(a)
 
-(>>=)<Toot<_>, A, B>(ma: Toot<A>, f: A -> Toot<B>): Toot<B> where Toot: Monad<Toot>  =
+(>>=)<Toot<_>, A, B>(ma: Toot<A>, f: A -> Toot<B>): Toot<B> where Toot: trait Monad<Toot>  =
    Toot.Bind<_, _>(ma, f)
 
 transform (x: __oly_int32): Maybe<__oly_float64> = Maybe<_>(228888.45)
@@ -369,7 +369,7 @@ class Hoot<T> =
 
     new(value: T) = { value = value }
 
-extension HootAddExtension<T> where T: Add<T> =
+extension HootAddExtension<T> where T: trait Add<T> =
     inherits Hoot<T>
     implements Add<Hoot<T>>
 
@@ -381,7 +381,7 @@ extension HootAddExtension<T> where T: Add<T> =
 
 f(x: __oly_int32): __oly_int32 = x + 1
 
-g<T>(x: T, y: T): T where T: Add<T> = 
+g<T>(x: T, y: T): T where T: trait Add<T> = 
    class X<U> =
     public field x: T
     field y: U
@@ -416,7 +416,7 @@ extension Int32AddExtension =
     static overrides add(x: __oly_int32, y: __oly_int32): __oly_int32 =
       __oly_add(x, y)
 
-(+)<T>(x: T, y: T): T where T: Add<T> =
+(+)<T>(x: T, y: T): T where T: trait Add<T> =
    T.add(x, y)
 
 main (): () =
@@ -453,7 +453,7 @@ extension Int32AddExtension =
     static overrides add(x: __oly_int32, y: __oly_int32): __oly_int32 =
         __oly_add(x, y)
 
-(+)<T>(x: T, y: T): T where T: Add<T> = T.add(x, y)
+(+)<T>(x: T, y: T): T where T: trait Add<T> = T.add(x, y)
 
 main(): () =
    let x = 1
@@ -502,7 +502,7 @@ extension Int16AddExtension =
     static overrides add(x: __oly_int16, y: __oly_int16): __oly_int16 =
         __oly_add(x, y)
 
-(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> = T1.add(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : trait Add<T1, T2, T3> = T1.add(x, y)
 
 main () : () =
    let x = 6
@@ -620,7 +620,7 @@ extension Int32TestExtension =
 
     static overrides add(value1: __oly_int32, value2: __oly_int32) : __oly_int32 = 2
 
-(+)<T>(x: T, y: T) : T where T : Add<T> = T.add(x, y)
+(+)<T>(x: T, y: T) : T where T : trait Add<T> = T.add(x, y)
 
 f() : () =
     let x = 1 + 1

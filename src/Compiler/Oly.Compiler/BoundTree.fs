@@ -1138,7 +1138,7 @@ let findIntrinsicAndExtrinsicInheritsAndImplementsOfType (benv: BoundEnvironment
     | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
         tyPar.Constraints
         |> ImArray.choose (fun x -> 
-            match x.TryGetSubtypeOf() with
+            match x.TryGetAnySubtypeOf() with
             | ValueSome constrTy -> Some constrTy
             | _ -> None
         )
@@ -1652,7 +1652,7 @@ type ValueExplicitness =
 let freshWitnesses (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun x -> 
-        match x.TryGetSubtypeOf() with
+        match x.TryGetAnySubtypeOf() with
         | ValueSome constrTy ->
             match constrTy.TryEntity with
             | ValueSome ent when ent.IsInterface ->
@@ -1667,7 +1667,7 @@ let freshWitnesses (tyPar: TypeParameterSymbol) =
 let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun constr -> 
-        match constr.TryGetSubtypeOf() with
+        match constr.TryGetAnySubtypeOf() with
         | ValueSome constrTy ->
             match constrTy.TryEntity with
             | ValueSome ent when ent.IsInterface || ent.IsShape ->

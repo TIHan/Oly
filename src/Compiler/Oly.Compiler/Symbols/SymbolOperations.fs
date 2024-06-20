@@ -524,7 +524,8 @@ let areConstraintsEqualWith rigidity (constr1: ConstraintSymbol) (constr2: Const
     else
         match constr1, constr2 with
         | ConstraintSymbol.NotStruct, ConstraintSymbol.NotStruct -> true
-        | ConstraintSymbol.SubtypeOf(ty1), ConstraintSymbol.SubtypeOf(ty2) -> 
+        | ConstraintSymbol.SubtypeOf(ty1), ConstraintSymbol.SubtypeOf(ty2)
+        | ConstraintSymbol.TraitType(ty1), ConstraintSymbol.TraitType(ty2) -> 
             let ty1 = ty1.Value
             let ty2 = ty2.Value
             if ty1.IsShape && ty2.IsShape then
@@ -1190,7 +1191,8 @@ type TypeSymbol with
                         let mutable i = 0
                         while (cont && i < tyPar.Constraints.Length) do
                             match tyPar.Constraints[i] with
-                            | ConstraintSymbol.SubtypeOf(ty) ->
+                            | ConstraintSymbol.SubtypeOf(ty)
+                            | ConstraintSymbol.TraitType(ty) ->
                                 let ty = ty.Value
                                 if set.Add(ty) then
                                     cont <- f ty
@@ -1724,7 +1726,8 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
                             | ConstraintSymbol.Blittable
                             | ConstraintSymbol.Scoped
                             | ConstraintSymbol.ConstantType _ -> false
-                            | ConstraintSymbol.SubtypeOf(superTy) ->
+                            | ConstraintSymbol.SubtypeOf(superTy)
+                            | ConstraintSymbol.TraitType(superTy) ->
                                 subsumesTypeConstructorWith rigidity superTy.Value ty
                         )
                     | _ ->
@@ -1766,10 +1769,11 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.Unmanaged
                 | ConstraintSymbol.Blittable
                 | ConstraintSymbol.Scoped -> exists
+                | ConstraintSymbol.SubtypeOf(ty)
+                | ConstraintSymbol.TraitType(ty) ->
+                    subsumesTypeWith rigidity superTy ty.Value
                 | ConstraintSymbol.ConstantType(ty) ->
                     areTypesEqualWithRigidity rigidity superTy ty.Value
-                | ConstraintSymbol.SubtypeOf(ty) ->
-                    subsumesTypeWith rigidity superTy ty.Value
             )
         | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.Read) ->
             subsumesTypeWith rigidity superTy ty
@@ -2023,7 +2027,8 @@ let findMostSpecificIntrinsicFunctionsOfTypeParameter isTyCtor (tyPar: TypeParam
             | ConstraintSymbol.Struct
             | ConstraintSymbol.NotStruct 
             | ConstraintSymbol.Unmanaged -> None
-            | ConstraintSymbol.SubtypeOf(ty) when not ty.Value.IsTypeConstructor || ty.Value.IsTypeConstructor = isTyCtor ->
+            | ConstraintSymbol.SubtypeOf(ty) 
+            | ConstraintSymbol.TraitType(ty) when not ty.Value.IsTypeConstructor || ty.Value.IsTypeConstructor = isTyCtor ->
                 ty.Value
                 |> Some
             | _ ->
@@ -2066,7 +2071,7 @@ let rec typeExistsInType (target: TypeSymbol) (ty: TypeSymbol) =
     (target.TypeArguments |> ImArray.exists (fun x -> typeExistsInType x ty))
 
 let typeExistsInConstraint (constr: ConstraintSymbol) (ty: TypeSymbol) =
-    match constr.TryGetSubtypeOf() with
+    match constr.TryGetAnySubtypeOf() with
     | ValueSome constrTy ->
         let isEqual = areTypesEqual constrTy ty
         isEqual || (constrTy.TypeArguments |> ImArray.exists (fun x -> typeExistsInType x ty))

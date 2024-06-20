@@ -2171,9 +2171,9 @@ let ``Should compile with certain constraint order 3``() =
         """
 open extension TestExtension
     
-interface TestTrait<T> where T : { x: int32 get }
+interface TestTrait<T> where T : trait { x: int32 get }
     
-test<T>() : () where T : TestTrait<T>, { x: int32 get } = ()
+test<T>() : () where T : trait TestTrait<T>, trait { x: int32 get } = ()
     
 #[intrinsic("int32")]
 alias int32
@@ -2198,9 +2198,9 @@ let ``Should compile with certain constraint order 4``() =
         """
 open extension TestExtension
     
-interface TestTrait<T> where T : { x: int32 get }
+interface TestTrait<T> where T : trait { x: int32 get }
     
-test<T>() : () where T : { x: int32 get }, TestTrait<T> = ()
+test<T>() : () where T : trait { x: int32 get }, trait TestTrait<T> = ()
     
 #[intrinsic("int32")]
 alias int32
@@ -2497,6 +2497,7 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Expected 'an identifier' after '.'."
+            "Unable to infer type at this location."
         ]
     |> ignore
 

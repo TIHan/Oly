@@ -191,10 +191,12 @@ and printConstraint benv constr =
         "blittable"
     | ConstraintSymbol.Scoped ->
         "scoped"
-    | ConstraintSymbol.ConstantType(constTy) ->
-        $"constant {printType benv constTy.Value}"
     | ConstraintSymbol.SubtypeOf(lazyTy) ->
         printType benv lazyTy.Value
+    | ConstraintSymbol.ConstantType(constTy) ->
+        $"constant {printType benv constTy.Value}"
+    | ConstraintSymbol.TraitType(lazyTy) ->
+        $"trait {printType benv lazyTy.Value}"
 
 and printTypeDefinition benv ty =
     printTypeAux benv true false ty
@@ -334,12 +336,15 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
                         | ConstraintSymbol.Scoped ->
                             let isTyCtor = tyPar.HasArity
                             printTypeAux benv false isTyCtor tyPar.AsType + ": scoped"
-                        | ConstraintSymbol.ConstantType(ty) ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": constant " + printTypeAux benv false isTyCtor ty.Value
                         | ConstraintSymbol.SubtypeOf(ty) ->
                             let isTyCtor = ty.Value.IsTypeConstructor
                             printTypeAux benv false isTyCtor tyPar.AsType + ": " + printTypeAux benv false isTyCtor ty.Value
+                        | ConstraintSymbol.ConstantType(ty) ->
+                            let isTyCtor = tyPar.HasArity
+                            printTypeAux benv false isTyCtor tyPar.AsType + ": constant " + printTypeAux benv false isTyCtor ty.Value
+                        | ConstraintSymbol.TraitType(ty) ->
+                            let isTyCtor = ty.Value.IsTypeConstructor
+                            printTypeAux benv false isTyCtor tyPar.AsType + ": trait " + printTypeAux benv false isTyCtor ty.Value
                     )
                     |> String.concat " and "
                 Some(constrs)

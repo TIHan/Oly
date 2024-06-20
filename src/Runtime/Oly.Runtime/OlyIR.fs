@@ -35,8 +35,9 @@ type OlyIRConstraint<'Type> =
     | Unmanaged
     | Blittable
     | Scoped
-    | ConstantType of 'Type
     | SubtypeOf of 'Type
+    | ConstantType of 'Type
+    | TraitType of 'Type
 
 [<NoComparison;NoEquality>]
 [<DebuggerDisplay("{ToString()}")>]

@@ -277,7 +277,7 @@ extension Int32DisposableExtension =
 
     Dispose(): () = ()
 
-test<T>(x: T): () where T: IDisposable = x.Dispose()
+test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 
 class Test =
   implements IDisposable
@@ -321,7 +321,7 @@ extension Int32DisposableExtension =
 
     Dispose(): () = ()
 
-test<T>(x: T): () where T: IDisposable = x.Dispose()
+test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 
 class Test =
   implements IDisposable
@@ -941,7 +941,7 @@ main(): () =
         )
 
 [<Fact>]
-let ``Multiple C# interfaces for different type extensions``() =
+let ``Multiple C# interfaces for different type extensions should fail because no trait``() =
     let csSrc =
         """
 using System;
@@ -994,8 +994,86 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
-        withCompile
-        >> shouldRunWithExpectedOutput "123456"
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type instantiation 'Test' is missing the constraint 'IExample'.",
+                """
+    Program.Test<Test>(Test())
+    ^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type instantiation 'Test' is missing the constraint 'IDoot'.",
+                """
+    Program.Test<Test>(Test())
+    ^^^^^^^^^^^^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Multiple C# interfaces for different type extensions should pass because we casted to create a witness instance``() =
+    let csSrc =
+        """
+using System;
+
+public interface IExample
+{
+    int X { get; }
+}
+
+public interface IDoot
+{
+    int Y { get; }
+}
+
+public static class Program
+{
+    public static void Test<T>(T x) where T: IExample, IDoot
+    {
+        Console.Write(typeof(T).Name);
+        Console.Write(x.GetType().Name);
+        Console.Write(x.X);
+        Console.Write(x.Y);
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Test
+
+module Helpers =
+    #[intrinsic("cast")]
+    Cast<T>(__oly_object): T
+
+interface IDootExample =
+    inherits IDoot, IExample
+
+#[open]
+extension DootExampleTest =
+    inherits Test
+    implements IDootExample
+
+    X: int32 get() = 123
+
+    Y: int32 get() = 456
+
+main(): () =
+    Program.Test(Helpers.Cast<IDootExample>(Test()))
+        """
+    OlyWithCSharp csSrc src
+        (
+            withCompile >>
+            shouldRunWithExpectedOutput "IDootExample__oly_instance123456"
         )
 
 [<Fact>]
@@ -1149,7 +1227,7 @@ extension ListMappable<T> =
         loop(0)
         newList
 
-map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: IMappable<T> =
+map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: trait IMappable<T> =
     T.Map<A, B>(ta, f)
 
 main(): () =
@@ -4144,7 +4222,7 @@ extension ArrayEnumerableExtension<T> =
         print("passed")
         unchecked default
 
-test<T>(xs: T): () where T: IEnumerable =
+test<T>(xs: T): () where T: trait IEnumerable =
     let x = xs.GetEnumerator()
 
 main(): () =
@@ -4181,7 +4259,7 @@ extension ArrayEnumerableExtension<T> =
         print("passed")
         unchecked default
 
-test<T>(xs: T): () where T: IEnumerable<int32> =
+test<T>(xs: T): () where T: trait IEnumerable<int32> =
     let x = xs.GetEnumerator()
 
 main(): () =
@@ -4253,10 +4331,10 @@ extension ArrayEnumerableExtension<T> =
         unchecked default
 
 #[inline(always)]
-ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: System.Collections.Generic.IEnumerable =
+ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: trait System.Collections.Generic.IEnumerable =
     let xse = xs.GetEnumerator()
 
-test<T>(xs: T): () where T: IEnumerable<int32> =
+test<T>(xs: T): () where T: trait IEnumerable<int32> =
     ForEach(xs, x -> print(x))
 
 main(): () =
@@ -4294,13 +4372,13 @@ extension ArrayEnumerableExtension<T> =
         unchecked default
 
 #[inline(always)]
-ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: System.Collections.Generic.IEnumerable =
+ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: trait System.Collections.Generic.IEnumerable =
     let xse = xs.GetEnumerator()
 
 Do(f: () -> ()): () =
     f()
 
-test<T>(xs: T): () where T: IEnumerable<int32> =
+test<T>(xs: T): () where T: trait IEnumerable<int32> =
     Do(() ->
         ForEach(xs, x -> print(x))
     )
@@ -4340,13 +4418,13 @@ extension ArrayEnumerableExtension<T> =
         unchecked default
 
 #[inline(always)]
-ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: System.Collections.Generic.IEnumerable =
+ForEach<T<_>, U>(xs: T<U>, #[inline(always)] f: U -> ()): () where T<_>: trait System.Collections.Generic.IEnumerable =
     let xse = xs.GetEnumerator()
 
 Do(f: () -> ()): () =
     f()
 
-test<T>(xs: T): () where T: IEnumerable<int32> =
+test<T>(xs: T): () where T: trait IEnumerable<int32> =
     Do(() ->
         ForEach(xs, x -> print(x))
     )
@@ -4572,7 +4650,7 @@ extension ZExtension =
 
    Dispose(): () = print("passed")
 
-test<T>(x: T): () where T: IDisposable = x.Dispose()
+test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 
 main(): () =
    let c = Z()
@@ -4604,7 +4682,7 @@ extension CExtension =
 
    Dispose(): () = print("passed")
 
-test<T>(x: T): () where T: IDisposable = x.Dispose()
+test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 
 main(): () =
    let c = Z()
@@ -4835,7 +4913,7 @@ interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -4867,7 +4945,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -4910,16 +4988,16 @@ alias inref<T>
 #[intrinsic("print")]
 print(__oly_object): ()
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
-(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
-(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
-(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
-(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
-(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
-(-)<T1, T2>(x: T1): T2 where T1: { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
-(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
-(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
+(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
+(-)<T1, T2>(x: T1): T2 where T1: trait { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
 
 #[open]
 extension Vector3Extensions =
@@ -5004,11 +5082,11 @@ extension CameraComponent =
 sizeof<require T>: int32 =
     System.Runtime.InteropServices.Marshal.SizeOf(unchecked default: T)
 
-GetComponentSize<T>(): int32 where T: unmanaged, IComponent =
+GetComponentSize<T>(): int32 where T: unmanaged, trait IComponent =
     T.GetSize()
 
 class ComponentRegistry =
-    Register<T>(): () where T: unmanaged, IComponent = 
+    Register<T>(): () where T: unmanaged, trait IComponent = 
         print(T.GetSize())
 
 newtype TransformLerp =
@@ -5018,7 +5096,7 @@ class Database =
 
     field registry: ComponentRegistry = ComponentRegistry()
 
-    Register<T>(): () where T: unmanaged, IComponent =
+    Register<T>(): () where T: unmanaged, trait IComponent =
         this.registry.Register<T>()
 
 main(): () =
@@ -6804,11 +6882,11 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline] f: scoped T 
         f(xse.Current)
 
 #[inline]
-(let!)<M<_>, A, B>(ma: M<A>, f: A -> M<B>): M<B> where M: Monad<M> =
+(let!)<M<_>, A, B>(ma: M<A>, f: A -> M<B>): M<B> where M: trait Monad<M> =
     M.Bind(ma, f)
 
 #[inline]
-(return)<M<_>, A>(value: A): M<A> where M: Monad<M> where A: struct =
+(return)<M<_>, A>(value: A): M<A> where M: trait Monad<M> where A: struct =
     M.Return(value)
 
 interface Monad<M<_>> =

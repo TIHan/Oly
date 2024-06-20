@@ -239,7 +239,8 @@ type RuntimeTypeParameter =
         Arity: int
         IsVariadic: bool
         ILConstraints: OlyILConstraint imarray
-        mutable ConstraintSubTypes: RuntimeType imarray Lazy
+        mutable ConstraintSubtypes: RuntimeType imarray Lazy
+        mutable ConstraintTraits: RuntimeType imarray Lazy
     }
 
     override this.GetHashCode() = this.Name.GetHashCode()
@@ -330,7 +331,7 @@ type RuntimeEntity =
                 if witness.Type.StripAlias() = tyArg.StripAlias() then
                     let tyExt = witness.TypeExtension
                     let exists = 
-                        tyPar.ConstraintSubTypes.Value
+                        tyPar.ConstraintTraits.Value
                         |> ImArray.exists (fun superTy ->
                             subsumesType superTy tyExt 
                         )
@@ -487,10 +488,13 @@ type RuntimeEntity =
             let tyPars =
                 this.TypeParameters
                 |> ImArray.map (fun x ->
-                    if x.ConstraintSubTypes.Value.IsEmpty then
+                    if x.ConstraintSubtypes.Value.IsEmpty && x.ConstraintTraits.Value.IsEmpty then
                         x
                     else
-                        { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
+                        { x with 
+                            ConstraintSubtypes = lazy (x.ConstraintSubtypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext)))
+                            ConstraintTraits = lazy (x.ConstraintTraits.Value |> ImArray.map (fun x -> x.Substitute(genericContext)))
+                        }
                 )
 
             let entNew =
@@ -558,10 +562,13 @@ type RuntimeEntity =
             let tyPars =
                 this.TypeParameters
                 |> ImArray.map (fun x ->
-                    if x.ConstraintSubTypes.Value.IsEmpty then
+                    if x.ConstraintSubtypes.Value.IsEmpty && x.ConstraintTraits.Value.IsEmpty then
                         x
                     else
-                        { x with ConstraintSubTypes = lazy (x.ConstraintSubTypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) }
+                        { x with 
+                            ConstraintSubtypes = lazy (x.ConstraintSubtypes.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) 
+                            ConstraintTraits = lazy (x.ConstraintTraits.Value |> ImArray.map (fun x -> x.Substitute(genericContext))) 
+                        }
                 )
 
             let entNew =
@@ -965,11 +972,11 @@ type RuntimeType =
         | ReferenceCell _
         | Array _
         | ByRef _ 
-        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
-        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | Function _ 
         | NativeFunctionPtr _ ->
-            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty) })
+            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | _ -> 
             ImArray.empty
 

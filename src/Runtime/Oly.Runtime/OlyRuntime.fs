@@ -246,12 +246,23 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
     let tyPars =
         ilFuncSpec.TypeParameters
         |> ImArray.mapi (fun i ilTyPar ->
-            let constrSubTypes = 
+            let constrSubtypes = 
                 ilTyPar.Constraints
                 |> ImArray.choose (fun ilConstr ->
                     match ilConstr with
-                    | OlyILConstraint.SubtypeOf(constrTy) ->
-                        runtime.ResolveType(ilAsm, constrTy, GenericContext.Default)
+                    | OlyILConstraint.SubtypeOf(ilTy) ->
+                        runtime.ResolveType(ilAsm, ilTy, GenericContext.Default)
+                        |> Some
+                    | _ ->
+                        None
+                )
+
+            let constrTraits = 
+                ilTyPar.Constraints
+                |> ImArray.choose (fun ilConstr ->
+                    match ilConstr with
+                    | OlyILConstraint.TraitType(ilTy) ->
+                        runtime.ResolveType(ilAsm, ilTy, GenericContext.Default)
                         |> Some
                     | _ ->
                         None
@@ -261,7 +272,8 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 Arity = ilTyPar.Arity
                 IsVariadic = ilTyPar.IsVariadic
                 ILConstraints = ilTyPar.Constraints
-                ConstraintSubTypes = Lazy<_>.CreateFromValue(constrSubTypes)
+                ConstraintSubtypes = Lazy<_>.CreateFromValue(constrSubtypes)
+                ConstraintTraits = Lazy<_>.CreateFromValue(constrTraits)
             } : RuntimeTypeParameter
         )
 
@@ -2053,12 +2065,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILConstraint.Unmanaged -> OlyIRConstraint.Unmanaged
             | OlyILConstraint.Blittable -> OlyIRConstraint.Blittable
             | OlyILConstraint.Scoped -> OlyIRConstraint.Scoped
-            | OlyILConstraint.ConstantType(ilTy) ->
-                let ty = this.ResolveType(ilAsm, ilTy, genericContext)
-                OlyIRConstraint.ConstantType(this.EmitType(ty))
             | OlyILConstraint.SubtypeOf(ilTy) ->
                 let ty = this.ResolveType(ilAsm, ilTy, genericContext)
                 OlyIRConstraint.SubtypeOf(this.EmitType(ty))
+            | OlyILConstraint.ConstantType(ilTy) ->
+                let ty = this.ResolveType(ilAsm, ilTy, genericContext)
+                OlyIRConstraint.ConstantType(this.EmitType(ty))
+            | OlyILConstraint.TraitType(ilTy) ->
+                let ty = this.ResolveType(ilAsm, ilTy, genericContext)
+                OlyIRConstraint.TraitType(this.EmitType(ty))
         )     
 
     and emitTypeDefinition (tyDef: RuntimeType) =
@@ -3181,7 +3196,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             Arity = ilTyPar.Arity
                             IsVariadic = ilTyPar.IsVariadic
                             ILConstraints = ilTyPar.Constraints
-                            ConstraintSubTypes = Lazy<_>.CreateFromValue(ImArray.empty)
+                            ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty)
+                            ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty)
                         } : RuntimeTypeParameter
                     )
 
@@ -3335,17 +3351,28 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 tyPars
                 |> ImArray.iter (fun tyPar ->
-                    let constrSubTypes = 
+                    let constrSubtypes = 
                         tyPar.ILConstraints
                         |> ImArray.choose (fun ilConstr ->
                             match ilConstr with
-                            | OlyILConstraint.SubtypeOf(constrTy) ->
-                                this.ResolveType(ilAsm, constrTy, GenericContext.CreateErasing(fullTyArgs))
+                            | OlyILConstraint.SubtypeOf(ilTy) ->
+                                this.ResolveType(ilAsm, ilTy, GenericContext.CreateErasing(fullTyArgs))
                                 |> Some
                             | _ ->
                                 None
                         )
-                    tyPar.ConstraintSubTypes <- Lazy<_>.CreateFromValue(constrSubTypes)
+                    let constrTraits = 
+                        tyPar.ILConstraints
+                        |> ImArray.choose (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.TraitType(ilTy) ->
+                                this.ResolveType(ilAsm, ilTy, GenericContext.CreateErasing(fullTyArgs))
+                                |> Some
+                            | _ ->
+                                None
+                        )
+                    tyPar.ConstraintSubtypes <- Lazy<_>.CreateFromValue(constrSubtypes)
+                    tyPar.ConstraintTraits <- Lazy<_>.CreateFromValue(constrTraits)
                 )
 
                 ty
@@ -3408,12 +3435,22 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let tyPars =
                 ilTyPars
                 |> ImArray.map (fun ilTyPar ->
-                    let constrSubTypes = 
+                    let constrSubtypes = 
                         ilTyPar.Constraints
                         |> ImArray.choose (fun ilConstr ->
                             match ilConstr with
-                            | OlyILConstraint.SubtypeOf(constrTy) ->
-                                this.ResolveType(ilAsm, constrTy, GenericContext.Default)
+                            | OlyILConstraint.SubtypeOf(ilTy) ->
+                                this.ResolveType(ilAsm, ilTy, GenericContext.Default)
+                                |> Some
+                            | _ ->
+                                None
+                        )
+                    let constrTraits = 
+                        ilTyPar.Constraints
+                        |> ImArray.choose (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.TraitType(ilTy) ->
+                                this.ResolveType(ilAsm, ilTy, GenericContext.Default)
                                 |> Some
                             | _ ->
                                 None
@@ -3423,7 +3460,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         Arity = ilTyPar.Arity
                         IsVariadic = ilTyPar.IsVariadic
                         ILConstraints = ilTyPar.Constraints
-                        ConstraintSubTypes = Lazy<_>.CreateFromValue(constrSubTypes)
+                        ConstraintSubtypes = Lazy<_>.CreateFromValue(constrSubtypes)
+                        ConstraintTraits = Lazy<_>.CreateFromValue(constrTraits)
                     } : RuntimeTypeParameter
                 )
             let innerTy = this.ResolveType(ilAsm, ilInnerTy, GenericContext.Default)

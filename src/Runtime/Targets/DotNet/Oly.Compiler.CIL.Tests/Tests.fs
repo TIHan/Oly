@@ -284,7 +284,7 @@ extension Int32Extensions =
     static overrides Add(x: int32, y: int32) : int32 =
         __oly_add(x, y)
 
-(+)<T>(x: T, y: T) : T where T : IAdd<T, T, T> = T.Add(x, y)
+(+)<T>(x: T, y: T) : T where T : trait IAdd<T, T, T> = T.Add(x, y)
 
 main () : () =
     let x = 1
@@ -319,7 +319,7 @@ extension Int32AddExtension =
     static overrides add(x: int32, y: int32) : int32 =
       __oly_add(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T, T, T> = T.add(x, y)
+(+)<T>(x: T, y: T) : T where T : trait Add<T, T, T> = T.add(x, y)
 
 main () : () =
    let x = 1
@@ -357,7 +357,7 @@ extension Int32AddExtension =
     static overrides add(x: int32, y: int32) : int32 =
       __oly_add(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T> = T.add(x, y)
+(+)<T>(x: T, y: T) : T where T : trait Add<T> = T.add(x, y)
 
 main () : () =
    let x = 1
@@ -493,7 +493,7 @@ extension MaybeMonadExtension<T> =
     static overrides Return<A>(a: A) : Maybe<A> =
         Maybe<_>(a)
 
-(>>=)<Toot<_>, A, B>(ma: Toot<A>, f: A -> Toot<B>): Toot<B> where Toot: Monad<Toot>  =
+(>>=)<Toot<_>, A, B>(ma: Toot<A>, f: A -> Toot<B>): Toot<B> where Toot: trait Monad<Toot>  =
    Toot<object>.Bind<_, _>(ma, f)
 
 transform (x: int32) : Maybe<float64> = Maybe<_>(228888.45)
@@ -551,7 +551,7 @@ extension MaybeMonadExtension<T> =
         let res = ma.value
         f(res)
 
-(>>=)<M<_>, M2<_>, A, B>(ma: M<A>, f: A -> M2<B>): M2<B> where M: Monad<M, M2> =
+(>>=)<M<_>, M2<_>, A, B>(ma: M<A>, f: A -> M2<B>): M2<B> where M: trait Monad<M, M2> =
    M.bind<_, _>(ma, f)
 
 transform (x: int32): Maybe2<float64> = Maybe2<_>(123.45)
@@ -588,7 +588,7 @@ interface Add<T1, T2, T3> =
 interface Add<T> =
    inherits Add<T, T, T>
 
-(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> = T1.add(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : trait Add<T1, T2, T3> = T1.add(x, y)
 
 extension Int32AddExtension =
     inherits int32
@@ -627,9 +627,9 @@ interface Add<T1, T2, T3> =
 interface Add<T> =
    inherits Add<T, T, T>
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: Add<T1, T2, T3> = T1.add(x, y)
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait Add<T1, T2, T3> = T1.add(x, y)
 
-f<A, B>(x: A): B where A: Add<A, int32, B> = x + 1
+f<A, B>(x: A): B where A: trait Add<A, int32, B> = x + 1
 
 extension Int32AddExtension =
     inherits int32
@@ -770,7 +770,7 @@ extension Int32Extension =
     inherits int32
     implements TestTrait
 
-getResult<T>() : int32 where T : TestTrait =
+getResult<T>() : int32 where T : trait TestTrait =
     T.test()
 
 main() : () =
@@ -803,7 +803,7 @@ extension Int32Extension =
 
     static overrides test() : int32 = 123
 
-getResult<T>() : int32 where T : TestTrait =
+getResult<T>() : int32 where T : trait TestTrait =
     T.test()
 
 main() : () =
@@ -834,7 +834,7 @@ extension Int32Extension<T> =
     inherits int32
     implements TestTrait<T>
 
-getResult<T>() : int32 where T: TestTrait<int32> =
+getResult<T>() : int32 where T: trait TestTrait<int32> =
     T.test(878)
 
 main() : () =
@@ -865,7 +865,7 @@ extension Int32Extension =
     inherits int32
     implements TestTrait
 
-getResult<T>(x: T): int32 where T: TestTrait =
+getResult<T>(x: T): int32 where T: trait TestTrait =
     x.test()
 
 main() : () =
@@ -898,7 +898,7 @@ extension Int32Extension =
 
     test(): int32 = 987
 
-getResult<T>(x: T): int32 where T: TestTrait =
+getResult<T>(x: T): int32 where T: trait TestTrait =
     x.test()
 
 main(): () =
@@ -931,7 +931,7 @@ extension Int32Extension =
 
     test(): int32 = 987
 
-getResult<T>(x: T): int32 where T: TestTrait =
+getResult<T>(x: T): int32 where T: trait TestTrait =
     x.test()
 
 main() : () =
@@ -1465,7 +1465,7 @@ extension TestAddInt32Extension =
 
     add(x: int32, y: int32) : int32 = x
 
-test<T>(x: T) : () where T : Add<int32> =
+test<T>(x: T) : () where T : trait Add<int32> =
     let x = x.add(1, 2)
     print(x)
 
@@ -2469,10 +2469,10 @@ extension Int32MultiplyExtension =
     static overrides multiply(x: int32, y: int32) : int32 =
         __oly_multiply(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T> =
+(+)<T>(x: T, y: T) : T where T : trait Add<T> =
     T.add(x, y)
 
-(*)<T>(x: T, y: T) : T where T : Multiply<T> =
+(*)<T>(x: T, y: T) : T where T : trait Multiply<T> =
     T.multiply(x, y)
 
 main() : () =
@@ -2534,13 +2534,13 @@ extension Int32MultiplyExtension =
     static overrides multiply(x: int32, y: int32) : int32 =
         __oly_multiply(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T> =
+(+)<T>(x: T, y: T) : T where T : trait Add<T> =
     T.add(x, y)
 
-(-)<T>(x: T, y: T) : T where T : Subtract<T> =
+(-)<T>(x: T, y: T) : T where T : trait Subtract<T> =
     T.subtract(x, y)
 
-(*)<T>(x: T, y: T) : T where T : Multiply<T> =
+(*)<T>(x: T, y: T) : T where T : trait Multiply<T> =
     T.multiply(x, y)
 
 main() : () =
@@ -2602,13 +2602,13 @@ extension Int32MultiplyExtension =
     static overrides multiply(x: int32, y: int32) : int32 =
         __oly_multiply(x, y)
 
-(+)<T>(x: T, y: T) : T where T : Add<T> =
+(+)<T>(x: T, y: T) : T where T : trait Add<T> =
     T.add(x, y)
 
-(-)<T>(x: T, y: T) : T where T : Subtract<T> =
+(-)<T>(x: T, y: T) : T where T : trait Subtract<T> =
     T.subtract(x, y)
 
-(*)<T>(x: T, y: T) : T where T : Multiply<T> =
+(*)<T>(x: T, y: T) : T where T : trait Multiply<T> =
     T.multiply(x, y)
 
 main() : () =
@@ -3241,7 +3241,7 @@ extension Int32AddExtension =
     static overrides add(x: int32, y: int32) : int32 =
         __oly_add(x, y)
 
-test<T>(x: T) : T where T : Add<T> =
+test<T>(x: T) : T where T : trait Add<T> =
     T.add(x, x)
 
 main() : () =
@@ -3276,7 +3276,7 @@ extension Int32AddExtension =
     static overrides add(x: int32, y: int32): int32 =
         __oly_add(x, y)
 
-test<T>(x: T): T where T: Add<T> =
+test<T>(x: T): T where T: trait Add<T> =
     T.add(x, x)
 
 main(): () =
@@ -3304,7 +3304,7 @@ interface Add<T1, T2, T3> =
 
     static abstract add(x: T1, y: T2) : T3
 
-test<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> =
+test<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : trait Add<T1, T2, T3> =
     T1.add(x, y)
 
 extension Int32AddExtension =
@@ -3676,7 +3676,7 @@ extension Int32AddFloat64Extension =
     static overrides add(x: int32, y: float64) : float64 =
         y
 
-test<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : Add<T1, T2, T3> =
+test<T1, T2, T3>(x: T1, y: T2) : T3 where T1 : trait Add<T1, T2, T3> =
     T1.add(x, y)
 
 main() : () =
@@ -3741,7 +3741,7 @@ extension Float64AddInt32Extension2 =
     static overrides add(x: int32, y: float64): int32 =
         676
 
-test<T1, T2, T3>(x: T1, y: T2): T3 where T1: Add<T1, T2, T1>; where T2: Add<T1, T2, T3> =
+test<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait Add<T1, T2, T1>; where T2: trait Add<T1, T2, T3> =
     T2.add(T1.add(x, y), y)
 
 main(): () =
@@ -3784,7 +3784,7 @@ let ``Should run successfully with a open module 2``() =
 open static TestModule
 open extension Int32Extension
 
-test<T>() : () where T : Test = ()
+test<T>() : () where T : trait Test = ()
 
 #[intrinsic("int32")]
 alias int32
@@ -3836,9 +3836,9 @@ let ``Should run successfully with a open module 4``() =
 open static TestModule
 open extension TestExtension
 
-interface TestTrait<T> where T : { x: int32 get }
+interface TestTrait<T> where T : trait { x: int32 get }
 
-test<T>() : () where T : { x: int32 get }, TestTrait<T> = ()
+test<T>() : () where T : trait { x: int32 get }, trait TestTrait<T> = ()
 
 #[intrinsic("int32")]
 alias int32
@@ -3876,7 +3876,7 @@ interface Add<T1, T2, T3> =
 
     static abstract (+)(x: T1, y: T2) : T3
 
-(+)<T>(x: T, y: T) : T where T : Add<T, T, T> =
+(+)<T>(x: T, y: T) : T where T : trait Add<T, T, T> =
     T.(+)(x, y)
 
 extension Int32Extension =
@@ -4476,7 +4476,7 @@ interface Add<T> =
 #[intrinsic("int32")]
 alias int32
 
-(+)<T>(x: T, y: T): T where T: Add<T, T, T> = T.add(x, y)
+(+)<T>(x: T, y: T): T where T: trait Add<T, T, T> = T.add(x, y)
 
 extension Int32AddExtension =
     inherits int32
@@ -4511,7 +4511,7 @@ interface Add<T1, T2, T3> =
 
     static abstract test(): ()
 
-test<T>(): () where T: Add<T, T, T> = 
+test<T>(): () where T: trait Add<T, T, T> = 
     T.test()
     print("witness")
 
@@ -4551,11 +4551,11 @@ module TestModule =
 
         static abstract test(): ()
 
-test2<T>(): () where T: Add<T, T, T> = 
+test2<T>(): () where T: trait Add<T, T, T> = 
     T.test()
     print("witness")
 
-test<T>(): () where T: Add<T, T, T> = 
+test<T>(): () where T: trait Add<T, T, T> = 
     T.test()
     print("witness")
 
@@ -4755,17 +4755,17 @@ interface BestTrait =
 
 interface IDoot =
   
-  Doot<T>(x: T): T where T: BestTrait
+  Doot<T>(x: T): T where T: trait BestTrait
 
 extension Int32DootExtension =
     inherits int32
     implements IDoot
 
-    Doot<T>(x: T): T where T: BestTrait =
+    Doot<T>(x: T): T where T: trait BestTrait =
       print("Int32DootExtension-Doot")
       x.Best<T>(x)
 
-test<T>(x: T): () where T: IDoot, BestTrait = 
+test<T>(x: T): () where T: trait IDoot, trait BestTrait = 
   let res = x.Doot<T>(x)
   ()
 
@@ -4774,7 +4774,7 @@ class Test =
 
   new() = {}
 
-  Doot<T>(x: T): T where T: BestTrait = 
+  Doot<T>(x: T): T where T: trait BestTrait = 
     print("Test-Doot")
     x.Best<T>(x)
 
@@ -4900,7 +4900,7 @@ extension Int32TestExtension =
 getResult(x: ITest): int32 =
     x.test()
 
-getResult2<T>(x: T): int32 where T: ITest =
+getResult2<T>(x: T): int32 where T: trait ITest =
     getResult(x)
 
 main(): () =
@@ -4944,7 +4944,7 @@ extension TestExtension<T> =
 getResult(x: ITest): int32 =
     x.test()
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest =
     getResult(x)
 
 main(): () =
@@ -4985,7 +4985,7 @@ extension TestExtension<T> =
 
     test(): int32 = 123
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest =
     (x : ITest).test()
 
 main(): () =
@@ -5026,7 +5026,7 @@ extension TestExtension<T> =
 
     test(): int32 = 123
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest =
     x.test()
 
 main(): () =
@@ -5067,7 +5067,7 @@ extension TestExtension<T> =
 
     test<U>(): int32 = 123
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest =
     x.test<T<object>>()
 
 main(): () =
@@ -5096,7 +5096,7 @@ print(object): ()
 
 interface ITest =
  
-    test<T>(): int32 where T: ITest
+    test<T>(): int32 where T: trait ITest
 
 class Test<T> =
 
@@ -5106,9 +5106,9 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-    test<U>(): int32 where U: ITest = 123
+    test<U>(): int32 where U: trait ITest = 123
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest =
     x.test<T<object>>()
 
 main(): () =
@@ -5138,11 +5138,11 @@ print(object): ()
 
 interface ITest =
  
-    test<T>(): int32 where T: ITest
+    test<T>(): int32 where T: trait ITest
 
 interface ITest2 =
 
-   test2<T>(): int32 where T: ITest2
+   test2<T>(): int32 where T: trait ITest2
 
 class Test<T> =
 
@@ -5152,21 +5152,21 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-    test<U>(): int32 where U: ITest = 123
+    test<U>(): int32 where U: trait ITest = 123
 
 extension TestExtension2<T> =
     inherits Test<T>
     implements ITest2
 
-    test2<U>(): int32 where U: ITest2 = 456
+    test2<U>(): int32 where U: trait ITest2 = 456
 
-getResult<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test<T<object>>()
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test2<T<object>>()
 
-printCombined<T<_>>(x: T<int32>): () where T: ITest, ITest2 =
+printCombined<T<_>>(x: T<int32>): () where T: trait ITest, trait ITest2 =
     print(x.test<T<object>>())
     print(x.test2<T<object>>())
 
@@ -5197,11 +5197,11 @@ print(object): ()
 
 interface ITest =
  
-    test<T>(): int32 where T: ITest
+    test<T>(): int32 where T: trait ITest
 
 interface ITest2 =
 
-   test2<T>(): int32 where T: ITest2
+   test2<T>(): int32 where T: trait ITest2
 
 class Test<T> =
 
@@ -5212,22 +5212,22 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-    test<U>(): int32 where U: ITest = 123
+    test<U>(): int32 where U: trait ITest = 123
 
 #[open]
 extension TestExtension2<T> =
     inherits Test<T>
     implements ITest2
 
-    test2<U>(): int32 where U: ITest2 = 456
+    test2<U>(): int32 where U: trait ITest2 = 456
 
-getResult<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test<Test<int32>>()
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test2<Test<int32>>()
 
-printCombined<T<_>>(x: T<int32>): () where T: ITest, ITest2 =
+printCombined<T<_>>(x: T<int32>): () where T: trait ITest, trait ITest2 =
     print(x.test<Test<int32>>())
     print(x.test2<Test<int32>>())
 
@@ -5261,11 +5261,11 @@ print(object): ()
 
 interface ITest =
  
-    test<T>(): int32 where T: ITest
+    test<T>(): int32 where T: trait ITest
 
 interface ITest2 =
 
-   test2<T>(): int32 where T: ITest2
+   test2<T>(): int32 where T: trait ITest2
 
 class Test<T> =
 
@@ -5275,21 +5275,21 @@ extension TestExtension<T> =
     inherits Test<T>
     implements ITest
 
-    test<U>(): int32 where U: ITest = 123
+    test<U>(): int32 where U: trait ITest = 123
 
 extension TestExtension2<T> =
     inherits Test<T>
     implements ITest2
 
-    test2<U>(): int32 where U: ITest2 = 456
+    test2<U>(): int32 where U: trait ITest2 = 456
 
-getResult<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test<T<object>>()
 
-getResult2<T<_>>(x: T<int32>): int32 where T: ITest, ITest2 =
+getResult2<T<_>>(x: T<int32>): int32 where T: trait ITest, trait ITest2 =
     x.test2<T<object>>()
 
-printCombined<T<_>>(x: T<int32>): () where T: ITest, ITest2 =
+printCombined<T<_>>(x: T<int32>): () where T: trait ITest, trait ITest2 =
     print(x.test<T<object>>())
     print(x.test2<T<object>>())
 
@@ -15441,7 +15441,7 @@ extension ArrayTestExtension<T> =
 
     Test(): () = print("test")
 
-test<T>(xs: T): () where T: ITest =
+test<T>(xs: T): () where T: trait ITest =
     xs.Test()
 
 main(): () =
@@ -15617,7 +15617,7 @@ interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -15649,7 +15649,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -15681,7 +15681,7 @@ interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get() = T0.GetValue()
@@ -15708,7 +15708,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -15744,7 +15744,7 @@ interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent, IComponent2 =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent, trait IComponent2 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get
@@ -15790,7 +15790,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent, IComponent2 =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent, trait IComponent2 =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -15826,7 +15826,7 @@ interface IArchetypeReference =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent, IComponent2 =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent, trait IComponent2 =
     implements IArchetypeReference
 
     ArchetypedIndex: int32 get() = __oly_add(T0.GetValue(), T0.GetValue2())
@@ -15867,7 +15867,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent, IComponent2 =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent, trait IComponent2 =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -15901,7 +15901,7 @@ interface IArchetypeReference =
 
 abstract class A
 
-abstract default class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+abstract default class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     inherits A
     implements IArchetypeReference
 
@@ -15929,7 +15929,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -15963,7 +15963,7 @@ interface IArchetypeReference =
 
 abstract class A
 
-abstract default class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+abstract default class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     inherits A
     implements IArchetypeReference
 
@@ -15982,7 +15982,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -16028,7 +16028,7 @@ interface IArchetypeReference<T> =
 
     ArchetypedIndex: int32 get
 
-class ArchetypeReference<T0> where T0: unmanaged, IComponent =
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     implements IArchetypeReference<T0>
 
     ArchetypedIndex: int32 get
@@ -16060,7 +16060,7 @@ module TestModule =
     #[intrinsic("print")]
     print(__oly_object): ()
 
-    GetIndex<T>(): int32 where T: unmanaged, IComponent =
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
         let r = ArchetypeReference<T>()
         r.ArchetypedIndex
@@ -16118,7 +16118,7 @@ extension SA =
 
     static overrides M(): () = print("passed")
 
-Test<T>(): () where T: IA =
+Test<T>(): () where T: trait IA =
     T.M()
 
 main(): () =
@@ -16148,7 +16148,7 @@ extension SA =
 
     static overrides M(): () = print("passed")
 
-Test<T>(): () where T: IA =
+Test<T>(): () where T: trait IA =
     let f = () -> T.M()
     f()
 
@@ -16188,7 +16188,7 @@ extension SA2 =
 
     static overrides M(): () = print("passed2")
 
-Test<T>(): () where T: IA =
+Test<T>(): () where T: trait IA =
     let f = () -> T.M()
     f()
 
@@ -16229,7 +16229,7 @@ extension SA =
 
     M(): () = print("passed")
 
-Test<T>(s: T): () where T: IA =
+Test<T>(s: T): () where T: trait IA =
     s.M()
 
 main(): () =
@@ -16259,7 +16259,7 @@ extension SA =
 
     M(): () = print("passed")
 
-Test<T>(s: T): () where T: IA =
+Test<T>(s: T): () where T: trait IA =
     let f = () -> s.M()
     f()
 
@@ -16302,7 +16302,7 @@ extension SA =
     mutable M(): () =
         this.X <- __oly_add(this.X, 1)
 
-Test<T>(s: T): () where T: IA =
+Test<T>(s: T): () where T: trait IA =
     let f = 
         () -> 
             s.M()
@@ -16428,14 +16428,14 @@ class EntityQuery<T0, T1> =
 
 class EntityDb =
 
-    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: IComponent where T1: IComponent =
+    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: trait IComponent where T1: trait IComponent =
         let query = EntityQuery<T0, T1>()
         query.SayHello()
         print(this.GetSize<T0>())
         print(this.GetSize<T1>())
         query
 
-    GetSize<T>(): int32 where T: IComponent =
+    GetSize<T>(): int32 where T: trait IComponent =
         T.GetSize()
 
 struct S
@@ -16489,14 +16489,14 @@ class EntityQuery<T0, T1> =
 
 class EntityDb =
 
-    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: IComponent where T1: IComponent =
+    CreateQuery<T0, T1>(): EntityQuery<T0, T1> where T0: trait IComponent where T1: trait IComponent =
         let query = EntityQuery<T0, T1>()
         query.SayHello()
         print(this.GetSize<T0>())
         print(this.GetSize<T1>())
         query
 
-    GetSize<T>(): int32 where T: IComponent =
+    GetSize<T>(): int32 where T: trait IComponent =
         T.GetSize()
 
 struct S
@@ -18202,15 +18202,15 @@ print(__oly_object): ()
 
 interface IComponent
 
-class EntityQuery<T> where T: unmanaged, IComponent
+class EntityQuery<T> where T: unmanaged, trait IComponent
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, trait IComponent =
         let query = EntityQuery<T>()
         query
 
-    M<T>(): () where T: unmanaged, IComponent =
+    M<T>(): () where T: unmanaged, trait IComponent =
         let _ = this.CreateQuery<T>()
 
 struct S
@@ -18241,15 +18241,15 @@ print(__oly_object): ()
 
 interface IComponent<T> where T: unmanaged
 
-class EntityQuery<T> where T: unmanaged, IComponent<T>
+class EntityQuery<T> where T: unmanaged, trait IComponent<T>
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent<T> =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, trait IComponent<T> =
         let query = EntityQuery<T>()
         query
 
-    M<T>(): () where T: unmanaged, IComponent<T> =
+    M<T>(): () where T: unmanaged, trait IComponent<T> =
         let _ = this.CreateQuery<T>()
 
 struct S
@@ -18280,15 +18280,15 @@ print(__oly_object): ()
 
 interface IComponent<T> where T: unmanaged
 
-class EntityQuery<T> where T: unmanaged, IComponent<T>
+class EntityQuery<T> where T: unmanaged, trait IComponent<T>
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent<T> =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, trait IComponent<T> =
         let query = EntityQuery<T>()
         query
 
-    M<T>(): () where T: unmanaged, IComponent<T> =
+    M<T>(): () where T: unmanaged, trait IComponent<T> =
         let _ = this.CreateQuery<T>()
 
 struct S<U>
@@ -18321,17 +18321,17 @@ interface IComponent<T> where T: unmanaged =
 
     Process<U>(): ()
 
-class EntityQuery<T> where T: unmanaged, IComponent<T> =
+class EntityQuery<T> where T: unmanaged, trait IComponent<T> =
 
     Execute(s: T): () = s.Process<int32>()
 
 class EntityDatabase =
 
-    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, IComponent<T> =
+    CreateQuery<T>(): EntityQuery<T> where T: unmanaged, trait IComponent<T> =
         let query = EntityQuery<T>()
         query
 
-    M<T>(s: T): () where T: unmanaged, IComponent<T> =
+    M<T>(s: T): () where T: unmanaged, trait IComponent<T> =
         let query = this.CreateQuery<T>()
         query.Execute(s)
 
@@ -18599,7 +18599,7 @@ extension AExtension =
     inherits A
     implements IComponent<7, int32>
 
-M<N, T>(): () where T: IComponent<N, int32> where N: constant int32 =
+M<N, T>(): () where T: trait IComponent<N, int32> where N: constant int32 =
     print(T.GetValue())
 
 main(): () =
@@ -18667,7 +18667,7 @@ extension AExtension =
     inherits A
     implements IComponent<7, int32>
 
-M<N, T>(): () where T: IComponent =
+M<N, T>(): () where T: trait IComponent =
     print(T.GetValue())
 
 main(): () =
@@ -18732,15 +18732,13 @@ field mutable F: () -> () = unchecked default
 M2<T>(): () = print("asdf")
 
 #[inline(never)]
-M<T>(): () where T: IComponent =
+M<T>(): () where T: trait IComponent =
     let f() =
         M2<T>()
     f()
-    //F <- f
 
 main(): () =
     M<int32>()
-   // F()
     """
     |> Oly
     |> withCompile
@@ -18769,7 +18767,7 @@ field mutable F: () -> () = unchecked default
 M2<T>(): () = print("asdf")
 
 #[inline(never)]
-M<T>(): () where T: IComponent =
+M<T>(): () where T: trait IComponent =
     let f() =
         M2<T>()
     F <- f
@@ -18805,7 +18803,7 @@ field mutable F: () -> () = unchecked default
 M2<T>(): () = print("asdf")
 
 #[inline(never)]
-M<T>(): () where T: IComponent =
+M<T>(): () where T: trait IComponent =
     F <- () -> M2<T>()
 
 main(): () =
@@ -18836,10 +18834,10 @@ extension Int32Component =
 field mutable F: () -> () = unchecked default
 
 #[inline(never)]
-M2<T>(): () where T: IComponent = print("asdf")
+M2<T>(): () where T: trait IComponent = print("asdf")
 
 #[inline(never)]
-M<T>(): () where T: IComponent =
+M<T>(): () where T: trait IComponent =
     F <- () -> M2<T>()
 
 main(): () =
@@ -18872,10 +18870,10 @@ extension Int32Component =
 field mutable F: () -> () = unchecked default
 
 #[inline(never)]
-M2<T>(): () where T: IComponent = T.Print()
+M2<T>(): () where T: trait IComponent = T.Print()
 
 #[inline(never)]
-M<T>(): () where T: IComponent =
+M<T>(): () where T: trait IComponent =
     F <- () -> M2<T>()
 
 main(): () =
@@ -18917,7 +18915,7 @@ extension TestStructComponent =
     inherits TestStruct
     implements IComponent
 
-M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+M2<T>(f: scoped byref<T> -> ()): () where T: trait IComponent =
     let mutable x = unchecked default
     f(&x)
 
@@ -18966,7 +18964,7 @@ extension TestStructComponent =
     inherits TestStruct
     implements IComponent
 
-M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+M2<T>(f: scoped byref<T> -> ()): () where T: trait IComponent =
     let mutable x = unchecked default
     f(&x)
 
@@ -19028,7 +19026,7 @@ extension TestStruct2Component =
     inherits TestStruct2
     implements IComponent
 
-M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+M2<T>(f: scoped byref<T> -> ()): () where T: trait IComponent =
     let mutable x = unchecked default
     f(&x)
 
@@ -19094,11 +19092,11 @@ extension TestStruct2Component =
 struct TestG<T> =
     public field mutable G: T = unchecked default
 
-M3<T>(f: scoped byref<TestG<T>> -> ()): () where T: IComponent =
+M3<T>(f: scoped byref<TestG<T>> -> ()): () where T: trait IComponent =
     let mutable x = unchecked default
     f(&x)
 
-M2<T>(f: scoped byref<T> -> ()): () where T: IComponent =
+M2<T>(f: scoped byref<T> -> ()): () where T: trait IComponent =
     M3<T>(
         g ->
             f(&g.G)   
@@ -19483,3 +19481,49 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Regression - should infer 15 as uint32``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+get_uint32(): uint32 = 25
+
+call_indirect_uint32: (uint32, uint32) -> () get = (x, y) -> print(y)
+
+main(): () =
+    call_indirect_uint32(get_uint32(), 15)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "15"
+
+[<Fact>]
+let ``Regression - should infer 15 as uint32 - 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+get_uint32(): uint32 = 25
+
+call_direct_uint32(x: uint32, y: uint32): () = print(y)
+
+main(): () =
+    call_direct_uint32(get_uint32(), 15)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "15"

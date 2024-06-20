@@ -1477,7 +1477,7 @@ type OlyBoundModel internal (
     and getSymbolsByConstraint (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxConstr: OlySyntaxConstraint) (constr: ConstraintSymbol) =
         match syntaxConstr with
         | OlySyntaxConstraint.Type(syntaxTy) ->
-            match constr.TryGetSubtypeOf() with
+            match constr.TryGetAnySubtypeOf() with
             | ValueSome constrTy ->
                 getTypeSymbol this addSymbol benv predicate syntaxTy constrTy
             | _ ->
@@ -1485,6 +1485,12 @@ type OlyBoundModel internal (
         | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
             match constr with
             | ConstraintSymbol.ConstantType(ty) ->
+                getTypeSymbol this addSymbol benv predicate syntaxTy ty.Value
+            | _ ->
+                ()
+        | OlySyntaxConstraint.TraitType(_, syntaxTy) ->
+            match constr with
+            | ConstraintSymbol.TraitType(ty) ->
                 getTypeSymbol this addSymbol benv predicate syntaxTy ty.Value
             | _ ->
                 ()

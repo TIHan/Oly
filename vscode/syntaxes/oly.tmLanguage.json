@@ -53,11 +53,11 @@
 				},
 				{
 					"name": "keyword.control",
-					"match": "\\b(match|when|if|else|while|try|catch|finally|import|export|return|and|or|not)\\b"
+					"match": "\\b(match|when|where|if|else|while|try|catch|finally|import|export|return|and|or|not)\\b"
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(is|as|to|of|from|throw|for|do|on|in|out|namespace|open|new|let|get|set|pattern|with|mutable|inline|pure|inherits|implements|refine|constant|intrinsic|implicit|explicit|where|checked|unchecked|unmanaged|managed|blittable|require|ignore|field|scoped)\\b"
+					"match": "\\b(is|as|to|of|from|throw|for|do|on|in|out|namespace|open|new|let|get|set|pattern|with|mutable|inline|pure|inherits|implements|refine|constant|intrinsic|implicit|explicit|trait|checked|unchecked|unmanaged|managed|blittable|require|ignore|field|scoped)\\b"
 				},
 				{
 					"name": "variable.language",

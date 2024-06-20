@@ -595,11 +595,12 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
                     OlyILConstraint.Blittable
                 | ConstraintSymbol.Scoped ->
                     OlyILConstraint.Scoped
+                | ConstraintSymbol.SubtypeOf(ty) ->
+                    OlyILConstraint.SubtypeOf(emitILType cenv env ty.Value)
                 | ConstraintSymbol.ConstantType(constTy) ->
                     OlyILConstraint.ConstantType(emitILType cenv env constTy.Value)
-                | ConstraintSymbol.SubtypeOf(ty) ->
-                    let ty = ty.Value
-                    OlyILConstraint.SubtypeOf(emitILType cenv env ty)
+                | ConstraintSymbol.TraitType(traitTy) ->
+                    OlyILConstraint.TraitType(emitILType cenv env traitTy.Value)
             )
         OlyILTypeParameter(GenString cenv x.Name, x.Arity, x.IsVariadic, ilConstrs)
     )

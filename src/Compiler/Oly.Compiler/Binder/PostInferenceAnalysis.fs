@@ -119,6 +119,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
         UnifyTypes TypeVariableRigidity.Flexible ty (TypeSymbol.Error(Some tyPar, None))
         |> ignore
 
+    | TypeSymbol.EagerInferenceVariable _
     | TypeSymbol.InferenceVariable(_, _)
     | TypeSymbol.HigherInferenceVariable(_, _, _, _) ->
         diagnostics.Error("Unable to infer type at this location.", 5, syntaxNode)
@@ -192,6 +193,8 @@ and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxCons
                     | ConstraintSymbol.SubtypeOf(lazyTy) ->
                         analyzeType acenv aenv syntaxConstr lazyTy.Value
                     | ConstraintSymbol.ConstantType(lazyTy) ->
+                        analyzeType acenv aenv syntaxConstr lazyTy.Value
+                    | ConstraintSymbol.TraitType(lazyTy) ->
                         analyzeType acenv aenv syntaxConstr lazyTy.Value
                     | _ ->
                         ()
@@ -648,9 +651,9 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
     let benv = aenv.envRoot.benv
 
     match literal with
-    | BoundLiteral.NumberInference(lazyLiteral, _) -> 
-        tryEvaluateLazyLiteral diagnostics lazyLiteral
-        |> ignore
+    | BoundLiteral.NumberInference(_, ty) -> 
+        analyzeType acenv aenv syntaxNode ty
+
     | BoundLiteral.NullInference(ty) ->
         if not ty.IsNullable && ty.IsSolved then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
@@ -1029,7 +1032,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                                         tyPar.Constraints
                                         |> ImArray.exists (fun x ->
                                             match x with
-                                            | ConstraintSymbol.SubtypeOf(constrTy) ->
+                                            | ConstraintSymbol.TraitType(constrTy) ->
                                                 let constrTy = constrTy.Value
                                                 witnessArgs
                                                 |> ImArray.exists (fun x ->

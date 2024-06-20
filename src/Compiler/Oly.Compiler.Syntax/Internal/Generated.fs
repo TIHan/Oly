@@ -514,14 +514,19 @@ type SyntaxConstraint =
     | Type
         of
         ty: SyntaxType
-    | Error
-        of
-        token: SyntaxToken
     | ConstantType
         of
         constantToken: SyntaxToken *
         ty: SyntaxType *
         fullWidth: int
+    | TraitType
+        of
+        traitToken: SyntaxToken *
+        ty: SyntaxType *
+        fullWidth: int
+    | Error
+        of
+        token: SyntaxToken
 
     interface ISyntaxNode with
 
@@ -562,14 +567,19 @@ type SyntaxConstraint =
                 match index with
                 | 0 -> ty :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Error(token) ->
-                match index with
-                | 0 -> token :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | ConstantType(constantToken, ty, _) ->
                 match index with
                 | 0 -> constantToken :> ISyntaxNode
                 | 1 -> ty :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | TraitType(traitToken, ty, _) ->
+                match index with
+                | 0 -> traitToken :> ISyntaxNode
+                | 1 -> ty :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Error(token) ->
+                match index with
+                | 0 -> token :> ISyntaxNode
                 | _ -> failwith "invalid slot"
 
         member this.SlotCount =
@@ -581,8 +591,9 @@ type SyntaxConstraint =
             | Blittable _ -> 1
             | Scoped _ -> 1
             | Type _ -> 1
-            | Error _ -> 1
             | ConstantType _ -> 2
+            | TraitType _ -> 2
+            | Error _ -> 1
 
         member this.FullWidth =
             match this with
@@ -600,10 +611,12 @@ type SyntaxConstraint =
                 (x :> ISyntaxNode).FullWidth
             | Type(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | Error(x) ->
-                (x :> ISyntaxNode).FullWidth
             | ConstantType(fullWidth=fullWidth) ->
                 fullWidth
+            | TraitType(fullWidth=fullWidth) ->
+                fullWidth
+            | Error(x) ->
+                (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 7
 

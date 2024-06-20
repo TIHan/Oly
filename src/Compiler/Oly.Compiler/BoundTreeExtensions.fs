@@ -80,7 +80,8 @@ module private Helpers =
                 | ConstraintSymbol.Blittable
                 | ConstraintSymbol.Scoped
                 | ConstraintSymbol.ConstantType _ -> None
-                | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
+                | ConstraintSymbol.SubtypeOf(ty) 
+                | ConstraintSymbol.TraitType(ty) -> Some ty.Value
             )
             |> Seq.collect(fun ent ->
                 filterFields queryMemberFlags valueFlags nameOpt ent.Fields
@@ -105,7 +106,8 @@ module private Helpers =
                     | ConstraintSymbol.Blittable
                     | ConstraintSymbol.Scoped
                     | ConstraintSymbol.ConstantType _ -> None
-                    | ConstraintSymbol.SubtypeOf(ty) -> Some ty.Value
+                    | ConstraintSymbol.SubtypeOf(ty) 
+                    | ConstraintSymbol.TraitType(ty) -> Some ty.Value
                 )
                 |> Seq.collect(fun ent ->
                     filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
@@ -1090,7 +1092,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // non-second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) when lazyTy.Value.IsTypeConstructor -> false | _ -> true)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> false | _ -> true)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -1101,7 +1103,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) when lazyTy.Value.IsTypeConstructor -> true | _ -> false)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> true | _ -> false)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -1208,9 +1210,11 @@ let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy
                     | ConstraintSymbol.Unmanaged
                     | ConstraintSymbol.Blittable
                     | ConstraintSymbol.Scoped -> true
+                    | ConstraintSymbol.SubtypeOf(ty) ->
+                        subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy ty.Value
                     | ConstraintSymbol.ConstantType(ty) ->
                         subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy ty.Value
-                    | ConstraintSymbol.SubtypeOf(ty) ->
+                    | ConstraintSymbol.TraitType(ty) ->
                         subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy ty.Value
                 )
             | _ -> 

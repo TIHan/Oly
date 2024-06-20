@@ -40,7 +40,7 @@ print(__oly_object): ()
 
 interface Add<T1, T2, T3>
 
-test<T>(): () where T: Add<T, T, T> = print("from a reference")
+test<T>(): () where T: trait Add<T, T, T> = print("from a reference")
         """
     let src =
         """
@@ -87,7 +87,7 @@ extension Int32AddExtension =
     inherits int32
     implements Add<int32>
 
-test<T>(): () where T: Add<T, T, T> = print("not from a reference")
+test<T>(): () where T: trait Add<T, T, T> = print("not from a reference")
 
 main(): () =
     test<int32>()
@@ -112,7 +112,7 @@ interface Add<T1, T2, T3> =
 
     static abstract test(): ()
 
-test<T>(): () where T: Add<T, T, T> = 
+test<T>(): () where T: trait Add<T, T, T> = 
     T.test()
     print("from a reference")
 
@@ -169,7 +169,7 @@ extension Int32AddExtension =
 
     static overrides test(): () = ()
 
-test<T>(): () where T: Add<T, T, T> = 
+test<T>(): () where T: trait Add<T, T, T> = 
     T.test()
     print("not from a reference")
 

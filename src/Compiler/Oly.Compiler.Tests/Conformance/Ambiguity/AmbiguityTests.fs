@@ -1416,6 +1416,12 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
+        ("Unable to infer type at this location.",
+            """
+    t.Test(123)
+           ^^^
+"""
+        )
         ("'Test' has ambiguous functions.",
             """
     t.Test(123)
@@ -1468,7 +1474,7 @@ extension AExtension2 =
     inherits A
     implements IA
 
-test<T>(t: T): () where T: IA = ()
+test<T>(t: T): () where T: trait IA = ()
 
 main(): () =
     let a = A()
@@ -1648,7 +1654,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: IA, { Test(): () } = ()
+test<T>(t: T): () where T: trait IA, trait { Test(): () } = ()
 
 main(): () =
     let a = A()
@@ -1686,7 +1692,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: { Test(): () }, IA = ()
+test<T>(t: T): () where T: trait { Test(): () }, trait IA = ()
 
 main(): () =
     let a = A()

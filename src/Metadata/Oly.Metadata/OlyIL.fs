@@ -308,8 +308,9 @@ type OlyILConstraint =
     | Unmanaged
     | Blittable
     | Scoped
-    | ConstantType of OlyILType
     | SubtypeOf of OlyILType
+    | ConstantType of OlyILType
+    | TraitType of OlyILType
 
 [<NoEquality;NoComparison>]
 type OlyILTypeParameter =

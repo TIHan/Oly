@@ -367,13 +367,6 @@ let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSy
     | ConstraintSymbol.Unmanaged
     | ConstraintSymbol.Blittable
     | ConstraintSymbol.Scoped -> constr
-    | ConstraintSymbol.ConstantType(lazyTy) ->
-        let ty = lazyTy.Value
-        let rty = retargetType currentAsmIdent importer tyPars ty
-        if obj.ReferenceEquals(rty, ty) then
-            constr
-        else
-            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(rty))
     | ConstraintSymbol.SubtypeOf(lazyTy) ->
         let ty = lazyTy.Value
         let rty = retargetType currentAsmIdent importer tyPars ty
@@ -381,6 +374,20 @@ let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSy
             constr
         else
             ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(rty))
+    | ConstraintSymbol.ConstantType(lazyTy) ->
+        let ty = lazyTy.Value
+        let rty = retargetType currentAsmIdent importer tyPars ty
+        if obj.ReferenceEquals(rty, ty) then
+            constr
+        else
+            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(rty))
+    | ConstraintSymbol.TraitType(lazyTy) ->
+        let ty = lazyTy.Value
+        let rty = retargetType currentAsmIdent importer tyPars ty
+        if obj.ReferenceEquals(rty, ty) then
+            constr
+        else
+            ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(rty))
 
 let private retargetTypeParameter currentAsmIdent importer (tyPar: TypeParameterSymbol) =
     if tyPar.Constraints.IsEmpty then
@@ -789,10 +796,12 @@ let private importTypeParameterSymbols cenv (enclosingTyPars: TypeParameterSymbo
                     ConstraintSymbol.Blittable
                 | OlyILConstraint.Scoped ->
                     ConstraintSymbol.Scoped
-                | OlyILConstraint.ConstantType(ilTy) ->
-                    ConstraintSymbol.ConstantType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
                 | OlyILConstraint.SubtypeOf(ilTy) ->
                     ConstraintSymbol.SubtypeOf(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
+                | OlyILConstraint.ConstantType(ilTy) ->
+                    ConstraintSymbol.ConstantType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
+                | OlyILConstraint.TraitType(ilTy) ->
+                    ConstraintSymbol.TraitType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
             )
         tyPar.SetConstraints(constrs)
     )
