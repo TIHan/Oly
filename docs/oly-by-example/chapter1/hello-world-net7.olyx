@@ -1,6 +1,0 @@
-#target "dotnet: net7"
-
-open System
-
-main(): () =
-    Console.WriteLine("Hello World!")
