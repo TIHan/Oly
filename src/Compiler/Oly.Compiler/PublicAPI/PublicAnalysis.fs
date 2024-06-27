@@ -639,8 +639,7 @@ module Patterns =
                         syntaxPars.Values 
                         |> ImArray.map (fun x -> 
                             match x with 
-                            | OlySyntaxParameter.Identifier(_, _, syntaxIdent)
-                            | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, syntaxIdent, _, _) ->
+                            | OlySyntaxParameter.Pattern(_, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, _) ->
                                 syntaxIdent :> OlySyntaxNode
                             | _ ->
                                 x :> OlySyntaxNode
@@ -656,8 +655,7 @@ module Patterns =
                         syntaxPars.Values 
                         |> ImArray.map (fun x -> 
                             match x with 
-                            | OlySyntaxParameter.Identifier(_, _, syntaxIdent)
-                            | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, syntaxIdent, _, _) ->
+                            | OlySyntaxParameter.Pattern(_, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, _) ->
                                 syntaxIdent :> OlySyntaxNode
                             | _ ->
                                 x :> OlySyntaxNode

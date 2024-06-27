@@ -510,3 +510,201 @@ main(): () =
     Oly src
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Pattern local in lambda should error on same local name``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: (T, int32) -> ()): () =
+    For(getLength(xs), i -> f(xs[i], 5))
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, 
+        ((x, y), x) ->
+            print(x)
+            print(y)
+    )
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'x' has already been declared in the pattern set.", """
+        ((x, y), x) ->
+          ^
+""")
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Pattern local in lambda should error on same local name 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: (int32, T) -> ()): () =
+    For(getLength(xs), i -> f(5, xs[i]))
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, 
+        (x, (x, y)) ->
+            print(x)
+            print(y)
+    )
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'x' has already been declared in the pattern set.", """
+        (x, (x, y)) ->
+             ^
+""")
+        ]
+    |> ignore
+
+
+[<Fact>]
+let ``Pattern local in lambda should error on same local name 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: (T, T) -> ()): () =
+    For(getLength(xs), i -> f(xs[i], xs[i]))
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(xs, 
+        ((x, y), (x, y)) ->
+            print(x)
+            print(y)
+    )
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'x' has already been declared in the pattern set.", """
+        ((x, y), (x, y)) ->
+                  ^
+""");
+            ("'y' has already been declared in the pattern set.", """
+        ((x, y), (x, y)) ->
+                     ^
+""")
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Tuple pattern in signature but is actually a type but should fail as this is recognized as a pattern``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print((int32, int32)): ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Patterns are not allowed for signatures.", """
+print((int32, int32)): ()
+      ^^^^^^^^^^^^^^
+""")
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Discard pattern in signature should compile``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(_: (int32, int32)): ()
+    """
+    |> Oly
+    |> shouldCompile

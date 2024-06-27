@@ -148,8 +148,7 @@ type SyntaxParameter with
 
     member this.IsMutable =
         match this with
-        | SyntaxParameter.Identifier(mutability=SyntaxMutability.Mutable _) 
-        | SyntaxParameter.IdentifierWithTypeAnnotation(mutability=SyntaxMutability.Mutable _) -> true
+        | SyntaxParameter.Pattern(mutability=SyntaxMutability.Mutable _) -> true
         | _ -> false
 
 type SyntaxTypeArguments with

@@ -1724,29 +1724,28 @@ let tryParseTupleElement state =
     | _ ->
         None
 
-let tryParseParameterIdentifier s attrs mutability state = 
-    // TODO: Simplify this let make it faster.
-    match bt IDENTIFIER state with
-    | Some(identifierToken) ->
+let tryParseParameterPattern s attrs mutability state = 
+    match tryParsePattern PatternKind.Parameter state with
+    | Some(pat) ->
         match bt (tryPeek COLON) state with
         | Some _ ->
             let colonToken, ty = parseTypeAnnotation state
-            SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, identifierToken, colonToken, ty, ep s state) |> Some
+            SyntaxParameter.Pattern(attrs, mutability, pat, colonToken, ty, ep s state) |> Some
         | _ ->
 
         match bt (tryPeek RIGHT_ARROW) state with
         | Some _ ->
-            SyntaxParameter.Identifier(attrs, mutability, identifierToken, ep s state) |> Some
+            SyntaxParameter.Pattern(attrs, mutability, pat, dummyToken(), SyntaxType.Error(dummyToken()), ep s state) |> Some
         | _ ->
 
         match bt (tryPeek RIGHT_PARENTHESIS) state with
         | Some _ ->
-            SyntaxParameter.Identifier(attrs, mutability, identifierToken, ep s state) |> Some
+            SyntaxParameter.Pattern(attrs, mutability, pat, dummyToken(), SyntaxType.Error(dummyToken()), ep s state) |> Some
         | _ ->
 
         match bt (tryPeek COMMA) state with
         | Some _ ->
-            SyntaxParameter.Identifier(attrs, mutability, identifierToken, ep s state) |> Some
+            SyntaxParameter.Pattern(attrs, mutability, pat, dummyToken(), SyntaxType.Error(dummyToken()), ep s state) |> Some
         | _ ->
 
         None
@@ -1759,7 +1758,7 @@ let tryParseParameter state : SyntaxParameter option =
     let attrs = parseAttributes state
     let mutability = parseMutability state
 
-    match bt (tryParseParameterIdentifier s attrs mutability) state with
+    match bt (tryParseParameterPattern s attrs mutability) state with
     | Some(par) -> Some par
     | _ ->
 
@@ -1776,7 +1775,7 @@ let tryParseParameter state : SyntaxParameter option =
                 SyntaxParameter.Type(attrs, SyntaxType.MutableArray(mutableToken, elementTy, brackets, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
                 |> Some
             | _ ->
-                let par = SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, dummyToken(), dummyToken(), ty, ep s state)
+                let par = SyntaxParameter.Pattern(attrs, mutability, SyntaxPattern.Error(dummyToken()), dummyToken(), ty, ep s state)
                 errorReturn (InvalidSyntax "'mutable' not expected for a qualified name.", mutability) state
                 |> ignore
                 par |> Some
@@ -1786,14 +1785,14 @@ let tryParseParameter state : SyntaxParameter option =
 
     match mutability with
     | SyntaxMutability.Mutable _ ->
-        error (ExpectedSyntaxAfterToken("identifier for parameter", Mutable), SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, dummyToken(), dummyToken(), SyntaxType.Error(dummyToken()), ep s state)) state
+        error (ExpectedSyntaxAfterToken("identifier for parameter", Mutable), SyntaxParameter.Pattern(attrs, mutability, SyntaxPattern.Error(dummyToken()), dummyToken(), SyntaxType.Error(dummyToken()), ep s state)) state
     | _ ->
 
     match attrs with
     | SyntaxAttributes.Empty _ ->
         None
     | _ ->
-        error (ExpectedSyntaxAfterSyntax("parameter", "attributes"), SyntaxParameter.IdentifierWithTypeAnnotation(attrs, mutability, dummyToken(), dummyToken(), SyntaxType.Error(dummyToken()), ep s state)) state
+        error (ExpectedSyntaxAfterSyntax("parameter", "attributes"), SyntaxParameter.Pattern(attrs, mutability, SyntaxPattern.Error(dummyToken()), dummyToken(), SyntaxType.Error(dummyToken()), ep s state)) state
 
 let tryParseParameters state =
     let s = sp state
@@ -1982,11 +1981,11 @@ let parseTypeArguments context state =
     | Some(tyArgs) -> tyArgs
     | _ -> SyntaxTypeArguments.Empty()
 
-let tryParseLetPatternBinding context state =
+let tryParseLetExpression context state =
     if isNextToken (function Let -> true | _ -> false) state then
         let s = sp state
 
-        match bt2 LET (tryParsePattern true) state with
+        match bt2 LET (tryParsePattern PatternKind.Let) state with
         | Some(letToken), Some(pat) ->
             match pat with
             | SyntaxPattern.Name(SyntaxName.Identifier _) ->
@@ -1995,7 +1994,7 @@ let tryParseLetPatternBinding context state =
             | _ ->
                 match bt2 EQUAL (tryParseOffsideExpression context) state with
                 | Some(equalToken), Some(expr) ->
-                    SyntaxLetPatternBinding.Binding(letToken, pat, equalToken, expr, ep s state) |> Some
+                    SyntaxExpression.Let(SyntaxLet.Binding(letToken, pat, equalToken, expr, ep s state)) |> Some
                 | _ ->
                     None
         | _ ->
@@ -3036,8 +3035,8 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (tryParseLetPatternBinding context)) state with
-        | Some result -> SyntaxExpression.LetPatternDeclaration(result)
+        match bt (alignOrFlexAlignRecover (tryParseLetExpression context)) state with
+        | Some result -> result
         | _ ->
 
         match bt (alignOrFlexAlignRecover (tryParseValueOrTypeDeclarationExpression context)) state with
@@ -3525,7 +3524,13 @@ let parseOffsideExpression (context: SyntaxTreeContext, errorNode: ISyntaxNode) 
         errorDo (InvalidSyntax("Missing expression body."), errorNode) state
         SyntaxExpression.Error(dummyToken())
 
-let tryParsePattern (isLetBinding: bool) (state: ParserState) : SyntaxPattern option =
+[<RequireQualifiedAccess>]
+type PatternKind =
+    | Match
+    | Let
+    | Parameter
+
+let tryParsePattern (kind: PatternKind) (state: ParserState) : SyntaxPattern option =
     let s = sp state
 
     match bt tryParseLiteral state with
@@ -3539,21 +3544,28 @@ let tryParsePattern (isLetBinding: bool) (state: ParserState) : SyntaxPattern op
     | _ ->
 
     if isNextToken (function LeftParenthesis -> true | _ -> false) state then
-        match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
+        match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern PatternKind.Match) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
         | Some(leftParenToken, patList, rightParenToken) ->
-            SyntaxPattern.Parenthesis(leftParenToken, patList, rightParenToken, ep s state) |> Some
+            // Disambiguates: (() -> ())
+            if isNextToken (function RightArrow -> true | _ -> false) state then
+                None
+            else
+                SyntaxPattern.Parenthesis(leftParenToken, patList, rightParenToken, ep s state) |> Some
         | _ ->
             None
     else
-        if isLetBinding then
+        if kind = PatternKind.Let then
             None
         else
             match bt (tryParseName TypeParameterContext.Operator) state with
             | Some(name) ->
-                match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern false) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
-                | Some(leftParenToken, patList, rightParenToken) ->
-                    SyntaxPattern.Function(name, leftParenToken, patList, rightParenToken, ep s state) |> Some
-                | _ ->
+                if (kind <> PatternKind.Parameter) then
+                    match bt (tryParseParenthesisSeparatorList COMMA "pattern" (tryParsePattern PatternKind.Match) (fun token -> SyntaxPattern.Error(token) |> Some)) state with
+                    | Some(leftParenToken, patList, rightParenToken) ->
+                        SyntaxPattern.Function(name, leftParenToken, patList, rightParenToken, ep s state) |> Some
+                    | _ ->
+                        SyntaxPattern.Name(name) |> Some
+                else
                     SyntaxPattern.Name(name) |> Some
             | _ ->
                 None
@@ -3599,7 +3611,7 @@ let tryParseMatchPatternLhs state =
     | Some result -> result |> Some
     | _ ->
 
-    match bt (tryParseListWithSeparatorOld COMMA "pattern" SyntaxPattern.Error (tryParsePattern false)) state with
+    match bt (tryParseListWithSeparatorOld COMMA "pattern" SyntaxPattern.Error (tryParsePattern PatternKind.Match)) state with
     | Some(patList) ->
         SyntaxMatchPattern.Patterns(patList) |> Some
     | _ ->

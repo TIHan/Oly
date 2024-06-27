@@ -1133,17 +1133,11 @@ module SyntaxMutability =
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxParameter =
-    | Identifier
+    | Pattern
         of
         attrs: SyntaxAttributes *
         mutability: SyntaxMutability *
-        identToken: SyntaxToken *
-        fullWidth: int
-    | IdentifierWithTypeAnnotation
-        of
-        attrs: SyntaxAttributes *
-        mutability: SyntaxMutability *
-        identToken: SyntaxToken *
+        pat: SyntaxPattern *
         colonToken: SyntaxToken *
         ty: SyntaxType *
         fullWidth: int
@@ -1166,17 +1160,11 @@ type SyntaxParameter =
 
         member this.GetSlot(index) =
             match this with
-            | Identifier(attrs, mutability, identToken, _) ->
+            | Pattern(attrs, mutability, pat, colonToken, ty, _) ->
                 match index with
                 | 0 -> attrs :> ISyntaxNode
                 | 1 -> mutability :> ISyntaxNode
-                | 2 -> identToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | IdentifierWithTypeAnnotation(attrs, mutability, identToken, colonToken, ty, _) ->
-                match index with
-                | 0 -> attrs :> ISyntaxNode
-                | 1 -> mutability :> ISyntaxNode
-                | 2 -> identToken :> ISyntaxNode
+                | 2 -> pat :> ISyntaxNode
                 | 3 -> colonToken :> ISyntaxNode
                 | 4 -> ty :> ISyntaxNode
                 | _ -> failwith "invalid slot"
@@ -1192,16 +1180,13 @@ type SyntaxParameter =
 
         member this.SlotCount =
             match this with
-            | Identifier _ -> 3
-            | IdentifierWithTypeAnnotation _ -> 5
+            | Pattern _ -> 5
             | Type _ -> 2
             | Error _ -> 1
 
         member this.FullWidth =
             match this with
-            | Identifier(fullWidth=fullWidth) ->
-                fullWidth
-            | IdentifierWithTypeAnnotation(fullWidth=fullWidth) ->
+            | Pattern(fullWidth=fullWidth) ->
                 fullWidth
             | Type(fullWidth=fullWidth) ->
                 fullWidth
@@ -1801,7 +1786,7 @@ module SyntaxBinding =
     let Tag = 23
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
-type SyntaxLetPatternBinding =
+type SyntaxLet =
     | Binding
         of
         letToken: SyntaxToken *
@@ -1840,7 +1825,7 @@ type SyntaxLetPatternBinding =
         member _.Tag = 24
 
 [<RequireQualifiedAccess>]
-module SyntaxLetPatternBinding =
+module SyntaxLet =
 
     [<Literal>]
     let Tag = 24
@@ -3534,9 +3519,9 @@ type SyntaxExpression =
         postmodifierList: SyntaxValueDeclarationPostmodifier SyntaxList *
         binding: SyntaxBinding *
         fullWidth: int
-    | LetPatternDeclaration
+    | Let
         of
-        binding: SyntaxLetPatternBinding
+        node: SyntaxLet
     | TypeDeclaration
         of
         attrs: SyntaxAttributes *
@@ -3714,9 +3699,9 @@ type SyntaxExpression =
                 | 4 -> postmodifierList :> ISyntaxNode
                 | 5 -> binding :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | LetPatternDeclaration(binding) ->
+            | Let(node) ->
                 match index with
-                | 0 -> binding :> ISyntaxNode
+                | 0 -> node :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | TypeDeclaration(attrs, accessor, kind, name, typeParameters, constrClauseList, equalsToken, body, _) ->
                 match index with
@@ -3779,7 +3764,7 @@ type SyntaxExpression =
             | While _ -> 5
             | Typed _ -> 3
             | ValueDeclaration _ -> 6
-            | LetPatternDeclaration _ -> 1
+            | Let _ -> 1
             | TypeDeclaration _ -> 8
             | MemberAccess _ -> 3
             | Mutate _ -> 3
@@ -3833,7 +3818,7 @@ type SyntaxExpression =
                 fullWidth
             | ValueDeclaration(fullWidth=fullWidth) ->
                 fullWidth
-            | LetPatternDeclaration(x) ->
+            | Let(x) ->
                 (x :> ISyntaxNode).FullWidth
             | TypeDeclaration(fullWidth=fullWidth) ->
                 fullWidth

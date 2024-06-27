@@ -33,269 +33,6 @@ let unsetIsInLocalLambda (env: BinderEnvironment) =
     else
         env
 
-let bindNameAsCasePattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isActive syntaxPattern isFirstPatternSet clauseLocals patternLocals ty (syntaxPatArgs: OlySyntaxPattern imarray) (syntaxName: OlySyntaxName) =
-    let expectedPatArgTys =
-        ImArray.init syntaxPatArgs.Length (fun _ -> mkInferenceVariableType None)
-    
-    let expectedTy =
-        if expectedPatArgTys.IsEmpty then
-            TypeSymbol.Unit
-        elif expectedPatArgTys.Length = 1 then
-            expectedPatArgTys[0]
-        else
-            TypeSymbol.Tuple(expectedPatArgTys, ImArray.empty)
-    
-    let resTyArity = typeResolutionArityOfName syntaxName
-    let resInfo = ResolutionInfo.Create(ImArray.createOne ty, resTyArity, ResolutionContext.PatternOnly)
-    let resItem = bindNameAsItem cenv env None None resInfo syntaxName
-    
-    bindPatternByResolutionItem
-        cenv
-        env
-        solverEnv
-        expectedTy
-        isActive
-        isFirstPatternSet
-        clauseLocals
-        patternLocals
-        syntaxPattern
-        ty
-        (syntaxName, syntaxPatArgs, expectedPatArgTys)
-        resItem  
-
-let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isFirstPatternSet (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) (patternLocals: HashSet<string>) (matchTy: TypeSymbol) (syntaxPattern: OlySyntaxPattern) =
-    let syntaxInfo = BoundSyntaxInfo.User(syntaxPattern, env.benv)
-    match syntaxPattern with
-    | OlySyntaxPattern.Discard _ ->
-        env, BoundCasePattern.Discard(syntaxInfo)
-    
-    | OlySyntaxPattern.Literal(syntaxLiteral) ->
-        let literal = bindLiteral cenv env (Some matchTy) syntaxLiteral
-        env, BoundCasePattern.Literal(syntaxInfo, literal)
-
-    | OlySyntaxPattern.Name(syntaxName) ->
-        let syntaxIdentOpt =
-            match syntaxName with
-            | OlySyntaxName.Identifier(syntaxIdent) ->
-                if env.UnqualifiedPatternExists(syntaxIdent.ValueText) then
-                    // A pattern exists with this identifier so do not create a local.
-                    None
-                else
-                    // Create a new local.
-                    Some(syntaxIdent)
-            | _ ->
-                // Do not create a local.
-                None
-
-        match syntaxIdentOpt with
-        | Some(syntaxIdent) ->
-            let env, local =
-                if not (patternLocals.Add syntaxIdent.ValueText) then
-                    cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has already been declared in the pattern set.", 10, syntaxIdent)
-                    env, invalidLocal()
-                else
-                    match clauseLocals.TryGetValue syntaxIdent.ValueText with
-                    | true, (_, local) -> 
-                        checkTypes solverEnv syntaxIdent local.Type matchTy
-                        env, local
-                    | _ ->
-                        if isFirstPatternSet then
-                            let local = createLocalValue syntaxIdent.ValueText matchTy
-                            clauseLocals.[syntaxIdent.ValueText] <- (syntaxIdent, local)
-                            env.SetUnqualifiedValue(local), local
-                        else
-                            cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has not been declared in the first pattern set.", 10, syntaxIdent)
-                            env, invalidLocal()
-            env, BoundCasePattern.Local(syntaxInfo, local)
-        | _ ->
-            bindNameAsCasePattern cenv env solverEnv false syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy ImArray.empty syntaxName 
-
-    | OlySyntaxPattern.Function(syntaxName, _, syntaxPatList, _) ->
-        bindNameAsCasePattern cenv env solverEnv true syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy syntaxPatList.ChildrenOfType syntaxName 
-
-    | OlySyntaxPattern.Parenthesis(_, syntaxPatList, _) ->
-        // Unit
-        if syntaxPatList.ChildrenOfType.IsEmpty then
-            checkTypes solverEnv syntaxPattern TypeSymbol.Unit matchTy
-            env, BoundCasePattern.Discard(syntaxInfo)
-
-        // Pattern in parenthesis
-        elif syntaxPatList.ChildrenOfType.Length = 1 then
-            let syntaxPattern = syntaxPatList.ChildrenOfType.[0]
-            bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals matchTy syntaxPattern
-
-        // Tuple
-        else
-            let (elementTys, syntaxPatterns) =
-                let results =
-                    syntaxPatList.ChildrenOfType
-                    |> ImArray.map (fun syntaxPattern ->
-                        let elementTy = mkInferenceVariableType None
-                        (elementTy, syntaxPattern)
-                    )
-                results
-                |> Array.ofSeq
-                |> Array.unzip
-
-            let elementTys = elementTys |> ImArray.ofSeq
-            let syntaxPatterns = syntaxPatterns |> ImArray.ofSeq
-            let tupleTy = TypeSymbol.CreateTuple(elementTys)
-            checkTypes solverEnv syntaxPattern tupleTy matchTy
-
-            let env, casePats =
-                let env, results =
-                    (env, elementTys, syntaxPatterns)
-                    |||> ImArray.foldMap2 (fun env elementTy syntaxPattern ->
-                        bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals elementTy syntaxPattern
-                    )
-                env,
-                results
-
-            env, BoundCasePattern.Tuple(syntaxInfo, casePats)
-
-    | OlySyntaxPattern.Error _ ->
-        checkTypes solverEnv syntaxPattern TypeSymbolError matchTy
-        env, BoundCasePattern.Discard(syntaxInfo)
-
-    | _ ->
-        OlyAssert.Fail("New pattern matching syntax not handled.")
-
-let private bindPatternByResolutionItem 
-        (cenv: cenv) 
-        (env: BinderEnvironment) 
-        (solverEnv: SolverEnvironment) 
-        (expectedTy: TypeSymbol)
-        isActive
-        isFirstPatternSet 
-        (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) 
-        (patternLocals: HashSet<string>) 
-        (syntaxInfo: BoundSyntaxInfo)
-        (matchTy: TypeSymbol)
-        (syntaxName, syntaxPatArgs, expectedPatArgTys: _ imarray)
-        resItem =
-    match resItem with
-    | ResolutionItem.Error _ ->         
-        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
-    | ResolutionItem.Pattern(_, pat, witnessArgs) ->
-        let func = pat.PatternFunction
-        let returnTys = 
-            let returnTy = func.ReturnType
-            match stripTypeEquations returnTy with
-            | TypeSymbol.Tuple(argTys, _) -> argTys
-            | TypeSymbol.Unit -> ImArray.empty
-            | _ -> ImArray.createOne returnTy
-        if expectedPatArgTys.Length <> returnTys.Length then
-            cenv.diagnostics.Error($"Pattern '{func.Name}' expected '{returnTys.Length}' argument(s), but given '{expectedPatArgTys.Length}'.", 10, syntaxInfo.Syntax)
-            env, BoundCasePattern.Function(syntaxInfo, pat, ImArray.empty, ImArray.empty)
-        else
-
-            (syntaxPatArgs, expectedPatArgTys, returnTys)
-            |||> ImArray.iter3 (fun syntaxPatArg expectedPatArgTy returnTy ->
-                checkTypes solverEnv syntaxPatArg expectedPatArgTy returnTy
-            )
-
-            let env, casePatArgs =
-                (env, syntaxPatArgs, expectedPatArgTys)
-                |||> ImArray.foldMap2 (fun env syntaxPatArg patArgTy ->
-                    bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals patArgTy syntaxPatArg
-                )
-
-            env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, casePatArgs)
-    | ResolutionItem.Expression(E.Value(value=(:? IFunctionSymbol as func))) ->
-        // We do not show the error for a function group because it means we already have ambiguous functions.
-        if not func.IsFunctionGroup then
-            cenv.diagnostics.Error($"'{func.Name}' is not a pattern.", 10, syntaxName)
-
-        // TODO: We should return BoundCasePattern.Function, but we do not have a pattern at this point.
-        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
-    | ResolutionItem.Expression(E.Call(syntaxInfoFromCall, _, _, _, value, _) as callExpr) ->
-        let syntaxInfo =
-            BoundSyntaxInfo.User(syntaxInfo.Syntax, env.benv, syntaxInfoFromCall.TrySyntaxName, syntaxInfoFromCall.TryType)
-        // Pattern overloading specific
-        let callExpr =
-            match value with
-            | :? FunctionGroupSymbol as funcGroup ->
-                let argExprs =
-                    E.CreateValue(syntaxInfo, createLocalGeneratedValue "tmp" matchTy)
-                    |> ImArray.createOne
-                let funcs =
-                    funcGroup.Functions
-                    |> ImArray.filter (fun x ->
-                        match stripTypeEquations x.ReturnType with
-                        | TypeSymbol.Tuple(tyArgs, _) ->
-                            tyArgs.Length = syntaxPatArgs.Length
-                        | TypeSymbol.Unit ->
-                            syntaxPatArgs.IsEmpty
-                        | _ ->
-                            syntaxPatArgs.Length = 1
-                    )
-                let value =
-                    if funcs.IsEmpty then
-                        funcGroup :> IValueSymbol
-                    elif funcs.Length = 1 then
-                        funcs[0]
-                    else
-                        FunctionGroupSymbol(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length, funcGroup.IsPatternFunction)
-                let callExpr = 
-                    bindValueAsCallExpressionWithOptionalSyntaxName
-                        cenv
-                        env
-                        syntaxInfo
-                        None
-                        (ValueSome argExprs)
-                        (value, syntaxInfo.TrySyntaxName)
-                callExpr
-            | _ ->
-                callExpr
-
-        match checkExpression cenv env (Some expectedTy) callExpr with
-        | BoundExpression.Call(witnessArgs=witnessArgs;value=value) when value.IsFunction ->
-            let func = value :?> IFunctionSymbol
-            if func.IsPatternFunction then
-                OlyAssert.True(func.AssociatedFormalPattern.IsSome)
-
-                if isActive then
-                    match value with
-                    | :? IFunctionSymbol as func ->
-                        if func.ReturnType.IsUnit_t then
-                            cenv.diagnostics.Error($"'{func.Name}' returns '()' which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
-                    | _ ->
-                        ()
-
-                let pat2 = actualPattern func.Enclosing func.AllTypeArguments func.AssociatedFormalPattern.Value
-                bindPatternByResolutionItem 
-                    cenv 
-                    env 
-                    solverEnv
-                    expectedTy
-                    isActive
-                    isFirstPatternSet
-                    clauseLocals
-                    patternLocals
-                    syntaxInfo
-                    matchTy
-                    (syntaxName, syntaxPatArgs, expectedPatArgTys)
-                    (ResolutionItem.Pattern(syntaxInfo.Syntax, pat2, witnessArgs))
-            elif func.IsFunctionGroup then
-                // Ambiguous overloads, reported in PostInferenceAnalysis.
-                let pat = PatternSymbol(func.Enclosing, ImArray.empty, func.Name, func)
-                env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, ImArray.empty)
-            else
-                cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-                env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
-        | _ ->
-            cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-            env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
-            
-    | ResolutionItem.Expression(E.Value(value=value)) when value.IsFieldConstant ->
-        let field = value :?> IFieldSymbol
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxInfo.Syntax matchTy field.Type
-        env, BoundCasePattern.FieldConstant(syntaxInfo, field)
-
-    | _ ->
-        cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
-        env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
-
 // TODO: We should not be using EntitySymbolBuilder.
 //       The reason is because it is mutable and we do not want to do mutable things in this pass.
 //       Instead, we should have a EntitySymbolInfo which contains the syntax associated for read-only purposes.
@@ -910,7 +647,7 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
     | _ ->
         bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
-let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr =
+let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind (syntaxPars: OlySyntaxParameters) syntaxBodyExpr =
 
     let isStatic =
         match syntaxLambdaKind with
@@ -929,7 +666,67 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                     ||> Seq.fold (fun env pv ->
                         env.SetUnqualifiedValue(pv)
                     )
+
+                // TODO: Use a fold...
+                let mutable clauseLocals : Dictionary<_, _> =  null
+                let mutable patternLocals : HashSet<_> = null 
+                let mutable env1 = env1
+                let casePats =
+                    (syntaxPars.Values, pars)
+                    ||> ImArray.map2 (fun syntaxPar par ->
+                        match syntaxPar with
+                        | OlySyntaxParameter.Pattern(_, _, ((OlySyntaxPattern.Parenthesis _) as syntaxPat), _, _) ->
+                            if isNull clauseLocals then
+                                clauseLocals <- Dictionary()
+                            if isNull patternLocals then
+                                patternLocals <- HashSet()
+                                pars
+                                |> ImArray.iter (fun par ->
+                                    if not(System.String.IsNullOrWhiteSpace(par.Name)) then
+                                        patternLocals.Add(par.Name) |> ignore
+                                )
+
+                            let envCasePat, casePat =
+                                bindPattern
+                                    cenv
+                                    env1
+                                    (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass))
+                                    true
+                                    clauseLocals
+                                    patternLocals
+                                    par.Type
+                                    syntaxPat
+
+                            env1 <- envCasePat
+                            Some(par, casePat)
+                        | _ ->
+                            None
+                    )
+                    |> ImArray.choose id
+
                 let _, bodyExpr = bindLocalExpression cenv (env1.SetReturnable(false)) None syntaxBodyExpr syntaxBodyExpr
+
+                let bodyExpr =
+                    if casePats.IsEmpty then
+                        bodyExpr
+                    else
+                        (bodyExpr, casePats)
+                        ||> ImArray.foldBack (fun bodyExpr (par: ILocalParameterSymbol, casePat: BoundCasePattern) ->
+                            let matchPat = BoundMatchPattern.Cases(casePat.Syntax, ImArray.createOne casePat)
+                            let matchClause = BoundMatchClause.MatchClause(casePat.Syntax, matchPat, None, bodyExpr)
+                            let matchClauses = ImArray.createOne matchClause
+
+                            checkExhaustiveness cenv env casePat.Syntax matchClauses
+
+                            BoundExpression.Match(
+                                syntaxToCapture, 
+                                env.benv, 
+                                ImArray.createOne(E.Value(BoundSyntaxInfo.User(casePat.Syntax, env1.benv), par)), 
+                                matchClauses, 
+                                bodyExpr.Type
+                            )
+                        )
+
                 let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env1.benv, cenv.pass)
                 let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), FunctionKind.Normal)
                 checkLambdaExpression solverEnv pars bodyExpr ty
@@ -1286,7 +1083,8 @@ let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (
         catchCasesBuilder.ToImmutable(), Some finallyBodyExpr
 
     | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxNextCatchOrFinallyExpr) ->
-        let _, par = bindParameter cenv env None false syntaxPar
+        let (_, par) = bindParameter cenv env None false syntaxPar
+
         let envForCatchCase = env.SetUnqualifiedValue(par)
         let _, catchBodyExpr = bindLocalExpression cenv envForCatchCase expectedTyOpt syntaxCatchBodyExpr syntaxCatchBodyExpr
         let catchCase = 
@@ -1645,9 +1443,9 @@ let private bindLocalValueDeclaration
         cenv.diagnostics.Error("Member declarations are not allowed in a local context.", 10, syntaxBinding.Declaration.Identifier)
         env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
 
-let private bindLetPatternBinding (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxToCapture: OlySyntaxExpression) (syntaxLetPatternBinding: OlySyntaxLetPatternBinding) (syntaxBodyExprOpt: OlySyntaxExpression option) =
-    match syntaxLetPatternBinding with
-    | OlySyntaxLetPatternBinding.Binding(syntaxLetToken, syntaxPat, _, syntaxRhsExpr) ->
+let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxToCapture: OlySyntaxExpression) (syntaxLet: OlySyntaxLet) (syntaxBodyExprOpt: OlySyntaxExpression option) =
+    match syntaxLet with
+    | OlySyntaxLet.Binding(syntaxLetToken, syntaxPat, _, syntaxRhsExpr) ->
         let matchTy = mkInferenceVariableType None
         let envOfBinding, pat = bindPattern cenv env (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) true (Dictionary()) (HashSet()) matchTy syntaxPat
         let rhsExpr = bindValueRightSideExpression cenv env matchTy (env.SetReturnable(false)) syntaxRhsExpr
@@ -1795,13 +1593,13 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
             None
 
     | OlySyntaxExpression.Sequential(
-            OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding),
+            OlySyntaxExpression.Let(syntaxLet),
             syntaxBodyExpr
       ) ->
-        bindLetPatternBinding cenv env expectedTyOpt syntaxToCapture syntaxLetPatternBinding (Some syntaxBodyExpr)
+        bindLet cenv env expectedTyOpt syntaxToCapture syntaxLet (Some syntaxBodyExpr)
 
-    | OlySyntaxExpression.LetPatternDeclaration(syntaxLetPatternBinding) ->
-        bindLetPatternBinding cenv env expectedTyOpt syntaxExpr syntaxLetPatternBinding None
+    | OlySyntaxExpression.Let(syntaxLet) ->
+        bindLet cenv env expectedTyOpt syntaxExpr syntaxLet None
 
     | OlySyntaxExpression.Sequential(leftSyntax, rightSyntax) ->
         bindSequentialExpression cenv env expectedTyOpt syntaxToCapture leftSyntax rightSyntax
@@ -1999,3 +1797,270 @@ let bindAnonymousShapeType (cenv: cenv) (env: BinderEnvironment) (tyPars: TypePa
     addBindingDeclarationsToEntityPass2 { cenv with pass = Pass2 } env bindingInfos entBuilder
 
     entBuilder.Entity.AsType
+
+let private bindNameAsCasePattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isActive syntaxPattern isFirstPatternSet clauseLocals patternLocals ty (syntaxPatArgs: OlySyntaxPattern imarray) (syntaxName: OlySyntaxName) =
+    let expectedPatArgTys =
+        ImArray.init syntaxPatArgs.Length (fun _ -> mkInferenceVariableType None)
+    
+    let expectedTy =
+        if expectedPatArgTys.IsEmpty then
+            TypeSymbol.Unit
+        elif expectedPatArgTys.Length = 1 then
+            expectedPatArgTys[0]
+        else
+            TypeSymbol.Tuple(expectedPatArgTys, ImArray.empty)
+    
+    let resTyArity = typeResolutionArityOfName syntaxName
+    let resInfo = ResolutionInfo.Create(ImArray.createOne ty, resTyArity, ResolutionContext.PatternOnly)
+    let resItem = bindNameAsItem cenv env None None resInfo syntaxName
+    
+    bindPatternByResolutionItem
+        cenv
+        env
+        solverEnv
+        expectedTy
+        isActive
+        isFirstPatternSet
+        clauseLocals
+        patternLocals
+        syntaxPattern
+        ty
+        (syntaxName, syntaxPatArgs, expectedPatArgTys)
+        resItem  
+
+let private bindPatternByResolutionItem 
+        (cenv: cenv) 
+        (env: BinderEnvironment) 
+        (solverEnv: SolverEnvironment) 
+        (expectedTy: TypeSymbol)
+        isActive
+        isFirstPatternSet 
+        (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) 
+        (patternLocals: HashSet<string>) 
+        (syntaxInfo: BoundSyntaxInfo)
+        (matchTy: TypeSymbol)
+        (syntaxName, syntaxPatArgs, expectedPatArgTys: _ imarray)
+        resItem =
+    match resItem with
+    | ResolutionItem.Error _ ->         
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
+    | ResolutionItem.Pattern(_, pat, witnessArgs) ->
+        let func = pat.PatternFunction
+        let returnTys = 
+            let returnTy = func.ReturnType
+            match stripTypeEquations returnTy with
+            | TypeSymbol.Tuple(argTys, _) -> argTys
+            | TypeSymbol.Unit -> ImArray.empty
+            | _ -> ImArray.createOne returnTy
+        if expectedPatArgTys.Length <> returnTys.Length then
+            cenv.diagnostics.Error($"Pattern '{func.Name}' expected '{returnTys.Length}' argument(s), but given '{expectedPatArgTys.Length}'.", 10, syntaxInfo.Syntax)
+            env, BoundCasePattern.Function(syntaxInfo, pat, ImArray.empty, ImArray.empty)
+        else
+
+            (syntaxPatArgs, expectedPatArgTys, returnTys)
+            |||> ImArray.iter3 (fun syntaxPatArg expectedPatArgTy returnTy ->
+                checkTypes solverEnv syntaxPatArg expectedPatArgTy returnTy
+            )
+
+            let env, casePatArgs =
+                (env, syntaxPatArgs, expectedPatArgTys)
+                |||> ImArray.foldMap2 (fun env syntaxPatArg patArgTy ->
+                    bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals patArgTy syntaxPatArg
+                )
+
+            env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, casePatArgs)
+    | ResolutionItem.Expression(E.Value(value=(:? IFunctionSymbol as func))) ->
+        // We do not show the error for a function group because it means we already have ambiguous functions.
+        if not func.IsFunctionGroup then
+            cenv.diagnostics.Error($"'{func.Name}' is not a pattern.", 10, syntaxName)
+
+        // TODO: We should return BoundCasePattern.Function, but we do not have a pattern at this point.
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
+    | ResolutionItem.Expression(E.Call(syntaxInfoFromCall, _, _, _, value, _) as callExpr) ->
+        let syntaxInfo =
+            BoundSyntaxInfo.User(syntaxInfo.Syntax, env.benv, syntaxInfoFromCall.TrySyntaxName, syntaxInfoFromCall.TryType)
+        // Pattern overloading specific
+        let callExpr =
+            match value with
+            | :? FunctionGroupSymbol as funcGroup ->
+                let argExprs =
+                    E.CreateValue(syntaxInfo, createLocalGeneratedValue "tmp" matchTy)
+                    |> ImArray.createOne
+                let funcs =
+                    funcGroup.Functions
+                    |> ImArray.filter (fun x ->
+                        match stripTypeEquations x.ReturnType with
+                        | TypeSymbol.Tuple(tyArgs, _) ->
+                            tyArgs.Length = syntaxPatArgs.Length
+                        | TypeSymbol.Unit ->
+                            syntaxPatArgs.IsEmpty
+                        | _ ->
+                            syntaxPatArgs.Length = 1
+                    )
+                let value =
+                    if funcs.IsEmpty then
+                        funcGroup :> IValueSymbol
+                    elif funcs.Length = 1 then
+                        funcs[0]
+                    else
+                        FunctionGroupSymbol(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length, funcGroup.IsPatternFunction)
+                let callExpr = 
+                    bindValueAsCallExpressionWithOptionalSyntaxName
+                        cenv
+                        env
+                        syntaxInfo
+                        None
+                        (ValueSome argExprs)
+                        (value, syntaxInfo.TrySyntaxName)
+                callExpr
+            | _ ->
+                callExpr
+
+        match checkExpression cenv env (Some expectedTy) callExpr with
+        | BoundExpression.Call(witnessArgs=witnessArgs;value=value) when value.IsFunction ->
+            let func = value :?> IFunctionSymbol
+            if func.IsPatternFunction then
+                OlyAssert.True(func.AssociatedFormalPattern.IsSome)
+
+                if isActive then
+                    match value with
+                    | :? IFunctionSymbol as func ->
+                        if func.ReturnType.IsUnit_t then
+                            cenv.diagnostics.Error($"'{func.Name}' returns '()' which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
+                    | _ ->
+                        ()
+
+                let pat2 = actualPattern func.Enclosing func.AllTypeArguments func.AssociatedFormalPattern.Value
+                bindPatternByResolutionItem 
+                    cenv 
+                    env 
+                    solverEnv
+                    expectedTy
+                    isActive
+                    isFirstPatternSet
+                    clauseLocals
+                    patternLocals
+                    syntaxInfo
+                    matchTy
+                    (syntaxName, syntaxPatArgs, expectedPatArgTys)
+                    (ResolutionItem.Pattern(syntaxInfo.Syntax, pat2, witnessArgs))
+            elif func.IsFunctionGroup then
+                // Ambiguous overloads, reported in PostInferenceAnalysis.
+                let pat = PatternSymbol(func.Enclosing, ImArray.empty, func.Name, func)
+                env, BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, ImArray.empty)
+            else
+                cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
+                env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
+        | _ ->
+            cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
+            env, BoundCasePattern.Local(syntaxInfo, invalidLocal())
+            
+    | ResolutionItem.Expression(E.Value(value=value)) when value.IsFieldConstant ->
+        let field = value :?> IFieldSymbol
+        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxInfo.Syntax matchTy field.Type
+        env, BoundCasePattern.FieldConstant(syntaxInfo, field)
+
+    | _ ->
+        cenv.diagnostics.Error($"Invalid pattern.", 10, syntaxName)
+        env, BoundCasePattern.Local(syntaxInfo, invalidLocal()) 
+
+
+let private bindPatternParenthesis cenv env solverEnv isFirstPatternSet clauseLocals patternLocals (matchTy: TypeSymbol) (syntaxInfo: BoundSyntaxInfo) (syntaxPats: OlySyntaxPattern imarray) =
+    // Unit
+    if syntaxPats.IsEmpty then
+        checkTypes solverEnv syntaxInfo.Syntax TypeSymbol.Unit matchTy
+        env, BoundCasePattern.Discard(syntaxInfo)
+
+    // Pattern in parenthesis
+    elif syntaxPats.Length = 1 then
+        let syntaxPattern = syntaxPats[0]
+        bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals matchTy syntaxPattern
+
+    // Tuple
+    else
+        let (elementTys, syntaxPatterns) =
+            let results =
+                syntaxPats
+                |> ImArray.map (fun syntaxPattern ->
+                    let elementTy = mkInferenceVariableType None
+                    (elementTy, syntaxPattern)
+                )
+            results
+            |> Array.ofSeq
+            |> Array.unzip
+
+        let elementTys = elementTys |> ImArray.ofSeq
+        let syntaxPatterns = syntaxPatterns |> ImArray.ofSeq
+        let tupleTy = TypeSymbol.CreateTuple(elementTys)
+        checkTypes solverEnv syntaxInfo.Syntax tupleTy matchTy
+
+        let env, casePats =
+            let env, results =
+                (env, elementTys, syntaxPatterns)
+                |||> ImArray.foldMap2 (fun env elementTy syntaxPattern ->
+                    bindPattern cenv env solverEnv isFirstPatternSet clauseLocals patternLocals elementTy syntaxPattern
+                )
+            env,
+            results
+
+        env, BoundCasePattern.Tuple(syntaxInfo, casePats)
+
+let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isFirstPatternSet (clauseLocals: Dictionary<string, OlySyntaxToken * ILocalSymbol>) (patternLocals: HashSet<string>) (matchTy: TypeSymbol) (syntaxPattern: OlySyntaxPattern) =
+    let syntaxInfo = BoundSyntaxInfo.User(syntaxPattern, env.benv)
+    match syntaxPattern with
+    | OlySyntaxPattern.Discard _ ->
+        env, BoundCasePattern.Discard(syntaxInfo)
+    
+    | OlySyntaxPattern.Literal(syntaxLiteral) ->
+        let literal = bindLiteral cenv env (Some matchTy) syntaxLiteral
+        env, BoundCasePattern.Literal(syntaxInfo, literal)
+
+    | OlySyntaxPattern.Name(syntaxName) ->
+        let syntaxIdentOpt =
+            match syntaxName with
+            | OlySyntaxName.Identifier(syntaxIdent) ->
+                if env.UnqualifiedPatternExists(syntaxIdent.ValueText) then
+                    // A pattern exists with this identifier so do not create a local.
+                    None
+                else
+                    // Create a new local.
+                    Some(syntaxIdent)
+            | _ ->
+                // Do not create a local.
+                None
+
+        match syntaxIdentOpt with
+        | Some(syntaxIdent) ->
+            let env, local =
+                if not (patternLocals.Add syntaxIdent.ValueText) then
+                    cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has already been declared in the pattern set.", 10, syntaxIdent)
+                    env, invalidLocal()
+                else
+                    match clauseLocals.TryGetValue syntaxIdent.ValueText with
+                    | true, (_, local) -> 
+                        checkTypes solverEnv syntaxIdent local.Type matchTy
+                        env, local
+                    | _ ->
+                        if isFirstPatternSet then
+                            let local = createLocalValue syntaxIdent.ValueText matchTy
+                            clauseLocals.[syntaxIdent.ValueText] <- (syntaxIdent, local)
+                            env.SetUnqualifiedValue(local), local
+                        else
+                            cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has not been declared in the first pattern set.", 10, syntaxIdent)
+                            env, invalidLocal()
+            env, BoundCasePattern.Local(syntaxInfo, local)
+        | _ ->
+            bindNameAsCasePattern cenv env solverEnv false syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy ImArray.empty syntaxName 
+
+    | OlySyntaxPattern.Function(syntaxName, _, syntaxPatList, _) ->
+        bindNameAsCasePattern cenv env solverEnv true syntaxInfo isFirstPatternSet clauseLocals patternLocals matchTy syntaxPatList.ChildrenOfType syntaxName 
+
+    | OlySyntaxPattern.Parenthesis(_, syntaxPatList, _) ->
+        bindPatternParenthesis cenv env solverEnv isFirstPatternSet clauseLocals patternLocals matchTy syntaxInfo syntaxPatList.ChildrenOfType
+
+    | OlySyntaxPattern.Error _ ->
+        checkTypes solverEnv syntaxPattern TypeSymbolError matchTy
+        env, BoundCasePattern.Discard(syntaxInfo)
+
+    | _ ->
+        OlyAssert.Fail("New pattern matching syntax not handled.")

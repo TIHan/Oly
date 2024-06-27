@@ -715,9 +715,12 @@ module OlySyntaxTreeExtensions =
             match this with
             | :? OlySyntaxParameter as par ->
                 match par with
-                | OlySyntaxParameter.Identifier(_, _, ident)
-                | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, ident, _, _) -> ident
-                | _ -> this
+                | OlySyntaxParameter.Pattern(_, _, pat, _, _) -> 
+                    match pat.TryName with
+                    | Some name -> name
+                    | _ -> this
+                | _ -> 
+                    this
             | _ ->
                 this
 
@@ -873,7 +876,7 @@ module OlySyntaxTreeExtensions =
             match this.InternalNode with
             | :? SyntaxParameter as node ->
                 match node with
-                | SyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, ty, _) ->
+                | SyntaxParameter.Pattern(_, _, _, _, ty, _) ->
                     match ty with
                     | SyntaxType.Error _ -> true
                     | _ -> false

@@ -1336,29 +1336,18 @@ type OlyBoundModel internal (
 
     and getParameterSymbol (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPar: OlySyntaxParameter) (par: ILocalParameterSymbol) =
         match syntaxPar with
-        | OlySyntaxParameter.IdentifierWithTypeAnnotation(syntaxAttrs, _, syntaxIdent, _, syntaxTy) ->
+        | OlySyntaxParameter.Pattern(syntaxAttrs, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, syntaxTy) ->
             getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
             if predicate syntaxIdent then
                 addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
             getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
 
-        | OlySyntaxParameter.Identifier(syntaxAttrs, _, syntaxIdent) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            if predicate syntaxIdent then
-                if String.IsNullOrWhiteSpace par.Name then
-                    getTypeSymbolByIdentifier this addSymbol benv predicate syntaxIdent par.Type
-                else
-                    addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
-
         | OlySyntaxParameter.Type(syntaxAttrs, syntaxTy) ->
             getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
             getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
 
-        | OlySyntaxParameter.Error _ ->
-            ()
-
         | _ ->
-            raise(InternalCompilerException())
+            ()
 
     and getParameterSymbolsByValues (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (pars: ImmutableArray<ILocalParameterSymbol>) =
         (syntaxPars.Values, pars)
@@ -1368,26 +1357,18 @@ type OlyBoundModel internal (
 
     and getParameterSymbolByValue (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPar: OlySyntaxParameter) (par: ILocalParameterSymbol) =
         match syntaxPar with
-        | OlySyntaxParameter.IdentifierWithTypeAnnotation(syntaxAttrs, _, syntaxIdent, _, syntaxTy) ->
+        | OlySyntaxParameter.Pattern(syntaxAttrs, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, syntaxTy) ->
             getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
             if predicate syntaxIdent then
                 addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
             getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
-
-        | OlySyntaxParameter.Identifier(syntaxAttrs, _, syntaxIdent) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            if predicate syntaxIdent then
-                addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
 
         | OlySyntaxParameter.Type(syntaxAttrs, syntaxTy) ->
             getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
             getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
 
-        | OlySyntaxParameter.Error _ ->
-            ()
-
         | _ ->
-            raise(InternalCompilerException())
+            ()
 
     and getTypeParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTyPars: OlySyntaxTypeParameters) (tyPars: TypeParameterSymbol imarray) =
         let syntaxTyPars = syntaxTyPars.Values

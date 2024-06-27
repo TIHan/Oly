@@ -272,15 +272,10 @@
   </Node>
 
   <Node name="SyntaxParameter">
-    <Case name="Identifier">
+	<Case name="Pattern">
 	  <Field name="attrs">SyntaxAttributes</Field>
       <Field name="mutability">SyntaxMutability</Field>
-      <Field name="identToken">SyntaxToken</Field>
-    </Case>
-	<Case name="IdentifierWithTypeAnnotation">
-	  <Field name="attrs">SyntaxAttributes</Field>
-      <Field name="mutability">SyntaxMutability</Field>
-      <Field name="identToken">SyntaxToken</Field>
+      <Field name="pat">SyntaxPattern</Field>
 	  <Field name="colonToken">SyntaxToken</Field>
 	  <Field name="ty">SyntaxType</Field>
     </Case>
@@ -424,7 +419,7 @@
 	</Case>
   </Node>
 	
-  <Node name="SyntaxLetPatternBinding">
+  <Node name="SyntaxLet">
     <Case name="Binding">
       <Field name="letToken">SyntaxToken</Field>
 	  <Field name="pat">SyntaxPattern</Field>
@@ -909,8 +904,8 @@
       <Field name="postmodifierList">SyntaxValueDeclarationPostmodifier SyntaxList</Field>
       <Field name="binding">SyntaxBinding</Field>
     </Case>
-	<Case name="LetPatternDeclaration">
-	  <Field name="binding">SyntaxLetPatternBinding</Field>
+	<Case name="Let">
+	  <Field name="node">SyntaxLet</Field>
 	</Case>
     <Case name="TypeDeclaration">
       <Field name="attrs">SyntaxAttributes</Field>

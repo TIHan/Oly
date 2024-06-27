@@ -186,8 +186,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                         let syntaxPar = syntaxPars[i]
                         let logicalPar = logicalPars[i]
                         match syntaxPar with
-                        | OlySyntaxParameter.Identifier(syntaxAttrs, _, _)
-                        | OlySyntaxParameter.IdentifierWithTypeAnnotation(syntaxAttrs, _, _, _, _)
+                        | OlySyntaxParameter.Pattern(syntaxAttrs, _, _, _, _)
                         | OlySyntaxParameter.Type(syntaxAttrs, _) ->
                             match syntaxAttrs with
                             | OlySyntaxAttributes.Empty _ -> ()
@@ -408,7 +407,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                         syntaxParList.ChildrenOfType
                         |> ImArray.choose (fun x ->
                             match x with
-                            | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy) ->
+                            | OlySyntaxParameter.Pattern(_, _, _, _, syntaxTy) ->
                                 syntaxTy
                                 |> Some
                             | OlySyntaxParameter.Type(_, syntaxTy) ->

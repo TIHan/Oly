@@ -16,6 +16,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
+open Oly.Compiler.Internal.BoundTreePatterns
 
 let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
@@ -181,7 +182,8 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                         match propInfoOpt with
                         | Some(_, propTy, _) -> Some propTy
                         | _ -> None
-                    ImArray.createOne (bindParameter cenv env setterInfoOpt false syntaxPar |> snd)
+                    let (_, par) = bindParameter cenv env setterInfoOpt false syntaxPar
+                    ImArray.createOne par
             | NormalFunction
             | PatternFunction
             | PatternGuardFunction ->
@@ -673,56 +675,129 @@ let tryBindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openCon
     let cenv = { cenv with diagnostics = diagLogger }
     bindOpenDeclaration cenv env canOpen openContent syntaxExpr
 
-let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : BinderEnvironment * ILocalParameterSymbol =
-    match syntaxPar with
-    | OlySyntaxParameter.Identifier(syntaxAttrs, _, syntaxIdent) ->
-        let parName, ty =
-            match currentEnclosing env with
-            | EnclosingSymbol.Local ->
-                if onlyBindAsType then
-                    cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxIdent)
-                    "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText
-                else
-                    syntaxIdent.ValueText, mkInferenceVariableTypeOfParameter()
-            | _ ->
-                if onlyBindAsType then
-                    "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText
-                else
-                    match implicitTyOpt with
-                    | Some(ty) ->
-                        syntaxIdent.ValueText, ty
-                    | _ ->
-                        cenv.diagnostics.Error("Parameter must have an explicit type annotation as it is part of a top-level function.", 10, syntaxIdent)
-                        syntaxIdent.ValueText, TypeSymbolError
+let private bindParameterIdentifier cenv env isMutable implicitTyOpt onlyBindAsType syntaxAttrs (syntaxIdent: OlySyntaxToken) =
+    let parName, ty =
+        match currentEnclosing env with
+        | EnclosingSymbol.Local ->
+            if onlyBindAsType then
+                cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxIdent)
+                "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText
+            else
+                syntaxIdent.ValueText, mkInferenceVariableTypeOfParameter()
+        | _ ->
+            if onlyBindAsType then
+                "", bindIdentifierAsType cenv env syntaxIdent ResolutionTypeArityZero syntaxIdent.ValueText
+            else
+                match implicitTyOpt with
+                | Some(ty) ->
+                    syntaxIdent.ValueText, ty
+                | _ ->
+                    cenv.diagnostics.Error("Parameter must have an explicit type annotation as it is part of a top-level function.", 10, syntaxIdent)
+                    syntaxIdent.ValueText, TypeSymbolError
         
-        let attrs = bindAttributes cenv env false syntaxAttrs
-        let par = createLocalParameterValue(attrs, parName, ty, syntaxPar.IsMutable)
-        recordValueDeclaration cenv par syntaxIdent
-        env, par
+    let attrs = bindAttributes cenv env false syntaxAttrs
+    let par = createLocalParameterValue(attrs, parName, ty, isMutable)
+    recordValueDeclaration cenv par syntaxIdent
+    env, par
 
-    | OlySyntaxParameter.IdentifierWithTypeAnnotation(syntaxAttrs, _, syntaxIdent, _, syntaxTy) ->
-        let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
-        let attrs = bindAttributes cenv env false syntaxAttrs
-        let par = createLocalParameterValue(attrs, syntaxIdent.ValueText, ty, syntaxPar.IsMutable)
-        recordValueDeclaration cenv par syntaxIdent
-        env.AddParameter(cenv.diagnostics, par, syntaxIdent), par
+let private bindParameterTypeName cenv env onlyBindAsType syntaxAttrs syntaxName =
+    let ty = bindNameAsType cenv env None ResolutionTypeArityZero syntaxName
+    let attrs = bindAttributes cenv env false syntaxAttrs
+    let par = createLocalParameterValue(attrs, "", ty, false)
 
-    | OlySyntaxParameter.Type(syntaxAttrs, syntaxType) ->
-        let ty = bindType cenv env None ResolutionTypeArityZero syntaxType
+    match currentEnclosing env with
+    | EnclosingSymbol.Local -> 
+        if not onlyBindAsType then
+            cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxName)
+    | _ -> 
+        ()
+
+    env, par
+
+let private bindParameterType cenv env onlyBindAsType syntaxAttrs syntaxTy =
+    let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
+    let attrs = bindAttributes cenv env false syntaxAttrs
+    let par = createLocalParameterValue(attrs, "", ty, false)
+
+    match currentEnclosing env with
+    | EnclosingSymbol.Local -> 
+        if not onlyBindAsType then
+            cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxTy)
+    | _ -> 
+        ()
+
+    env, par
+
+let private bindParameterPattern cenv env syntaxAttrs syntaxPat (syntaxColonToken: OlySyntaxToken) syntaxTy =
+    let ty =
+        match syntaxTy with
+        // TODO: Clean this up by introducing a SyntaxOptionalTypeAnnotation node.
+        | OlySyntaxType.Error(syntaxToken) when syntaxToken.IsDummy && syntaxColonToken.IsDummy ->
+            (mkInferenceVariableType None)
+        | _ ->
+            bindType cenv env None ResolutionTypeArityZero syntaxTy
+
+    match syntaxPat with
+    | OlySyntaxPattern.Parenthesis(_, syntaxPatList, _) ->
+        let syntaxPats = syntaxPatList.ChildrenOfType
+
+        if syntaxPats.Length = 1 then
+            bindParameterPattern cenv env syntaxAttrs syntaxPats[0] syntaxColonToken syntaxTy
+        else
+            let matchTy =
+                if syntaxPats.IsEmpty then
+                    mkInferenceVariableType None
+                else
+                    TypeSymbol.CreateTuple(
+                        syntaxPats
+                        |> ImArray.map (fun _ -> mkInferenceVariableType None)
+                    )
+            let attrs = bindAttributes cenv env false syntaxAttrs
+            let par = createLocalParameterValue(attrs, "", matchTy, false)
+
+            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxPat ty matchTy
+
+            (env, par)
+    | _ ->
         let attrs = bindAttributes cenv env false syntaxAttrs
         let par = createLocalParameterValue(attrs, "", ty, false)
+        (env, par)
 
-        match currentEnclosing env with
-        | EnclosingSymbol.Local -> 
-            if not onlyBindAsType then
-                cenv.diagnostics.Error("Parameter name expected, but got a type.", 10, syntaxType)
-        | _ -> 
-            ()
+let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : (BinderEnvironment * ILocalParameterSymbol) =
+    match syntaxPar with
+    | OlySyntaxParameter.Pattern(syntaxAttrs, _, syntaxPat, syntaxColonToken, syntaxTy) ->
+        match syntaxPat with
+        | OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)) ->
+            match syntaxTy with
+            // TODO: Clean this up by introducing a SyntaxOptionalTypeAnnotation node.
+            | OlySyntaxType.Error(syntaxToken) when syntaxToken.IsDummy && syntaxColonToken.IsDummy ->
+                bindParameterIdentifier cenv env syntaxPar.IsMutable implicitTyOpt onlyBindAsType syntaxAttrs syntaxIdent
+            | _ ->
+                let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
+                let attrs = bindAttributes cenv env false syntaxAttrs
+                let par = createLocalParameterValue(attrs, syntaxIdent.ValueText, ty, syntaxPar.IsMutable)
+                recordValueDeclaration cenv par syntaxIdent
+                (env.AddParameter(cenv.diagnostics, par, syntaxIdent), par)
 
-        env, par
+        | OlySyntaxPattern.Name(syntaxName) ->
+            bindParameterTypeName cenv env onlyBindAsType syntaxAttrs syntaxName
+
+        | _ ->
+            if onlyBindAsType then
+                match syntaxPat with
+                | OlySyntaxPattern.Discard _ ->
+                    bindParameterType cenv env onlyBindAsType syntaxAttrs syntaxTy
+                | _ ->
+                    cenv.diagnostics.Error("Patterns are not allowed for signatures.", 10, syntaxPat)
+                    (env, invalidParameter())
+            else
+                bindParameterPattern cenv env syntaxAttrs syntaxPat syntaxColonToken syntaxTy
+
+    | OlySyntaxParameter.Type(syntaxAttrs, syntaxTy) ->
+        bindParameterType cenv env onlyBindAsType syntaxAttrs syntaxTy
 
     | OlySyntaxParameter.Error _ ->
-        env, invalidParameter()
+        (env, invalidParameter())
 
     | _ ->
         raise(InternalCompilerException())
@@ -730,7 +805,7 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : Bind
 let bindParameterList (cenv: cenv) env onlyBindAsType pars (syntaxParList: OlySyntaxSeparatorList<OlySyntaxParameter>) : BinderEnvironment * _ list =
     ((env, pars), syntaxParList.ChildrenOfType)
     ||> ImArray.fold (fun (env, pars) syntaxPar ->
-        let env, par = bindParameter cenv env None onlyBindAsType syntaxPar
+        let (env, par) = bindParameter cenv env None onlyBindAsType syntaxPar
         env, pars @ [par]
     )
 

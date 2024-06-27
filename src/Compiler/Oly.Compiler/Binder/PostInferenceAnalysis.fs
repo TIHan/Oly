@@ -523,7 +523,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
                             ||> ROMem.tryIter2 (fun syntaxPar par ->
                                 par.Attributes |> ImArray.iter (analyzeAttribute acenv aenv syntaxNode)
                                 match syntaxPar with
-                                | OlySyntaxParameter.IdentifierWithTypeAnnotation(_, _, _, _, syntaxTy)
+                                | OlySyntaxParameter.Pattern(_, _, _, _, syntaxTy)
                                 | OlySyntaxParameter.Type(_, syntaxTy) ->
                                     analyzeTypeForParameter acenv aenv syntaxTy par.Type
                                 | _ ->

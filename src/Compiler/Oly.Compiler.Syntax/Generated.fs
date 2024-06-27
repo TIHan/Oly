@@ -1320,16 +1320,9 @@ type OlySyntaxParameter internal (tree, start: int, parent, internalNode: Syntax
 [<RequireQualifiedAccess>]
 module OlySyntaxParameter =
 
-    let (|Identifier|_|) (node: OlySyntaxParameter) : ( OlySyntaxAttributes * OlySyntaxMutability * OlySyntaxToken ) option =
+    let (|Pattern|_|) (node: OlySyntaxParameter) : ( OlySyntaxAttributes * OlySyntaxMutability * OlySyntaxPattern * OlySyntaxToken * OlySyntaxType ) option =
         match node.Internal with
-        | SyntaxParameter.Identifier _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
-        | _ ->
-            Option.None
-
-    let (|IdentifierWithTypeAnnotation|_|) (node: OlySyntaxParameter) : ( OlySyntaxAttributes * OlySyntaxMutability * OlySyntaxToken * OlySyntaxToken * OlySyntaxType ) option =
-        match node.Internal with
-        | SyntaxParameter.IdentifierWithTypeAnnotation _ ->
+        | SyntaxParameter.Pattern _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3], System.Runtime.CompilerServices.Unsafe.As node.Children[4])
         | _ ->
             Option.None
@@ -1961,7 +1954,7 @@ module OlySyntaxBinding =
             Option.None
 
 [<Sealed;NoComparison>]
-type OlySyntaxLetPatternBinding internal (tree, start: int, parent, internalNode: SyntaxLetPatternBinding) as this =
+type OlySyntaxLet internal (tree, start: int, parent, internalNode: SyntaxLet) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
     
@@ -2006,11 +1999,11 @@ type OlySyntaxLetPatternBinding internal (tree, start: int, parent, internalNode
     member internal _.Internal = internalNode
 
 [<RequireQualifiedAccess>]
-module OlySyntaxLetPatternBinding =
+module OlySyntaxLet =
 
-    let (|Binding|_|) (node: OlySyntaxLetPatternBinding) : ( OlySyntaxToken * OlySyntaxPattern * OlySyntaxToken * OlySyntaxExpression ) option =
+    let (|Binding|_|) (node: OlySyntaxLet) : ( OlySyntaxToken * OlySyntaxPattern * OlySyntaxToken * OlySyntaxExpression ) option =
         match node.Internal with
-        | SyntaxLetPatternBinding.Binding _ ->
+        | SyntaxLet.Binding _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
 
 [<Sealed;NoComparison>]
@@ -3798,9 +3791,9 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|LetPatternDeclaration|_|) (node: OlySyntaxExpression) : ( OlySyntaxLetPatternBinding ) option =
+    let (|Let|_|) (node: OlySyntaxExpression) : ( OlySyntaxLet ) option =
         match node.Internal with
-        | SyntaxExpression.LetPatternDeclaration _ ->
+        | SyntaxExpression.Let _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
         | _ ->
             Option.None
@@ -3875,7 +3868,7 @@ module private Convert =
         | SyntaxPropertyBinding.Tag -> OlySyntaxPropertyBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxGuardBinding.Tag -> OlySyntaxGuardBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxBinding.Tag -> OlySyntaxBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxLetPatternBinding.Tag -> OlySyntaxLetPatternBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxLet.Tag -> OlySyntaxLet(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxTypeDeclarationKind.Tag -> OlySyntaxTypeDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxLiteral.Tag -> OlySyntaxLiteral(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxFieldPattern.Tag -> OlySyntaxFieldPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode

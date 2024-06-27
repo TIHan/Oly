@@ -19316,19 +19316,146 @@ let ``Array of tuples in a ForEach loop funcion should work 2``() =
 #[intrinsic("int32")]
 alias int32
 
+#[intrinsic("bool")]
+alias bool
+
 #[intrinsic("print")]
 print(__oly_object): ()
 
-ForEach<T>(xs: T[], f: T -> ()): () =
-    print("hello")
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: (T, int32) -> ()): () =
+    For(getLength(xs), i -> f(xs[i], 5))
 
 main(): () =
     let xs = [(1, 2)]
-    ForEach(xs, ((x, y)) -> ())
+    ForEach(xs, 
+        ((x, y), _) ->
+            print(x)
+            print(y)
+    )
     """
     |> Oly
     |> withCompile
-    |> shouldRunWithExpectedOutput "hello"
+    |> shouldRunWithExpectedOutput "12"
+
+[<Fact>]
+let ``Array of tuples in a ForEach loop funcion should work 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: T -> ()): () =
+    For(getLength(xs), i -> f(xs[i]))
+
+main(): () =
+    let xs = [((1, 2), (3, 4))]
+    ForEach(xs, 
+        (((x, y), (z, w))) ->
+            print(x)
+            print(y)
+            print(z)
+            print(w)
+    )
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1234"
+
+[<Fact>]
+let ``Array of tuples in a ForEach loop funcion should work 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(xs: T[], f: T -> ()): () =
+    For(getLength(xs), i -> f(xs[i]))
+
+main(): () =
+    let xs = [(1, (2, 3))]
+    ForEach(xs, 
+        ((x, (y, z))) ->
+            print(x)
+            print(y)
+            print(z)
+    )
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
 
 [<Fact>]
 let ``Partial application unit to unit regression``() =
