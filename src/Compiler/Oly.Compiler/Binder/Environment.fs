@@ -320,7 +320,13 @@ type BinderEnvironment =
                     unqualifiedSymbols.SetItem(value.Name, unqualified)
         unqualifiedSymbols
 
-    member this.SetUnqualifiedValue(value: IValueSymbol) =
+    member this.AddUnqualifiedValue(value: IValueSymbol) =
+        this.SetUnqualifiedValueAux(value, true)
+
+    member this.TryAddUnqualifiedValue(value: IValueSymbol) =
+        this.SetUnqualifiedValueAux(value, false)
+
+    member this.SetUnqualifiedValueAux(value: IValueSymbol, canMerge: bool) =
         let isPatFunc = value.IsFunction && value.AsFunction.IsPatternFunction
         let unqualifiedSymbols = 
             if isPatFunc then
@@ -354,7 +360,7 @@ type BinderEnvironment =
                         let unqualified = create funcs
                         unqualifiedSymbols.SetItem(name, unqualified)
 
-                    if funcs.Length = 1 && funcs[0].Enclosing.IsLocalEnclosing then
+                    if (funcs.Length = 1 && funcs[0].Enclosing.IsLocalEnclosing) then
                         defaultCase()
                     else
 
@@ -371,6 +377,10 @@ type BinderEnvironment =
                                 )
                             OlyAssert.False(exists)
 #endif
+
+                            //if not canMerge then
+                            //    unqualifiedSymbols
+                            //else
 
                             let funcs =
                                 if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
@@ -394,6 +404,11 @@ type BinderEnvironment =
 #if DEBUG || CHECKED
                             OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
 #endif
+                                
+
+                            //if not canMerge && areEnclosingsEqual this.benv.senv.enclosing func.Enclosing && not(areEnclosingsEqual this.benv.senv.enclosing value.Enclosing) then
+                            //    unqualifiedSymbols
+                            //else
 
                             let funcs =
                                 if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then

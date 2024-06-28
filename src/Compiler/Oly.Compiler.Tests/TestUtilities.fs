@@ -83,6 +83,44 @@ type TestCompilation =
         let c = OlyCompilation.Create("olytest", syntaxTrees, defaultReferences, options = options)
         TestCompilation.Create(c)
 
+    static member CreateThree(src1: string, src2: string, src3: string) =
+        let syntaxTrees =
+            [
+                OlySyntaxTree.Parse(
+                    OlyPath.Create("olytest1"), 
+                    src1, 
+                    parsingOptions = 
+                        { 
+                            OlyParsingOptions.Default with 
+                                AnonymousModuleDefinitionAllowed = true
+                                CompilationUnitConfigurationEnabled = true 
+                        }
+                )
+                OlySyntaxTree.Parse(
+                    OlyPath.Create("olytest2"), 
+                    src2, 
+                    parsingOptions = 
+                        { 
+                            OlyParsingOptions.Default with 
+                                AnonymousModuleDefinitionAllowed = false
+                                CompilationUnitConfigurationEnabled = false 
+                        }
+                )
+                OlySyntaxTree.Parse(
+                    OlyPath.Create("olytest3"), 
+                    src3, 
+                    parsingOptions = 
+                        { 
+                            OlyParsingOptions.Default with 
+                                AnonymousModuleDefinitionAllowed = false
+                                CompilationUnitConfigurationEnabled = false 
+                        }
+                )
+            ]
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", syntaxTrees, defaultReferences, options = options)
+        TestCompilation.Create(c)
+
 let getFirstSyntaxTree (c: TestCompilation) =
     c.c.SyntaxTrees.[0]
 
@@ -301,8 +339,11 @@ let OlyWithCRef cRef src =
 
 /// Does not check for syntax tree - source equality.
 let OlyTwo src1 src2 =
-    let c = TestCompilation.CreateTwo(src1, src2)
-    c
+    TestCompilation.CreateTwo(src1, src2)
+
+/// Does not check for syntax tree - source equality.
+let OlyThree src1 src2 src3 =
+    TestCompilation.CreateThree(src1, src2, src3)
 
 let getAllSymbols (src: string) =
     let c = Oly (src.Replace("~^~", ""))

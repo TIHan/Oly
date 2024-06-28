@@ -15,14 +15,20 @@ type OpenContent =
     | Entities
     | Values
 
-let scopeInInstanceConstructors (env: BinderEnvironment) (ent: EntitySymbol) =
+let private scopeInValue canOverride (env: BinderEnvironment) (value: IValueSymbol) =
+    if canOverride then
+        env.AddUnqualifiedValue(value)
+    else
+        env.TryAddUnqualifiedValue(value)
+
+let scopeInInstanceConstructors canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
     let instanceCtors = ent.InstanceConstructors
     if instanceCtors.IsEmpty then
         env
     elif instanceCtors.Length = 1 then
-        env.SetUnqualifiedValue(instanceCtors[0])
+        scopeInValue canOverride env instanceCtors[0]
     else
-        env.SetUnqualifiedValue(FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false)) 
+        scopeInValue canOverride env (FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
 
 let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
@@ -128,7 +134,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                 match openContent with
                 | OpenContent.All
                 | OpenContent.Values ->
-                    scopeInInstanceConstructors env ent  
+                    scopeInInstanceConstructors canOverride env ent  
                 | _ ->
                     env
             )
@@ -154,18 +160,18 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                         |> ImArray.ofSeq
                     (env1, funcGroups)
                     ||> ImArray.fold (fun env func ->
-                        env.SetUnqualifiedValue(func)
+                        scopeInValue canOverride env func
                     )
 
                 let env3 =
                     (env2, ent.Properties |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
                     ||> ImArray.fold (fun env prop ->
-                        env.SetUnqualifiedValue(prop)
+                        scopeInValue canOverride env prop
                     )
 
                 (env3, ent.Fields |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
                 ||> ImArray.fold (fun env field ->
-                    env.SetUnqualifiedValue(field)
+                    scopeInValue canOverride env field
                 )
             | _ ->
                 env1

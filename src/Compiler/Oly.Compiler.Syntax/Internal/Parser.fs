@@ -290,6 +290,12 @@ let inline tryFlexAlign ([<InlineIfLambda>] p: _ -> _) state =
         state.offsideFlags <- prevOffsideFlags
         None)
 
+let inline tryPick ([<InlineIfLambda>] p1: _ -> _) ([<InlineIfLambda>] p2: _ -> _) state =
+    let result = p1 state
+    match result with
+    | Some _ -> result
+    | _ -> p2 state
+
 #if DEBUG || CHECKED
 let flexAlignWithRecovery (recovery: _ -> _ -> _ -> _) (p: _ -> _) state =
 #else
@@ -1504,7 +1510,7 @@ let tryParseVariadicType state =
 let tryParseInputOrOutput state =
     let s = sp state
 
-    match bt (tryParseParenthesisSeparatorList COMMA "type" tryParseTupleElement (fun x -> SyntaxTupleElement.Error x |> Some)) state with
+    match bt (tryParseParenthesisSeparatorList COMMA "type" tryParseTupleItem (fun x -> SyntaxTupleElement.Error x |> Some)) state with
     | Some(leftParenToken, tupleElementList, rightParenToken) ->
         SyntaxType.Tuple(leftParenToken, tupleElementList, rightParenToken, ep s state) |> Some
     | _ ->
@@ -1696,7 +1702,7 @@ let parseReturnTypeAnnotation state =
 
     SyntaxReturnTypeAnnotation.None()
 
-let tryParseIdentifier state =
+let tryParseTupleItemIdentifier state =
     let s = sp state
 
     // TODO: Simplify this let make it faster.
@@ -1713,8 +1719,8 @@ let tryParseIdentifier state =
     | _ ->
         None
 
-let tryParseTupleElement state =
-    match bt tryParseIdentifier state with
+let tryParseTupleItem state =
+    match bt tryParseTupleItemIdentifier state with
     | Some res -> Some res
     | _ ->
 
@@ -1724,8 +1730,16 @@ let tryParseTupleElement state =
     | _ ->
         None
 
+/// We use this as a fast path for 'let' and parameter syntax.
+let inline tryParsePatternIdentifier state =
+    match bt IDENTIFIER state with
+    | Some(ident) ->
+        SyntaxPattern.Name(SyntaxName.Identifier(ident)) |> Some
+    | _ ->
+        None
+
 let tryParseParameterPattern s attrs mutability state = 
-    match tryParsePattern PatternKind.Parameter state with
+    match tryPick (tryParsePatternIdentifier) (tryParsePattern PatternKind.Parameter) state with
     | Some(pat) ->
         match bt (tryPeek COLON) state with
         | Some _ ->
@@ -1985,7 +1999,7 @@ let tryParseLetExpression context state =
     if isNextToken (function Let -> true | _ -> false) state then
         let s = sp state
 
-        match bt2 LET (tryParsePattern PatternKind.Let) state with
+        match bt2 LET (tryPick tryParsePatternIdentifier (tryParsePattern PatternKind.Let)) state with
         | Some(letToken), Some(pat) ->
             match pat with
             | SyntaxPattern.Name(SyntaxName.Identifier _) ->

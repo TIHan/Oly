@@ -1833,6 +1833,147 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit``() =
+    let src2 =
+        """
+module Test.A
+
+TestM(): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(): () = ()
+
+main(): () =
+    TestM()
+        """
+
+    OlyTwo src1 src2
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 2``() =
+    let src2 =
+        """
+module Test.A
+
+TestM(): () = ()
+TestM(x: ()): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(): () = ()
+
+main(): () =
+    TestM()
+        """
+
+    OlyTwo src1 src2
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 3``() =
+    let src2 =
+        """
+module Test.A
+
+TestM(): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(): () = ()
+TestM(x: ()): () = ()
+
+main(): () =
+    TestM()
+        """
+
+    OlyTwo src1 src2
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 4``() =
+    let src3 =
+        """
+module Test.A
+
+TestM(): () = ()
+        """
+
+    let src2 =
+        """
+module Test.B
+
+TestM(x: ()): () = ()
+        """
+
+    let src1 =
+        """
+module Test.C
+
+open static Test.A
+open static Test.B
+
+main(): () =
+    TestM()
+    TestM(())
+        """
+
+    OlyThree src1 src2 src3
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 5``() =
+    let src3 =
+        """
+module Test.A
+
+TestM(x: ()): () = ()
+        """
+
+    let src2 =
+        """
+module Test.B
+
+TestM(): () = ()
+        """
+
+    let src1 =
+        """
+module Test.C
+
+open static Test.A
+open static Test.B
+
+main(): () =
+    TestM()
+    TestM(())
+        """
+
+    OlyThree src1 src2 src3
+    |> withCompile
+    |> ignore
+
+[<Fact>]
 let ``Should properly infer lambda argument against overloads``() =
     let src =
         """

@@ -188,7 +188,6 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             | PatternFunction
             | PatternGuardFunction ->
                 bindParameters cenv env1 onlyBindAsType syntaxPars
-                |> snd
 
         let funcFlags =
             if isValidEntryPoint cenv env enclosing funcName isInstance then
@@ -472,7 +471,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         match enclosing with
         | EnclosingSymbol.Entity(ent) when not ent.IsInterface && not ent.IsModule && not ent.IsTypeExtension && not ent.IsAlias ->
             let returnTy = applyType (TypeSymbol.Entity(ent)) ent.TypeArguments
-            let env1, pars = bindParameters cenv env onlyBindAsType syntaxPars
+            let pars = bindParameters cenv env onlyBindAsType syntaxPars
 
             let funcFlags = funcFlags ||| FunctionFlags.Constructor
 
@@ -802,20 +801,19 @@ let bindParameter (cenv: cenv) env implicitTyOpt onlyBindAsType syntaxPar : (Bin
     | _ ->
         raise(InternalCompilerException())
 
-let bindParameterList (cenv: cenv) env onlyBindAsType pars (syntaxParList: OlySyntaxSeparatorList<OlySyntaxParameter>) : BinderEnvironment * _ list =
-    ((env, pars), syntaxParList.ChildrenOfType)
-    ||> ImArray.fold (fun (env, pars) syntaxPar ->
-        let (env, par) = bindParameter cenv env None onlyBindAsType syntaxPar
-        env, pars @ [par]
-    )
-
-let bindParameters (cenv: cenv) env onlyBindAsType syntaxPars : BinderEnvironment * ILocalParameterSymbol imarray =
+let bindParameters (cenv: cenv) env onlyBindAsType syntaxPars : ILocalParameterSymbol imarray =
     match syntaxPars with
     | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
-        let env1, pars = bindParameterList cenv env onlyBindAsType [] syntaxParList
-        env1, ImmutableArray.CreateRange(pars)
+        let _, pars =
+            ((env, []), syntaxParList.ChildrenOfType)
+            ||> ImArray.fold (fun (env, pars) syntaxPar ->
+                let (env, par) = bindParameter cenv env None onlyBindAsType syntaxPar
+                env, pars @ [par]
+            )
+        ImmutableArray.CreateRange(pars)
+
     | OlySyntaxParameters.Empty _ ->
-        env, ImArray.empty
+        ImArray.empty
 
     | _ ->
         raise(InternalCompilerException())

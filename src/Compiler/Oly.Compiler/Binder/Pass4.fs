@@ -216,11 +216,11 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                                 env
                             else
                                 let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length, false)
-                                env.SetUnqualifiedValue(funcGroup)
+                                env.AddUnqualifiedValue(funcGroup)
                         else
                             let mightBeReadOnly = not isExplicitMutable
                             let baseValue = createBaseValue "base" false mightBeReadOnly baseEnt
-                            let env = env.SetUnqualifiedValue(baseValue)
+                            let env = env.AddUnqualifiedValue(baseValue)
                             env
                     else
                         env
@@ -237,7 +237,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                 if bindingInfo.Value.IsInstance && bindingInfo.Value.IsFunction then
                     let mightBeReadOnly = not isExplicitMutable && (bindingInfo.Value.AsFunction.Semantic <> FunctionSemantic.SetterFunction)
                     let thisPar = createThisValue "this" bindingInfo.Value.IsConstructor mightBeReadOnly (ent.ToInstantiation())
-                    env1.SetUnqualifiedValue(thisPar), Some thisPar
+                    env1.AddUnqualifiedValue(thisPar), Some thisPar
                 else
                     env1, None
             | _ ->
@@ -592,7 +592,7 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
             let envOfBinding =
                 (env, pars)
                 ||> ImArray.fold (fun env pv ->
-                    env.SetUnqualifiedValue(pv)
+                    env.AddUnqualifiedValue(pv)
                 )
             if func.IsConstructor then
                 envOfBinding, pars
@@ -635,7 +635,7 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
             let envOfBinding =
                 (env, pars)
                 ||> ImArray.fold (fun env pv ->
-                    env.SetUnqualifiedValue(pv)
+                    env.AddUnqualifiedValue(pv)
                 )
             envOfBinding.SetEnclosingTypeParameters(envOfBinding.EnclosingTypeParameters.AddRange(func.TypeParameters))
         | BindingLocal _ ->
@@ -664,7 +664,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                 let env1 =
                     (env, pars)
                     ||> Seq.fold (fun env pv ->
-                        env.SetUnqualifiedValue(pv)
+                        env.AddUnqualifiedValue(pv)
                     )
 
                 // TODO: Use a fold...
@@ -739,7 +739,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
         pars, bodyExpr
    
     let pars, bodyExpr =
-        let _, pars = bindParameters cenv env false syntaxPars
+        let pars = bindParameters cenv env false syntaxPars
         bind pars isStatic syntaxBodyExpr
     
     let lambdaFlags =
@@ -1085,7 +1085,7 @@ let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (
     | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxNextCatchOrFinallyExpr) ->
         let (_, par) = bindParameter cenv env None false syntaxPar
 
-        let envForCatchCase = env.SetUnqualifiedValue(par)
+        let envForCatchCase = env.AddUnqualifiedValue(par)
         let _, catchBodyExpr = bindLocalExpression cenv envForCatchCase expectedTyOpt syntaxCatchBodyExpr syntaxCatchBodyExpr
         let catchCase = 
             BoundCatchCase.CatchCase(
@@ -1370,7 +1370,7 @@ let private bindLocalValueDeclaration
                         ImArray.empty,
                         ImArray.createOne par1,
                         LazyExpression(Some syntaxBodyExpr, fun _ -> 
-                            let _, bodyExpr = bindLocalExpression cenv (env.SetUnqualifiedValue(par1)) expectedTyOpt syntaxBodyExpr syntaxBodyExpr
+                            let _, bodyExpr = bindLocalExpression cenv (env.AddUnqualifiedValue(par1)) expectedTyOpt syntaxBodyExpr syntaxBodyExpr
                             bodyExpr
                         )
                     )
@@ -1409,7 +1409,7 @@ let private bindLocalValueDeclaration
 
         let envWithValue =
             if bindingInfo.Value.IsFunction then
-                env.SetUnqualifiedValue(bindingInfo.Value)
+                env.AddUnqualifiedValue(bindingInfo.Value)
             else
                 env
 
@@ -1432,7 +1432,7 @@ let private bindLocalValueDeclaration
                         syntaxBindingDeclExpr
                     | _ ->
                         syntaxBodyExpr
-                bindLocalExpression cenv (env.SetUnqualifiedValue(bindingInfo.Value)) expectedTyOpt syntaxToCaptureForBodyExpr syntaxBodyExpr
+                bindLocalExpression cenv (env.AddUnqualifiedValue(bindingInfo.Value)) expectedTyOpt syntaxToCaptureForBodyExpr syntaxBodyExpr
                 |> snd
             | _ ->
                 BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
@@ -1688,7 +1688,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let innerEnv = scopeInEntity innerEnv entBuilder.Entity
         let innerEnv = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         bindTypeDeclarationPass2 { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxTyDefBody
-        let innerEnv = scopeInInstanceConstructors innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
+        let innerEnv = scopeInInstanceConstructors true innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
         let innerEnv = bindTypeDeclarationPass3 { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         let innerEnv, expr = bindTypeDeclarationPass4 { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
 
@@ -1701,7 +1701,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let enclosingTyParTys = innerEnv.GetEnclosingTypeParametersAsTypes()
         // ---------
         let env = env.SetEnclosingTypeArguments(entBuilder.Entity.Id, enclosingTyParTys)
-        let env = scopeInInstanceConstructors env entBuilder.Entity
+        let env = scopeInInstanceConstructors true env entBuilder.Entity
         scopeInEntity env entBuilder.Entity, expr
 
     | OlySyntaxExpression.None _ ->
@@ -2044,7 +2044,7 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
                         if isFirstPatternSet then
                             let local = createLocalValue syntaxIdent.ValueText matchTy
                             clauseLocals.[syntaxIdent.ValueText] <- (syntaxIdent, local)
-                            env.SetUnqualifiedValue(local), local
+                            env.AddUnqualifiedValue(local), local
                         else
                             cenv.diagnostics.Error($"'%s{syntaxIdent.ValueText}' has not been declared in the first pattern set.", 10, syntaxIdent)
                             env, invalidLocal()
