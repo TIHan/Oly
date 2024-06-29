@@ -8,6 +8,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 [<RequireQualifiedAccess>]
 type OpenContent =
@@ -114,7 +115,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         env
     else
         let env1 =
-            (env, ent.Entities |> filterEntitiesByAccessibility env.benv.ac |> ImArray.ofSeq)
+            (env, ent.GetAccessibleNestedEntities(env.benv.ac) |> ImArray.ofSeq)
             ||> ImArray.fold (fun env ent ->
                 let env =
                     match openContent with
@@ -146,8 +147,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
             | OpenContent.Values ->
                 let env2 =
                     let funcGroups = 
-                        ent.Functions
-                        |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static
+                        ent.GetImmediateAccessibleStaticFunctions(env.benv.ac)
                         |> Seq.filter (fun func -> not func.IsConstructor)
                         |> Seq.groupBy (fun func -> (func.Name, func.IsPatternFunction))
                         |> Seq.map (fun ((name, isPattern), funcs) ->
@@ -165,12 +165,12 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                     )
 
                 let env3 =
-                    (env2, ent.Properties |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
+                    (env2, ent.GetImmediateAccessibleStaticProperties(env.benv.ac) |> ImArray.ofSeq)
                     ||> ImArray.fold (fun env prop ->
                         scopeInValue canOverride env prop
                     )
 
-                (env3, ent.Fields |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
+                (env3, ent.GetImmediateAccessibleStaticFields(env.benv.ac) |> ImArray.ofSeq)
                 ||> ImArray.fold (fun env field ->
                     scopeInValue canOverride env field
                 )

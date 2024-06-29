@@ -18,6 +18,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
     match constant with

@@ -14,6 +14,7 @@ open Oly.Compiler.Internal.BoundTreeVisitor
 open Oly.Compiler.Internal.BoundTreeRewriter
 open Oly.Compiler.Internal.BoundTreePatterns
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 open System.Threading
 
 // TODO: Rename 'intrinsic' uses to something else as we use 'intrinsic' to mean compiler 'intrinsic'.

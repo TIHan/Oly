@@ -21,6 +21,7 @@ open Oly.Compiler.Internal.WellKnownExpressions
 open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.ImplicitRules
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 open System.Globalization
 
 [<RequireQualifiedAccess>]
@@ -1165,7 +1166,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 QueryMemberFlags.Instance
 
         let funcs =
-            queryMostSpecificFunctionsOfType env.benv queryMemberFlags FunctionFlags.None (Some ident) QueryFunction.IntrinsicAndExtrinsic ty
+            ty.FindFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
             |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
             |> ImArray.filter (fun x -> x.IsPatternFunction = isPatternContext)
         if not funcs.IsEmpty then

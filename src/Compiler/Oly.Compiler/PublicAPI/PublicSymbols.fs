@@ -16,6 +16,7 @@ open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 let private stripRetargetedEntitySymbol (symbol: EntitySymbol) : EntitySymbol =
     match symbol with

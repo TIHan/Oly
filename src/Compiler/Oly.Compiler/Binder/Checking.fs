@@ -16,6 +16,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 let checkSyntaxBindingDeclaration (cenv: cenv) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     if not valueExplicitness.IsExplicitLet && not syntaxBindingDecl.IsExplicitNew && not syntaxBindingDecl.IsExplicitGet && not syntaxBindingDecl.IsExplicitSet then
@@ -616,11 +617,11 @@ let private lateCheckCalleeExpression cenv env expr =
             ()
 
     | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Getter.IsNone || not (canAccessValue env.benv.ac prop.Getter.Value) then
+        if prop.Getter.IsNone || not (prop.Getter.Value.IsAccessible(env.benv.ac)) then
             cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
 
     | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Setter.IsNone || not (canAccessValue env.benv.ac prop.Setter.Value) then
+        if prop.Setter.IsNone || not (prop.Setter.Value.IsAccessible(env.benv.ac)) then
             cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
 
     | _ ->

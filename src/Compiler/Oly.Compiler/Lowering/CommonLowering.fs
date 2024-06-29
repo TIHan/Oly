@@ -12,6 +12,7 @@ open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSymbol) (rhsExprOpt: E option) mainExpr =
     match bindingInfo with
