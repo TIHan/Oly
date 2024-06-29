@@ -22,122 +22,6 @@ open System.Threading
 [<AutoOpen>]
 module private Helpers =
 
-    let findImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-    let findIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
-    
-        let inheritedFields =
-            // TODO: If we make newtypes not extend anything, then this should not be needed.
-            if ent.IsNewtype then
-                Seq.empty
-            else
-                ent.Extends
-                |> Seq.map (fun x ->
-                    match x.TryEntity with
-                    | ValueSome x ->
-                        findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
-                    | _ ->
-                        Seq.empty
-                )
-                |> Seq.concat
-                |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-        Seq.append inheritedFields fields
-    
-    let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
-        let ty = findIntrinsicTypeIfPossible benv ty
-        match stripTypeEquations ty with
-        | TypeSymbol.Variable(tyPar) ->
-            tyPar.Constraints
-            |> Seq.choose (function
-                | ConstraintSymbol.Null
-                | ConstraintSymbol.Struct
-                | ConstraintSymbol.NotStruct 
-                | ConstraintSymbol.Unmanaged
-                | ConstraintSymbol.Blittable
-                | ConstraintSymbol.Scoped
-                | ConstraintSymbol.ConstantType _ -> None
-                | ConstraintSymbol.SubtypeOf(ty) 
-                | ConstraintSymbol.TraitType(ty) -> Some ty.Value
-            )
-            |> Seq.collect(fun ent ->
-                filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-            )
-        | TypeSymbol.Entity(ent) ->
-            findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
-        | _ ->
-            Seq.empty
-
-    let findMostSpecificPropertiesOfTypeParameter benv (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp isTyCtor (tyPar: TypeParameterSymbol) =
-        queryHierarchicalTypesOfTypeParameter tyPar
-        |> Seq.collect (fun ty -> 
-            findPropertiesOfType benv queryMemberFlags valueFlags nameOpt queryProp ty
-        )
-        |> Seq.filter (fun (prop: IPropertySymbol) -> 
-            (not prop.IsFormal) ||
-            (not tyPar.HasArity) || 
-            (prop.Formal.Enclosing.TypeParameterCount = 0) || 
-            (prop.Formal.Enclosing.TypeParameterCount = tyPar.Arity)
-        )
-        |> filterMostSpecificProperties
-
-    let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp (ty: TypeSymbol) =
-        let ty = findIntrinsicTypeIfPossible benv ty
-        let intrinsicProps =
-            match stripTypeEquations ty with
-            | TypeSymbol.Variable(tyPar) 
-            | TypeSymbol.HigherVariable(tyPar, _) ->
-                findMostSpecificPropertiesOfTypeParameter benv queryMemberFlags valueFlags nameOpt queryProp false tyPar
-            | TypeSymbol.Entity(ent) ->
-                queryIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
-            | _ ->
-                Seq.empty
-    
-        let extrinsicProps =
-            match queryProp with
-            | QueryProperty.IntrinsicAndExtrinsic ->
-                let results1 =
-                    match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-                    | ValueSome (traitImpls) ->
-                        traitImpls.Values
-                        |> Seq.collect (fun trImpl ->
-                            trImpl.Values
-                            |> Seq.collect (fun trImpl ->
-                                filterProperties queryMemberFlags valueFlags nameOpt trImpl.Properties
-                            )
-                        )
-                    | _ ->
-                        Seq.empty
-
-                let results2 =
-                    match benv.senv.typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn ty) with
-                    | ValueSome extMembers ->
-                        extMembers.Values
-                        |> Seq.choose (function
-                            | ExtensionMemberSymbol.Property prop -> 
-                                // REVIEW: We do a similar thing when looking for extension member functions in 'findExtensionMembersOfType',
-                                //         is there a way to combine these together so we do not have to repeat this logic?
-                                let tyArgs = ty.TypeArguments
-                                let enclosing = applyEnclosing tyArgs prop.Enclosing
-                                let prop = actualProperty enclosing tyArgs prop
-                                Some prop
-                            | _ -> 
-                                None
-                        )
-                        |> filterProperties queryMemberFlags valueFlags nameOpt
-                    | _ ->
-                        Seq.empty
-
-                Seq.append results1 results2
-            | _ ->
-                Seq.empty
-    
-        Seq.append intrinsicProps extrinsicProps
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-
     type Locals = System.Collections.Generic.HashSet<int64>
 
     type Iterator(predicate, canCache, checkInnerLambdas, freeLocals: FreeLocals, locals: Locals) =
@@ -657,29 +541,13 @@ type EntitySymbol with
         queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
 
     member this.FindIntrinsicFields(benv, queryMemberFlags) =
-        findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
+        queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
 
     member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-        findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
+        queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
 
     member this.FindIntrinsicProperties(benv, queryMemberFlags) =
         queryIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
-        this.Entities
-        |> filterEntitiesByAccessibility benv.ac
-        |> Seq.filter (fun x ->
-            match tyArity.TryArity with
-            | ValueSome n -> x.LogicalTypeParameterCount = n
-            | _ -> true
-            &&
-            (
-                match nameOpt with
-                | Some name -> x.Name = name
-                | _ -> true
-            )
-        )
-        |> ImArray.ofSeq
 
 type TypeSymbol with
 
@@ -732,30 +600,22 @@ type TypeSymbol with
         |> ImArray.find (fun x -> x.Name = name)
 
     member this.FindFields(benv, queryMemberFlags) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None None this
+        queryFieldsOfType benv queryMemberFlags ValueFlags.None None this
 
     member this.FindFields(benv, queryMemberFlags, name) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
+        queryFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
 
     member this.FindProperties(benv, queryMemberFlags, queryField) =
-        findPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
+        queryPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
 
     member this.FindProperties(benv, queryMemberFlags, queryField, name) =
-        findPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
+        queryPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
 
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
         queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
 
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
         queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
-
-    member this.FindNestedEntities(benv, nameOpt, resTyArity) =
-        let ty = findIntrinsicTypeIfPossible benv this
-        match stripTypeEquations ty with
-        | TypeSymbol.Entity(ent) ->
-            ent.FindNestedEntities(benv, nameOpt, resTyArity)
-        | _ ->
-            ImArray.empty
         
 type IValueSymbol with
 

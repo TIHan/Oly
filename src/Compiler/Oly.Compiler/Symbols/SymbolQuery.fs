@@ -6,6 +6,17 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
+let private findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
+    match benv.TryFindIntrinsicTypeByAliasType(ty) with
+    | ValueSome intrinsicTy ->
+        match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
+        | ValueSome ent -> ent.AsType
+        | _ -> ty
+    | _ ->
+        match benv.TryFindEntityByIntrinsicType(ty) with
+        | ValueSome ent -> ent.AsType
+        | _ -> ty
+
 let private combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol seq) (extMembers: #IValueSymbol seq) : #IValueSymbol imarray =
     let filteredExtMembers =
         // Concrete members take precedent.
@@ -52,17 +63,6 @@ type QueryFunction =
 type QueryProperty =
     | Intrinsic
     | IntrinsicAndExtrinsic
-
-let findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
-    match benv.TryFindIntrinsicTypeByAliasType(ty) with
-    | ValueSome intrinsicTy ->
-        match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
-    | _ ->
-        match benv.TryFindEntityByIntrinsicType(ty) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
 
 let canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
     if value.IsPublic then true
@@ -443,6 +443,55 @@ let queryMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParameterSymb
     |> ImArray.ofSeq
     |> filterMostSpecificFunctions
 
+let queryImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+    filterFields queryMemberFlags valueFlags nameOpt ent.Fields
+    |> filterValuesByAccessibility benv.ac queryMemberFlags
+    
+let queryIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+    let fields = queryImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
+    
+    let inheritedFields =
+        // TODO: If we make newtypes not extend anything, then this should not be needed.
+        if ent.IsNewtype then
+            Seq.empty
+        else
+            ent.Extends
+            |> Seq.map (fun x ->
+                match x.TryEntity with
+                | ValueSome x ->
+                    queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
+                | _ ->
+                    Seq.empty
+            )
+            |> Seq.concat
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
+    
+    Seq.append inheritedFields fields
+    
+let queryFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
+    let ty = findIntrinsicTypeIfPossible benv ty
+    match stripTypeEquations ty with
+    | TypeSymbol.Variable(tyPar) ->
+        tyPar.Constraints
+        |> Seq.choose (function
+            | ConstraintSymbol.Null
+            | ConstraintSymbol.Struct
+            | ConstraintSymbol.NotStruct 
+            | ConstraintSymbol.Unmanaged
+            | ConstraintSymbol.Blittable
+            | ConstraintSymbol.Scoped
+            | ConstraintSymbol.ConstantType _ -> None
+            | ConstraintSymbol.SubtypeOf(ty) 
+            | ConstraintSymbol.TraitType(ty) -> Some ty.Value
+        )
+        |> Seq.collect(fun ent ->
+            filterFields queryMemberFlags valueFlags nameOpt ent.Fields
+        )
+    | TypeSymbol.Entity(ent) ->
+        queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
+    | _ ->
+        Seq.empty
+
 let queryMostSpecificPropertiesOfTypeParameter benv (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp isTyCtor (tyPar: TypeParameterSymbol) =
     queryHierarchicalTypesOfTypeParameter tyPar
     |> Seq.collect (fun ty -> 
@@ -531,6 +580,22 @@ type EntitySymbol with
         this.AllLogicallyInheritedAndImplementedFunctions
         |> Seq.append (this.Functions)
 
+    member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
+        this.Entities
+        |> filterEntitiesByAccessibility benv.ac
+        |> Seq.filter (fun x ->
+            match tyArity.TryArity with
+            | ValueSome n -> x.LogicalTypeParameterCount = n
+            | _ -> true
+            &&
+            (
+                match nameOpt with
+                | Some name -> x.Name = name
+                | _ -> true
+            )
+        )
+        |> ImArray.ofSeq
+
 type TypeSymbol with
 
     /// All logical functions from the type and logical inherited/implemented types
@@ -551,4 +616,12 @@ type TypeSymbol with
             )
         | _ ->
             Seq.empty
+
+    member this.FindNestedEntities(benv, nameOpt, resTyArity) =
+        let ty = findIntrinsicTypeIfPossible benv this
+        match stripTypeEquations ty with
+        | TypeSymbol.Entity(ent) ->
+            ent.FindNestedEntities(benv, nameOpt, resTyArity)
+        | _ ->
+            ImArray.empty
 
