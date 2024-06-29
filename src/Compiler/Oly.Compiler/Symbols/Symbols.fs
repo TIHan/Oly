@@ -2393,22 +2393,6 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
 
         member this.AssociatedFormalPattern = None
 
-    new(name: string, funcs: IFunctionSymbol imarray, fakeParCount, isPattern) =
-        FunctionGroupSymbol(EnclosingSymbol.RootNamespace, name, funcs, fakeParCount, isPattern)
-
-    static member Create(funcs: IFunctionSymbol imarray) =
-        if funcs.Length <= 0 then
-            failwith "assert"
-        let principalFunc = funcs[0]
-        FunctionGroupSymbol(principalFunc.Name, funcs, principalFunc.Parameters.Length, false)
-
-    static member CreateIfPossible(funcs: IFunctionSymbol imarray) =
-        Assert.ThrowIfNot(not funcs.IsEmpty)
-        if funcs.Length = 1 then
-            funcs[0]
-        else
-            FunctionGroupSymbol.Create(funcs) :> IFunctionSymbol
-
 [<DebuggerDisplay("{Name}")>]
 type IFieldSymbol =
     inherit IValueSymbol
@@ -3452,6 +3436,11 @@ type TypeSymbol =
         match stripTypeEquations this with
         | EagerInferenceVariable _ -> true
         | _ -> false
+
+    member this.TryEagerType =
+        match stripTypeEquations this with
+        | EagerInferenceVariable(_, eagerTy) -> Some eagerTy
+        | _ -> None
 
     member this.IsOrWasInferenceVariable =
         match this with

@@ -1193,7 +1193,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                         match resArgs.TryGetCount() with
                         | ValueSome(count) -> count
                         | _ -> 0
-                    FunctionGroupSymbol(principalFunc.Name, funcs |> ImArray.ofSeq, fakeParCount, principalFunc.IsPattern) :> IValueSymbol
+                    FunctionGroupSymbol.Create(principalFunc.Name, funcs |> ImArray.ofSeq, fakeParCount, principalFunc.IsPattern) :> IValueSymbol
             | [field] ->
                 field :> IValueSymbol
             | _ ->

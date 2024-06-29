@@ -38,6 +38,10 @@ let OlyWithRef refSrc src =
     globalSetupCheck()
     OlyWithRef refSrc src
 
+let OlyWithRefTwo refSrc2 refSrc1 src =
+    globalSetupCheck()
+    OlyWithRefTwo refSrc2 refSrc1 src
+
 let OlyWithCRef cRef src =
     globalSetupCheck()
     OlyWithCRef cRef src

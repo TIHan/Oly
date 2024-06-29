@@ -367,3 +367,126 @@ main(): () =
     OlyWithRef refSrc src
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Basic ambiguity handling of functions across references``() =
+    let refSrc =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(string): ()
+
+#[open]
+module AutoOpenedExtensionA =
+    TestM(x: int32): () = print("A")
+    TestM(x: string): () = ()
+        """
+    let src =
+        """
+open static Test.A
+
+TestM(x: string): () = print(x)
+
+main(): () =
+    TestM("123")
+    TestM(456)
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123A"
+
+[<Fact>]
+let ``Basic ambiguity handling of functions across references 2``() =
+    let refSrc =
+        """
+module Test.A
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(object): ()
+
+#[open]
+module AutoOpenedExtensionA =
+    TestM<T>(x: T): () = print(x)
+        """
+    let src =
+        """
+open static Test.A
+
+TestM(x: string): () = ()
+TestM(x: int32): () = print("pass")
+
+main(): () =
+    TestM("123")
+    TestM(456)
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "pass"
+
+[<Fact>]
+let ``Basic ambiguity handling of functions across references 3``() =
+    let refSrc2 =
+        """
+#[open]
+module OlyPrelude
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("int8")]
+alias int8
+
+#[intrinsic("print")]
+print(object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int8, int8): int8
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+        """
+    let refSrc1 =
+        """
+module Test.A
+
+#[open]
+module Helpers =
+
+    (+)(x1: string, x2: string): string = ""
+        """
+    let src =
+        """
+open static Test.A
+
+main(): () =
+    print(1 + 5)
+        """
+    OlyWithRefTwo refSrc2 refSrc1 src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "6"

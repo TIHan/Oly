@@ -721,8 +721,28 @@ let areGeneralizedTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
     areTypesEqualWithRigidity Generalizable ty1 ty2
 
 /// Type variable checks are indexable
+let areLogicalConstructorSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
+    if not func1.IsConstructor || not func2.IsConstructor then false
+    elif obj.ReferenceEquals(func1, func2) then true
+    else
+        func1.LogicalParameterCount = func2.LogicalParameterCount &&
+        func1.TypeParameters.Length = func2.TypeParameters.Length &&
+        (
+            (func1.TypeArguments, func2.TypeArguments)
+            ||> ImArray.forall2 (UnifyTypes TypeVariableRigidity.Indexable)
+        ) &&
+        (
+            (func1.LogicalParameters, func2.LogicalParameters)
+            ||> ROMem.forall2 (fun par1 par2 ->
+                UnifyTypes TypeVariableRigidity.Indexable par1.Type par2.Type
+            )
+        )
+
+/// Type variable checks are indexable
 let areLogicalFunctionSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
     if obj.ReferenceEquals(func1, func2) then true
+    elif func1.IsConstructor || func2.IsConstructor then
+        areLogicalConstructorSignaturesEqual func1 func2
     else
         func1.Name = func2.Name &&
         func1.LogicalParameterCount = func2.LogicalParameterCount &&
@@ -1368,6 +1388,37 @@ type TypeSymbol with
                 |> ImArray.exists (function ConstraintSymbol.Blittable -> true | _ -> false)
             | _ -> 
                 false
+
+type FunctionGroupSymbol with
+
+    static member CreateWithDefaultEnclosing(name: string, funcs: IFunctionSymbol imarray, fakeParCount, isPattern) =
+        FunctionGroupSymbol(EnclosingSymbol.RootNamespace, name, funcs, fakeParCount, isPattern)
+
+    static member Create(name: string, funcs: IFunctionSymbol imarray, fakeParCount, isPattern) =
+        OlyAssert.False(funcs.IsEmpty)
+        let principalFunc = funcs[0]
+
+        // TODO: Check if this actually has performance implications.
+        let areEnclosingsSame = funcs |> ImArray.forall (fun x -> areEnclosingsEqual x.Enclosing principalFunc.Enclosing)
+        let enclosing =
+            // We do this to make scoping in function-groups more sane as we can do it in bulk.
+            // Scoping looks at a value's enclosing - so this is why we generally want to have one, even for function groups.
+            if areEnclosingsSame then
+                principalFunc.Enclosing
+            else
+                EnclosingSymbol.RootNamespace
+        FunctionGroupSymbol(enclosing, name, funcs, fakeParCount, isPattern)
+
+    static member Create(funcs: IFunctionSymbol imarray) =
+        let principalFunc = funcs[0]
+        FunctionGroupSymbol.Create(principalFunc.Name, funcs, principalFunc.Parameters.Length, false)
+
+    static member CreateIfPossible(funcs: IFunctionSymbol imarray) =
+        Assert.ThrowIfNot(not funcs.IsEmpty)
+        if funcs.Length = 1 then
+            funcs[0]
+        else
+            FunctionGroupSymbol.Create(funcs) :> IFunctionSymbol
 
 type EntitySymbol with
 

@@ -115,7 +115,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
     let rec computeWeight (currentRigidWeight, currentWeight) (expectedTy: TypeSymbol) (ty: TypeSymbol) : struct(int * int) =
         let expectedTy = stripTypeEquationsAndBuiltIn expectedTy
         let ty = stripTypeEquationsAndBuiltIn ty
-        if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && not skipEager)) && UnifyTypes Generalizable expectedTy ty) then
+        if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
             let currentWeight = currentWeight + 1
             let currentRigidWeight =
                 if UnifyTypes Rigid expectedTy.Formal ty.Formal then
@@ -249,7 +249,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
             | Some returnTy when returnTy.IsSolved ->
                 funcs
                 |> ImArray.filter (fun func ->
-                    UnifyTypes Generalizable returnTy func.ReturnType
+                    subsumesTypeWith Generalizable returnTy func.ReturnType
                 )
             | _ ->
                 funcs
@@ -258,7 +258,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
             |> ImArray.filter (fun func ->
                 match returnTyOpt with
                 | Some returnTy when returnTy.IsSolved ->
-                    UnifyTypes Generalizable returnTy func.ReturnType &&
+                    subsumesTypeWith Generalizable returnTy func.ReturnType &&
                     checkArgTys func argTys
                 | _ ->
                     checkArgTys func argTys
@@ -266,7 +266,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
         | ResolutionArguments.ByFunctionType(funcTy) ->
             funcs
             |> ImArray.filter (fun func ->
-                UnifyTypes Generalizable funcTy func.LogicalType
+                areGeneralizedTypesEqual funcTy func.LogicalType
             )
 
     let funcs2 =

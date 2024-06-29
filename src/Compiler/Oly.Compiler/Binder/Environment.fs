@@ -335,14 +335,13 @@ type BinderEnvironment =
                 this.benv.senv.unqualifiedSymbols
         let unqualified = value.ToUnqualified()
         if value.IsFunction then
-            let funcs =
+            let funcsToSet =
                 match unqualified with
                 | UnqualifiedSymbol.FunctionGroup(funcGroup) -> funcGroup.Functions
                 | UnqualifiedSymbol.Function(func) -> ImArray.createOne func
-                | _ -> 
-                    ImArray.empty
+                | _ -> ImArray.empty
 
-            if funcs.IsEmpty then this
+            if funcsToSet.IsEmpty then this
             else
                 let name = 
                     if value.IsConstructor then
@@ -351,16 +350,17 @@ type BinderEnvironment =
                         value.Name
                 let create (funcs: IFunctionSymbol imarray) =
                     if funcs.Length = 1 then
-                        UnqualifiedSymbol.Function(funcs[0])
+                        funcs[0]
+                        |> UnqualifiedSymbol.Function
                     else
-                        let funcGroup = FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length, isPatFunc)
-                        UnqualifiedSymbol.FunctionGroup(funcGroup)
+                        FunctionGroupSymbol.CreateWithDefaultEnclosing(name, funcs, funcs[0].Parameters.Length, isPatFunc)
+                        |> UnqualifiedSymbol.FunctionGroup
                 let unqualifiedSymbols =
                     let defaultCase() =
-                        let unqualified = create funcs
+                        let unqualified = create funcsToSet
                         unqualifiedSymbols.SetItem(name, unqualified)
 
-                    if (funcs.Length = 1 && funcs[0].Enclosing.IsLocalEnclosing) then
+                    if (funcsToSet.Length = 1 && funcsToSet[0].Enclosing.IsLocalEnclosing) then
                         defaultCase()
                     else
 
@@ -370,6 +370,8 @@ type BinderEnvironment =
                         // Merge functions.
                         | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
 #if DEBUG || CHECKED
+                            // Check the enclosings to make sure we are not adding values who have the same enclosing multiple times.
+                            // We prefer to add values in bulk for an individual enclosing.
                             let exists =
                                 funcGroup.Functions
                                 |> ImArray.exists (fun x ->
@@ -378,49 +380,62 @@ type BinderEnvironment =
                             OlyAssert.False(exists)
 #endif
 
-                            //if not canMerge then
-                            //    unqualifiedSymbols
-                            //else
-
-                            let funcs =
-                                if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
-                                    let funcs2 =
-                                        funcGroup.Functions
+                            if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                                let funcs =
+                                    funcGroup.Functions
+                                    |> ImArray.filter (fun x ->
+                                        let exists =
+                                            // TODO: this uses indexable rigidity, should we do generalizable instead?
+                                            // TODO: PERFORMANCE ISSUES - quadratic, this can be expensive if there are a lot of functions.
+                                            //       Consider creating a Map based on number of parameters to improve perf.
+                                            funcsToSet
+                                            |> ImArray.exists (areLogicalFunctionSignaturesEqual x)
+                                        not exists
+                                    )
+                                unqualifiedSymbols.SetItem(name, create (funcs.AddRange(funcsToSet)))
+                            else
+                                if canMerge then
+                                    unqualifiedSymbols.SetItem(name, create (funcGroup.Functions.AddRange(funcsToSet)))
+                                else
+                                    let funcs =
+                                        funcsToSet
                                         |> ImArray.filter (fun x ->
                                             let exists =
                                                 // TODO: this uses indexable rigidity, should we do generalizable instead?
-                                                // TODO: PERFORMANCE ISSUES, this can be expensive if there are a lot of functions.
+                                                // TODO: PERFORMANCE ISSUES - quadratic, this can be expensive if there are a lot of functions.
                                                 //       Consider creating a Map based on number of parameters to improve perf.
-                                                funcs
+                                                funcGroup.Functions
                                                 |> ImArray.exists (areLogicalFunctionSignaturesEqual x)
                                             not exists
                                         )
-                                    funcs2.AddRange(funcs)
-                                else
-                                    funcGroup.Functions.AddRange(funcs)
+                                    if funcs.IsEmpty then
+                                        unqualifiedSymbols
+                                    else
+                                        unqualifiedSymbols.SetItem(name, create (funcGroup.Functions.AddRange(funcs)))
 
-                            unqualifiedSymbols.SetItem(name, create funcs)
                         | UnqualifiedSymbol.Function(func) ->
 #if DEBUG || CHECKED
+                            // Check the enclosings to make sure we are not adding values who have the same enclosing multiple times.
+                            // We prefer to add values in bulk for an individual enclosing.
                             OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
 #endif
-                                
 
-                            //if not canMerge && areEnclosingsEqual this.benv.senv.enclosing func.Enclosing && not(areEnclosingsEqual this.benv.senv.enclosing value.Enclosing) then
-                            //    unqualifiedSymbols
-                            //else
-
-                            let funcs =
-                                if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                            if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                                // TODO: this uses indexable rigidity, should we do generalizable instead?
+                                if areLogicalFunctionSignaturesEqual func value.AsFunction then
+                                    unqualifiedSymbols.SetItem(name, create funcsToSet)
+                                else
+                                    unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
+                            else
+                                if canMerge then
+                                    unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
+                                else
                                     // TODO: this uses indexable rigidity, should we do generalizable instead?
                                     if areLogicalFunctionSignaturesEqual func value.AsFunction then
-                                        funcs
+                                        unqualifiedSymbols
                                     else
-                                        funcs |> ImArray.prependOne func
-                                else
-                                    funcs |> ImArray.prependOne func
+                                        unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
 
-                            unqualifiedSymbols.SetItem(name, create funcs)
                         | _ ->
                             defaultCase()
                     | _ ->

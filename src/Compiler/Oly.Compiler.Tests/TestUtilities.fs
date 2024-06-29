@@ -36,23 +36,36 @@ type TestCompilation =
 
     static member Create(src: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
     static member CreateWithConditionalDefines(src: string, conditionalDefines) =
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], defaultReferences, options = options)
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
     static member CreateWithReference(src: string, refSrc: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
-        let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
+        let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
         let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", (fun () -> refc))
         TestCompilation.CreateWithCRef(src, refcRef)
 
+    static member CreateWithTwoReferences(src: string, refSrc1: string, refSrc2: string) =
+        let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+
+        let refc2 = OlyCompilation.Create("olytestref2", [OlySyntaxTree.Parse(OlyPath.Create("olytestref2"), refSrc2, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
+        let refcRef2 = OlyCompilationReference.Create(OlyPath.Create "olytestref2", (fun () -> refc2))
+
+        let refc1 = OlyCompilation.Create("olytestref1", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc1, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences.Add(refcRef2), options = options)
+        let refcRef1 = OlyCompilationReference.Create(OlyPath.Create "olytestref1", (fun () -> refc1))
+
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef1).Add(refcRef2), options = options)
+        TestCompilation.Create(c)
+
     static member CreateWithCRef(src: string, refcRef: OlyCompilationReference) =
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
-        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef), options = options)
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef), options = options)
         TestCompilation.Create(c)
 
     static member CreateTwo(src1: string, src2: string) =
@@ -128,7 +141,7 @@ let getFirstSyntaxTree (c: TestCompilation) =
 /// in various syntax tree states.
 /// Does not cover any permutations as it would lead to excessively large test execution times.
 let private stressTyping (c: TestCompilation) =
-    let tree = c.Compilation.SyntaxTrees[0]
+    let tree = c.Compilation.GetSyntaxTree(OlyPath.Create("olytest1"))
     let text = tree.GetSourceText(CancellationToken.None)
     let str = text.ToString()
 
@@ -150,14 +163,14 @@ let private stressTyping (c: TestCompilation) =
 
             comp <- comp.SetSyntaxTree(newTree)
             let boundModel = comp.GetBoundModel(tree.Path)
-            boundModel.GetSymbols(comp.SyntaxTrees[0].GetRoot(CancellationToken.None), CancellationToken.None)
+            boundModel.GetSymbols(comp.GetSyntaxTree(OlyPath.Create("olytest1")).GetRoot(CancellationToken.None), CancellationToken.None)
             |> ignore
         with
         | ex ->
             raise(System.InvalidOperationException(str, ex))
 
 let private randomPartialSyntax (c: TestCompilation) =
-    let tree = c.Compilation.SyntaxTrees[0]
+    let tree = c.Compilation.GetSyntaxTree(OlyPath.Create("olytest1"))
     let text = tree.GetSourceText(CancellationToken.None)
     let str = text.ToString()
 
@@ -187,7 +200,7 @@ let private randomPartialSyntax (c: TestCompilation) =
 
             let comp = c.Compilation.SetSyntaxTree(newTree)
             let boundModel = comp.GetBoundModel(tree.Path)
-            boundModel.GetSymbols(comp.SyntaxTrees[0].GetRoot(CancellationToken.None), CancellationToken.None)
+            boundModel.GetSymbols(comp.GetSyntaxTree(OlyPath.Create("olytest1")).GetRoot(CancellationToken.None), CancellationToken.None)
             |> ignore
         with
         | ex ->
@@ -217,19 +230,19 @@ let private stressTest origSrc (c: TestCompilation) =
     c
 
 let withNoSyntaxDiagnostics (c: TestCompilation) =
-    let diags = c.c.SyntaxTrees.[0].GetDiagnostics(CancellationToken.None)
+    let diags = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None)
     if diags.IsEmpty then
         c
     else
         failwithf "%A" diags
 
 let withSyntaxErrorDiagnostics (expected: string list) (c: TestCompilation) =
-    let errorMsgs = c.c.SyntaxTrees.[0].GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message)
+    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message)
     Assert.Equal(expected, errorMsgs)
     c
 
 let withSyntaxErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.SyntaxTrees[0].GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
     (expected, errorMsgs)
     ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
         Assert.Equal(expectedMsg, msg)
@@ -325,6 +338,11 @@ let OlyWithRef refSrc src =
     |> stressTest src
 
 /// Will also assert that the syntax tree produced will equal the source.
+let OlyWithRefTwo refSrc2 refSrc1 src =
+    TestCompilation.CreateWithTwoReferences(src, refSrc1, refSrc2)
+    |> stressTest src
+
+/// Will also assert that the syntax tree produced will equal the source.
 let OlyWithReference refSrc src =
     let c =
         TestCompilation.CreateWithReference(src, refSrc)
@@ -347,7 +365,7 @@ let OlyThree src1 src2 src3 =
 
 let getAllSymbols (src: string) =
     let c = Oly (src.Replace("~^~", ""))
-    let st = c.c.SyntaxTrees.[0]
+    let st = c.c.GetSyntaxTree(OlyPath.Create("olytest1"))
     let sm = c.c.GetBoundModel(st.Path)
     sm.GetSymbols(st.GetRoot(CancellationToken.None), CancellationToken.None)
 
@@ -356,7 +374,7 @@ let getSymbolByCursorIgnoreDiagnostics (src: string) =
 
     let c = Oly (src.Replace("~^~", ""))
 
-    let st = c.c.SyntaxTrees.[0]
+    let st = c.c.GetSyntaxTree(OlyPath.Create("olytest1"))
     let sm = c.c.GetBoundModel(st.Path)
     
     let tokenOpt = st.GetRoot(CancellationToken.None).TryFindToken(cursor)
@@ -380,7 +398,7 @@ let getSymbolByCursor (src: string) =
 
     let c = Oly (src.Replace("~^~", "")) |> withNoDiagnostics
 
-    let st = c.c.SyntaxTrees.[0]
+    let st = c.c.GetSyntaxTree(OlyPath.Create("olytest1"))
     let sm = c.c.GetBoundModel(st.Path)
     
     let tokenOpt = st.GetRoot(CancellationToken.None).TryFindToken(cursor, skipTrivia = false)
@@ -398,3 +416,43 @@ let getSymbolByCursor (src: string) =
 let hasSymbolSignatureTextByCursor expectedText (src: string) =
     let symbol = getSymbolByCursor src
     Assert.Equal(expectedText, symbol.SignatureText)
+
+let getSymbolByCursor2 (src2: string) (src1: string) =
+    let cursor = src1.IndexOf("~^~")
+
+    let c = OlyTwo (src1.Replace("~^~", "")) src2 |> withNoDiagnostics
+
+    let st = c.c.GetSyntaxTree(OlyPath.Create("olytest1"))
+    let sm = c.c.GetBoundModel(st.Path)
+    
+    let tokenOpt = st.GetRoot(CancellationToken.None).TryFindToken(cursor, skipTrivia = false)
+    if tokenOpt.IsNone then
+        failwith "Unable to find syntax token by cursor."
+
+    let token = tokenOpt.Value
+
+    let symbolOpt = sm.TryFindSymbol(token, CancellationToken.None)
+    if symbolOpt.IsNone then
+        failwith "Unable to find symbol by cursor."
+
+    symbolOpt.Value
+
+let getSymbolByCursor3 (src3: string) (src2: string) (src1: string) =
+    let cursor = src1.IndexOf("~^~")
+
+    let c = OlyThree (src1.Replace("~^~", "")) src2 src3 |> withNoDiagnostics
+
+    let st = c.c.GetSyntaxTree(OlyPath.Create("olytest1"))
+    let sm = c.c.GetBoundModel(st.Path)
+    
+    let tokenOpt = st.GetRoot(CancellationToken.None).TryFindToken(cursor, skipTrivia = false)
+    if tokenOpt.IsNone then
+        failwith "Unable to find syntax token by cursor."
+
+    let token = tokenOpt.Value
+
+    let symbolOpt = sm.TryFindSymbol(token, CancellationToken.None)
+    if symbolOpt.IsNone then
+        failwith "Unable to find symbol by cursor."
+
+    symbolOpt.Value

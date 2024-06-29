@@ -1310,13 +1310,16 @@ module rec ClrCodeGen =
             GenNew cenv env irFunc.EmittedFunction irArgs
 
         | O.Call(irFunc, irArgs, _) ->
-            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false ValueNone
 
         | O.CallVirtual(irFunc, irArgs, _) ->
-            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs true
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs true ValueNone
 
         | O.CallIndirect(runtimeArgTys, irFunArg, irArgs, runtimeResultTy) ->
             GenCallIndirect cenv env irFunArg irArgs runtimeArgTys runtimeResultTy
+
+        | O.CallConstrained(constrainedTy, irFunc, irArgs, _) ->
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false (ValueSome constrainedTy)
 
     let GenValue cenv env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
@@ -1402,7 +1405,7 @@ module rec ClrCodeGen =
         not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x)) &&
         not(isByRefLike cenv.assembly func.ReturnType)
 
-    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual =
+    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual (constrainedTyOpt: ClrTypeInfo voption) =
         match func.specialKind with
         | ClrMethodSpecialKind.FunctionPointer ->
             raise(System.NotImplementedException("Clr FunctionPointer"))
@@ -1415,8 +1418,13 @@ module rec ClrCodeGen =
         | ClrMethodSpecialKind.None
         | ClrMethodSpecialKind.External ->
             if func.IsStatic || not isVirtual then
-                if isReturnable && canTailCall cenv func then
-                    I.Tail |> emitInstruction cenv
+                match constrainedTyOpt with
+                | ValueSome(constrainedTy) ->
+                    I.Constrained(constrainedTy.Handle) |> emitInstruction cenv
+                | _ ->
+                    if isReturnable && canTailCall cenv func then
+                        I.Tail |> emitInstruction cenv
+
                 I.Call(func.handle, irArgs.Length) |> emitInstruction cenv
             else
                 let argTy0 = irArgs.[0].ResultType

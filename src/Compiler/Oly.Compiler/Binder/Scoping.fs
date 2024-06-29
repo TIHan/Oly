@@ -28,7 +28,7 @@ let scopeInInstanceConstructors canOverride (env: BinderEnvironment) (ent: Entit
     elif instanceCtors.Length = 1 then
         scopeInValue canOverride env instanceCtors[0]
     else
-        scopeInValue canOverride env (FunctionGroupSymbol(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
+        scopeInValue canOverride env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
 
 let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
@@ -154,7 +154,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                             if funcs.Length = 1 then
                                 funcs[0]
                             else
-                                FunctionGroupSymbol(name, funcs, funcs[0].Parameters.Length, isPattern) :> IFunctionSymbol
+                                FunctionGroupSymbol.Create(name, funcs, funcs[0].Parameters.Length, isPattern) :> IFunctionSymbol
                                 
                         )
                         |> ImArray.ofSeq

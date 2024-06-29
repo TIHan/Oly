@@ -1789,6 +1789,33 @@ module Unsafe =
     |> ignore
 
 [<Fact>]
+let ``UnsafeCast should be in scope over Cast 2``() =
+    """
+#[intrinsic("cast")]
+Cast<T>(__oly_object): T
+
+#[intrinsic("cast")]
+Cast<T>(__oly_int32): T
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(__oly_object): T
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(__oly_int32): T
+
+    AsImmutable<T>(arr: mutable T[]): T[] =
+        Cast(arr)
+
+    AsMutable<T>(arr: T[]): mutable T[] =
+        Cast(arr)
+    """
+    |> Oly
+    |> withCompile
+    |> ignore
+
+[<Fact>]
 let ``Static function signature should work even when inheriting a class with the same static function signature``() =
     """
 abstract default class A =
@@ -1972,6 +1999,177 @@ main(): () =
     OlyThree src1 src2 src3
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 6``() =
+    let src2 =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+module AutoOpenedExtension =
+    TestM(x: int32): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(x: string): () = ()
+
+main(): () =
+    TestM("")
+        """
+
+    OlyTwo src1 src2
+    |> withCompile
+    |> ignore
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 7``() =
+    let src2 =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+TestM(x: int32): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+#[open]
+module AutoOpenedExtension =
+    TestM(x: int32): () = ()
+
+main(): () =
+    ~^~TestM(1)
+        """
+    let symbol = getSymbolByCursor2 src2 src1
+    Assert.Equal("AutoOpenedExtension", symbol.AsValue.Enclosing.TryType.Value.Name)
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 8``() =
+    let src2 =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+module AutoOpenedExtension =
+    TestM(x: int32): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(x: int32): () = ()
+
+main(): () =
+    ~^~TestM(1)
+        """
+    let symbol = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 9``() =
+    let src2 =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+module AutoOpenedExtension =
+    TestM(x: int32): () = ()
+    TestM(x: string): () = ()
+        """
+
+    let src1 =
+        """
+module Test.B
+
+open static Test.A
+
+TestM(x: string): () = ()
+
+main(): () =
+    ~^~TestM("")
+        """
+    let symbol = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+
+[<Fact>]
+let ``Choose the ambiguous function that was defined in the same compilation unit 10``() =
+    let src3 =
+        """
+module Test.A
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[open]
+module AutoOpenedExtensionA =
+    TestM(x: int32): () = ()
+    TestM(x: string): () = ()
+        """
+
+    let src2 =
+        """
+module Test.B
+
+open static Test.A
+
+#[open]
+module AutoOpenedExtensionB =
+    TestM(x: int32): () = ()
+    TestM(x: string): () = ()
+        """
+
+    let src1 =
+        """
+module Test.C
+
+open static Test.A
+
+TestM(x: string): () = ()
+
+main(): () =
+    ~^~TestM("")
+        """
+    let symbol = getSymbolByCursor3 src3 src2 src1
+    Assert.Equal("C", symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Should properly infer lambda argument against overloads``() =

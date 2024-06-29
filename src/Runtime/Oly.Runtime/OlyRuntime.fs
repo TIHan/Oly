@@ -824,7 +824,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             irArgs
             
-        let rec handleCall (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =    
+        let rec handleCall constrainedTy (func: RuntimeFunction) (irArgs: _ imarray) isVirtualCall =    
             assertEnvironmentWitnesses env func
 
             OlyAssert.False(func.EnclosingType.IsShape)
@@ -869,8 +869,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                         handle()
                     elif isVirtualCall then
                         if func.Flags.IsStatic && func.Flags.IsAbstract then
-                            failwith $"Invalid 'CallVirtual({func.EnclosingType.Name}.{func.Name})'."
-                        O.CallVirtual(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr, func.ReturnType
+                            // TODO: Review this to see if this is what we want to do. 
+                            //       We might want to force the front-end compiler to emit it this way first.
+                            O.CallConstrained(cenv.EmitType(constrainedTy), irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr, func.ReturnType
+                            //failwith $"Invalid 'CallVirtual({func.EnclosingType.Name}.{func.Name})'."
+                        else
+                            O.CallVirtual(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr, func.ReturnType
                     else
                         handle()
 
@@ -1395,6 +1399,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 newExpr, enclosingTy
 
         | OlyILOperation.Call(ilFuncInst, ilArgs) ->
+            let constrainedTy =
+                match ilFuncInst.Enclosing with
+                | OlyILEnclosing.Entity entInst -> cenv.ResolveType(env.ILAssembly, entInst.AsType, env.GenericContext)
+                | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
+                | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
             Log(
@@ -1410,9 +1419,14 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 #endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
             let irArgs = resolveFunctionArgs func ilArgs false
-            handleCall func irArgs false
+            handleCall constrainedTy func irArgs false
 
         | OlyILOperation.CallVirtual(ilFuncInst, ilArgs) ->
+            let constrainedTy =
+                match ilFuncInst.Enclosing with
+                | OlyILEnclosing.Entity entInst -> cenv.ResolveType(env.ILAssembly, entInst.AsType, env.GenericContext)
+                | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
+                | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
             Log(
@@ -1428,7 +1442,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 #endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
             let irArgs = resolveFunctionArgs func ilArgs true
-            handleCall func irArgs true
+            handleCall constrainedTy func irArgs true
 
         | OlyILOperation.Witness _ ->
             failwith "Invalid witness."

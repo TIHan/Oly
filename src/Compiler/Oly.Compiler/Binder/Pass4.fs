@@ -215,7 +215,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
                             if baseCtors.IsEmpty then
                                 env
                             else
-                                let funcGroup = FunctionGroupSymbol("base", baseCtors, baseCtors[0].Parameters.Length, false)
+                                let funcGroup = FunctionGroupSymbol.Create("base", baseCtors, baseCtors[0].Parameters.Length, false)
                                 env.AddUnqualifiedValue(funcGroup)
                         else
                             let mightBeReadOnly = not isExplicitMutable
@@ -1903,7 +1903,7 @@ let private bindPatternByResolutionItem
                     elif funcs.Length = 1 then
                         funcs[0]
                     else
-                        FunctionGroupSymbol(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length, funcGroup.IsPatternFunction)
+                        FunctionGroupSymbol.Create(funcGroup.Name, funcs, (funcGroup :> IFunctionSymbol).Parameters.Length, funcGroup.IsPatternFunction)
                 let callExpr = 
                     bindValueAsCallExpressionWithOptionalSyntaxName
                         cenv

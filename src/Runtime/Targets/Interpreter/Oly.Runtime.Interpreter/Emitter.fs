@@ -1288,6 +1288,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 | _ ->
                     func.CallWithStack(stack, args, willYield)
 
+            | InterpreterOperation.CallConstrained _ ->
+                failwith "Constrained calls are not supported."
+
             | InterpreterOperation.New(ctor, argExprs, resultTy) ->
                 let ctor = ctor.EmittedFunction
                 let thisArg =

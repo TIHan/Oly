@@ -7481,3 +7481,77 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "-1"
+
+[<Fact>]
+let ``Able to use DotNet generic math``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+Test<T>(): T where T: INumberBase<T> =
+    T.One
+
+main(): () =
+    print(Test<int32>())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
+
+[<Fact>]
+let ``Able to use DotNet generic math 2``() =
+    let src =
+        """
+namespace TestOly
+
+open System.Numerics
+
+#[open]
+module Prelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+#[export]
+module Exported =
+    #[export]
+    Test<T>(): T where T: INumberBase<T> =
+        T.One
+
+    #[export]
+    main(): () =
+        print(Test<int32>())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"
+
+[<Fact>]
+let ``Able to use DotNet generic math 3``() =
+    let src =
+        """
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+Test<T>(): T where T: IBinaryInteger<T> =
+    T.One
+
+main(): () =
+    print(Test<int32>())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1"

@@ -311,7 +311,7 @@ type BoundEnvironment =
                 if funcs.IsEmpty then
                     None
                 else
-                    FunctionGroupSymbol(funcGroup.Name, funcs, funcs[0].Parameters.Length, funcGroup.IsPatternFunction) :> IFunctionSymbol
+                    FunctionGroupSymbol.Create(funcGroup.Name, funcs, funcs[0].Parameters.Length, funcGroup.IsPatternFunction) :> IFunctionSymbol
                     |> Some
             | UnqualifiedSymbol.Function(func) when func.LogicalTypeParameterCount = arity ->
                 Some func

@@ -283,6 +283,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | Call of                       func: OlyIRFunction<'Type, 'Function, 'Field> * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | CallVirtual of                func: OlyIRFunction<'Type, 'Function, 'Field> * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | CallIndirect of               argTys: 'Type imarray * receiver: OlyIRExpression<'Type, 'Function, 'Field> * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
+    | CallConstrained of            constrainedTy: 'Type * func: OlyIRFunction<'Type, 'Function, 'Field> * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | New of                        func: OlyIRFunction<'Type, 'Function, 'Field> * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | NewTuple of                   elementTys: 'Type imarray * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | NewRefCell of                 elementTy: 'Type * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
@@ -359,6 +360,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
         | Call(args=args)
         | CallVirtual(args=args)
+        | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
         | NewArray(args=args) ->
@@ -442,6 +444,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
         | Call(args=args)
         | CallVirtual(args=args)
+        | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
         | NewArray(args=args) ->
@@ -563,6 +566,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             Call(func, newArgs, this.ResultType)
         | CallVirtual(func=func) ->
             CallVirtual(func, newArgs, this.ResultType)
+        | CallConstrained(constrainedTy=constrainedTy;func=func) ->
+            CallConstrained(constrainedTy, func, newArgs, this.ResultType)
         | New(func=func) ->
             New(func, newArgs, this.ResultType)
         | NewTuple(elementTys, _, _) ->
@@ -629,6 +634,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Call(resultTy=resultTy)
         | CallVirtual(resultTy=resultTy)
         | CallIndirect(resultTy=resultTy)
+        | CallConstrained(resultTy=resultTy)
         | New(resultTy=resultTy)
         | NewTuple(resultTy=resultTy)
         | NewRefCell(resultTy=resultTy)
