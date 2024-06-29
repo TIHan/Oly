@@ -528,27 +528,6 @@ type BoundExpression with
         |> Seq.map (fun x -> x.Value |> snd)
         |> ImArray.ofSeq
 
-type EntitySymbol with
-
-    member this.GetInstanceFields() =
-        this.Fields
-        |> ImArray.filter (fun x -> x.IsInstance)
-
-    member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags) =
-        queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags None this
-
-    member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags, name) =
-        queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags) =
-        queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-        queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
-
-    member this.FindIntrinsicProperties(benv, queryMemberFlags) =
-        queryIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
-
 type TypeSymbol with
 
     member this.ReplaceInferenceVariablesWithError() =
@@ -570,52 +549,6 @@ type TypeSymbol with
         let builder = ImArray.builder()
         getFreeTypeParametersFromType (TypeSymbolMutableSet.Create()) (HashSet()) builder.Add this
         builder.ToImmutable()
-
-    member this.GetInstanceFields() =
-        this.Fields
-        |> ImArray.filter (fun x -> x.IsInstance)
-
-    member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags) =
-        queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags None this
-
-    member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags, name) =
-        queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags) =
-        match this.TryEntity with
-        | ValueSome(ent) ->
-            ent.FindIntrinsicFields(benv, queryMemberFlags)
-        | _ ->
-            Seq.empty
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-        match this.TryEntity with
-        | ValueSome(ent) ->
-            ent.FindIntrinsicFields(benv, queryMemberFlags, name)
-        | _ ->
-            Seq.empty
-
-    member this.FindField(name: string) =
-        this.Fields
-        |> ImArray.find (fun x -> x.Name = name)
-
-    member this.FindFields(benv, queryMemberFlags) =
-        queryFieldsOfType benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindFields(benv, queryMemberFlags, name) =
-        queryFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
-
-    member this.FindProperties(benv, queryMemberFlags, queryField) =
-        queryPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
-
-    member this.FindProperties(benv, queryMemberFlags, queryField, name) =
-        queryPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
-
-    member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
-        queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
-
-    member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
-        queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
         
 type IValueSymbol with
 
