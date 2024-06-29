@@ -6,6 +6,28 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
+let private combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol seq) (extMembers: #IValueSymbol seq) : #IValueSymbol imarray =
+    let filteredExtMembers =
+        // Concrete members take precedent.
+        extMembers
+        |> Seq.filter (fun extMember ->
+#if DEBUG || CHECKED
+            OlyAssert.True(extMember.Enclosing.IsTypeExtension)
+#endif
+            let concreteMemberExists =
+                concreteMembers
+                |> Seq.exists (fun concreteMember ->
+#if DEBUG || CHECKED
+                    OlyAssert.False(concreteMember.Enclosing.IsTypeExtension)
+#endif
+                    areValueSignaturesEqual concreteMember extMember
+                )
+            not concreteMemberExists
+        )
+
+    Seq.append concreteMembers filteredExtMembers
+    |> ImArray.ofSeq
+
 [<RequireQualifiedAccess>]
 type QueryMemberFlags =
     | StaticOrInstance =          0x00000
@@ -18,6 +40,13 @@ type QueryMemberFlags =
     // TODO: Add StaticInstanceFunctionOverrides
 
     | PatternFunction =           0x10001
+
+[<RequireQualifiedAccess>]
+type QueryFunction =
+    /// Query for members that are only directly on the type.
+    | Intrinsic
+    /// Query for members that are directly on the type and its extension members that are in scope.
+    | IntrinsicAndExtrinsic
 
 [<RequireQualifiedAccess>]
 type QueryProperty =
@@ -164,6 +193,208 @@ let filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags
 let filterEntitiesByAccessibility ac (ents: EntitySymbol seq) =
     ents
     |> Seq.filter (canAccessEntity ac)
+
+let queryIntrinsicAndExtrinsicInheritsAndImplementsOfType (benv: BoundEnvironment) (ty: TypeSymbol) =
+    match stripTypeEquations ty with
+    | TypeSymbol.Variable(tyPar)
+    | TypeSymbol.HigherVariable(tyPar, _)
+    | TypeSymbol.InferenceVariable(Some tyPar, _)
+    | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
+        tyPar.Constraints
+        |> ImArray.choose (fun x -> 
+            match x.TryGetAnySubtypeOf() with
+            | ValueSome constrTy -> Some constrTy
+            | _ -> None
+        )
+    | ty ->
+        let intrinsic = ty.AllLogicalInheritsAndImplements
+        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
+        | ValueSome (tyExts) ->
+            let extrinsic =
+                tyExts.Values
+                |> Seq.collect (fun x ->
+                    x.Values
+                    |> Seq.collect (fun x ->
+                        if x.IsTypeExtension then
+                            x.Implements
+                        else
+                            ImArray.empty
+                    )
+                )
+
+            Seq.append intrinsic extrinsic
+            |> ImArray.ofSeq
+        | _ ->
+            intrinsic
+
+let queryImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) =
+    let isPatternFunction = queryMemberFlags &&& QueryMemberFlags.PatternFunction = QueryMemberFlags.PatternFunction
+    let funcs =
+        if isPatternFunction then
+            ent.Patterns
+            |> ImArray.map (fun x -> x.PatternFunction)     
+        else
+            ent.Functions
+    filterFunctions queryMemberFlags funcFlags nameOpt funcs
+    |> filterValuesByAccessibility benv.ac queryMemberFlags
+
+// Finds the most specific functions of an entity
+let rec queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) : IFunctionSymbol imarray =
+    let funcs = queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent |> ImArray.ofSeq
+
+    let overridenFuncs =
+        funcs
+        |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
+
+    let inheritedFuncs =
+        // TODO: If we make newtypes not extend anything, then this should not be needed.
+        if ent.IsNewtype then Seq.empty
+        else
+            let inheritedFuncs = ImArray.builder()
+
+            ent.Extends
+            |> ImArray.iter (fun x ->
+                inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            )
+
+            inheritedFuncs.ToImmutable()
+            |> ImArray.filter (fun (x: IFunctionSymbol) -> 
+                not x.IsConstructor &&
+                let isOverriden =
+                    overridenFuncs
+                    |> ImArray.exists (fun y ->
+                        x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
+                    )
+                not isOverriden
+            )
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
+
+    let nestedCtors =
+        if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then
+            ent.Entities
+            |> Seq.map (fun ent -> 
+                queryMostSpecificIntrinsicFunctionsOfEntity benv (queryMemberFlags ||| QueryMemberFlags.Instance) (funcFlags ||| FunctionFlags.Constructor) nameOpt ent)
+            |> Seq.concat
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
+        else
+            Seq.empty
+
+    let funcs = Seq.append funcs inheritedFuncs
+    let funcs = Seq.append funcs nestedCtors |> ImArray.ofSeq
+
+    // Most specific functions
+    funcs
+    |> filterMostSpecificFunctions
+
+and queryMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) : _ imarray =
+    let ty = findIntrinsicTypeIfPossible benv ty
+    match stripTypeEquations ty with
+    | TypeSymbol.Entity(ent) ->
+        queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
+
+    | TypeSymbol.Variable(tyPar)
+    | TypeSymbol.InferenceVariable(Some tyPar, _) ->
+        OlyAssert.False(tyPar.HasArity)
+
+        queryMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
+        |> filterFunctions queryMemberFlags funcFlags nameOpt
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
+        |> ImArray.ofSeq
+
+    | TypeSymbol.HigherVariable(tyPar, tyArgs)
+    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
+        OlyAssert.True(tyPar.HasArity)
+
+        queryMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
+        |> filterFunctions queryMemberFlags funcFlags nameOpt
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
+        |> Seq.map (fun func ->
+            if func.IsFormal then
+                if func.Enclosing.TypeParameterCount = 0 then
+                    func
+                else
+                    let enclosing =
+                        func.Enclosing
+                        |> applyEnclosing tyArgs
+                    actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
+            else
+                func
+        )
+        |> ImArray.ofSeq
+
+    | _ ->
+        ImArray.empty
+
+let queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
+    let find ty =
+        match benv.senv.typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn ty) with
+        | ValueSome(exts) ->
+            exts.Values
+            |> Seq.choose (fun extMember ->
+                match extMember with
+                | ExtensionMemberSymbol.Function(func) -> 
+                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)    
+                    func.NewSubstituteExtension(ty.TypeArguments)
+                    |> Some
+                | ExtensionMemberSymbol.Property _ ->
+                    // TODO: Handle properties.
+                    None
+            )
+            |> filterFunctions queryMemberFlags funcFlags nameOpt
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
+        | _ ->
+            Seq.empty
+
+    let results = find ty
+    if Seq.isEmpty results then
+        // Filter most specific extended types
+        ty.AllLogicalInheritsAndImplements
+        |> Seq.map find
+        |> Seq.concat
+    else
+        results
+
+    |> ImArray.ofSeq
+    |> filterMostSpecificFunctions
+
+let queryMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
+    match tryFindTypeExtensions benv ty with
+    | ValueSome(tyExts) ->
+        tyExts
+        |> ImArray.map (fun tyExt ->
+            if tyExt.IsFormal && not ty.IsFormal then
+                tyExt.SubstituteExtension(ty.TypeArguments)
+            else
+                tyExt
+        )
+        |> Seq.collect (fun tyExt ->
+            tyExt.Functions
+            |> filterFunctions queryMemberFlags funcFlags nameOpt
+            |> filterValuesByAccessibility benv.ac queryMemberFlags
+        )
+        |> ImArray.ofSeq
+        |> filterMostSpecificFunctions
+    | _ ->
+        ImArray.empty
+
+let queryAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty =
+    let extMembers = queryExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+    let extInterfaceMembers = 
+        queryMostSpecificInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+    ImArray.append extMembers extInterfaceMembers
+    |> filterMostSpecificFunctions
+
+let queryMostSpecificFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (queryFunc: QueryFunction) (ty: TypeSymbol) =
+    let intrinsicFuncs = queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty
+
+    let extrinsicFuncs =
+        match queryFunc with
+        | QueryFunction.IntrinsicAndExtrinsic ->
+            queryAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+        | _ ->
+            ImArray.empty
+
+    combineConcreteAndExtensionMembers intrinsicFuncs extrinsicFuncs
 
 let queryImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
     filterProperties queryMemberFlags valueFlags nameOpt ent.Properties

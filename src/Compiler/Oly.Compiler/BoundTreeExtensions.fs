@@ -651,10 +651,10 @@ type EntitySymbol with
         |> ImArray.filter (fun x -> x.IsInstance)
 
     member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags) =
-        findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags None this
+        queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags None this
 
     member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags, name) =
-        findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
+        queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
 
     member this.FindIntrinsicFields(benv, queryMemberFlags) =
         findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
@@ -708,10 +708,10 @@ type TypeSymbol with
         |> ImArray.filter (fun x -> x.IsInstance)
 
     member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags) =
-        findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags None this
+        queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags None this
 
     member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags, name) =
-        findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
+        queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
 
     member this.FindIntrinsicFields(benv, queryMemberFlags) =
         match this.TryEntity with
@@ -744,10 +744,10 @@ type TypeSymbol with
         findPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
 
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
-        findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
+        queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
 
     member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
-        findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
+        queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
 
     member this.FindNestedEntities(benv, nameOpt, resTyArity) =
         let ty = findIntrinsicTypeIfPossible benv this

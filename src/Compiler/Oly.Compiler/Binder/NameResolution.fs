@@ -1165,7 +1165,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 QueryMemberFlags.Instance
 
         let funcs =
-            findMostSpecificFunctionsOfType env.benv queryMemberFlags FunctionFlags.None (Some ident) QueryFunction.IntrinsicAndExtrinsic ty
+            queryMostSpecificFunctionsOfType env.benv queryMemberFlags FunctionFlags.None (Some ident) QueryFunction.IntrinsicAndExtrinsic ty
             |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
             |> ImArray.filter (fun x -> x.IsPatternFunction = isPatternContext)
         if not funcs.IsEmpty then

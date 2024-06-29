@@ -10,6 +10,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.SemanticDiagnostics
+open Oly.Compiler.Internal.SymbolQuery
 
 [<NoEquality;NoComparison;Struct>]
 type SolverEnvironment =
