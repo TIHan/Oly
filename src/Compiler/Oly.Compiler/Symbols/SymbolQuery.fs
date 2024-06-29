@@ -7,15 +7,9 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
 let private findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
-    match benv.TryFindIntrinsicTypeByAliasType(ty) with
-    | ValueSome intrinsicTy ->
-        match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
-    | _ ->
-        match benv.TryFindEntityByIntrinsicType(ty) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
+    match benv.TryFindEntityByIntrinsicType(stripTypeEquations ty) with
+    | ValueSome ent -> ent.AsType
+    | _ -> ty
 
 let private combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol seq) (extMembers: #IValueSymbol seq) : #IValueSymbol imarray =
     let filteredExtMembers =
