@@ -1247,6 +1247,15 @@ type TypeSymbol with
                 this.Hierarchy(fun x -> builder.Add(x); true)
                 builder.ToImmutable()
 
+        member this.FlattenHierarchyIncluding(): TypeSymbol imarray =
+            if this.IsNewtype then
+                ImArray.empty
+            else
+                let builder = ImArray.builder()
+                builder.Add(this)
+                this.Hierarchy(fun x -> builder.Add(x); true)
+                builder.ToImmutable()
+
         member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
             if f(this) then
                 if (not this.IsNewtype) then
@@ -1293,10 +1302,10 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.AllLogicalFunctions
             | TypeSymbol.Variable(tyPar)
             | TypeSymbol.InferenceVariable(Some tyPar, _) ->
-                findMostSpecificIntrinsicFunctionsOfTypeParameter false tyPar
+                findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs)
             | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) -> 
-                findMostSpecificIntrinsicFunctionsOfTypeParameter true tyPar
+                findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
                 |> Seq.map (fun (func: IFunctionSymbol) ->
                     let enclosing = 
                         func.Formal.Enclosing
@@ -2004,14 +2013,14 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
             else true
     )
 
-let filterMostSpecificProperties (props: IPropertySymbol imarray) =
+let filterMostSpecificProperties (props: IPropertySymbol seq) =
     props
-    |> ImArray.filter (fun x ->
+    |> Seq.filter (fun x ->
         if (x.IsConstructor || x.IsFinal || not x.IsVirtual) && not x.Enclosing.IsTypeExtension then true
         else
             let isOverriden =
                 props
-                |> ImArray.exists (fun y ->
+                |> Seq.exists (fun y ->
                     if x.Id = y.Id then false
                     else
                         if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && x.Name = y.Name && areTypesEqual x.Type y.Type then
@@ -2069,42 +2078,20 @@ let distinctProperties (props: IPropertySymbol imarray) =
     propSet
     |> ImArray.ofSeq
 
-let findMostSpecificIntrinsicFunctionsOfTypeParameter isTyCtor (tyPar: TypeParameterSymbol): _ imarray =
-    let tys =
-        tyPar.Constraints
-        |> Seq.choose (fun x ->
+let hierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
+    seq {
+        for x in tyPar.Constraints do
             match x with
-            | ConstraintSymbol.Null
-            | ConstraintSymbol.Struct
-            | ConstraintSymbol.NotStruct 
-            | ConstraintSymbol.Unmanaged -> None
             | ConstraintSymbol.SubtypeOf(ty) 
-            | ConstraintSymbol.TraitType(ty) when not ty.Value.IsTypeConstructor || ty.Value.IsTypeConstructor = isTyCtor ->
-                ty.Value
-                |> Some
+            | ConstraintSymbol.TraitType(ty) ->
+                yield! ty.Value.FlattenHierarchyIncluding()
             | _ ->
-                None
-        )
+                ()
+    }
+    |> TypeSymbol.Distinct
 
-    let tys =
-        tys
-        |> Seq.collect (fun ty ->
-            let isMostSpecific =
-                tys
-                |> Seq.exists (fun ty2 ->
-                    if areTypesEqual ty ty2 then false
-                    else
-                        subsumesType ty ty2
-                )
-                |> not
-            if isMostSpecific then
-                ty.AllLogicalInherits.Add(ty)
-            else
-                ImArray.empty
-        )
-        |> TypeSymbol.Distinct
-
-    tys
+let findMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParameterSymbol): _ imarray =
+    hierarchicalTypesOfTypeParameter tyPar
     |> Seq.collect (fun ty -> 
         ty.Functions
     )

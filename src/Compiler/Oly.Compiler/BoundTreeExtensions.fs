@@ -91,27 +91,26 @@ module private Helpers =
         | _ ->
             Seq.empty
 
+    let findMostSpecificPropertiesOfTypeParameter benv (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp isTyCtor (tyPar: TypeParameterSymbol) =
+        hierarchicalTypesOfTypeParameter tyPar
+        |> Seq.collect (fun ty -> 
+            findPropertiesOfType benv queryMemberFlags valueFlags nameOpt queryProp ty
+        )
+        |> Seq.filter (fun (prop: IPropertySymbol) -> 
+            (not prop.IsFormal) ||
+            (not tyPar.HasArity) || 
+            (prop.Formal.Enclosing.TypeParameterCount = 0) || 
+            (prop.Formal.Enclosing.TypeParameterCount = tyPar.Arity)
+        )
+        |> filterMostSpecificProperties
+
     let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
         let intrinsicProps =
             match stripTypeEquations ty with
             | TypeSymbol.Variable(tyPar) 
             | TypeSymbol.HigherVariable(tyPar, _) ->
-                tyPar.Constraints
-                |> Seq.choose (function
-                    | ConstraintSymbol.Null
-                    | ConstraintSymbol.Struct
-                    | ConstraintSymbol.NotStruct 
-                    | ConstraintSymbol.Unmanaged
-                    | ConstraintSymbol.Blittable
-                    | ConstraintSymbol.Scoped
-                    | ConstraintSymbol.ConstantType _ -> None
-                    | ConstraintSymbol.SubtypeOf(ty) 
-                    | ConstraintSymbol.TraitType(ty) -> Some ty.Value
-                )
-                |> Seq.collect(fun ent ->
-                    filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
-                )
+                findMostSpecificPropertiesOfTypeParameter benv queryMemberFlags valueFlags nameOpt queryProp false tyPar
             | TypeSymbol.Entity(ent) ->
                 findIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
             | _ ->

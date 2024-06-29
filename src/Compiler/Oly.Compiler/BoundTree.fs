@@ -1367,7 +1367,7 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     | TypeSymbol.InferenceVariable(Some tyPar, _) ->
         OlyAssert.False(tyPar.HasArity)
 
-        findMostSpecificIntrinsicFunctionsOfTypeParameter false tyPar
+        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> ImArray.ofSeq
@@ -1376,7 +1376,7 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
         OlyAssert.True(tyPar.HasArity)
 
-        findMostSpecificIntrinsicFunctionsOfTypeParameter true tyPar
+        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> Seq.map (fun func ->

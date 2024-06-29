@@ -1040,7 +1040,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Ambiguous-looking generic type constructor should fail``() =
+let ``Ambiguous-looking generic type constructor should pass, but used to fail``() =
     let src =
         """
 interface ITest =
@@ -1057,16 +1057,7 @@ main(): () =
     test<Test>()
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Member 'M' does not exist on type 'T<()>'.",
-                """
-    T<()>.M()
-          ^
-"""
-            )
-        ]
-    |> ignore
+    |> shouldCompile
 
 [<Fact>]
 let ``Ambiguous-looking generic type constructor with extension should fail``() =
