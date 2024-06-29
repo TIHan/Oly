@@ -47,27 +47,6 @@ module private Helpers =
     
         Seq.append inheritedFields fields
     
-    let findImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-    let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        let props = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
-        
-        let inheritedProps =
-            ent.Extends
-            |> Seq.map (fun x ->
-                match x.TryEntity with
-                | ValueSome x ->
-                    findIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt x
-                | _ ->
-                    Seq.empty
-            )
-            |> Seq.concat
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-        Seq.append props inheritedProps
-    
     let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
         let ty = findIntrinsicTypeIfPossible benv ty
         match stripTypeEquations ty with
@@ -113,7 +92,7 @@ module private Helpers =
             | TypeSymbol.HigherVariable(tyPar, _) ->
                 findMostSpecificPropertiesOfTypeParameter benv queryMemberFlags valueFlags nameOpt queryProp false tyPar
             | TypeSymbol.Entity(ent) ->
-                findIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
+                queryIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
             | _ ->
                 Seq.empty
     
@@ -684,7 +663,7 @@ type EntitySymbol with
         findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
 
     member this.FindIntrinsicProperties(benv, queryMemberFlags) =
-        findIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
+        queryIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
 
     member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
         this.Entities
