@@ -12,6 +12,7 @@ open Oly.Compiler.Syntax // Only used for creating OlyDiagnostic without a synta
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolBuilders
+open Oly.Compiler.Internal.SymbolQuery
 
 [<Sealed>]
 type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, func: IFunctionSymbol) =

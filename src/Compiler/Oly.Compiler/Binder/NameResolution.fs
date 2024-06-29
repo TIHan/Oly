@@ -20,6 +20,7 @@ open Oly.Compiler.Internal.FunctionOverloading
 open Oly.Compiler.Internal.WellKnownExpressions
 open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.ImplicitRules
+open Oly.Compiler.Internal.SymbolQuery
 open System.Globalization
 
 [<RequireQualifiedAccess>]

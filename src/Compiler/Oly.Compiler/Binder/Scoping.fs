@@ -7,6 +7,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
+open Oly.Compiler.Internal.SymbolQuery
 
 [<RequireQualifiedAccess>]
 type OpenContent =

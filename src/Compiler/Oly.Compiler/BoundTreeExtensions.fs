@@ -13,6 +13,7 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeVisitor
 open Oly.Compiler.Internal.BoundTreeRewriter
 open Oly.Compiler.Internal.BoundTreePatterns
+open Oly.Compiler.Internal.SymbolQuery
 open System.Threading
 
 // TODO: Rename 'intrinsic' uses to something else as we use 'intrinsic' to mean compiler 'intrinsic'.
@@ -92,7 +93,7 @@ module private Helpers =
             Seq.empty
 
     let findMostSpecificPropertiesOfTypeParameter benv (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp isTyCtor (tyPar: TypeParameterSymbol) =
-        hierarchicalTypesOfTypeParameter tyPar
+        queryHierarchicalTypesOfTypeParameter tyPar
         |> Seq.collect (fun ty -> 
             findPropertiesOfType benv queryMemberFlags valueFlags nameOpt queryProp ty
         )

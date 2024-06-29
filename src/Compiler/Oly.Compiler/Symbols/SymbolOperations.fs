@@ -1296,25 +1296,6 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.Functions
             | _ -> ImArray.empty
 
-        /// All logical functions from the type and logical inherited/implemented types
-        member this.AllLogicalFunctions =
-            match stripTypeEquations this with
-            | TypeSymbol.Entity(ent) -> ent.AllLogicalFunctions
-            | TypeSymbol.Variable(tyPar)
-            | TypeSymbol.InferenceVariable(Some tyPar, _) ->
-                findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
-            | TypeSymbol.HigherVariable(tyPar, tyArgs)
-            | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) -> 
-                findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
-                |> Seq.map (fun (func: IFunctionSymbol) ->
-                    let enclosing = 
-                        func.Formal.Enclosing
-                        |> applyEnclosing tyArgs 
-                    actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
-                )
-            | _ ->
-                Seq.empty
-
         /// Immediate fields. Does not include fields from inherited/implemented types.
         member this.Fields =
             match stripTypeEquations this with
@@ -1436,14 +1417,6 @@ type EntitySymbol with
         match this with
         | :? AggregatedNamespaceSymbol -> true
         | _ -> false
-
-    member this.TryFindDefaultInstanceConstructor() =
-        this.Functions
-        |> ImArray.tryFind (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
-
-    member this.HasDefaultInstanceConstructor =
-        this.Functions
-        |> ImArray.exists (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
 
     member this.Apply(tyArgs: TypeSymbol imarray) =
         applyEntity tyArgs this
@@ -1642,17 +1615,6 @@ type EntitySymbol with
     // TODO: Remove this.
     member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
         this.FlattenHierarchy()
-
-    member this.AllLogicallyInheritedAndImplementedFunctions =
-        let builder = ImArray.builder()
-        this.HierarchyForEach(fun x ->
-            builder.AddRange(x.Functions)
-        )
-        builder.ToImmutable()
-
-    member this.AllLogicalFunctions: _ seq =
-        this.AllLogicallyInheritedAndImplementedFunctions
-        |> Seq.append (this.Functions)
 
     static member private CheckUnmanaged(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
         match ty.TryEntity with
@@ -2077,32 +2039,6 @@ let distinctProperties (props: IPropertySymbol imarray) =
 
     propSet
     |> ImArray.ofSeq
-
-let hierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
-    seq {
-        for x in tyPar.Constraints do
-            match x with
-            | ConstraintSymbol.SubtypeOf(ty) 
-            | ConstraintSymbol.TraitType(ty) ->
-                yield! ty.Value.FlattenHierarchyIncluding()
-            | _ ->
-                ()
-    }
-    |> TypeSymbol.Distinct
-
-let findMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParameterSymbol): _ imarray =
-    hierarchicalTypesOfTypeParameter tyPar
-    |> Seq.collect (fun ty -> 
-        ty.Functions
-    )
-    |> Seq.filter (fun func -> 
-        (not func.IsFormal) ||
-        (not tyPar.HasArity) || 
-        (func.Formal.Enclosing.TypeParameterCount = 0) || 
-        (func.Formal.Enclosing.TypeParameterCount = tyPar.Arity)
-    )
-    |> ImArray.ofSeq
-    |> filterMostSpecificFunctions
 
 let rec typeExistsInType (target: TypeSymbol) (ty: TypeSymbol) =
     areTypesEqual target ty ||

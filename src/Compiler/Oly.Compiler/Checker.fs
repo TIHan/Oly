@@ -12,6 +12,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SemanticDiagnostics
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SymbolQuery
 
 let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.

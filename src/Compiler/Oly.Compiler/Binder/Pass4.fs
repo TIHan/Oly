@@ -18,6 +18,7 @@ open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.WellKnownExpressions
+open Oly.Compiler.Internal.SymbolQuery
 
 let isInLocalLambda env = env.isInLocalLambda
 

@@ -15,6 +15,7 @@
     <Compile Include="Symbols\SymbolOperations.fs" />
     <Compile Include="Symbols\WellKnownFunctions.fs" />
     <Compile Include="Symbols\SymbolEnvironments.fs" />
+    <Compile Include="Symbols\SymbolQuery.fs" />
     <Compile Include="CompilerImports.fs" />
     <Compile Include="Exceptions.fs" />
     <Compile Include="BoundTree.fs" />

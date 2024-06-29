@@ -11,6 +11,7 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SymbolQuery
 
 [<Flags>]
 type LambdaFlags =
@@ -1091,18 +1092,6 @@ let invalidLocalBinding name =
 
 // ** Queries
 
-type QueryMemberFlags =
-    | StaticOrInstance =          0x00000
-    | Static =                    0x00001
-    | Instance =                  0x00010
-    | Overridable =               0x00100
-
-    /// This will by-pass any accessor logic.
-    | InstanceFunctionOverrides = 0x01010
-    // TODO: Add StaticInstanceFunctionOverrides
-
-    | PatternFunction =           0x10001
-
 [<AutoOpen>]
 module EntitySymbolExtensions =
 
@@ -1367,7 +1356,7 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     | TypeSymbol.InferenceVariable(Some tyPar, _) ->
         OlyAssert.False(tyPar.HasArity)
 
-        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
+        queryMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> ImArray.ofSeq
@@ -1376,7 +1365,7 @@ and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMembe
     | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
         OlyAssert.True(tyPar.HasArity)
 
-        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
+        queryMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
         |> filterFunctions queryMemberFlags funcFlags nameOpt
         |> filterValuesByAccessibility benv.ac queryMemberFlags
         |> Seq.map (fun func ->

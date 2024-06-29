@@ -10,6 +10,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Binder
+open Oly.Compiler.Internal.SymbolQuery
 
 let private tryAttributeConstant cenv syntaxNode =
     function
