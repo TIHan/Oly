@@ -1216,6 +1216,14 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
             value.WithEnclosing(EnclosingSymbol.Witness(ty, appliedEnt))
         else
             value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
+    | EnclosingSymbol.Entity(ent), ty 
+            when 
+                ent.IsInterface && 
+                not ty.IsInterface && 
+                value.IsStatic && 
+                not value.IsField && 
+                subsumesTypeInEnvironment env.benv ent.AsType ty ->
+        value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
     | _ ->
         // TODO: This is weird, we should make sure there is an error when a value is invalid.
         if value.IsInvalid then

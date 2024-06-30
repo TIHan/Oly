@@ -258,28 +258,24 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         else
             let inheritedFuncs = ImArray.builder()
 
-            //ent.Extends
-            //|> ImArray.iter (fun x ->
-            //    inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            //)
-            if ent.IsTypeExtension || ent.IsInterface then
-                ent.Extends
+            // TODO: This really needs a cleanup.
+            let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
+            if isNotTypeExtensionOrInterface then
+                ent.FlattenHierarchy()
             else
                 ent.Extends
-                //ent.FlattenHierarchy()
-               // |> filterMostSpecificTypes
             |> ImArray.iter (fun x ->
-                inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            )
+                let queryMemberFlags =
+                    if x.IsInterface && isNotTypeExtensionOrInterface then
+                        QueryMemberFlags.Static
+                    else
+                        queryMemberFlags
 
-            if ent.IsTypeExtension || ent.IsInterface then
-                ()
-            else
-                let queryMemberFlags = QueryMemberFlags.Static
-                ent.Implements
-                |> ImArray.iter (fun x ->
+                if isNotTypeExtensionOrInterface then
                     inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-                )
+                else
+                    inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            )
 
             inheritedFuncs.ToImmutable()
             |> ImArray.filter (fun (x: IFunctionSymbol) -> 
