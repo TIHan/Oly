@@ -165,24 +165,27 @@ let private filterFunctions (queryMemberFlags: QueryMemberFlags) (funcFlags: Fun
         ))
 
 let private filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
-    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
-    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
-    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
-    let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
-
-    let values =
-        values
-        |> Seq.filter (fun value ->
-            (if isStatic = isInstance then true else value.IsInstance = isInstance) &&
-            (if isOverridable then value.IsOverridable = true else true)
-        )
-
-    // We are querying for functions that override, we must include private functions in this case.
-    if canCheckOverrides then 
-        values
+    if Seq.isEmpty values then
+        Seq.empty
     else
-        values
-        |> Seq.filter (canAccessValue ac)
+        let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
+        let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
+        let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
+        let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
+
+        let values =
+            values
+            |> Seq.filter (fun value ->
+                (if isStatic = isInstance then true else value.IsInstance = isInstance) &&
+                (if isOverridable then value.IsOverridable = true else true)
+            )
+
+        // We are querying for functions that override, we must include private functions in this case.
+        if canCheckOverrides then 
+            values
+        else
+            values
+            |> Seq.filter (canAccessValue ac)
 
 let private filterEntitiesByAccessibility ac (ents: EntitySymbol seq) =
     ents
@@ -201,21 +204,24 @@ let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
     |> TypeSymbol.Distinct
 
 let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> FunctionFlags -> string option -> TypeSymbol -> #IValueSymbol seq) benv queryMemberFlags funcFlags nameOpt (ent: EntitySymbol) =
-    let values = ImArray.builder()
-    let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
-    if ent.IsTypeExtension then
-        ent.FlattenHierarchy() |> ImArray.append ent.Extends
+    // TODO: If we make newtypes not extend anything, then this should not be needed.
+    if ent.IsNewtype || ent.IsShape then ImArray.empty
     else
-        ent.FlattenHierarchy()
-    |> ImArray.iter (fun x ->
-        let queryMemberFlags =
-            if x.IsInterface && isNotTypeExtensionOrInterface then
-                QueryMemberFlags.Static
-            else
-                queryMemberFlags
-        values.AddRange(queryImmediateValues benv queryMemberFlags funcFlags nameOpt x : _ seq)
-    )
-    values.ToImmutable()
+        let values = ImArray.builder()
+        let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
+        if ent.IsTypeExtension then
+            ent.FlattenHierarchy() |> ImArray.append ent.Extends
+        else
+            ent.FlattenHierarchy()
+        |> ImArray.iter (fun x ->
+            let queryMemberFlags =
+                if x.IsInterface && isNotTypeExtensionOrInterface then
+                    QueryMemberFlags.Static
+                else
+                    queryMemberFlags
+            values.AddRange(queryImmediateValues benv queryMemberFlags funcFlags nameOpt x : _ seq)
+        )
+        values.ToImmutable()
 
 let private queryHierarchicalTypes (ty: TypeSymbol) =
     match stripTypeEquations ty with
@@ -270,29 +276,26 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
-        // TODO: If we make newtypes not extend anything, then this should not be needed.
-        if ent.IsNewtype || ent.IsShape then Seq.empty
-        else
-            let inheritedFuncs =
-                queryHierarchicalValuesOfEntity
-                    queryImmediateFunctionsOfType
-                    benv
-                    queryMemberFlags
-                    funcFlags
-                    nameOpt
-                    ent
+        let inheritedFuncs =
+            queryHierarchicalValuesOfEntity
+                queryImmediateFunctionsOfType
+                benv
+                queryMemberFlags
+                funcFlags
+                nameOpt
+                ent
 
-            inheritedFuncs
-            |> ImArray.filter (fun (x: IFunctionSymbol) -> 
-                not x.IsConstructor &&
-                let isOverriden =
-                    overridenFuncs
-                    |> ImArray.exists (fun y ->
-                        x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
-                    )
-                not isOverriden
-            )
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
+        inheritedFuncs
+        |> ImArray.filter (fun (x: IFunctionSymbol) -> 
+            not x.IsConstructor &&
+            let isOverriden =
+                overridenFuncs
+                |> ImArray.exists (fun y ->
+                    x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
+                )
+            not isOverriden
+        )
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
 
     let nestedCtors =
         if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then

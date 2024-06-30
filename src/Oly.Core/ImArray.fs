@@ -295,12 +295,15 @@ module ImArray =
         |> ofSeq
 
     let inline filter predicate (arr: imarray<'T>) : imarray<'T> =
-        let builder = ImmutableArray.CreateBuilder(arr.Length)
-        for i = 0 to arr.Length - 1 do
-            if predicate arr.[i] then
-                builder.Add(arr.[i])
-        builder.Capacity <- builder.Count
-        builder.MoveToImmutable()
+        if arr.IsEmpty then
+            arr
+        else
+            let builder = ImmutableArray.CreateBuilder(arr.Length)
+            for i = 0 to arr.Length - 1 do
+                if predicate arr.[i] then
+                    builder.Add(arr.[i])
+            builder.Capacity <- builder.Count
+            builder.MoveToImmutable()
 
     let inline exists predicate (arr: imarray<'T>) =
         let len = arr.Length
