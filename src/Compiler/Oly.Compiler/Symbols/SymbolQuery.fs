@@ -272,15 +272,14 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
                 inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
             )
 
-            //if ent.IsTypeExtension || ent.IsInterface then
-            //    ()
-            //else
-            //    let queryMemberFlags =
-            //        (queryMemberFlags &&& ~~~QueryMemberFlags.Instance) &&& ~~~QueryMemberFlags.InstanceFunctionOverrides
-            //    ent.Implements
-            //    |> ImArray.iter (fun x ->
-            //        inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            //    )
+            if ent.IsTypeExtension || ent.IsInterface then
+                ()
+            else
+                let queryMemberFlags = QueryMemberFlags.Static
+                ent.Implements
+                |> ImArray.iter (fun x ->
+                    inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+                )
 
             inheritedFuncs.ToImmutable()
             |> ImArray.filter (fun (x: IFunctionSymbol) -> 
