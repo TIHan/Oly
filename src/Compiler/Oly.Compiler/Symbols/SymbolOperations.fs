@@ -1809,12 +1809,9 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
         else
             false
     else
+        let superTy = super.AsType
         ent.HierarchyExists (fun x ->
-            match x.TryEntity with
-            | ValueSome x ->
-                subsumesEntityWith rigidity super x
-            | _ ->
-                false
+            subsumesTypeWith rigidity superTy x
         )
 
 let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
@@ -1972,69 +1969,66 @@ let filterMostSpecificFunctionsByEnclosing (funcs: IFunctionSymbol imarray) =
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
     |> ImArray.filter (fun x ->
-        if (x.IsConstructor || x.IsFinal || not x.IsVirtual) && not x.Enclosing.IsTypeExtension then true
-        else
-            let isNotSpecific =
-                funcs
-                |> ImArray.exists (fun y ->
-                    if x.Id = y.Id then false
-                    else
-                        if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y || y.IsOverriding(x)) then
-                            match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
-                            | Some ent1, Some ent2 -> 
-                                if ent1.IsTypeExtension && ent2.IsTypeExtension then
-                                    if areTypesEqual ent1.Extends[0] ent2.Extends[0] then
-                                        false
-                                    else
-                                        subsumesType ent1.Extends[0] ent2.Extends[0]
+        let isNotSpecific =
+            funcs
+            |> ImArray.exists (fun y ->
+                if x.Id = y.Id then false
+                else
+                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y) ||
+                        (x.IsConstructor && y.IsConstructor && areLogicalConstructorSignaturesEqual x y) then
+                        match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
+                        | Some ent1, Some ent2 -> 
+                            if ent1.IsTypeExtension && ent2.IsTypeExtension then
+                                if areTypesEqual ent1.Extends[0] ent2.Extends[0] then
+                                    false
                                 else
-                                    if areEntitiesEqual ent1 ent2 then
-                                        // Handles use-case.
-                                        (*
-                                            interface IA<T> =
+                                    subsumesType ent1.Extends[0] ent2.Extends[0]
+                            else
+                                if areEntitiesEqual ent1 ent2 then
+                                    // Handles use-case.
+                                    (*
+                                        interface IA<T> =
                                         
-                                                Test(x: T): ()
-                                                Test(x: int32): ()
+                                            Test(x: T): ()
+                                            Test(x: int32): ()
                                         
-                                            class Test =
-                                                implements IA<int32>
+                                        class Test =
+                                            implements IA<int32>
                                         
-                                                Test(x: int32): () =
-                                                    print(x)
+                                            Test(x: int32): () =
+                                                print(x)
                                         
-                                            main(): () =
-                                                let t = Test()
-                                                let t = t: IA<int32>
-                                                t.Test(123)
-                                        *)
-                                        let xCount = getTotalTypeVariableUseCountFromType x.Formal.AsFunction.Type
-                                        let yCount = getTotalTypeVariableUseCountFromType y.Formal.AsFunction.Type
-                                        if xCount > yCount then
-                                            true
-                                        else
-                                            false
+                                        main(): () =
+                                            let t = Test()
+                                            let t = t: IA<int32>
+                                            t.Test(123)
+                                    *)
+                                    let xCount = getTotalTypeVariableUseCountFromType x.Formal.AsFunction.Type
+                                    let yCount = getTotalTypeVariableUseCountFromType y.Formal.AsFunction.Type
+                                    if xCount > yCount then
+                                        true
                                     else
-                                        subsumesEntity ent1 ent2
-                            | _ -> 
-                                false
-                        else
+                                        false
+                                else
+                                    subsumesEntity ent1 ent2
+                        | _ -> 
                             false
-                )
-            if isNotSpecific then false
-            else true
+                    else
+                        false
+            )
+        if isNotSpecific then false
+        else true
     )
 
 let filterMostSpecificProperties (props: IPropertySymbol seq) =
     props
     |> Seq.filter (fun x ->
-        if (x.IsConstructor || x.IsFinal || not x.IsVirtual) && not x.Enclosing.IsTypeExtension then true
-        else
             let isOverriden =
                 props
                 |> Seq.exists (fun y ->
                     if x.Id = y.Id then false
                     else
-                        if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && x.Name = y.Name && areTypesEqual x.Type y.Type then
+                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && x.Name = y.Name && areTypesEqual x.Type y.Type then
                             match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                             | Some ent1, Some ent2 -> 
                                 if ent1.IsTypeExtension && ent2.IsTypeExtension then
