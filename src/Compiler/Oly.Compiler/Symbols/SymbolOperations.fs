@@ -1974,7 +1974,7 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
             |> ImArray.exists (fun y ->
                 if x.Id = y.Id then false
                 else
-                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y) ||
+                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y || x.IsOverriding(y)) ||
                         (x.IsConstructor && y.IsConstructor && areLogicalConstructorSignaturesEqual x y) then
                         match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                         | Some ent1, Some ent2 -> 
@@ -2028,7 +2028,7 @@ let filterMostSpecificProperties (props: IPropertySymbol seq) =
                 |> Seq.exists (fun y ->
                     if x.Id = y.Id then false
                     else
-                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && x.Name = y.Name && areTypesEqual x.Type y.Type then
+                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && ((x.Name = y.Name && areTypesEqual x.Type y.Type) || x.IsOverriding(y)) then
                             match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                             | Some ent1, Some ent2 -> 
                                 if ent1.IsTypeExtension && ent2.IsTypeExtension then
