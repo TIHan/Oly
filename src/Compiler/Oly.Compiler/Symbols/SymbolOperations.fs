@@ -11,19 +11,23 @@ open Oly.Compiler.Internal.Symbols
 type IFunctionSymbol with
 
     member this.IsOverriding(func: IFunctionSymbol) =
-        match this.FunctionOverrides with
-        | Some(overrides) -> overrides.Id = func.Id
-        | _ -> 
-            if this.IsFinal && func.IsVirtual then
-                match this.Enclosing.TryEntity, this.Enclosing.TryEntity with
-                | Some(superEnt), Some(ent) when subsumesEntity superEnt ent ->
-                    areLogicalFunctionSignaturesParameterOnlyEqual func this &&
-                    // Covariant return types
-                    subsumesType func.ReturnType this.ReturnType
-                | _ -> 
+        if this.Id <> func.Id then
+            match this.FunctionOverrides with
+            | Some(overrides) -> overrides.Id = func.Id
+            | _ -> 
+                if func.IsVirtual && this.IsInstance = func.IsInstance then
+                    match this.Enclosing.TryEntity, this.Enclosing.TryEntity with
+                    | Some(superEnt), Some(ent) when subsumesEntity superEnt ent ->
+                        areLogicalFunctionSignaturesParameterOnlyEqual func this &&
+                        areTypesEqual func.ReturnType this.ReturnType
+                        // Covariant return types
+                     //   subsumesType func.ReturnType this.ReturnType
+                    | _ -> 
+                        false
+                else
                     false
-            else
-                false
+        else
+            false
 
 [<AutoOpen>]
 module SymbolComparers =

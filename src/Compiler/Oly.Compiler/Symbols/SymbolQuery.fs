@@ -235,6 +235,7 @@ let private queryImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMembe
     |> filterValuesByAccessibility benv.ac queryMemberFlags
 
 let private queryImmediateFunctionsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ty: TypeSymbol) =
+    let ty = findIntrinsicTypeIfPossible benv ty
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
         queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
@@ -257,18 +258,29 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         else
             let inheritedFuncs = ImArray.builder()
 
-            ent.Extends
+            //ent.Extends
+            //|> ImArray.iter (fun x ->
+            //    inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            //)
+            if ent.IsTypeExtension || ent.IsInterface then
+                ent.Extends
+            else
+                ent.Extends
+                //ent.FlattenHierarchy()
+               // |> filterMostSpecificTypes
             |> ImArray.iter (fun x ->
                 inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
             )
+
             //if ent.IsTypeExtension || ent.IsInterface then
-            //    ent.Extends
+            //    ()
             //else
-            //    ent.FlattenHierarchy()
-            //    |> filterMostSpecificTypes
-            //|> ImArray.iter (fun x ->
-            //    inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            //)
+            //    let queryMemberFlags =
+            //        (queryMemberFlags &&& ~~~QueryMemberFlags.Instance) &&& ~~~QueryMemberFlags.InstanceFunctionOverrides
+            //    ent.Implements
+            //    |> ImArray.iter (fun x ->
+            //        inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            //    )
 
             inheritedFuncs.ToImmutable()
             |> ImArray.filter (fun (x: IFunctionSymbol) -> 
