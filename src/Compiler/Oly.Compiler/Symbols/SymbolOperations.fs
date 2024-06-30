@@ -29,6 +29,25 @@ type IFunctionSymbol with
         else
             false
 
+type IPropertySymbol with
+
+    member this.IsOverriding(prop: IPropertySymbol) =
+        let isGetterOverriding =
+            match this.Getter, prop.Getter with
+            | Some thisGetter, Some propGetter ->
+                thisGetter.IsOverriding(propGetter)
+            | _ ->
+                false
+
+        let isSetterOverriding =
+            match this.Setter, prop.Setter with
+            | Some thisSetter, Some propSetter ->
+                thisSetter.IsOverriding(propSetter)
+            | _ ->
+                false
+
+        isGetterOverriding || isSetterOverriding
+
 [<AutoOpen>]
 module SymbolComparers =
 

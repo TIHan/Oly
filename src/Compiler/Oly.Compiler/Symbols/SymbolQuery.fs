@@ -203,7 +203,7 @@ let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
     }
     |> TypeSymbol.Distinct
 
-let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> FunctionFlags -> string option -> TypeSymbol -> #IValueSymbol seq) benv (overridenFuncs: #IValueSymbol imarray) queryMemberFlags funcFlags nameOpt (ent: EntitySymbol) =
+let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> 'Flags -> string option -> TypeSymbol -> #IValueSymbol seq) benv (overridenFuncs: #IValueSymbol imarray) queryMemberFlags (flags: 'Flags) nameOpt (ent: EntitySymbol) =
     // TODO: If we make newtypes not extend anything, then this should not be needed.
     if ent.IsNewtype || ent.IsShape then ImArray.empty
     else
@@ -219,7 +219,7 @@ let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironm
                     QueryMemberFlags.Static
                 else
                     queryMemberFlags
-            values.AddRange(queryImmediateValues benv queryMemberFlags funcFlags nameOpt x : _ seq)
+            values.AddRange(queryImmediateValues benv queryMemberFlags flags nameOpt x : _ seq)
         )
         values.ToImmutable()
         |> ImArray.filter (fun (x) -> 
@@ -275,6 +275,15 @@ let private queryImmediateFunctionsOfType (benv: BoundEnvironment) (queryMemberF
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) ->
         queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
+    | _ ->
+        // TODO: Handle others to consolidate.
+        Seq.empty
+
+let private queryImmediatePropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
+    let ty = findIntrinsicTypeIfPossible benv ty
+    match stripTypeEquations ty with
+    | TypeSymbol.Entity(ent) ->
+        queryImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
     | _ ->
         // TODO: Handle others to consolidate.
         Seq.empty
@@ -426,26 +435,35 @@ let private queryMostSpecificFunctionsOfType (benv: BoundEnvironment) queryMembe
 
     combineConcreteAndExtensionMembers intrinsicFuncs extrinsicFuncs
 
-let private queryImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+let private queryImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags (valueFlags: ValueFlags) (nameOpt: string option) (ent: EntitySymbol) =
     filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
     |> filterValuesByAccessibility benv.ac queryMemberFlags
     
-let private queryIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+let private queryIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags (valueFlags: ValueFlags) (nameOpt: string option) (ent: EntitySymbol) =
     let props = queryImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
         
     let inheritedProps =
-        ent.Extends
-        |> Seq.map (fun x ->
-            match x.TryEntity with
-            | ValueSome x ->
-                queryIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt x
-            | _ ->
-                Seq.empty
-        )
-        |> Seq.concat
+        queryHierarchicalValuesOfEntity
+            queryImmediatePropertiesOfType
+            benv
+            ImArray.empty
+            queryMemberFlags
+            valueFlags
+            nameOpt
+            ent
+        //ent.Extends
+        //|> Seq.map (fun x ->
+        //    match x.TryEntity with
+        //    | ValueSome x ->
+        //        queryIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt x
+        //    | _ ->
+        //        Seq.empty
+        //)
+        //|> Seq.concat
         |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     Seq.append props inheritedProps
+    |> filterMostSpecificProperties
 
 let private queryMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParameterSymbol): _ imarray =
     queryHierarchicalTypesOfTypeParameter tyPar

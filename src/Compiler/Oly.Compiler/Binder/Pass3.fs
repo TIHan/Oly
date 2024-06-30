@@ -343,7 +343,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                                     cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'set' to override.", 10, syntax.Identifier)
                                     false
                                 else
-                                    true
+                                    prop.Getter.IsNone
                         | _ ->
                             false
 
