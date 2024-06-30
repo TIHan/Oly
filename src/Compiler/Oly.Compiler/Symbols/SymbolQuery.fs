@@ -188,6 +188,41 @@ let private filterEntitiesByAccessibility ac (ents: EntitySymbol seq) =
     ents
     |> Seq.filter (canAccessEntity ac)
 
+let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
+    seq {
+        for x in tyPar.Constraints do
+            match x with
+            | ConstraintSymbol.SubtypeOf(ty) 
+            | ConstraintSymbol.TraitType(ty) ->
+                yield! ty.Value.FlattenHierarchyIncluding()
+            | _ ->
+                ()
+    }
+    |> TypeSymbol.Distinct
+
+let private queryHierarchicalTypes (ty: TypeSymbol) =
+    match stripTypeEquations ty with
+        | TypeSymbol.Entity(ent) ->
+            // TODO: Add 'ent.FlattenHierarchyIncluding' to avoid 'AsType'.
+            ent.AsType.FlattenHierarchyIncluding()
+            |> TypeSymbol.Distinct
+
+        | TypeSymbol.Variable(tyPar)
+        | TypeSymbol.InferenceVariable(Some tyPar, _) ->
+            queryHierarchicalTypesOfTypeParameter tyPar
+
+        | TypeSymbol.HigherVariable(tyPar, tyArgs)
+        | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
+            OlyAssert.True(tyPar.HasArity)
+
+            queryHierarchicalTypesOfTypeParameter tyPar
+            |> Seq.map (fun ty ->
+                actualType tyArgs ty
+            )
+
+        | _ ->
+            ImArray.empty
+
 let private queryImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) =
     let isPatternFunction = queryMemberFlags &&& QueryMemberFlags.PatternFunction = QueryMemberFlags.PatternFunction
     let funcs =
@@ -199,9 +234,18 @@ let private queryImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMembe
     filterFunctions queryMemberFlags funcFlags nameOpt funcs
     |> filterValuesByAccessibility benv.ac queryMemberFlags
 
+let private queryImmediateFunctionsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ty: TypeSymbol) =
+    match stripTypeEquations ty with
+    | TypeSymbol.Entity(ent) ->
+        queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
+    | _ ->
+        // TODO: Handle others to consolidate.
+        Seq.empty
+
 // Finds the most specific functions of an entity
 let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) : IFunctionSymbol imarray =
-    let funcs = queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent |> ImArray.ofSeq
+    let funcs =
+        queryImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent |> ImArray.ofSeq
 
     let overridenFuncs =
         funcs
@@ -209,7 +253,7 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
 
     let inheritedFuncs =
         // TODO: If we make newtypes not extend anything, then this should not be needed.
-        if ent.IsNewtype then Seq.empty
+        if ent.IsNewtype || ent.IsShape then Seq.empty
         else
             let inheritedFuncs = ImArray.builder()
 
@@ -217,6 +261,14 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
             |> ImArray.iter (fun x ->
                 inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
             )
+            //if ent.IsTypeExtension || ent.IsInterface then
+            //    ent.Extends
+            //else
+            //    ent.FlattenHierarchy()
+            //    |> filterMostSpecificTypes
+            //|> ImArray.iter (fun x ->
+            //    inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+            //)
 
             inheritedFuncs.ToImmutable()
             |> ImArray.filter (fun (x: IFunctionSymbol) -> 
@@ -377,18 +429,6 @@ let private queryIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMembe
         |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     Seq.append props inheritedProps
-
-let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
-    seq {
-        for x in tyPar.Constraints do
-            match x with
-            | ConstraintSymbol.SubtypeOf(ty) 
-            | ConstraintSymbol.TraitType(ty) ->
-                yield! ty.Value.FlattenHierarchyIncluding()
-            | _ ->
-                ()
-    }
-    |> TypeSymbol.Distinct
 
 let private queryMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParameterSymbol): _ imarray =
     queryHierarchicalTypesOfTypeParameter tyPar

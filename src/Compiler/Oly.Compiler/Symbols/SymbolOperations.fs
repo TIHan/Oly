@@ -8,6 +8,23 @@ open System.Collections.Immutable
 open Oly.Core
 open Oly.Compiler.Internal.Symbols
 
+type IFunctionSymbol with
+
+    member this.IsOverriding(func: IFunctionSymbol) =
+        match this.FunctionOverrides with
+        | Some(overrides) -> overrides.Id = func.Id
+        | _ -> 
+            if this.IsFinal && func.IsVirtual then
+                match this.Enclosing.TryEntity, this.Enclosing.TryEntity with
+                | Some(superEnt), Some(ent) when subsumesEntity superEnt ent ->
+                    areLogicalFunctionSignaturesParameterOnlyEqual func this &&
+                    // Covariant return types
+                    subsumesType func.ReturnType this.ReturnType
+                | _ -> 
+                    false
+            else
+                false
+
 [<AutoOpen>]
 module SymbolComparers =
 
@@ -739,7 +756,7 @@ let areLogicalConstructorSignaturesEqual (func1: IFunctionSymbol) (func2: IFunct
         )
 
 /// Type variable checks are indexable
-let areLogicalFunctionSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
+let inline areLogicalFunctionSignaturesParameterOnlyEqualAux (func1: IFunctionSymbol) (func2: IFunctionSymbol) ([<InlineIfLambda>] f) : bool =
     if obj.ReferenceEquals(func1, func2) then true
     elif func1.IsConstructor || func2.IsConstructor then
         areLogicalConstructorSignaturesEqual func1 func2
@@ -756,8 +773,17 @@ let areLogicalFunctionSignaturesEqual (func1: IFunctionSymbol) (func2: IFunction
             ||> ROMem.forall2 (fun par1 par2 ->
                 UnifyTypes TypeVariableRigidity.Indexable par1.Type par2.Type
             )
-        ) &&
-        UnifyTypes TypeVariableRigidity.Indexable func1.ReturnType func2.ReturnType
+        ) && f func1 func2
+
+let areLogicalFunctionSignaturesParameterOnlyEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) : bool =
+    areLogicalFunctionSignaturesParameterOnlyEqualAux func1 func2 (fun _ _ -> true)
+
+/// Type variable checks are indexable
+let areLogicalFunctionSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
+    areLogicalFunctionSignaturesParameterOnlyEqualAux func1 func2
+        (fun func1 func2 ->
+            UnifyTypes TypeVariableRigidity.Indexable func1.ReturnType func2.ReturnType
+        )
 
 let areFieldSignaturesEqual (field1: IFieldSymbol) (field2: IFieldSymbol) =
     if obj.ReferenceEquals(field1, field2) then true
@@ -1930,7 +1956,7 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
                 |> ImArray.exists (fun y ->
                     if x.Id = y.Id then false
                     else
-                        if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && areLogicalFunctionSignaturesEqual x y then
+                        if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y || y.IsOverriding(x)) then
                             match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                             | Some ent1, Some ent2 -> 
                                 if ent1.IsTypeExtension && ent2.IsTypeExtension then

@@ -935,7 +935,7 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
                 else
                     false
             )
-        (superFunc, results)
+        (superFunc, results |> filterMostSpecificFunctions |> ImArray.ofSeq)
     )
 
 let subsumesTypeOrShapeWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
