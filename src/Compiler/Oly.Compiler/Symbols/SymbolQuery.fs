@@ -203,7 +203,7 @@ let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
     }
     |> TypeSymbol.Distinct
 
-let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> FunctionFlags -> string option -> TypeSymbol -> #IValueSymbol seq) benv queryMemberFlags funcFlags nameOpt (ent: EntitySymbol) =
+let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> FunctionFlags -> string option -> TypeSymbol -> #IValueSymbol seq) benv (overridenFuncs: #IValueSymbol imarray) queryMemberFlags funcFlags nameOpt (ent: EntitySymbol) =
     // TODO: If we make newtypes not extend anything, then this should not be needed.
     if ent.IsNewtype || ent.IsShape then ImArray.empty
     else
@@ -222,6 +222,19 @@ let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironm
             values.AddRange(queryImmediateValues benv queryMemberFlags funcFlags nameOpt x : _ seq)
         )
         values.ToImmutable()
+        |> ImArray.filter (fun (x) -> 
+            if x.IsFunction && x.IsVirtual then
+                let x = x.AsFunction
+                not x.IsConstructor &&
+                let isOverriden =
+                    overridenFuncs
+                    |> ImArray.exists (fun y ->
+                        areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
+                    )
+                not isOverriden
+            else
+                true
+        )
 
 let private queryHierarchicalTypes (ty: TypeSymbol) =
     match stripTypeEquations ty with
@@ -276,25 +289,14 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
 
     let inheritedFuncs =
-        let inheritedFuncs =
-            queryHierarchicalValuesOfEntity
-                queryImmediateFunctionsOfType
-                benv
-                queryMemberFlags
-                funcFlags
-                nameOpt
-                ent
-
-        inheritedFuncs
-        |> ImArray.filter (fun (x: IFunctionSymbol) -> 
-            not x.IsConstructor &&
-            let isOverriden =
-                overridenFuncs
-                |> ImArray.exists (fun y ->
-                    x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
-                )
-            not isOverriden
-        )
+        queryHierarchicalValuesOfEntity
+            queryImmediateFunctionsOfType
+            benv
+            overridenFuncs
+            queryMemberFlags
+            funcFlags
+            nameOpt
+            ent
         |> filterValuesByAccessibility benv.ac queryMemberFlags
 
     let nestedCtors =
