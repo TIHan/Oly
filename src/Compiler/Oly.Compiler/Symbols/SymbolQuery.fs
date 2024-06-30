@@ -265,17 +265,12 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
             else
                 ent.FlattenHierarchy()
             |> ImArray.iter (fun x ->
-               // if x.IsInterface && not ent.IsTypeExtension then
-                    let queryMemberFlags =
-                        if x.IsInterface && isNotTypeExtensionOrInterface then
-                            QueryMemberFlags.Static
-                        else
-                            queryMemberFlags
-
-                    if true then// isNotTypeExtensionOrInterface then
-                        inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+                let queryMemberFlags =
+                    if x.IsInterface && isNotTypeExtensionOrInterface then
+                        QueryMemberFlags.Static
                     else
-                        inheritedFuncs.AddRange(queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
+                        queryMemberFlags
+                inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
             )
 
             inheritedFuncs.ToImmutable()
