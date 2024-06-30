@@ -200,6 +200,23 @@ let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
     }
     |> TypeSymbol.Distinct
 
+let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> FunctionFlags -> string option -> TypeSymbol -> #IValueSymbol seq) benv queryMemberFlags funcFlags nameOpt (ent: EntitySymbol) =
+    let values = ImArray.builder()
+    let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
+    if ent.IsTypeExtension then
+        ent.FlattenHierarchy() |> ImArray.append ent.Extends
+    else
+        ent.FlattenHierarchy()
+    |> ImArray.iter (fun x ->
+        let queryMemberFlags =
+            if x.IsInterface && isNotTypeExtensionOrInterface then
+                QueryMemberFlags.Static
+            else
+                queryMemberFlags
+        values.AddRange(queryImmediateValues benv queryMemberFlags funcFlags nameOpt x : _ seq)
+    )
+    values.ToImmutable()
+
 let private queryHierarchicalTypes (ty: TypeSymbol) =
     match stripTypeEquations ty with
         | TypeSymbol.Entity(ent) ->
@@ -256,24 +273,16 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         // TODO: If we make newtypes not extend anything, then this should not be needed.
         if ent.IsNewtype || ent.IsShape then Seq.empty
         else
-            let inheritedFuncs = ImArray.builder()
+            let inheritedFuncs =
+                queryHierarchicalValuesOfEntity
+                    queryImmediateFunctionsOfType
+                    benv
+                    queryMemberFlags
+                    funcFlags
+                    nameOpt
+                    ent
 
-            // TODO: This really needs a cleanup.
-            let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
-            if ent.IsTypeExtension then
-                ent.FlattenHierarchy() |> ImArray.append ent.Extends
-            else
-                ent.FlattenHierarchy()
-            |> ImArray.iter (fun x ->
-                let queryMemberFlags =
-                    if x.IsInterface && isNotTypeExtensionOrInterface then
-                        QueryMemberFlags.Static
-                    else
-                        queryMemberFlags
-                inheritedFuncs.AddRange(queryImmediateFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            )
-
-            inheritedFuncs.ToImmutable()
+            inheritedFuncs
             |> ImArray.filter (fun (x: IFunctionSymbol) -> 
                 not x.IsConstructor &&
                 let isOverriden =
