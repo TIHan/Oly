@@ -665,9 +665,9 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             match literal with
-            | BoundLiteral.ConstantEnum(_, enumTy) when not enumTy.IsUnmanaged ->
+            | BoundLiteral.ConstantEnum(_, enumTy) when not (enumTy.IsUnmanaged(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
-            | BoundLiteral.Constant(cons) when not cons.Type.IsUnmanaged ->
+            | BoundLiteral.Constant(cns) when not (cns.Type.IsUnmanaged(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
             | _ ->
                 ()

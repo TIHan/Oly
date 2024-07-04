@@ -376,10 +376,10 @@ and solveConstraintNotStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumen
         not tyArg.IsAnyStruct
 
 and solveConstraintUnmanaged env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    tyArg.IsUnmanaged
+    tyArg.IsUnmanaged(env.pass)
 
 and solveConstraintBlittable env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    tyArg.IsBlittable
+    tyArg.IsBlittable(env.pass)
 
 and solveConstraintScoped env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with

@@ -1372,7 +1372,14 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.IsExported
             | _ -> false
 
-        member this.IsUnmanaged =
+        member this.IsUnmanaged(pass) =
+#if DEBUG || CHECKED
+            match pass with
+            | Pass3
+            | Pass4 
+            | PostInferenceAnalysis -> ()
+            | _ -> OlyAssert.Fail("Invalid pass")
+#endif
             match stripTypeEquations this with
             | TypeSymbol.Int8
             | TypeSymbol.UInt8
@@ -1390,17 +1397,24 @@ type TypeSymbol with
             | TypeSymbol.NativeUInt
             | TypeSymbol.NativePtr _
             | TypeSymbol.NativeFunctionPtr _ -> true
-            | TypeSymbol.Entity(ent) -> ent.IsUnmanaged
+            | TypeSymbol.Entity(ent) -> ent.IsUnmanaged(pass)
             | TypeSymbol.Tuple(itemTys, _) ->
                 itemTys
-                |> ImArray.forall (fun x -> x.IsUnmanaged)
+                |> ImArray.forall (fun x -> x.IsUnmanaged(pass))
             | TypeSymbol.Variable(tyPar) ->
                 tyPar.Constraints 
                 |> ImArray.exists (function ConstraintSymbol.Unmanaged | ConstraintSymbol.Blittable -> true | _ -> false)
             | _ -> 
                 false
 
-        member this.IsBlittable =
+        member this.IsBlittable(pass) =
+#if DEBUG || CHECKED
+            match pass with
+            | Pass3
+            | Pass4 
+            | PostInferenceAnalysis -> ()
+            | _ -> OlyAssert.Fail("Invalid pass")
+#endif
             match stripTypeEquations this with
             | TypeSymbol.Int8
             | TypeSymbol.UInt8
@@ -1414,17 +1428,17 @@ type TypeSymbol with
             | TypeSymbol.Float64
             | TypeSymbol.NativeInt
             | TypeSymbol.NativeUInt -> true
-            | TypeSymbol.NativePtr(elementTy) -> elementTy.IsBlittable
+            | TypeSymbol.NativePtr(elementTy) -> elementTy.IsBlittable(pass)
             | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
                 match ilCallConv with
                 | Oly.Metadata.OlyILCallingConvention.Blittable ->
                     true
                 | _ ->
                     false
-            | TypeSymbol.Entity(ent) -> ent.IsBlittable
+            | TypeSymbol.Entity(ent) -> ent.IsBlittable(pass)
             | TypeSymbol.Tuple(itemTys, _) ->
                 itemTys
-                |> ImArray.forall (fun x -> x.IsBlittable)
+                |> ImArray.forall (fun x -> x.IsBlittable(pass))
             | TypeSymbol.Variable(tyPar) ->
                 tyPar.Constraints 
                 |> ImArray.exists (function ConstraintSymbol.Blittable -> true | _ -> false)
@@ -1668,56 +1682,90 @@ type EntitySymbol with
     member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
         this.FlattenHierarchy()
 
-    static member private CheckUnmanaged(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+    static member private CheckUnmanaged(pass, hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         match ty.TryEntity with
         | ValueSome(ent) ->
-            ent.CheckUnmanaged(hash)
+            ent.CheckUnmanaged(pass, hash)
         | _ ->
-            ty.IsUnmanaged
+            ty.IsUnmanaged(pass)
 
-    member private this.CheckUnmanaged(hash: HashSet<EntitySymbol>) =
+    member private this.CheckUnmanaged(pass, hash: HashSet<EntitySymbol>) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         if this.IsAnyStruct then
             if hash.Add(this) then
                 match this.TryEnumUnderlyingType with
-                | Some(runtimeTy) -> EntitySymbol.CheckUnmanaged(hash, runtimeTy)
+                | Some(runtimeTy) -> EntitySymbol.CheckUnmanaged(pass, hash, runtimeTy)
                 | _ ->
                     if this.IsAlias && this.Extends.Length > 0 then
-                        EntitySymbol.CheckUnmanaged(hash, this.Extends[0])
+                        EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
                     else
                         this.Fields 
                         |> ImArray.filter (fun x -> x.IsInstance)
-                        |> ImArray.forall (fun x -> EntitySymbol.CheckUnmanaged(hash, x.Type))
+                        |> ImArray.forall (fun x -> EntitySymbol.CheckUnmanaged(pass, hash, x.Type))
             else
                 true
         else
             false
 
-    static member private CheckBlittable(hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+    static member private CheckBlittable(pass, hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         match ty.TryEntity with
         | ValueSome(ent) ->
-            ent.CheckBlittable(hash)
+            ent.CheckBlittable(pass, hash)
         | _ ->
-            ty.IsBlittable
+            ty.IsBlittable(pass)
 
-    member private this.CheckBlittable(hash: HashSet<EntitySymbol>) =
+    member private this.CheckBlittable(pass, hash: HashSet<EntitySymbol>) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         if this.IsAnyStruct then
             if hash.Add(this) then
                 match this.TryEnumUnderlyingType with
-                | Some(runtimeTy) -> EntitySymbol.CheckBlittable(hash, runtimeTy)
+                | Some(runtimeTy) -> EntitySymbol.CheckBlittable(pass, hash, runtimeTy)
                 | _ ->
                     if this.IsAlias && this.Extends.Length > 0 then
-                        EntitySymbol.CheckBlittable(hash, this.Extends[0])
+                        EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
                     else
                         this.Fields 
                         |> ImArray.filter (fun x -> x.IsInstance)
-                        |> ImArray.forall (fun x -> EntitySymbol.CheckBlittable(hash, x.Type))
+                        |> ImArray.forall (fun x -> EntitySymbol.CheckBlittable(pass, hash, x.Type))
             else
                 true
         else
             false
 
-    // TODO: We should move this elsewhere to ensure we only use this in particular compiler passes.
-    member this.IsUnmanaged =
+    member this.IsUnmanaged(pass: CompilerPass) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         let flags = this.__CachedFlags
         if flags.HasFlag(EntityCachedFlags.NotUnmanaged) then
             false
@@ -1725,21 +1773,10 @@ type EntitySymbol with
             true
         else
             if this.IsAnyStruct then
-                // If the fields are empty, then this will always return true.
-                // However, it is possible that the fields could be empty due to
-                // what compiler pass we are in, so it could be a false positive.
-                // Because of that possbility, we do not cache this result.
-                // If we can ensure we only call IsUnmanaged in compiler pass 3 and 4,
-                // then we can get rid of this logic.
-                let strippedTy = stripTypeEquations this.AsType
-                if strippedTy.Fields.IsEmpty then
-                    true
-                else
-                
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
-                let result = this.CheckUnmanaged(hash)
+                let result = this.CheckUnmanaged(pass, hash)
                 if result then
                     this.__CachedFlags <- flags ||| EntityCachedFlags.Unmanaged
                 else
@@ -1749,8 +1786,14 @@ type EntitySymbol with
                 this.__CachedFlags <- flags ||| EntityCachedFlags.NotUnmanaged
                 false
 
-    // TODO: We should move this elsewhere to ensure we only use this in particular compiler passes.
-    member this.IsBlittable =
+    member this.IsBlittable(pass: CompilerPass) =
+#if DEBUG || CHECKED
+        match pass with
+        | Pass3
+        | Pass4 
+        | PostInferenceAnalysis -> ()
+        | _ -> OlyAssert.Fail("Invalid pass")
+#endif
         let flags = this.__CachedFlags
         if flags.HasFlag(EntityCachedFlags.NotBlittable) then
             false
@@ -1758,21 +1801,10 @@ type EntitySymbol with
             true
         else
             if this.IsAnyStruct then
-                // If the fields are empty, then this will always return true.
-                // However, it is possible that the fields could be empty due to
-                // what compiler pass we are in, so it could be a false positive.
-                // Because of that possbility, we do not cache this result.
-                // If we can ensure we only call IsBlittable in compiler pass 3 and 4,
-                // then we can get rid of this logic.
-                let strippedTy = stripTypeEquations this.AsType
-                if strippedTy.Fields.IsEmpty then
-                    true
-                else
-
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
-                let result = this.CheckBlittable(hash)
+                let result = this.CheckBlittable(pass, hash)
                 if result then
                     this.__CachedFlags <- flags ||| EntityCachedFlags.Blittable
                 else
