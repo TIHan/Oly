@@ -164,7 +164,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.Continuation ||| LambdaFlags.Static,
+            LambdaFlags.Continuation,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(

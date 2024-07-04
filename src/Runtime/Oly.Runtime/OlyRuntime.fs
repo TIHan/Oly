@@ -860,6 +860,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 //                        $"Devirtualized Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
 //                    )
 //#endif
+#if DEBUG || CHECKED
+                    if irFunc.RuntimeFunction.Flags.IsInstance then
+                        OlyAssert.Equal(irFunc.RuntimeFunction.Parameters.Length + 1, irArgs.Length)
+                    else
+                        OlyAssert.Equal(irFunc.RuntimeFunction.Parameters.Length, irArgs.Length)
+#endif
                     let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
                     irExpr, func.ReturnType
 

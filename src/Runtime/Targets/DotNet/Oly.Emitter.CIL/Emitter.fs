@@ -1405,7 +1405,14 @@ module rec ClrCodeGen =
         not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x)) &&
         not(isByRefLike cenv.assembly func.ReturnType)
 
-    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) irArgs isVirtual (constrainedTyOpt: ClrTypeInfo voption) =
+    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) (irArgs: E<_, _, _> imarray) isVirtual (constrainedTyOpt: ClrTypeInfo voption) =
+#if DEBUG || CHECKED
+        if func.IsInstance && func.isConstructor then
+            OlyAssert.Equal(func.pars.Length + 1, irArgs.Length)
+        else
+            OlyAssert.Equal(func.pars.Length, irArgs.Length)
+#endif
+
         match func.specialKind with
         | ClrMethodSpecialKind.FunctionPointer ->
             raise(System.NotImplementedException("Clr FunctionPointer"))
