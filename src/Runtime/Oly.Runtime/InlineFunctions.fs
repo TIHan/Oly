@@ -840,7 +840,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 | _ -> 
                     handleOperation origTextRange origExpr origOp
 
-            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType ->
+            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType && irFunc.RuntimeFunction.Flags.IsInstance ->
                 let newArgExprs = argExprs |> ImArray.map (handleExpression)
                 let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc newArgExprs
                 E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
@@ -965,7 +965,7 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
                 | _ -> 
                     irExpr
 
-            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType ->
+            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType && irFunc.RuntimeFunction.Flags.IsInstance ->
                 let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc argExprs
                 E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
 
