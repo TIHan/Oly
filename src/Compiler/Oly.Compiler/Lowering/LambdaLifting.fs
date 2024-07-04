@@ -3,6 +3,7 @@ module internal rec Oly.Compiler.Internal.Lowering.LambdaLifting
 
 open System.Threading
 open System.Collections.Generic
+open System.Collections.Immutable
 open System.Collections.ObjectModel
 
 open Oly.Core
@@ -19,6 +20,98 @@ open Oly.Compiler.Internal
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
+
+let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
+    match expr with
+    | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
+        checkLocals localScope rhsExpr
+        let localScope = localScope.Add(bindingInfo.Value.Id)
+        checkLocals localScope bodyExpr
+
+    | E.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+        checkLocals localScope conditionExpr
+        checkLocals localScope trueTargetExpr
+        checkLocals localScope falseTargetExpr
+
+    | E.While(_, conditionExpr, bodyExpr) ->
+        checkLocals localScope conditionExpr
+        checkLocals localScope bodyExpr
+
+    | E.Sequential(_, expr1, expr2, _) ->
+        checkLocals localScope expr1
+        checkLocals localScope expr2
+
+    | E.Call(receiverOpt=receiverExprOpt;args=argExprs;value=value) ->
+        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+        match receiverExprOpt with
+        | Some receiverExpr ->
+            checkLocals localScope receiverExpr
+        | _ ->
+            ()
+
+        argExprs
+        |> ImArray.iter (checkLocals localScope)
+
+    | E.Value(value=value) ->
+        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+    | E.EntityDefinition(body=bodyExpr) ->
+        checkLocals ImmutableHashSet.Empty bodyExpr
+
+    | E.SetContentsOfAddress(lhs=lhsExpr;rhs=rhsExpr) ->
+        checkLocals localScope lhsExpr
+        checkLocals localScope rhsExpr
+
+    | E.SetValue(value=value;rhs=rhsExpr) ->
+        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+        checkLocals localScope rhsExpr
+
+    | E.Typed(body=bodyExpr) ->
+        checkLocals localScope bodyExpr
+
+    | E.NewTuple(_, argExprs, _)
+    | E.NewArray(_, _, argExprs, _) ->
+        argExprs
+        |> ImArray.iter (checkLocals localScope)
+
+    | E.Witness(_, _, _, bodyExpr, _, _) ->
+        checkLocals localScope bodyExpr
+
+    | E.Try(bodyExpr=bodyExpr;finallyBodyExprOpt=finallyBodyExprOpt) ->
+        checkLocals localScope bodyExpr
+
+        match finallyBodyExprOpt with
+        | Some finallyBodyExpr ->
+            checkLocals localScope finallyBodyExpr
+        | _ ->
+            ()
+
+    | E.GetField(receiver=receiverExpr) ->
+        checkLocals localScope receiverExpr
+
+    | E.SetField(_, receiverExpr, _, rhsExpr) ->
+        checkLocals localScope receiverExpr
+        checkLocals localScope rhsExpr
+
+    | E.Lambda(pars=pars;body=lazyBodyExpr) ->
+        let localScope =
+            (localScope, pars)
+            ||> ImArray.fold (fun localScope par ->
+                localScope.Add(par.Id)
+            )
+
+        checkLocals localScope lazyBodyExpr.Expression
+
+    | E.MemberDefinition(_, BoundBinding.Implementation(rhs=rhsExpr)) ->
+        checkLocals ImmutableHashSet.Empty rhsExpr
+
+    | _ ->
+        ()
 
 let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
     match constant with
@@ -1317,4 +1410,11 @@ let Lower (g: g) (tree: BoundTree) =
         }
 
     let rewriter = Rewriter(cenv, LambdaLiftingRewriterCore(cenv))
-    tree.UpdateRoot(rewriter.RewriteRoot(tree.Root))
+    let tree = tree.UpdateRoot(rewriter.RewriteRoot(tree.Root))
+#if DEBUG || CHECKED
+    match tree.Root with
+    | BoundRoot.Global(body=bodyExpr)
+    | BoundRoot.Namespace(body=bodyExpr) ->
+        checkLocals ImmutableHashSet.Empty bodyExpr
+#endif
+    tree
