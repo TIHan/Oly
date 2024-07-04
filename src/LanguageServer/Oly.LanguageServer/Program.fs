@@ -469,7 +469,7 @@ type OlySymbol with
             Name = this.Name,
             Location = this.UseSyntax.GetLocation().ToLspLocation(ct),
             Kind = this.ClassificationKind.ToLspSymbolKind(),
-            ContainerName = if this.IsDefinition(ct) then "Definition" else String.Empty
+            ContainerName = if this.UseSyntax.IsDefinition then "Definition" else String.Empty
         )
 
     member this.ToLspParameterInfo() =
@@ -645,7 +645,11 @@ let LspWorkspaceStateFileName = "state.json"
 [<Sealed>]
 type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher) as this =
     
-    let mutable init = 0
+    do
+        OlyTrace.Log <-
+            fun msg ->
+                let trace = OmniSharp.Extensions.LanguageServer.Protocol.Models.LogTraceParams(Message = msg)
+                server.SendNotification(trace)
 
     let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceService
 
@@ -1505,7 +1509,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     | :? OlyValueSymbol as symbol when symbol.IsParameter -> false
                                     | :? OlyTypeSymbol as symbol when symbol.IsTypeParameter -> false
                                     | _ ->
-                                        symbol.IsDefinition(ct)
+                                        symbol.UseSyntax.IsDefinition
                                 )
                                 |> Seq.tryHead
                                 |> Option.bind (fun (x, syntaxNode) -> 

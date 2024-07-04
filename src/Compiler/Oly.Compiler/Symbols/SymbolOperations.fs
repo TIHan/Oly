@@ -15,14 +15,17 @@ type IFunctionSymbol with
             match this.FunctionOverrides with
             | Some(overrides) -> overrides.Id = func.Id
             | _ -> 
-                if func.IsVirtual && this.IsInstance = func.IsInstance then
-                    match this.Enclosing.TryEntity, this.Enclosing.TryEntity with
-                    | Some(superEnt), Some(ent) when subsumesEntity superEnt ent ->
+                if not this.IsVirtual && func.IsVirtual && this.IsInstance = func.IsInstance then
+                    let mutable superEnt = Unchecked.defaultof<_>
+                    let mutable ent = Unchecked.defaultof<_>
+                    if func.Enclosing.TryGetEntity(&superEnt) &&
+                       this.Enclosing.TryGetEntity(&ent) &&
+                       subsumesEntity superEnt ent then
                         areLogicalFunctionSignaturesParameterOnlyEqual func this &&
                         areTypesEqual func.ReturnType this.ReturnType
                         // Covariant return types
                      //   subsumesType func.ReturnType this.ReturnType
-                    | _ -> 
+                    else 
                         false
                 else
                     false
@@ -387,7 +390,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             ) &&
             (
                 (tyArgs1, tyArgs2)
-                ||> Seq.forall2 (fun ty1 ty2 -> UnifyTypes rigidity ty1 ty2)
+                ||> ImArray.forall2 (fun ty1 ty2 -> UnifyTypes rigidity ty1 ty2)
             )
 
         | TypeSymbol.ConstantInt32 n1, TypeSymbol.ConstantInt32 n2 -> n1 = n2
@@ -454,13 +457,13 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 false
             else
                 (tyArgs1, tyArgs2)
-                ||> Seq.forall2 (fun ty1 ty2 -> UnifyTypes rigidity ty1 ty2)
+                ||> ImArray.forall2 (fun ty1 ty2 -> UnifyTypes rigidity ty1 ty2)
 
         | TypeSymbol.ForAll(tyPars=tyPars1; innerTy=innerTy1), TypeSymbol.ForAll(tyPars=tyPars2; innerTy=innerTy2) ->
             if tyPars1.Length = tyPars2.Length then
                 (
                     (tyPars1, tyPars2)
-                    ||> Seq.forall2 (fun tyPar1 tyPar2 -> areTypeParameterSignaturesAndConstraintsEqual tyPar1 tyPar2)
+                    ||> ImArray.forall2 (fun tyPar1 tyPar2 -> areTypeParameterSignaturesAndConstraintsEqual tyPar1 tyPar2)
                 ) && UnifyTypes rigidity innerTy1 innerTy2
             else
                 false
@@ -473,7 +476,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
             ent1.Formal.Id = ent2.Formal.Id && ent1.TypeArguments.Length = ent2.TypeArguments.Length &&
             (ent1.TypeArguments, ent2.TypeArguments) 
-            ||> Seq.forall2 (fun ty1 ty2 -> 
+            ||> ImArray.forall2 (fun ty1 ty2 -> 
                 UnifyTypes rigidity ty1 ty2)
 
         | TypeSymbol.Entity(ent), _ when ent.IsClosure ->
@@ -524,7 +527,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             tyArgs1.Length = tyArgs2.Length &&
             (
                 (tyArgs1, tyArgs2)
-                ||> Seq.forall2 areTypesEqual
+                ||> ImArray.forall2 areTypesEqual
             )
 
         | TypeSymbol.InferenceVariable(solution=solution), _
@@ -1784,7 +1787,7 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
     if ent.Formal.Id = super.Formal.Id then
         if ent.TypeArguments.Length = super.TypeArguments.Length then
             (ent.TypeArguments, super.TypeArguments)
-            ||> Seq.forall2 (fun ty superTy ->
+            ||> ImArray.forall2 (fun ty superTy ->
                 if superTy.IsTypeConstructor then
                     match stripTypeEquations superTy with
                     | TypeSymbol.Variable(tyPar) ->
@@ -1974,7 +1977,7 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
             |> ImArray.exists (fun y ->
                 if x.Id = y.Id then false
                 else
-                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y || x.IsOverriding(y)) ||
+                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y) ||
                         (x.IsConstructor && y.IsConstructor && areLogicalConstructorSignaturesEqual x y) then
                         match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                         | Some ent1, Some ent2 -> 
@@ -2023,12 +2026,12 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
 let filterMostSpecificProperties (props: IPropertySymbol seq) =
     props
     |> Seq.filter (fun x ->
-            let isOverriden =
+            let isNotSpecific =
                 props
                 |> Seq.exists (fun y ->
                     if x.Id = y.Id then false
                     else
-                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && ((x.Name = y.Name && areTypesEqual x.Type y.Type) || x.IsOverriding(y)) then
+                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && ((x.Name = y.Name && areTypesEqual x.Type y.Type)) then
                             match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
                             | Some ent1, Some ent2 -> 
                                 if ent1.IsTypeExtension && ent2.IsTypeExtension then
@@ -2043,7 +2046,7 @@ let filterMostSpecificProperties (props: IPropertySymbol seq) =
                         else
                             false
                 )
-            if isOverriden then false
+            if isNotSpecific then false
             else true
     )
 

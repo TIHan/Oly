@@ -17,3 +17,8 @@ module Logger =
 
     let Log msg =
         logger.Log(LogLevel.Information, msg)
+
+
+module OlyTrace =
+
+    let mutable Log : string -> unit = fun _ -> ()

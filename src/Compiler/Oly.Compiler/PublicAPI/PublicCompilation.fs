@@ -62,7 +62,10 @@ type private CompilationUnitImplementationState =
         let boundTree =
             CacheValue(fun ct -> 
                 let binder, diags = lazyImplPass.GetValue(ct)
+                let s = System.Diagnostics.Stopwatch.StartNew()
                 let boundTree = binder.Bind(ct)
+                s.Stop()
+                OlyTrace.Log("Impl Bind: " + syntaxTree.Path.ToString() + $" - {s.Elapsed.TotalMilliseconds} ms")
                 boundTree.PrependDiagnostics(diags)
             )
 
@@ -208,7 +211,14 @@ type internal CompilationState =
         let mutable newState = this
         newState <-
             { this with
-                lazySig = CacheValue(fun ct -> CompilationPhases.signature newState ct)
+                lazySig = 
+                    CacheValue(fun ct -> 
+                        let s = System.Diagnostics.Stopwatch.StartNew()
+                        let result = CompilationPhases.signature newState ct
+                        s.Stop()
+                        OlyTrace.Log($"All Sig Bind: {newState.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+                        result
+                    )
             }
         newState
 

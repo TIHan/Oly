@@ -1120,8 +1120,16 @@ let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
         let isStrict = value.HasStrictInference
         let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
         let tyArgs =
-            let tyPars = benv.GetScopedTypeParameters(value)
-            let tyArgs = benv.GetScopedTypeArguments(value)
+            let tyPars =
+                if value.IsLocal then
+                    value.TypeParameters
+                else
+                    value.AllTypeParameters
+            let tyArgs = 
+                if value.IsLocal then
+                    value.TypeArguments
+                else
+                    value.AllTypeArguments
             tyArgs
             |> ImArray.map (fun ty ->
                 freshenTypeAux benv isStrict tyPars ImArray.empty ty cache
@@ -1134,7 +1142,10 @@ let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
                 |> ImmutableArray.CreateRange
             applyEnclosing tyArgsForEnclosing value.Enclosing.Formal
 
-        actualValue enclosing tyArgs value.Formal
+        if value.IsLocal then
+            value.Formal.Substitute(tyArgs)
+        else
+            value.Formal.GetActual(enclosing, tyArgs)
     | _ ->
         if not value.IsInvalid then
             failwith "Invalid value symbol"

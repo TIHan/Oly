@@ -240,29 +240,6 @@ type BoundEnvironment =
         | ValueSome ent -> ValueSome ent
         | _ -> ValueNone
 
-    member this.GetScopedTypeParameters(value: IValueSymbol) =
-        if value.IsConstructor then
-            value.Enclosing.TypeParameters
-        else
-            match value.Enclosing with
-            | EnclosingSymbol.Local ->
-                this.EnclosingTypeParameters.AddRange(value.TypeParameters)
-            | _ ->
-                value.Enclosing.TypeParameters.AddRange(value.TypeParameters)
-
-    member this.GetScopedTypeArguments(value: IValueSymbol) =
-        if value.IsConstructor then
-            value.Enclosing.TypeArguments
-        else
-            match value.Enclosing with
-            | EnclosingSymbol.Local ->
-                let enclosingTyInst =
-                    this.EnclosingTypeParameters
-                    |> ImArray.map (fun x -> x.AsType)
-                enclosingTyInst.AddRange(value.TypeArguments)
-            | _ ->
-                value.Enclosing.TypeArguments.AddRange(value.TypeArguments)
-
     /// Get an unqualified type within the current scope.
     /// An empty array means a type is not found in the current scope.
     /// More that 1 type returned means the type has ambiguities.

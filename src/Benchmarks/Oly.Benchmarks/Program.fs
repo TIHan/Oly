@@ -25,30 +25,31 @@ type DotNetCompile() =
     do
         workspace.UpdateDocument(benchmarkPath, OlySourceText.FromFile(benchmarkPath.ToString()), System.Threading.CancellationToken.None)
 
-    //let vulkanText =
-    //    OlySourceText.FromFile("../../../../../../../../../../examples/Evergreen/src/Graphics/Backend/Vulkan.oly")
+    let text =
+        OlySourceText.FromFile("""C:\work\Evergreen\src\managed\Collections\EntityDatabase.oly""")
 
-    //let test (text: IOlySourceText) =
-    //    let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)
-    //    if root.Tree.GetDiagnostics(System.Threading.CancellationToken.None).IsEmpty |> not then
-    //        failwith "Errors"
-    //    let rec loop (node: OlySyntaxNode) =
-    //        node.Children
-    //        |> ImArray.iter loop
-    //    loop root
-    //    root.FullTextSpan
-    //    |> ignore
+    let test (text: IOlySourceText) =
+        let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)
+        if root.Tree.GetDiagnostics(System.Threading.CancellationToken.None).IsEmpty |> not then
+            failwith "Errors"
+        let rec loop (node: OlySyntaxNode) =
+            node.Children
+            |> ImArray.iter loop
+        loop root
+        root.FullTextSpan
+        |> ignore
 
     [<GlobalSetup>]
     member _.Setup() = ()
 
     [<Benchmark>]
     member _.Benchmark() =
-        let task = workspace.BuildProjectAsync(benchmarkPath, System.Threading.CancellationToken.None)
-        let result = task.Result
-        match result with
-        | Ok _ -> ()
-        | Error(diags) -> failwithf "Errors %A" diags
+        test text
+        //let task = workspace.BuildProjectAsync(benchmarkPath, System.Threading.CancellationToken.None)
+        //let result = task.Result
+        //match result with
+        //| Ok _ -> ()
+        //| Error(diags) -> failwithf "Errors %A" diags
         //for _ = 1 to 10 do
         //    test vulkanText
 

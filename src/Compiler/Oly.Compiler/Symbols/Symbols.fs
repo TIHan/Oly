@@ -565,6 +565,7 @@ let filterForTypeParameters (tys: TypeSymbol seq) =
         | TypeSymbol.Variable(tyPar) -> KeyValuePair(tyPar.Id, x) |> Some
         | TypeSymbol.HigherVariable(tyPar, tyArgs) when tyPar.Arity = tyArgs.Length -> KeyValuePair(tyPar.Id, x) |> Some
 
+        // TODO: Is similar to TryImmediateTypeParameter
         | TypeSymbol.InferenceVariable(Some tyPar, varSolution) -> 
             if filterForTypeParameterVariableSolution tyPar varSolution then
                 KeyValuePair(tyPar.Id, x) |> Some
@@ -613,9 +614,13 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
 
     let tyArgs =
         // We have to do this to associate the entity's type parameter with passed type argument to apply.
+        // TODO: We need to remove TryImmediateTypeParameter and avoid having to rely on it.
         (ent.TypeParameters, tyArgs)
         ||> ImArray.map2 (fun tyPar tyArg ->
-            mkSolvedInferenceVariableType tyPar tyArg
+            match tyArg.TryImmedateTypeParameter with
+            | ValueSome tyPar2 when tyPar.Id = tyPar2.Id -> tyArg
+            | _ ->
+                mkSolvedInferenceVariableType tyPar tyArg
         )
 
     [<VolatileField>]
@@ -1568,8 +1573,8 @@ let stripTypeEquations (ty: TypeSymbol) =
 
 let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
-    match ty.TryIntrinsicType with
-    | Some(intrinTy: TypeSymbol) -> 
+    match ty.TryGetIntrinsicType() with
+    | true, intrinTy -> 
         OlyAssert.False(intrinTy.IsAlias)
         intrinTy
     | _ -> 
@@ -1848,6 +1853,14 @@ type EnclosingSymbol =
         match this with
         | Entity(ent) -> ent |> Some
         | _ -> None
+
+    member this.TryGetEntity(outEnt: outref<EntitySymbol>): bool =
+        match this with
+        | Entity(ent) -> 
+            outEnt <- ent
+            true
+        | _ ->
+            false
 
     member this.TryType : TypeSymbol option =
         match this with
@@ -3911,6 +3924,7 @@ type TypeSymbol =
 
     // TODO: Rename to 'TryImmediateTypeParameter'.
     /// Try to get a type parameter without stripping the type.
+    // TODO: We need to remove TryImmediateTypeParameter and avoid having to rely on it.
     member this.TryImmedateTypeParameter =
         match this with
         | Variable(tyPar)
@@ -3920,22 +3934,9 @@ type TypeSymbol =
         | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
-    /// Try to get a type parameter from an inference variable without stripping the type.
-    member this.TryImmediateInferenceVariableTypeParameter =
-        match this with
-        | InferenceVariable(Some tyPar, _)
-        | HigherInferenceVariable(Some tyPar, _, _, _) -> ValueSome tyPar
-        | _ -> ValueNone
-
     member this.HasImmediateStrictInferenceVariableTypeParameter =
         match this with
         | InferenceVariable(Some _, varSolution) -> varSolution.IsStrict
-        | _ -> false
-
-    member this.HasImmediateNonStrictInferenceVariableTypeParameter =
-        match this with
-        | InferenceVariable(Some _, varSolution) -> not varSolution.IsStrict
-        | HigherInferenceVariable(Some _, _, _, _) -> true
         | _ -> false
 
     member this.HasImmediateNonVariadicInferenceVariableTypeParameter =
@@ -3943,9 +3944,6 @@ type TypeSymbol =
         | InferenceVariable(Some tyPar, _) -> not tyPar.IsVariadic
         | HigherInferenceVariable(_, _, _, _) -> true
         | _ -> false
-
-    member this.HasTypeParameter =
-        this.TryTypeParameter.IsSome
 
     member this.IsAnyFunction =
         match stripTypeEquations this with
@@ -4607,7 +4605,7 @@ module SymbolExtensions =
                     this.TypeArguments
 
             /// Includes enclosing type parameters and the value's type parameters. 
-            member this.AllTypeParameters =
+            member this.AllTypeParameters : TypeParameterSymbol imarray =
                 if this.IsConstructor then
                     this.Enclosing.TypeParameters
                 else
@@ -5350,46 +5348,46 @@ module OtherExtensions =
 
     type AttributeSymbol with
 
-        member this.TryIntrinsicType =
+        member this.TryGetIntrinsicType(outTy: outref<TypeSymbol>) =
             match this with
-            | AttributeSymbol.Intrinsic("void") -> TypeSymbol.Void |> ValueSome
-            | AttributeSymbol.Intrinsic("uint8") -> TypeSymbol.UInt8 |> ValueSome
-            | AttributeSymbol.Intrinsic("int8") -> TypeSymbol.Int8 |> ValueSome
-            | AttributeSymbol.Intrinsic("uint16") -> TypeSymbol.UInt16 |> ValueSome
-            | AttributeSymbol.Intrinsic("int16") -> TypeSymbol.Int16 |> ValueSome
-            | AttributeSymbol.Intrinsic("uint32") -> TypeSymbol.UInt32 |> ValueSome
-            | AttributeSymbol.Intrinsic("int32") -> TypeSymbol.Int32 |> ValueSome
-            | AttributeSymbol.Intrinsic("uint64") -> TypeSymbol.UInt64 |> ValueSome
-            | AttributeSymbol.Intrinsic("int64") -> TypeSymbol.Int64 |> ValueSome
-            | AttributeSymbol.Intrinsic("float32") -> TypeSymbol.Float32 |> ValueSome
-            | AttributeSymbol.Intrinsic("float64") -> TypeSymbol.Float64 |> ValueSome
-            | AttributeSymbol.Intrinsic("bool") -> TypeSymbol.Bool |> ValueSome
-            | AttributeSymbol.Intrinsic("char16") -> TypeSymbol.Char16 |> ValueSome
-            | AttributeSymbol.Intrinsic("utf16") -> TypeSymbol.Utf16 |> ValueSome
-            | AttributeSymbol.Intrinsic("native_int") -> TypeSymbol.NativeInt |> ValueSome
-            | AttributeSymbol.Intrinsic("native_uint") -> TypeSymbol.NativeUInt |> ValueSome
-            | AttributeSymbol.Intrinsic("native_ptr") -> Types.NativePtr |> ValueSome
-            | AttributeSymbol.Intrinsic("by_ref_read_write") -> Types.ByRef |> ValueSome
-            | AttributeSymbol.Intrinsic("by_ref_read") -> Types.InRef |> ValueSome
-            | AttributeSymbol.Intrinsic("base_object") -> TypeSymbol.BaseObject |> ValueSome
-            | _ -> ValueNone
+            | AttributeSymbol.Intrinsic("void") -> outTy <- TypeSymbol.Void; true
+            | AttributeSymbol.Intrinsic("uint8") -> outTy <- TypeSymbol.UInt8; true
+            | AttributeSymbol.Intrinsic("int8") -> outTy <- TypeSymbol.Int8; true
+            | AttributeSymbol.Intrinsic("uint16") -> outTy <- TypeSymbol.UInt16; true
+            | AttributeSymbol.Intrinsic("int16") -> outTy <- TypeSymbol.Int16; true
+            | AttributeSymbol.Intrinsic("uint32") -> outTy <- TypeSymbol.UInt32; true
+            | AttributeSymbol.Intrinsic("int32") -> outTy <- TypeSymbol.Int32; true
+            | AttributeSymbol.Intrinsic("uint64") -> outTy <- TypeSymbol.UInt64; true
+            | AttributeSymbol.Intrinsic("int64") -> outTy <- TypeSymbol.Int64; true
+            | AttributeSymbol.Intrinsic("float32") -> outTy <- TypeSymbol.Float32; true
+            | AttributeSymbol.Intrinsic("float64") -> outTy <- TypeSymbol.Float64; true
+            | AttributeSymbol.Intrinsic("bool") -> outTy <- TypeSymbol.Bool; true
+            | AttributeSymbol.Intrinsic("char16") -> outTy <- TypeSymbol.Char16; true
+            | AttributeSymbol.Intrinsic("utf16") -> outTy <- TypeSymbol.Utf16; true
+            | AttributeSymbol.Intrinsic("native_int") -> outTy <- TypeSymbol.NativeInt; true
+            | AttributeSymbol.Intrinsic("native_uint") -> outTy <- TypeSymbol.NativeUInt; true
+            | AttributeSymbol.Intrinsic("native_ptr") -> outTy <- Types.NativePtr; true
+            | AttributeSymbol.Intrinsic("by_ref_read_write") -> outTy <- Types.ByRef; true
+            | AttributeSymbol.Intrinsic("by_ref_read") -> outTy <- Types.InRef; true
+            | AttributeSymbol.Intrinsic("base_object") -> outTy <- TypeSymbol.BaseObject; true
+            | _ -> false
 
     type EntitySymbol with
 
-        member this.TryIntrinsicType =
+        member this.TryGetIntrinsicType(outTy: outref<TypeSymbol>) =
             // TODO: Uncomment this.
             //   OlyAssert.True(this.IsFormal)
             if this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic then
-                this.Attributes
-                |> ImArray.tryPick (fun x ->
-                    match x.TryIntrinsicType with
-                    | ValueSome x -> 
-                        Some x
-                    | _ -> 
-                        None
-                )
+                let attrs = this.Attributes
+                let mutable result = false
+                let mutable count = attrs.Length
+                let mutable i = 0
+                while (not result && i < count) do
+                    result <- attrs[i].TryGetIntrinsicType(&outTy)
+                    i <- i + 1
+                result
             else
-                None
+                false
 
     type TypeSymbol with
 
@@ -5412,24 +5410,26 @@ module OtherExtensions =
             | TypeSymbol.BaseObject -> true
             | _ -> false
 
-        member this.TryIntrinsicType =
+        member this.TryGetIntrinsicType(outTy: outref<TypeSymbol>) =
             // TODO: Uncomment this.
             //OlyAssert.True(this.IsFormal)
             match stripTypeEquationsExceptAlias this with
             | TypeSymbol.Entity(ent) -> 
                 if ent.IsFormal then
-                    ent.TryIntrinsicType
+                    ent.TryGetIntrinsicType(&outTy)
                 else
-                    match ent.Formal.TryIntrinsicType with
-                    | Some formalIntrinTy ->
-                        Some(applyType formalIntrinTy ent.TypeArguments)
+                    match ent.Formal.TryGetIntrinsicType() with
+                    | true, formalIntrinTy ->
+                        outTy <- applyType formalIntrinTy ent.TypeArguments
+                        true
                     | _ ->
-                        None
+                        false
             | _ -> 
                 if this.IsBuiltIn then
-                    Some(this)
+                    outTy <- this
+                    true
                 else
-                    None
+                    false
 
 type CompilerPass =
     | Pass0

@@ -48,8 +48,8 @@ let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySy
             env.AddUnqualifiedType(ent.Name, arity, ent.AsType)
     else
         let env =
-            match ent.TryIntrinsicType with
-            | Some ty ->
+            match ent.TryGetIntrinsicType() with
+            | true, ty ->
                 env.SetIntrinsicType(ty, ent)
             | _ ->
                 env

@@ -260,6 +260,7 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
         skipUnsolved
         syntaxNode
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
+        (tyPars |> ImArray.skip skipAmount)
         (tyArgs |> ImArray.skip skipAmount)
         ImArray.empty (* type constructors do not support witnesses *)
 
@@ -785,11 +786,13 @@ and checkFunctionConstraints
         skipUnsolved
         syntaxNode 
         (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option) 
+        enclosingTyPars
         enclosingTyArgs
         syntaxFuncTyArgsOpt
+        funcTyPars
         funcTyArgs
         (witnessArgs: WitnessSolution imarray) =
-    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs witnessArgs
 
 and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: BoundExpression) =
     match expr with
@@ -862,8 +865,10 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: Boun
                 skipUnsolved
                 syntaxNode 
                 syntaxEnclosingTyArgsOpt
+                value.Enclosing.TypeParameters
                 enclosingTyArgs
                 syntaxFuncTyArgsOpt
+                value.TypeParameters
                 funcTyArgs
                 witnessArgs
         | _ ->

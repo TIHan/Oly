@@ -689,16 +689,6 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxExpression -> true
             | _ -> false
 
-        member this.TryGetParent(?ct: CancellationToken) =
-            let ct = defaultArg ct CancellationToken.None
-            this.Parent
-
-        member this.TryGetParent<'T when 'T :> OlySyntaxNode>(?ct: CancellationToken) =
-            let ct = defaultArg ct CancellationToken.None
-            match this.Parent with
-            | :? 'T as x -> Some x
-            | _ ->  None
-
         /// If possible, returns the root name if there is any.
         /// Otherwise, returns the same given node.
         member this.GetRootNameIfPossible() =
@@ -724,10 +714,20 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 this
 
-        member this.TryGetParentExpression(?ignoreSequentialExpr: bool, ?ct: CancellationToken) =
-            let ignoreSequentialExpr = defaultArg ignoreSequentialExpr false
-            let ct = defaultArg ct CancellationToken.None
-            match this.TryGetParent(ct) with
+        member this.IsDefinition =
+            match this with
+            | :? OlySyntaxToken as token when token.Internal.IsIdentifierOrOperator ->
+                match this.Parent with
+                | :? OlySyntaxTypeDeclarationName
+                | :? OlySyntaxFunctionName
+                | :? OlySyntaxBindingDeclaration -> true
+                | _ -> false
+            | _ ->
+                false
+
+        member this.TryGetParentExpression(ignoreSequentialExpr: bool, ct: CancellationToken) =
+            ct.ThrowIfCancellationRequested()
+            match this.Parent with
             | null -> None
             | parentNode ->
                 match parentNode.InternalNode with
@@ -888,7 +888,7 @@ module OlySyntaxTreeExtensions =
         member this.IsInReturnTypeAnnotation =
             if this.IsReturnTypeAnnotation then true
             else
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> parent.IsInReturnTypeAnnotation
 
@@ -896,7 +896,7 @@ module OlySyntaxTreeExtensions =
             match this.InternalNode with
             | :? SyntaxPattern -> true
             | _ ->
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> parent.IsInPattern
 
@@ -905,7 +905,7 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxMatchClause -> true
             | :? SyntaxMatchGuard -> false           
             | _ ->
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> 
                     match parent.InternalNode with

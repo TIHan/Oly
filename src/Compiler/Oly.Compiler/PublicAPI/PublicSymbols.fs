@@ -55,13 +55,6 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
 
     member this.UseSyntaxTree = this.UseSyntax.Tree
 
-    member this.IsDefinition(ct: CancellationToken) =
-        match this.TryGetDefinitionLocation(ct) with
-        | Some location ->
-            location.TextSpan.IsEqualTo(syntax.TextSpan)
-        | _ ->
-            false
-
     member this.IsFunction =
         match this with
         | :? OlyValueSymbol as symbol -> symbol.IsFunction
@@ -282,8 +275,8 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
                     | _ ->
                         Some(OlyTypeSymbol(boundModel, benv, location, ty))
             | _ ->
-                match ty.TryIntrinsicType with
-                | Some ty ->
+                match ty.TryGetIntrinsicType() with
+                | true, ty ->
                     match benv.TryFindEntityByIntrinsicType(ty) with
                     | ValueSome(ent) ->
                         Some(OlyTypeSymbol(boundModel, benv, location, ent.AsType))

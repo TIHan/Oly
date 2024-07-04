@@ -1,6 +1,7 @@
 ﻿module internal rec Oly.Compiler.Internal.SymbolQuery
 
 open System
+open System.Collections.Generic
 open Oly.Core
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
@@ -749,3 +750,55 @@ module Extensions =
             | _ ->
                 ImArray.empty
 
+let private queryFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (existing: HashSet<int64>) add (ty: TypeSymbol) =
+    ty.TypeParameters
+    |> ImArray.iter (fun x ->
+        existing.Add(x.Id) |> ignore
+    )
+
+    let rec implType ty =
+        if tySet.Add(ty) then
+            match stripTypeEquations ty with
+            | TypeSymbol.Variable(tyPar) ->
+                if existing.Contains(tyPar.Id) |> not then
+                    add tyPar
+            | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+                if existing.Contains(tyPar.Id) |> not then
+                    add tyPar
+                for i = 0 to tyArgs.Length - 1 do
+                    implType tyArgs.[i]
+            | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
+            | TypeSymbol.Function(inputTy, returnTy, _) ->
+                implType inputTy
+                implType returnTy
+            | TypeSymbol.ForAll(tyPars, innerTy) ->
+                tyPars
+                |> ImArray.iter (fun x ->
+                    existing.Add(x.Id) |> ignore
+                )
+                implType innerTy
+            | TypeSymbol.Tuple(tyArgs, _) ->
+                tyArgs |> Seq.iter implType
+            | TypeSymbol.Entity(ent) ->
+                for i = 0 to ent.TypeArguments.Length - 1 do
+                    implType ent.TypeArguments.[i]
+            | _ ->
+                let tyTyArgs = ty.TypeArguments
+                for i = 0 to tyTyArgs.Length - 1 do
+                    implType tyTyArgs[i]
+
+    if ty.IsAnonymousShape then
+        ty.Fields
+        |> ImArray.iter (fun x -> implType x.Type)
+
+        ty.Functions
+        |> ImArray.iter (fun x -> implType x.Type)
+    
+    implType ty
+
+type TypeSymbol with
+    
+    member this.GetFreeTypeParameters() : TypeParameterSymbol imarray =
+        let builder = ImArray.builder()
+        queryFreeTypeParametersFromType (TypeSymbolMutableSet.Create()) (HashSet()) builder.Add this
+        builder.ToImmutable()

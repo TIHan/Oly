@@ -12,22 +12,22 @@ open Oly.Core
 [<Literal>]
 let private InvalidCharacter = Char.MaxValue
 
-let private GlobalStringComparer =
+let private InternStringComparer =
     { new IEqualityComparer<ReadOnlyMemory<char>> with
         member _.GetHashCode(str: ReadOnlyMemory<char>) = str.Length
         member _.Equals(str1: ReadOnlyMemory<char>, str2: ReadOnlyMemory<char>) =
             str1.Span.SequenceEqual(str2.Span)
     }
 
-let private GlobalStringIntern = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, string>(GlobalStringComparer)
-let private GlobalStringInternIdent = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, Token>(GlobalStringComparer)
-
 [<Literal>]
-let private MaxGlobalStringInternSpaceCount = 128
-let private GlobalStringInternSpace = Array.zeroCreate<Token> MaxGlobalStringInternSpaceCount
+let private MaxStringInternSpaceCount = 128
+let private StringInternSpace = Array.zeroCreate<Token> MaxStringInternSpaceCount
 
 [<Sealed>]
 type private SlidingTextWindow (text: IOlySourceText) =
+
+    let StringIntern = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, string>(InternStringComparer)
+    let StringInternIdent = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, Token>(InternStringComparer)
 
     let length = text.Length
     let mutable startPos = 0
@@ -65,35 +65,35 @@ type private SlidingTextWindow (text: IOlySourceText) =
     member this.Lexeme() =
         let subText = text.GetSubTextView(this.LexemeStart, this.LexemeWidth)
         this.ResetLexeme()
-        match GlobalStringIntern.TryGetValue subText with
+        match StringIntern.TryGetValue subText with
         | true, str -> str
         | _ ->
             let str = subText.ToString()
-            GlobalStringIntern[str.AsMemory()] <- str
+            StringIntern[str.AsMemory()] <- str
             str
 
     member this.LexemeIdent() =
         let subText = text.GetSubTextView(this.LexemeStart, this.LexemeWidth)
         this.ResetLexeme()
-        match GlobalStringInternIdent.TryGetValue subText with
+        match StringInternIdent.TryGetValue subText with
         | true, ident -> ident
         | _ ->
             let str = subText.ToString()
             let ident = Identifier(str)
-            GlobalStringInternIdent[str.AsMemory()] <- ident
+            StringInternIdent[str.AsMemory()] <- ident
             ident
 
     member this.LexemeSpace() =
         let length = this.LexemeWidth
         this.ResetLexeme()
-        if length >= MaxGlobalStringInternSpaceCount then
+        if length >= MaxStringInternSpaceCount then
             Token.Space(length)
         else
 
-        let mutable space = GlobalStringInternSpace[length]
+        let mutable space = StringInternSpace[length]
         if obj.ReferenceEquals(space, null) then
             space <- Token.Space(length)
-            GlobalStringInternSpace[length] <- space
+            StringInternSpace[length] <- space
         space
 
     member this.Text = text

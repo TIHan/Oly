@@ -434,10 +434,12 @@ and solveConstraints
         (skipUnsolved: bool)
         (syntaxNode: OlySyntaxNode) 
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
+        (tyPars: TypeParameterSymbol imarray)
         (tyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
 
 #if DEBUG || CHECKED
+    OlyAssert.Equal(tyPars.Length, tyArgs.Length)
     match syntaxTyArgsOpt with
     | Some(syntaxTyArgs) ->
         OlyAssert.Equal(tyArgs.Length, syntaxTyArgs.Length)
@@ -455,7 +457,9 @@ and solveConstraints
     |> ImArray.iteri (fun i tyArg ->
         if tyArg.IsSolved then
             match tyArg.TryImmedateTypeParameter with
-            | ValueSome tyPar ->
+            | ValueSome tyParToCheck ->
+                let tyPar = tyPars[i]
+                OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
                 let syntaxNode: OlySyntaxNode =
                     match syntaxTyArgsOpt with
                     | Some syntaxTyArgs ->
@@ -519,7 +523,9 @@ and solveConstraints
             if not skipUnsolved then
                 env.diagnostics.Error($"Type parameter '{(printType env.benv tyArg)}' was unable to be inferred.", 10, syntaxNode)
                 match tyArg.TryImmedateTypeParameter with
-                | ValueSome tyPar ->
+                | ValueSome tyParToCheck ->
+                    let tyPar = tyPars[i]
+                    OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
                     witnessArgs
                     |> ImArray.filter (fun x -> x.TypeParameter.Id = tyPar.Id && not x.HasSolution)
                     |> ImArray.iter (fun x ->
@@ -535,9 +541,11 @@ and solveFunctionConstraints
         skipUnsolved
         (syntaxNode: OlySyntaxNode) 
         (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option)
+        (enclosingTyPars: TypeParameterSymbol imarray)
         (enclosingTyArgs: TypeArgumentSymbol imarray)
         (syntaxFuncTyArgsOpt: OlySyntaxType imarray option)
+        (funcTyPars: TypeParameterSymbol imarray)
         (funcTyArgs: TypeArgumentSymbol imarray) 
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs witnessArgs
-    solveConstraints env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyPars funcTyArgs witnessArgs

@@ -259,51 +259,6 @@ module private Helpers =
         handleExpression expr
         inputs
 
-    let getFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (existing: HashSet<int64>) add (ty: TypeSymbol) =
-        ty.TypeParameters
-        |> ImArray.iter (fun x ->
-            existing.Add(x.Id) |> ignore
-        )
-
-        let rec implType ty =
-            if tySet.Add(ty) then
-                match stripTypeEquations ty with
-                | TypeSymbol.Variable(tyPar) ->
-                    if existing.Contains(tyPar.Id) |> not then
-                        add tyPar
-                | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                    if existing.Contains(tyPar.Id) |> not then
-                        add tyPar
-                    for i = 0 to tyArgs.Length - 1 do
-                        implType tyArgs.[i]
-                | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-                | TypeSymbol.Function(inputTy, returnTy, _) ->
-                    implType inputTy
-                    implType returnTy
-                | TypeSymbol.ForAll(tyPars, innerTy) ->
-                    tyPars
-                    |> ImArray.iter (fun x ->
-                        existing.Add(x.Id) |> ignore
-                    )
-                    implType innerTy
-                | TypeSymbol.Tuple(tyArgs, _) ->
-                    tyArgs |> Seq.iter implType
-                | TypeSymbol.Entity(ent) ->
-                    for i = 0 to ent.TypeArguments.Length - 1 do
-                        implType ent.TypeArguments.[i]
-                | _ ->
-                    let tyTyArgs = ty.TypeArguments
-                    for i = 0 to tyTyArgs.Length - 1 do
-                        implType tyTyArgs[i]
-
-        ty.Fields
-        |> ImArray.iter (fun x -> implType x.Type)
-
-        ty.Functions
-        |> ImArray.iter (fun x -> implType x.Type)
-    
-        implType ty
-
 [<AutoOpen>]
 module private FreeVariablesHelper =
 
@@ -545,11 +500,6 @@ type TypeSymbol with
                 this
             else
                 applyType this.Formal tyArgs
-
-    member this.GetFreeTypeParameters() : TypeParameterSymbol imarray =
-        let builder = ImArray.builder()
-        getFreeTypeParametersFromType (TypeSymbolMutableSet.Create()) (HashSet()) builder.Add this
-        builder.ToImmutable()
         
 type IValueSymbol with
 
@@ -897,16 +847,32 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
         Seq.empty
     else
 
-    let funcs = ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc) |> ImArray.ofSeq
-    superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
-    |> Seq.map (fun superFunc ->
-        let superFunc =
+    let superFuncs = 
+        superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
+        |> Seq.map (fun superFunc ->
             if superFunc.IsInstanceConstructor then
                 superFunc.MorphShapeConstructor(ty, superShapeTy).AsFunction
             else
                 superFunc
+        )
+        |> Seq.cache
+
+    let lookup = Dictionary<string, IFunctionSymbol imarray>()
+    superFuncs
+    |> Seq.iter (fun superFunc ->
+        if not(lookup.ContainsKey(superFunc.Name)) then
+            let nameToFind =
+                if superFunc.IsConstructor then
+                    ty.Name
+                else
+                    superFunc.Name
+            lookup[superFunc.Name] <- ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc, nameToFind)
+    )
+   
+    superFuncs
+    |> Seq.map (fun superFunc ->
         let results =
-            funcs
+            lookup[superFunc.Name]
             |> ImArray.filter (fun func ->
                 if func.IsInstance = superFunc.IsInstance && (func.Name = superFunc.Name || (func.IsInstanceConstructor && superFunc.IsInstanceConstructor)) && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                     // TODO: This really isn't right.
