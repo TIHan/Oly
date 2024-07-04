@@ -216,7 +216,7 @@ type internal CompilationState =
                         let s = System.Diagnostics.Stopwatch.StartNew()
                         let result = CompilationPhases.signature newState ct
                         s.Stop()
-                        OlyTrace.Log($"All Sig Bind: {newState.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+                        OlyTrace.Log($"All Sig Bind: {newState.assembly.Name} {newState.version} - {s.Elapsed.TotalMilliseconds} ms")
                         result
                     )
             }
@@ -594,6 +594,7 @@ type OlyCompilation private (state: CompilationState) =
         comps.ToImmutable()
 
     member this.RemoveSyntaxTree(path: OlyPath) =
+        OlyTrace.Log($"Refresh - Removing Syntax Tree - {this.AssemblyName} {this.Version} - {path.ToString()}")
         let cunits = state.cunits.Remove(path)
         this.InitialSetSyntaxTreeBatch(cunits.Values |> Seq.map (fun x -> x.BoundModel.SyntaxTree) |> ImArray.ofSeq)
 
@@ -650,6 +651,7 @@ type OlyCompilation private (state: CompilationState) =
                 )
                 |> ImmutableDictionary.CreateRange
 
+            OlyTrace.Log($"Refresh - Setting Same Syntax Tree - {this.AssemblyName} {this.Version} - {syntaxTree.Path.ToString()}")
             let state =
                 { state with
                     cunits = cunits
@@ -658,6 +660,7 @@ type OlyCompilation private (state: CompilationState) =
             compRef.contents <- OlyCompilation state
             compRef.contents
         else
+            OlyTrace.Log($"Refresh - Setting Syntax Tree - {this.AssemblyName} {this.Version} - {syntaxTree.Path.ToString()}")
             this.InitialSetSyntaxTreeBatch(syntaxTrees)
 
     /// Adds a syntax tree to the compilation.
@@ -711,6 +714,7 @@ type OlyCompilation private (state: CompilationState) =
                     // Initial state must be re-computed which is expensive, but it is lazy (will not happen immediately here).
                     setup state.options this.AssemblyIdentity references
                 
+            OlyTrace.Log($"Refresh - Updating - {this.AssemblyName} {this.Version}")
             let state =
                 { state with
                     options = options
@@ -809,6 +813,8 @@ type OlyCompilation private (state: CompilationState) =
                 version = 0UL
             }
 
+        let syntaxTrees = syntaxTrees |> ImArray.ofSeq
+        OlyTrace.Log($"Creating - {assemblyName} - Syntax Tree Count: {syntaxTrees.Length}")
         let c = OlyCompilation state
-        c.InitialSetSyntaxTreeBatch(syntaxTrees |> ImArray.ofSeq)
+        c.InitialSetSyntaxTreeBatch(syntaxTrees)
 

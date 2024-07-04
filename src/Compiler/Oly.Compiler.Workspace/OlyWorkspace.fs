@@ -225,6 +225,7 @@ type OlyProject (
     member _.IsInvalidated = isInvalidated
 
     member this.Invalidate(newSolutionLazy) =
+         OlyTrace.Log($"OlyWorkspace - Invalidating Project - {projPath.ToString()}")
          this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation.GetValue(CancellationToken.None)))
@@ -612,6 +613,7 @@ type OlySolution (state: SolutionState) =
             this
 
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
+        OlyTrace.Log($"OlyWorkspace - Updating References For Project - {projectPath.ToString()}")
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
@@ -753,6 +755,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             async {
                 match! mbp.Receive() with
                 | GetSolution(ct, reply) ->
+                    OlyTrace.Log($"OlyWorkspace - GetSolution()")
                     try
                         ct.ThrowIfCancellationRequested()
                         reply.Reply(solution)
@@ -761,14 +764,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ()
 
                 | RemoveProject(projectPath, ct) ->
+                    OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
+                    let prevSolution = solution
                     try
                         ct.ThrowIfCancellationRequested()
                         solution <- solution.RemoveProject(projectPath)
                     with
                     | _ ->
-                        ()
+                        solution <- prevSolution
 
                 | ClearSolution(ct, reply) ->
+                    OlyTrace.Log($"OlyWorkspace - ClearSolution()")
+                    let prevSolution = solution
                     try
                         try
                             ct.ThrowIfCancellationRequested()
@@ -781,11 +788,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                 |> OlySolution
                         with
                         | _ ->
-                            ()
+                            solution <- prevSolution
                     finally
                         reply.Reply(())
 
                 | UpdateDocumentNoReply(documentPath, sourceText, ct) ->
+                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
+                    let prevSolution = solution
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument documentPath ct
@@ -798,9 +807,12 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             )
                         )
                     with
-                    | _ -> ()
+                    | _ ->
+                        solution <- prevSolution
 
                 | UpdateDocument(documentPath, sourceText, ct, reply) ->
+                    OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
+                    let prevSolution = solution
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument documentPath ct
@@ -816,9 +828,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         )
                     with
                     | _ ->
+                        solution <- prevSolution
                         reply.Reply(ImArray.empty)
 
                 | GetDocuments(documentPath, ct, reply) ->
+                    OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument documentPath ct
@@ -829,6 +843,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                 | GetAllDocuments(ct, reply) ->
+                    OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
                     try
                         ct.ThrowIfCancellationRequested()
                         do! checkAllProjects ct
@@ -1117,6 +1132,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                 if project.IsInvalidated || loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
+                    OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - IsInvalidated: {project.IsInvalidated} - {projPath.ToString()}")
                     let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result
                 else
@@ -1139,9 +1155,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame then
                         return None
                     else
+                        OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
                         let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
                         return Some result
             | _ -> 
+                OlyTrace.Log($"OlyWorkspace - Creating Project - {projPath.ToString()}")
                 let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
                 return Some result
         }
