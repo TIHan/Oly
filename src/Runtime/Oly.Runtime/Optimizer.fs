@@ -293,7 +293,22 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
                                index1 <> localIndex && not(optenv.IsLocalMutable(index1)) && index1 = index2
                            | _ ->
                                false
-                        ) && not(hasSideEffect optenv irRhsExpr) ->
+                        ) && not(hasSideEffect optenv irRhsExpr) && (
+                            match irNestedTrueTargetExpr with
+                            | E.Value(value=V.Local(index, _)) ->
+                                index <> localIndex
+                            | E.Operation(op=O.Call(_, irArgExprs3, _)) ->
+                                irArgExprs3
+                                |> ImArray.forall (fun x ->
+                                    match x with
+                                    | E.Value(value=V.Local(index, _)) ->
+                                        localIndex <> index
+                                    | _ ->
+                                        false
+                                )
+                            | _ ->
+                                false
+                        ) ->
 
                     let irNewConditionExpr =
                         And irNewConditionExpr (E.Let(name, localIndex, irRhsExpr, irNestedConditionExpr)) irNewConditionExpr.ResultType
@@ -1480,6 +1495,11 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
             |> CommonSubexpressionElimination optenv
             |> AssertionPropagation optenv
             |> DeadCodeElimination optenv
+
+    //if optenv.IsDebuggable then
+    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug_before.oly-ir", Dump.DumpExpression irExpr)
+    //else
+    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_before.oly-ir", Dump.DumpExpression irExpr)
 
     let irOptimizedExpr = 
         let mutable irNewExpr = InlineFunctions optenv irExpr

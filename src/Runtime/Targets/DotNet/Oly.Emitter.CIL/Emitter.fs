@@ -2856,6 +2856,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitFunctionDefinition(externalInfoOpt, enclosingTy, flags, name, tyPars, pars, returnTy, originalOverridesOpt, _, irAttrs) =
             // Note on Scoped Closures:
             //      - For scoped closures, its Invoke function cannot actually be an instance function. Instead, force it to be a static function.
+            let isCtor = flags.IsConstructor
+            // Make sure not to include functions that were originally static.
+            let isMorphedScopedClosureStatic = enclosingTy.IsScopedClosure && not isCtor && not flags.IsStatic
+
             let name =
                 createMethodName
                     externalInfoOpt
@@ -2865,7 +2869,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     originalOverridesOpt
                     pars
                     returnTy
-            let isCtor = flags.IsConstructor
             let isTypeExtension =
                 match enclosingTy with
                 | ClrTypeInfo.TypeDefinition(info=info) -> info.typeExtensionInfo.IsSome
@@ -2896,7 +2899,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         (seq { "this", cilTy })
                         pars
                     |> ImArray.ofSeq
-                else if enclosingTy.IsScopedClosure && not isCtor then
+                else if isMorphedScopedClosureStatic then
                     let cilTy =
                         let cilTy = enclosingTy
                         ClrTypeInfo.ByRef(cilTy, false, ClrTypeHandle.CreateByRef(cilTy.Handle))
@@ -2937,13 +2940,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let isInstance = not isStatic && not isTypeExtension   
             
             let isInstance =
-                if enclosingTy.IsScopedClosure && not isCtor then
+                if isMorphedScopedClosureStatic then
                     false
                 else
                     isInstance
 
             let isStatic =
-                if enclosingTy.IsScopedClosure && not isCtor then
+                if isMorphedScopedClosureStatic then
                     true
                 else
                     isStatic
