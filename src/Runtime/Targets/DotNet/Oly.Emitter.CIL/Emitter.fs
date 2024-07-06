@@ -44,15 +44,15 @@ type ClrTypeDefinitionInfo =
 
 and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo = 
     | TypeGenericInstance of ClrTypeInfo * tyArgs: ClrTypeHandle imarray * appliedTyHandle: ClrTypeHandle
-    | TypeReference of assembly: ClrAssemblyBuilder * ClrTypeHandle * isReadOnly: bool * isStruct: bool
-    | TypeDefinition of assembly: ClrAssemblyBuilder * ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
+    | TypeReference of ClrTypeHandle * isReadOnly: bool * isStruct: bool
+    | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
     | ByRef of ClrTypeInfo * isReadOnly: bool * appliedTyHandle: ClrTypeHandle
 
     member this.FullyQualifiedName =
         match this with
-        | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
+        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
             tyDefBuilder.FullyQualifiedName
-        | TypeReference(_, tyHandle, _, _) ->
+        | TypeReference(tyHandle, _, _) ->
             tyHandle.FullyQualifiedName
         | TypeGenericInstance(formalTy, _, _) ->
             formalTy.FullyQualifiedName
@@ -89,7 +89,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
 
     member this.IsTypeVariable =
         match this with
-        | TypeReference(_, handle, _, _) ->
+        | TypeReference(handle, _, _) ->
             handle.IsVariable
         | _ ->
             false
@@ -142,7 +142,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
 
     member this.TryTypeVariable =
         match this with
-        | TypeReference(asmBuilder, handle, _, _) ->
+        | TypeReference(handle, _, _) ->
             handle.TryTypeVariable
         | _ ->
             ValueNone
@@ -169,14 +169,14 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
     member this.Handle =
         match this with
         | TypeGenericInstance(_, _, x) -> x
-        | TypeReference(_, handle, _, _) -> handle
-        | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) -> tyDefBuilder.Handle
+        | TypeReference(handle, _, _) -> handle
+        | TypeDefinition(tyDefBuilder, _, _, _, _, _) -> tyDefBuilder.Handle
         | ByRef(_, _, handle) -> handle
 
     member this.TypeArguments: ClrTypeHandle imarray =
         match this with
         | TypeGenericInstance(tyArgs=tyArgs) -> tyArgs
-        | TypeReference(_, ty, _, _) ->
+        | TypeReference(ty, _, _) ->
             match ty with
             | ClrTypeHandle.TypeSpecification(tyInst=tyInst) -> tyInst
             | _ -> ImArray.empty
@@ -184,33 +184,26 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo =
 
     member this.TryTypeExtensionType =
         match this with
-        | TypeDefinition(_, _, _, _, _, _, info) -> info.typeExtensionInfo |> ValueOption.map (fun (x) -> x)
+        | TypeDefinition(_, _, _, _, _, info) -> info.typeExtensionInfo |> ValueOption.map (fun (x) -> x)
         | _ -> ValueNone
-
-    member this.Assembly =
-        match this with
-        | TypeGenericInstance(x, _, _) -> x.Assembly
-        | TypeReference(assembly=asm)
-        | TypeDefinition(assembly=asm) -> asm
-        | ByRef _ -> failwith "Not a named type."
 
     member this.TypeDefinitionBuilder =
         match this with
-        | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
+        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
             tyDefBuilder
         | _ ->
             OlyAssert.Fail("Not a type definition.")
 
     member this.TypeDefinitionInfo =
         match this with
-        | TypeDefinition(_, _, _, _, _, _, info) ->
+        | TypeDefinition(_, _, _, _, _, info) ->
             info
         | _ ->
             OlyAssert.Fail("Not a type definition.")
 
     member this.MethodDefinitionBuilders: ClrMethodDefinitionBuilder seq =
         match this with
-        | TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
+        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
             tyDefBuilder.MethodDefinitionBuilders
         | _ ->
             ImArray.empty
@@ -476,7 +469,7 @@ module rec ClrCodeGen =
                     match x with
                     | ClrTypeInfo.TypeDefinition _ ->                
                         x.Handle = tr
-                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                    | ClrTypeInfo.TypeReference(handle, _, _) ->
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
                         info.Handle = tr
@@ -493,7 +486,7 @@ module rec ClrCodeGen =
                     match x with
                     | ClrTypeInfo.TypeDefinition _ ->                
                         x.Handle = tr
-                    | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+                    | ClrTypeInfo.TypeReference(handle, _, _) ->
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
                         info.Handle = tr
@@ -584,8 +577,8 @@ module rec ClrCodeGen =
         match (asmBuilder.tr_UnmanagedFunctionPointerAttribute, asmBuilder.tr_CallingConvention) with
         | Some(attr), Some(callConv) ->
 
-            let attrTy = ClrTypeInfo.TypeReference(asmBuilder, attr, false, false)
-            let callConvTy = ClrTypeInfo.TypeReference(asmBuilder, callConv, false, true)
+            let attrTy = ClrTypeInfo.TypeReference(attr, false, false)
+            let callConvTy = ClrTypeInfo.TypeReference(callConv, false, true)
 
             let ctorArgs =
                 // TODO: VERY BAD - for now we are defaulting to cdecl, which isn't great
@@ -963,7 +956,7 @@ module rec ClrCodeGen =
             | ClrTypeInfo.TypeDefinition(info = { typeExtensionInfo=ValueSome(_, instanceTyInfo, _) }) ->
                 let ctorHandle =
                     match instanceTyInfo with
-                    | ClrTypeInfo.TypeDefinition(_, instanceTyDefBuilder, _, _, _, _, _) ->
+                    | ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, _, _, _, _, _) ->
                         if irBody.ResultType.Handle.IsByRef_t then
                             match instanceTyDefBuilder.TryGetSingleByRefConstructor() with
                             | Some(ctorDefBuilder) -> ctorDefBuilder.Handle
@@ -2113,7 +2106,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     else
                         name
 
-    let voidTy = ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceVoid, false, false)
+    let voidTy = ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceVoid, false, false)
 
     let addGenericInstanceTypeReference(tyHandle, tyArgs: ClrTypeHandle imarray) =
         let tyArgs = ClrCodeGen.handleTypeArguments asmBuilder tyArgs
@@ -2138,7 +2131,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         lazy
             let name = "__oly_scoped_func"
             let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
     
     let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
         let formalTyHandle = formalTy.Handle
@@ -2218,13 +2211,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
+            ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
 
         member this.EmitTypeNativeInt(): ClrTypeInfo = 
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceIntPtr, false, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceIntPtr, false, true)
 
         member this.EmitTypeNativePtr(elementTy: ClrTypeInfo): ClrTypeInfo = 
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddNativePointer(elementTy.Handle), false, true)
+            ClrTypeInfo.TypeReference(asmBuilder.AddNativePointer(elementTy.Handle), false, true)
 
         member this.EmitTypeNativeFunctionPtr(ilCallConv, parTys, returnTy): ClrTypeInfo =
             let parTys =
@@ -2253,16 +2246,16 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     callConv
 
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddFunctionPointer(callConv, parTys, returnTy), false, true)
+            ClrTypeInfo.TypeReference(asmBuilder.AddFunctionPointer(callConv, parTys, returnTy), false, true)
 
         member this.EmitTypeNativeUInt(): ClrTypeInfo = 
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceUIntPtr, false, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceUIntPtr, false, true)
 
         member this.EmitTypeByRef(ty, byRefKind) =
             ClrCodeGen.createByRef asmBuilder byRefKind ty    
 
         member this.EmitTypeRefCell(ty) =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddArrayType(ty.Handle, 1), false, false)
+            ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(ty.Handle, 1), false, false)
 
         member _.EmitTypeVariable(index, irKind) =
             let kind =
@@ -2270,58 +2263,58 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ClrTypeVariableKind.Type
                 else
                     ClrTypeVariableKind.Method
-            ClrTypeInfo.TypeReference(asmBuilder, ClrTypeHandle.CreateVariable(index, kind), false, false)
+            ClrTypeInfo.TypeReference(ClrTypeHandle.CreateVariable(index, kind), false, false)
 
         member _.EmitTypeHigherVariable(_, _, _) =
             raise (System.NotSupportedException("CLR does not support higher kinds."))
 
         member this.EmitTypeBaseObject() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceObject, false, false)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceObject, false, false)
 
         member this.EmitTypeVoid() =
             voidTy
 
         member this.EmitTypeUnit() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceObject, false, false)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceObject, false, false)
 
         member this.EmitTypeInt8() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceSByte, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceSByte, true, true)
 
         member this.EmitTypeUInt8() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceByte, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceByte, true, true)
 
         member this.EmitTypeInt16() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceInt16, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceInt16, true, true)
 
         member this.EmitTypeUInt16() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceUInt16, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceUInt16, true, true)
 
         member this.EmitTypeInt32() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceInt32, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceInt32, true, true)
 
         member this.EmitTypeUInt32() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceUInt32, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceUInt32, true, true)
 
         member this.EmitTypeInt64() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceInt64, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceInt64, true, true)
 
         member this.EmitTypeUInt64() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceUInt64, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceUInt64, true, true)
 
         member this.EmitTypeFloat32() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceSingle, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceSingle, true, true)
 
         member this.EmitTypeFloat64() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceDouble, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceDouble, true, true)
 
         member this.EmitTypeBool() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceBoolean, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceBoolean, true, true)
 
         member this.EmitTypeChar16() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceChar, true, true)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceChar, true, true)
 
         member this.EmitTypeUtf16() =
-            ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceString, true, false)
+            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceString, true, false)
 
         member this.EmitTypeTuple(itemTys, _) =   
             let formalTy =
@@ -2355,10 +2348,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         argTyHandles
                         |> ImArray.map (fun x -> ("", x))
                     let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
-                    ClrTypeInfo.TypeDefinition(asmBuilder, tyDef, false, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
                 else
                     let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
-                    ClrTypeInfo.TypeReference(asmBuilder, handle, true, false)
+                    ClrTypeInfo.TypeReference(handle, true, false)
             else
                 lazyScopedFunc.Value
 
@@ -2403,7 +2396,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     tyHandle
 
-            ClrTypeInfo.TypeReference(asmBuilder, tyHandle, isReadOnly, isStruct)
+            ClrTypeInfo.TypeReference(tyHandle, isReadOnly, isStruct)
 
         member this.EmitTypeGenericInstance(ty, tyArgs) =
             let tyArgHandles =
@@ -2442,9 +2435,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     // Enum -> System.Enum
                     // TODO: We should not have to do this.
                     if isStruct && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
-                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceValueType, false, false))
+                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceValueType, false, false))
                     elif isEnum && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
-                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.TypeReferenceEnum, false, false))
+                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceEnum, false, false))
                     else
                         extends
 
@@ -2627,7 +2620,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         |> ImArray.ofSeq
 
                 let instanceTyInfo =
-                    ClrTypeInfo.TypeDefinition(asmBuilder, instanceTyDefBuilder, isReadOnly, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, isReadOnly, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
 
                 tyDef.TypeDefinitionInfo.typeExtensionInfo <- ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle)
 
@@ -2675,7 +2668,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     tyFlags
 
-            ClrTypeInfo.TypeDefinition(asmBuilder, tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Default)
 
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, irAttrs, irConstValueOpt): ClrFieldInfo = 
             let isStatic = flags.IsStatic
@@ -2685,7 +2678,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 match fieldTy.TryByRefElementType with
                 | ValueSome elementTy ->
                     if asmBuilder.tr_IsByRefLikeAttributeConstructor.IsNone then
-                        ClrTypeInfo.TypeReference(asmBuilder, asmBuilder.AddNativePointer(elementTy.Handle), false, true)
+                        ClrTypeInfo.TypeReference(asmBuilder.AddNativePointer(elementTy.Handle), false, true)
                     elif fieldTy.IsReadOnly then
                         // IMPORTANT: We cannot emit a read-only byref as a field, so emit it as a normal byref.
                         ClrTypeInfo.ByRef(elementTy, false, ClrTypeHandle.CreateByRef(elementTy.Handle))
@@ -2696,7 +2689,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let fieldTyHandle = fieldTy.Handle
 
             match enclosingTy with
-            | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, isInterface, _, _, _) ->
+            | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, isInterface, _, _, _) ->
                 let attrs = 
                     if flags.IsPublic then
                         FieldAttributes.Public
@@ -2771,7 +2764,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     isMutable = flags.IsMutable
                 }
 
-            | ClrTypeInfo.TypeReference(_, handle, _, _) ->
+            | ClrTypeInfo.TypeReference(handle, _, _) ->
                 let fieldHandle = asmBuilder.AddFieldReference(handle, name, fieldTyHandle)
                 {
                     handle = fieldHandle
@@ -2790,7 +2783,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitProperty(enclosingTy, name, ty, attrs, getterOpt, setterOpt) =
             match enclosingTy with
-            | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, _, _, _, _) ->
+            | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
                 let canEmitProperty, isInstance =
                     match getterOpt, setterOpt with
                     | Some getter, Some setter ->
@@ -2957,10 +2950,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 match enclosingTy with
                 | ClrTypeInfo.ByRef _ -> failwith "Invalid enclosing type."
                 | ClrTypeInfo.TypeGenericInstance(_, _, enclosingTyHandle)
-                | ClrTypeInfo.TypeReference(_, enclosingTyHandle, _, _) ->
+                | ClrTypeInfo.TypeReference(enclosingTyHandle, _, _) ->
                     let convention = SignatureCallingConvention.Default
                     asmBuilder.AddMethodReference(convention, isInstance, enclosingTyHandle, methodName, tyPars.Length, parTys, cilReturnTy2.Handle), None
-                | ClrTypeInfo.TypeDefinition(_, tyDefBuilder, _, _, _, _, info) ->
+                | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, _, _, _, info) ->
                     let tyExtInfoOpt = info.typeExtensionInfo
                     if flags.IsExternal && (externalInfoOpt.IsNone || externalInfoOpt.Value.Platform <> "C") then
                         ClrMethodHandle.None, None
@@ -2973,7 +2966,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
                         if isTypeExtension && not flags.IsStatic then
                             match tyExtInfoOpt with
-                            | ValueSome(extendedTy, (ClrTypeInfo.TypeDefinition(_, instanceTyDefBuilder, _, _, _, _, _) as enclosingTy), instanceFieldHandle) ->
+                            | ValueSome(extendedTy, (ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, _, _, _, _, _) as enclosingTy), instanceFieldHandle) ->
                                 let instanceMethDefBuilder = createMethod enclosingTy flags methodName tyPars (parHandles.RemoveAt(0)) cilReturnTy2.Handle false false instanceTyDefBuilder
                                 match originalOverridesOpt with
                                 | Some overrides ->

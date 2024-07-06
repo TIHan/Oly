@@ -1554,17 +1554,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         ClrFieldHandle.MemberReference(handle, nameHandle, signature)
 
-    member this.AddFieldReference(parent: ClrTypeHandle, fieldHandle: ClrFieldHandle) =  
-        let handle =
-            metadataBuilder.AddMemberReference(
-                parent.EntityHandle,
-                fieldHandle.NameHandle,
-                fieldHandle.Signature
-            )
-
-        ClrFieldHandle.MemberReference(handle, fieldHandle.NameHandle, fieldHandle.Signature)
-
-    member this.AddFieldInstance(parent: ClrTypeHandle, fieldHandle: ClrFieldHandle) =  
+    member this.AddFieldReference(parent: ClrTypeHandle, fieldHandle: ClrFieldHandle) =
         let handle =
             metadataBuilder.AddMemberReference(
                 parent.EntityHandle,

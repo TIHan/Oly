@@ -9541,3 +9541,124 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Open static on the same module``() =
+    """
+module Modu
+
+open static Modu
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Open static on the same module but generic``() =
+    """
+module Modu<T>
+
+open static Modu<S2>
+open static Modu<S>
+
+struct S
+
+alias S2 = S
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Open static on the same module but generic wildcard``() =
+    """
+module Modu<T>
+
+open static Modu<_>
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Open static on the same module but generic should fail to ambiguity on S2``() =
+    // REVIEW: Should this actually fail on ambiguity? Probably not, but we have this to test the current behavior (it could change).
+    """
+module Modu<T>
+
+open static Modu<S2>
+open static Modu<S>
+open static Modu<S2> // this line
+
+struct S
+
+alias S2 = S
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'S2' is ambiguous due to references: 'Modu<T>', 'Modu<S>'.",
+                """
+open static Modu<S2> // this line
+                 ^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Declaring intrinsics in a generic context is not allowed``() =
+    """
+module Modu<T>
+
+open static Modu<int32>
+
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO",
+                """
+alias int32
+      ^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Declaring intrinsics in a generic context is not allowed 2``() =
+    """
+module Modu<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Invalid intrinsic for this construct.",
+                """
+#[intrinsic("print")]
+  ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

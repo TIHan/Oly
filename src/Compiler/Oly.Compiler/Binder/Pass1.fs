@@ -183,7 +183,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                         |> TypeSymbol.Distinct
                         |> Seq.exists (fun x ->
                             match x.TryEntity with
-                            | ValueSome(x) -> x.Formal.Id = ent.Id
+                            | ValueSome(x) -> x.FormalId = ent.FormalId
                             | _ -> false
                         )
                     if notValid then
@@ -206,7 +206,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                         |> TypeSymbol.Distinct
                         |> Seq.exists (fun x ->
                             match x.TryEntity with
-                            | ValueSome(x) -> x.Formal.Id = ent.Id
+                            | ValueSome(x) -> x.FormalId = ent.FormalId
                             | _ -> false
                         )
                     if notValid then

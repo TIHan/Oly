@@ -338,11 +338,6 @@ and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: Witnes
     | _ -> ()
 
 and checkEntity acenv aenv syntaxNode (ent: EntitySymbol) =
-    match acenv.scopes.TryGetValue ent.Id with
-    | true, scope ->
-        ()
-    | _ ->
-        ()
     ent.TypeArguments
     |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 

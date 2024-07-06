@@ -245,7 +245,7 @@ type EntitySymbol() =
 
     let mutable qualifiedName: string = null
 
-    member val Id: int64 = newId()
+    abstract FormalId : int64
 
     abstract Kind : EntityKind
 
@@ -360,6 +360,8 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
 
     let mutable ents = ImArray.empty
 
+    let formalId = newId()
+
     member _.DebugName: string = name
 
     // Mutability
@@ -375,6 +377,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
 
     member _.FunctionDefinitions = funcs.contents
 
+    override _.FormalId = formalId
     override _.Functions = funcs.contents |> ImArray.map (fun x -> x :> IFunctionSymbol)
     override _.InstanceConstructors =
         funcs.contents
@@ -645,6 +648,7 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
 
     member _.DebugName = ent.Name
 
+    override this.FormalId = ent.FormalId
     override this.Entities =
         match appliedEntities with
         | ValueNone ->
@@ -1643,6 +1647,8 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
                 )
                 |> ImArray.append (nmspaces.Values |> Seq.map (fun x -> x :> EntitySymbol) |> ImArray.ofSeq)
 
+    let formalId = newId()
+
     member _.Namespaces = ents
 
     member _.AddNamespace(ent: INamespaceSymbol) =
@@ -1652,6 +1658,7 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
         OlyAssert.Equal(name, ent.Name)
         AggregatedNamespaceSymbol(name, enclosing, ents.Add(ent))
 
+    override this.FormalId = formalId
     override this.Attributes = ImArray.empty
     override this.ContainingAssembly = None
     override this.Enclosing = enclosing
@@ -3124,7 +3131,7 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IF
     do
         match funcOpt with
         | Some func ->
-            OlyAssert.Equal(ent.Formal.Id, func.Enclosing.TryEntity.Value.Formal.Id)
+            OlyAssert.Equal(ent.FormalId, func.Enclosing.TryEntity.Value.FormalId)
         | _ ->
             ()
 #endif
@@ -3782,7 +3789,7 @@ type TypeSymbol =
         | EagerInferenceVariable(_, eagerTy) -> eagerTy.FormalId
         | NativeFunctionPtr _ -> 39
         | DependentIndexer _ -> 40
-        | Entity(ent) -> ent.Formal.Id
+        | Entity(ent) -> ent.FormalId
 
     member this.Enclosing =
         match this with
@@ -4260,7 +4267,7 @@ type TypeSymbol =
 
     member this.IsFormal =
         match stripTypeEquationsExceptAlias this with
-        | Entity(ent) -> ent.Id = ent.Formal.Id
+        | Entity(ent) -> obj.ReferenceEquals(ent, ent.Formal)
         | ForAll _ -> true
         | (Tuple _ as ty) -> obj.ReferenceEquals(ty, Types.Tuple)
         | (NativePtr _ as ty) -> obj.ReferenceEquals(ty, Types.NativePtr)
@@ -5184,7 +5191,7 @@ module SymbolExtensions =
                 EnclosingSymbol.Entity(this)
     
             member this.IsFormal =
-                this.Id = this.Formal.Id
+                obj.ReferenceEquals(this, this.Formal)
     
             member this.IsAnonymous =
                 this.Name = AnonymousEntityName
@@ -5598,10 +5605,6 @@ module SymbolHelpers =
                         None
                 )
             this.Substitute(tyArgs)
-
-        member this.Contains(ent: EntitySymbol) =
-            this.Entities
-            |> ImArray.exists (fun x -> x.Id = ent.Id)
 
         member this.IsLocal =
             match this.Enclosing with

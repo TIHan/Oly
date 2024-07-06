@@ -92,7 +92,7 @@ let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuild
     let env = env.SetAccessorContext(ent)
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
     let env = openContentsOfEntityAndOverride env OpenContent.All ent
-    let env = env.SetEnclosingTypeArguments(ent.Id, env.GetEnclosingTypeParametersAsTypes())
+    let env = env.SetEnclosingTypeArguments(ent.FormalId, env.GetEnclosingTypeParametersAsTypes())
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
     let env =
@@ -1702,7 +1702,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
         let enclosingTyParTys = innerEnv.GetEnclosingTypeParametersAsTypes()
         // ---------
-        let env = env.SetEnclosingTypeArguments(entBuilder.Entity.Id, enclosingTyParTys)
+        let env = env.SetEnclosingTypeArguments(entBuilder.Entity.FormalId, enclosingTyParTys)
         let env = scopeInInstanceConstructors true env entBuilder.Entity
         scopeInEntity env entBuilder.Entity, expr
 

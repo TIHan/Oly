@@ -74,7 +74,7 @@ type cenv =
         cachedStrings: Dictionary<string, OlyILStringHandle>
         cachedFuncSpecs: Dictionary<int64, OlyILFunctionSpecificationHandle>
         cachedFuncDefs: Dictionary<int64, OlyILFunctionDefinitionHandle>
-        cachedEntRefs: Dictionary<int64, OlyILEntityReferenceHandle>
+        cachedEntRefs: Dictionary<EntitySymbol, OlyILEntityReferenceHandle>
         cachedEntDefs: Dictionary<int64, OlyILEntityDefinitionHandle>
         cachedFieldDefs: Dictionary<int64, OlyILFieldDefinitionHandle>
         cachedDbgSrcs: Dictionary<OlyPath, OlyILDebugSourceHandle>
@@ -244,7 +244,7 @@ and GenString cenv (value: string) =
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
     OlyAssert.False(ent.IsAnonymous)
-    match cenv.cachedEntRefs.TryGetValue ent.Id with
+    match cenv.cachedEntRefs.TryGetValue ent with
     | true, handle -> handle
     | _ ->
         let name =
@@ -261,7 +261,7 @@ and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
 
         let ilEntRef = OlyILEntityReference(emitILEnclosingForEntity cenv env ent, GenString cenv name, ent.LogicalTypeParameterCount)
         let handle = cenv.assembly.AddEntityReference(ilEntRef)
-        cenv.cachedEntRefs.[ent.Id] <- handle
+        cenv.cachedEntRefs.[ent] <- handle
         handle
 
 and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
@@ -833,11 +833,11 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         if func.IsStaticLocalFunction then
             OlyAssert.True(enclosingEnt.IsFormal)
             let funcDefs =
-                match cenv.extraFuncDefs.TryGetValue enclosingEnt.Id with
+                match cenv.extraFuncDefs.TryGetValue enclosingEnt.FormalId with
                 | true, funcDefs -> funcDefs
                 | _ ->
                     let funcDefs = ResizeArray()
-                    cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefs.[enclosingEnt.FormalId] <- funcDefs
                     cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
@@ -845,11 +845,11 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         elif (func.FunctionFlags.HasFlag(FunctionFlags.Extra)) then
             OlyAssert.True(enclosingEnt.IsFormal)
             let funcDefs =
-                match cenv.extraFuncDefs.TryGetValue enclosingEnt.Id with
+                match cenv.extraFuncDefs.TryGetValue enclosingEnt.FormalId with
                 | true, funcDefs -> funcDefs
                 | _ ->
                     let funcDefs = ResizeArray()
-                    cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefs.[enclosingEnt.FormalId] <- funcDefs
                     cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
@@ -1152,7 +1152,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                         cenv.assembly.EntryPoint <- Some(ilEnclosingTy, ilFuncDefHandle)
                     ilFuncDefHandle)
 
-            match cenv.extraFuncDefs.TryGetValue ent.Id with
+            match cenv.extraFuncDefs.TryGetValue ent.FormalId with
             | true, extra ->
                 Seq.append ilFuncDefs extra
                 |> ImArray.ofSeq
@@ -1192,11 +1192,11 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 
 and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefinitionHandle =
     OlyAssert.True(ent.IsFormal)
-    match cenv.cachedEntDefs.TryGetValue ent.Id with
+    match cenv.cachedEntDefs.TryGetValue ent.FormalId with
     | true, res -> res
     | _ ->
         let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinition()
-        cenv.cachedEntDefs.Add(ent.Id, ilEntDefHandleFixup)
+        cenv.cachedEntDefs.Add(ent.FormalId, ilEntDefHandleFixup)
         if ent.IsAnonymousShape then
             let result = GenEntityDefinitionNoCache cenv env ent
             OlyAssert.Equal(result, ilEntDefHandleFixup)
@@ -1206,7 +1206,7 @@ and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefi
 
 and DoesILEntityDefinitionExists cenv (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
-    cenv.cachedEntDefs.ContainsKey(ent.Id)
+    cenv.cachedEntDefs.ContainsKey(ent.FormalId)
 
 and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
     match lit with
@@ -1467,7 +1467,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.EntityDefinition(_, body, ent) ->
         // It may be possible that several local expressions may contain
         // the same local entity definition. If so, only do it once.
-        if not ent.Enclosing.IsLocalEnclosing || cenv.funEnv.localEntities.Add(ent.Id) then
+        if not ent.Enclosing.IsLocalEnclosing || cenv.funEnv.localEntities.Add(ent.FormalId) then
             GenEntityDefinitionNoCache cenv env ent
             |> ignore
             GenExpression cenv (setLocalContext env ent) body
@@ -2162,7 +2162,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
             match func.Enclosing.TryEntity with
             | Some(ent) ->
                 OlyAssert.True(env.context.RealEntity.IsFormal)
-                OlyAssert.Equal(ent.Id, env.context.RealEntity.Id)
+                OlyAssert.Equal(ent.FormalId, env.context.RealEntity.FormalId)
                 ent.Functions
                 |> ImArray.exists (fun x -> x.Id = func.Id)
             | _ ->

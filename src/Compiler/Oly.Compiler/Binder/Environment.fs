@@ -164,7 +164,7 @@ type BinderEnvironment =
             | _ -> AggregatedNamespaceSymbol(ent.Name, ent.Enclosing, ImArray.empty)
 
 #if DEBUG || CHECKED
-        let exists = group.Namespaces |> ImArray.exists (fun x -> x.Id = ent.Id)
+        let exists = group.Namespaces |> ImArray.exists (fun x -> obj.ReferenceEquals(x, ent))
         if exists then failwith "assert"
 #endif
 
@@ -204,7 +204,21 @@ type BinderEnvironment =
                 match arityGroup.TryGetValue(name) with
                 | true, tys ->
 #if DEBUG || CHECKED
-                    let exists = tys |> ImArray.exists (fun x -> areTypesEqual x ty && x.FormalId = ty.FormalId)
+                    let exists = 
+                        tys 
+                        |> ImArray.exists (fun x -> 
+                            (
+                                if x.IsAlias then
+                                    match ty.TryEntity with
+                                    | ValueSome _ ->
+                                        areEntitiesEqual x.AsEntity ty.AsEntity
+                                    | _ ->
+                                        false
+                                else
+                                    true
+                            ) &&
+                            areTypesEqual x ty
+                        )
                     OlyAssert.False(exists)
 #endif                  
                     arityGroup.SetItem(name, tys.Add(ty))

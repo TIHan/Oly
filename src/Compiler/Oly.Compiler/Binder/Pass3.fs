@@ -68,7 +68,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             else
                 match x.Enclosing.TryEntity with
                 | Some ent2 -> 
-                    if ent2.Id = ent.Id then
+                    if ent2.FormalId = ent.FormalId then
                         false
                     else
                         if ent.IsTypeExtension && not ent.Extends.IsEmpty then
@@ -90,7 +90,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         ent.FindIntrinsicFields(env.benv, QueryMemberFlags.StaticOrInstance)
         |> Seq.filter (fun x ->
             match x.Enclosing.TryEntity with
-            | Some ent -> ent.Id <> entBuilder.Entity.Id
+            | Some ent -> ent.FormalId <> entBuilder.Entity.FormalId
             | _ -> true
         )
         |> Seq.map (fun x ->
@@ -101,7 +101,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     ent.FindIntrinsicProperties(env.benv, QueryMemberFlags.StaticOrInstance)
     |> Seq.filter (fun x ->
         match x.Enclosing.TryEntity with
-        | Some ent -> ent.Id <> entBuilder.Entity.Id
+        | Some ent -> ent.FormalId <> entBuilder.Entity.FormalId
         | _ -> true
     )
     |> Seq.iter (fun x ->

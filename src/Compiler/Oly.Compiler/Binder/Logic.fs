@@ -629,7 +629,8 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                             env
                         else
                             match env.benv.senv.enclosing with
-                            | EnclosingSymbol.Entity(enclosingEnt) when enclosingEnt.Id = ent.Id ->
+                            | EnclosingSymbol.Entity(enclosingEnt) when areEntitiesEqual enclosingEnt ent ->
+                                OlyAssert.True(enclosingEnt.IsFormal)
                                 env
                             | _ ->
                                 openContentsOfEntity env openContent ent

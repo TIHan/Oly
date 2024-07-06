@@ -383,7 +383,7 @@ let private filterFunctionsForOverloadingPhase1 (benv: BoundEnvironment) resTyAr
                 if func.IsConstructor then
                     match func.Enclosing with
                     | EnclosingSymbol.Entity(ent) ->
-                        func.Enclosing.TypeParameters.Length - benv.GetEnclosingTypeArguments(ent.Id).Length
+                        func.Enclosing.TypeParameters.Length - benv.GetEnclosingTypeArguments(ent.FormalId).Length
                     | _ ->
                         func.Enclosing.TypeParameters.Length
                 else

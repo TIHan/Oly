@@ -1010,7 +1010,7 @@ let freshenTypeAux (benv: BoundEnvironment) isStrict (tyPars: ImmutableArray<Typ
 
         | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
             let enclosingTyInst =
-                match benv.senv.enclosingTyInst.TryGetValue ent.Formal.Id with
+                match benv.senv.enclosingTyInst.TryGetValue ent.FormalId with
                 | true, enclosingTyInst -> enclosingTyInst
                 | _ -> ImArray.empty
             let tyArgs =

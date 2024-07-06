@@ -42,7 +42,7 @@ let dumpTypeSymbol (ty: TypeSymbol) =
 
 let dumpEntitySymbol (ent: EntitySymbol) =
     if ent.IsLocal then
-        ent.Name + "__" + ent.Formal.Id.ToString()
+        ent.Name + "__" + ent.FormalId.ToString()
     else
         ent.Name
 

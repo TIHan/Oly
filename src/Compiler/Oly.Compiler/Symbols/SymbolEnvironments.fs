@@ -388,7 +388,8 @@ let tryFindTypeExtensions benv (ty: TypeSymbol) =
     else
         let tyExts =
             builder.ToImmutable()
-            |> ImArray.distinctBy (fun x -> x.Id)
+            |> EntitySymbol.Distinct
+            |> ImArray.ofSeq
         ValueSome(filterMostSpecificExtensions tyExts)
 
 let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSymbol) =
@@ -415,7 +416,8 @@ let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSym
     else
         let tyExts =
             builder.ToImmutable()
-            |> ImArray.distinctBy (fun x -> x.Id)
+            |> EntitySymbol.Distinct
+            |> ImArray.ofSeq
         ValueSome(filterMostSpecificExtensions tyExts)
 
 [<NoEquality;NoComparison>]

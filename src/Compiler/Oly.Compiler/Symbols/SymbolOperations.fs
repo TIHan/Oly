@@ -104,13 +104,13 @@ module SymbolComparers =
 
     let EntitySymbolGeneralizedComparer() =
         { new EqualityComparer<EntitySymbol>() with
-            member _.GetHashCode(ent) = int ent.Formal.Id
+            member _.GetHashCode(ent) = int ent.FormalId
             member _.Equals(ent1, ent2) = areGeneralizedEntitiesEqual ent1 ent2
         }
     
     let EntitySymbolComparer() =
         { new EqualityComparer<EntitySymbol>() with
-            member _.GetHashCode(ent) = int ent.Formal.Id
+            member _.GetHashCode(ent) = int ent.FormalId
             member _.Equals(ent1, ent2) = areEntitiesEqual ent1 ent2
         }
 
@@ -474,7 +474,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             kind1 = kind2
 
         | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
-            ent1.Formal.Id = ent2.Formal.Id && ent1.TypeArguments.Length = ent2.TypeArguments.Length &&
+            ent1.FormalId = ent2.FormalId && ent1.TypeArguments.Length = ent2.TypeArguments.Length &&
             (ent1.TypeArguments, ent2.TypeArguments) 
             ||> ImArray.forall2 (fun ty1 ty2 -> 
                 UnifyTypes rigidity ty1 ty2)
@@ -697,7 +697,7 @@ let areEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else
         ent1.Kind = ent2.Kind &&
-        ent1.Formal.Id = ent2.Formal.Id &&
+        ent1.FormalId = ent2.FormalId &&
         areEnclosingsEqual ent1.Enclosing ent2.Enclosing &&
         ent1.TypeParameters.Length = ent2.TypeParameters.Length &&
         (
@@ -735,7 +735,7 @@ let areGeneralizedEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else
         ent1.Kind = ent2.Kind &&
-        ent1.Formal.Id = ent2.Formal.Id &&
+        ent1.FormalId = ent2.FormalId &&
         areEnclosingsEqual ent1.Enclosing ent2.Enclosing &&
         ent1.TypeParameters.Length = ent2.TypeParameters.Length &&
         (
@@ -1478,6 +1478,9 @@ type FunctionGroupSymbol with
 
 type EntitySymbol with
 
+    static member Distinct(ents: EntitySymbol seq) =
+        HashSet(ents, EntitySymbolComparer()) :> _ seq
+
     member this.IsAggregatedNamespace =
         this.IsNamespace &&
         match this with
@@ -1816,7 +1819,7 @@ type EntitySymbol with
 
 
 let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
-    if ent.Formal.Id = super.Formal.Id then
+    if ent.FormalId = super.FormalId then
         if ent.TypeArguments.Length = super.TypeArguments.Length then
             (ent.TypeArguments, super.TypeArguments)
             ||> ImArray.forall2 (fun ty superTy ->
@@ -2424,6 +2427,7 @@ let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFl
 let invalidModule () =
     let id = newId()
     { new IModuleSymbol() with
+        member _.FormalId = newId()
         member _.Entities = ImArray.empty
         member _.Name = ""
         member _.Functions = ImArray.empty
@@ -2557,6 +2561,7 @@ let invalidConstraint () =
 
 let invalidEntityWithEnclosing enclosing =
     { new EntitySymbol() with
+        member _.FormalId = newId()
         member _.Enclosing = enclosing
         member _.Name = ""
         member _.ContainingAssembly = None
@@ -2579,6 +2584,7 @@ let invalidEntityWithEnclosing enclosing =
 let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
     OlyAssert.True(enclosing.IsNamespace)
     { new INamespaceSymbol() with
+        member _.FormalId = newId()
         member _.Enclosing = enclosing
         member _.Name = ""
         member _.ContainingAssembly = None
@@ -2601,6 +2607,7 @@ let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
 let invalidateEntity (ent: EntitySymbol) =
     let id = newId()
     { new EntitySymbol() with
+        member _.FormalId = newId()
         member _.Enclosing = ent.Enclosing
         member _.Name = ent.Name
         member _.ContainingAssembly = ent.ContainingAssembly

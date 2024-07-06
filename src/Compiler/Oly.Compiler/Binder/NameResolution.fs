@@ -519,7 +519,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
             else
                 match originalValue.Enclosing with
                 | EnclosingSymbol.Entity(ent) ->
-                    let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.Formal.Id)
+                    let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.FormalId)
                     enclosingTyInst.Length
                 | _ ->
                     0

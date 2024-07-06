@@ -325,6 +325,8 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             ent.InstanceConstructors
             |> ImArray.map (retargetFunction currentAsmIdent importer asEnclosing)
 
+    let formalId = newId()
+
     do
         OlyAssert.True(ent.IsFormal || ent.IsNamespace)
 
@@ -342,6 +344,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
                     tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
             )
 
+    override this.FormalId = formalId
     override this.Attributes = ent.Attributes
     override this.ContainingAssembly = ent.ContainingAssembly
     override this.Enclosing = enclosing
@@ -447,11 +450,11 @@ let private retargetConstant currentAsmIdent importer constant =
 
 let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: EntitySymbol) =
     if ent.IsAnonymous then
-        match importer.AnonymousEntityCache.TryGetValue(ent.Id) with
+        match importer.AnonymousEntityCache.TryGetValue(ent) with
         | true, rtgtEnt -> rtgtEnt
         | _ ->
             let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-            importer.AnonymousEntityCache[ent.Id] <- rtgtEnt
+            importer.AnonymousEntityCache[ent] <- rtgtEnt
             // We do this to stop infinite recursion from happenening.
             // Example:
             //     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
@@ -1865,8 +1868,11 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
     let containingAsmOpt = AssemblySymbol.IL(cenv.ilAsm.Identity) |> Some
 
+    let formalId = newId()
+
     member _.DebugName = name
 
+    override _.FormalId = formalId
     override _.ContainingAssembly = containingAsmOpt
     override _.Enclosing: EnclosingSymbol = evalEnclosing()
     override _.Entities: EntitySymbol imarray = evalEnts()
@@ -1900,7 +1906,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
     member val EntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary<int64, EntitySymbol>()
 
-    member val AnonymousEntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary()
+    member val AnonymousEntityCache: ConcurrentDictionary<EntitySymbol, EntitySymbol> = ConcurrentDictionary(EntitySymbolComparer())
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
