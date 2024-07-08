@@ -9662,3 +9662,33 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Constructor has a lambda in it should not crash``() =
+    """
+class C =
+
+    new() =
+
+        endPoint ->
+            ()
+            ,
+
+        {
+
+        }
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO",
+                """
+            ,
+            ^
+"""
+            )
+        ]
+    |> ignore
