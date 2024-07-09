@@ -1732,18 +1732,18 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
         else
             expr
 
-    if env.isInInstanceConstructorType.IsNone || (env.isInInstanceConstructorType.IsSome && not env.isReturnable) then
-        match expr with
-        | E.Lambda _ ->
-            if not env.isPassedAsArgument then
-                checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) env.isReturnable expr
-                match expectedTyOpt with
-                // TODO: Do we really need to check for 'isReturnable' here? It was put here to prevent duplicate error messages...
-                | Some(expectedTy) when not env.isReturnable ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
-                | _ ->
-                    ()
-        | _ ->
+    match expr with
+    | E.Lambda _ ->
+        if not env.isPassedAsArgument then
+            checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) env.isReturnable expr
+            match expectedTyOpt with
+            // TODO: Do we really need to check for 'isReturnable' here? It was put here to prevent duplicate error messages...
+            | Some(expectedTy) when not env.isReturnable ->
+                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+            | _ ->
+                ()
+    | _ ->
+        if env.isInInstanceConstructorType.IsNone || (env.isInInstanceConstructorType.IsSome && not env.isReturnable) then
             checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) env.isReturnable expr
 
     let expr =

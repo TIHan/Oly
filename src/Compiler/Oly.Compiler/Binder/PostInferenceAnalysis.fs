@@ -1158,10 +1158,39 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         match lazyTy.Type.TryFunction with
         | ValueSome(_, outputTy) ->
-            pars
-            |> ImArray.iter (fun par ->
-                analyzeTypeForParameter acenv aenv syntaxNode par.Type
-            )
+            let syntaxPars =
+                match syntaxNode with
+                | :? OlySyntaxExpression as syntaxExpr ->
+                    match syntaxExpr with
+                    | OlySyntaxExpression.Lambda(_, syntaxPars, _, _) ->
+                        match syntaxPars with
+                        | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
+                            syntaxParList.ChildrenOfType
+                        | _ ->
+                            ImArray.empty
+                    | _ ->
+                        ImArray.empty
+                | _ ->
+                    ImArray.empty
+
+            let syntaxNode =
+                // Putting an error against the entire Lambda may not be helpful, so use the body if it has a better one.
+                let possibleSyntaxNode = lazyBodyExpr.Expression.Syntax
+                if possibleSyntaxNode.IsDummy then
+                    syntaxNode
+                else
+                    possibleSyntaxNode
+
+            if syntaxPars.IsEmpty || (syntaxPars.Length <> pars.Length) then
+                pars
+                |> ImArray.iter (fun par ->
+                    analyzeTypeForParameter acenv aenv syntaxNode par.Type
+                )
+            else
+                (syntaxPars, pars)
+                ||> ImArray.iter2 (fun syntaxPar par ->
+                    analyzeTypeForParameter acenv aenv syntaxPar par.Type
+                )
             analyzeTypeForParameter acenv aenv syntaxNode outputTy
         | _ ->
             ()

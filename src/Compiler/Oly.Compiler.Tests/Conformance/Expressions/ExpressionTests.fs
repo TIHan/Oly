@@ -9664,7 +9664,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Constructor has a lambda in it should not crash``() =
+let ``Constructor has a bad lambda in it should not crash``() =
     """
 class C =
 
@@ -9684,10 +9684,16 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO",
+            ("Unexpected ','.",
                 """
             ,
             ^
+"""
+            )
+            ("Unable to infer type at this location.",
+                """
+        endPoint ->
+        ^^^^^^^^
 """
             )
         ]

@@ -470,7 +470,7 @@ module OlySyntaxTreeExtensions =
             | _ -> 
                 failwith "Invalid syntax binding."
 
-    type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode> with
+    type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode and 'T : not struct> with
 
         member this.TryFindIndexByPosition(position) =
             match this.InternalNode with
