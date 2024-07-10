@@ -602,7 +602,7 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                             { env with benv = env.benv.AddOpenDeclaration(namespaceEnt) }
                         else
                             env
-                    openContentsOfEntity env openContent namespaceEnt
+                    openContentsOfEntity cenv.declTable.contents env openContent namespaceEnt
             else
                 env
         env1
@@ -633,7 +633,7 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                                 OlyAssert.True(enclosingEnt.IsFormal)
                                 env
                             | _ ->
-                                openContentsOfEntity env openContent ent
+                                openContentsOfEntity cenv.declTable.contents env openContent ent
                     | _ ->
                         cenv.diagnostics.Error($"Not a named type.", 10, syntaxName)
                         env
@@ -656,7 +656,7 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                             else
                                 env
                         if ent.IsTypeExtension then
-                            openContentsOfEntity env openContent ent
+                            openContentsOfEntity cenv.declTable.contents env openContent ent
                         else
                             cenv.diagnostics.Error($"'{printType env.benv ty}' is not an extension.", 10, syntaxName)
                             env

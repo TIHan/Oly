@@ -52,7 +52,7 @@ let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnos
                     else
                         let env = scopeInEntity env ent
                         if ent.IsAutoOpenable then
-                            openContentsOfEntity env openContent ent
+                            openContentsOfEntity declTable env openContent ent
                         else
                             env
                 | _ ->

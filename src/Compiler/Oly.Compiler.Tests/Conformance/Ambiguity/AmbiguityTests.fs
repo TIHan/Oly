@@ -2254,3 +2254,19 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should properly infer the tuple initializer correctly``() =
+    let src =
+        """
+class A =
+
+    V: __oly_int32 get = 1
+
+main(): () =
+    let a = A()
+
+    let xs1 = (a.V, a.V, a.V): (__oly_object, __oly_object, __oly_object)
+        """
+    Oly src
+    |> shouldCompile

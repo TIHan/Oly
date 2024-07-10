@@ -9251,10 +9251,40 @@ M(): int32 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO",
+            ("Expected type 'int32' but is '()'.",
                 """
     while (true) ()
     ^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error about return type if the last expression is a match``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+M(): int32 =
+    match (1)
+    | _ => ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            // TODO: These error messages are duplicates, consider figuring out how to only emit one.
+            ("Expected type 'int32' but is '()'.",
+                """
+    | _ => ()
+           ^^
+"""
+            )
+            ("Expected type 'int32' but is '()'.",
+                """
+    | _ => ()
+           ^^
 """
             )
         ]
@@ -9306,7 +9336,7 @@ M(c: C): () =
             ("Expected 1 argument(s) but only given 0.",
                 """
     c.Call()
-      ^^^^^^
+    ^^^^^^^^
 """
             )
         ]
@@ -9320,11 +9350,146 @@ namespace TestNamespace
 
 private class C
 
-main(): () =
-    let c = C()
+module Modu =
+
+    main(): () =
+        let c = C()
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should be allowed to access constructor of private class that is in a namespace 2``() =
+    let src =
+        """
+namespace TestNamespace
+
+module Modu =
+
+    main(): () =
+        let c = C()
+
+private class C
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should be allowed to expose private class declared in a namespace to be part of a private signature``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+private class B =
+
+    protected M(): C = C()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should be allowed to expose private class declared in a namespace to be part of a private signature 2``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+private class B =
+
+    M(): C = C()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should be allowed to expose private class declared in a namespace to be part of a private signature 3``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class B =
+
+    M(): C = C()
+
+private class C
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should not be allowed to expose private class declared in a namespace to be part of a non-private signature``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+module Modu =
+
+    M(): C = C()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'C' is less accessible than the member its used in.",
+                """
+    M(): C = C()
+         ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not be allowed to expose private class declared in a namespace to be part of a non-private signature 2``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+module Modu =
+
+    internal M(): C = C()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'C' is less accessible than the member its used in.",
+                """
+    internal M(): C = C()
+                  ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not be allowed to expose private class declared in a namespace to be part of a non-private signature 3``() =
+    let src =
+        """
+namespace TestNamespace
+
+private class C
+
+class B =
+
+    protected M(): C = C()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'C' is less accessible than the member its used in.",
+                """
+    protected M(): C = C()
+                   ^
+"""
+            )
+        ]
+    |> ignore
 
 [<Fact>]
 let ``Should be allowed to access constructor of private class that is in a module``() =
@@ -9631,10 +9796,10 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO",
+            ("Invalid intrinsic for this construct.",
                 """
-alias int32
-      ^^^^^
+#[intrinsic("int32")]
+  ^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -9698,3 +9863,52 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Get signature of literal in a tuple``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let x = (~^~1, 2)
+    """
+    |> hasSymbolSignatureTextByCursor "1: int32"
+
+[<Fact>]
+let ``Get signature of literal in a tuple 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let x = 
+        (
+            let x = 5
+            ~^~1,
+            2
+        )
+    """
+    |> hasSymbolSignatureTextByCursor "1: int32"
+
+[<Fact>]
+let ``Able to infer lambda in a tuple``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let ~^~x = (() -> 1, 2)
+    """
+    |> hasSymbolSignatureTextByCursor "x: (() -> int32, int32)"
+
+[<Fact>]
+let ``Able to infer lambda in a new array``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+main(): () =
+    let ~^~x = [() -> 1]
+    """
+    |> hasSymbolSignatureTextByCursor "x: (() -> int32)[]"

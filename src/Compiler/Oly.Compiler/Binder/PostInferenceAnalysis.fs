@@ -646,7 +646,9 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
     let benv = aenv.envRoot.benv
 
     match literal with
-    | BoundLiteral.NumberInference(_, ty) -> 
+    | BoundLiteral.NumberInference(lazyLiteral, ty) -> 
+        // TODO: Uncomment below.
+        //OlyAssert.True(lazyLiteral.IsValueCreated)
         analyzeType acenv aenv syntaxNode ty
 
     | BoundLiteral.NullInference(ty) ->

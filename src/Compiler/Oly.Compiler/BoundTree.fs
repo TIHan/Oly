@@ -571,7 +571,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 action expr
         f this
 
-    member this.RewriteReturningTargetExpression(rewrite) =
+    member inline this.RewriteReturningTargetExpression([<InlineIfLambda>] rewrite) =
         let rec f (expr: BoundExpression) =
             match expr with
             | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->

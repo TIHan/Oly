@@ -73,7 +73,7 @@ let scopeInEntityAndOverride env ent =
 let scopeInTypeParameter (env: BinderEnvironment) (tyPar: TypeParameterSymbol) =
     env.AddUnqualifiedType(tyPar.Name, tyPar.Arity, tyPar.AsType)
 
-let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: EntitySymbol) =
+let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: EntitySymbol) =
     if openContent = OpenContent.None then env
     else
 
@@ -82,14 +82,14 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         | :? AggregatedNamespaceSymbol as aggr ->
             (env, aggr.Namespaces)
             ||> ImArray.fold (fun env nmsp ->
-                openContentsOfEntityAux canOverride true env openContent nmsp
+                openContentsOfEntityAux declTable canOverride true env openContent nmsp
             )
         | _ ->
             failwith "not possible"        
     elif ent.IsNamespace && not canOpenNamespace then
         match env.benv.senv.namespaces.TryGetValue ent.FullNamespacePath with
         | true, ent ->
-            openContentsOfEntityAux canOverride false env openContent ent
+            openContentsOfEntityAux declTable canOverride false env openContent ent
         | _ ->
             env
     else
@@ -117,6 +117,12 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         let env1 =
             (env, ent.GetAccessibleNestedEntities(env.benv.ac) |> ImArray.ofSeq)
             ||> ImArray.fold (fun env ent ->
+
+                // Special-case for private types in namespaces. Only allow them in the current compilation unit which is dictated by the declaration table.
+                if ent.IsPrivate && ent.Enclosing.IsNamespace && not (declTable.EntityDeclarations.ContainsKey(ent.Formal)) then
+                    env
+                else
+
                 let env =
                     match openContent with
                     | OpenContent.All
@@ -127,7 +133,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
 
                 let env =
                     if ent.IsAutoOpenable then
-                        openContentsOfEntityAux canOverride false env openContent ent
+                        openContentsOfEntityAux declTable canOverride false env openContent ent
                     else
                         env       
                             
@@ -179,11 +185,11 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         
         env2
 
-let openContentsOfEntity env openContent ent =
-    openContentsOfEntityAux false false env openContent ent
+let openContentsOfEntity declTable env openContent ent =
+    openContentsOfEntityAux declTable false false env openContent ent
 
-let openContentsOfEntityAndOverride env openContent ent =
-    openContentsOfEntityAux true false env openContent ent
+let openContentsOfEntityAndOverride declTable env openContent ent =
+    openContentsOfEntityAux declTable true false env openContent ent
 
 let addTypeParameter (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
     let tys = env.benv.GetUnqualifiedType(tyPar.Name, tyPar.Arity)

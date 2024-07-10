@@ -91,7 +91,7 @@ let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuild
 
     let env = env.SetAccessorContext(ent)
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
-    let env = openContentsOfEntityAndOverride env OpenContent.All ent
+    let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.All ent
     let env = env.SetEnclosingTypeArguments(ent.FormalId, env.GetEnclosingTypeParametersAsTypes())
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
@@ -447,9 +447,6 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
                 expectedTy
             | _ ->
                 TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None))
-
-        (tupleTy.TypeArguments, argExprs)
-        ||> ImArray.iter2 (checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)))
 
         let newTupleExpr = BoundExpression.NewTuple(BoundSyntaxInfo.User(syntaxNode, env.benv), argExprs, tupleTy)
 
@@ -1194,30 +1191,13 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
             let _, item = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxElement syntaxElement
             item
         )
+
     let elementTy =
-        elements
-        |> ImArray.tryPick (fun x ->
-            let ty = x.Type
-            match stripTypeEquations ty with
-            | TypeSymbol.InferenceVariable _
-            | TypeSymbol.HigherInferenceVariable _ 
-            | TypeSymbol.EagerInferenceVariable _ -> None
-            | _ -> Some ty
-        )
-        |> Option.defaultWith(fun () ->
+        match expectedTyOpt with
+        | Some(expectedTy) when expectedTy.IsAnyArray ->
+            expectedTy.FirstTypeArgument
+        | _ ->
             mkInferenceVariableType None
-        )
-
-    match expectedTyOpt with
-    | Some(expectedTy) when expectedTy.IsAnyArray ->
-        checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxToCapture expectedTy.FirstTypeArgument elementTy
-    | _ ->
-        ()
-
-    elements
-    |> ImArray.iter (fun element ->
-        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) elementTy element
-    )
 
     let arrayTy =
         if isMutable then
@@ -1615,6 +1595,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.Literal syntaxLiteral ->
         let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
+        // Note: We purposely do not check the expression since one of the literals is lazily evaluated depending on who(any expression) is using it. 
         env, expr
 
     | OlySyntaxExpression.MemberAccess(syntaxReceiver, _, syntaxMemberExpr) ->
@@ -1670,7 +1651,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | OlySyntaxExpression.While(_, _, syntaxConditionExpr, _, syntaxBodyExpr) ->
         let conditionExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Bool) syntaxConditionExpr syntaxConditionExpr |> snd
         let bodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxBodyExpr syntaxBodyExpr |> snd
-        env, E.While(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, bodyExpr)
+        let expr = E.While(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, bodyExpr)
+        env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Match(syntaxMatchToken, _, syntaxExprList, _, syntaxMatchCaseList) ->
         let exprs =

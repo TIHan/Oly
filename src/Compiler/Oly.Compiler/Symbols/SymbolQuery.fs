@@ -104,6 +104,13 @@ let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
         match ac.Entity, ent.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> 
             areEntitiesEqual ent1 ent2
+        | None, _ ->
+            match ent.ContainingAssembly with
+            | Some asm ->
+                (asm.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
+            | _ ->
+                false
+            
         | _ -> 
             false
 

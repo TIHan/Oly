@@ -30,7 +30,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     let ent = entBuilder.Entity
 
     let env = env.SetAccessorContext(ent)
-    let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
+    let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
     bindConstraintClauseList cenv env syntaxConstrClauses
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
@@ -99,16 +99,10 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             else
                 extends
 
-        if ent.IsTypeExtension then
-            implements
-            |> ImArray.iter (fun implementsTy ->
-                if not implementsTy.IsInterface then
-                    cenv.diagnostics.Error(sprintf "Type extensions can only implement interfaces.", 10, syntaxNode)
-            )
-        elif ent.IsAlias then
+        if ent.IsAlias then
             if implements.IsEmpty |> not then
                 cenv.diagnostics.Error(sprintf "Aliases cannot implement interfaces.", 10, syntaxNode)
-        elif not ent.IsEnum && not ent.IsClass && not ent.IsNewtype then // TODO: This logic is a bit weird, we should look at this closely.
+        elif not ent.IsEnum && not ent.IsClass && not ent.IsNewtype && not ent.IsTypeExtension then // TODO: This logic is a bit weird, we should look at this closely.
             ent.Extends
             |> ImArray.iter (fun ty ->
                 if ty.IsSealed then
@@ -132,6 +126,15 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                 cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxNode)
             elif inheritCount = 1 && extends[0].IsSealed then
                 cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is sealed and cannot be inherited.", 10, syntaxNode)
+        elif ent.IsInterface then
+            if implements.IsEmpty |> not then
+                cenv.diagnostics.Error(sprintf "Interfaces cannot implement interfaces.", 10, syntaxNode)
+
+        implements
+        |> ImArray.iter (fun implementsTy ->
+            if not implementsTy.IsInterface then
+                cenv.diagnostics.Error(sprintf "Cannot implement non-interfaces.", 10, syntaxNode)
+        )
 
         (* BEGIN NEWTYPE LOGIC *)
         let extends, implements =

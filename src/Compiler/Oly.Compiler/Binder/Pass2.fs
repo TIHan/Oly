@@ -206,7 +206,10 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
         |> ImArray.ofSeq
 
     recordValueDeclaration cenv prop syntaxBindingDecl.Identifier
-    BindingProperty(getterOrSetterBindings, prop)
+    let binding = BindingProperty(getterOrSetterBindings, prop)
+    if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness false syntaxBindingDecl then
+        checkSyntaxBindingDeclaration cenv valueExplicitness syntaxBindingDecl
+    binding
 
 let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding =
     match syntaxBinding with
@@ -532,7 +535,7 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
 
     let env = env.SetAccessorContext(ent)
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
-    let env = openContentsOfEntityAndOverride env OpenContent.Entities ent
+    let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 

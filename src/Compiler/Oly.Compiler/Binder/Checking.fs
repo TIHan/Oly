@@ -758,7 +758,73 @@ let private checkFunctionGroupCalleeArgumentExpression cenv env argExpr =
 let private checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env argExpr =
     checkCallExpression cenv env false None true argExpr
 
+let private checkArgumentExpression cenv env expectedTyOpt (argExpr: E) =
+    argExpr.RewriteReturningTargetExpression(
+        fun argExpr ->
+            match argExpr with
+            | E.Literal _ ->
+                checkExpression cenv env expectedTyOpt argExpr
+            | _ ->
+                match expectedTyOpt with
+                | Some expectedTy ->
+                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy argExpr
+                | _ ->
+                    ()
+                argExpr
+    )
+
+let private checkExpressionTypeIfPossible cenv env (expectedTyOpt: TypeSymbol option) expr =
+    match expectedTyOpt with
+    | Some expectedTy ->
+        checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+    | _ ->
+        ()
+
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
-    // If the expression is used as an argument, then we will skip eager inference in function overloads.
-    checkCallExpression cenv env env.isPassedAsArgument expectedTyOpt false expr
-    |> checkVirtualUsage cenv env
+    match expr with
+    | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+
+        match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+        | ValueSome(literal) ->
+            E.Literal(syntaxInfo, literal)
+        | _ ->
+            expr
+
+    | E.Literal _ ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+        expr
+
+    | E.NewArray(syntaxExpr, benv, argExprs, exprTy) ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+            
+        let newArgExprs =            
+            argExprs
+            |> ImArray.map (fun argExpr ->
+                let expectedArgTy = exprTy.FirstTypeArgument
+                checkArgumentExpression cenv env (Some expectedArgTy) argExpr
+            )
+
+        E.NewArray(syntaxExpr, benv, newArgExprs, exprTy)
+
+    | E.NewTuple(syntaxInfo, argExprs, exprTy) ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+
+        let newArgExprs =            
+            argExprs
+            |> ImArray.mapi (fun i argExpr ->
+                let expectedArgTy =
+                    if i < exprTy.TypeArguments.Length then
+                        exprTy.TypeArguments[i]
+                    else
+                        TypeSymbolError
+                checkArgumentExpression cenv env (Some expectedArgTy) argExpr
+            )
+
+        E.NewTuple(syntaxInfo, newArgExprs, exprTy)
+
+    | _ ->
+        // If the expression is used as an argument, then we will skip eager inference in function overloads.
+        // REVIEW: The name 'checkCallExpression' isn't quite accurate because it can affect non-call expressions.
+        checkCallExpression cenv env env.isPassedAsArgument expectedTyOpt false expr
+        |> checkVirtualUsage cenv env

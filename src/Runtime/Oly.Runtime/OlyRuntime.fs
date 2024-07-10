@@ -2208,6 +2208,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             ty
                         )
 
+                // Verify that types cannot be marked as private in a namespace.
+                match enclosingChoice with
+                | Choice1Of2 _ when flags.IsPrivate ->
+                    failwith $"'{tyDef.Name}' is marked as private in a namespace."
+                | _ ->
+                    ()
+
                 this.Emitter.EmitTypeDefinitionInfo(res, enclosingChoice, kind, flags, tyDef.Name, tyPars, inheritTys, implementTys, irAttrs, runtimeTyOpt)
 
                 if not mustDelayFuncs then
@@ -2381,6 +2388,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 // TODO: Read-only?
                 let tyFlags = RuntimeTypeFlags.None
                 let flags = OlyIRTypeFlags(ilEntDef.Flags, tyFlags)
+
+                // Verify that types cannot be marked as private in a namespace.
+                match enclosingChoice with
+                | Choice1Of2 _ when flags.IsPrivate ->
+                    failwith $"'{ty.Name}' is marked as private in a namespace."
+                | _ ->
+                    ()
 
                 let res = this.Emitter.EmitExternalType(externalPlatform, externalPath, externalName, enclosingChoice, ilEntDef.Kind, flags, ty.Name, tyParCount)
                 emitted.[key] <- res

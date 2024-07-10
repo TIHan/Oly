@@ -723,6 +723,12 @@ class Add<T1, T2> =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
+            ("Cannot implement non-interfaces.",
+                """
+class Add<T1, T2> =
+      ^^^
+"""
+            )
             ("'Add<T1, T2>' is recursively implementing itself.",
                 """
     implements Add<T1, T2>
@@ -747,7 +753,7 @@ interface IComponent<N, T> where N: constant int32 where T: unmanaged =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("The function 'static GetValue(): int32' cannot find a function to override.",
                 """
     static overrides GetValue(): int32 = N
                      ^^^^^^^^
@@ -766,10 +772,10 @@ interface IB =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Interfaces cannot implement interfaces.",
                 """
-    implements IA
-    ^^^^^^^^^^^^^
+interface IB =
+          ^^
 """
             )
         ]
@@ -820,6 +826,25 @@ class A =
                 """
     M<T>(): () where T: trait ISee = ()
     ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Cannot implement a non-interface``() =
+    """
+class A
+
+class B =
+    implements A
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot implement non-interfaces.",
+                """
+class B =
+      ^
 """
             )
         ]

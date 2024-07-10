@@ -489,6 +489,12 @@ module Array =
               ^
 """
         )
+        ("Expected type 'mutable U[]' but is '()'.",
+        """
+        while (
+        ^^^^^^^
+"""
+        )
     ]
 
 [<Fact>]

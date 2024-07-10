@@ -278,7 +278,11 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
             let func = FunctionGroupSymbol.CreateIfPossible(ctors)
             ResolutionFormalItem.Value(None, func)
         | _ ->
-            ResolutionFormalItem.Type(tyPar.AsType)
+            if tyPar.HasArity && resInfo.resTyArity.IsZero && resInfo.InTypeOnlyContext then
+                cenv.diagnostics.Error("Type argument count do not match the type parameter count.", 10, syntaxNode)
+                ResolutionFormalItem.Type(TypeSymbol.Error(Some tyPar, None))
+            else
+                ResolutionFormalItem.Type(tyPar.AsType)
     | _ ->
         if resInfo.InTypeOnlyContext then
             match env.benv.TryGetNamespace(ident) with
@@ -2253,6 +2257,12 @@ let bindValueModifiersAndKindAsMemberFlags
                     memberFlags ||| MemberFlags.Virtual
                 else
                     memberFlags ||| MemberFlags.Abstract
+
+        let memberFlags =
+            if isExplicitStatic && isExplicitOverrides then
+                memberFlags ||| MemberFlags.ExplicitOverrides
+            else
+                memberFlags
 
         memberFlags, valueExplicitness
             

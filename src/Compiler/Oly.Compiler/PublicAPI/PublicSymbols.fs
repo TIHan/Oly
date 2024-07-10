@@ -397,7 +397,37 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
 
     override _.Name = ""
 
-    override _.SignatureText = ""
+    override this.SignatureText =
+        let valueText =
+            let rec f (c: OlyConstant) =
+                match c with
+                | OlyConstant.UInt8(value) -> string value
+                | OlyConstant.Int8(value) -> string value
+                | OlyConstant.UInt16(value) -> string value
+                | OlyConstant.Int16(value) -> string value
+                | OlyConstant.UInt32(value) -> string value
+                | OlyConstant.Int32(value) -> string value
+                | OlyConstant.UInt64(value) -> string value
+                | OlyConstant.Int64(value) -> string value
+                | OlyConstant.Float32(value) -> string value
+                | OlyConstant.Float64(value) -> string value
+                | OlyConstant.True -> "true"
+                | OlyConstant.False -> "false"
+                | OlyConstant.Char16(value) -> $"'{value}'"
+                | OlyConstant.Utf16(value) -> $"\"{value}\""
+                | OlyConstant.Null -> "null"
+                | OlyConstant.Default -> "default"
+                | OlyConstant.Array(_, values) ->
+                    let innerText =
+                        values
+                        |> ImArray.map f
+                        |> String.concat ";"
+                    $"[{innerText}]"
+                | OlyConstant.Variable(ty) -> ty.SignatureText
+                | OlyConstant.External(func) -> func.SignatureText
+                | OlyConstant.Error -> "?"
+            f this.Value
+        $"{valueText}: {this.Type.SignatureText}"
 
     override _.TryGetDefinitionLocation(ct) = 
         ct.ThrowIfCancellationRequested()

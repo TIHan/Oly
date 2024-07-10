@@ -82,20 +82,27 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         if rank <= 0 then
             failwith "Expected rank to be greater than zero."
 
+        let elementText = printTypeAux benv isDefinition false elementTy
+        let elementText =
+            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction then
+                "(" + elementText + ")"
+            else
+                elementText
+
         match rank with
         | 1 ->
             match kind with
             | ArrayKind.Immutable ->
-                printTypeAux benv isDefinition false elementTy + "[]"
+                elementText + "[]"
             | ArrayKind.Mutable ->
-                "mutable " + printTypeAux benv isDefinition false elementTy + "[]"
+                "mutable " + elementText + "[]"
         | _ ->
             let commas = Array.init (rank - 1) (fun _ -> ",") |> String.concat ""
             match kind with
             | ArrayKind.Immutable ->
-                printTypeAux benv isDefinition false elementTy + $"[{commas}]"
+                elementText + $"[{commas}]"
             | ArrayKind.Mutable ->
-                "mutable " + printTypeAux benv isDefinition false elementTy + $"[{commas}]"
+                "mutable " + elementText + $"[{commas}]"
 
     | TypeSymbol.Variable(tyPar) ->
         let name =

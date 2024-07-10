@@ -197,7 +197,7 @@ class Test<T> =
     Assert.Equal("T", symbols.[1].SignatureText)
     Assert.Equal("field x: __oly_int32", symbols.[2].SignatureText)
     Assert.Equal("__oly_int32", symbols.[3].SignatureText)
-    Assert.Equal("", symbols.[4].SignatureText)
+    Assert.Equal("0: __oly_int32", symbols.[4].SignatureText)
 
 [<Fact>]
 let ``Source with class has the correct symbols 2``() =

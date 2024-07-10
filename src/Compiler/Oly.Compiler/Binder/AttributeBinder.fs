@@ -341,6 +341,12 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
                 if not (attributesContainImport attrs) then
                     cenv.diagnostics.Error("'intrinsic' attribute can only be used on alias types or types that are imported.", 10, syntaxAttr)
 
+            match env.benv.ac.Entity with
+            | Some(ent) when not ent.TypeParameters.IsEmpty ->
+                error()
+                None
+            | _ ->
+
             if tyParCount = 0 then
                 match intrinsicName with
                 | "int8" ->
