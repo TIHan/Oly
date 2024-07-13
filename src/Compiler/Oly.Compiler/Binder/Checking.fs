@@ -657,8 +657,8 @@ let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
     |> checkEarlyArgumentsOfCallExpression cenv env
     |> checkCallerExpression cenv env tyChecking skipEager expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env tyChecking
-    |> lateCheckCalleeExpression cenv env
     |> checkArgumentsOfCallLikeExpression cenv env tyChecking
+    |> lateCheckCalleeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
 
 let private checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) index parTy argExpr =

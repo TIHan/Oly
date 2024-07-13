@@ -6382,7 +6382,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '(int32, int32) -> ()' but is '? -> ?'.",
+            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
                 """
     c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
                                                          ^^^^^^^^^^^^^^^^^^^^
