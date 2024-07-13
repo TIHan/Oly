@@ -812,7 +812,7 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let argTys = value.LogicalType.FunctionArgumentTypes
 
-        if not value.IsFunctionGroup && argTys.Length <> argExprs.Length then
+        if not value.IsFunctionGroup && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let newArgExprs =
