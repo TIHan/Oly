@@ -18,6 +18,7 @@ type SolverEnvironment =
         diagnostics: OlyDiagnosticLogger
         benv: BoundEnvironment
         pass: CompilerPass
+        reportTypeErrors: bool
     }
 
     static member Create(diagnostics, benv, pass) =
@@ -25,6 +26,7 @@ type SolverEnvironment =
             diagnostics = diagnostics
             benv = benv
             pass = pass
+            reportTypeErrors = true
         }
 
 [<RequireQualifiedAccess>]
@@ -32,26 +34,34 @@ type WitnessSolver =
     | Subtype
     | Trait
 
-let rec solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
-    let res = UnifyTypes Flexible expectedTy ty
-    if not res then
-        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
+let private solveTypesNoError (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
+    UnifyTypes Flexible expectedTy ty
 
-let rec solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
+let private solveTypesWithSubsumptionNoError (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
     // REVIEW: We ignore solving if the type is an error.
     //         Typically, this is due to a Call expression returning an error type because it's
     //         currently a function group; which could be resolved later from function overloading.
     //         Not the greatest thing to do, but it works in this scenario.
-    if ty.IsError_t then ()
+    if ty.IsError_t then true
     else
     // Rules:
     //     1. Perform inference type unification when checking the argument type.
     //     2. If '1.' fails, then see if the expected type subsumes the given type.
     //     3. If '2.' fails, then check for shape subsumption if the expected type is a shape.
     if not (UnifyTypes Flexible expectedTy ty || subsumesTypeWith Flexible expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv Flexible expectedTy ty else false)) then
+        false
+    else
+        true
+
+let solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
+    if not (solveTypesNoError env syntaxNode expectedTy ty) && env.reportTypeErrors then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
 
-and solveFunctionInput env (syntaxNode: OlySyntaxNode) (expectedArgTys: TypeSymbol imarray) (argTysWithSyntax: (TypeSymbol * OlySyntaxNode) imarray) =
+let solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
+    if not (solveTypesWithSubsumptionNoError env syntaxNode expectedTy ty) && env.reportTypeErrors then
+        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
+
+let solveFunctionInput env (syntaxNode: OlySyntaxNode) (expectedArgTys: TypeSymbol imarray) (argTysWithSyntax: (TypeSymbol * OlySyntaxNode) imarray) =
     let argTys =
         argTysWithSyntax
         |> ImArray.map fst
@@ -70,7 +80,7 @@ and solveFunctionInput env (syntaxNode: OlySyntaxNode) (expectedArgTys: TypeSymb
             solveTypesWithSubsumption env syntax tyx tyy
         )
 
-and solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys: TypeSymbol imarray) =
+let solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys: TypeSymbol imarray) =
     if Seq.isEmpty funcs then
         env.diagnostics.Error("No functions are present for this construct.", 0, syntaxNode)
         invalidFunction ()

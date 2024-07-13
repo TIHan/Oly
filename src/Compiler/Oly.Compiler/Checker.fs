@@ -980,35 +980,36 @@ let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterS
 
 // TODO: Get rid of 'freshenAndCheckValue'. Replace the uses with 'freshenValue'.
 let freshenAndCheckValue env (argExprsOpt: BoundExpression imarray voption) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
-    let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
+    freshenValue env.benv value
+    //let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
 
-    let valueTy = value.LogicalType
+    //let valueTy = value.LogicalType
 
-    if not value.IsFunction && valueTy.IsQuantifiedFunction then 
-        let tyPars = valueTy.TypeParameters
-        if tyPars.IsEmpty then
-            failwith "Expected type parameters for a quantified function type."
+    //if not value.IsFunction && valueTy.IsQuantifiedFunction then 
+    //    let tyPars = valueTy.TypeParameters
+    //    if tyPars.IsEmpty then
+    //        failwith "Expected type parameters for a quantified function type."
 
-        let freshTy = freshenType env.benv tyPars ImmutableArray.Empty valueTy
+    //    let freshTy = freshenType env.benv tyPars ImmutableArray.Empty valueTy
 
-        let value2 = 
-            if value.IsMutable then
-                createMutableLocalValue value.Name freshTy
-            else
-                createLocalValue value.Name freshTy
-        if argExprsOpt.IsSome then
-            checkFunctionType env syntaxNode argExprs value2.LogicalType
-        value2 :> IValueSymbol
-    else
-        if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then
-            if argExprsOpt.IsSome then
-                checkFunctionType env syntaxNode argExprs valueTy
-            value
-        else
-            let value2 = freshenValue env.benv value
-            if argExprsOpt.IsSome then
-                checkFunctionType env syntaxNode argExprs value2.LogicalType
-            value2
+    //    let value2 = 
+    //        if value.IsMutable then
+    //            createMutableLocalValue value.Name freshTy
+    //        else
+    //            createLocalValue value.Name freshTy
+    //    if argExprsOpt.IsSome then
+    //        checkFunctionType env syntaxNode argExprs value2.LogicalType
+    //    value2 :> IValueSymbol
+    //else
+    //    if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then
+    //        if argExprsOpt.IsSome then
+    //            checkFunctionType env syntaxNode argExprs valueTy
+    //        value
+    //    else
+    //        let value2 = freshenValue env.benv value
+    //        if argExprsOpt.IsSome then
+    //            checkFunctionType env syntaxNode argExprs value2.LogicalType
+    //        value2
 
 let checkTypes (env: SolverEnvironment) syntaxNode (expectedTy: TypeSymbol) (ty: TypeSymbol) =
     solveTypes env syntaxNode expectedTy ty

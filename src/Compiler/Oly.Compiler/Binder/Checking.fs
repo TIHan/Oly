@@ -17,6 +17,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal
 
 let checkSyntaxBindingDeclaration (cenv: cenv) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     if not valueExplicitness.IsExplicitLet && not syntaxBindingDecl.IsExplicitNew && not syntaxBindingDecl.IsExplicitGet && not syntaxBindingDecl.IsExplicitSet then
@@ -302,19 +303,6 @@ let private tryOverloadedCallExpression
     match tryOverloadResolution expectedTyOpt resArgs isArgForAddrOf funcs with
     | None -> None
     | Some funcs ->
-        let checkLambdaArguments() =
-            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
-            argExprs
-            |> ImArray.iter (fun x ->
-                x.ForEachReturningTargetExpression(fun x ->
-                    match x with
-                    | E.Lambda _ ->
-                        // We must evaluate the lambda at this point.
-                        checkImmediateExpression solverEnv false x
-                    | _ ->
-                        ()
-                )
-            )
         if funcs.Length = 1 then
             let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (funcs[0], syntaxInfo.TrySyntaxName)
             let expr =
@@ -327,7 +315,6 @@ let private tryOverloadedCallExpression
                         expr
                 else
                     expr
-            checkLambdaArguments()
             Some expr
         else
             
@@ -336,12 +323,10 @@ let private tryOverloadedCallExpression
 
             let funcs = filterByRefReturnTypes argExprs funcs
             if funcs.IsEmpty then
-                checkLambdaArguments()
                 None
             else       
                 let func = FunctionGroupSymbol.CreateIfPossible(funcs)
                 let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (func, syntaxInfo.TrySyntaxName)
-                checkLambdaArguments()
                 Some expr
 
 let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
@@ -467,20 +452,6 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->
 
-        let checkLambdaArguments() =
-            let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
-            argExprs
-            |> ImArray.iteri (fun i x ->           
-                x.ForEachReturningTargetExpression(fun x ->
-                    match x with
-                    | E.Lambda(cachedLambdaTy=lazyTy) ->
-                        // We must evaluate the lambda at this point.
-                        checkImmediateExpression solverEnv false x
-                    | _ ->
-                        ()
-                )
-            )
-
         match value with
         | :? FunctionGroupSymbol as funcGroup ->
             if funcGroup.IsAddressOf then
@@ -499,7 +470,6 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
             | Some expr -> expr
             | _ -> expr
         | _ ->
-            checkLambdaArguments()
             expr
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
@@ -679,10 +649,11 @@ let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (exp
 let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     checkCallerExpression cenv env true None isArgForAddrOf expr
     |> checkCalleeExpression cenv env
+    |> checkEarlyArgumentsOfCallExpression cenv env
     |> checkCallerExpression cenv env skipEager expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env
     |> lateCheckCalleeExpression cenv env
-    //|> checkArgumentsOfCallLikeExpression cenv env
+    |> checkArgumentsOfCallLikeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
 
 let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index parTy argExpr =
@@ -768,7 +739,7 @@ let private checkArgumentExpression cenv env expectedTyOpt (argExpr: E) =
                 checkExpression cenv env expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env expectedTyOpt argExpr
-                argExpr
+                ImplicitRules.ImplicitReturn expectedTyOpt argExpr
     )
 
 let private checkExpressionTypeIfPossible cenv env (expectedTyOpt: TypeSymbol option) expr =
@@ -777,6 +748,30 @@ let private checkExpressionTypeIfPossible cenv env (expectedTyOpt: TypeSymbol op
         checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
     | _ ->
         ()
+
+let private checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
+        let argTys = value.LogicalType.FunctionArgumentTypes
+
+        let newArgExprs =
+            let env = env.SetReturnable(false)
+            argExprs
+            |> ImArray.mapi (fun i argExpr ->
+                let expectedArgTy =
+                    if i < argTys.Length then
+                        argTys[i]
+                    else
+                        TypeSymbolError
+                argExpr.RewriteReturningTargetExpression(fun x ->
+                    checkCalleeArgumentExpression cenv env value i expectedArgTy x
+                    |> checkArgumentExpression cenv env (Some expectedArgTy)
+                )
+            )
+        
+        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
+    | _ ->
+        expr
 
 let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) expr =
     match expr with
@@ -807,6 +802,9 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) exp
 
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let argTys = value.LogicalType.FunctionArgumentTypes
+
+        if not value.IsFunctionGroup && argTys.Length <> argExprs.Length then
+            cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let newArgExprs =
             let env = env.SetReturnable(false)
