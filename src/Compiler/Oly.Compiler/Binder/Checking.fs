@@ -604,13 +604,13 @@ let private lateCheckCalleeExpression cenv env expr =
 
     checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
 
-    let expr = Oly.Compiler.Internal.ImplicitRules.ImplicitCallExpression env.benv expr
+    let expr = ImplicitRules.ImplicitCallExpression env.benv expr
 
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
     let expr = autoDereferenceExpression expr
-    let expr = Oly.Compiler.Internal.ImplicitRules.ImplicitReturn expectedTyOpt expr
+    let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
         match expectedTyOpt with
         | Some expectedTy when expectedTy.IsSolved ->
@@ -812,7 +812,7 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let argTys = value.LogicalType.FunctionArgumentTypes
 
-        if not value.IsFunctionGroup && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
+        if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let newArgExprs =
