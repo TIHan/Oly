@@ -548,6 +548,12 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
             OlyAssert.Fail("Expected opertion")
 
     let rec handleOperation irTextRange irExpr (irOp: O<_, _, _>) =
+        //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression argExpr)
+        //if newOp = irOp then
+        //    optimizeOperation irExpr
+        //else
+        //    E.Operation(irTextRange, newOp)
+        //    |> optimizeOperation
         let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
         let mutable areSame = true
         irOp.ForEachArgument(fun i irArgExpr ->
@@ -1088,6 +1094,12 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
                 irNewExpr2
 
         | E.Operation(irTextRange, irOp) ->
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression argExpr)
+            //if newOp = irOp then
+            //    optimizeOperation irExpr
+            //else
+            //    E.Operation(irTextRange, newOp)
+            //    |> optimizeOperation
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->

@@ -87,6 +87,7 @@ type BinderEnvironment =
     member this.SetContextType(ty: TypeSymbol) =
         { this with contextTypeOrTypeConstructor = Some ty.Formal }
 
+    /// If set to 'false', will also set 'PassedAsArgument' to 'false'.
     member this.SetReturnable(isReturnable: bool) =
         if this.isReturnable = isReturnable then 
             if isReturnable then

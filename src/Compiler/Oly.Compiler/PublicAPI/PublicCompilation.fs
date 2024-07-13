@@ -778,6 +778,11 @@ type OlyCompilation private (state: CompilationState) =
             )
 
         ImArray.append diags refDiags
+        |> ImArray.sortBy (fun x ->
+            match x.SyntaxTree with
+            | Some syntaxTree -> syntaxTree.Path.ToString()
+            | _ -> String.Empty
+        )
 
     member private this.Bind(ct) =
         ct.ThrowIfCancellationRequested()

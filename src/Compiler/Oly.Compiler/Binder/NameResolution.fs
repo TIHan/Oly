@@ -134,6 +134,7 @@ type ResolutionItem =
     | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxExpression imarray * syntaxMemberExprOpt: OlySyntaxExpression option
     | MemberIndexerCall of syntaxToCapture: OlySyntaxExpression * syntaxReceiver: OlySyntaxExpression * syntaxBrackets: OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>> * syntaxMemberExprOpt: OlySyntaxExpression option * expectedTyOpt: TypeSymbol option
     | Parenthesis of syntaxToCapture: OlySyntaxExpression * syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression> * syntaxMemberExprOpt: OlySyntaxExpression option
+    // TODO: We really should not have Expression as part of ResolutionItem. Instead make separate cases for functions, locals, etc. Similar to Property and Pattern.
     | Expression of BoundExpression
     | Pattern of syntax: OlySyntaxNode * IPatternSymbol * witnessArgs: WitnessSolution imarray
     | Property of syntax: OlySyntaxNode * syntaxNameOpt: OlySyntaxName option * receiverInfoOpt: ReceiverInfo option * IPropertySymbol
@@ -175,7 +176,7 @@ let private createWitnessArguments (cenv: cenv) (value: IValueSymbol) =
 let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxExpr: OlySyntaxExpression) =
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
-        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
+        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteralAndCheck cenv env expectedTyOpt syntaxLiteral)
         match expectedTyOpt with
         | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
         | _ -> ()
@@ -678,7 +679,7 @@ let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) synta
 
     | OlySyntaxExpression.Literal(syntaxLiteral) when prevReceiverInfoOpt.IsNone ->
         let syntaxInfo = BoundSyntaxInfo.User(syntaxLiteral, env.benv)
-        let literal = bindLiteral cenv env None syntaxLiteral
+        let literal = bindLiteral cenv syntaxLiteral
         bindMemberExpressionAsItem cenv env syntaxToCapture (Choice1Of2(E.Literal(syntaxInfo, literal))) syntaxMemberExpr
 
     | _ ->
@@ -1491,7 +1492,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                 TypeSymbolError
 
         | OlySyntaxType.Literal(syntaxLiteral) ->
-            match bindLiteral cenv env None syntaxLiteral with
+            match bindLiteral cenv syntaxLiteral with
             | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
                 TypeSymbol.ConstantInt32(value)
             | BoundLiteral.NumberInference(lazyLiteral, literalTy) ->
@@ -2456,7 +2457,7 @@ let rec private unescapeTextAux cenv syntaxNode syntaxOffset (s: ReadOnlySpan<ch
         | c ->
             unescapeTextAux cenv syntaxNode (syntaxOffset + 1) (s.Slice(1)) (builder.Append(c))
 
-let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
+let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     let cleanNumericText (text: string) =
         if text.StartsWith("0x") then
             text.Replace("_", String.Empty)
@@ -2590,8 +2591,8 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     | _ ->
         raise(InternalCompilerException())
 
-let bindLiteral cenv env expectedTyOpt syntaxLiteral =
-    let literal = bindLiteralAux cenv syntaxLiteral
+let bindLiteralAndCheck cenv env expectedTyOpt syntaxLiteral =
+    let literal = bindLiteral cenv syntaxLiteral
     match expectedTyOpt with
     | Some(expectedTy) ->
         checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral expectedTy literal.Type

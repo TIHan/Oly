@@ -1930,6 +1930,7 @@ type MemberFlags =
     /// Instance (not static) member
     | Instance =            0x00100000
 
+    /// This is a helper to indicate that the member was marked explicitly with the 'overrides' keyword.
     | ExplicitOverrides =   0x01000000
 
 [<System.Flags>]

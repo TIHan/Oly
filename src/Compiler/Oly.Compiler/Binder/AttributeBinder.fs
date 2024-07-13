@@ -120,7 +120,7 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
 
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
-        BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env (Some expectedTy) syntaxLiteral)
+        BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteralAndCheck cenv env (Some expectedTy) syntaxLiteral)
     | OlySyntaxExpression.Call(OlySyntaxExpression.Name(syntaxName), syntaxArgs) ->
         // TODO: Handle generic attributes
         let argExprs = bindAttributeArguments cenv env syntaxArgs

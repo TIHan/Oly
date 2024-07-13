@@ -682,6 +682,7 @@ let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (skipEager
     |> checkCallerExpression cenv env skipEager expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env
     |> lateCheckCalleeExpression cenv env
+    //|> checkArgumentsOfCallLikeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
 
 let private checkCalleeArgumentExpression cenv env (caller: IValueSymbol) index parTy argExpr =
@@ -762,14 +763,11 @@ let private checkArgumentExpression cenv env expectedTyOpt (argExpr: E) =
     argExpr.RewriteReturningTargetExpression(
         fun argExpr ->
             match argExpr with
-            | E.Literal _ ->
+            | E.Literal _
+            | E.Lambda _ ->
                 checkExpression cenv env expectedTyOpt argExpr
             | _ ->
-                match expectedTyOpt with
-                | Some expectedTy ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy argExpr
-                | _ ->
-                    ()
+                checkExpressionTypeIfPossible cenv env expectedTyOpt argExpr
                 argExpr
     )
 
@@ -780,37 +778,22 @@ let private checkExpressionTypeIfPossible cenv env (expectedTyOpt: TypeSymbol op
     | _ ->
         ()
 
-let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
+let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) expr =
     match expr with
-    | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
-        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
-
-        match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
-        | ValueSome(literal) ->
-            E.Literal(syntaxInfo, literal)
-        | _ ->
-            expr
-
-    | E.Literal _ ->
-        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
-        expr
-
-    | E.NewArray(syntaxExpr, benv, argExprs, exprTy) ->
-        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
-            
-        let newArgExprs =            
+    | E.NewArray(syntaxExpr, benv, argExprs, exprTy) when not argExprs.IsEmpty ->
+        let expectedArgTyOpt = Some exprTy.FirstTypeArgument
+        let newArgExprs =         
+            let env = env.SetReturnable(false)
             argExprs
             |> ImArray.map (fun argExpr ->
-                let expectedArgTy = exprTy.FirstTypeArgument
-                checkArgumentExpression cenv env (Some expectedArgTy) argExpr
+                checkArgumentExpression cenv env expectedArgTyOpt argExpr
             )
-
         E.NewArray(syntaxExpr, benv, newArgExprs, exprTy)
 
     | E.NewTuple(syntaxInfo, argExprs, exprTy) ->
-        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
-
-        let newArgExprs =            
+        OlyAssert.True(argExprs.Length > 1)
+        let newArgExprs =       
+            let env = env.SetReturnable(false)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -820,8 +803,68 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
                         TypeSymbolError
                 checkArgumentExpression cenv env (Some expectedArgTy) argExpr
             )
-
         E.NewTuple(syntaxInfo, newArgExprs, exprTy)
+
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
+        let argTys = value.LogicalType.FunctionArgumentTypes
+
+        let newArgExprs =
+            let env = env.SetReturnable(false)
+            argExprs
+            |> ImArray.mapi (fun i argExpr ->
+                let expectedArgTy =
+                    if i < argTys.Length then
+                        argTys[i]
+                    else
+                        TypeSymbolError
+                argExpr.RewriteReturningTargetExpression(fun x ->
+                    checkCalleeArgumentExpression cenv env value i expectedArgTy x
+                    |> checkArgumentExpression cenv env (Some expectedArgTy)
+                )
+            )
+        
+        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
+
+    // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
+    | E.Let(syntaxInfo, bindingInfo, ((E.GetProperty _) as rhsExpr), bodyExpr) 
+            when 
+                bindingInfo.Value.IsSingleUse && 
+                bindingInfo.Value.IsGenerated ->
+        let newBodyExpr = checkExpression cenv env None bodyExpr
+
+        if newBodyExpr = bodyExpr then
+            expr
+        else
+            E.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
+
+    | _ ->
+        expr
+
+let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
+    match expr with
+    | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) when env.isReturnable || not env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+
+        match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+        | ValueSome(literal) ->
+            E.Literal(syntaxInfo, stripLiteral literal)
+        | _ ->
+            expr
+
+    | E.Literal _ when env.isReturnable || not env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+        expr
+
+    | E.Lambda(body=lazyBodyExpr) when env.isReturnable || not env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+        if not lazyBodyExpr.HasExpression then
+            lazyBodyExpr.Run()
+        expr
+
+    | E.NewArray _
+    | E.NewTuple _ ->
+        checkExpressionTypeIfPossible cenv env expectedTyOpt expr
+        checkArgumentsOfCallLikeExpression cenv env expr
 
     | _ ->
         // If the expression is used as an argument, then we will skip eager inference in function overloads.

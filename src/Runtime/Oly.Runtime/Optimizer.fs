@@ -158,7 +158,7 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
             match irOp with
             | O.Ignore(irArgExpr, resultTy) ->
                 if hasSideEffect optenv irArgExpr then
-                    E.Operation(irTextRange, irOp)
+                    irExpr
                 else
                     E.None(NoRange, resultTy)
 
@@ -387,6 +387,12 @@ let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, 
                 irNewExpr2
 
         | E.Operation(irTextRange, irOp) ->
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> optimizeExpression argExpr)
+            //if newOp = irOp then
+            //    optimizeOperation irExpr
+            //else
+            //    E.Operation(irTextRange, newOp)
+            //    |> optimizeOperation
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> optimizeExpression irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
@@ -765,6 +771,12 @@ let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
                 E.Sequential(irNewExpr1, irNewExpr2)
 
         | E.Operation(irTextRange, irOp) ->
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression argExpr)
+            //if newOp = irOp then
+            //    handleOperation irExpr
+            //else
+            //    E.Operation(irTextRange, newOp)
+            //    |> handleOperation
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
@@ -1046,6 +1058,12 @@ let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>
                 )
     
         | E.Operation(irTextRange, irOp) ->
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression env argExpr)
+            //if newOp = irOp then
+            //    handleOperation env irExpr
+            //else
+            //    E.Operation(irTextRange, newOp)
+            //    |> handleOperation env
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression env irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
@@ -1227,6 +1245,11 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
                 E.Sequential(irNewExpr1, irNewExpr2)
 
         | E.Operation(irTextRange, irOp) ->
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression argExpr)
+            //if newOp = irOp then
+            //    irExpr
+            //else
+            //    E.Operation(irTextRange, newOp)
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
@@ -1417,6 +1440,18 @@ let NormalizeLocals (optenv: optenv<_, _, _>) (principalExpr: E<_, _, _>) =
             | _ ->
                 ()
 #endif
+            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression localScope argExpr)
+            //if newOp = irOp then
+            //    let newOp = handleOperation localScope irOp
+            //    if newOp = irOp then
+            //        origExpr
+            //    else
+            //        E.Operation(irTextRange, newOp)
+            //else
+            //    let newOp = 
+            //        newOp
+            //        |> handleOperation localScope
+            //    E.Operation(irTextRange, newOp)
             let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression localScope irArgExpr)
             let mutable areSame = true
             irOp.ForEachArgument(fun i irArgExpr ->
@@ -1762,6 +1797,11 @@ let assertionPropagateExpressionAux (optenv: optenv<'Type, 'Function, 'Field>) (
             E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
     | E.Operation(irTextRange, irOp) ->
+        //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> assertionPropagateExpression optenv origEnv argExpr)
+        //if newOp = irOp then
+        //    irExpr
+        //else
+        //    E.Operation(irTextRange, newOp)
         let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> assertionPropagateExpression optenv origEnv irArgExpr)
         let mutable areSame = true
         irOp.ForEachArgument(fun i irArgExpr ->

@@ -2270,3 +2270,84 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Namespace with same class name should fail``() =
+    let src1 =
+        """
+namespace N
+
+class A // src1
+        """
+
+    let src2 =
+        """
+namespace N
+
+class A // src2
+        """
+
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'A' already exists across compilation units.",
+            """
+class A // src1
+      ^
+"""
+        )
+        ("'A' already exists across compilation units.",
+            """
+class A // src2
+      ^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Two compilation units under the same module name should fail``() =
+    let src1 =
+        """
+module M // src1
+        """
+
+    let src2 =
+        """
+module M // src2
+        """
+
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'M' already exists across compilation units.",
+            """
+module M // src1
+       ^
+"""
+        )
+        ("'M' already exists across compilation units.",
+            """
+module M // src2
+       ^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Namespace with same class name from a reference should not fail``() =
+    let src1 =
+        """
+namespace N
+
+class A // src1
+        """
+
+    let src2 =
+        """
+namespace N
+
+class A // src2
+        """
+
+    OlyWithRef src1 src2
+    |> shouldCompile

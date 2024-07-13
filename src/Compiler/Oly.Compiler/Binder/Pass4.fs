@@ -437,7 +437,7 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
         let argExprs =
             syntaxExprList.ChildrenOfType
             |> ImArray.map (fun syntaxExpr ->
-                let _, item = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxExpr syntaxExpr
+                let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxExpr syntaxExpr
                 item
             )
 
@@ -729,9 +729,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                 let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env1.benv, cenv.pass)
                 let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), FunctionKind.Normal)
                 checkLambdaExpression solverEnv pars bodyExpr ty
-
                 checkLocalLambdaKind solverEnv bodyExpr pars isStatic
-
                 bodyExpr
             )
 
@@ -1123,7 +1121,7 @@ let private resolveLetBindFunction (cenv: cenv) (env: BinderEnvironment) syntaxT
 
 let private bindThrowExpression cenv (env: BinderEnvironment) syntaxNode syntaxArgExpr : _ * _ =
     let argExprs = 
-        bindLocalExpression cenv (env.SetReturnable(false)) None syntaxArgExpr syntaxArgExpr |> snd
+        bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxArgExpr syntaxArgExpr |> snd
         |> ImArray.createOne
 
     let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
@@ -1161,7 +1159,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
     let argExprs = 
         syntaxArgExprs
         |> ImArray.mapi (fun i x ->
-            let expr = bindLocalExpression cenv (env.SetReturnable(false)) None x x |> snd
+            let expr = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None x x |> snd
             if i = 0 then
                 expr
                 |> AddressOfReceiverIfPossible expr.Type
@@ -1188,7 +1186,7 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
     let elements =
         syntaxElements
         |> ImArray.map (fun syntaxElement ->
-            let _, item = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxElement syntaxElement
+            let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxElement syntaxElement
             item
         )
 
@@ -1594,9 +1592,9 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Literal syntaxLiteral ->
-        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
+        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv syntaxLiteral)
         // Note: We purposely do not check the expression since one of the literals is lazily evaluated depending on who(any expression) is using it. 
-        env, expr
+        env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.MemberAccess(syntaxReceiver, _, syntaxMemberExpr) ->
         let expr =
@@ -1610,8 +1608,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.InfixCall(syntaxLeft, syntaxName, syntaxRight) ->
-        let _, left = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxLeft syntaxLeft
-        let _, right = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxRight syntaxRight
+        let _, left = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxLeft syntaxLeft
+        let _, right = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxRight syntaxRight
         let argExprs = ImmutableArray.CreateRange[left;right]
         let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
         let expr =
@@ -1620,7 +1618,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.PrefixCall(syntaxName, syntaxArg) ->
-        let _, argExpr = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxArg syntaxArg
+        let _, argExpr = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxArg syntaxArg
         let argExprs = ImmutableArray.CreateRange[argExpr]
         let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
         let expr =
@@ -1996,7 +1994,10 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
         env, BoundCasePattern.Discard(syntaxInfo)
     
     | OlySyntaxPattern.Literal(syntaxLiteral) ->
-        let literal = bindLiteral cenv env (Some matchTy) syntaxLiteral
+        let literal = bindLiteralAndCheck cenv env (Some matchTy) syntaxLiteral
+        let literal =
+            checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral matchTy literal.Type
+            stripLiteral literal
         env, BoundCasePattern.Literal(syntaxInfo, literal)
 
     | OlySyntaxPattern.Name(syntaxName) ->

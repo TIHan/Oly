@@ -277,21 +277,27 @@ module ImArray =
         |> ofSeq
 
     let inline distinct (arr: imarray<'T>) =
-        // TOOD: Make this efficient
+        // TODO: Make this efficient
         arr
         |> Seq.distinct
         |> ofSeq
 
     let inline distinctBy projection (arr: imarray<'T>) =
-        // TOOD: Make this efficient
+        // TODO: Make this efficient
         arr
         |> Seq.distinctBy projection
         |> ofSeq
 
     let inline take count (arr: imarray<'T>) =
-        // TOOD: Make this efficient
+        // TODO: Make this efficient
         arr
         |> Seq.take count
+        |> ofSeq
+
+    let inline sortBy projection (arr: imarray<'T>) =
+        // TODO: Make this efficient
+        arr
+        |> Seq.sortBy projection
         |> ofSeq
 
     let inline filter predicate (arr: imarray<'T>) : imarray<'T> =

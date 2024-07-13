@@ -308,6 +308,91 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
     | CallStaticConstructor of      func: OlyIRFunction<'Type, 'Function, 'Field> * resultTy: 'Type
 
+    member inline this.GetArgument(index: int) =
+        match this with
+        | Add(arg1, arg2, _)
+        | Subtract(arg1, arg2, _)
+        | Multiply(arg1, arg2, _)
+        | Divide(arg1, arg2, _)
+        | Remainder(arg1, arg2, _)
+        | BitwiseAnd(arg1, arg2, _)
+        | BitwiseOr(arg1, arg2, _)
+        | BitwiseExclusiveOr(arg1, arg2, _)
+        | BitwiseShiftLeft(arg1, arg2, _)
+        | BitwiseShiftRight(arg1, arg2, _)
+        | Equal(arg1, arg2, _)
+        | NotEqual(arg1, arg2, _)
+        | Utf16Equal(arg1, arg2, _)
+        | GreaterThan(arg1, arg2, _)
+        | GreaterThanOrEqual(arg1, arg2, _)
+        | LessThan(arg1, arg2, _)
+        | LessThanOrEqual(arg1, arg2, _)
+        | StoreRefCellContents(arg1, arg2, _)
+        | StoreToAddress(arg1, arg2, _)
+        | StoreField(_, arg1, arg2, _) -> 
+            match index with
+            | 0 -> arg1
+            | 1 -> arg2
+            | _ -> raise(IndexOutOfRangeException())
+        | BitwiseNot(arg, _)
+        | Not(arg, _)
+        | Negate(arg, _)
+        | Print(arg, _)
+        | Throw(arg, _)
+        | Box(arg, _) 
+        | Unbox(arg, _) 
+        | Upcast(arg, _)
+        | Cast(arg, _)
+        | LoadRefCellContents(arg, _)
+        | LoadRefCellContentsAddress(arg, _, _)
+        | LoadFromAddress(arg, _)
+        | Store(_, arg, _) 
+        | StoreArgument(_, arg, _)
+        | LoadField(_, arg, _) 
+        | LoadFieldAddress(_, arg, _, _) 
+        | StoreStaticField(_, arg, _)
+        | NewRefCell(_, arg, _) 
+        | NewMutableArray(_, arg, _) 
+        | Witness(arg, _, _)
+        | LoadTupleElement(arg, _, _)
+        | LoadArrayLength(arg, _, _) 
+        | LoadFunction(_, arg, _) 
+        | Ignore(arg, _) ->
+            match index with
+            | 0 -> arg
+            | _ -> raise(IndexOutOfRangeException())
+
+        | Call(args=args)
+        | CallVirtual(args=args)
+        | CallConstrained(args=args)
+        | New(args=args)
+        | NewTuple(args=args)
+        | NewArray(args=args) ->
+            args[index]
+
+        | CallIndirect(receiver=receiver;args=args) ->
+            match index with
+            | 0 -> receiver
+            | _ -> args[index - 1]
+
+        | LoadArrayElement(receiver=receiver;indexArgs=indexArgs)
+        | LoadArrayElementAddress(receiver=receiver;indexArgs=indexArgs) ->
+            match index with
+            | 0 -> receiver
+            | _ -> indexArgs[index - 1]
+        
+        | StoreArrayElement(receiver=receiver;indexArgs=indexArgs;arg=arg) ->
+            match index with
+            | 0 -> receiver
+            | _ -> 
+                if (indexArgs.Length + 1) = index then
+                    arg
+                else
+                    indexArgs[index - 1]
+
+        | CallStaticConstructor _ ->
+            raise(IndexOutOfRangeException())
+
     member inline this.ForEachArgument ([<InlineIfLambda>] f) =
         match this with
         | Add(arg1, arg2, _)
@@ -392,6 +477,23 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             args.Add(mapper i arg)
         )
         args.MoveToImmutable()
+
+    member inline this.MapAndReplaceArguments ([<InlineIfLambda>] mapper: int -> OlyIRExpression<_, _, _> -> OlyIRExpression<_, _, _>) : OlyIROperation<_, _, _> =
+        let mutable newArgs = Unchecked.defaultof<_ imarrayb>
+        this.ForEachArgument (fun i arg ->
+            let newArg = mapper i arg
+            if arg <> newArg then
+                if newArgs = null then
+                    newArgs <- ImArray.builderWithSize this.ArgumentCount
+                    for j = 0 to i - 1 do
+                        newArgs.Add(this.GetArgument(j))
+            if newArgs <> null then
+                newArgs.Add(newArg)
+        )
+        if newArgs = null then
+            this
+        else
+            this.ReplaceArguments(newArgs.MoveToImmutable())
 
     member this.ArgumentCount =
         match this with

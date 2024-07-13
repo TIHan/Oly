@@ -146,14 +146,28 @@ let InlineOr (expr1: BoundExpression) (expr2: BoundExpression) =
         TypeSymbol.Bool
     )
 
-/// TODO: This is kinda of bad. What do we actually want to pass here? What if the 'value' is not formal? What does that mean?
-let private createGeneratedCallExpression syntaxTree (value: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+    OlyAssert.True(formalValue.IsFormal)
+    let value =
+        let tyArgs =
+            (formalValue.TypeParameters, tyArgs)
+            ||> ImArray.map2 (fun tyPar tyArg -> 
+#if DEBUG || CHECKED
+                match tyArg.TryImmedateTypeParameter with
+                | ValueSome(tyPar2) ->
+                    OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
+                | _ ->
+                    ()
+#endif
+                mkSolvedInferenceVariableType tyPar tyArg
+            )
+        formalValue.Apply(tyArgs)
     BoundExpression.Call(
         BoundSyntaxInfo.Generated(syntaxTree),
         None,
         witnessArgs,
         args,
-        actualValue value.Enclosing tyArgs value.Formal,
+        value,
         isVirtualCall
     )
 

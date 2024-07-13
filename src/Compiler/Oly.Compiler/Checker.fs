@@ -978,6 +978,7 @@ let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterS
     if isStatic then
         checkStaticContextForFreeLocals env bodyExpr pars
 
+// TODO: Get rid of 'freshenAndCheckValue'. Replace the uses with 'freshenValue'.
 let freshenAndCheckValue env (argExprsOpt: BoundExpression imarray voption) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
     let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
 
