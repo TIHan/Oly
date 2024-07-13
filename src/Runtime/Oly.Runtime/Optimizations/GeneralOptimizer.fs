@@ -23,6 +23,18 @@ let private Or arg1 arg2 resultTy =
 
 let private optimizeOperation optenv irExpr : E<_, _, _> =
     match irExpr with
+    | E.Operation(irTextRange, irOp) ->
+        let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> optimizeExpression optenv argExpr)
+        if newOp = irOp then
+            optimizeOperationSecondPass optenv irExpr
+        else
+            E.Operation(irTextRange, newOp)
+            |> optimizeOperationSecondPass optenv
+    | _ ->
+        failwith "invalid expression"
+
+let private optimizeOperationSecondPass optenv irExpr : E<_, _, _> =
+    match irExpr with
     // Makes optimizations easier
     | And(And(argx1, argx2, _), arg2, resultTy) ->
         And argx1 (And argx2 arg2 resultTy) resultTy
@@ -265,29 +277,11 @@ let private optimizeExpressionCore optenv irExpr : E<_, _, _> =
         else
             irNewExpr2
 
-    | E.Operation(irTextRange, irOp) ->
-        //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> optimizeExpression argExpr)
-        //if newOp = irOp then
-        //    optimizeOperation irExpr
-        //else
-        //    E.Operation(irTextRange, newOp)
-        //    |> optimizeOperation
-        let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> optimizeExpression optenv irArgExpr)
-        let mutable areSame = true
-        irOp.ForEachArgument(fun i irArgExpr ->
-            if irNewArgExprs[i] <> irArgExpr then
-                areSame <- false
-        )
-        if areSame then
-            optimizeOperation optenv irExpr
-        else
-            let irNewOp = irOp.ReplaceArguments(irNewArgExprs) 
-            E.Operation(irTextRange, irNewOp)
-            |> optimizeOperation optenv
+    | E.Operation _ ->
+        optimizeOperation optenv irExpr
 
     | _ ->
         irExpr
-
 
 let OptimizeExpression (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) : E<_, _, _> =
     optimizeExpression optenv irExpr
