@@ -604,8 +604,6 @@ let private lateCheckCalleeExpression cenv env expr =
 
     checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
 
-    let expr = ImplicitRules.ImplicitCallExpression env.benv expr
-
     autoDereferenceExpression expr
 
 let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
@@ -657,6 +655,7 @@ let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
     |> checkEarlyArgumentsOfCallExpression cenv env
     |> checkCallerExpression cenv env tyChecking skipEager expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env tyChecking
+    |> ImplicitRules.ImplicitCallExpression env.benv
     |> checkArgumentsOfCallLikeExpression cenv env tyChecking
     |> lateCheckCalleeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
@@ -744,7 +743,7 @@ let private checkArgumentExpression cenv env (tyChecking: TypeChecking) expected
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
-                ImplicitRules.ImplicitReturn expectedTyOpt argExpr
+                argExpr
     )
 
 let private checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr =
