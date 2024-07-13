@@ -127,273 +127,266 @@ let private copyPropagationOptimizeExpression optenv (items: Dictionary<int, Cop
     | _ ->
         irExpr
 
-let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
-    let items = Dictionary<int, CopyPropagationItem<_, _, _>>()
+let private handleOperation optenv items irExpr : E<_, _, _> =
+    match irExpr with
+    | E.Operation(irTextRange, irOp) ->
+        let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression optenv items argExpr)
+        if newOp = irOp then
+            handleOperationSecondPass optenv items irExpr
+        else
+            E.Operation(irTextRange, newOp)
+            |> handleOperationSecondPass optenv items
+    | _ ->
+        OlyAssert.Fail("Expected operation")
 
-    let handleOperation irExpr : E<_, _, _> =
-        match irExpr with
-        | E.Operation(op=irOp) ->
-            match irOp with
-            | O.LoadFromAddress(E.Value(value=V.Local(localIndex, _)), resultTy) ->
-                match tryGetPropagatedExpressionByLoadFromAddressLocal optenv items (localIndex, resultTy) with
-                | Some(irNewExpr) ->
-                    irNewExpr
-                | _ ->
-                    irExpr
+let private handleOperationSecondPass optenv items irExpr : E<_, _, _> =
+    match irExpr with
+    | E.Operation(op=irOp) ->
+        match irOp with
+        | O.LoadFromAddress(E.Value(value=V.Local(localIndex, _)), resultTy) ->
+            match tryGetPropagatedExpressionByLoadFromAddressLocal optenv items (localIndex, resultTy) with
+            | Some(irNewExpr) ->
+                irNewExpr
             | _ ->
                 irExpr
         | _ ->
-            OlyAssert.Fail("Expected operation")
+            irExpr
+    | _ ->
+        OlyAssert.Fail("Expected operation")
 
-    let rec handleExpression irExpr : E<_, _, _> =
-        StackGuard.Do(fun () ->
-            handleExpressionAuxCopyPropagation irExpr
-        )
+let private handleExpression optenv items irExpr : E<_, _, _> =
+    StackGuard.Do(fun () ->
+        handleExpressionAuxCopyPropagation optenv items irExpr
+    )
 
-    and handleExpressionAuxCopyPropagation irExpr : E<_, _, _> =
-        let irExpr = copyPropagationOptimizeExpression optenv items irExpr
-        match irExpr with
-        | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
-            let irNewRhsExpr = handleExpression irRhsExpr
+let private handleExpressionAuxCopyPropagation optenv items irExpr : E<_, _, _> =
+    let irExpr = copyPropagationOptimizeExpression optenv items irExpr
+    match irExpr with
+    | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
+        let irNewRhsExpr = handleExpression optenv items irRhsExpr
 
-            if optenv.IsLocalMutable(localIndex) |> not then
-                match irNewRhsExpr with
-                | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
-                    items.Add(localIndex, CopyPropagationItem.Local(localIndexToPropagate))
-                    handleExpression irBodyExpr
+        if optenv.IsLocalMutable(localIndex) |> not then
+            match irNewRhsExpr with
+            | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
+                items.Add(localIndex, CopyPropagationItem.Local(localIndexToPropagate))
+                handleExpression optenv items irBodyExpr
 
-                | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
-                    items.Add(localIndex, CopyPropagationItem.Argument(argIndexToPropagate))
-                    handleExpression irBodyExpr
+            | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
+                items.Add(localIndex, CopyPropagationItem.Argument(argIndexToPropagate))
+                handleExpression optenv items irBodyExpr
 
+            | E.Value(value=V.Constant(c, _)) ->
+                items.Add(localIndex, CopyPropagationItem.Constant(c))
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
+
+                if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                    irExpr
+                else
+                    E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+
+            | E.Operation(op=O.Upcast(irArgExpr, castTy)) ->
+                match irArgExpr with
+
+                // Handles the case where we have a constant enum type being upcasted to its base type.
+                // TODO: Maybe we should just have an IR ConstantEnum value like in IL.
                 | E.Value(value=V.Constant(c, _)) ->
                     items.Add(localIndex, CopyPropagationItem.Constant(c))
-                    let irNewBodyExpr = handleExpression irBodyExpr
+                    let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
                     if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
                         irExpr
                     else
                         E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                | E.Operation(op=O.Upcast(irArgExpr, castTy)) ->
-                    match irArgExpr with
+                | _ ->
+                    let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                    // Handles the case where we have a constant enum type being upcasted to its base type.
-                    // TODO: Maybe we should just have an IR ConstantEnum value like in IL.
-                    | E.Value(value=V.Constant(c, _)) ->
-                        items.Add(localIndex, CopyPropagationItem.Constant(c))
-                        let irNewBodyExpr = handleExpression irBodyExpr
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                        if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                            irExpr
-                        else
-                            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+            | E.Operation(op=O.LoadField(irField, irReceiverExpr, _)) when not irField.IsMutable ->
+                match irReceiverExpr with
+                | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
+                    items.Add(localIndex, CopyPropagationItem.LoadField(irField, irReceiverExpr))
+                    let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                    | _ ->
-                        let irNewBodyExpr = handleExpression irBodyExpr
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                        if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                            irExpr
-                        else
-                            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
+                    items.Add(localIndex, CopyPropagationItem.LoadField(irField, irReceiverExpr))
+                    let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                | E.Operation(op=O.LoadField(irField, irReceiverExpr, _)) when not irField.IsMutable ->
-                    match irReceiverExpr with
-                    | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
-                        items.Add(localIndex, CopyPropagationItem.LoadField(irField, irReceiverExpr))
-                        let irNewBodyExpr = handleExpression irBodyExpr
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                        if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                            irExpr
-                        else
-                            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                | _ ->
+                    let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                    | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
-                        items.Add(localIndex, CopyPropagationItem.LoadField(irField, irReceiverExpr))
-                        let irNewBodyExpr = handleExpression irBodyExpr
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                        if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                            irExpr
-                        else
-                            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
-
-                    | _ ->
-                        let irNewBodyExpr = handleExpression irBodyExpr
-
-                        if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                            irExpr
-                        else
-                            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
-
-                | E.Operation(op=O.NewTuple(_, irArgExprs, _)) ->
-                    let itemsToAdd =
-                        irArgExprs
-                        |> ImArray.map (fun irArgExpr ->
-                            match irArgExpr with
+            | E.Operation(op=O.NewTuple(_, irArgExprs, _)) ->
+                let itemsToAdd =
+                    irArgExprs
+                    |> ImArray.map (fun irArgExpr ->
+                        match irArgExpr with
+                        | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
+                            Some(CopyPropagationItem.Local(localIndexToPropagate))
+                        | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
+                            Some(CopyPropagationItem.Argument(argIndexToPropagate))
+                        | E.Operation(op=O.LoadField(irField, irReceiverExpr, _)) when not irField.IsMutable ->
+                            match irReceiverExpr with
                             | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
-                                Some(CopyPropagationItem.Local(localIndexToPropagate))
+                                Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
+
                             | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
-                                Some(CopyPropagationItem.Argument(argIndexToPropagate))
-                            | E.Operation(op=O.LoadField(irField, irReceiverExpr, _)) when not irField.IsMutable ->
-                                match irReceiverExpr with
+                                Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
+
+                            | E.Operation(op=O.LoadField(irField2, irReceiverExpr2, _)) when not irField2.IsMutable ->
+                                match irReceiverExpr2 with
                                 | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
                                     Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
 
                                 | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
                                     Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
 
-                                | E.Operation(op=O.LoadField(irField2, irReceiverExpr2, _)) when not irField2.IsMutable ->
-                                    match irReceiverExpr2 with
-                                    | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
-                                        Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
-
-                                    | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
-                                        Some(CopyPropagationItem.LoadField(irField, irReceiverExpr))
-
-                                    | _ ->
-                                        None
-
                                 | _ ->
                                     None
 
-                            | E.Value(value=V.Constant(c, _)) ->
-                                Some(CopyPropagationItem.Constant(c))
-
                             | _ ->
                                 None
-                        )
-                    items.Add(localIndex, CopyPropagationItem.NewTuple(itemsToAdd))
 
-                    let irNewBodyExpr = handleExpression irBodyExpr
+                        | E.Value(value=V.Constant(c, _)) ->
+                            Some(CopyPropagationItem.Constant(c))
 
-                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
-                        irExpr
-                    else
-                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                        | _ ->
+                            None
+                    )
+                items.Add(localIndex, CopyPropagationItem.NewTuple(itemsToAdd))
 
-                | E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)) when not(hasSideEffect optenv irArgExpr) ->
-                    items.Add(localIndex, CopyPropagationItem.LoadFunction(irFunc, irArgExpr))
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                    let irNewBodyExpr = handleExpression irBodyExpr
+                if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                    irExpr
+                else
+                    E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-                    if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                        irExpr
-                    else
-                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+            | E.Operation(op=O.LoadFunction(irFunc, irArgExpr, _)) when not(hasSideEffect optenv irArgExpr) ->
+                items.Add(localIndex, CopyPropagationItem.LoadFunction(irFunc, irArgExpr))
 
-                | _ ->
-                    let irNewBodyExpr = handleExpression irBodyExpr
-
-                    if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                        irExpr
-                    else
-                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
-            else
-                let irNewBodyExpr = handleExpression irBodyExpr
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
                 if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
                     irExpr
                 else
                     E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-        | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression irConditionExpr
-
-            match irNewConditionExpr with
-            | E.Value(value=V.Constant(C.True, _)) ->
-                handleExpression irTrueTargetExpr
-
-            | E.Value(value=V.Constant(C.False, _)) ->
-                handleExpression irFalseTargetExpr
-
             | _ ->
-                let irNewTrueTargetExpr = handleExpression irTrueTargetExpr
-                let irNewFalseTargetExpr = handleExpression irFalseTargetExpr
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-                if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
+                if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
                     irExpr
                 else
-                    E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
+                    E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+        else
+            let irNewBodyExpr = handleExpression optenv items irBodyExpr
 
-        | E.While(irConditionExpr, irBodyExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression irConditionExpr
-
-            match irNewConditionExpr with
-            | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(NoRange, resultTy)
-            | _ ->
-                let irNewBodyExpr = handleExpression irBodyExpr
-
-                if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
-                    irExpr
-                else
-                    E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
-
-        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
-            let irNewBodyExpr = handleExpression irBodyExpr
-
-            let mutable didChange = false
-            let irNewCatchCases =
-                irCatchCases
-                |> ImArray.map (fun irCatchCase ->
-                    match irCatchCase with
-                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
-                        let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
-
-                        if irNewCaseBodyExpr = irCaseBodyExpr then
-                            irCatchCase
-                        else
-                            didChange <- true
-                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
-                )
-
-            let irNewFinallyBodyExprOpt =
-                irFinallyBodyExprOpt
-                |> Option.map (fun irExpr ->
-                    let irNewExpr = handleExpression irExpr
-                    if irNewExpr = irExpr then
-                        irExpr
-                    else
-                        didChange <- true
-                        irNewExpr
-                )
-
-            if irNewBodyExpr = irBodyExpr && not didChange then
+            if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
                 irExpr
             else
-                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+                E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
 
-        | E.Sequential(irExpr1, irExpr2) ->
-            let irNewExpr1 = handleExpression irExpr1
-            let irNewExpr2 = handleExpression irExpr2
+    | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
+        let irNewConditionExpr = handleExpression optenv items irConditionExpr
 
-            if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-                irExpr
-            else
-                E.Sequential(irNewExpr1, irNewExpr2)
+        match irNewConditionExpr with
+        | E.Value(value=V.Constant(C.True, _)) ->
+            handleExpression optenv items irTrueTargetExpr
 
-        | E.Operation(irTextRange, irOp) ->
-            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression argExpr)
-            //if newOp = irOp then
-            //    handleOperation irExpr
-            //else
-            //    E.Operation(irTextRange, newOp)
-            //    |> handleOperation
-            let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
-            let mutable areSame = true
-            irOp.ForEachArgument(fun i irArgExpr ->
-                if irNewArgExprs[i] <> irArgExpr then
-                    areSame <- false
-            )
-            if areSame then
-                irExpr
-                |> handleOperation
-            else
-                let irNewOp = irOp.ReplaceArguments(irNewArgExprs)
-                E.Operation(irTextRange, irNewOp)
-                |> handleOperation
+        | E.Value(value=V.Constant(C.False, _)) ->
+            handleExpression optenv items irFalseTargetExpr
 
         | _ ->
-            irExpr
+            let irNewTrueTargetExpr = handleExpression optenv items irTrueTargetExpr
+            let irNewFalseTargetExpr = handleExpression optenv items irFalseTargetExpr
 
-    handleExpression irExpr
+            if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
+                irExpr
+            else
+                E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
+
+    | E.While(irConditionExpr, irBodyExpr, resultTy) ->
+        let irNewConditionExpr = handleExpression optenv items irConditionExpr
+
+        match irNewConditionExpr with
+        | E.Value(value=V.Constant(C.False, _)) ->
+            E.None(NoRange, resultTy)
+        | _ ->
+            let irNewBodyExpr = handleExpression optenv items irBodyExpr
+
+            if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
+                irExpr
+            else
+                E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+    | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+        let irNewBodyExpr = handleExpression optenv items irBodyExpr
+
+        let mutable didChange = false
+        let irNewCatchCases =
+            irCatchCases
+            |> ImArray.map (fun irCatchCase ->
+                match irCatchCase with
+                | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                    let irNewCaseBodyExpr = handleExpression optenv items irCaseBodyExpr
+
+                    if irNewCaseBodyExpr = irCaseBodyExpr then
+                        irCatchCase
+                    else
+                        didChange <- true
+                        OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+            )
+
+        let irNewFinallyBodyExprOpt =
+            irFinallyBodyExprOpt
+            |> Option.map (fun irExpr ->
+                let irNewExpr = handleExpression optenv items irExpr
+                if irNewExpr = irExpr then
+                    irExpr
+                else
+                    didChange <- true
+                    irNewExpr
+            )
+
+        if irNewBodyExpr = irBodyExpr && not didChange then
+            irExpr
+        else
+            E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+
+    | E.Sequential(irExpr1, irExpr2) ->
+        let irNewExpr1 = handleExpression optenv items irExpr1
+        let irNewExpr2 = handleExpression optenv items irExpr2
+
+        if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
+            irExpr
+        else
+            E.Sequential(irNewExpr1, irNewExpr2)
+
+    | E.Operation _ ->
+        handleOperation optenv items irExpr
+
+    | _ ->
+        irExpr
+
+let CopyPropagation (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
+    let items = Dictionary<int, CopyPropagationItem<_, _, _>>()
+    handleExpression optenv items irExpr
