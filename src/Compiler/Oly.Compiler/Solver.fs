@@ -29,6 +29,14 @@ type SolverEnvironment =
             reportTypeErrors = true
         }
 
+    static member CreateNoTypeErrors(diagnostics, benv, pass) =
+        {
+            diagnostics = diagnostics
+            benv = benv
+            pass = pass
+            reportTypeErrors = false
+        }
+
 [<RequireQualifiedAccess>]
 type WitnessSolver =
     | Subtype
