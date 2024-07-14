@@ -2497,7 +2497,6 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Expected 'an identifier' after '.'."
-            "Unable to infer type at this location."
         ]
     |> ignore
 
@@ -9596,7 +9595,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ?'.",
+            ("Expected type '((int32, int32)) -> ()' but is '(?, ?) -> ()'.",
                 """
     ForEach(xs, (x, y) -> ())
                 ^^^^^^^^^^^^

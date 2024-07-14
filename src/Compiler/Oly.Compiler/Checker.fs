@@ -688,7 +688,8 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
         // REVIEW: If either type is an error, then just solve it without subsumption 
         //         because subsumption skips solving if it sees an error type. We should *review* that logic.
         if exprTy.IsError_t || expectedTy.IsError_t then
-            solveTypes env expr.Syntax expectedTy exprTy
+            if env.reportTypeErrors then
+                solveTypes env expr.Syntax expectedTy exprTy
         else
             solveTypesWithSubsumption env expr.Syntax expectedTy exprTy
 

@@ -295,6 +295,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.EagerInferenceVariable(varSolution, eagerTy), ty 
         | ty, TypeSymbol.EagerInferenceVariable(varSolution, eagerTy) when (rigidity = Flexible) ->
+            OlyAssert.True(eagerTy.IsSolved)
+            OlyAssert.False(eagerTy.IsTypeVariable)
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
                 tySolution.Solution <- eagerTy
@@ -329,6 +331,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
         | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
+            OlyAssert.True(eagerTy.IsSolved)
+            OlyAssert.False(eagerTy.IsTypeVariable)
             if targetTy.IsAnyStruct && not targetTy.IsTypeVariable then
                 match targetTy with
                 | TypeSymbol.UInt8

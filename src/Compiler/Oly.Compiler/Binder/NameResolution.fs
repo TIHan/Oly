@@ -788,7 +788,8 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
                     // Dummy argExprs.
                     match resInfo.resArgs with
                     | ResolutionArguments.ByType(argTys) ->
-                        argTys |> ImArray.map (fun x -> E.Typed(BoundSyntaxInfo.Generated(cenv.syntaxTree), E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree)), x))
+                        // REVIEW: What exactly is this doing?
+                        argTys |> ImArray.map (fun x -> E.Typed(syntaxInfo, E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree)), x))
                     | _ ->
                         func.Parameters |> ImArray.map (fun _ -> BoundExpression.CreateValue(syntaxNode.Tree, invalidValue None))
                 else

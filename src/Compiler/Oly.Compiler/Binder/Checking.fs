@@ -814,6 +814,12 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
         if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
+        let tyChecking =
+            if value.IsFunctionGroup then
+                TypeChecking.Disabled
+            else
+                tyChecking
+
         let newArgExprs =
             let env = env.SetReturnable(false)
             argExprs
@@ -851,10 +857,18 @@ let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking
     | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) when env.isReturnable || not env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
 
-        match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
-        | ValueSome(literal) ->
-            E.Literal(syntaxInfo, stripLiteral literal)
-        | _ ->
+        let canEval =
+            match tyChecking with
+            | TypeChecking.Enabled -> true
+            | TypeChecking.Disabled -> false
+
+        if canEval then
+            match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+            | ValueSome(literal) ->
+                E.Literal(syntaxInfo, stripLiteral literal)
+            | _ ->
+                expr
+        else
             expr
 
     | E.Literal _ when env.isReturnable || not env.isPassedAsArgument ->
