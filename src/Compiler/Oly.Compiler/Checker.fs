@@ -908,12 +908,6 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
     | BoundExpression.Sequential(_, expr1, _, _) ->
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
 
-    | BoundExpression.GetProperty(prop=prop) ->
-        // We can have a GetProperty expression even if the property does not have a getter.
-        // The reason is because we initially bind to a GetProperty before potentially turning it into a SetProperty.
-        if prop.Getter.IsSome then
-            checkReceiverOfExpression env expr
-
     | _ ->
         ()
 
