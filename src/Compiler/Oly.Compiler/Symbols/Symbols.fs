@@ -4388,6 +4388,13 @@ type TypeSymbol =
         | _ -> 
             ImArray.empty
 
+    member this.TryAnyFunctionReturnType: TypeSymbol voption =
+        match this.TryFunction with
+        | ValueSome(_, returnTy) ->
+            ValueSome returnTy
+        | _ -> 
+            ValueNone
+
     static member CreateTupleOrOneOrUnit(tys: ImmutableArray<TypeSymbol>) =
         if tys.Length >= 2 then
             TypeSymbol.CreateTuple(tys)

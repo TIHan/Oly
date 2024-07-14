@@ -672,6 +672,7 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
+            "Expected type 'T' but is 'X'."
             "Type instantiation 'X' is missing the constraint 'trait Add<X, X, X>'."
         ]
     |> ignore

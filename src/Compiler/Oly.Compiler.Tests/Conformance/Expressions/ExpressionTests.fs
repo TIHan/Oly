@@ -8188,24 +8188,11 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics
-        // TODO: There are duplicate errors. We should figure out how to produce only one.
         [
-            ("Expected type 'int32 -> ()' but is '() -> ?'.",
-            """
-            X = () -> ()
-                ^^^^^^^^
-"""
-            )
             ("Expected type 'int32 -> ()' but is '() -> ()'.",
             """
             X = () -> ()
                 ^^^^^^^^
-"""
-            )
-            ("Expected type 'int32 -> ()' but is '() -> ?'.",
-            """
-    t.X <- () -> ()
-           ^^^^^^^^
 """
             )
             ("Expected type 'int32 -> ()' but is '() -> ()'.",
@@ -9911,3 +9898,22 @@ main(): () =
     let ~^~x = [() -> 1]
     """
     |> hasSymbolSignatureTextByCursor "x: (() -> int32)[]"
+
+[<Fact>]
+let ``Inference on uint32 array should be correct``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+main(): () =
+    let indices: mutable uint32[] =
+        mutable [
+            0;  1;  2
+            2;  3;  0
+        ]
+    """
+    |> Oly
+    |> shouldCompile

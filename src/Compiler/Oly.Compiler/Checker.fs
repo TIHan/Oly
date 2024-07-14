@@ -855,59 +855,6 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: Boun
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
-and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Call(syntaxInfo, _, _, argExprs, value, _) ->
-        OlyAssert.False(value.IsFunctionGroup)
-
-        let syntaxNode =
-            match syntaxInfo.Syntax with
-            | :? OlySyntaxExpression as syntax ->
-                match syntax with
-                | OlySyntaxExpression.Call(syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.InfixCall(_, syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.PrefixCall(syntax, _) -> syntax :> OlySyntaxNode
-                | _ -> syntax :> OlySyntaxNode
-            | syntax ->
-                syntax
-
-        let valueTy = value.LogicalType
-
-        (argExprs, valueTy.FunctionArgumentTypes)
-        ||> ImArray.tryIter2 (fun argExpr expectedTy ->
-            match argExpr with
-            | BoundExpression.Lambda(body=body) ->
-                OlyAssert.True(body.HasExpression)
-                match expectedTy.TryFunction with
-                | ValueSome(_, expectedTy) ->
-                    body.Expression.ForEachReturningTargetExpression(fun expr ->
-                        checkExpressionType env expectedTy expr
-                    )
-                | _ ->
-                    ()
-            | _ ->
-                ()
-        )
-
-        if value.Enclosing.IsAbstract && value.IsConstructor && not value.IsBase then
-            env.diagnostics.Error(sprintf "The constructor call is not allowed as the enclosing type '%s' is abstract." (printEnclosing env.benv value.Enclosing), 10, syntaxNode)
-
-        if not isReturnable && value.IsInstanceConstructor && value.IsBase then
-            env.diagnostics.Error("The base constructor call is only allowed as the last expression of a branch.", 10, syntaxNode)
-    | _ ->
-        OlyAssert.Fail("Expected 'Call' expression.")
-
-/// This checks the expression to verify its correctness.
-/// It does not check all expressions under the expression.
-/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
-and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Call(value=value) when not value.IsFunctionGroup ->
-        checkArgumentsFromCallExpression env isReturnable expr
-
-    | _ ->
-        ()
-
 let checkStaticContextForFreeLocals env (expr: BoundExpression) (pars: ILocalParameterSymbol imarray) =
     let freeLocals = 
         match expr with

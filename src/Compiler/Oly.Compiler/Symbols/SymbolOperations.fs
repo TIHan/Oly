@@ -403,6 +403,33 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2))
         | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2) ->
             if kind1 = kind2 then
+                let result =
+                    (
+                        match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
+                        | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
+                            UnifyTypes rigidity inputTy1 inputTy2
+
+                        | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
+                        | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
+                            let elementTy = elementTys[0]
+                            if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
+                                UnifyTypes rigidity elementTy ty
+                            else
+                                UnifyTypes rigidity tupTy ty
+
+                        | TypeSymbol.Tuple _, ty
+                        | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
+                            false
+
+                        | _ ->
+                            UnifyTypes rigidity inputTy1 inputTy2
+                    )
+                unifyReturnType rigidity returnTy1 returnTy2 && result
+            else
+                false
+
+        | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
+            let result =
                 (
                     match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
                     | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
@@ -422,34 +449,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
                     | _ ->
                         UnifyTypes rigidity inputTy1 inputTy2
-                ) &&
-                unifyReturnType rigidity returnTy1 returnTy2
-            else
-                false
-
-        | TypeSymbol.NativeFunctionPtr(ilCallConv1, inputTy1, returnTy1), TypeSymbol.NativeFunctionPtr(ilCallConv2, inputTy2, returnTy2) ->
-            (
-                match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
-                | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-
-                | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
-                | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
-                    let elementTy = elementTys[0]
-                    if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
-                        UnifyTypes rigidity elementTy ty
-                    else
-                        UnifyTypes rigidity tupTy ty
-
-                | TypeSymbol.Tuple _, ty
-                | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
-                    false
-
-                | _ ->
-                    UnifyTypes rigidity inputTy1 inputTy2
-            ) &&
+                )
             unifyReturnType rigidity returnTy1 returnTy2 &&
-            ilCallConv1 = ilCallConv2
+            ilCallConv1 = ilCallConv2 && result
 
         | TypeSymbol.Tuple(tyArgs1, _), TypeSymbol.Tuple(tyArgs2, _) ->
             // This handles the actual expansion of the variadic type, which is stored as a tuple type.

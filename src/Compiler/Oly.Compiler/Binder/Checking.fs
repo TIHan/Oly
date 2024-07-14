@@ -834,6 +834,16 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
                     |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
                 )
             )
+
+        match tyChecking with
+        | TypeChecking.Enabled ->
+            if value.Enclosing.IsAbstract && value.IsConstructor && not value.IsBase then
+                cenv.diagnostics.Error(sprintf "The constructor call is not allowed as the enclosing type '%s' is abstract." (printEnclosing env.benv value.Enclosing), 10, syntaxInfo.Syntax)
+
+            if not env.isReturnable && value.IsInstanceConstructor && value.IsBase then
+                cenv.diagnostics.Error("The base constructor call is only allowed as the last expression of a branch.", 10, syntaxInfo.Syntax)
+        | _ ->
+            ()
         
         E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
 
@@ -876,6 +886,19 @@ let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking
         expr
 
     | E.Lambda(body=lazyBodyExpr) when env.isReturnable || not env.isPassedAsArgument ->
+        //match expectedTyOpt with
+        //| Some expectedTy ->
+        //    match tyChecking with
+        //    | TypeChecking.Enabled ->
+        //        match expectedTy.TryFunction, expr.Type.TryFunction with
+        //        | ValueSome(inputTy1, returnTy1), ValueSome(inputTy2, returnTy2) ->
+        //            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass))
+        //                inputTy1
+        //                inputTy2
+
+        //        checkExpressionType cenv env expectedTyOpt expr
+        //    | TypeChecking.Disabled ->
+        //        ()
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
         if not lazyBodyExpr.HasExpression then
             lazyBodyExpr.Run()

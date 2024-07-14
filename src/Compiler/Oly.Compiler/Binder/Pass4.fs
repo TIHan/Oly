@@ -647,6 +647,8 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
         | _ ->
             raise(InternalCompilerException())
 
+    let mutable expr = Unchecked.defaultof<E>
+
     let bind (pars: ImmutableArray<ILocalParameterSymbol>) isStatic syntaxBodyExpr =
         let argTys = pars |> ImArray.map (fun x -> x.Type)
 
@@ -695,7 +697,11 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                     )
                     |> ImArray.choose id
 
-                let _, bodyExpr = bindLocalExpression cenv (env1.SetReturnable(false)) None syntaxBodyExpr syntaxBodyExpr
+                let funcTy = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), FunctionKind.Normal)
+
+                UnifyTypes Flexible funcTy expr.Type |> ignore
+
+                let _, bodyExpr = bindLocalExpression cenv (env1.SetReturnable(false)) (Some funcTy.TryAnyFunctionReturnType.Value) syntaxBodyExpr syntaxBodyExpr
 
                 let bodyExpr =
                     if casePats.IsEmpty then
@@ -719,7 +725,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
                         )
 
                 let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env1.benv, cenv.pass)
-                let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), FunctionKind.Normal)
+                
                 checkLocalLambdaKind solverEnv bodyExpr pars isStatic
                 bodyExpr
             )
@@ -736,7 +742,9 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
         else
             LambdaFlags.None
 
-    env, BoundExpression.CreateLambda(syntaxToCapture, env.benv, lambdaFlags, ImArray.empty, pars, bodyExpr)
+    expr <- BoundExpression.CreateLambda(syntaxToCapture, env.benv, lambdaFlags, ImArray.empty, pars, bodyExpr)
+
+    env, expr
 
 let private bindMatchPattern (cenv: cenv) (env: BinderEnvironment) solverEnv isFirstPatternSet (clauseLocals: Dictionary<_, _>) (matchTys: TypeSymbol imarray) (syntaxMatchPattern: OlySyntaxMatchPattern) =
     match syntaxMatchPattern with
@@ -1703,19 +1711,7 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
         else
             expr
 
-    match expr with
-    | E.Lambda _ ->
-        if not env.isPassedAsArgument then
-            checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) env.isReturnable expr
-            match expectedTyOpt with
-            // TODO: Do we really need to check for 'isReturnable' here? It was put here to prevent duplicate error messages...
-            | Some(expectedTy) when not env.isReturnable ->
-                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
-            | _ ->
-                ()
-    | _ ->
-        if env.isInInstanceConstructorType.IsNone || (env.isInInstanceConstructorType.IsSome && not env.isReturnable) then
-            checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) env.isReturnable expr
+   
 
     let expr =
         match expr with
