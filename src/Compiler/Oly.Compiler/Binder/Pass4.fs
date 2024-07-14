@@ -518,14 +518,7 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
         BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
 let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxToCapture syntaxExpr1 syntaxExpr2 =
-    let (env1: BinderEnvironment), expr1 = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxExpr1 syntaxExpr1
-
-    let expr1 =
-        match expr1 with
-        | BoundExpression.Call(value=value) when value.IsFunctionGroup ->
-            checkExpression cenv env (Some TypeSymbol.Unit) expr1
-        | _ ->
-            expr1
+    let (env1: BinderEnvironment), expr1 = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxExpr1 syntaxExpr1
 
     let env2, expr2 =
         bindLocalExpression cenv (env1.SetReturnable(env.isReturnable)) expectedTyOpt syntaxExpr2 syntaxExpr2

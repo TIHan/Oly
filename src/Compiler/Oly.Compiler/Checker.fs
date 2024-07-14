@@ -905,9 +905,6 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
     | BoundExpression.Call(value=value) when not value.IsFunctionGroup ->
         checkArgumentsFromCallExpression env isReturnable expr
 
-    | BoundExpression.Sequential(_, expr1, _, _) ->
-        solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
-
     | _ ->
         ()
 
