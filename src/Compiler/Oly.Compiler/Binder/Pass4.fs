@@ -559,7 +559,6 @@ let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expected
     let _, rhsExpr = bindLocalExpression cenv (envOfBinding.SetReturnable(false)) (Some expectedTy) syntaxRhs syntaxRhs
     match rhsExpr with
     | E.Lambda _ ->
-        checkImmediateExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) false rhsExpr
         checkExpression cenv env (Some expectedTy) rhsExpr
     | _ ->
         rhsExpr
