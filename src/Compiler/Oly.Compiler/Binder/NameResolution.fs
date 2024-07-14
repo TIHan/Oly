@@ -542,41 +542,6 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 
     let value = originalValue.Substitute(tyArgs)
 
-    let isLastTyParVariadic =
-        if originalValue.IsConstructor then
-            match originalValue.Enclosing with
-            | EnclosingSymbol.Entity(ent) ->
-                let tyPars = ent.TypeParameters
-                if tyPars.IsEmpty then
-                    false
-                else
-                    tyPars[tyPars.Length - 1].IsVariadic
-            | _ ->
-                false
-        else
-            if originalValue.TypeParameters.IsEmpty then
-                false
-            else
-                originalValue.TypeParameters[originalValue.TypeParameters.Length - 1].IsVariadic
-            
-    let argExprs =
-        if isLastTyParVariadic then
-            let parCount = value.LogicalType.FunctionParameterCount
-            if argExprs.Length > parCount && parCount > 0 then
-                let lastArgIndex = parCount - 1
-                let headArgExprs = argExprs.RemoveRange(lastArgIndex, argExprs.Length - lastArgIndex)
-                let tailArgExprs = argExprs.RemoveRange(0, lastArgIndex)
-                headArgExprs.Add(
-                    BoundExpression.NewTuple(BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                        tailArgExprs,
-                        TypeSymbol.CreateTuple(tailArgExprs |> ImArray.map (fun x -> x.Type))
-                    )
-                )
-            else
-                argExprs
-        else
-            argExprs
-
     let value, argExprs = 
         if value.IsFunction then
             let func, argExprs = ImplicitArgumentsForFunction env.benv value.AsFunction argExprs

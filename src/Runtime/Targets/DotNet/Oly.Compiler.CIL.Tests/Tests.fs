@@ -12119,7 +12119,7 @@ alias int32
 GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
 
 main(): () =
-    print(GetTupleElement<1, _>("hello", 5))
+    print(GetTupleElement<1, _>(("hello", 5)))
     print(GetTupleElement<0, _>(("world", 6)))
         """
     Oly src

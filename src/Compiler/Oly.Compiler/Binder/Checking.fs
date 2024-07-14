@@ -886,19 +886,6 @@ let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking
         expr
 
     | E.Lambda(body=lazyBodyExpr) when env.isReturnable || not env.isPassedAsArgument ->
-        //match expectedTyOpt with
-        //| Some expectedTy ->
-        //    match tyChecking with
-        //    | TypeChecking.Enabled ->
-        //        match expectedTy.TryFunction, expr.Type.TryFunction with
-        //        | ValueSome(inputTy1, returnTy1), ValueSome(inputTy2, returnTy2) ->
-        //            checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass))
-        //                inputTy1
-        //                inputTy2
-
-        //        checkExpressionType cenv env expectedTyOpt expr
-        //    | TypeChecking.Disabled ->
-        //        ()
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
         if not lazyBodyExpr.HasExpression then
             lazyBodyExpr.Run()
