@@ -69,25 +69,6 @@ let solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty
     if not (solveTypesWithSubsumptionNoError env syntaxNode expectedTy ty) && env.reportTypeErrors then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
 
-let solveFunctionInput env (syntaxNode: OlySyntaxNode) (expectedArgTys: TypeSymbol imarray) (argTysWithSyntax: (TypeSymbol * OlySyntaxNode) imarray) =
-    let argTys =
-        argTysWithSyntax
-        |> ImArray.map fst
-
-    if expectedArgTys.Length <> argTys.Length then
-        env.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." expectedArgTys.Length argTys.Length, 0, syntaxNode)
-    else
-        (expectedArgTys, argTys)
-        ||> Seq.iteri2 (fun i tyx tyy ->
-            let syntax = (argTysWithSyntax.[i] |> snd)
-            let syntax =
-                if syntax.IsDummy then
-                    syntaxNode
-                else
-                    syntax
-            solveTypesWithSubsumption env syntax tyx tyy
-        )
-
 let solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys: TypeSymbol imarray) =
     if Seq.isEmpty funcs then
         env.diagnostics.Error("No functions are present for this construct.", 0, syntaxNode)

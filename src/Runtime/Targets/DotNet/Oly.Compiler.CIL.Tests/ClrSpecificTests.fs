@@ -7615,3 +7615,48 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "1"
+
+[<Fact>]
+let ``Overloading regression on AddByteOffset``() =
+    let src =
+        """
+#[intrinsic("uint8")]
+alias uint8
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[intrinsic("unsafe_cast")]
+nuint(uint8): nuint
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+do_not_run_this(): () =
+    let mutable x: int32 = 5
+    let result = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&x, nuint(4))
+
+main(): () =
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"

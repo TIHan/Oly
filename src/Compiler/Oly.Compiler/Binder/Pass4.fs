@@ -728,7 +728,6 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
 
                 let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env1.benv, cenv.pass)
                 let ty = TypeSymbol.CreateFunction(ImmutableArray.Empty, argTys, mkInferenceVariableType(None), FunctionKind.Normal)
-                checkLambdaExpression solverEnv pars bodyExpr ty
                 checkLocalLambdaKind solverEnv bodyExpr pars isStatic
                 bodyExpr
             )

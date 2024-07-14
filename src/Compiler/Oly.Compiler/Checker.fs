@@ -130,17 +130,6 @@ let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty:
     | _ ->
         true
 
-let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression imarray) (valueTy: TypeSymbol) =
-    match valueTy.TryGetFunctionWithParameters() with
-    | ValueSome(expectedArgTys, _) ->        
-        let argTysWithSyntax =
-            argExprs
-            |> ImArray.map (fun x -> (x.Type, x.FirstReturnExpression.Syntax))
-        solveFunctionInput env syntaxNode expectedArgTys argTysWithSyntax
-    | _ ->
-        if not valueTy.IsError_t then
-            env.diagnostics.Error(sprintf "Not a function.", 3, syntaxNode)
-
 // --------------------------------------------------------------------------------------------------
 
 [<Literal>]
@@ -432,19 +421,6 @@ and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode
             env.diagnostics.Error(sprintf "Cannot inherit the construct '%s'." (printType env.benv ty), 10, syntaxNode)
     )
 
-and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) (ty: TypeSymbol) =
-    if ty.IsError_t then ()
-    else
-        match ty.TryGetFunctionWithParameters() with
-        | ValueSome(argTys, returnTy) ->
-            let syntaxBody = body.Syntax
-            let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
-
-            solveFunctionInput env syntaxBody argTys argTysWithSyntax
-
-        | _ ->
-            OlyAssert.Fail("Expected a function type.")
-
 and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (syntax: OlySyntaxBinding) (binding: LocalBindingInfoSymbol) (rhsExpr: BoundExpression) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) =
     let benv = env.benv
     let value = binding.Value
@@ -591,7 +567,8 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
             match value.Type.TryGetFunctionWithParameters(), firstReturnExpression.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
                 let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
-                solveFunctionInput env syntax argTys1 argTys2WithSyntax
+                ()
+              //  solveFunctionInput env syntax argTys1 argTys2WithSyntax
             | _, _ ->
                 solveTypes env syntax value.Type firstReturnExpression.Type
 
@@ -655,7 +632,8 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
         match bindingInfo2.Type.TryGetFunctionWithParameters(), rhsExpr2.Type.TryGetFunctionWithParameters() with
         | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
             let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
-            solveFunctionInput env syntax argTys1 argTys2WithSyntax
+            ()
+            //solveFunctionInput env syntax argTys1 argTys2WithSyntax
         | _ ->
             solveTypes env syntax bindingInfo2.Type rhsExpr2.Type
 
@@ -919,15 +897,6 @@ and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
-and checkImmediateLambdaExpression env (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Lambda(_, _, _, parValues, lazyBodyExpr, lazyTy, _, _) ->
-        if not lazyBodyExpr.HasExpression then
-            lazyBodyExpr.Run()
-            checkLambdaExpression env parValues lazyBodyExpr.Expression lazyTy.Type
-    | _ ->
-        OlyAssert.Fail("Expected 'Lambda' expression.")
-
 /// This checks the expression to verify its correctness.
 /// It does not check all expressions under the expression.
 /// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
@@ -937,11 +906,6 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
         checkArgumentsFromCallExpression env isReturnable expr
 
     | BoundExpression.Sequential(_, expr1, _, _) ->
-        match expr1 with
-        | BoundExpression.Lambda _ ->
-            checkImmediateLambdaExpression env expr1
-        | _ ->
-            ()
         solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
 
     | BoundExpression.GetProperty(prop=prop) ->
@@ -949,9 +913,6 @@ and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundE
         // The reason is because we initially bind to a GetProperty before potentially turning it into a SetProperty.
         if prop.Getter.IsSome then
             checkReceiverOfExpression env expr
-
-    | BoundExpression.Lambda _ ->
-        checkImmediateLambdaExpression env expr
 
     | _ ->
         ()
@@ -978,39 +939,6 @@ let checkStaticContextForFreeLocals env (expr: BoundExpression) (pars: ILocalPar
 let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterSymbol imarray) isStatic =
     if isStatic then
         checkStaticContextForFreeLocals env bodyExpr pars
-
-// TODO: Get rid of 'freshenAndCheckValue'. Replace the uses with 'freshenValue'.
-let freshenAndCheckValue env (argExprsOpt: BoundExpression imarray voption) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
-    freshenValue env.benv value
-    //let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
-
-    //let valueTy = value.LogicalType
-
-    //if not value.IsFunction && valueTy.IsQuantifiedFunction then 
-    //    let tyPars = valueTy.TypeParameters
-    //    if tyPars.IsEmpty then
-    //        failwith "Expected type parameters for a quantified function type."
-
-    //    let freshTy = freshenType env.benv tyPars ImmutableArray.Empty valueTy
-
-    //    let value2 = 
-    //        if value.IsMutable then
-    //            createMutableLocalValue value.Name freshTy
-    //        else
-    //            createLocalValue value.Name freshTy
-    //    if argExprsOpt.IsSome then
-    //        checkFunctionType env syntaxNode argExprs value2.LogicalType
-    //    value2 :> IValueSymbol
-    //else
-    //    if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then
-    //        if argExprsOpt.IsSome then
-    //            checkFunctionType env syntaxNode argExprs valueTy
-    //        value
-    //    else
-    //        let value2 = freshenValue env.benv value
-    //        if argExprsOpt.IsSome then
-    //            checkFunctionType env syntaxNode argExprs value2.LogicalType
-    //        value2
 
 let checkTypes (env: SolverEnvironment) syntaxNode (expectedTy: TypeSymbol) (ty: TypeSymbol) =
     solveTypes env syntaxNode expectedTy ty

@@ -591,7 +591,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         if argExprsOpt.IsNone then ValueNone
         else ValueSome argExprs
 
-    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) argExprsOpt syntaxInfo.Syntax value   
+    let value = freshenValue env.benv value   
     let witnessArgs = createWitnessArguments cenv value
 
     let receiverExprOpt =
