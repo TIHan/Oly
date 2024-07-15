@@ -1416,12 +1416,6 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("Unable to infer type at this location.",
-            """
-    t.Test(123)
-           ^^^
-"""
-        )
         ("'Test' has ambiguous functions.",
             """
     t.Test(123)

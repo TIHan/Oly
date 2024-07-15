@@ -815,7 +815,7 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let tyChecking =
-            if value.IsFunctionGroup then
+            if value.IsFunctionGroup && env.isPassedAsArgument then
                 TypeChecking.Disabled
             else
                 tyChecking

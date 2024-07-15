@@ -647,7 +647,7 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
 
     match literal with
     | BoundLiteral.NumberInference(lazyLiteral, ty) ->
-        //OlyAssert.True(lazyLiteral.IsValueCreated)
+        OlyAssert.True(lazyLiteral.IsValueCreated)
         analyzeType acenv aenv syntaxNode ty
 
     | BoundLiteral.NullInference(ty) ->
