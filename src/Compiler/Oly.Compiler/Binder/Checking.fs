@@ -46,10 +46,6 @@ let checkSyntaxDeclarationBinding (cenv: cenv) (enclosing: EnclosingSymbol) memb
     | _ ->
         ()
 
-let checkTypeParameterCount (cenv: cenv) syntaxNode expectedTyParCount tyParCount =
-    if expectedTyParCount <> tyParCount then
-        cenv.diagnostics.Error(sprintf "Expected '%i' type argument(s) but got '%i'." expectedTyParCount tyParCount, 0, syntaxNode)
-
 let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindingInfo: BindingInfoSymbol) memberFlags (valueExplicitness: ValueExplicitness) mustHaveImpl (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     let mutable hasErrors = false
 
@@ -117,7 +113,7 @@ let checkEnumForInvalidFieldOrFunction (cenv: cenv) syntaxNode (binding: Binding
     if binding.Value.Enclosing.IsEnum && binding.Value.IsInstance then
         cenv.diagnostics.Error("Instance member not valid on an 'enum' type.", 10, syntaxNode)
 
-let private checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol) =
+let checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol) =
     // Do not strip type equations here.
     match ty with
     | TypeSymbol.Entity(ent) ->
@@ -129,7 +125,7 @@ let private checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol)
         ty.TypeArguments
         |> ImArray.iter (checkUsageTypeExport cenv syntaxNode name)
 
-let private checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: TypeParameterSymbol) =
+let checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.iter (fun x ->
         match x.TryGetAnySubtypeOf() with
@@ -139,7 +135,7 @@ let private checkTypeParameterExport cenv syntaxNode (name: string) (tyPar: Type
             ()
     )
 
-let checkEntityExport cenv env syntaxNode (ent: EntitySymbol) =
+let checkEntityExport cenv syntaxNode (ent: EntitySymbol) =
     if ent.IsExported && ent.IsImported then
         cenv.diagnostics.Error($"'{ent.Name}' cannot be imported and exported at the same time.", 10, syntaxNode)
     else
@@ -191,7 +187,7 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
             if value.IsInstance && not value.Enclosing.IsImported then
                 cenv.diagnostics.Error($"'{value.Name}' cannot be imported as its enclosing is not imported.", 10, syntaxNode)
 
-let private autoDereferenceExpression expr =
+let autoDereferenceExpression expr =
     match expr with
     | E.Call(value=value) ->
         if value.IsAddressOf then
@@ -203,7 +199,7 @@ let private autoDereferenceExpression expr =
     | _ ->
         expr
 
-let private filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray) =
+let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
     else
 
@@ -255,11 +251,11 @@ let private filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol
     )
 
 [<RequireQualifiedAccess>]
-type private TypeChecking =
+type TypeChecking =
     | Enabled
     | Disabled
 
-let private tryOverloadResolution
+let tryOverloadResolution
         (expectedReturnTyOpt: TypeSymbol option) 
         (resArgs: ResolutionArguments)
         (isArgForAddrOf: bool)
@@ -289,7 +285,7 @@ let private tryOverloadResolution
     else
         filteredFuncs |> Some
 
-let private tryOverloadedCallExpression 
+let tryOverloadedCallExpression 
         (cenv: cenv) 
         (env: BinderEnvironment) 
         skipEager
@@ -334,7 +330,7 @@ let private tryOverloadedCallExpression
                 let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (func, syntaxInfo.TrySyntaxName)
                 Some expr
 
-let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
+let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
     
     let lambdaPars =
@@ -368,12 +364,12 @@ let private createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) sy
     
     lambdaExpr
 
-let private createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (syntaxTyArgsRoot, syntaxTyArgs) (func: IFunctionSymbol) =
+let createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (syntaxTyArgsRoot, syntaxTyArgs) (func: IFunctionSymbol) =
     let tyArgs = bindTypeArguments cenv env func.HasStrictInference 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
     createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs func
 
 /// TODO: There is duplication when it comes to handling overloading for non-partial and partial calls. We should figure out a way to combine them.
-let private tryOverloadPartialCallExpression
+let tryOverloadPartialCallExpression
         (cenv: cenv) 
         (env: BinderEnvironment) 
         (expectedTyOpt: TypeSymbol option) 
@@ -403,7 +399,7 @@ let private tryOverloadPartialCallExpression
                 createPartialCallExpression cenv env syntaxInfo.Syntax syntaxNameOpt ImArray.empty func
                 |> Some
 
-let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expr: E) =
+let checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expr: E) =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
 
@@ -453,7 +449,7 @@ let private checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (tyCheck
     | _ ->
         expr
 
-let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
+let checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->
 
@@ -479,7 +475,7 @@ let private checkCallerCallExpression (cenv: cenv) (env: BinderEnvironment) skip
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
 
-let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) skipEager (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
+let checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) skipEager (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     match expr with
     | E.Value(syntaxInfo, value) when value.IsFunction ->
         let syntaxNameOpt =
@@ -527,7 +523,7 @@ let private checkCallerExpression (cenv: cenv) (env: BinderEnvironment) (tyCheck
     | _ ->
         expr
 
-let private lateCheckCalleeExpression cenv env expr =
+let lateCheckCalleeExpression cenv env expr =
     match expr with
     | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, _) ->
         match expr with
@@ -606,7 +602,7 @@ let private lateCheckCalleeExpression cenv env expr =
 
     autoDereferenceExpression expr
 
-let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
+let checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
     let expr = autoDereferenceExpression expr
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
@@ -649,7 +645,7 @@ let private checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (exp
 
     expr
 
-let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
+let checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     checkCallerExpression cenv env tyChecking true None isArgForAddrOf expr
     |> checkCalleeExpression cenv env tyChecking
     |> checkEarlyArgumentsOfCallExpression cenv env
@@ -660,7 +656,7 @@ let private checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
     |> lateCheckCalleeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
 
-let private checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) index parTy argExpr =
+let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) index parTy argExpr =
     match argExpr with
     | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup ->
         let isAddrOf = caller.IsAddressOf
@@ -714,7 +710,7 @@ let private checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (c
     | _ ->
         argExpr
 
-let private checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (argExprs: E imarray) =
+let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (argExprs: E imarray) =
     let argTys = caller.LogicalType.FunctionArgumentTypes
     if argTys.Length = argExprs.Length then              
         (argTys, argExprs)
@@ -728,13 +724,13 @@ let private checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (
         // REVIEW: Maybe we should actually check it here...
         argExprs
 
-let private checkFunctionGroupCalleeArgumentExpression cenv env (tyChecking: TypeChecking) argExpr =
+let checkFunctionGroupCalleeArgumentExpression cenv env (tyChecking: TypeChecking) argExpr =
     checkCallExpression cenv env tyChecking false None false argExpr
 
-let private checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env (tyChecking: TypeChecking) argExpr =
+let checkFunctionGroupCalleeArgumentExpressionForAddressOf cenv env (tyChecking: TypeChecking) argExpr =
     checkCallExpression cenv env tyChecking false None true argExpr
 
-let private checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (argExpr: E) =
+let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (argExpr: E) =
     argExpr.RewriteReturningTargetExpression(
         fun argExpr ->
             match argExpr with
@@ -746,7 +742,7 @@ let private checkArgumentExpression cenv env (tyChecking: TypeChecking) expected
                 argExpr
     )
 
-let private checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr =
+let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr =
     match expectedTyOpt with
     | Some expectedTy ->
         match tyChecking with
@@ -757,7 +753,7 @@ let private checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (e
     | _ ->
         ()
 
-let private checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
+let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let argTys = value.LogicalType.FunctionArgumentTypes
@@ -781,7 +777,7 @@ let private checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) ex
     | _ ->
         expr
 
-let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking: TypeChecking) expr =
+let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking: TypeChecking) expr =
     match expr with
     | E.NewArray(syntaxExpr, benv, argExprs, exprTy) when not argExprs.IsEmpty ->
         let expectedArgTyOpt = Some exprTy.FirstTypeArgument
@@ -862,7 +858,7 @@ let private checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (ty
     | _ ->
         expr
 
-let private checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) expectedTyOpt (expr: E) =
+let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) expectedTyOpt (expr: E) =
     match expr with
     | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) when env.isReturnable || not env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr

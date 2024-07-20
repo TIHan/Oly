@@ -463,7 +463,7 @@ let bindTypeDeclarationPass2 (cenv: cenv) (env: BinderEnvironment) (entities: En
     bindTypeDeclarationBodyPass2 cenv env entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
 
     // TODO: We need to do this in the very top-level ModuleDefinition.
-    checkEntityExport cenv env syntaxIdent entBuilder.Entity
+    checkEntityExport cenv syntaxIdent entBuilder.Entity
 
 let addBindingDeclarationsToEntityPass2 cenv env (bindings: (BindingInfoSymbol * bool) imarray) (entBuilder: EntitySymbolBuilder) =
     let funcs = ImArray.builder()

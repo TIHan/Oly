@@ -34,6 +34,7 @@
     <Compile Include="Binder\Environment.fs" />
     <Compile Include="Binder\Scoping.fs" />
     <Compile Include="Binder\NameResolution.fs" />
+    <Compile Include="Binder\Checking.fsi" />
     <Compile Include="Binder\Checking.fs" />
     <Compile Include="Binder\AttributeBinder.fs" />
     <Compile Include="Binder\Logic.fs" />

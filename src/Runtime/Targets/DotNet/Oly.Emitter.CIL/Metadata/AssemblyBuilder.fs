@@ -209,16 +209,14 @@ module private MetadataHelpers =
                 encodeType(encoder.AddParameter().Type(false), parTy, asmBuilder)
         )
 
-    let createMethodSignature(convention, tyParCount: int, isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle, asmBuilder: ClrAssemblyBuilder) =
-        let signature = BlobBuilder()
-        BlobEncoder(signature).MethodSignature(convention, tyParCount, isInstance).Parameters(
+    let buildMethodSignature(blobBuilder: BlobBuilder, convention, tyParCount: int, isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle, asmBuilder: ClrAssemblyBuilder) =
+        BlobEncoder(blobBuilder).MethodSignature(convention, tyParCount, isInstance).Parameters(
             parTys.Length,
             (fun encoder ->
                 encodeReturnType(encoder, returnTy, asmBuilder)),
             (fun encoder -> 
                 encodeParameters(encoder, parTys, asmBuilder))
         )
-        signature
 
 [<Sealed>]
 type ClrLocal(name: string, ty: ClrTypeHandle, isPinned: bool) =
@@ -833,6 +831,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             createMemRef realHandle name signature
         )
 
+    let signatureBuilder = BlobBuilder()
 
     member internal _.MetadataBuilder = metadataBuilder
     member internal _.ILBuilder = ilBuilder
@@ -1061,12 +1060,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             failwith "assert"
 
     member internal this.CreateMethodSignature(convention, tyParCount: int, isInstance, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        MetadataHelpers.createMethodSignature(convention, tyParCount, isInstance, parTys, returnTy, this)
-        |> metadataBuilder.GetOrAddBlob
+        MetadataHelpers.buildMethodSignature(signatureBuilder, convention, tyParCount, isInstance, parTys, returnTy, this)
+        let blobHandle = metadataBuilder.GetOrAddBlob signatureBuilder
+        signatureBuilder.Clear()
+        blobHandle
 
     member internal this.CreateStandaloneSignature(locals: ClrLocal imarray) =
-        let signature = BlobBuilder()
-        let mutable encoder = BlobEncoder(signature)
+        let mutable encoder = BlobEncoder(signatureBuilder)
         let mutable localVarSignature: LocalVariablesEncoder = encoder.LocalVariableSignature(locals.Length)
 
         locals
@@ -1074,9 +1074,12 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             MetadataHelpers.encodeType(localVarSignature.AddVariable().Type(local.Type.IsByRef_t, local.IsPinned), local.Type, this)
         )
 
-        signature
-        |> metadataBuilder.GetOrAddBlob
-        |> metadataBuilder.AddStandaloneSignature
+        let handle =
+            signatureBuilder
+            |> metadataBuilder.GetOrAddBlob
+            |> metadataBuilder.AddStandaloneSignature
+        signatureBuilder.Clear()
+        handle
 
     member internal this.CreatePropertySignature(isInstance, returnTy: ClrTypeHandle) =
         let signature = BlobBuilder()

@@ -3,13 +3,31 @@ module internal rec Oly.Runtime.CodeGen.InternalTypes
 
 open System
 open System.Collections.Generic
-open System.Collections.Concurrent
 open System.Collections.Immutable
 open System.Diagnostics
 open Oly.Runtime
 open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
+
+module private GenericContextDefault =
+    let Instance =
+        {
+            enclosingTyArgs = ImArray.empty
+            funcTyArgs = ImArray.empty
+            isTyErasing = false
+            isFuncErasing = false
+            passedWitnesses = ImArray.empty
+        }
+
+    let InstanceTypeErasing =
+        {
+            enclosingTyArgs = ImArray.empty
+            funcTyArgs = ImArray.empty
+            isTyErasing = true
+            isFuncErasing = false
+            passedWitnesses = ImArray.empty
+        }
 
 [<NoEquality;NoComparison>]
 type GenericContext =
@@ -21,14 +39,7 @@ type GenericContext =
         passedWitnesses: RuntimeWitness imarray
     }
 
-    static member Default =
-        {
-            enclosingTyArgs = ImArray.empty
-            funcTyArgs = ImArray.empty
-            isTyErasing = false
-            isFuncErasing = false
-            passedWitnesses = ImArray.empty
-        }
+    static member Default = GenericContextDefault.Instance
 
     static member CreateFromEnclosingType(enclosingTy: RuntimeType, funcTyArgs: _ imarray) =
         let enclosingTyArgs = enclosingTy.TypeArguments
@@ -70,7 +81,7 @@ type GenericContext =
 
     static member CreateErasing(enclosingTyArgs: _ imarray) =
         if enclosingTyArgs.IsEmpty then
-            { GenericContext.Default with isTyErasing = true }
+            GenericContextDefault.InstanceTypeErasing
         else
             {
                 enclosingTyArgs = enclosingTyArgs
@@ -91,11 +102,14 @@ type GenericContext =
     member this.FunctionTypeArguments =
         this.funcTyArgs
 
-    member this.Set(enclosingTyArgs, funcTyArgs) =
-        { this with
-            enclosingTyArgs = enclosingTyArgs
-            funcTyArgs = funcTyArgs
-        }
+    member this.Set(enclosingTyArgs: _ imarray, funcTyArgs: _ imarray) =
+        if this.enclosingTyArgs.IsEmpty && this.funcTyArgs.IsEmpty && enclosingTyArgs.IsEmpty && funcTyArgs.IsEmpty then
+            this
+        else
+            { this with
+                enclosingTyArgs = enclosingTyArgs
+                funcTyArgs = funcTyArgs
+            }
 
     member this.GetTypeArgument(index, ilKind) =
         match ilKind with
@@ -304,6 +318,7 @@ type RuntimeEntity =
         mutable ImplementsLazy: RuntimeType imarray Lazy
         mutable RuntimeTypeLazy: RuntimeType option Lazy
         mutable FieldsLazy: RuntimeField imarray Lazy
+        mutable AsType: RuntimeType
 
         Info: RuntimeEntityInfo
     }
@@ -806,7 +821,7 @@ type RuntimeType =
 
     member this.Formal =
         match this with
-        | Entity(ent) -> Entity(ent.Formal)
+        | Entity(ent) -> ent.Formal.AsType
         | ForAll _ -> this
         | _ -> this // TODO:
 
@@ -1714,7 +1729,7 @@ let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
 
 [<Sealed>]
 type RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Value>() =  
-    let comparer =
+    static let comparer =
         { new IEqualityComparer<RuntimeType imarray> with
             member _.GetHashCode(x) = x.Length
             member _.Equals(x1, x2) =
@@ -1727,7 +1742,7 @@ type RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Value>() =
                     false
         }
 
-    let table = ConcurrentDictionary<RuntimeType imarray, 'Value>(comparer)
+    let table = Dictionary<RuntimeType imarray, 'Value>(comparer)
 
     member this.Item 
         with get key = table.[key]
@@ -1741,7 +1756,7 @@ type RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Value>() =
 
 [<Sealed>]
 type RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Value>() =  
-    let comparer =
+    static let comparer =
         { new IEqualityComparer<struct(RuntimeType imarray * RuntimeWitness imarray)> with
             member _.GetHashCode((tyArgs, witnesses)) = tyArgs.Length + witnesses.Length
             member _.Equals((tyArgs1, witnesses1), (tyArgs2, witnesses2)) =
@@ -1762,7 +1777,7 @@ type RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Fiel
                     false
         }
 
-    let table = ConcurrentDictionary<struct(RuntimeType imarray * RuntimeWitness imarray), 'Value>(comparer)
+    let table = Dictionary<struct(RuntimeType imarray * RuntimeWitness imarray), 'Value>(comparer)
 
     member this.Item 
         with get key = table.[key]
@@ -1776,7 +1791,7 @@ type RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Fiel
 
 [<Sealed>]
 type RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Value>() =  
-    let comparer =
+    static let comparer =
         { new IEqualityComparer<struct(bool * RuntimeType * RuntimeType imarray * RuntimeWitness imarray * bool)> with
             member _.GetHashCode((_, enclosingTy, tyArgs, witnesses, _)) = enclosingTy.TypeArguments.Length + tyArgs.Length + witnesses.Length
             member _.Equals((isErased1, enclosingTy1, tyArgs1, witnesses1, isFormal1), (isErased2, enclosingTy2, tyArgs2, witnesses2, isFormal2)) =
@@ -1797,7 +1812,7 @@ type RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Value>() =
                     false
         }
 
-    let table = ConcurrentDictionary<struct(bool * RuntimeType * RuntimeType imarray * RuntimeWitness imarray * bool), 'Value>(comparer)
+    let table = Dictionary<struct(bool * RuntimeType * RuntimeType imarray * RuntimeWitness imarray * bool), 'Value>(comparer)
 
     member this.Item 
         with get key = table.[key]
@@ -1811,7 +1826,7 @@ type RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Value>() =
 
 [<Sealed>]
 type RuntimeFieldReferenceCache<'Type, 'Function, 'Field>() =  
-    let comparer =
+    static let comparer =
         { new IEqualityComparer<RuntimeField> with
             member _.GetHashCode(x) = x.ILFieldDefinitionHandle.Index
             member _.Equals(x1, x2) =
@@ -1824,7 +1839,7 @@ type RuntimeFieldReferenceCache<'Type, 'Function, 'Field>() =
                     false
         }
 
-    let table = ConcurrentDictionary<RuntimeField, RuntimeField>(comparer)
+    let table = Dictionary<RuntimeField, RuntimeField>(comparer)
 
     member this.Intern(field: RuntimeField) =
         match table.TryGetValue(field) with

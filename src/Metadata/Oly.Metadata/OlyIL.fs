@@ -1,7 +1,7 @@
 ﻿namespace rec Oly.Metadata
 
 open System
-open System.Collections.Concurrent
+open System.Collections.Generic
 open Oly.Core
 
 type OlyILTableKind =
@@ -974,27 +974,13 @@ type private Table<'Value>(kind: OlyILTableKind) =
         index
 
     member this.Get(tableIndex: OlyILTableIndex) =
+#if DEBUG || CHECKED
         if tableIndex.Kind <> kind then
             failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
         if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
             failwithf "Unable to find an entry into the table '%A'." kind
+#endif
         state.[tableIndex.Index]
-
-    member this.TryGet(tableIndex: OlyILTableIndex) =
-        if tableIndex.Kind <> kind then
-            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
-        if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
-            None
-        else
-            Some(state.[tableIndex.Index])
-
-    member this.Contains(tableIndex: OlyILTableIndex) =
-        if tableIndex.Kind <> kind then
-            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
-        if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
-            false
-        else
-            true
 
     member this.Next() =
         let index = this.NextIndex()
@@ -1071,9 +1057,9 @@ type OlyILPropertyDefinitionDocumentation() = class end
 [<NoComparison;ReferenceEquality>]
 type OlyILAssembly =
     private {
-        entDefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
-        entRefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
-        funcDefSet: ConcurrentDictionary<OlyILEntityDefinitionHandle, ConcurrentDictionary<string, ConcurrentDictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
+        entDefSet: Dictionary<string, Dictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
+        entRefSet: Dictionary<string, Dictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
+        funcDefSet: Dictionary<OlyILEntityDefinitionHandle, Dictionary<string, Dictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
 
         // Signature metadata.
         identity: OlyILAssemblyIdentity
@@ -1131,7 +1117,7 @@ type OlyILAssembly =
                 match this.entDefSet.TryGetValue(name) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.entDefSet.[name] <- handles
                     handles
             handles[handle] <- 0uy       
@@ -1143,7 +1129,7 @@ type OlyILAssembly =
                 match this.entRefSet.TryGetValue(name) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.entRefSet.[name] <- handles
                     handles
             handles[handle] <- 0uy 
@@ -1156,7 +1142,7 @@ type OlyILAssembly =
                 match this.funcDefSet.TryGetValue(entDefHandle) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.funcDefSet.[entDefHandle] <- handles
                     handles
 
@@ -1164,7 +1150,7 @@ type OlyILAssembly =
                 match handles.TryGetValue(name) with
                 | true, funcHandles -> funcHandles
                 | _ ->
-                    let funcHandles = ConcurrentDictionary()
+                    let funcHandles = Dictionary()
                     handles[name] <- funcHandles
                     funcHandles
 
@@ -1209,22 +1195,16 @@ type OlyILAssembly =
         this.funcBodies.Add(funcBody)
 
     member this.GetStringOrEmpty(handle: OlyILStringHandle) : string =
-        if handle.IsNil && handle.Kind = OlyILTableKind.String then
+        if handle.IsNil then
             System.String.Empty
         else
             this.strings.Get(handle)
 
     member this.GetEntityDefinition(handle: OlyILEntityDefinitionHandle) : OlyILEntityDefinition =
-        if handle.Kind = OlyILTableKind.EntityDefinition then
-            this.entDefs.Get(handle)
-        else
-            failwith "Incorrect table kind."
+        this.entDefs.Get(handle)
 
     member this.GetEntityReference(handle: OlyILEntityReferenceHandle) : OlyILEntityReference =
-        if handle.Kind = OlyILTableKind.EntityReference then
-            this.entRefs.Get(handle)
-        else
-            failwith "Incorrect table kind."
+        this.entRefs.Get(handle)
 
     member this.GetFunctionSpecification(handle: OlyILFunctionSpecificationHandle): OlyILFunctionSpecification =
         this.funcSpecs.Get(handle)
@@ -1249,9 +1229,6 @@ type OlyILAssembly =
 
     member this.AddPatternDefinition(patDef) =
         this.patDefs.Add(patDef)
-
-    member this.HasFunctionBody(handle: OlyILFunctionBodyHandle) =
-        this.funcBodies.Contains(handle)
 
     member this.EntityDefinitions: (OlyILEntityDefinitionHandle * OlyILEntityDefinition) seq =
         this.entDefs.Values
@@ -1287,14 +1264,6 @@ type OlyILAssembly =
         | _ -> ImArray.empty
 
     member this.FindFunctionDefinitions(entDefHandle: OlyILEntityDefinitionHandle, name: string) =
-        //let entDef = this.GetEntityDefinition(entDefHandle)
-        //entDef.FunctionHandles
-        //|> ImArray.filter (fun handle ->
-        //    let funcDef = this.GetFunctionDefinition(handle)
-        //    let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
-        //    let name2 = this.GetStringOrEmpty(funcSpec.NameHandle)
-        //    name2 = name
-        //)
         match this.funcDefSet.TryGetValue(entDefHandle) with
         | true, handles ->
             match handles.TryGetValue(name) with
@@ -1328,9 +1297,9 @@ type OlyILAssembly =
 
     static member Create(name, stamp, isDebuggable) =
         let asm = {
-            entDefSet = ConcurrentDictionary()
-            entRefSet = ConcurrentDictionary()
-            funcDefSet = ConcurrentDictionary()
+            entDefSet = Dictionary()
+            entRefSet = Dictionary()
+            funcDefSet = Dictionary()
 
             strings = Table(OlyILTableKind.String)
             entRefs = Table(OlyILTableKind.EntityReference)
@@ -1392,9 +1361,6 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
 
     member this.GetPatternDefinition(handle: OlyILPatternDefinitionHandle) =
         ilAsm.GetPatternDefinition(handle)
-
-    member this.HasFunctionBody(handle: OlyILFunctionBodyHandle) =
-        ilAsm.HasFunctionBody(handle)
 
     member this.EntityDefinitions: (OlyILEntityDefinitionHandle * OlyILEntityDefinition) seq =
         ilAsm.EntityDefinitions

@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open System.Linq
 open FSharp.NativeInterop
 
 #nowarn "9"
@@ -171,20 +172,6 @@ module OlySourceTextExtensions =
                 )
             this.ApplyTextChanges(textChanges)
 
-module private Helpers =
-
-    let inline tryBinaryFind ([<InlineIfLambda>] comparer: 'a -> 'b -> int) (value: 'a) (source: 'b[]) : int =
-        let rec loop lo hi =
-            if lo > hi then -1
-            else
-                let mid = lo + (hi - lo) / 2
-                match sign (comparer value source[mid]) with
-                | 0 -> mid
-                | 1 -> loop (mid + 1) hi
-                | _ -> loop lo (mid - 1)
-
-        loop 0 (source.Length - 1)
-
 [<Sealed>]
 type private StringText(str: string) as this =
 
@@ -307,47 +294,67 @@ type private StringText(str: string) as this =
 and [<Sealed>] private StringTextLineCollection(sourceText: StringText) =
     inherit OlySourceTextLineCollection()
 
-    let lines = 
-        [|
-            let mutable startPos = OlyTextPosition()
-            let mutable endPos = OlyTextPosition()
-            let mutable line = 0
-            let mutable col = 0
-            let mutable pos = 0
+    let mutable lastLineNumber = -1
+    let lines = ResizeArray()
+    let lineStarts = ResizeArray()
+    do
+        let mutable startPos = OlyTextPosition()
+        let mutable endPos = OlyTextPosition()
+        let mutable line = 0
+        let mutable col = 0
+        let mutable pos = 0
 
-            for c in sourceText.String do
-                match c with
-                | '\n' -> 
-                    yield OlySourceTextLine(OlyTextSpan.CreateWithEnd(pos - endPos.Column, pos), line, sourceText)
-                    line <- line + 1
-                    col <- 0
-                    startPos <- OlyTextPosition(line, col)
-                    endPos <- startPos
-                | _ ->
-                    col <- col + 1
-                    endPos <- OlyTextPosition(line, col)
+        for c in sourceText.String do
+            match c with
+            | '\n' -> 
+                let start = pos - endPos.Column
+                lineStarts.Add(start)
+                lines.Add(OlySourceTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
+                line <- line + 1
+                col <- 0
+                startPos <- OlyTextPosition(line, col)
+                endPos <- startPos
+            | _ ->
+                col <- col + 1
+                endPos <- OlyTextPosition(line, col)
 
-                pos <- pos + 1
+            pos <- pos + 1
 
-            yield OlySourceTextLine(OlyTextSpan.CreateWithEnd(pos - endPos.Column, pos), line, sourceText)
-        |]
+        let start = pos - endPos.Column
+        lineStarts.Add(start)
+        lines.Add(OlySourceTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
 
     override _.Item index = lines.[index]
 
-    override _.Count = lines.Length
+    override _.Count = lines.Count
 
     override _.GetLineFromPosition(pos: int) =
-        let index =
-            (pos, lines)
-            ||> Helpers.tryBinaryFind (fun pos line ->
-                if line.TextSpan.IntersectsWith(pos) then
-                    0
-                elif pos < line.TextSpan.Start then
-                    -1
+        // This impl is effectively the same as Roslyn.
+
+        // It is common to have back-to-back queries around the last line number that was found.
+        let mutable lineNumber = -1
+        let possibleLineNumber = lastLineNumber
+        if possibleLineNumber <> -1 && pos >= lineStarts[possibleLineNumber] then
+            let limit = Math.Min(lineStarts.Count, possibleLineNumber + 4);
+
+            let mutable i = possibleLineNumber
+            while (i < limit && lineNumber = -1) do
+                if pos < lineStarts[i] then
+                    lineNumber <- i - 1
+                    lastLineNumber <- lineNumber
+                i <- i + 1
+
+        if lineNumber <> -1 then
+            lines[lineNumber]
+        else
+            lineNumber <- lineStarts.BinarySearch(pos)
+            lineNumber <-
+                if lineNumber < 0 then
+                    (~~~lineNumber) - 1
                 else
-                    1
-            )
-        lines[index]
+                    lineNumber
+            lastLineNumber <- lineNumber
+            lines[lineNumber]
 
 [<Sealed;AbstractClass>]
 type OlySourceText private () =

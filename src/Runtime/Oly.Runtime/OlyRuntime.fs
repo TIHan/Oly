@@ -3,7 +3,6 @@ module rec Oly.Runtime.Implementation
 
 open System
 open System.Collections.Generic
-open System.Collections.Concurrent
 open System.Collections.Immutable
 open System.Diagnostics
 open Oly.Runtime
@@ -162,7 +161,7 @@ let checkFunctionInlineability (ilAsm: OlyILReadOnlyAssembly) (ilFuncDef: OlyILF
 [<Sealed>]
 type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Type, 'Function, 'Field>, ilAsm: OlyILReadOnlyAssembly) =
 
-    let cache = ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, RuntimeType>>()
+    let cache = Dictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, RuntimeType>>()
 
     member this.GetOrCreate(handle: OlyILEntityDefinitionHandle, fullTyArgs: RuntimeType imarray) =   
         let instances =
@@ -185,19 +184,19 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
 type internal RuntimeAssembly<'Type, 'Function, 'Field> =
     private {
         ilAsm: OlyILReadOnlyAssembly
-        EntityDefinitionCache: ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeType * RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Type>>
-        EntityInstanceCache: ConcurrentDictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>>
-        entRefCache: ConcurrentDictionary<OlyILEntityReferenceHandle, RuntimeType>
+        EntityDefinitionCache: Dictionary<OlyILEntityDefinitionHandle, RuntimeType * RuntimeEntityDefinitionTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Type>>
+        EntityInstanceCache: Dictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>>
+        entRefCache: Dictionary<OlyILEntityReferenceHandle, RuntimeType>
 
-        FunctionDefinitionCache: ConcurrentDictionary<OlyILFunctionDefinitionHandle, RuntimeFunction * RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Function>>
-        FieldDefinitionCache: ConcurrentDictionary<OlyILFieldDefinitionHandle, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>
+        FunctionDefinitionCache: Dictionary<OlyILFunctionDefinitionHandle, RuntimeFunction * RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Function>>
+        FieldDefinitionCache: Dictionary<OlyILFieldDefinitionHandle, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>
 
-        FieldVariadicDefinitionCache: ConcurrentDictionary<OlyILFieldDefinitionHandle, ConcurrentDictionary<string, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>>
+        FieldVariadicDefinitionCache: Dictionary<OlyILFieldDefinitionHandle, Dictionary<string, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>>
 
         RuntimeTypeInstanceCache: RuntimeTypeInstanceCache<'Type, 'Function, 'Field>
         RuntimeFieldReferenceCache: RuntimeFieldReferenceCache<'Type, 'Function, 'Field>
 
-        TypesThatInheritOrImplementType: ConcurrentDictionary<OlyILEntityDefinitionHandle, ResizeArray<RuntimeType>>
+        TypesThatInheritOrImplementType: Dictionary<OlyILEntityDefinitionHandle, ResizeArray<RuntimeType>>
     }  
 
 let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Type, 'Function, 'Field>) (enclosingTy: RuntimeType) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
@@ -1660,14 +1659,14 @@ type TypeCache<'Type, 'Function, 'Field> =
 [<Sealed>]
 type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Function, 'Field>) as this =
 
-    let assemblies = ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>>(OlyILAssemblyIdentity.Comparer)
+    let assemblies = Dictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>>(OlyILAssemblyIdentity.Comparer)
 
     let mutable isEmittingTypeDefinition = false
-    let delayed = ConcurrentQueue()
+    let delayed = Queue()
 
     let inlineFunctionBodyCache: LruCache<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = LruCache(64)
 
-    let primitiveTypes = ConcurrentDictionary<RuntimeType, RuntimeType>()
+    let primitiveTypes = Dictionary<RuntimeType, RuntimeType>()
     let addPrimitiveType primTy ty =
         if primitiveTypes.TryAdd(primTy, ty) |> not then
             failwith "Primitive type already exists."
@@ -1988,7 +1987,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 match asm.FieldVariadicDefinitionCache.TryGetValue field.ILFieldDefinitionHandle with
                 | true, expansions -> expansions
                 | _ ->
-                    let expansions = ConcurrentDictionary()
+                    let expansions = Dictionary()
                     asm.FieldVariadicDefinitionCache[field.ILFieldDefinitionHandle] <- expansions
                     expansions
 
@@ -2637,7 +2636,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member val TypeNativeUInt: _ Lazy  = lazy emitter.EmitTypeNativeUInt()
     member val TypeBaseObject: _ Lazy  = lazy emitter.EmitTypeBaseObject()
 
-    member internal this.Assemblies: ConcurrentDictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
+    member internal this.Assemblies: Dictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
 
     member this.TryResolveAttribute(ilAsm: OlyILReadOnlyAssembly, ilAttr: OlyILAttribute, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray): RuntimeAttribute option =
         match ilAttr with
@@ -2680,15 +2679,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         assemblies[ilAsm.Identity] <- {
             ilAsm = ilAsm
-            EntityDefinitionCache = ConcurrentDictionary()
-            EntityInstanceCache = ConcurrentDictionary()
-            entRefCache = ConcurrentDictionary()
-            FunctionDefinitionCache = ConcurrentDictionary()
-            FieldDefinitionCache = ConcurrentDictionary()
-            FieldVariadicDefinitionCache = ConcurrentDictionary()
+            EntityDefinitionCache = Dictionary()
+            EntityInstanceCache = Dictionary()
+            entRefCache = Dictionary()
+            FunctionDefinitionCache = Dictionary()
+            FieldDefinitionCache = Dictionary()
+            FieldVariadicDefinitionCache = Dictionary()
             RuntimeTypeInstanceCache = RuntimeTypeInstanceCache(this, ilAsm)
             RuntimeFieldReferenceCache = RuntimeFieldReferenceCache()
-            TypesThatInheritOrImplementType = ConcurrentDictionary()
+            TypesThatInheritOrImplementType = Dictionary()
         }
 
         ilAsm.ForEachPrimitiveType(fun (ilTy, ilEntDefHandle) ->
@@ -3179,20 +3178,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let possibleWitnesses = this.FilterWitnesses(ilTy, witnesses)
             let ty = this.ResolveType(ilAsm, ilTy, genericContext)
             let abstractTy = this.ResolveType(ilAsm, ilEntInst.AsType, genericContext)
-            let witnessOpt = 
-                this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
-                |> Option.map (fun witness ->
-                     //if witness.TypeExtension.IsTypeConstructor && witness.TypeExtension.CanGenericsBeErased then
-                     //   RuntimeWitness(
-                     //       witness.TypeVariableIndex,
-                     //       witness.TypeVariableKind,
-                     //       witness.Type,
-                     //       witness.TypeExtension.Canonicalize(),
-                     //       witness.AbstractFunction
-                     //   )
-                     //else
-                        witness
-                )
+            let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
     member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
@@ -3269,6 +3255,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         RuntimeEntity.ImplementsLazy = Lazy<_>.CreateFromValue(ImArray.empty)
                         RuntimeEntity.RuntimeTypeLazy = Lazy<_>.CreateFromValue(None)
                         RuntimeEntity.FieldsLazy = Lazy<_>.CreateFromValue(ImArray.empty)
+                        RuntimeEntity.AsType = Unchecked.defaultof<_>
 
                         RuntimeEntity.Info =
                             {
@@ -3287,6 +3274,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     }
                 ent.Info.Formal <- ent
                 let ty = RuntimeType.Entity(ent)
+                ent.AsType <- ty
                 asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeEntityDefinitionTypeArgumentWitnessListTable())
 
                 let runtimeTyOpt =
