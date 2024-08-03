@@ -383,6 +383,8 @@ module rec ClrCodeGen =
             ``ValueTuple`7_GetItemFields``: ClrFieldHandle imarray
 
             ``Object_.ctor``: ClrMethodHandle
+
+            ``DebuggerBrowsable.ctor``: ClrMethodHandle
         }
 
     [<NoEquality;NoComparison>]
@@ -2191,6 +2193,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | Some x -> x.handle
                 | _ -> failwith "Unable to find 'System.Object..ctor'"
 
+            let debuggerBrowsableCtor =
+                let pars = ImArray.createOne("System.Diagnostics.DebuggerBrowsableState", 0)
+                match vm.TryFindFunction(("System.Diagnostics.DebuggerBrowsableAttribute", 0), ".ctor", 0, pars, ("System.Void", 0), OlyFunctionKind.Instance) with
+                | Some x -> x.handle
+                | _ -> failwith "Unable to find 'System.Diagnostics.DebuggerBrowsableAttribute..ctor'"
+
             g <-
                 {
                     ``ValueTuple`2`` = ``ValueTuple`2``
@@ -2208,6 +2216,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``ValueTuple`7_GetItemFields`` = createTuple_GetItemFields 7
 
                     ``Object_.ctor`` = objectCtor
+                    ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
                 } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
@@ -2758,6 +2767,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
                         asmBuilder.AddFieldAttribute(fieldHandle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                 )
+
+                // REVIEW: Should we actually mark fields in OlyIL as not browsable?
+                if name.StartsWith("@") then
+                    let irArgs =
+                        ImArray.createOne(OlyIRConstant.Int32(0))
+                    asmBuilder.AddFieldAttribute(fieldHandle, g.``DebuggerBrowsable.ctor``, ClrCodeGen.writeAttributeArguments asmBuilder irArgs ImArray.empty)
 
                 {
                     handle = fieldHandle

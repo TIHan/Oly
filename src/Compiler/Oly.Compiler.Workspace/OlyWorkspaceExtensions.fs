@@ -903,7 +903,8 @@ type OlyDocument with
                         symbol.Fields
                         |> Seq.iter (fun field ->
                             ct.ThrowIfCancellationRequested()
-                            if field.IsStatic = inStaticContext then
+                            // Do not include fields that are used to back properties
+                            if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
                                 completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
                         )
@@ -936,7 +937,8 @@ type OlyDocument with
                         ty.Fields
                         |> Seq.iter (fun field ->
                             ct.ThrowIfCancellationRequested()
-                            if field.IsStatic = inStaticContext then
+                            // Do not include fields that are used to back properties
+                            if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
                                 completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
                         )
