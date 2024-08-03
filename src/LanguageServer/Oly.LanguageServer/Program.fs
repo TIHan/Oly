@@ -1168,6 +1168,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                             server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
 
+                        // Start diagnostic crawling
                         do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
                         for doc in docs do
