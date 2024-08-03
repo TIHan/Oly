@@ -305,11 +305,15 @@ type ClrPdbBuilder() =
         match docs.TryGetValue name with
         | true, handle -> handle
         | _ ->
+            let (guid, blob) = 
+                match checkSum name HashAlgorithm.Sha256 with
+                | Some(guid, blob) -> guid, blob
+                | _ -> Guid.Empty, [||]
             let handle =
                 metadata.AddDocument(
                     serializeDocumentName name,
-                    metadata.GetOrAddGuid(Guid.Empty),
-                    metadata.GetOrAddBlob(ImArray.empty),
+                    metadata.GetOrAddGuid(guid),
+                    metadata.GetOrAddBlob(blob),
                     metadata.GetOrAddGuid corSymLanguageTypeId
                 )
             docs.Add(name, handle)
