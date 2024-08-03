@@ -928,15 +928,44 @@ module OlySyntaxTreeExtensions =
         member this.GetFullTextRange(ct) =
             this.Tree.GetSourceText(ct).GetTextRange(this.FullTextSpan)
 
+        member private this.GetCommentText(childIndex: int) =
+            let childNode = this.Children[childIndex]
+            match childNode.InternalNode with
+            | :? SyntaxToken as childToken ->
+                match childToken with
+                | SyntaxToken.TokenWithTrivia(nextTrivia, triviaToken, _) when triviaToken.IsPossibleNewLine && nextTrivia.IsComment ->
+                    nextTrivia.ValueText
+                | _ ->
+                    String.Empty
+            | _ ->
+                String.Empty
+
+        member this.GetLeadingCommentText() =
+            match this with
+            | :? OlySyntaxToken as node ->
+                if node.Children.IsEmpty then
+                    String.Empty
+                else
+                    node.GetCommentText(node.Children.Length - 1)
+            | _ ->
+                if this.Children.IsEmpty then
+                    String.Empty
+                else
+                    // TODO: Can we do this without allocating an option?
+                    match this.Children |> ImArray.tryFind (fun x -> not x.Children.IsEmpty) with
+                    | Some nextNode -> nextNode.GetLeadingCommentText()
+                    | _ -> String.Empty
+
+        /// TODO: This is a weird and doesn't match how we do GetLeadingCommentText
         member this.GetLeadingTrivia() =
             match this with
             | :? OlySyntaxToken as node ->
-                if not node.Children.IsEmpty then
+                if node.Children.IsEmpty then
+                    ImArray.empty
+                else
                     let childNode = node.Children[0]
                     let childNodes = childNode.GetLeadingTrivia()
                     childNodes.Add(childNode)
-                else
-                    ImArray.empty
             | _ ->
                 if this.Children.Length > 0 then
                     this.Children.[0].GetLeadingTrivia()

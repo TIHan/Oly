@@ -1,6 +1,7 @@
 ﻿[<AutoOpen>]
 module internal rec Oly.Compiler.Internal.Binder.Binder
 
+open System
 open Oly.Compiler
 open Oly.Compiler.Syntax
 open System.Threading
@@ -148,7 +149,7 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
         if cenv.syntaxTree.ParsingOptions.AnonymousModuleDefinitionAllowed |> not then
             cenv.diagnostics.Error("Anonymous module definitions are not available in this context.", 10, cenv.syntaxTree.DummyNode)
 
-        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen, AnonymousEntityName)
+        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen, AnonymousEntityName, String.Empty)
         let env1 = { env with benv = { env.benv with senv = { env.benv.senv with enclosing = EnclosingSymbol.Entity anonModuleBuilder.Entity } } }
 
         recordEntityDeclaration cenv anonModuleBuilder.Entity syntaxRoot
@@ -162,10 +163,10 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
 
         let entBuilder =
             match syntaxName.EnclosingPath with
-            | [] -> EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, flags, syntaxName.NameText)
+            | [] -> EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
             | path ->
                 let nmsBuilder = nmsEnv.GetOrCreate(path |> ImArray.ofSeq)
-                let entBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.Entity(nmsBuilder.Entity), flags, syntaxName.NameText)
+                let entBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.Entity(nmsBuilder.Entity), flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
                 nmsBuilder.AddEntity(entBuilder.Entity, entBuilder.Entity.LogicalTypeParameterCount)
                 entBuilder
 

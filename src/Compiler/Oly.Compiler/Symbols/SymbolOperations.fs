@@ -2451,6 +2451,7 @@ let invalidModule () =
         member _.Kind = EntityKind.Module
         member _.Attributes = ImArray.empty
         member _.Flags = EntityFlags.None
+        member _.Documentation = String.Empty
     }
 
 let invalidFunction () =
@@ -2585,6 +2586,7 @@ let invalidEntityWithEnclosing enclosing =
         member this.Formal = this
         member _.Attributes = ImArray.empty
         member _.Flags = EntityFlags.Invalid
+        member _.Documentation = String.Empty
     }
 
 let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
@@ -2608,6 +2610,7 @@ let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
         member this.Formal = this
         member _.Attributes = ImArray.empty
         member _.Flags = EntityFlags.Invalid
+        member _.Documentation = String.Empty
     }
 
 let invalidateEntity (ent: EntitySymbol) =
@@ -2631,6 +2634,7 @@ let invalidateEntity (ent: EntitySymbol) =
         member this.Formal = this
         member _.Attributes = ent.Attributes
         member _.Flags = ent.Flags ||| EntityFlags.Invalid
+        member _.Documentation = String.Empty
     }
 
 let invalidEntity = invalidEntityWithEnclosing EnclosingSymbol.RootNamespace

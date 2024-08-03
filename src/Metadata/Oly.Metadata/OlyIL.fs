@@ -148,7 +148,7 @@ type OlyILCallingConvention =
   | VarArgs   = 5uy
   | Blittable = 9uy
 
-[<Struct;NoEquality;NoComparison>]
+[<NoEquality;NoComparison>]
 type OlyILEntityReference(enclosing: OlyILEnclosing, nameHandle: OlyILStringHandle, tyParCount: int) =
 
     member _.Enclosing = enclosing
@@ -959,7 +959,7 @@ type OlyILExpression =
     | Try of bodyExpr: OlyILExpression * catchCases: OlyILCatchCase imarray * finallyBodyExprOpt: OlyILExpression option
 
 // Not concurrency safe.
-type private Table<'Value>(kind: OlyILTableKind) =
+type private Table<'Value when 'Value : not struct>(kind: OlyILTableKind) =
 
     let mutable nextIndex = 0
     let mutable state = Array.zeroCreate<'Value> 10
@@ -968,6 +968,21 @@ type private Table<'Value>(kind: OlyILTableKind) =
         let index = nextIndex
         nextIndex <- nextIndex + 1
         index
+
+    member this.TryGet(tableIndex: OlyILTableIndex, outValue: outref<'Value>) =
+#if DEBUG || CHECKED
+        if tableIndex.Kind <> kind then
+            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
+#endif
+        if tableIndex.Index >= state.Length then
+            false
+        else
+            let value = state[tableIndex.Index]
+            if isNull(value: obj) then
+                false
+            else
+                outValue <- value
+                true
 
     member this.Get(tableIndex: OlyILTableIndex) =
 #if DEBUG || CHECKED
@@ -1037,18 +1052,6 @@ type OlyILAssemblyIdentity =
             this.Name.Equals(o.Name, StringComparison.OrdinalIgnoreCase) &&
             this.Key.Equals(o.Key)
 
-[<Sealed>]
-type OlyILEntityDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILFunctionDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILFieldDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILPropertyDefinitionDocumentation() = class end
-
 // Read-only Thread safe, but be careful writing multiple entries at the same time.
 [<NoComparison;ReferenceEquality>]
 type OlyILAssembly =
@@ -1072,10 +1075,10 @@ type OlyILAssembly =
         primitiveTypes: ResizeArray<(OlyILType * OlyILEntityDefinitionHandle)>
 
         // Documentation metadata.
-        entDefDocs: Table<OlyILEntityDefinitionDocumentation>
-        funcDefDocs: Table<OlyILFunctionDefinitionDocumentation>
-        fieldDefDocs: Table<OlyILFieldDefinitionDocumentation>
-        propDefDocs: Table<OlyILPropertyDefinitionDocumentation>
+        entDefDocs: Table<string>
+        funcDefDocs: Table<string>
+        fieldDefDocs: Table<string>
+        propDefDocs: Table<string>
 
         // Debug metadata.
         dbgSrcs: Table<OlyILDebugSource>
@@ -1291,6 +1294,14 @@ type OlyILAssembly =
                 let ilEntRef = this.GetEntityReference(ilDefOrRefHandle)
                 this.GetAssemblyIdentity(ilEntRef)
 
+    member this.SetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle, doc: string) =
+        this.entDefDocs.Set(ilEntDefHandle, doc)
+
+    member this.TryGetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle) =
+        match this.entDefDocs.TryGet(ilEntDefHandle) with
+        | true, ilEntDefDoc -> ValueSome ilEntDefDoc
+        | _ -> ValueNone
+
     static member Create(name, stamp, isDebuggable) =
         let asm = {
             entDefSet = Dictionary()
@@ -1449,6 +1460,9 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
         let builder = System.Text.StringBuilder()
         this.GetQualifiedName(ilEntDefOrRefHandle, builder)
         builder.ToString()
+
+    member _.TryGetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle) =
+        ilAsm.TryGetEntityDefinitionDocumentation(ilEntDefHandle)
 
 type OlyILAssembly with
 

@@ -1820,7 +1820,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             return hoverText header olyContent
 
                         | :? OlyTypeSymbol as symbol ->
-                            let textResult = sprintf "%s %s" symbol.TextKind symbol.SignatureText
+                            let textResult = 
+                                let documentation = symbol.Documentation
+                                if documentation.Length = 0 then
+                                    sprintf "%s %s" symbol.TextKind symbol.SignatureText
+                                else
+                                    // TODO: Handle multiple lines.
+                                    sprintf "// %s\n%s %s" documentation symbol.TextKind symbol.SignatureText
                             let textResult =
                                 match symbol.TryGetAliasedType() with
                                 | Some(aliasedSymbol) ->

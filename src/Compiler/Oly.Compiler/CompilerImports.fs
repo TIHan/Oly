@@ -362,6 +362,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Properties = lazyProps.Value
     override this.TypeArguments = lazyTyArgs.Value
     override this.TypeParameters = tyPars
+    override this.Documentation = ent.Documentation
 
 
 let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (constr: ConstraintSymbol) =
@@ -1890,6 +1891,12 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     override _.TypeArguments: TypeSymbol imarray = evalTyArgs()
     override _.TypeParameters: TypeParameterSymbol imarray = evalTyPars()
     override _.Attributes = evalAttrs()
+    override _.Documentation =
+        match ilAsm.TryGetEntityDefinitionDocumentation(ilEntDefHandle) with
+        | ValueSome(docText) ->
+            docText
+        | _ ->
+            String.Empty
 
     static member Create(asm: OlyILReadOnlyAssembly, imports: Imports, ilEntDefHandle: OlyILEntityDefinitionHandle) =
         ImportedEntityDefinitionSymbol(asm, imports, ilEntDefHandle) :> EntitySymbol

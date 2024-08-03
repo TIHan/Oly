@@ -1,5 +1,6 @@
 ﻿module internal rec Oly.Compiler.Internal.SymbolBuilders
 
+open System
 open System.Diagnostics
 open Oly.Core
 open Oly.Compiler.Internal.Symbols
@@ -151,7 +152,7 @@ type EntitySymbolBuilder private (
         else
             failwith "Expected namespace."
 
-    static member Create(containingAsmOpt, enclosing, name, flags, kind) =
+    static member Create(containingAsmOpt, enclosing, name, flags, kind, docText) =
         // TODO: Change EntitySymbol to allow setting properties instead of using a bunch of ref cells.
         let attrsHole = ref ImArray.empty
         let funcsHole = ref ImArray.empty
@@ -163,19 +164,19 @@ type EntitySymbolBuilder private (
         let implementsHole = ref ImArray.empty
         let entsHole = ResizeArray()
 
-        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole)
+        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole, docText)
         EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, entsHole)
 
-    static member CreateModule(containingAsmOpt, enclosing, flags, name) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module)
+    static member CreateModule(containingAsmOpt, enclosing, flags, name, docSummary) =
+        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module, docSummary)
 
     static member CreateNamespace(enclosing: EnclosingSymbol, name) =
         if not enclosing.IsNamespace then
             failwith "Expected a namespace entity."
-        EntitySymbolBuilder.Create(None, enclosing, name, EntityFlags.None, EntityKind.Namespace)
+        EntitySymbolBuilder.Create(None, enclosing, name, EntityFlags.None, EntityKind.Namespace, String.Empty)
 
     static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name, flags) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure)
+        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure, String.Empty)
 
     static member CreateAnonymousShape(enclosing, asm) =
         match enclosing with
@@ -184,7 +185,7 @@ type EntitySymbolBuilder private (
         | EnclosingSymbol.Local -> ()
         | _ -> failwith "Invalid enclosing for anonymous shape."
 
-        EntitySymbolBuilder.Create(Some asm, enclosing, "", EntityFlags.Abstract, EntityKind.Shape)
+        EntitySymbolBuilder.Create(Some asm, enclosing, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
 
 [<Sealed>]
 type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =

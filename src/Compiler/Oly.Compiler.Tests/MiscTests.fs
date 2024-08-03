@@ -752,3 +752,24 @@ class Test =
     Oly src
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Should get documentation summary for type``() =
+    let src =
+        """
+// This is a test
+class ~^~Test
+        """
+    let symbol = getSymbolByCursor src
+    Assert.Equal("This is a test", symbol.AsType.Documentation)
+
+[<Fact>]
+let ``Should not get documentation summary for type``() =
+    let src =
+        """
+// This is a test
+
+class ~^~Test
+        """
+    let symbol = getSymbolByCursor src
+    Assert.Equal("", symbol.AsType.Documentation)

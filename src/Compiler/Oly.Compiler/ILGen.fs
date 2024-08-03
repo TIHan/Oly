@@ -1196,6 +1196,8 @@ and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefi
     | true, res -> res
     | _ ->
         let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinition()
+        if not(String.IsNullOrWhiteSpace ent.Documentation) then
+            cenv.assembly.SetEntityDefinitionDocumentation(ilEntDefHandleFixup, ent.Documentation)
         cenv.cachedEntDefs.Add(ent.FormalId, ilEntDefHandleFixup)
         if ent.IsAnonymousShape then
             let result = GenEntityDefinitionNoCache cenv env ent

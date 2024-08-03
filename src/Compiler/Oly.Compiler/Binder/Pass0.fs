@@ -28,7 +28,7 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
     flags
 
 /// Pass 0 - Type definition with type parameters.
-let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) =
+let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
     let attrs = bindAttributes cenv env false syntaxAttrs
 
@@ -64,7 +64,7 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
 
     let enclosing = currentEnclosing env
 
-    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, syntaxIdent.ValueText, flags, kind)
+    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, syntaxIdent.ValueText, flags, kind, docText)
     let ent = entBuilder.Entity
 
     OlyAssert.True(ent.TypeParameters.IsEmpty)
@@ -165,7 +165,7 @@ let bindTopLevelExpressionPass0 (cenv: cenv) (env: BinderEnvironment) (entities:
         bindTopLevelExpressionPass0 cenv env1 entities syntaxExpr2
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyKind, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
-        let env1, entities, _ = bindTypeDeclarationPass0 cenv env syntaxAttrs syntaxAccessor syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities
+        let env1, entities, _ = bindTypeDeclarationPass0 cenv env syntaxAttrs syntaxAccessor syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities (syntaxExpr.GetLeadingCommentText())
         env1, entities
 
     | OlySyntaxExpression.OpenDeclaration _ 

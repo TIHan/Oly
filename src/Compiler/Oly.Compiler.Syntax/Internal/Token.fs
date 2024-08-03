@@ -387,7 +387,9 @@ type internal Token =
         match this with
         | CharLiteral(_, text, _)
         | StringLiteral(_, text, _, _, _)
-        | ExplicitIdentifier(_, text, _) -> text
+        | ExplicitIdentifier(_, text, _) 
+        | SingleLineComment(_, text) 
+        | MultiLineComment(_, text, _) -> text
         | _ -> this.Text
 
     override this.ToString() =
@@ -624,6 +626,12 @@ type internal Token =
             match this with
             | EndOfSource -> true
             | _ -> false
+
+    member this.IsComment =
+        match this with
+        | SingleLineComment _
+        | MultiLineComment _ -> true
+        | _ -> false
 
     member this.IsOther =
         match this with

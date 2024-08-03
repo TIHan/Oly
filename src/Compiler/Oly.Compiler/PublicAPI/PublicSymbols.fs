@@ -308,6 +308,11 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
     member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
         subsumesTypeInEnvironment benv superTy.Internal this.Internal
 
+    member this.Documentation =
+        match ty with
+        | TypeSymbol.Entity(ent) -> ent.Documentation.Trim()
+        | _ -> String.Empty
+
 and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | UInt8 of value: uint8
     | Int8 of value: int8

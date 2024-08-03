@@ -1665,7 +1665,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyDefKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let syntaxIdent = syntaxTyDefName.Identifier
         let innerEnv = setSkipCheckTypeConstructor env
-        let innerEnv, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } innerEnv syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty
+        let innerEnv, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } innerEnv syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty (syntaxExpr.GetLeadingCommentText())
         let innerEnv = scopeInEntity innerEnv entBuilder.Entity
         let innerEnv = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         bindTypeDeclarationPass2 { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxTyDefBody

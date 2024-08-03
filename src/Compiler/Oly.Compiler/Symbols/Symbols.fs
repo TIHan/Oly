@@ -281,6 +281,8 @@ type EntitySymbol() =
 
     abstract Flags : EntityFlags
 
+    abstract Documentation : string
+
     member this.TryEnumUnderlyingType =
         if (this.IsEnum) then
             if this.Fields.Length > 0 then
@@ -338,8 +340,11 @@ type EntitySymbol() =
     interface ISymbol
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
-type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: ResizeArray<EntitySymbol>) =
+type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: ResizeArray<EntitySymbol>, docText: string) =
     inherit EntitySymbol()
+
+    do
+        assert(docText <> null)
 
     // REVIEW: The first time this gets evaluated, we must already have the fields set.
     //         Could we make this less error prone? We haven't had a problem with it yet but it can be surprising.
@@ -397,6 +402,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override this.Formal = this
     override _.Attributes = attrs.contents
     override _.Flags = lazyFlags.Value
+    override _.Documentation = docText
 
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     if ty.IsError_t then ty
@@ -770,6 +776,7 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     override _.Formal = ent.Formal
     override _.Attributes = ent.Attributes
     override _.Flags = ent.Flags
+    override _.Documentation = ent.Documentation
 
 let applyEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) : EntitySymbol =
     OlyAssert.True(ent.IsFormal)
@@ -1676,6 +1683,7 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
     override this.Properties = ImArray.empty
     override this.TypeArguments = ImArray.empty
     override this.TypeParameters = ImArray.empty
+    override this.Documentation = String.Empty
 
 [<RequireQualifiedAccess>]
 type EnclosingSymbol =
