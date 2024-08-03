@@ -97,10 +97,12 @@ type MSBuild() =
         $"""
 <Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
     {outputType}
     <TargetFramework>{targetName}</TargetFramework>
 </PropertyGroup>
 <ItemGroup>
+    <Compile Include="Program.cs" />
 {references}
 {projReferences}
 {packages}
