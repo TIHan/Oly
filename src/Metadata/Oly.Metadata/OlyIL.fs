@@ -955,11 +955,7 @@ type OlyILExpression =
     | Operation of textRange: OlyILDebugSourceTextRange * op: OlyILOperation
     | IfElse of conditionExpr: OlyILExpression * trueTargetExpr: OlyILExpression * falseTargetExpr: OlyILExpression
     | Sequential of expr1: OlyILExpression * expr2: OlyILExpression
-    
-    /// Cannot be used in a non-imperative context.
-    /// TODO: The check for "non-imperative" context is not implemented.
     | While of conditionExpr: OlyILExpression * bodyExpr: OlyILExpression
-
     | Try of bodyExpr: OlyILExpression * catchCases: OlyILCatchCase imarray * finallyBodyExprOpt: OlyILExpression option
 
 // Not concurrency safe.
