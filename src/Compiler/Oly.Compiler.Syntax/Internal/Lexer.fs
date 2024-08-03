@@ -1035,8 +1035,13 @@ module Lexer =
 
         | c when isGreekLetter c ->
             advance lexer
-            let text = lexeme lexer
-            Identifier(text)
+            if isLetter (peek lexer) then
+                advance lexer
+                let text = lexeme lexer
+                Identifier(text)
+            else
+                let text = lexeme lexer
+                Identifier(text)
 
         | _ ->
             advance lexer
