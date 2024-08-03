@@ -1168,27 +1168,27 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                             server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
 
-                        //do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
+                        do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
-                        //for doc in docs do
-                        //    doc.Project.GetDocumentsExcept(doc.Path)
-                        //    |> ImArray.iter (fun doc ->
-                        //        let diags = doc.ToLspDiagnostics(ct)
-                        //        server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                        //    )
+                        for doc in docs do
+                            doc.Project.GetDocumentsExcept(doc.Path)
+                            |> ImArray.iter (fun doc ->
+                                let diags = doc.ToLspDiagnostics(ct)
+                                server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                            )
 
-                        //do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
+                        do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
-                        //for doc in docs do
-                        //    let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
-                        //    for dep in depsOn do
-                        //        ct.ThrowIfCancellationRequested()
-                        //        dep.Documents
-                        //        |> ImArray.iter (fun doc ->
-                        //            ct.ThrowIfCancellationRequested()
-                        //            let diags = doc.ToLspDiagnostics(ct)
-                        //            server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                        //        )
+                        for doc in docs do
+                            let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
+                            for dep in depsOn do
+                                ct.ThrowIfCancellationRequested()
+                                dep.Documents
+                                |> ImArray.iter (fun doc ->
+                                    ct.ThrowIfCancellationRequested()
+                                    let diags = doc.ToLspDiagnostics(ct)
+                                    server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                                )
                     with
                     | :? OperationCanceledException ->
                         ()
