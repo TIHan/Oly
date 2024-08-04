@@ -503,7 +503,7 @@ type OlySolution (state: SolutionState) =
 
     member this.GetProject(projectPath: OlyPath) =
         match this.TryGetProject(projectPath) with
-        | None -> failwithf "Unable to find project '%A'. Check if the project is updated in the workspace." projectPath
+        | None -> failwith $"Unable to find project '{projectPath}'. Check if the project is updated in the workspace."
         | Some project -> project
 
     member this.GetProjects() =
@@ -816,7 +816,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             solution <- solution.InvalidateDependentProjectsOn(doc.Project.Path)
                         )
                     with
-                    | _ ->
+                    | ex ->
+                        printfn "%s" ex.Message
                         solution <- prevSolution
 
                 | UpdateDocument(documentPath, sourceText, ct, reply) ->

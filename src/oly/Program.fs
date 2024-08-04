@@ -10,7 +10,7 @@ let args = Environment.GetCommandLineArgs()
 
 // Parse args
 if args.Length <= 1 || args.Length > 2 then
-    printf "Expected Oly project file."
+    printfn "Expected Oly project file."
     Environment.ExitCode <- 1
 else
     let ct = CancellationToken.None

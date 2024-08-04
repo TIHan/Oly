@@ -4,6 +4,8 @@ open System
 open System.IO
 open System.Threading
 open System.Threading.Tasks
+open System.Runtime.CompilerServices
+open System.Text.Json.Serialization
 open Oly.Core
 open Oly.Compiler.Workspace
 open Oly.Runtime.Target.DotNet
@@ -11,45 +13,33 @@ open Oly.Runtime.Target.Interpreter
 
 module Implementation =
 
-    type LspProjectConfiguration =
-        {
-            mutable name: string
-            mutable defines: string []
-            mutable debuggable: bool
-        }
+    [<Sealed>]
+    type ProjectConfiguration [<JsonConstructor>] (name: string, defines: string [], debuggable: bool) =
+        member _.Name = name
+        member _.Defines = defines
+        member _.Debuggable = debuggable
 
-    type LspProjectConfigurations =
-        {
-            mutable configurations: LspProjectConfiguration []
-        }
+    [<Sealed>]
+    type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfiguration []) =
+        member _.Configurations = configurations
 
         static member Default =
-            {
-                configurations =
-                    [|
-                        {
-                            name = "Debug"
-                            defines = [|"DEBUG"|]
-                            debuggable = true
-                        }
-                        {
-                            name = "Release"
-                            defines = [||]
-                            debuggable = false
-                        }
-                    |]
-            }
+            ProjectConfigurations(
+                [|
+                    ProjectConfiguration("Debug", [|"DEBUG"|], true)
+                    ProjectConfiguration("Release", [||], false)
+                |]
+            )
 
-    type LspWorkspaceState =
-        {
-            mutable activeConfiguration: string
-        }
+    [<Sealed>]
+    type WorkspaceState [<JsonConstructor>] (activeConfiguration: string) =
+        member _.ActiveConfiguration = activeConfiguration
 
     [<Literal>]
-    let LspWorkspaceStateDirectory = ".olyworkspace/"
+    let WorkspaceStateDirectory = ".olyworkspace/"
 
     [<Literal>]
-    let LspWorkspaceStateFileName = "state.json"
+    let WorkspaceStateFileName = "state.json"
 
     [<Sealed>]
     type OlyWorkspaceResourceService() =
@@ -67,19 +57,19 @@ module Implementation =
             member this.LoadProjectConfigurationAsync(projectConfigPath, ct) : Task<OlyProjectConfiguration> = 
                 backgroundTask {         
                     let! state = 
-                        JsonFileStore<LspWorkspaceState>.GetContents(
-                            OlyPath.Combine(projectConfigPath, Path.Combine("../" + Path.Combine(LspWorkspaceStateDirectory, LspWorkspaceStateFileName), projectConfigPath.ToString())), 
-                            { activeConfiguration = "Debug" }, 
+                        JsonFileStore<WorkspaceState>.GetContents(
+                            OlyPath.Combine(projectConfigPath, Path.Combine("../" + Path.Combine(WorkspaceStateDirectory, WorkspaceStateFileName), projectConfigPath.ToString())), 
+                            WorkspaceState("Debug"), 
                             ct
                         )
-                    let mutable configs = LspProjectConfigurations.Default
+                    let mutable configs = ProjectConfigurations.Default
 
                     try
                         let fs = File.OpenText(projectConfigPath.ToString())
                         try
                             let jsonOptions = System.Text.Json.JsonSerializerOptions()
                             jsonOptions.PropertyNameCaseInsensitive <- true
-                            let! result = System.Text.Json.JsonSerializer.DeserializeAsync<LspProjectConfigurations>(fs.BaseStream, jsonOptions, cancellationToken = ct)
+                            let! result = System.Text.Json.JsonSerializer.DeserializeAsync<ProjectConfigurations>(fs.BaseStream, jsonOptions, cancellationToken = ct)
                             configs <- result
                         finally
                             fs.Dispose()
@@ -97,28 +87,37 @@ module Implementation =
                             fs.Dispose()
 
                     let configOpt =
-                        configs.configurations
-                        |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.name))) && x.name.Equals(state.activeConfiguration, StringComparison.OrdinalIgnoreCase))
+                        configs.Configurations
+                        |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(state.ActiveConfiguration, StringComparison.OrdinalIgnoreCase))
 
                     let config =
                         match configOpt with
                         | None ->
-                            match configs.configurations |> Array.tryHead with
+                            match configs.Configurations |> Array.tryHead with
                             | Some config -> config
-                            | _ -> LspProjectConfigurations.Default.configurations[0]
+                            | _ -> ProjectConfigurations.Default.Configurations[0]
                         | Some config ->
                             config
 
-                    let name = config.name
-                    let conditionalDefines = config.defines |> ImArray.ofSeq
-                    let isDebuggable = config.debuggable
+                    let name = config.Name
+                    let conditionalDefines = config.Defines |> ImArray.ofSeq
+                    let isDebuggable = config.Debuggable
 
                     return OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
                 }
 
 module Oly =
 
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    let private DoNotTrim(value: bool) =
+        if value then
+            Console.WriteLine(Implementation.ProjectConfiguration("", [||], false))
+            Console.WriteLine(Implementation.ProjectConfigurations([||]))
+            Console.WriteLine(Implementation.WorkspaceState(""))
+
     let Build (projectPath: OlyPath, ct: CancellationToken) =
+        DoNotTrim(false)
+
         let rs = Implementation.OlyWorkspaceResourceService() :> IOlyWorkspaceResourceService
 
         let targets = 

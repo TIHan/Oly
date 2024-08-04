@@ -5,6 +5,10 @@
     <TargetFramework>net7.0</TargetFramework>
 	<Configurations>Debug;Release;Checked</Configurations>
 	<ServerGarbageCollection>true</ServerGarbageCollection>
+	<PublishAot>true</PublishAot>
+	<PublishReadyToRun>true</PublishReadyToRun>
+	<PublishTrimmed>true</PublishTrimmed>
+	<JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>

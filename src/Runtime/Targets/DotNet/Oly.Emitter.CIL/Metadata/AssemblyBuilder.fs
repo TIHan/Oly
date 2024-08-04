@@ -2440,7 +2440,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     let labelOffset = labelOffsets[labelId]
                     let distance = labelOffset - offset
                     if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
-                        getShortBranchOpCode opCode
+                        match instr with
+                        | I.Brfalse _ ->
+                            System.Diagnostics.Debug.WriteLine(distance)
+                            opCode
+                        | _ ->
+                            getShortBranchOpCode opCode
                     else
                         opCode
                 

@@ -5967,7 +5967,11 @@ module Program =
     |> withCompile
     |> shouldRunWithExpectedOutput "5"
 
+#if DEBUG
 [<Fact>]
+#else
+[<Fact(Skip = "Executing within the test process results in an AV")>]
+#endif
 let ``Complex use of fields and structs and mutation with exported``() =
     let src =
         """
