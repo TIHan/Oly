@@ -503,7 +503,7 @@ type OlySolution (state: SolutionState) =
 
     member this.GetProject(projectPath: OlyPath) =
         match this.TryGetProject(projectPath) with
-        | None -> failwithf "Unable to find project '%A'." projectPath
+        | None -> failwithf "Unable to find project '%A'. Check if the project is updated in the workspace." projectPath
         | Some project -> project
 
     member this.GetProjects() =

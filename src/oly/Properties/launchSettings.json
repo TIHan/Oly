@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "oly": {
+      "commandName": "Project",
+      "commandLineArgs": "c:\\work\\Evergreen\\src\\managed\\Engine\\Engine.olyx"
+    }
+  }
+}
