@@ -376,6 +376,46 @@ type ClrInstruction =
 
     | Skip
 
+    member this.IsBranch =
+        match this with
+        | Beq _
+        | Bge _
+        | Bge_un _
+        | Bgt _
+        | Bgt_un _
+        | Ble _
+        | Ble_un _
+        | Blt _
+        | Ble_un _
+        | Bne_un _
+        | Brtrue _
+        | Brfalse _
+        | Br _ 
+        | Leave _ ->
+            true
+        | _ ->
+            false
+
+    member this.LabelId =
+        match this with
+        | Beq labelId
+        | Bge labelId
+        | Bge_un labelId
+        | Bgt labelId
+        | Bgt_un labelId
+        | Ble labelId
+        | Ble_un labelId
+        | Blt labelId
+        | Ble_un labelId
+        | Bne_un labelId
+        | Brtrue labelId
+        | Brfalse labelId
+        | Br labelId
+        | Leave labelId ->
+            labelId
+        | _ ->
+            failwith "Instruction does not have a label."
+
 [<RequireQualifiedAccess>]
 module ClrElementTypes =
 

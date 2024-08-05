@@ -36,14 +36,10 @@ let createEmitter(asm: OlyILAssembly) =
 let configureRuntime(vm: OlyRuntime<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
     ()
 
-let emitterWrite(emitter: OlyRuntimeClrEmitter) =
+let emitterWrite(emitter: OlyRuntimeClrEmitter, isDebuggable) =
     let ms = new MemoryStream()
     use msPdb = new MemoryStream()
-#if DEBUG || CHECKED
-    emitter.Write(ms, msPdb, (* isDebuggable *) true)
-#else
-    emitter.Write(ms, msPdb, (* isDebuggable *) false)
-#endif
+    emitter.Write(ms, msPdb, isDebuggable)
     ms.Position <- 0L
     ms
 

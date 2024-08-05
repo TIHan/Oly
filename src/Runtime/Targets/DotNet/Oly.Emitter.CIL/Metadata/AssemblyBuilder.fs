@@ -842,8 +842,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member _.PdbBuilder = pdbBuilder
 
-    member val internal IsDebuggable = false with get, set
-
     member val ModuleDefinitionHandle = moduleDefHandle
 
     member val TypeReferenceVoid: ClrTypeHandle = sysTy "Void" false
@@ -1156,8 +1154,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         metadataBuilder.AddCustomAttribute(asmDefHandle, this.DebuggableAttributeConstructor.Value.UnsafeLazilyEvaluateEntityHandle(), blobHandle)
         |> ignore
-
-        this.IsDebuggable <- true
     
     member this.Write(stream: IO.Stream, pdbStream: IO.Stream, isDebuggable: bool) =
         let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
@@ -1676,6 +1672,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Brfalse _ -> ILOpCode.Brfalse
         | I.Brtrue _ -> ILOpCode.Brtrue
         | I.Br _ -> ILOpCode.Br
+        | I.Leave _ -> ILOpCode.Leave
         | _ -> OlyAssert.Fail("Invalid branch instruction.")
 
     static let getShortBranchOpCode opCode =
@@ -1693,6 +1690,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | ILOpCode.Brfalse -> ILOpCode.Brfalse_s
         | ILOpCode.Brtrue -> ILOpCode.Brtrue_s
         | ILOpCode.Br -> ILOpCode.Br_s
+        | ILOpCode.Leave -> ILOpCode.Leave_s
         | _ -> OlyAssert.Fail("Invalid op code for short branch.")
 
     static let emitTypeToken (asmBuilder: ClrAssemblyBuilder) (il: byref<InstructionEncoder>) (handle: ClrTypeHandle) =
@@ -2328,7 +2326,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Bne_un labelId
             | I.Brtrue labelId
             | I.Brfalse labelId
-            | I.Br labelId ->
+            | I.Br labelId
+            | I.Leave labelId ->
                 dummyIL.Branch(getBranchOpCode instr, labels[labelId])
 
             | I.Label labelId ->
@@ -2351,9 +2350,6 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     labels[handlerEndLabelId]
                 )
 
-            | I.Leave labelId ->
-                dummyIL.Branch(ILOpCode.Leave, labels[labelId])
-
             | I.SequencePoint _
             | I.HiddenSequencePoint
             | I.BeginLocalScope _
@@ -2374,6 +2370,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let labels = Dictionary<int, _>()
         let labelOffsets = Dictionary<int, _>()
         let offsets = Array.zeroCreate<int> instrs.Length
+        let shorts = Array.zeroCreate<bool> instrs.Length
 
         let mutable il = createInstructionEncoder()
         let mutable totalSize = 0
@@ -2397,6 +2394,33 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         OlyAssert.Equal(dummyIL.Offset, totalSize)
 #endif
 
+        // Branch tightening
+        let mutable totalSize = 0
+        for i = 0 to instrs.Length - 1 do
+            let instr = instrs[i]
+
+            offsets[i] <- totalSize
+
+            let size =
+                match instr with
+                | I.Label(labelId) ->
+                    labelOffsets[labelId] <- totalSize
+                    0
+                | _ ->
+                    if instr.IsBranch then
+                        let offset = offsets[i] + sizeOfInstr instr
+                        let labelOffset = labelOffsets[instr.LabelId]
+                        let distance = labelOffset - offset
+                        if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
+                            shorts[i] <- true
+                            2
+                        else
+                            5
+                    else
+                        sizeOfInstr instr
+
+            totalSize <- totalSize + size
+
         let ilBuilder = asmBuilder.ILBuilder
         ilBuilder.Align(4)
 
@@ -2410,10 +2434,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let mutable hasMultipleDocuments = false
 
         let debugILOffsetStack = Stack()
-        let localScopes = ImArray.builder()
+        let localScopes = ImArray.builder()  
 
-
-        let branchOffsets = ResizeArray()
+        let inline getLabelOffset labelId =
+            labelOffsets[labelId]
 
         for i = 0 to instrs.Length - 1 do
             let instr = instrs[i]
@@ -2433,29 +2457,23 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Bne_un labelId
             | I.Brtrue labelId
             | I.Brfalse labelId
-            | I.Br labelId ->
+            | I.Br labelId
+            | I.Leave labelId ->
+                let isShort = shorts[i]
+                let labelOffset = getLabelOffset labelId
                 let opCode = getBranchOpCode instr
-                let opCode =
-                    let offset = offsets[i] + sizeOfInstr instr
-                    let labelOffset = labelOffsets[labelId]
-                    let distance = labelOffset - offset
-                    if distance >= int SByte.MinValue && distance <= int SByte.MaxValue then
-                        match instr with
-                        | I.Brfalse _ ->
-                            System.Diagnostics.Debug.WriteLine(distance)
-                            opCode
-                        | _ ->
-                            getShortBranchOpCode opCode
-                    else
-                        opCode
-                
-                il.Branch(opCode, labels[labelId])
+                let opCode = if isShort then getShortBranchOpCode opCode else opCode
+                let target = labelOffset - il.Offset - (if isShort then 2 else 5)
+                il.OpCode(opCode)            
+                if isShort then
+                    il.CodeBuilder.WriteSByte(Checked.sbyte target)
+                else
+                    il.CodeBuilder.WriteInt32(target)
 
             | I.Label labelId ->
                 il.MarkLabel(labels[labelId])
-
-            | I.Leave labelId ->
-                il.Branch(ILOpCode.Leave, labels[labelId])
+                if il.Offset <> getLabelOffset labelId then
+                    failwith "Bad IL or label offset."
 
             | I.CatchRegion(tryStartLabelId, tryEndLabelId, handlerStartLabelId, handlerEndLabelId, catchTy) ->
                 il.ControlFlowBuilder.AddCatchRegion(
@@ -2523,14 +2541,6 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 methBodyStream.AddMethodBody(il, maxStack = maxStack + 8) 
             else
                 methBodyStream.AddMethodBody(il, maxStack = maxStack + 8, localVariablesSignature = localSig)
-
-        let bytes = il.CodeBuilder.ToArray()
-        System.Diagnostics.Debug.WriteLine("")
-        System.Diagnostics.Debug.WriteLine(name)
-        branchOffsets
-        |> Seq.iter (fun ofs ->
-            System.Diagnostics.Debug.WriteLine(bytes[ofs])           
-        )
 
         match firstDocument with
         | Some(_, document) ->

@@ -65,7 +65,7 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     runtime.InitializeEmitter()
     runtime.EmitEntryPoint()
     
-    TestPlatform.emitterWrite emitter
+    TestPlatform.emitterWrite(emitter, asm.IsDebuggable)
 
 let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
     let refAsms =
