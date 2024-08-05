@@ -17,7 +17,7 @@ let createEmitter(asm: OlyILAssembly) =
 let configureRuntime(vm: OlyRuntime<InterpreterType, InterpreterFunction, InterpreterField>) =
     ()
 
-let emitterWrite(emitter: InterpreterRuntimeEmitter) =
+let emitterWrite(emitter: InterpreterRuntimeEmitter, _isDebuggable) =
     emitter.Run(ImArray.empty)
     let output = emitter.StandardOut
     let ms = new MemoryStream()
