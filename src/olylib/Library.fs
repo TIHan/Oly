@@ -57,7 +57,7 @@ module Implementation =
             member this.LoadProjectConfigurationAsync(projectConfigPath, ct) : Task<OlyProjectConfiguration> = 
                 backgroundTask {         
                     let! state = 
-                        JsonFileStore<WorkspaceState>.GetContents(
+                        JsonFileStore<WorkspaceState>.GetContentsOrDefault(
                             OlyPath.Combine(projectConfigPath, Path.Combine("../" + Path.Combine(WorkspaceStateDirectory, WorkspaceStateFileName), projectConfigPath.ToString())), 
                             WorkspaceState("Debug"), 
                             ct

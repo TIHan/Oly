@@ -131,7 +131,16 @@ type JsonFileStore<'T>(path: OlyPath, defaultContents: 'T, dirWatcher: Directory
             fileRenamedSub.Dispose()
             fileDeletedSub.Dispose()
 
-    static member GetContents(path: OlyPath, defaultContents: 'T, ct: CancellationToken) =
+    static member GetContents(path: OlyPath, ct: CancellationToken) =
+        backgroundTask {
+            use fs = File.Open(path.ToString(), FileMode.Open, FileAccess.Read)
+            let jsonOptions = JsonSerializerOptions()
+            jsonOptions.PropertyNameCaseInsensitive <- true
+            let! contents = JsonSerializer.DeserializeAsync<'T>(fs, jsonOptions, cancellationToken = ct)
+            return contents
+        }
+
+    static member GetContentsOrDefault(path: OlyPath, defaultContents: 'T, ct: CancellationToken) =
         backgroundTask {
             try
                 use fs = File.Open(path.ToString(), FileMode.Open, FileAccess.Read)
@@ -142,4 +151,13 @@ type JsonFileStore<'T>(path: OlyPath, defaultContents: 'T, dirWatcher: Directory
             with
             | :? FileNotFoundException ->
                 return defaultContents
+        }
+
+    static member SetContents(path: OlyPath, contents: 'T, ct: CancellationToken) =
+        backgroundTask {
+            use fs = File.Open(path.ToString(), FileMode.OpenOrCreate, FileAccess.ReadWrite)
+            let jsonOptions = JsonSerializerOptions()
+            jsonOptions.PropertyNameCaseInsensitive <- true
+            jsonOptions.WriteIndented <- true
+            do! JsonSerializer.SerializeAsync(fs, contents, jsonOptions, cancellationToken = ct)
         }

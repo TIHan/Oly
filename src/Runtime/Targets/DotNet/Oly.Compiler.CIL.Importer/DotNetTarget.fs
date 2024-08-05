@@ -54,11 +54,58 @@ module private Helpers2 =
             let newDestinationDir = Path.Combine(dstDir, subDir.Name)
             copyDir subDir.FullName newDestinationDir
 
+
+[<Sealed;Serializable>]
+type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
+        (projectPath: string, outputPath: string, references: string array, runtimeconfigJson: string, depsJson: string, filesToCopy: string array) =
+
+    member _.ProjectPath = projectPath
+    member _.OutputPath = outputPath
+    member _.References = references
+    member _.RuntimeconfigJson = runtimeconfigJson
+    member _.DepsJson = depsJson
+    member _.FilesToCopy = filesToCopy
+
 module private DotNetReferences =
 
     let getDotNetInfo (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
-        let msbuild = MSBuild()
-        msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
+        backgroundTask {
+            //let dotnetBuildJson = OlyPath.Combine(cacheDir, "dotnet_build.json")
+
+            //if File.Exists(dotnetBuildJson.ToString()) then
+            //    let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
+            //    return 
+            //        {
+            //            ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+            //            OutputPath = resultJsonFriendly.OutputPath
+            //            DepsJson = resultJsonFriendly.DepsJson
+            //            RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
+            //            References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+            //            FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+
+            //            ReferenceNames =
+            //                (ImmutableHashSet.Empty, resultJsonFriendly.References)
+            //                ||> Array.fold (fun s r ->
+            //                    s.Add(Path.GetFileName(r))
+            //                )
+            //        }
+            //else
+                let msbuild = MSBuild()
+                let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
+
+                //let resultJsonFriendly =
+                //    ProjectBuildInfoJsonFriendly(
+                //        result.ProjectPath.ToString(),
+                //        result.OutputPath,
+                //        result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
+                //        (match result.RuntimeconfigJson with Some x -> x | _ -> null),
+                //        result.DepsJson,
+                //        result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray
+                //    )
+
+                //do! JsonFileStore.SetContents(dotnetBuildJson, resultJsonFriendly, ct)
+                return result
+        }
 
 type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb: bool) =
     inherit OlyBuild(platformName)

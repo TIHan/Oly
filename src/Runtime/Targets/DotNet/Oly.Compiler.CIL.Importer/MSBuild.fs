@@ -42,6 +42,7 @@ module private Helpers2 =
 
         files.ToImmutable()
 
+[<NoEquality;NoComparison>]
 type ProjectBuildInfo =
     {
         ProjectPath: OlyPath
