@@ -1597,6 +1597,42 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return DocumentHighlightContainer.From([||])
             })
 
+    member this.FindAllReferences(doc: OlyDocument, line: int, column: int, ct) =
+        backgroundTask {
+            let allSymbols = List()
+            let symbolOpt = doc.TryFindSymbol(line, column, ct)
+            match symbolOpt with
+            | Some symbol ->
+                if symbol.IsInLocalScope then
+                    allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+                else
+                    // TODO: We could optimize this where we don't have to refresh everything.
+                    do! refreshWorkspace ct // Ensure all projects are available in the workspace when finding references.
+                    let! solution = workspace.GetSolutionAsync(ct)
+                    match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
+                    | Some(doc) ->
+                        // Re-find the symbol because the solution and projects could have changed.
+                        let symbolOpt = doc.TryFindSymbol(line, column, ct)
+                        match symbolOpt with
+                        | Some symbol ->
+                            let originatingProj = doc.Project
+                            let projs = solution.GetProjectsDependentOnReference(originatingProj.Path).Add(originatingProj)
+                            projs
+                            |> ImArray.iter (fun proj ->
+                                proj.Documents
+                                |> ImArray.iter (fun doc ->
+                                    allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+                                )
+                            )
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
+            | _ ->
+                ()
+            return allSymbols
+        }
+
     interface IReferencesHandler with
         member this.GetRegistrationOptions(capability: ReferenceCapability, clientCapabilities: ClientCapabilities): ReferenceRegistrationOptions = 
             let options = ReferenceRegistrationOptions()
@@ -1605,38 +1641,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: ReferenceParams, ct: CancellationToken): Task<LocationContainer> = 
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
-                let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
-                match symbolOpt with
-                | Some symbol ->
-                    let allSymbols = List()
-                    if symbol.IsInLocalScope then
-                        allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
-                    else
-                        // TODO: We could optimize this where we don't have to refresh everything.
-                        do! refreshWorkspace ct // Ensure all projects are available in the workspace when finding references.
-                        let! solution = workspace.GetSolutionAsync(ct)
-                        match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
-                        | Some(doc) ->
-                            // Re-find the symbol because the solution and projects could have changed.
-                            let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
-                            match symbolOpt with
-                            | Some symbol ->
-                                let originatingProj = doc.Project
-                                let projs = solution.GetProjectsDependentOnReference(originatingProj.Path).Add(originatingProj)
-                                projs
-                                |> ImArray.iter (fun proj ->
-                                    proj.Documents
-                                    |> ImArray.iter (fun doc ->
-                                        allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
-                                    )
-                                )
-                            | _ ->
-                                ()
-                        | _ ->
-                            ()
-                    return LocationContainer.From(allSymbols)                   
-                | _ ->
-                    return LocationContainer.From([||])
+                let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
+                return LocationContainer.From(allSymbols)                   
             })
 
     interface IDefinitionHandler with
@@ -1891,6 +1897,44 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             Guid.NewGuid()
         member this.SetCapability(capability: CompletionCapability, clientCapabilities: ClientCapabilities): unit = 
             ()
+
+    interface IRenameHandler with
+
+        member this.GetRegistrationOptions(capability: RenameCapability, clientCapabilities: ClientCapabilities): RenameRegistrationOptions =
+            RenameRegistrationOptions()
+
+        member this.Handle(request, ct): Task<WorkspaceEdit> =
+            request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+                let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
+                if allSymbols.Count > 0 then    
+                    let edit = WorkspaceEdit(Changes = Dictionary())
+                    allSymbols
+                    |> Seq.iter (fun loc ->
+                        let uri = loc.Uri
+
+                        let textEdits =
+                            match edit.Changes.TryGetValue(uri) with
+                            | true, textEdits ->
+                                textEdits :?> List<TextEdit>
+                            | _ ->
+                                let textEdits = List<TextEdit>()
+                                edit.Changes[uri] <- textEdits
+                                textEdits
+
+                        let textEdit = 
+                            TextEdit(
+                                Range = loc.Range,
+                                NewText = request.NewName
+                            )
+
+                        textEdits.Add(textEdit)
+                    )
+                    return edit                  
+                else
+                    return WorkspaceEdit()
+            })
+
+
 
     interface IJsonRpcRequestHandler<OlyCompileRequest, OlyLspCompilationResult> with
 
