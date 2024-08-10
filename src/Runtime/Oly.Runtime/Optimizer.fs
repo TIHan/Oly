@@ -177,6 +177,8 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
             inlineSet = Dictionary()
             irTier = irTier
             genericContext = genericContext
+            ssaenv = ssaenv(argLocalManager)
+            isSsa = false
         }
         
     let optimizationPass (optenv: optenv<_, _, _>) irExpr =
@@ -202,7 +204,8 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         irNewExpr
 
     let irOptimizedExpr, optenv = 
-        NormalizeLocals optenv irOptimizedExpr
+        irOptimizedExpr
+        |> NormalizeLocals optenv
 
     let irLocalFlags = optenv.GetLocalFlags()
     let irArgFlags = optenv.GetArgumentFlags()

@@ -17,6 +17,7 @@
     <Compile Include="Optimizations\optenv.fs" />
     <Compile Include="Optimizations\InlineFunctions.fsi" />
     <Compile Include="Optimizations\InlineFunctions.fs" />
+    <Compile Include="Optimizations\SSA.fs" />
     <Compile Include="Optimizations\GeneralOptimizer.fs" />
     <Compile Include="Optimizations\CopyPropagation.fs" />
     <Compile Include="Optimizations\CommonSubexpressionElimination.fs" />

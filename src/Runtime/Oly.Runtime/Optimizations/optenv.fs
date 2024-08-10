@@ -47,6 +47,58 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
         localFlags.Add(flags)
         localIndex
 
+    member _.Copy() =
+        ArgumentLocalManager(argFlags, ResizeArray(localFlags))
+
+[<Struct;NoComparison;NoEquality;RequireQualifiedAccess>]
+type SsaValue =
+    | Local of localIndex: int
+    | Argument of argIndex: int
+    | None
+
+[<Sealed>]
+type internal ssaenv(argLocalManager: ArgumentLocalManager) =
+
+    let ssaIndexToLocalIndexLookup = Dictionary<int, int>()
+    let localIndexToSsaIndexLookup = Dictionary<int, int>()
+    let ssaIndexToArgIndexLookup = Dictionary<int, int>()
+    let argIndexToSsaIndexLookup = Dictionary<int, int>()
+
+    member this.TryGetSsaIndexFromLocal(localIndex: int) =
+        match localIndexToSsaIndexLookup.TryGetValue(localIndex) with
+        | true, ssaIndex -> ValueSome ssaIndex
+        | _ -> ValueNone
+
+    member this.CreateSsaIndexFromLocal(localIndex: int) =
+        OlyAssert.False(ssaIndexToLocalIndexLookup.ContainsKey(localIndex))
+        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetLocalFlags(localIndex))
+        ssaIndexToLocalIndexLookup[ssaIndex] <- localIndex
+        localIndexToSsaIndexLookup[localIndex] <- ssaIndex
+        ssaIndex
+
+    member this.TryGetSsaIndexFromArgument(argIndex: int) =
+        match argIndexToSsaIndexLookup.TryGetValue(argIndex) with
+        | true, ssaIndex -> ValueSome ssaIndex
+        | _ -> ValueNone
+
+    member this.CreateSsaIdexFromArgument(argIndex: int) =
+        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetArgumentFlags()[argIndex])
+        ssaIndexToArgIndexLookup[ssaIndex] <- argIndex
+        argIndexToSsaIndexLookup[argIndex] <- ssaIndex
+        ssaIndex
+
+    member this.GetValue(ssaIndex: int) =
+        match ssaIndexToLocalIndexLookup.TryGetValue(ssaIndex) with
+        | true, localIndex -> 
+            OlyAssert.False(localIndexToSsaIndexLookup.ContainsKey(ssaIndex))
+            SsaValue.Local localIndex
+        | _ ->
+            match ssaIndexToArgIndexLookup.TryGetValue(ssaIndex) with
+            | true, argIndex ->
+                SsaValue.Argument argIndex
+            | _ -> 
+                SsaValue.None
+
 [<NoEquality;NoComparison>]
 type internal optenv<'Type, 'Function, 'Field> =
     {
@@ -58,6 +110,8 @@ type internal optenv<'Type, 'Function, 'Field> =
         irTier: OlyIRFunctionTier
         genericContext: GenericContext
         argLocalManager: ArgumentLocalManager
+        ssaenv: ssaenv
+        mutable isSsa: bool
     }
 
     member this.IsDebuggable =
