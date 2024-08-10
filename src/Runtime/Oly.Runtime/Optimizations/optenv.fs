@@ -56,6 +56,12 @@ type SsaValue =
     | Argument of argIndex: int
     | None
 
+[<NoComparison;NoEquality>]
+type internal SsaScopes =
+    {
+        hashSet: ImmutableHashSet<int>
+    }
+
 [<Sealed>]
 type internal ssaenv(argLocalManager: ArgumentLocalManager) =
 
@@ -63,6 +69,10 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
     let localIndexToSsaIndexLookup = Dictionary<int, int>()
     let ssaIndexToArgIndexLookup = Dictionary<int, int>()
     let argIndexToSsaIndexLookup = Dictionary<int, int>()
+
+    member this.IsSsa(ssaIndex: int) =
+        ssaIndexToLocalIndexLookup.ContainsKey(ssaIndex) ||
+        ssaIndexToArgIndexLookup.ContainsKey(ssaIndex)
 
     member this.TryGetSsaIndexFromLocal(localIndex: int) =
         match localIndexToSsaIndexLookup.TryGetValue(localIndex) with
@@ -81,7 +91,7 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
         | true, ssaIndex -> ValueSome ssaIndex
         | _ -> ValueNone
 
-    member this.CreateSsaIdexFromArgument(argIndex: int) =
+    member this.CreateSsaIndexFromArgument(argIndex: int) =
         let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetArgumentFlags()[argIndex])
         ssaIndexToArgIndexLookup[ssaIndex] <- argIndex
         argIndexToSsaIndexLookup[argIndex] <- ssaIndex
@@ -229,9 +239,12 @@ module internal Helpers =
                 )
                 anyArgsHaveSideEffects
 
-        | E.Let(_, _, irRhsExpr, irBodyExpr) ->
-            hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
-            hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
+        | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
+            if optenv.ssaenv.IsSsa(localIndex) then
+                true
+            else
+                hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
+                hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, _) ->
             hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irConditionExpr ||

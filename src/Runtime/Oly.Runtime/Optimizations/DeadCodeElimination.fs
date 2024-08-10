@@ -24,7 +24,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
         | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
             analyzeExpression inCandidate irBodyExpr
 
-            if doNotRemove.Contains(localIndex) || hasSideEffect optenv irRhsExpr then
+            if doNotRemove.Contains(localIndex) || optenv.ssaenv.IsSsa(localIndex) || hasSideEffect optenv irRhsExpr then
                 doNotRemove.Add(localIndex) |> ignore
                 analyzeExpression inCandidate irRhsExpr
     
