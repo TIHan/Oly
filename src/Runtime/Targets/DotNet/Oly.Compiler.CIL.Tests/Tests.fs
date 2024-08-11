@@ -12779,31 +12779,23 @@ id(o: int32): int32 = o
 
 #[inline(never)]
 test(o: int32): int32 =
-    let o1 = o
-
     let result =
-        let mutable z = o1
+        let mutable z = o
         let mutable i = 0
         while (i < 5)
             z <- z + 1
             i <- i + 1
         z
 
-    let result2 = id(result)
-    let result3 = result2 + 1
+    let result2 = id(result + 1)
 
-    let finalResult =
-        let result =
-            let mutable z = result3
-            let mutable i = 0
-            while (i < 5)
-                if (z == 6)
-                    z <- z + 1
-                i <- i + 1
-            z
-        result
-
-    finalResult
+    let mutable z = result2
+    let mutable i = 0
+    while (i < 5)
+        if (z == 6)
+            z <- z + 1
+        i <- i + 1
+    z
 
 main(): () =
     print(test(0))
