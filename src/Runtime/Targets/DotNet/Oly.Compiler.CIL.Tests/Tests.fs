@@ -12787,15 +12787,7 @@ test(o: int32): int32 =
             i <- i + 1
         z
 
-    let result2 = id(result + 1)
-
-    let mutable z = result2
-    let mutable i = 0
-    while (i < 5)
-        if (z == 6)
-            z <- z + 1
-        i <- i + 1
-    z
+    id(result) + 2
 
 main(): () =
     print(test(0))
