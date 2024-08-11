@@ -96,207 +96,201 @@ type private CseEnv<'Type, 'Function, 'Field> =
     member this.TryGetValue(irExpr, value: outref<_>) =
         this.Subexpressions.TryGetValue(irExpr, &value)
 
-let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) =
-    
-    let rec handleOperation (env: CseEnv<_, _, _>) irExpr =
-        match irExpr with
-        | E.Operation(_, irOp) ->
-            match irOp with
-            | O.LoadField _ ->
-                match env.TryGetValue(irExpr) with
-                | true, irNewExpr -> 
-                    handleExpression env irNewExpr
-                | _ -> 
-                    irExpr
+let CommonSubexpressionElimination (optenv: optenv<_, _, _>) (irExpr: E<_, _, _>) = 
+    handleExpression optenv CseEnv.Default irExpr
 
-            | O.New _ ->
-                match env.TryGetValue(irExpr) with
-                | true, irNewExpr ->
-                    handleExpression env irNewExpr
-                | _ ->
-                    irExpr
+let private handleOperation optenv (env: CseEnv<_, _, _>) irExpr =
+    match irExpr with
+    | E.Operation(_, irOp) ->
+        match irOp with
+        | O.LoadField _ ->
+            match env.TryGetValue(irExpr) with
+            | true, irNewExpr -> 
+                handleExpression optenv env irNewExpr
+            | _ -> 
+                irExpr
 
+        | O.New _ ->
+            match env.TryGetValue(irExpr) with
+            | true, irNewExpr ->
+                handleExpression optenv env irNewExpr
             | _ ->
                 irExpr
-        | _ ->
-            OlyAssert.Fail("Expected opertion")
 
-    and handleSequentialExpression1 (env: CseEnv<_, _, _>) (hoist: List<_>) irNewExpr1 =
-        match irNewExpr1 with
-        | E.Operation(irTextRange, op) ->
-            let mutable env = env
-            let irNewArgExprs =
-                op.MapArguments(fun _ irArgExpr ->
-                    match irArgExpr with
-                    | E.Operation(_, op) ->
-                        match op with
-                        | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
-                            match env.TryGetValue(irArgExpr) with
-                            | true, irNewExpr ->
-                                handleExpression env irNewExpr
-                            | _ ->
-                                let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
-                                let localExpr = E.Value(NoRange, V.Local(localIndex, irExpr.ResultType))
-                                hoist.Add((localIndex, irArgExpr))
-                                env <- env.Set(irArgExpr, localExpr)
-                                localExpr
+        | _ ->
+            irExpr
+    | _ ->
+        OlyAssert.Fail("Expected opertion")
+
+let private handleSequentialExpression1 (optenv: optenv<_, _, _>) (env: CseEnv<_, _, _>) (hoist: List<_>) irNewExpr1 =
+    match irNewExpr1 with
+    | E.Operation(irTextRange, op) ->
+        let mutable env = env
+        let irNewArgExprs =
+            op.MapArguments(fun _ irArgExpr ->
+                match irArgExpr with
+                | E.Operation(_, op) ->
+                    match op with
+                    | O.New(func, _, _) when func.IsClosureInstanceConstructor && canSafelyPropagateForNewClosure optenv irArgExpr ->
+                        match env.TryGetValue(irArgExpr) with
+                        | true, irNewExpr ->
+                            handleExpression optenv env irNewExpr
                         | _ ->
-                            irArgExpr
+                            let localIndex = optenv.CreateLocal(OlyIRLocalFlags.None)
+                            let localExpr = E.Value(NoRange, V.Local(localIndex, irArgExpr.ResultType))
+                            hoist.Add((localIndex, irArgExpr))
+                            env <- env.Set(irArgExpr, localExpr)
+                            localExpr
                     | _ ->
                         irArgExpr
-                )
-            env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
-        | _ ->
-            env, irNewExpr1
+                | _ ->
+                    irArgExpr
+            )
+        env, E.Operation(irTextRange, op.ReplaceArguments(irNewArgExprs))
+    | _ ->
+        env, irNewExpr1
 
-    and handleExpression irExpr =
-        StackGuard.Do(fun () ->
-            handleExpressionAuxCse irExpr
-        )
+let private handleExpression (optenv: optenv<_, _, _>) (env: CseEnv<_, _, _>) irExpr =
+    StackGuard.Do(fun () ->
+        handleExpressionAuxCse optenv env irExpr
+    )
     
-    and handleExpressionAuxCse (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
-        match irExpr with
-        | E.Let(name, letLocalIndex, irRhsExpr, irBodyExpr) ->
-            let irNewRhsExpr = handleExpression env irRhsExpr
+let private handleExpressionAuxCse (optenv: optenv<_, _, _>) (env: CseEnv<_, _, _>) irExpr : E<_, _, _> =
+    match irExpr with
+    | E.Let(name, letLocalIndex, irRhsExpr, irBodyExpr) ->
+        let irNewRhsExpr = handleExpression optenv env irRhsExpr
 
-            let newEnv =
-                if hasSideEffect optenv irNewRhsExpr then
-                    env
-                else
-                    match irNewRhsExpr with
-                    | E.Operation(op=O.LoadField(irField, irReceiverExpr, resultTy)) when not irField.IsMutable ->
-                        match irReceiverExpr with
+        let newEnv =
+            if hasSideEffect optenv irNewRhsExpr then
+                env
+            else
+                match irNewRhsExpr with
+                | E.Operation(op=O.LoadField(irField, irReceiverExpr, resultTy)) when not irField.IsMutable ->
+                    match irReceiverExpr with
+                    | E.Value(value=V.Local(localIndex, _)) when optenv.IsLocalMutable(localIndex) |> not ->
+                        env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
+                    | E.Value(value=V.Argument(argIndex, _)) when optenv.IsArgumentMutable(argIndex) |> not ->
+                        env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
+                    | E.Operation(op=O.LoadField(irField2, irReceiverExpr2, _)) when not irField2.IsMutable ->
+                        match irReceiverExpr2 with
                         | E.Value(value=V.Local(localIndex, _)) when optenv.IsLocalMutable(localIndex) |> not ->
                             env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
                         | E.Value(value=V.Argument(argIndex, _)) when optenv.IsArgumentMutable(argIndex) |> not ->
                             env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
-                        | E.Operation(op=O.LoadField(irField2, irReceiverExpr2, _)) when not irField2.IsMutable ->
-                            match irReceiverExpr2 with
-                            | E.Value(value=V.Local(localIndex, _)) when optenv.IsLocalMutable(localIndex) |> not ->
-                                env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
-                            | E.Value(value=V.Argument(argIndex, _)) when optenv.IsArgumentMutable(argIndex) |> not ->
-                                env.Set(irNewRhsExpr, E.Value(NoRange, V.Local(letLocalIndex, resultTy)))
-                            | _ ->
-                                env
                         | _ ->
                             env
                     | _ ->
                         env
+                | _ ->
+                    env
 
-            let irNewBodyExpr = handleExpression newEnv irBodyExpr
+        let irNewBodyExpr = handleExpression optenv newEnv irBodyExpr
     
-            if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-                irExpr
-            else
-                E.Let(name, letLocalIndex, irNewRhsExpr, irNewBodyExpr)
+        if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
+            irExpr
+        else
+            E.Let(name, letLocalIndex, irNewRhsExpr, irNewBodyExpr)
     
-        | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression env irConditionExpr
+    | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
+        let irNewConditionExpr = handleExpression optenv env irConditionExpr
     
-            match irNewConditionExpr with
-            | E.Value(value=V.Constant(C.True, _)) ->
-                handleExpression env irTrueTargetExpr
+        match irNewConditionExpr with
+        | E.Value(value=V.Constant(C.True, _)) ->
+            handleExpression optenv env irTrueTargetExpr
     
-            | E.Value(value=V.Constant(C.False, _)) ->
-                handleExpression env irFalseTargetExpr
-    
-            | _ ->
-                let irNewTrueTargetExpr = handleExpression env irTrueTargetExpr
-                let irNewFalseTargetExpr = handleExpression env irFalseTargetExpr
-    
-                if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
-                    irExpr
-                else
-                    E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
-    
-        | E.While(irConditionExpr, irBodyExpr, resultTy) ->
-            let irNewConditionExpr = handleExpression env irConditionExpr
-    
-            match irNewConditionExpr with
-            | E.Value(value=V.Constant(C.False, _)) ->
-                E.None(NoRange, resultTy)
-            | _ ->
-                let irNewBodyExpr = handleExpression env irBodyExpr
-    
-                if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
-                    irExpr
-                else
-                    E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
-
-        | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
-            let irNewBodyExpr = handleExpression env irBodyExpr
-
-            let mutable didChange = false
-            let irNewCatchCases =
-                irCatchCases
-                |> ImArray.map (fun irCatchCase ->
-                    match irCatchCase with
-                    | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
-                        let irNewCaseBodyExpr = handleExpression env irCaseBodyExpr
-
-                        if irNewCaseBodyExpr = irCaseBodyExpr then
-                            irCatchCase
-                        else
-                            didChange <- true
-                            OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
-                )
-
-            let irNewFinallyBodyExprOpt =
-                irFinallyBodyExprOpt
-                |> Option.map (fun irExpr ->
-                    let irNewExpr = handleExpression env irExpr
-                    if irNewExpr = irExpr then
-                        irExpr
-                    else
-                        didChange <- true
-                        irNewExpr
-                )
-
-            if irNewBodyExpr = irBodyExpr && not didChange then
-                irExpr
-            else
-                E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
-    
-        | E.Sequential(irExpr1, irExpr2) ->
-            let hoist = List()
-
-            let irNewExpr1 = handleExpression env irExpr1
-
-            let env, irNewExpr1 = handleSequentialExpression1 env hoist irNewExpr1
-
-            let irNewExpr2 = handleExpression env irExpr2
-    
-            if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-                irExpr
-            else
-                let newExpr = E.Sequential(irNewExpr1, irNewExpr2)
-                (hoist, newExpr)
-                ||> Seq.foldBack (fun (localIndex, rhsExpr) expr ->
-                    E.Let("cse", localIndex, rhsExpr,
-                        expr
-                    )
-                )
-    
-        | E.Operation(irTextRange, irOp) ->
-            //let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression env argExpr)
-            //if newOp = irOp then
-            //    handleOperation env irExpr
-            //else
-            //    E.Operation(irTextRange, newOp)
-            //    |> handleOperation env
-            let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression env irArgExpr)
-            let mutable areSame = true
-            irOp.ForEachArgument(fun i irArgExpr ->
-                if irNewArgExprs[i] <> irArgExpr then
-                    areSame <- false
-            )
-            if areSame then
-                handleOperation env irExpr
-            else
-                let irNewOp = irOp.ReplaceArguments(irNewArgExprs) 
-                E.Operation(irTextRange, irNewOp)
-                |> handleOperation env
+        | E.Value(value=V.Constant(C.False, _)) ->
+            handleExpression optenv env irFalseTargetExpr
     
         | _ ->
-            irExpr    
-    handleExpression CseEnv.Default irExpr
+            let irNewTrueTargetExpr = handleExpression optenv env irTrueTargetExpr
+            let irNewFalseTargetExpr = handleExpression optenv env irFalseTargetExpr
+    
+            if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
+                irExpr
+            else
+                E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
+    
+    | E.While(irConditionExpr, irBodyExpr, resultTy) ->
+        let irNewConditionExpr = handleExpression optenv env irConditionExpr
+    
+        match irNewConditionExpr with
+        | E.Value(value=V.Constant(C.False, _)) ->
+            E.None(NoRange, resultTy)
+        | _ ->
+            let irNewBodyExpr = handleExpression optenv env irBodyExpr
+    
+            if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
+                irExpr
+            else
+                E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
+
+    | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
+        let irNewBodyExpr = handleExpression optenv env irBodyExpr
+
+        let mutable didChange = false
+        let irNewCatchCases =
+            irCatchCases
+            |> ImArray.map (fun irCatchCase ->
+                match irCatchCase with
+                | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
+                    let irNewCaseBodyExpr = handleExpression optenv env irCaseBodyExpr
+
+                    if irNewCaseBodyExpr = irCaseBodyExpr then
+                        irCatchCase
+                    else
+                        didChange <- true
+                        OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
+            )
+
+        let irNewFinallyBodyExprOpt =
+            irFinallyBodyExprOpt
+            |> Option.map (fun irExpr ->
+                let irNewExpr = handleExpression optenv env irExpr
+                if irNewExpr = irExpr then
+                    irExpr
+                else
+                    didChange <- true
+                    irNewExpr
+            )
+
+        if irNewBodyExpr = irBodyExpr && not didChange then
+            irExpr
+        else
+            E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
+    
+    | E.Sequential(irExpr1, irExpr2) ->
+        let hoist = List()
+
+        let irNewExpr1 = handleExpression optenv env irExpr1
+
+        let env, irNewExpr1 = handleSequentialExpression1 optenv env hoist irNewExpr1
+
+        let irNewExpr2 = handleExpression optenv env irExpr2
+    
+        if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
+            irExpr
+        else
+            let newExpr = E.Sequential(irNewExpr1, irNewExpr2)
+            (hoist, newExpr)
+            ||> Seq.foldBack (fun (localIndex, rhsExpr) expr ->
+                E.Let("cse", localIndex, rhsExpr,
+                    expr
+                )
+            )
+    
+    | E.Operation(irTextRange, irOp) ->
+        let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression optenv env irArgExpr)
+        let mutable areSame = true
+        irOp.ForEachArgument(fun i irArgExpr ->
+            if irNewArgExprs[i] <> irArgExpr then
+                areSame <- false
+        )
+        if areSame then
+            handleOperation optenv env irExpr
+        else
+            let irNewOp = irOp.ReplaceArguments(irNewArgExprs) 
+            E.Operation(irTextRange, irNewOp)
+            |> handleOperation optenv env
+    
+    | _ ->
+        irExpr   

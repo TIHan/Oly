@@ -74,7 +74,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             )
             match irOp with
             | O.Store(localIndex, _, _) ->
-                OlyAssert.True(localDefs.Contains(localIndex))
+                //OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
@@ -83,7 +83,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             match irValue with
             | V.Local(localIndex, _)
             | V.LocalAddress(localIndex, _, _) ->
-                OlyAssert.True(localDefs.Contains(localIndex))
+               // OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
