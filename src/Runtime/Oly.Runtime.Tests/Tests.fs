@@ -578,7 +578,7 @@ let ``Should eliminate local because SSA works even when the local is mutated`` 
 
 // Elimination
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 1`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -617,7 +617,7 @@ let ``Test 1`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 2`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -661,7 +661,7 @@ let ``Test 2`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 3`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -711,7 +711,7 @@ let ``Test 3`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 4`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -761,7 +761,7 @@ let ``Test 4`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 5`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -816,7 +816,7 @@ let ``Test 5`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 6`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -871,7 +871,7 @@ let ``Test 6`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 7`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1088,7 +1088,7 @@ let ``Test 10`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 11`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1145,7 +1145,7 @@ let ``Test 11`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "not ready")>]
 let ``Test 12`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 

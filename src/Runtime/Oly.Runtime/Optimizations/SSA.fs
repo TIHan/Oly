@@ -279,7 +279,7 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
         if newOp = op then
             expr
         else
-            E.Operation(textRange, op)
+            E.Operation(textRange, newOp)
     
     | E.While(conditionExpr, bodyExpr, resultTy) ->
         let newConditionExpr = FromSSA optenv localDefs conditionExpr
