@@ -182,15 +182,12 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         }
         
     let optimizationPass (optenv: optenv<_, _, _>) irExpr =
-        if optenv.IsDebuggable then
-            irExpr
-        else
-            irExpr
-            |> OptimizeExpression optenv  
-            |> CopyPropagation optenv
-            |> CommonSubexpressionElimination optenv
-            |> AssertionPropagation optenv
-            |> DeadCodeElimination optenv
+        irExpr
+        |> OptimizeExpression optenv  
+        |> CopyPropagation optenv
+        |> CommonSubexpressionElimination optenv
+        |> AssertionPropagation optenv
+        |> DeadCodeElimination optenv
 
     //if optenv.IsDebuggable then
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug_before.oly-ir", Dump.DumpExpression irExpr)
@@ -199,13 +196,13 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
 
     let irOptimizedExpr = 
         let mutable irNewExpr = InlineFunctions optenv irExpr
-        //irNewExpr <- SSA.ToSSA optenv { hashSet = ImmutableHashSet.Empty } irNewExpr |> fst
-
-        for _ = 1 to 3 do // 3 passes
-            irNewExpr <- optimizationPass optenv irNewExpr
-        
-        //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr
         if optenv.IsDebuggable |> not then
+            //irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst
+
+            for _ = 1 to 3 do // 3 passes
+                irNewExpr <- optimizationPass optenv irNewExpr
+
+            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr
             irNewExpr <- DeadCodeElimination optenv irNewExpr
         irNewExpr
 

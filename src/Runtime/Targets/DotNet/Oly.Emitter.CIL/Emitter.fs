@@ -1936,6 +1936,9 @@ module rec ClrCodeGen =
                 I.Ldloc returnLocal |> emitInstruction cenv
             )
 
+        | E.Phi _ ->
+            failwith "Phi not supported."
+
     let GenExpression cenv env irExpr =
         GenExpressionAux cenv env irExpr
         if env.isReturnable then

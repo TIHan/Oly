@@ -56,12 +56,6 @@ type SsaValue =
     | UseArgument of argIndex: int
     | Definition
 
-[<NoComparison;NoEquality>]
-type internal SsaScopes =
-    {
-        hashSet: ImmutableHashSet<int>
-    }
-
 [<Sealed>]
 type internal ssaenv(argLocalManager: ArgumentLocalManager) =
 
@@ -69,10 +63,6 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
     let localIndexToSsaIndexLookup = Dictionary<int, int>()
     let ssaIndexToArgIndexLookup = Dictionary<int, int>()
     let argIndexToSsaIndexLookup = Dictionary<int, int>()
-
-    member this.IsSsa(ssaIndex: int) =
-        ssaIndexToLocalIndexLookup.ContainsKey(ssaIndex) ||
-        ssaIndexToArgIndexLookup.ContainsKey(ssaIndex)
 
     member this.TryGetSsaIndexFromLocal(localIndex: int) =
         match localIndexToSsaIndexLookup.TryGetValue(localIndex) with

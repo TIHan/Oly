@@ -13,7 +13,6 @@ open Oly.Core
 open Oly.Core.TaskExtensions
 
 let private addLocal (optenv: optenv<_, _, _>) (normalizedLocals: ArgumentLocalManager) (localToNormalizedLocalMap: Dictionary<int, int>) localIndex =
-    OlyAssert.False(optenv.ssaenv.IsSsa(localIndex))
     let newLocalIndex = normalizedLocals.CreateLocal(optenv.GetLocalFlags(localIndex))
     localToNormalizedLocalMap.Add(localIndex, newLocalIndex)
     newLocalIndex
