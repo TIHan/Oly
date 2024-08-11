@@ -248,19 +248,27 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
         match v with
         | V.Local(localIndex, resultTy) ->
             match optenv.ssaenv.GetValue(localIndex) with
-            | SsaValue.UseLocal(localIndex) ->
-                E.Value(textRange, V.Local(localIndex, resultTy))
+            | SsaValue.UseLocal(nonSsaLocalIndex) ->
+                OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
+                OlyAssert.True(localDefs.Contains(nonSsaLocalIndex))
+                E.Value(textRange, V.Local(nonSsaLocalIndex, resultTy))
             | SsaValue.UseArgument(argIndex) ->
+                OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
                 E.Value(textRange, V.Argument(argIndex, resultTy))
             | SsaValue.Definition ->
+                OlyAssert.False(optenv.ssaenv.IsSsaLocal(localIndex))
                 expr
         | V.LocalAddress(localIndex, kind, resultTy) ->
             match optenv.ssaenv.GetValue(localIndex) with
-            | SsaValue.UseLocal(localIndex) ->
-                E.Value(textRange, V.LocalAddress(localIndex, kind, resultTy))
+            | SsaValue.UseLocal(nonSsaLocalIndex) ->
+                OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
+                OlyAssert.True(localDefs.Contains(nonSsaLocalIndex))
+                E.Value(textRange, V.LocalAddress(nonSsaLocalIndex, kind, resultTy))
             | SsaValue.UseArgument(argIndex) ->
+                OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
                 E.Value(textRange, V.ArgumentAddress(argIndex, kind, resultTy))
             | SsaValue.Definition ->
+                OlyAssert.False(optenv.ssaenv.IsSsaLocal(localIndex))
                 expr
         | _ ->
             expr
@@ -306,28 +314,34 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
 
 let private handleLinearFromSSA (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) =
     match expr with
-    | E.Let(_, _, E.Phi _, bodyExpr) ->
+    | E.Let(_, localIndex, E.Phi _, bodyExpr) ->
+        OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
         FromSSA optenv localDefs bodyExpr
 
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
         let newRhsExpr = FromSSA optenv localDefs rhsExpr
         match optenv.ssaenv.GetValue(localIndex) with
-        | SsaValue.UseLocal(localIndex) ->
+        | SsaValue.UseLocal(nonSsaLocalIndex) ->
+            OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
+            OlyAssert.True(localDefs.Contains(nonSsaLocalIndex))
             let newBodyExpr = FromSSA optenv localDefs bodyExpr
-            if localDefs.Contains localIndex then
+            if localDefs.Contains nonSsaLocalIndex then
                 E.Sequential(
-                    E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.Store(localIndex, newRhsExpr, optenv.emitType(RuntimeType.Void))),
+                    E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.Store(nonSsaLocalIndex, newRhsExpr, optenv.emitType(RuntimeType.Void))),
                     newBodyExpr
                 )
             else
-                E.Let("tmp", optenv.argLocalManager.CreateLocal(optenv.argLocalManager.GetLocalFlags(localIndex)), newRhsExpr, newBodyExpr)
+                E.Let("tmp_from_ssa", optenv.argLocalManager.CreateLocal(optenv.argLocalManager.GetLocalFlags(nonSsaLocalIndex)), newRhsExpr, newBodyExpr)
         | SsaValue.UseArgument(argIndex) ->
+            OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
             let newBodyExpr = FromSSA optenv localDefs bodyExpr
             E.Sequential(
                 E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.StoreArgument(argIndex, newRhsExpr, optenv.emitType(RuntimeType.Void))),
                 newBodyExpr
             )
         | SsaValue.Definition ->
+            OlyAssert.False(optenv.ssaenv.IsSsaLocal(localIndex))
+            OlyAssert.False(localDefs.Contains(localIndex))
             let newBodyExpr = FromSSA optenv (localDefs.Add(localIndex)) bodyExpr
             if newRhsExpr = rhsExpr && newBodyExpr = bodyExpr then
                 expr

@@ -215,12 +215,12 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     let irOptimizedExpr = 
         let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr "InlineFunctions" optenv
         if optenv.IsDebuggable |> not then
-            //irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst |> checkExpr "ToSSA" optenv
+            irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst |> checkExpr "ToSSA" optenv
 
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
 
-            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
+            irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
             irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr "DeadCodeElimination after FromSSA" optenv
         irNewExpr
 

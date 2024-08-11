@@ -12753,6 +12753,67 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Can we break SSA? 17``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[inline(never)]
+id(o: int32): int32 = o
+
+#[inline(never)]
+test(o: int32): int32 =
+    let o1 = o
+
+    let result =
+        let mutable z = o1
+        let mutable i = 0
+        while (i < 5)
+            z <- z + 1
+            i <- i + 1
+        z
+
+    let result2 = id(result)
+    let result3 = result2 + 1
+
+    let finalResult =
+        let result =
+            let mutable z = result3
+            let mutable i = 0
+            while (i < 5)
+                if (z == 6)
+                    z <- z + 1
+                i <- i + 1
+            z
+        result
+
+    finalResult
+
+main(): () =
+    print(test(0))
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+    |> ignore
+
+[<Fact>]
 let ``Extended type should have access to the extension functions of an implemented interface``() =
     let src =
         """
