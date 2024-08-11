@@ -26,10 +26,10 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
 
             let canDoNotRemove, localDefs =
                 match optenv.ssaenv.GetValue(localIndex) with
-                | SsaValue.UseLocal(localIndex) -> 
-                    localDefs.Contains(localIndex), localDefs
+                | SsaValue.UseLocal(nonSsaLocalIndex) -> 
+                    localDefs.Contains(nonSsaLocalIndex), localDefs.Add(localIndex)
                 | SsaValue.UseArgument _ ->
-                    true, localDefs
+                    true, localDefs.Add(localIndex)
                 | SsaValue.Definition ->
                     hasSideEffect optenv irRhsExpr, localDefs.Add(localIndex)
 

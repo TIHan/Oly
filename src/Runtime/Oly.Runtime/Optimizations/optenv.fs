@@ -96,6 +96,9 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
             | _ -> 
                 SsaValue.Definition
 
+    member this.IsSsaLocal(localIndex: int) =
+        ssaIndexToLocalIndexLookup.ContainsKey(localIndex) || ssaIndexToArgIndexLookup.ContainsKey(localIndex)
+
 [<NoEquality;NoComparison>]
 type internal optenv<'Type, 'Function, 'Field> =
     {

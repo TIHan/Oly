@@ -75,22 +75,7 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: ImmutableHashSet<int>) (ex
         if newConditionExpr = conditionExpr && newBodyExpr = bodyExpr then
             expr, used
         else
-            let newExpr = E.While(newConditionExpr, newBodyExpr, resultTy)
-            let phiExprs =
-                (E.None(OlyIRDebugSourceTextRange.Empty, optenv.emitType(RuntimeType.Void)), used)
-                ||> Seq.fold (fun expr ssaIndex ->
-                    match optenv.ssaenv.GetValue(ssaIndex) with
-                    | SsaValue.UseLocal(localIndex) ->
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex), E.Phi(optenv.emitType(RuntimeType.Void)), expr)
-                    | SsaValue.UseArgument(argIndex) ->
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex), E.Phi(optenv.emitType(RuntimeType.Void)), expr)
-                    | SsaValue.Definition ->
-                        expr
-                )
-            E.Sequential(
-                newExpr,
-                phiExprs
-            ), used
+            E.While(newConditionExpr, newBodyExpr, resultTy), used
 
     | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
         let newConditionExpr, used = ToSSA optenv used conditionExpr
@@ -157,7 +142,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: ImmutableHashSet<
         else
             let newExpr = E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
             
-            let phiExprs =
+            let phiExprs, used =
                 (expr2, used)
                 ||> Seq.fold (fun expr ssaIndex ->
                     match optenv.ssaenv.GetValue(ssaIndex) with
@@ -168,6 +153,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: ImmutableHashSet<
                     | SsaValue.Definition ->
                         expr
                 )
+                |> ToSSA optenv used
             E.Sequential(
                 newExpr,
                 phiExprs
@@ -193,7 +179,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: ImmutableHashSet<
                 newFinallyBodyExpr
             )
         let newExpr = E.Try(newBodyExpr, newCatchCases, newFinallyBodyExprOpt, resultTy)
-        let phiExprs =
+        let phiExprs, used =
             (expr2, used)
             ||> Seq.fold (fun expr ssaIndex ->
                 match optenv.ssaenv.GetValue(ssaIndex) with
@@ -203,11 +189,35 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: ImmutableHashSet<
                     E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex), E.Phi(optenv.emitType(RuntimeType.Void)), expr)
                 | SsaValue.Definition ->
                     expr
-            )
+            ) |> ToSSA optenv used
         E.Sequential(
             newExpr,
             phiExprs
         ), used
+
+    | E.Sequential(E.While(conditionExpr, bodyExpr, resultTy), expr2) ->
+        let newConditionExpr, used = ToSSA optenv used conditionExpr
+        let newBodyExpr, used = ToSSA optenv used bodyExpr
+
+        if newConditionExpr = conditionExpr && newBodyExpr = bodyExpr then
+            expr, used
+        else
+            let newExpr = E.While(newConditionExpr, newBodyExpr, resultTy)
+            let phiExprs, used =
+                (expr2, used)
+                ||> Seq.fold (fun expr ssaIndex ->
+                    match optenv.ssaenv.GetValue(ssaIndex) with
+                    | SsaValue.UseLocal(localIndex) ->
+                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex), E.Phi(optenv.emitType(RuntimeType.Void)), expr)
+                    | SsaValue.UseArgument(argIndex) ->
+                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex), E.Phi(optenv.emitType(RuntimeType.Void)), expr)
+                    | SsaValue.Definition ->
+                        expr
+                ) |> ToSSA optenv used
+            E.Sequential(
+                newExpr,
+                phiExprs
+            ), used
 
     | E.Sequential(expr1, expr2) ->
         let newExpr1, used = ToSSA optenv used expr1

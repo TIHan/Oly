@@ -182,25 +182,30 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         }
 
     /// In Debug or Checked builds, this checks the IR to make sure its valid.
-    let inline checkExpr optenv expr =
+    let inline checkExpr name optenv expr =
 #if DEBUG || CHECKED
         // TODO: We could expand this, but NormalizeLocals is good enough.
-        let _ = NormalizeLocals optenv expr
+        try
+            let _ = NormalizeLocals optenv expr
+            ()
+        with
+        | ex ->
+            raise(AggregateException($"Error in '{name}'.", ex))
 #endif
         expr
         
     let optimizationPass (optenv: optenv<_, _, _>) irExpr =
         irExpr
         |> OptimizeExpression optenv  
-        |> checkExpr optenv
+        |> checkExpr "OptimizeExpression" optenv
         |> CopyPropagation optenv
-        |> checkExpr optenv
+        |> checkExpr "CopyPropagation" optenv
         |> CommonSubexpressionElimination optenv
-        |> checkExpr optenv
+        |> checkExpr "CommonSubexpressionElimination" optenv
         |> AssertionPropagation optenv
-        |> checkExpr optenv
+        |> checkExpr "AssertionPropagation" optenv
         |> DeadCodeElimination optenv
-        |> checkExpr optenv
+        |> checkExpr "DeadCodeElimination" optenv
 
     //if optenv.IsDebuggable then
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug_before.oly-ir", Dump.DumpExpression irExpr)
@@ -208,15 +213,15 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_before.oly-ir", Dump.DumpExpression irExpr)
 
     let irOptimizedExpr = 
-        let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr optenv
+        let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr "InlineFunctions" optenv
         if optenv.IsDebuggable |> not then
-            //irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst
+            //irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst |> checkExpr "ToSSA" optenv
 
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
 
-            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr
-            irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr optenv
+            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
+            irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr "DeadCodeElimination after FromSSA" optenv
         irNewExpr
 
     let irOptimizedExpr, optenv = 
