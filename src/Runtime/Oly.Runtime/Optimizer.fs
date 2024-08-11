@@ -180,14 +180,27 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
             ssaenv = ssaenv(argLocalManager)
             isSsa = false
         }
+
+    /// In Debug or Checked builds, this checks the IR to make sure its valid.
+    let inline checkExpr optenv expr =
+#if DEBUG || CHECKED
+        // TODO: We could expand this, but NormalizeLocals is good enough.
+        let _ = NormalizeLocals optenv expr
+#endif
+        expr
         
     let optimizationPass (optenv: optenv<_, _, _>) irExpr =
         irExpr
         |> OptimizeExpression optenv  
+        |> checkExpr optenv
         |> CopyPropagation optenv
+        |> checkExpr optenv
         |> CommonSubexpressionElimination optenv
+        |> checkExpr optenv
         |> AssertionPropagation optenv
+        |> checkExpr optenv
         |> DeadCodeElimination optenv
+        |> checkExpr optenv
 
     //if optenv.IsDebuggable then
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug_before.oly-ir", Dump.DumpExpression irExpr)
@@ -195,15 +208,15 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_before.oly-ir", Dump.DumpExpression irExpr)
 
     let irOptimizedExpr = 
-        let mutable irNewExpr = InlineFunctions optenv irExpr
+        let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr optenv
         if optenv.IsDebuggable |> not then
-         //   irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst
+            //irNewExpr <- SSA.ToSSA optenv ImmutableHashSet.Empty irNewExpr |> fst
 
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
 
-         //   irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr
-            irNewExpr <- DeadCodeElimination optenv irNewExpr
+            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr
+            irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr optenv
         irNewExpr
 
     let irOptimizedExpr, optenv = 
