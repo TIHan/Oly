@@ -52,9 +52,9 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
 
 [<Struct;NoComparison;NoEquality;RequireQualifiedAccess>]
 type SsaValue =
-    | Local of localIndex: int
-    | Argument of argIndex: int
-    | None
+    | UseLocal of localIndex: int
+    | UseArgument of argIndex: int
+    | Definition
 
 [<NoComparison;NoEquality>]
 type internal SsaScopes =
@@ -81,7 +81,7 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
 
     member this.CreateSsaIndexFromLocal(localIndex: int) =
         OlyAssert.False(ssaIndexToLocalIndexLookup.ContainsKey(localIndex))
-        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetLocalFlags(localIndex))
+        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetLocalFlags(localIndex) &&& ~~~OlyIRLocalFlags.Mutable)
         ssaIndexToLocalIndexLookup[ssaIndex] <- localIndex
         localIndexToSsaIndexLookup[localIndex] <- ssaIndex
         ssaIndex
@@ -92,7 +92,7 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
         | _ -> ValueNone
 
     member this.CreateSsaIndexFromArgument(argIndex: int) =
-        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetArgumentFlags()[argIndex])
+        let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetArgumentFlags()[argIndex] &&& ~~~OlyIRLocalFlags.Mutable)
         ssaIndexToArgIndexLookup[ssaIndex] <- argIndex
         argIndexToSsaIndexLookup[argIndex] <- ssaIndex
         ssaIndex
@@ -101,13 +101,13 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
         match ssaIndexToLocalIndexLookup.TryGetValue(ssaIndex) with
         | true, localIndex -> 
             OlyAssert.False(localIndexToSsaIndexLookup.ContainsKey(ssaIndex))
-            SsaValue.Local localIndex
+            SsaValue.UseLocal localIndex
         | _ ->
             match ssaIndexToArgIndexLookup.TryGetValue(ssaIndex) with
             | true, argIndex ->
-                SsaValue.Argument argIndex
+                SsaValue.UseArgument argIndex
             | _ -> 
-                SsaValue.None
+                SsaValue.Definition
 
 [<NoEquality;NoComparison>]
 type internal optenv<'Type, 'Function, 'Field> =
@@ -239,12 +239,9 @@ module internal Helpers =
                 )
                 anyArgsHaveSideEffects
 
-        | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
-            if optenv.ssaenv.IsSsa(localIndex) then
-                true
-            else
-                hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
-                hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
+        | E.Let(_, _, irRhsExpr, irBodyExpr) ->
+            hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
+            hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
 
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, _) ->
             hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irConditionExpr ||

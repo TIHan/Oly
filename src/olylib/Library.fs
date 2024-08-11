@@ -26,23 +26,13 @@ module Implementation =
         static member Default =
             ProjectConfigurations(
                 [|
-                    ProjectConfiguration("Debug", [|"DEBUG"|], true)
                     ProjectConfiguration("Release", [||], false)
+                    ProjectConfiguration("Debug", [|"DEBUG"|], true)
                 |]
             )
 
     [<Sealed>]
-    type WorkspaceState [<JsonConstructor>] (activeConfiguration: string) =
-        member _.ActiveConfiguration = activeConfiguration
-
-    [<Literal>]
-    let WorkspaceStateDirectory = ".olyworkspace/"
-
-    [<Literal>]
-    let WorkspaceStateFileName = "state.json"
-
-    [<Sealed>]
-    type OlyWorkspaceResourceService() =
+    type OlyWorkspaceResourceService(configName: string) =
 
         let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceService
 
@@ -56,12 +46,6 @@ module Implementation =
 
             member this.LoadProjectConfigurationAsync(projectConfigPath, ct) : Task<OlyProjectConfiguration> = 
                 backgroundTask {         
-                    let! state = 
-                        JsonFileStore<WorkspaceState>.GetContentsOrDefault(
-                            OlyPath.Combine(projectConfigPath, Path.Combine("../" + Path.Combine(WorkspaceStateDirectory, WorkspaceStateFileName), projectConfigPath.ToString())), 
-                            WorkspaceState("Debug"), 
-                            ct
-                        )
                     let mutable configs = ProjectConfigurations.Default
 
                     try
@@ -88,7 +72,7 @@ module Implementation =
 
                     let configOpt =
                         configs.Configurations
-                        |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(state.ActiveConfiguration, StringComparison.OrdinalIgnoreCase))
+                        |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(configName, StringComparison.OrdinalIgnoreCase))
 
                     let config =
                         match configOpt with
@@ -113,12 +97,12 @@ module Oly =
         if value then
             Console.WriteLine(Implementation.ProjectConfiguration("", [||], false))
             Console.WriteLine(Implementation.ProjectConfigurations([||]))
-            Console.WriteLine(Implementation.WorkspaceState(""))
+            Console.WriteLine("")
 
-    let Build (projectPath: OlyPath, ct: CancellationToken) =
+    let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         DoNotTrim(false)
 
-        let rs = Implementation.OlyWorkspaceResourceService() :> IOlyWorkspaceResourceService
+        let rs = Implementation.OlyWorkspaceResourceService(configName) :> IOlyWorkspaceResourceService
 
         let targets = 
             [

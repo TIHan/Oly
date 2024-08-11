@@ -542,7 +542,7 @@ let ``Should eliminate local because isDebuggable is false 2`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact>]
 let ``Should eliminate local because SSA works even when the local is mutated`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -557,7 +557,7 @@ let ``Should eliminate local because SSA works even when the local is mutated`` 
                 (Local local0)
             )
 
-    let finalLocalCount, _ = 
+    let finalLocalCount, finalExpr = 
         getIR
             builder
             ImArray.empty

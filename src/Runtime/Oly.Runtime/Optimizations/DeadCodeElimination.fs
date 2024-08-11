@@ -19,50 +19,62 @@ open Oly.Runtime.CodeGen.Internal
 let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
     let doNotRemove = HashSet()
     
-    let rec analyzeExpression inCandidate irExpr : unit =
+    let rec analyzeExpression inCandidate (localDefs: ImmutableHashSet<int>) irExpr : unit =
         match irExpr with
         | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
-            analyzeExpression inCandidate irBodyExpr
+            analyzeExpression inCandidate localDefs irRhsExpr
 
-            if doNotRemove.Contains(localIndex) || optenv.ssaenv.IsSsa(localIndex) || hasSideEffect optenv irRhsExpr then
+            let canDoNotRemoveDueToSsa, localDefs =
+                match optenv.ssaenv.GetValue(localIndex) with
+                | SsaValue.UseLocal(localIndex) -> 
+                    localDefs.Contains(localIndex), localDefs
+                | SsaValue.UseArgument _ ->
+                    doNotRemove.Contains(localIndex) || hasSideEffect optenv irRhsExpr, localDefs
+                | SsaValue.Definition ->
+                  //  OlyAssert.False(doNotRemove.Contains(localIndex))
+                    hasSideEffect optenv irRhsExpr, localDefs.Add(localIndex)
+
+            if canDoNotRemoveDueToSsa then
                 doNotRemove.Add(localIndex) |> ignore
-                analyzeExpression inCandidate irRhsExpr
+
+            analyzeExpression inCandidate localDefs irBodyExpr
     
         | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, _) ->
-            analyzeExpression inCandidate irConditionExpr
-            analyzeExpression inCandidate irTrueTargetExpr
-            analyzeExpression inCandidate irFalseTargetExpr
+            analyzeExpression inCandidate localDefs irConditionExpr
+            analyzeExpression inCandidate localDefs irTrueTargetExpr
+            analyzeExpression inCandidate localDefs irFalseTargetExpr
     
         | E.While(irConditionExpr, irBodyExpr, _) ->
-            analyzeExpression inCandidate irConditionExpr
-            analyzeExpression inCandidate irBodyExpr
+            analyzeExpression inCandidate localDefs irConditionExpr
+            analyzeExpression inCandidate localDefs irBodyExpr
 
         | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, _) ->
-            analyzeExpression inCandidate irBodyExpr
+            analyzeExpression inCandidate localDefs irBodyExpr
 
             irCatchCases
             |> ImArray.iter (fun irCatchCase ->
                 match irCatchCase with
                 | OlyIRCatchCase.CatchCase(_, localIndex, irCaseBodyExpr, _) ->
                     doNotRemove.Add(localIndex) |> ignore
-                    analyzeExpression inCandidate irCaseBodyExpr
+                    analyzeExpression inCandidate localDefs irCaseBodyExpr
             )
 
             irFinallyBodyExprOpt
             |> Option.iter (fun irExpr ->
-                analyzeExpression inCandidate irExpr
+                analyzeExpression inCandidate localDefs irExpr
             )
     
         | E.Sequential(irExpr1, irExpr2) ->
-            analyzeExpression inCandidate irExpr1
-            analyzeExpression inCandidate irExpr2
+            analyzeExpression inCandidate localDefs irExpr1
+            analyzeExpression inCandidate localDefs irExpr2
 
         | E.Operation(op=irOp) ->
             irOp.ForEachArgument(fun _ irArgExpr ->
-                analyzeExpression inCandidate irArgExpr
+                analyzeExpression inCandidate localDefs irArgExpr
             )
             match irOp with
             | O.Store(localIndex, _, _) ->
+                OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
@@ -71,6 +83,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             match irValue with
             | V.Local(localIndex, _)
             | V.LocalAddress(localIndex, _, _) ->
+                OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
@@ -78,7 +91,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
         | _ ->
             ()
     
-    analyzeExpression false irExpr
+    analyzeExpression false ImmutableHashSet.Empty irExpr
 
     let rec handleExpression irExpr =
         StackGuard.Do(fun () ->
