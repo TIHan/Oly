@@ -47,9 +47,6 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
         localFlags.Add(flags)
         localIndex
 
-    member _.Copy() =
-        ArgumentLocalManager(argFlags, ResizeArray(localFlags))
-
 [<Struct;NoComparison;NoEquality;RequireQualifiedAccess>]
 type SsaValue =
     | UseLocal of localIndex: int

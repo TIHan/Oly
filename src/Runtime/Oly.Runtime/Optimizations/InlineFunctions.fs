@@ -434,15 +434,22 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
             else
 
             let irInlinedExpr =
+                let normalizeLet expr =
+                    match expr with
+                    | E.Let(localName, localIndex, rhsExpr, E.Value(textRange, V.LocalAddress(localIndexAddress, kind, resultTy))) when localIndex = localIndexAddress ->
+                        let newLocalIndex = optenv.argLocalManager.CreateLocal(optenv.argLocalManager.GetLocalFlags(localIndex))
+                        E.Let(localName, newLocalIndex, rhsExpr, E.Value(textRange, V.LocalAddress(newLocalIndex, kind, resultTy)))
+                    | _ ->
+                        expr
                 (irFinalExpr, argMap)
                 ||> ImArray.foldBacki (fun irAccExpr i subValue ->
                     match subValue with
                     | ForwardSubValue.Local(localIndex, true) ->
-                        E.Let("tmp", localIndex, irArgExprs[i], irAccExpr)
+                        E.Let("tmp", localIndex, normalizeLet irArgExprs[i], irAccExpr)
                     | ForwardSubValue.LoadInlineableFunction(localIndex, _, _, _) ->
-                        E.Let("tmpFunc", localIndex, irArgExprs[i], irAccExpr)
+                        E.Let("tmpFunc", localIndex, normalizeLet irArgExprs[i], irAccExpr)
                     | ForwardSubValue.NewClosure(localIndex, _, _, _) ->
-                        E.Let("tmpClo", localIndex, irArgExprs[i], irAccExpr)
+                        E.Let("tmpClo", localIndex, normalizeLet irArgExprs[i], irAccExpr)
                     | _ ->
                         irAccExpr
                 )

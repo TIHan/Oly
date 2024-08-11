@@ -12692,6 +12692,67 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Can we break SSA? 16``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_length")]
+getLength<T>(T[]): int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[open]
+extension ArrayExtensions<T> =
+    inherits T[]
+
+    Length: int32 
+        #[inline]
+        get() = getLength(this)
+
+#[inline(never)]
+test(o1: int32[], o2: int32[]): bool =
+    if (o1.Length == o2.Length)
+        let mutable result = true
+        let mutable i = 0
+        while (i < o1.Length && result)
+            let ds1 = o1[i]
+            let ds2 = o2[i]
+            result <- ds1 == ds2 
+            i <- i + 1
+        result
+    else
+        false
+
+main(): () =
+    print(test([1],[1]))
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+    |> ignore
+
+[<Fact>]
 let ``Extended type should have access to the extension functions of an implemented interface``() =
     let src =
         """
