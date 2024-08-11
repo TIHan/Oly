@@ -24,17 +24,16 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
         | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
             analyzeExpression inCandidate localDefs irRhsExpr
 
-            let canDoNotRemoveDueToSsa, localDefs =
+            let canDoNotRemove, localDefs =
                 match optenv.ssaenv.GetValue(localIndex) with
                 | SsaValue.UseLocal(localIndex) -> 
                     localDefs.Contains(localIndex), localDefs
                 | SsaValue.UseArgument _ ->
-                    doNotRemove.Contains(localIndex) || hasSideEffect optenv irRhsExpr, localDefs
+                    true, localDefs
                 | SsaValue.Definition ->
-                  //  OlyAssert.False(doNotRemove.Contains(localIndex))
                     hasSideEffect optenv irRhsExpr, localDefs.Add(localIndex)
 
-            if canDoNotRemoveDueToSsa then
+            if canDoNotRemove then
                 doNotRemove.Add(localIndex) |> ignore
 
             analyzeExpression inCandidate localDefs irBodyExpr
@@ -56,7 +55,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
                 match irCatchCase with
                 | OlyIRCatchCase.CatchCase(_, localIndex, irCaseBodyExpr, _) ->
                     doNotRemove.Add(localIndex) |> ignore
-                    analyzeExpression inCandidate localDefs irCaseBodyExpr
+                    analyzeExpression inCandidate (localDefs.Add(localIndex)) irCaseBodyExpr
             )
 
             irFinallyBodyExprOpt
@@ -74,7 +73,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             )
             match irOp with
             | O.Store(localIndex, _, _) ->
-                //OlyAssert.True(localDefs.Contains(localIndex))
+                OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
@@ -83,7 +82,7 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             match irValue with
             | V.Local(localIndex, _)
             | V.LocalAddress(localIndex, _, _) ->
-               // OlyAssert.True(localDefs.Contains(localIndex))
+                OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
             | _ ->
                 ()
