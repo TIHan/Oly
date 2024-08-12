@@ -47,18 +47,17 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
         localFlags.Add(flags)
         localIndex
 
-[<Struct;NoComparison;NoEquality;RequireQualifiedAccess>]
-type SsaValue =
-    | UseLocal of localIndex: int
-    | UseArgument of argIndex: int
+[<NoComparison;NoEquality;RequireQualifiedAccess>]
+type SsaValue<'Type> =
+    | UseLocal of localIndex: int * resultTy: 'Type
+    | UseArgument of argIndex: int * resultTy: 'Type
     | Definition
 
 [<Sealed>]
-type internal ssaenv(argLocalManager: ArgumentLocalManager) =
+type internal ssaenv<'Type>(argLocalManager: ArgumentLocalManager) =
 
-    let ssaIndexToLocalIndexLookup = Dictionary<int, int>()
+    let ssaLookup = Dictionary<int, SsaValue<'Type>>()
     let localIndexToSsaIndexLookup = Dictionary<int, int>()
-    let ssaIndexToArgIndexLookup = Dictionary<int, int>()
     let argIndexToSsaIndexLookup = Dictionary<int, int>()
 
     member this.TryGetSsaIndexFromLocal(localIndex: int) =
@@ -66,10 +65,10 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
         | true, ssaIndex -> ValueSome ssaIndex
         | _ -> ValueNone
 
-    member this.CreateSsaIndexFromLocal(localIndex: int) =
-        OlyAssert.False(ssaIndexToLocalIndexLookup.ContainsKey(localIndex))
+    member this.CreateSsaIndexFromLocal(localIndex: int, resultTy: 'Type) =
+        OlyAssert.False(ssaLookup.ContainsKey(localIndex))
         let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetLocalFlags(localIndex) &&& ~~~OlyIRLocalFlags.Mutable)
-        ssaIndexToLocalIndexLookup[ssaIndex] <- localIndex
+        ssaLookup[ssaIndex] <- SsaValue.UseLocal(localIndex, resultTy)
         localIndexToSsaIndexLookup[localIndex] <- ssaIndex
         ssaIndex
 
@@ -78,26 +77,22 @@ type internal ssaenv(argLocalManager: ArgumentLocalManager) =
         | true, ssaIndex -> ValueSome ssaIndex
         | _ -> ValueNone
 
-    member this.CreateSsaIndexFromArgument(argIndex: int) =
+    member this.CreateSsaIndexFromArgument(argIndex: int, resultTy: 'Type) =
         let ssaIndex = argLocalManager.CreateLocal(argLocalManager.GetArgumentFlags()[argIndex] &&& ~~~OlyIRLocalFlags.Mutable)
-        ssaIndexToArgIndexLookup[ssaIndex] <- argIndex
+        ssaLookup[ssaIndex] <- SsaValue.UseArgument(argIndex, resultTy)
         argIndexToSsaIndexLookup[argIndex] <- ssaIndex
         ssaIndex
 
     member this.GetValue(ssaIndex: int) =
-        match ssaIndexToLocalIndexLookup.TryGetValue(ssaIndex) with
-        | true, localIndex -> 
+        match ssaLookup.TryGetValue(ssaIndex) with
+        | true, value -> 
             OlyAssert.False(localIndexToSsaIndexLookup.ContainsKey(ssaIndex))
-            SsaValue.UseLocal localIndex
+            value
         | _ ->
-            match ssaIndexToArgIndexLookup.TryGetValue(ssaIndex) with
-            | true, argIndex ->
-                SsaValue.UseArgument argIndex
-            | _ -> 
-                SsaValue.Definition
+            SsaValue.Definition
 
     member this.IsSsaLocal(localIndex: int) =
-        ssaIndexToLocalIndexLookup.ContainsKey(localIndex) || ssaIndexToArgIndexLookup.ContainsKey(localIndex)
+        ssaLookup.ContainsKey(localIndex)
 
 [<NoEquality;NoComparison>]
 type internal optenv<'Type, 'Function, 'Field> =
@@ -110,7 +105,7 @@ type internal optenv<'Type, 'Function, 'Field> =
         irTier: OlyIRFunctionTier
         genericContext: GenericContext
         argLocalManager: ArgumentLocalManager
-        ssaenv: ssaenv
+        ssaenv: ssaenv<'Type>
         mutable isSsa: bool
     }
 

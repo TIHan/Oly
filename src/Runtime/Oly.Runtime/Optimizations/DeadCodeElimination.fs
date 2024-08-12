@@ -26,9 +26,11 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
 
             let canDoNotRemove, localDefs =
                 match optenv.ssaenv.GetValue(localIndex) with
-                | SsaValue.UseLocal(nonSsaLocalIndex) -> 
+                | SsaValue.UseLocal(nonSsaLocalIndex, _) -> 
+                    OlyAssert.False(optenv.IsLocalMutable(localIndex))
                     localDefs.Contains(nonSsaLocalIndex), localDefs.Add(localIndex)
                 | SsaValue.UseArgument _ ->
+                    OlyAssert.False(optenv.IsLocalMutable(localIndex))
                     true, localDefs.Add(localIndex)
                 | SsaValue.Definition ->
                     hasSideEffect optenv irRhsExpr, localDefs.Add(localIndex)
@@ -84,6 +86,9 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
             | V.LocalAddress(localIndex, _, _) ->
                 OlyAssert.True(localDefs.Contains(localIndex))
                 doNotRemove.Add(localIndex) |> ignore
+                match optenv.ssaenv.GetValue(localIndex) with
+                | SsaValue.UseLocal(nonSsaLocalIndex, _) -> doNotRemove.Add(nonSsaLocalIndex) |> ignore
+                | _ -> ()
             | _ ->
                 ()
     
