@@ -12798,6 +12798,132 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Can we break SSA? 18``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint64")]
+alias uint64
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(uint64, uint64): bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("not_equal")]
+(!=)(uint64, uint64): bool
+
+#[intrinsic("bitwise_shift_left")]
+(<<)(uint64, int32): uint64
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("multiply")]
+(*)(int32, int32): int32
+
+#[intrinsic("bitwise_and")]
+(&)(uint64, uint64): uint64
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+struct BitSet512 =
+    field mutable value0: uint64
+    field mutable value1: uint64 // 128
+    field mutable value2: uint64
+    field mutable value3: uint64 // 256
+    field mutable value4: uint64
+    field mutable value5: uint64
+    field mutable value6: uint64
+    field mutable value7: uint64 // 512
+    new(value: uint64) =
+        {
+            value0 = value
+            value1 = 0
+            value2 = 0
+            value3 = 0
+            value4 = 0
+            value5 = 0
+            value6 = 0
+            value7 = 0
+        }
+
+    new(value0: uint64, value1: uint64, value2: uint64, value3: uint64, value4: uint64, value5: uint64, value6: uint64, value7: uint64) =
+        {
+            value0 = value0
+            value1 = value1
+            value2 = value2
+            value3 = value3
+            value4 = value4
+            value5 = value5
+            value6 = value6
+            value7 = value7
+        }
+
+    ToIndex(): int32 =
+        let valueIndex = this.ToValueIndex()
+        let value = this.GetValue(valueIndex)
+        let mutable result = -1
+        let mutable i = 0
+        while (i < 64)
+            if (((1: uint64) << i) == value)
+                result <- valueIndex * 8 + i
+                i <- 64
+            i <- i + 1
+        result
+
+    ToValueIndex(): int32 = 
+        if (this.value0 & 0xFFFFFFFFFFFFFFFF != 0)
+            0
+        else if (this.value1 & 0xFFFFFFFFFFFFFFFF != 0)
+            1
+        else if (this.value2 & 0xFFFFFFFFFFFFFFFF != 0)
+            2
+        else if (this.value3 & 0xFFFFFFFFFFFFFFFF != 0)
+            3
+        else if (this.value4 & 0xFFFFFFFFFFFFFFFF != 0)
+            4
+        else if (this.value5 & 0xFFFFFFFFFFFFFFFF != 0)
+            5
+        else if (this.value6 & 0xFFFFFFFFFFFFFFFF != 0)
+            6
+        else if (this.value7 & 0xFFFFFFFFFFFFFFFF != 0)
+            7
+        else
+            0
+
+    GetValue(valueIndex: int32): uint64 =
+        match (valueIndex)
+        | 0 => this.value0
+        | 1 => this.value1
+        | 2 => this.value2
+        | 3 => this.value3
+        | 4 => this.value4
+        | 5 => this.value5
+        | 6 => this.value6
+        | 7 => this.value7
+        | _ => 999
+
+main(): () =
+    let b = BitSet512(10)
+    print(b.ToIndex())
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "-1"
+    |> ignore
+
+[<Fact>]
 let ``Extended type should have access to the extension functions of an implemented interface``() =
     let src =
         """
