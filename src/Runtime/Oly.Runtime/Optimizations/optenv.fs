@@ -224,7 +224,8 @@ module internal Helpers =
                 )
                 anyArgsHaveSideEffects
 
-        | E.Let(_, _, irRhsExpr, irBodyExpr) ->
+        | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
+            optenv.ssaenv.IsSsaLocal(localIndex) ||
             hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irRhsExpr ||
             hasSideEffectAux optenv limit checkAddressExposed (depth + 1) irBodyExpr
 

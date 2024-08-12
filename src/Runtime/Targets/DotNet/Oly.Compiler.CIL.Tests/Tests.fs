@@ -12924,6 +12924,35 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Can we break SSA? 19``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[inline(never)]
+test(x: int32): () =
+    let mutable y = x
+    if (__oly_equal(x, 5))
+        y <- 10
+        print("hello")
+    else
+        y <- 3
+        print("world")
+    print(y)
+
+main(): () =
+    test(5)
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello10"
+    |> ignore
+
+[<Fact>]
 let ``Extended type should have access to the extension functions of an implemented interface``() =
     let src =
         """
