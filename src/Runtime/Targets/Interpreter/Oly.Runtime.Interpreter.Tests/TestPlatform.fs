@@ -12,7 +12,7 @@ let globalSetup() =
     ()
 
 let createEmitter(asm: OlyILAssembly) =
-    InterpreterRuntimeEmitter()
+    InterpreterRuntimeEmitter(new StringWriter())
 
 let configureRuntime(vm: OlyRuntime<InterpreterType, InterpreterFunction, InterpreterField>) =
     ()

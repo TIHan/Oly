@@ -9,6 +9,14 @@ open Oly.Compiler.Syntax
 open Oly.Core
 
 [<Sealed>]
+type OlyProgram =
+
+    new : path: OlyPath * run: (unit -> unit) -> OlyProgram
+
+    member Path: OlyPath
+    member Run: unit -> unit
+
+[<Sealed>]
 type OlyReferenceInfo =
 
     new : path: OlyPath * textSpan: OlyTextSpan -> OlyReferenceInfo
@@ -94,7 +102,7 @@ type OlyBuild =
     
     abstract OnAfterReferencesImported : unit -> unit
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
@@ -223,7 +231,7 @@ type OlyWorkspace =
     member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// TODO: We should make this API better.
-    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
     member ClearSolutionAsync : ct: CancellationToken -> Task<unit>

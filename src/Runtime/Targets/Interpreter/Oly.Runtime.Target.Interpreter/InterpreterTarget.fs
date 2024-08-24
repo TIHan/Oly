@@ -16,7 +16,15 @@ open Oly.Runtime.Interpreter
 type InterpreterTarget() =
     inherit OlyBuild("interpreter")
 
-    let relativeOutputDir = String.Empty
+    let mutable emitterOpt: InterpreterRuntimeEmitter option = None
+
+    member this.Run(args) =
+        match emitterOpt with
+        | Some emitter -> 
+            emitterOpt <- None
+            emitter.Run(args)
+        | _ ->
+            failwith "No successful build found"
 
     override this.OnBeforeReferencesImportedAsync(_, _, _) = 
         backgroundTask {
@@ -37,7 +45,7 @@ type InterpreterTarget() =
         | Error diags -> return Error(diags)
         | Ok asm ->
 
-        let emitter = InterpreterRuntimeEmitter()
+        let emitter = InterpreterRuntimeEmitter(Console.Out)
         let runtime = OlyRuntime(emitter)
 
         let refDiags = ImArray.builder()
@@ -61,7 +69,7 @@ type InterpreterTarget() =
         else
             runtime.EmitAheadOfTime()
 
-        return Ok ("")
+        return Ok(OlyProgram(proj.Path, fun () -> emitter.Run(ImArray.empty)))
         }
 
     override this.CanImportReference(path: OlyPath): bool = false

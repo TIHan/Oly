@@ -9,6 +9,7 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 open System.Collections.Generic
 open System.Collections.Concurrent
+#end
 
 #[intrinsic("void")]
 alias void
@@ -45,12 +46,6 @@ alias float32
 #[intrinsic("float64")]
 alias float64
 
-#[intrinsic("native_int")]
-alias nint
-
-#[intrinsic("native_uint")]
-alias nuint
-
 #[intrinsic("bool")]
 alias bool
 
@@ -69,8 +64,16 @@ alias byref<T>
 #[intrinsic("by_ref_read")]
 alias inref<T>
 
+#if DOTNET
 #[intrinsic("native_ptr")]
 alias (*)<T>
+#end
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_uint")]
+alias nuint
 
 // Cast Operations
 
@@ -270,6 +273,7 @@ char(uint16): char
 #[intrinsic("unsafe_cast")]
 char(nuint): char
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint<T>(T*): nint
@@ -277,11 +281,13 @@ nint<T>(T*): nint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint(void*): nint
+#end
 
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint(int32): nint
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
@@ -289,6 +295,7 @@ nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
+#end
 
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
@@ -306,6 +313,7 @@ nuint(uint64): nuint
 #[intrinsic("unsafe_cast")]
 nuint(uint8): nuint
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nuint(void*): nuint
@@ -325,12 +333,15 @@ nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuin
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
+#end
 
 // Other Operations
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("load_null_ptr")]
 nullptr<T>: T*
+#end
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -372,6 +383,7 @@ nullptr<T>: T*
 #[intrinsic("add")]
 (+)(float64, float64): float64
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
 (+)(nuint, nuint): nuint
@@ -385,6 +397,7 @@ nullptr<T>: T*
 #[unmanaged(allocation_only)]
 (+)(ptr: void*, value: uint64): void* =
     ptr + nuint(value)
+#end
 
 #[unmanaged(allocation_only)]
 #[intrinsic("subtract")]
@@ -881,6 +894,7 @@ print(object): ()
 #[intrinsic("address_of")]
 (&)<T>(T): inref<T>
 
+#if DOTNET
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_address_of")]
 (&&)<T>(T): T*
@@ -888,6 +902,7 @@ print(object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+#end
 
 #[unmanaged(allocation_only)]
 #[intrinsic("bitwise_and")]
@@ -1011,6 +1026,7 @@ extension ArrayExtensions<T> =
         #[unmanaged(allocation_only)]
         get() = getLength(this)
 
+#if DOTNET
 #[open]
 extension ArrayEnumerableExtension<T> =
     inherits T[]
@@ -1112,6 +1128,7 @@ extension MutableArrayEnumerableExtension<T> =
             Dispose(): () = ()
 
         Impl(this)
+#end
 
 #[intrinsic("cast")]
 Cast<T>(object): T
@@ -1133,6 +1150,7 @@ module Unsafe =
     AsMutable<T>(arr: T[]): mutable T[] =
         _cast(arr)
 
+#if DOTNET
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsPointer<T>(int32): T*
@@ -1160,6 +1178,7 @@ module Unsafe =
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
+#end
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
@@ -1211,6 +1230,7 @@ mapAsMutable<T, U>(arr: T[], f: T -> U): mutable U[] =
         i <- i + 1
     newArr
 
+#if DOTNET
 distinctBy<T, U>(arr: T[], f: T -> U): T[] =
     let found = System.Collections.Generic.HashSet<U>()
     let indicesToInclude = System.Collections.Generic.List<int32>()
@@ -1275,6 +1295,7 @@ filter<T>(arr: mutable T[], f: T -> bool): mutable T[] =
         newArr[i] <- arr[indicesToInclude[i]]
         i <- i + 1
     newArr
+#end
 
 find<T>(arr: T[], predicate: T -> bool): T =
     let mutable result: T = unchecked default
@@ -1320,7 +1341,9 @@ tryFindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
         else
             -1
 
+#if DOTNET
 #[System.Diagnostics.DebuggerHiddenAttribute()]
+#end
 findIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
     let mutable isFound = false
     let mutable i = 0
@@ -1431,6 +1454,7 @@ assert(condition: bool): () =
 
 // DotNet Specific -----------------------------------------------------------------------------------------------------------------------
 
+#if DOTNET
 module DotNet =
 
     /// Performs a forced garbage collection of all generations as well as compacting the large-object-heap.
@@ -1504,14 +1528,25 @@ printLine<T>(mutable value: T): () where T: trait { mutable ToString(): string }
 #[System.Diagnostics.DebuggerHiddenAttribute()]
 fail<TResult>(msg: string): TResult =
     throw System.Exception(msg)
+#end
+
+#if INTERPRETER
+#[intrinsic("throw")]
+(throw)<TResult>(string): TResult
+
+fail<TResult>(msg: string): TResult =
+    throw msg
+#end
 
 // ----------------------------------------
 
+#if DOTNET
 #[inline]
 ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline] f: scoped T -> ()): () =
     let xse = xs.GetEnumerator()
     while (xse.MoveNext())
         f(xse.Current)
+#end
 
 ForEach<T>(xs: T[], f: scoped T -> ()): () =
     For(xs.Length, i -> f(xs[i]))
@@ -1525,6 +1560,7 @@ ForEachBack<T>(xs: T[], f: scoped T -> ()): () =
 ForEachBack<T>(xs: mutable T[], f: scoped T -> ()): () =
     ForBack(xs.Length, i -> f(xs[i]))
 
+#if DOTNET
 lock(lockObj: object, f: scoped () -> ()): () =
     let mutable lockTaken = false
     try
@@ -1583,6 +1619,7 @@ extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
     AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
     AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
     AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
+#end
 
 #[inline]
 For(count: int32, #[inline] f: scoped int32 -> ()): () =
@@ -1598,6 +1635,7 @@ ForBack(count: int32, #[inline] f: scoped int32 -> ()): () =
         f(i)
         i <- i - 1
 
+#if DOTNET
 #[inline]
 ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
     let options = System.Threading.Tasks.ParallelOptions()
@@ -1607,8 +1645,9 @@ ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
             (i, state) ->
                 f(i)
         )
+#end
 
-
+#if DOTNET
 // Below is DotNet specific
 
 class PtrPtrHandle =

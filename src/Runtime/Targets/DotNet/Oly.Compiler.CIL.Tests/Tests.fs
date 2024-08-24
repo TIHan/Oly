@@ -19915,3 +19915,77 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "15"
+
+[<Fact>]
+let ``Throw string should work on most platforms``() =
+    """
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("print")]
+print(string): ()
+
+#[intrinsic("throw")]
+(throw)<TResult>(string): TResult
+
+main(): () =
+    try
+        throw "test"
+    catch (msg: string) =>
+        print(msg)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+
+[<Fact>]
+let ``Native int should work on most platforms``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("unsafe_cast")]
+nint(int32): nint
+
+#[intrinsic("unsafe_cast")]
+int32(nint): int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    print(nint(123))
+    print(int32(nint(456)))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123456"
+
+[<Fact>]
+let ``Native uint should work on most platforms``() =
+    """
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nuint
+
+#[intrinsic("unsafe_cast")]
+nuint(uint32): nuint
+
+#[intrinsic("unsafe_cast")]
+uint32(nuint): uint32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    print(nuint(123))
+    print(uint32(nuint(456)))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123456"

@@ -9,23 +9,37 @@ let stopwatch = Stopwatch.StartNew()
 let args = Environment.GetCommandLineArgs()
 
 // Parse args
-if args.Length <= 1 || args.Length > 2 then
+if args.Length <= 1 then
     printfn "Expected Oly project file."
     Environment.ExitCode <- 1
 else
     let ct = CancellationToken.None
 
-    let run configName projectPath =
+    let build configName projectPath willRunAfterBuild =
         let projectPath = OlyPath.Create(projectPath)
 
-        printfn "Compiling '%s'..." (projectPath.ToString())
+        let defaultColor = Console.ForegroundColor
+
+        if not willRunAfterBuild then
+            Console.ForegroundColor <- ConsoleColor.Yellow
+            printfn "Building '%s'..." (projectPath.ToString())
+
         let result = Oly.Build(configName, projectPath, ct).Result
         match result with
-        | Ok _ ->
+        | Ok prog ->
             stopwatch.Stop()
-            printfn "Compiled '%s' successfully in %f seconds." (projectPath.ToString()) stopwatch.Elapsed.TotalSeconds
+
+            if not willRunAfterBuild then
+                Console.ForegroundColor <- ConsoleColor.Green
+                printfn "Built '%s' successfully in %.2f seconds.\n" (projectPath.ToString()) stopwatch.Elapsed.TotalSeconds
+                Console.ForegroundColor <- defaultColor
+            else
+                prog.Run()
+
             Environment.ExitCode <- 0
         | Error diags ->
+            Console.ForegroundColor <- ConsoleColor.Red
+            printfn "Building '%s' failed.\n" (projectPath.ToString())
             diags
             |> ImArray.iter (fun diag ->
                 printfn "%s\n" (diag.GetHelperText(ct))
@@ -33,10 +47,14 @@ else
             Environment.ExitCode <- 1
 
     match args with
+    | [|_; "run"; "-c"; configName; projectPath|] ->
+        build configName projectPath true
+    | [|_; "run"; projectPath|] ->
+        build "Release" projectPath true
     | [|_; "-c"; configName; projectPath|] ->
-        run configName projectPath
+        build configName projectPath false
     | [|_; projectPath|] ->
-        run "Release" projectPath
+        build "Release" projectPath false
     | _ ->
         printfn "Invalid command-line arguments."
         Environment.ExitCode <- 1

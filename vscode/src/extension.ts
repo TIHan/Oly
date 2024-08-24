@@ -6,6 +6,7 @@
 import * as path from 'path';
 import { workspace, ExtensionContext } from 'vscode';
 import * as vscode from 'vscode';
+import * as cp from "child_process";
 
 import {
 	AbstractCancellationTokenSource,
@@ -24,6 +25,17 @@ import {
 
 import { createConnection } from 'net';
 import { debug, log } from 'console';
+
+const execShell = (cmd: string) =>
+    new Promise<string>((resolve, reject) => {
+      cp.exec(cmd, (err, out) => {
+        if (err) {
+          return resolve(cmd+' error!');
+          //or,  reject(err);
+        }
+        return resolve(out);
+      });
+    });
 
 let client: LanguageClient;
 let isClientReady: boolean = false;
@@ -531,6 +543,26 @@ export function activate(context: ExtensionContext) {
 				ch.append(result.error);
 				throw new Error("Oly Compilation Failed");
 			}
+
+			if (result.resultPath.toLowerCase().endsWith(".olyx"))
+			{
+				let olyExe = context.asAbsolutePath(
+					path.join('out', 'net8', 'oly.exe')
+				);
+				console.log("test");
+				let t = null;
+				if (vscode.window.terminals.length == 0)
+				{
+					t = vscode.window.createTerminal();
+				}
+				else
+				{
+					t = vscode.window.terminals[0];
+				}
+				t.show();
+				t.sendText(olyExe + " run " + result.resultPath);
+			}
+
 		}));
 
 		let active = getActiveDocument();

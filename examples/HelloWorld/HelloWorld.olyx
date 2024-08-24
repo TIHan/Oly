@@ -1,6 +1,4 @@
 #target "dotnet: net8"
 
-#reference "../core/core.olyx"
-
 main(): () =
     print("Hello World!")

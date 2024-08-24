@@ -13,11 +13,9 @@ open Oly.Runtime
 open Oly.Runtime.CodeGen
 
 [<Sealed>]
-type InterpreterEnvironment() =
+type InterpreterEnvironment(stdout: TextWriter) =
 
-    let builder = StringBuilder()
-
-    member _.StandardOut = builder
+    member _.StandardOut: TextWriter = stdout
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type InterpreterTypeDefinitionInfo =
@@ -1236,7 +1234,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                                 arg.ToString()
                         | _ ->
                             arg.ToString()
-                    env.StandardOut.Append(text) |> ignore
+                    env.StandardOut.Write(text)
 
             | InterpreterOperation.Call(func, argExprs, _) ->            
                 func.EmittedFunction.CallWithStack(stack, evalArgs stack argExprs, false)
@@ -1677,9 +1675,9 @@ type InterpreterByReferenceOfArgument(arguments: obj [], n: int32) =
     member this.InstanceOfType: InterpreterInstanceOfType = this.Instance :?> InterpreterInstanceOfType  
         
 [<Sealed>]
-type InterpreterRuntimeEmitter() =
+type InterpreterRuntimeEmitter(stdout) =
 
-    let env = InterpreterEnvironment()
+    let env = InterpreterEnvironment(stdout)
 
     let mutable entryPoint: InterpreterFunction voption = ValueNone
 
@@ -1689,7 +1687,7 @@ type InterpreterRuntimeEmitter() =
         | ValueSome entryPoint ->
             entryPoint.Call(args)
 
-    member this.StandardOut = env.StandardOut.ToString()
+    member this.StandardOut = env.StandardOut
 
     interface IOlyRuntimeEmitter<InterpreterType, InterpreterFunction, InterpreterField> with
 

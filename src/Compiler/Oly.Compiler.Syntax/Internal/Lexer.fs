@@ -783,14 +783,15 @@ module Lexer =
 
     let rec scanTextOfConditionalDefine (lexer: Lexer) prevToken =     
         let mutable token = Unchecked.defaultof<_>
-        match tryElseConditionalDirective lexer prevToken &token with
+        // TODO: Figure out else
+        //match tryElseConditionalDirective lexer prevToken &token with
+        //| true -> token
+        //| _ ->
+        match tryEndConditionalDirective lexer prevToken &token with
         | true -> token
         | _ ->
-            match tryEndConditionalDirective lexer prevToken &token with
-            | true -> token
-            | _ ->
-                advance lexer
-                scanTextOfConditionalDefine lexer prevToken
+            advance lexer
+            scanTextOfConditionalDefine lexer prevToken
             
     let beginScanTextOfConditionalDefine (lexer: Lexer) =
         let startColumn = lexer.currentColumn

@@ -11,6 +11,12 @@ open System.Threading.Tasks
 open System.Collections.Generic
 open System.Collections.Immutable
 
+[<Sealed>]
+type OlyProgram(path: OlyPath, run: unit -> unit) =
+
+    member _.Path = path
+    member _.Run() = run()
+
 [<AutoOpen>]
 module Helpers =
 
@@ -118,7 +124,7 @@ type OlyBuild(platformName: string) =
     
     abstract OnAfterReferencesImported : unit -> unit
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
