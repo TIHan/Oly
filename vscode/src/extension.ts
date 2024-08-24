@@ -544,24 +544,23 @@ export function activate(context: ExtensionContext) {
 				throw new Error("Oly Compilation Failed");
 			}
 
-			if (result.resultPath.toLowerCase().endsWith(".olyx"))
-			{
-				let olyExe = context.asAbsolutePath(
-					path.join('out', 'net8', 'oly.exe')
-				);
-				console.log("test");
-				let t = null;
-				if (vscode.window.terminals.length == 0)
-				{
-					t = vscode.window.createTerminal();
-				}
-				else
-				{
-					t = vscode.window.terminals[0];
-				}
-				t.show();
-				t.sendText(olyExe + " run " + result.resultPath);
-			}
+			// if (result.resultPath.toLowerCase().endsWith(".olyx"))
+			// {
+			// 	let olyExe = context.asAbsolutePath(
+			// 		path.join('out', 'net8', 'oly.exe')
+			// 	);
+			// 	let t = null;
+			// 	if (vscode.window.terminals.length == 0)
+			// 	{
+			// 		t = vscode.window.createTerminal();
+			// 	}
+			// 	else
+			// 	{
+			// 		t = vscode.window.terminals[0];
+			// 	}
+			// 	t.show();
+			// 	t.sendText(olyExe + " run " + result.resultPath);
+			// }
 
 		}));
 

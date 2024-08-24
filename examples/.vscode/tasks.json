@@ -12,6 +12,11 @@
           "reveal": "always",
           "panel": "new"
         }
+      },
+      {
+        "label": "oly",
+        "type": "shell",
+        "command": "${extensionInstallFolder:vscode.oly}/out/net8/oly.exe run ${file}"
       }
     ]
   }

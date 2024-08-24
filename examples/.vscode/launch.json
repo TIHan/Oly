@@ -1,5 +1,13 @@
 {
     "version": "0.2.0",
+    "compounds": [
+        {
+        "name": "Oly Interpreter Launch",
+        "configurations": [""],
+        "preLaunchTask": "oly",
+        "stopAll": true
+        }
+    ],
     "configurations": [
         {
             "name": ".NET Core Launch (console)",
