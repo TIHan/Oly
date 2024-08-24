@@ -1,0 +1,24 @@
+module DSA.BubbleSort
+
+private Swap(arr: mutable int32[], i: int32, j: int32): () =
+    let tmp = arr[i]
+    arr[i] <- arr[j]
+    arr[j] <- tmp
+
+private BubbleSortAux(arr: mutable int32[]): bool =
+    let mutable didSwap = false
+
+    let mutable i = 0
+    while (i < arr.Length - 1)
+        if (arr[i] > arr[i + 1])
+            Swap(arr, i, i + 1)
+            didSwap <- true
+
+        i <- i + 1
+
+    didSwap
+
+BubbleSort(arr: mutable int32[]): () =
+    let mutable finished = false
+    while (!finished)
+        finished <- !BubbleSortAux(arr)

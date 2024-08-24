@@ -60,8 +60,8 @@ type OlyToken =
 
     member this.TryConditionalDirectiveText =
         match this.node.Internal.RawToken with
-        | ConditionalDirective(hashIfToken, bodyText, hashEndToken) -> 
-            ValueSome(hashIfToken.ValueText, bodyText, hashEndToken.ValueText)
+        | ConditionalDirective(prevtoken, bodyText, token) -> 
+            ValueSome(prevtoken.ValueText, bodyText, token.ValueText)
         | _ ->
             ValueNone
 

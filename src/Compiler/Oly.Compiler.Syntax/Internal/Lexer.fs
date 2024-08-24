@@ -684,6 +684,7 @@ module Lexer =
         let startColumn = lexer.currentColumn
         let startPos = lexer.window.LexemeStart
 
+        // advance 4 - #end
         advance lexer
         advance lexer
         advance lexer
@@ -700,7 +701,29 @@ module Lexer =
 
         HashEnd
 
-    let tryEndConditionalDirective (lexer: Lexer) hashIfToken (outToken: outref<Token>) : bool =
+    let elseConditionalDirective (lexer: Lexer) =
+        let startColumn = lexer.currentColumn
+        let startPos = lexer.window.LexemeStart
+
+        // advance 5 - #else
+        advance lexer
+        advance lexer
+        advance lexer
+        advance lexer
+        advance lexer
+        resetLexeme lexer
+
+        checkDirectiveIndentation lexer startColumn startPos
+
+        if lexer.currentConditionalCount > 0 then
+            ()
+        else
+            let endPos = lexer.window.LexemeStart
+            lexer.diagnostics.Add(startPos, endPos, "No corresponding conditional directive was found.", true, 154)
+
+        HashEnd
+
+    let tryEndConditionalDirective (lexer: Lexer) prevToken (outToken: outref<Token>) : bool =
         match peek lexer with
         | '#' ->
             match peekN 1 lexer with
@@ -710,7 +733,7 @@ module Lexer =
                     match peekN 3 lexer with
                     | 'd' ->
                         let bodyText = lexeme lexer
-                        outToken <- ConditionalDirective(hashIfToken, bodyText, endConditionalDirective lexer)
+                        outToken <- ConditionalDirective(prevToken, bodyText, endConditionalDirective lexer)
                         true
                     | _ -> 
                         false
@@ -722,18 +745,52 @@ module Lexer =
             if c = InvalidCharacter then
                 let bodyText = lexeme lexer
                 resetLexeme lexer
-                outToken <- ConditionalDirective(hashIfToken, bodyText, EndOfSource)
+                outToken <- ConditionalDirective(prevToken, bodyText, EndOfSource)
                 true
             else
                 false
 
-    let rec scanTextOfConditionalDefine (lexer: Lexer) hashIfToken =     
+    let tryElseConditionalDirective (lexer: Lexer) prevToken (outToken: outref<Token>) : bool =
+        match peek lexer with
+        | '#' ->
+            match peekN 1 lexer with
+            | 'e' ->
+                match peekN 2 lexer with
+                | 'l' ->
+                    match peekN 3 lexer with
+                    | 's' ->
+                        match peekN 4 lexer with
+                        | 'e' ->
+                            let bodyText = lexeme lexer
+                            outToken <- ConditionalDirective(prevToken, bodyText, elseConditionalDirective lexer)
+                            true
+                        | _ ->
+                            false
+                    | _ -> 
+                        false
+                | _ -> 
+                    false
+            | _ ->
+                false
+        | c ->
+            if c = InvalidCharacter then
+                let bodyText = lexeme lexer
+                resetLexeme lexer
+                outToken <- ConditionalDirective(prevToken, bodyText, EndOfSource)
+                true
+            else
+                false
+
+    let rec scanTextOfConditionalDefine (lexer: Lexer) prevToken =     
         let mutable token = Unchecked.defaultof<_>
-        match tryEndConditionalDirective lexer hashIfToken &token with
+        match tryElseConditionalDirective lexer prevToken &token with
         | true -> token
         | _ ->
-            advance lexer
-            scanTextOfConditionalDefine lexer hashIfToken
+            match tryEndConditionalDirective lexer prevToken &token with
+            | true -> token
+            | _ ->
+                advance lexer
+                scanTextOfConditionalDefine lexer prevToken
             
     let beginScanTextOfConditionalDefine (lexer: Lexer) =
         let startColumn = lexer.currentColumn

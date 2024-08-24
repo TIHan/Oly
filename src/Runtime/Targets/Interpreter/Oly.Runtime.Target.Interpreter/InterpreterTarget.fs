@@ -14,7 +14,7 @@ open Oly.Runtime.Interpreter
 
 [<Sealed>]
 type InterpreterTarget() =
-    inherit OlyBuild("i")
+    inherit OlyBuild("interpreter")
 
     let relativeOutputDir = String.Empty
 
@@ -26,6 +26,11 @@ type InterpreterTarget() =
     override this.OnAfterReferencesImported() = ()
 
     override this.BuildProjectAsync(proj, ct: System.Threading.CancellationToken) = backgroundTask { 
+        let diags = proj.GetDiagnostics(ct)
+        if diags |> ImArray.exists (fun x -> x.IsError) then
+            return Error(diags)
+        else
+
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with

@@ -341,10 +341,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     override this.BuildProjectAsync(proj, ct) = backgroundTask {
         ct.ThrowIfCancellationRequested()
+
+        let diags = proj.GetDiagnostics(ct)
+        if diags |> ImArray.exists (fun x -> x.IsError) then
+            return Error(diags)
+        else
+
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
-        | Error diags -> return Error(diags)
+        | Error _ -> return Error(proj.GetDiagnostics(ct))
         | Ok asm ->
 
         let netInfo = netInfos[proj.Path]

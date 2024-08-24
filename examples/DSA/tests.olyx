@@ -1,0 +1,43 @@
+#target "dotnet: net8"
+
+#load "*.oly"
+
+open DSA
+
+SortTest(sort: mutable int32[] -> ()): () =
+    let xs = mutable [500; 2; 1; 1000; 3; 7; 99; 3000; 4]
+
+    sort(xs)
+
+    if (xs[0] != 1)
+        fail("fail")
+
+    if (xs[1] != 2)
+        fail("fail")
+
+    if (xs[2] != 3)
+        fail("fail")
+
+    if (xs[3] != 4)
+        fail("fail")
+
+    if (xs[4] != 7)
+        fail("fail")
+
+    if (xs[5] != 99)
+        fail("fail")
+
+    if (xs[6] != 500)
+        fail("fail")
+
+    if (xs[7] != 1000)
+        fail("fail")
+
+    if (xs[8] != 3000)
+        fail("fail")
+
+main(): () =
+    SortTest(QuickSort.QuickSort)
+    SortTest(BubbleSort.BubbleSort)
+    SortTest(InsertionSort.InsertionSort)
+    printLine("Passed")

@@ -656,6 +656,7 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
     let wstateStore = 
         lazy
             editorDirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
+            editorDirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
             new JsonFileStore<LspWorkspaceState>(this.GetWorkspaceStatePath(), { activeConfiguration = "Debug" }, editorDirWatch)
 
     member this.GetWorkspaceStatePath() =

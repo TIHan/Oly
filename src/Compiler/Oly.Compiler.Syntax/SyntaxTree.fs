@@ -402,6 +402,9 @@ type OlyCompilationUnitConfiguration =
 
     member this.IsLibrary = this.isLibrary
 
+    member this.WithTarget(target) =
+        { this with target = target }
+
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyParsingOptions =
     {

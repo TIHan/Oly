@@ -386,7 +386,7 @@ module OlyClientCommands {
 
 export function activate(context: ExtensionContext) {
 	let serverModule = context.asAbsolutePath(
-		path.join('out', 'net7', 'Oly.LanguageServer.dll')
+		path.join('out', 'net8', 'Oly.LanguageServer.dll')
 	);
 
 	// If the extension is launched in debug mode then the debug server options are used

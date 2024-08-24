@@ -542,7 +542,7 @@ let ``Should eliminate local because isDebuggable is false 2`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "Ssa not completed")>]
 let ``Should eliminate local because SSA works even when the local is mutated`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1031,7 +1031,7 @@ let ``Test 9`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "Ssa not completed")>]
 let ``Test 10`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 

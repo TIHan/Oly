@@ -1,0 +1,29 @@
+module DSA.QuickSort
+
+private Swap(arr: mutable int32[], i: int32, j: int32): () =
+    let tmp = arr[i]
+    arr[i] <- arr[j]
+    arr[j] <- tmp
+
+private Partition(arr: mutable int32[], low: int32, high: int32): int32 =
+    let pivot = arr[high]
+
+    let mutable i = low - 1
+    let mutable j = low
+    while (j <= high - 1)
+        if (arr[j] < pivot)
+            i <- i + 1
+            Swap(arr, i, j)
+        j <- j + 1
+
+    Swap(arr, i + 1, high)
+    i + 1
+
+private QuickSort(arr: mutable int32[], low: int32, high: int32): () =
+    if (low < high)
+        let result = Partition(arr, low, high)
+        QuickSort(arr, low, result - 1)
+        QuickSort(arr, result + 1, high)
+
+QuickSort(arr: mutable int32[]): () =
+    QuickSort(arr, 0, arr.Length - 1)

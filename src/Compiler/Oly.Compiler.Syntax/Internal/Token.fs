@@ -189,8 +189,9 @@ type internal Token =
     | MultiLineComment of startToken: Token * text: string * endToken: Token
     | DirectiveFlag of hashToken: Token * token: Token
     | Directive of hashToken: Token * token: Token * whitespaceToken: Token * valueToken: Token
-    | ConditionalDirective of hashIfToken: Token * bodyText: string * hashEndToken: Token
+    | ConditionalDirective of prevToken: Token * bodyText: string * token: Token
     | HashIf of whitespaceToken: Token * identToken: Token
+    | HashElse of whitespaceToken: Token * identToken: Token
     | HashEnd
 
     // Dummy token used to fill in tokens on syntax nodes that have errors
@@ -325,8 +326,9 @@ type internal Token =
         | Hash -> "#"
         | DirectiveFlag(hashToken, token) -> hashToken.Text + token.Text
         | Directive(hashToken, token, whitespaceToken, valueToken) -> hashToken.Text + token.Text + whitespaceToken.Text + valueToken.Text
-        | ConditionalDirective(hashIfToken, bodyText, hashEndToken) -> hashIfToken.Text + bodyText + hashEndToken.Text
+        | ConditionalDirective(prevToken, bodyText, token) -> prevToken.Text + bodyText + token.Text
         | HashIf(whitespaceToken, identToken) -> "#if" + whitespaceToken.Text + identToken.Text
+        | HashElse(whitespaceToken, identToken) -> "#else" + whitespaceToken.Text + identToken.Text
         | HashEnd -> "#end"
         | Invalid text -> text
         | Equal -> "="

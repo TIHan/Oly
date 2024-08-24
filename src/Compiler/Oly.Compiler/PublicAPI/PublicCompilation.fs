@@ -95,7 +95,6 @@ type private CompilationUnitState =
         lazyInitialState: CacheValue<InitialState>
         initialPass: CacheValue<BinderPass0>
         implState: CompilationUnitImplementationState
-        extraDiags: OlyDiagnostic imarray
     }
 
 [<Sealed>]
@@ -107,19 +106,12 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
         unitState.implState.syntaxDiagnostics.GetValue(ct)
 
     member _.GetSemanticDiagnostics(ct) =
-        unitState.extraDiags.AddRange(unitState.implState.semanticDiagnostics.GetValue(ct))
+        unitState.implState.semanticDiagnostics.GetValue(ct)
 
     member _.BoundModel: OlyBoundModel = unitState.implState.boundModel
 
     member this.GetBoundTree(ct) =
         this.BoundModel.GetBoundTree(ct)
-
-    member this.SetExtraDiagnostics(extraDiags) =
-        let newUnitState = { unitState with extraDiags = extraDiags }
-        CompilationUnit(newUnitState)
-
-    member this.GetExtraDiagnostics() =
-        unitState.extraDiags
 
     member this.Update(asm, compRef: OlyCompilation ref, syntaxTree: OlySyntaxTree) =
         let implPass =
@@ -191,7 +183,6 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                 lazyInitialState = initial
                 initialPass = initialPass
                 implState = implState
-                extraDiags = ImArray.empty
             }
         CompilationUnit(unitState)
 
@@ -600,22 +591,6 @@ type OlyCompilation private (state: CompilationState) =
         let cunits = state.cunits.Remove(path)
         this.InitialSetSyntaxTreeBatch(cunits.Values |> Seq.map (fun x -> x.BoundModel.SyntaxTree) |> ImArray.ofSeq)
 
-    member this.SetExtraDiagnostics(path: OlyPath, extraDiags) =
-        // !! DO NOT REFRESH THE SIGNATURE HERE !!
-        // It doesn't provide any benefit and it would cause other places
-        // that reference the signature to be stale.
-        // Such as GoToDefinition on an external symbol would not work.
-        let cunit = state.cunits[path]
-        let newCUnit = cunit.SetExtraDiagnostics(extraDiags)
-        { state with
-            cunits = state.cunits.SetItem(path, newCUnit)
-        }
-        |> OlyCompilation
-
-    member this.GetExtraDiagnostics(path: OlyPath) =
-        let cunit = state.cunits[path]
-        cunit.GetExtraDiagnostics()
-
     /// Adds a syntax tree to the compilation.
     /// Will overwrite existing syntax trees.
     member this.SetSyntaxTree(syntaxTree: OlySyntaxTree) =
@@ -674,8 +649,6 @@ type OlyCompilation private (state: CompilationState) =
     member internal this.InitialSetSyntaxTreeBatch(syntaxTrees: OlySyntaxTree imarray) =
         let compRef = ref Unchecked.defaultof<_>
 
-        let prevCUnits = state.cunits
-
         let tryGetLocation = OlyCompilation.tryGetLocation compRef
               
         let cunits =
@@ -685,12 +658,6 @@ type OlyCompilation private (state: CompilationState) =
             (ImmutableDictionary.Empty, syntaxTrees)
             ||> ImArray.fold (fun cunits syntaxTree ->
                 let cunit = CompilationUnit.Create(asm, lazyInitialState, compRef, tryGetLocation, syntaxTree)
-                let cunit =
-                    match prevCUnits.TryGetValue(syntaxTree.Path) with
-                    | true, prevCUnit ->
-                        cunit.SetExtraDiagnostics(prevCUnit.GetExtraDiagnostics())
-                    | _ ->
-                        cunit
                 cunits.Add(syntaxTree.Path, cunit)
             )
 

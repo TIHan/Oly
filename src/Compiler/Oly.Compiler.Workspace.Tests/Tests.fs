@@ -19,7 +19,10 @@ let createWorkspaceWith(f) =
             new IOlyWorkspaceResourceService with
         
                 member _.LoadSourceText(filePath) =
-                    f filePath
+                    if filePath.EndsWith("prelude.olyx") then
+                        OlySourceText.FromFile(filePath.ToString())
+                    else
+                        f filePath
         
                 member _.GetTimeStamp(filePath) = DateTime()
         
@@ -125,7 +128,7 @@ let getFunctionCallSymbolByCursor (srcWithCursor: string) =
 let ``Simple workspace with hello world project should compile`` () =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -142,7 +145,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x'`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -155,7 +158,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -169,7 +172,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 3`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -183,7 +186,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 4`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -197,7 +200,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 5`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -210,7 +213,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 6`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -223,7 +226,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 7`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -236,7 +239,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 8`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -249,7 +252,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a local variable`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 struct Test =
     
@@ -264,7 +267,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a byref local variable`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("by_ref_read_write")]
 alias byref<T>
@@ -286,7 +289,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a byref local variable 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("by_ref_read_write")]
 alias byref<T>
@@ -310,7 +313,7 @@ let ``By cursor, get completions from a namespace`` () =
     """
 namespace TestNamespace
 
-#target "i: default"
+#target "interpreter: default"
 
 struct Test =
     
@@ -324,7 +327,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a cast`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("print")]
 print(__oly_object): ()
@@ -398,7 +401,7 @@ let assertGC (projWeak: WeakReference<OlyProject>, compWeak: WeakReference<OlyCo
 let ``Project should be GC'ed``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -432,7 +435,7 @@ let clearSolution2 (path: OlyPath) (workspace: OlyWorkspace) =
 let ``Project should be GC'ed 2``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -459,7 +462,7 @@ main(): () =
 let ``Project should be GC'ed 3``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -486,7 +489,7 @@ main(): () =
 let ``Project should not be GC'ed as the source text is the same``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -513,7 +516,7 @@ main(): () =
 let ``Project should work with multiple dots in the name``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #load "../fakepath/*.oly"
 
@@ -539,7 +542,7 @@ main(): () =
 let ``Project should fail when trying to reference a Oly file``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fake.oly"
 
@@ -556,7 +559,7 @@ main(): () =
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
     
-    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
     Assert.Equal("Cannot reference Oly file(s) 'fake.oly'. Use '#load' instead.", diags[0].Message)
 
@@ -564,7 +567,7 @@ main(): () =
 let ``Project should fail when trying to reference a Oly file 2``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "*.oly"
 
@@ -581,7 +584,7 @@ main(): () =
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
     
-    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
     Assert.Equal("Cannot reference Oly file(s) '*.oly'. Use '#load' instead.", diags[0].Message)
 
@@ -589,7 +592,7 @@ main(): () =
 let ``Project reference another project``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -599,7 +602,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -625,7 +628,7 @@ main(): () =
 let ``Project reference another project 2``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
@@ -635,7 +638,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -659,7 +662,7 @@ main(): () =
 let ``Project reference another project 3``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -670,7 +673,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -695,7 +698,7 @@ main(): () =
 let ``Project reference another project 4``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -710,7 +713,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -735,7 +738,7 @@ main(): () =
 let ``Project reference another project 5``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -766,7 +769,7 @@ shape MultiplyShape<T1, T2, T3> =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -793,7 +796,7 @@ main(): () =
 let ``Project reference another project 6``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -811,7 +814,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -837,7 +840,7 @@ main(): () =
 let ``Project reference another project 7``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #load "ui.oly"
 
@@ -855,7 +858,7 @@ class UI
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -892,7 +895,7 @@ main(): () =
 let ``Project reference another project 8``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -903,7 +906,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -927,7 +930,7 @@ main(): () =
 let ``Project reference another project 9``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -938,7 +941,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -948,7 +951,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -959,7 +962,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1010,7 +1013,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1021,7 +1024,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1031,7 +1034,7 @@ module Test2
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1041,7 +1044,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1052,7 +1055,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1112,7 +1115,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project 2``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1123,7 +1126,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1136,7 +1139,7 @@ test2(): () =
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1146,7 +1149,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1157,7 +1160,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1221,7 +1224,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project 3``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1232,7 +1235,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1245,7 +1248,7 @@ test2(): () =
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1255,7 +1258,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1266,7 +1269,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1327,7 +1330,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 [<Fact>]
 let ``By cursor, get completions for incomplete alias definition`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 testFunction(): () = ()
 
@@ -1340,7 +1343,7 @@ alias TestAlias = ~^~
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1356,7 +1359,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1374,7 +1377,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 3`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1398,7 +1401,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 4`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1422,7 +1425,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 5`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1446,7 +1449,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 6`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1470,7 +1473,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 7`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1494,7 +1497,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 8`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1972,7 +1975,7 @@ main(): () =
 let ``Regression - Find a definition should work after the file was edited``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1983,7 +1986,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -1993,7 +1996,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test

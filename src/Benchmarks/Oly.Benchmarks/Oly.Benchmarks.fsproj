@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7</TargetFramework>
+    <TargetFramework>net8</TargetFramework>
     <Configurations>Debug;Release;Checked</Configurations>
 	<!--<ServerGarbageCollection>true</ServerGarbageCollection>-->
   </PropertyGroup>

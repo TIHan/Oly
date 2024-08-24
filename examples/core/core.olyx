@@ -1,8 +1,6 @@
 #target "dotnet: netstandard2.1"
 #library
 
-#reference "prelude.olyx"
-
 #[open]
 module OlyCore
 
@@ -36,61 +34,6 @@ alias quat = Quaternion
 alias mat4 = Matrix4x4
 
 // Collections
-
-#[open]
-extension MutableArrayExtensions<T> =
-    inherits mutable T[]
-
-    AsSpan(): Span<T> = Span(this)
-    AsSpan(start: int32): Span<T> = Span(this, start, this.Length)
-    AsSpan(start: int32, length: int32): Span<T> = Span(this, start, length)
-    AsReadOnlySpan(): ReadOnlySpan<T> = ReadOnlySpan(this)
-    AsReadOnlySpan(start: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, this.Length)
-    AsReadOnlySpan(start: int32, length: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, length)
-
-#[open]
-extension MutableArrayCastExtensions<T> where T: struct, ValueType =
-    inherits mutable T[]
-
-    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsSpan<TCast>(start: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsSpan<TCast>(start: int32, length: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsReadOnlySpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this))
-    AsReadOnlySpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, this.Length))
-    AsReadOnlySpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, length))
-
-#[open]
-extension ArrayExtensions<T> =
-    inherits T[]
-
-    AsSpan(): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan()
-    AsSpan(start: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start)
-    AsSpan(start: int32, length: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start, length)
-
-#[open]
-extension ArrayCastExtensions<T> where T: struct, ValueType =
-    inherits T[]
-
-    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
-    AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
-    AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
-
-#[inline]
-For(count: int32, #[inline] f: int32 -> ()): () =
-    let mutable i = 0
-    while (i < count)
-        f(i)
-        i <- i + 1
-
-#[inline]
-ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
-    let options = System.Threading.Tasks.ParallelOptions()
-    options.MaxDegreeOfParallelism <- Environment.ProcessorCount
-    let _ =
-        System.Threading.Tasks.Parallel.For(0, count, 
-            (i, state) ->
-                f(i)
-        )
 
 struct BitSet512 =
     field mutable value0: uint64
@@ -141,7 +84,7 @@ struct BitSet512 =
             &this.value0
 
     static field CachedIndices: BitSet512[] =
-        OlyPrelude.Array.Initialize(512,
+        initArray(512,
             i -> FromIndexCore(i)
         )
 
@@ -248,7 +191,7 @@ class ByteStream =
 
     new() =
         {
-            buffer = OlyPrelude.Array.ZeroCreate(65536)
+            buffer = zeroArray(65536)
             position = 0
             count = 0
         }
@@ -279,7 +222,7 @@ class ByteStream =
         this.count <- 0
 
     Read<T>(): T where T: unmanaged, ValueType =
-        let size = sizeof<T>
+        let size = DotNet.SizeOf<T>
         let currentPosition = this.position
         let nextPosition = currentPosition + size
 
@@ -308,7 +251,7 @@ class ByteStream =
         let buffer = this.buffer
 
         if (nextPosition >= buffer.Length)
-            let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
+            let newBuffer = zeroArray(buffer.Length * 2)
             Span(buffer, 0, buffer.Length).CopyTo(Span(newBuffer))
             this.buffer <- newBuffer
             this.Write(value)
@@ -321,13 +264,13 @@ class ByteStream =
     Write<T>(value: T): () where T: unmanaged, ValueType =
         this.Write(&value)
     Write<T>(value: inref<T>): () where T: unmanaged, ValueType =
-        let size = sizeof<T>
+        let size = DotNet.SizeOf<T>
         let currentPosition = this.position
         let nextPosition = currentPosition + size
         let buffer = this.buffer
 
         if (nextPosition >= buffer.Length)
-            let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
+            let newBuffer = zeroArray(buffer.Length * 2)
             Span(buffer, 0, buffer.Length).CopyTo(Span(newBuffer))
             this.buffer <- newBuffer
             this.Write(&value)
@@ -342,7 +285,7 @@ class ByteStream =
         bstream.count <- this.count
 
         if (bstream.buffer.Length < this.buffer.Length)
-            bstream.buffer <- OlyPrelude.Array.ZeroCreate(this.buffer.Length)
+            bstream.buffer <- zeroArray(this.buffer.Length)
 
         Span(this.buffer, 0, this.count).CopyTo(Span(bstream.buffer))
 
@@ -354,7 +297,7 @@ class ByteStream =
         let buffer = this.buffer
 
         if (nextPosition >= buffer.Length)
-            let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
+            let newBuffer = zeroArray(buffer.Length * 2)
             System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
             this.buffer <- newBuffer
             this.Write(value)
@@ -364,7 +307,7 @@ class ByteStream =
             this.count <- this.count + totalByteLength
 
     Write<T>(mutable value: ReadOnlySpan<T>): () where T: unmanaged, ValueType =
-        let size = sizeof<T>
+        let size = DotNet.SizeOf<T>
         let totalByteLength = size * value.Length           
         let currentPosition = this.position
         let nextPosition = currentPosition + totalByteLength
@@ -372,7 +315,7 @@ class ByteStream =
         let buffer = this.buffer
 
         if (nextPosition >= buffer.Length)
-            let newBuffer = OlyPrelude.Array.ZeroCreate<byte>(buffer.Length * 2)
+            let newBuffer = zeroArray(buffer.Length * 2)
             System.Array.Copy(Unsafe.Cast(buffer), Unsafe.Cast(newBuffer), buffer.Length)
             this.buffer <- newBuffer
             this.Write(value)
@@ -393,7 +336,7 @@ class ByteStream =
         this.position <- nextPosition
 
     Read<T>(mutable dst: Span<T>): () where T: unmanaged, ValueType =
-        let size = sizeof<T>
+        let size = DotNet.SizeOf<T>
         let totalByteLength = size * dst.Length  
         let currentPosition = this.position
         let nextPosition = currentPosition + totalByteLength

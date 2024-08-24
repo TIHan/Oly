@@ -150,6 +150,7 @@ type OlyProject =
 
     member TryGetDocument : documentPath: OlyPath -> OlyDocument option
     member GetDocumentsExcept : documentPath: OlyPath -> OlyDocument imarray
+    member GetDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlySolution =
