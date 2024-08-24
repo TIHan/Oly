@@ -1942,10 +1942,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.Handle(request, ct) =
             request.HandleOlyDocument(ct, getCts, workspace, textManager, fun doc ct ->
                 backgroundTask {
-                    if doc.Project.Path.HasExtension(".olyx") then
-                        return { resultPath = doc.Project.Path.ToString(); error = null }
-                    else
-
                     match! workspace.BuildProjectAsync(doc.Project.Path, ct) with
                     | Ok prog -> 
                         return { resultPath = prog.Path.ToString(); error = null }
