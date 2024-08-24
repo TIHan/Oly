@@ -1,0 +1,1683 @@
+#[open]
+module OlyPrelude
+
+#if DOTNET
+open System
+open System.Numerics
+open System.Diagnostics
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open System.Collections.Generic
+open System.Collections.Concurrent
+
+#[intrinsic("void")]
+alias void
+
+#[intrinsic("uint8")]
+alias byte
+
+alias uint8 = byte
+
+#[intrinsic("int8")]
+alias int8
+
+#[intrinsic("uint16")]
+alias uint16
+
+#[intrinsic("int16")]
+alias int16
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint64")]
+alias uint64
+
+#[intrinsic("int64")]
+alias int64
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("float64")]
+alias float64
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+// Cast Operations
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint8(bool): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+byte(bool): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+byte(int32): byte
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+byte(float64): byte
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint16(byte): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint16(char): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint16(int32): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(byte): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(int8): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(uint16): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(int16): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(int32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(int64): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(uint64): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(float32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint32(float64): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(byte): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(int8): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(uint16): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(int16): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(uint32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(int64): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(uint64): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(float32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(nint): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int32(float64): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint64(uint32): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint64(int32): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+uint64(int64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int64(byte): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int64(int32): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int64(uint32): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int64(uint64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+int64(float64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(byte): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(uint16): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(uint32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(int32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(uint64): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(int64): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float32(float64): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(uint8): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(uint16): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(int32): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(uint32): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(int64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+float64(float32): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+char(uint16): char
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+char(nuint): char
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint<T>(T*): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint(void*): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint(int32): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint(uint32): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint(uint64): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint(uint8): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint(void*): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint<TResult, TArguments...>(static (TArguments...) -> TResult): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+(*)<T>(void*): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+(*)<T>(T*): byref<T>
+
+// Other Operations
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_null_ptr")]
+nullptr<T>: T*
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int8, int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int16, int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int64, int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(float32, float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(float64, float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(nuint, nuint): nuint
+
+#[inline]
+#[unmanaged(allocation_only)]
+(+)(ptr: void*, value: nuint): void* =
+    Unsafe.AsPointer(nuint(ptr) + value)
+
+#[inline]
+#[unmanaged(allocation_only)]
+(+)(ptr: void*, value: uint64): void* =
+    ptr + nuint(value)
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(int8, int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(int16, int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(int64, int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(float32, float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("subtract")]
+(-)(float64, float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(int8, int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(int16, int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(int64, int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(float32, float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("multiply")]
+(*)(float64, float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(int8, int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(int16, int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(int64, int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(float32, float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("divide")]
+(/)(float64, float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(int8, int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(int16, int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(int64, int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(float32, float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("remainder")]
+(%)(float64, float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than_or_equal")]
+(<=)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than")]
+(>)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("greater_than_or_equal")]
+(>=)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(==)(char, char): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(uint8, uint8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(int8, int8): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(uint16, uint16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(int16, int16): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(uint32, uint32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(int32, int32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(uint64, uint64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(int64, int64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(float32, float32): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(float64, float64): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(bool, bool): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!=)(char, char): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(int8): int8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(int16): int16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(int64): int64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(float32): float32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("negate")]
+(-)(float64): float64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("or")]
+(||)(bool, bool): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not")]
+(!)(bool): bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(T[,], index1: int32, index2: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("equal")]
+(===)<T>(o1: T, o2: T): bool where T: not struct
+
+#[unmanaged(allocation_only)]
+#[intrinsic("not_equal")]
+(!==)<T>(o1: T, o2: T): bool where T: not struct
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(uint16, uint16): uint16
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_or")]
+(|)(uint8, uint8): uint8
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_or")]
+(|)(uint32, uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_or")]
+(|)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_or")]
+(|)(uint64, uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_not")]
+(~)(int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_not")]
+(~)(uint32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_not")]
+(~)(uint64): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_left")]
+(<<)(byte, int32): byte
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_left")]
+(<<)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_left")]
+(<<)(uint32, int32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_left")]
+(<<)(uint64, int32): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_right")]
+(>>)(uint32, int32): uint32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_right")]
+(>>)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_shift_right")]
+(>>)(uint64, int32): uint64
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_tuple_element")]
+GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
+
+interface Monad<M<_>> =
+
+    static abstract Bind<A, B>(ma: M<A>, f: A -> M<B>) : M<B>
+
+    static abstract Return<A>(a: A) : M<A>
+
+#[inline]
+(let!)<M<_>, A, B>(ma: M<A>, f: A -> M<B>): M<B> where M: trait Monad<M> =
+    M.Bind(ma, f)
+
+#[inline]
+(return)<M<_>, A>(value: A): M<A> where M: trait Monad<M> =
+    M.Return(value)
+
+// Array specific operations
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+#[open]
+extension ArrayExtensions<T> =
+    inherits T[]
+
+    Length: int32
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+#[open]
+extension ArrayEnumerableExtension<T> =
+    inherits T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    private GetEnumerator(): System.Collections.IEnumerator =
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            field mutable arr: T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
+
+            new(arr: T[]) =
+                {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+                this.currentTyped <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl(this)
+
+#[open]
+extension MutableArrayEnumerableExtension<T> =
+    inherits mutable T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    private GetEnumerator(): System.Collections.IEnumerator =
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            field mutable arr: mutable T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
+
+            new(arr: mutable T[]) =
+                {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+                this.currentTyped <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl(this)
+
+#[intrinsic("cast")]
+Cast<T>(object): T
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    private _cast<T>(object): T
+
+    #[unmanaged(allocation_only)]
+    AsImmutable<T>(arr: mutable T[]): T[] =
+        _cast(arr)
+
+    #[unmanaged(allocation_only)]
+    AsMutable<T>(arr: T[]): mutable T[] =
+        _cast(arr)
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(int32): T*
+    
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(void*): T*
+    
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(nint): T*
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T>(nuint): T*
+    
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<T, TResult>(T*): TResult*
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TResult, TArguments...>(nint): static blittable (TArguments...) -> TResult
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsByRef<T, TResult>(valueRef: inref<T>): byref<TResult>
+
+#[intrinsic("new_array")]
+zeroArray<T>(length: int32): mutable T[]
+
+initMutableArray<T>(length: int32, f: int32 -> T): mutable T[] =
+    let newArr = zeroArray<T>(length)
+    let mutable i = 0
+    while (i < newArr.Length)
+        newArr[i] <- f(i)
+        i <- i + 1
+    newArr
+
+initArray<T>(length: int32, f: int32 -> T): T[] =
+    Unsafe.AsImmutable(initMutableArray(length, f))
+
+map<T, U>(arr: T[], f: T -> U): U[] =
+    let newArr = zeroArray<U>(arr.Length)
+    let mutable i = 0
+    while (i < arr.Length)
+        newArr[i] <- f(arr[i])
+        i <- i + 1
+    Unsafe.AsImmutable(newArr)
+
+map<T, U>(arr: mutable T[], f: T -> U): mutable U[] =
+    let newArr = zeroArray<U>(arr.Length)
+    let mutable i = 0
+    while (i < arr.Length)
+        newArr[i] <- f(arr[i])
+        i <- i + 1
+    newArr
+
+mapIndex<T, U>(arr: T[], f: (int32, T) -> U): U[] =
+    let newArr = zeroArray<U>(arr.Length)
+    let mutable i = 0
+    while (i < arr.Length)
+        newArr[i] <- f(i, arr[i])
+        i <- i + 1
+    Unsafe.AsImmutable(newArr)
+
+mapAsMutable<T, U>(arr: T[], f: T -> U): mutable U[] =
+    let newArr = zeroArray<U>(arr.Length)
+    let mutable i = 0
+    while (i < arr.Length)
+        newArr[i] <- f(arr[i])
+        i <- i + 1
+    newArr
+
+distinctBy<T, U>(arr: T[], f: T -> U): T[] =
+    let found = System.Collections.Generic.HashSet<U>()
+    let indicesToInclude = System.Collections.Generic.List<int32>()
+    let mutable i = 0
+    while (i < arr.Length)
+        let item = arr[i]
+        if (found.Add(f(item)))
+            indicesToInclude.Add(i)
+        i <- i + 1
+    
+    let newArr = zeroArray<T>(indicesToInclude.Count)
+    let mutable i = 0
+    while (i < newArr.Length)
+        newArr[i] <- arr[indicesToInclude[i]]
+        i <- i + 1
+    Unsafe.AsImmutable(newArr)
+
+filter<T>(arr: T[], f: T -> bool): T[] =
+    let indicesToInclude = System.Collections.Generic.List<int32>()
+    let mutable i = 0
+    while (i < arr.Length)
+        let item = arr[i]
+        if (f(item))
+            indicesToInclude.Add(i)
+        i <- i + 1
+    
+    let newArr = zeroArray<T>(indicesToInclude.Count)
+    let mutable i = 0
+    while (i < newArr.Length)
+        newArr[i] <- arr[indicesToInclude[i]]
+        i <- i + 1
+    Unsafe.AsImmutable(newArr)
+
+filterIndex<T>(arr: T[], f: (int32, T) -> bool): T[] =
+    let indicesToInclude = System.Collections.Generic.List<int32>()
+    let mutable i = 0
+    while (i < arr.Length)
+        let item = arr[i]
+        if (f(i, item))
+            indicesToInclude.Add(i)
+        i <- i + 1
+    
+    let newArr = zeroArray<T>(indicesToInclude.Count)
+    let mutable i = 0
+    while (i < newArr.Length)
+        newArr[i] <- arr[indicesToInclude[i]]
+        i <- i + 1
+    Unsafe.AsImmutable(newArr)
+
+filter<T>(arr: mutable T[], f: T -> bool): mutable T[] =
+    let indicesToInclude = System.Collections.Generic.List<int32>()
+    let mutable i = 0
+    while (i < arr.Length)
+        let item = arr[i]
+        if (f(item))
+            indicesToInclude.Add(i)
+        i <- i + 1
+    
+    let newArr = zeroArray<T>(indicesToInclude.Count)
+    let mutable i = 0
+    while (i < newArr.Length)
+        newArr[i] <- arr[indicesToInclude[i]]
+        i <- i + 1
+    newArr
+
+find<T>(arr: T[], predicate: T -> bool): T =
+    let mutable result: T = unchecked default
+    let mutable isFound = false
+    let mutable i = 0
+    while (i < arr.Length && !isFound)
+        let item = arr[i]
+        if (predicate(item))
+            result <- item
+            isFound <- true
+        else
+            i <- i + 1
+    if (isFound)
+        result
+    else
+        fail("Unable to find item.")
+
+findIndex<T>(arr: T[], predicate: T -> bool): int32 =
+    let mutable isFound = false
+    let mutable i = 0
+    while (i < arr.Length && !isFound)
+        let item = arr[i]
+        if (predicate(item))
+            isFound <- true
+        else
+            i <- i + 1
+    if (isFound)
+        i
+    else
+        fail("Unable to find item index.")
+
+tryFindIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
+        let mutable isFound = false
+        let mutable i = 0
+        while (i < arr.Length && !isFound)
+            let item = arr[i]
+            if (predicate(i, item))
+                isFound <- true
+            else
+                i <- i + 1
+        if (isFound)
+            i
+        else
+            -1
+
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+findIndex<T>(arr: T[], predicate: (index: int32, T) -> bool): int32 =
+    let mutable isFound = false
+    let mutable i = 0
+    while (i < arr.Length && !isFound)
+        let item = arr[i]
+        if (predicate(i, item))
+            isFound <- true
+        else
+            i <- i + 1
+    if (isFound)
+        i
+    else
+        fail("Unable to find item index.")
+
+appendOne<T>(arr: T[], item: T): T[] =
+    let newArr = zeroArray<T>(arr.Length + 1)
+    let mutable i = 0
+    while (i < arr.Length)
+        newArr[i] <- arr[i]
+        i <- i + 1
+    newArr[arr.Length] <- item
+    Unsafe.AsImmutable(newArr)
+
+append<T>(arr: T[], items: T[]): T[] =
+    if (items.Length == 0)
+        arr
+    else
+        let newArr = zeroArray<T>(arr.Length + items.Length)
+
+        let mutable i = 0
+        while (i < arr.Length)
+            newArr[i] <- arr[i]
+            i <- i + 1
+
+        let mutable j = 0
+        while (j < items.Length)
+            newArr[i + j] <- items[j]
+            j <- j + 1
+
+        Unsafe.AsImmutable(newArr)
+
+flatten<T, U>(arr: mutable T[], f: T -> (U, U, U)): mutable U[] =
+    let newArr = zeroArray<U>(arr.Length * 3)
+    let mutable i = 0
+    let mutable j = 0
+    while (i < arr.Length)
+        let (x, y, z) = f(arr[i])
+        newArr[j] <- x
+        newArr[j + 1] <- y
+        newArr[j + 2] <- z
+        i <- i + 1
+        j <- j + 3
+    newArr
+
+exists<T>(arr: mutable T[], f: T -> bool): bool =
+    let mutable isEqual = false
+
+    let mutable i = 0
+    while (i < arr.Length && !isEqual)
+        isEqual <- f(arr[i])
+        i <- i + 1
+
+    isEqual
+
+exists<T>(arr: T[], f: T -> bool): bool =
+    let mutable isEqual = false
+
+    let mutable i = 0
+    while (i < arr.Length && !isEqual)
+        isEqual <- f(arr[i])
+        i <- i + 1
+
+    isEqual
+
+maxByUInt32<T>(arr: T[], f: T -> uint32): T =
+    let mutable maxValue = 0: uint32
+    let mutable found = -1
+    let mutable i = 0
+    while (i < arr.Length)
+        let item = arr[i]
+        let value = f(item)
+        if (value > maxValue)
+            maxValue <- value
+            found <- i
+        i <- i + 1
+    if (found == -1)
+        fail("Empty array.")
+    arr[found]
+
+forAll<T>(arr: T[], f: T -> bool): bool =
+    let mutable isEqual = true
+
+    let mutable i = 0
+    while (i < arr.Length && isEqual)
+        isEqual <- f(arr[i])
+        i <- i + 1
+
+    isEqual
+
+#[inline(always)]
+assert(condition: bool, msg: string): () =
+    if (!condition)
+        fail(msg)
+
+#[inline(always)]
+assert(condition: bool): () =
+    assert(condition, "assertion failed")
+
+// DotNet Specific -----------------------------------------------------------------------------------------------------------------------
+
+module DotNet =
+
+    /// Performs a forced garbage collection of all generations as well as compacting the large-object-heap.
+    /// This will also wait for pending finalizers.
+    GCCollect(): () =
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+        System.GC.Collect(2, System.GCCollectionMode.Forced, true, true)
+        System.GC.WaitForPendingFinalizers()
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TParameters...>(object, static TParameters... -> ()): System.Delegate
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    TypeOf<require T>: System.Type
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "sizeof")]
+    SizeOf<require T>: int32
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { mutable get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { mutable get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { mutable set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { mutable set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+(*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
+(/)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Division(T1, T2): T3 } = T1.op_Division(x, y)
+(%)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Remainder(T1, T2): T3 } = T1.op_Remainder(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(!=)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Inequality(T1, T2): T3 } = T1.op_Inequality(x, y)
+(-)<T1, T2>(x: T1): T2 where T1: trait { static op_UnaryNegation(T1): T2 } = T1.op_UnaryNegation(x)
+(|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+printLine<T>(mutable value: T): () where T: trait { mutable ToString(): string } =
+    print(value.ToString() + "\n")
+
+(+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
+(==)(str1: string, str2: string): bool = System.String.Equals(str1, str2)
+(!=)(str1: string, str2: string): bool = !System.String.Equals(str1, str2)
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+fail<TResult>(msg: string): TResult =
+    throw System.Exception(msg)
+
+// ----------------------------------------
+
+#[inline]
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline] f: scoped T -> ()): () =
+    let xse = xs.GetEnumerator()
+    while (xse.MoveNext())
+        f(xse.Current)
+
+ForEach<T>(xs: T[], f: scoped T -> ()): () =
+    For(xs.Length, i -> f(xs[i]))
+
+ForEach<T>(xs: mutable T[], f: scoped T -> ()): () =
+    For(xs.Length, i -> f(xs[i]))
+
+ForEachBack<T>(xs: T[], f: scoped T -> ()): () =
+    ForBack(xs.Length, i -> f(xs[i]))
+
+ForEachBack<T>(xs: mutable T[], f: scoped T -> ()): () =
+    ForBack(xs.Length, i -> f(xs[i]))
+
+lock(lockObj: object, f: scoped () -> ()): () =
+    let mutable lockTaken = false
+    try
+        System.Threading.Monitor.Enter(lockObj, &lockTaken)
+        f()
+    finally
+        if (lockTaken)
+            System.Threading.Monitor.Exit(lockObj)
+
+lock<T>(lockObj: object, f: scoped () -> T): T =
+    let mutable lockTaken = false
+    try
+        System.Threading.Monitor.Enter(lockObj, &lockTaken)
+        f()
+    finally
+        if (lockTaken)
+            System.Threading.Monitor.Exit(lockObj)
+
+// Collections
+
+#[open]
+extension MutableArrayDotNetExtensions<T> =
+    inherits mutable T[]
+
+    AsSpan(): Span<T> = Span(this)
+    AsSpan(start: int32): Span<T> = Span(this, start, this.Length)
+    AsSpan(start: int32, length: int32): Span<T> = Span(this, start, length)
+    AsReadOnlySpan(): ReadOnlySpan<T> = ReadOnlySpan(this)
+    AsReadOnlySpan(start: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, this.Length)
+    AsReadOnlySpan(start: int32, length: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, length)
+
+#[open]
+extension MutableArrayCastDotNetExtensions<T> where T: struct, ValueType =
+    inherits mutable T[]
+
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32, length: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsReadOnlySpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this))
+    AsReadOnlySpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, this.Length))
+    AsReadOnlySpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, length))
+
+#[open]
+extension ArrayDotNetExtensions<T> =
+    inherits T[]
+
+    AsSpan(): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan()
+    AsSpan(start: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start)
+    AsSpan(start: int32, length: int32): ReadOnlySpan<T> = Unsafe.AsMutable(this).AsReadOnlySpan(start, length)
+    AsMemory(): ReadOnlyMemory<T> = ReadOnlyMemory(Unsafe.AsMutable(this))
+
+#[open]
+extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
+    inherits T[]
+
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
+    AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
+    AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[inline]
+ForBack(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = count - 1
+    while (i >= 0)
+        f(i)
+        i <- i - 1
+
+#[inline]
+ParallelFor(count: int32, #[inline] f: int32 -> ()): () =
+    let options = System.Threading.Tasks.ParallelOptions()
+    options.MaxDegreeOfParallelism <- Environment.ProcessorCount
+    let _ =
+        System.Threading.Tasks.Parallel.For(0, count, 
+            (i, state) ->
+                f(i)
+        )
+
+
+// Below is DotNet specific
+
+class PtrPtrHandle =
+    implements IDisposable
+
+    private field mutable handles: mutable GCHandle[]
+    private field mutable ptrPtr: GCHandle
+
+    new(handles: mutable GCHandle[], ptrPtr: GCHandle) =
+        {
+            handles = handles
+            ptrPtr = ptrPtr
+        }
+
+    Pointer: void* get() = Unsafe.AsPointer(this.ptrPtr.AddrOfPinnedObject())
+
+    Dispose(): () =
+        let mutable i = 0
+        while (i < this.handles.Length)
+            let mutable handle = this.handles[i]
+            handle.Free()
+            i <- i + 1
+        this.ptrPtr.Free()
+
+fixed(o: object): GCHandle =
+    System.Runtime.InteropServices.GCHandle.Alloc(o, GCHandleType.Pinned)
+
+fixedCopyUTF8(str: string): GCHandle =
+    fixed(System.Text.UTF8Encoding.UTF8.GetBytes(str))
+
+fixedCopyUTF8(strs: string[]): PtrPtrHandle =
+    let bytePtrs = zeroArray<byte*>(strs.Length)
+    let handles = zeroArray(strs.Length)
+
+    let mutable i = 0
+    while (i < handles.Length)
+        let mutable gcHandle = fixedCopyUTF8(strs[i])
+        handles[i] <- gcHandle
+        bytePtrs[i] <- Unsafe.AsPointer(gcHandle.AddrOfPinnedObject())
+        i <- i + 1
+
+    let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
+    PtrPtrHandle(handles, gcHandle)
+
+fixedCopy<T>(xs: (mutable T[])[]): PtrPtrHandle where T: blittable =
+    let bytePtrs = zeroArray<byte*>(xs.Length)
+    let handles = zeroArray(xs.Length)
+
+    For(handles.Length,
+        i ->
+            let mutable gcHandle = fixed(xs[i])
+            handles[i] <- gcHandle
+            bytePtrs[i] <- Unsafe.AsPointer(gcHandle.AddrOfPinnedObject())
+    )
+
+    let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
+    PtrPtrHandle(handles, gcHandle)
+
+fixedCopy<T>(xs: (T[])[]): PtrPtrHandle where T: blittable =
+    let bytePtrs = zeroArray<byte*>(xs.Length)
+    let handles = zeroArray(xs.Length)
+
+    For(handles.Length,
+        i ->
+            let mutable gcHandle = fixed(xs[i])
+            handles[i] <- gcHandle
+            bytePtrs[i] <- Unsafe.AsPointer(gcHandle.AddrOfPinnedObject())
+    )
+
+    let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
+    PtrPtrHandle(handles, gcHandle)
+#end

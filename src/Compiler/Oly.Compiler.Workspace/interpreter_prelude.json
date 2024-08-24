@@ -1,0 +1,16 @@
+{
+  "configurations": [
+    {
+      "name": "Debug",
+      "defines": [
+        "DEBUG"
+      ],
+      "debuggable": true
+    },
+    {
+      "name": "Release",
+      "defines": [],
+      "debuggable": false
+    }
+  ]
+}

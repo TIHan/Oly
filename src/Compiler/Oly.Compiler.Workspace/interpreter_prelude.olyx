@@ -1,0 +1,6 @@
+#target "interpreter: default"
+#library
+
+#load "prelude.oly"
+
+namespace Oly
