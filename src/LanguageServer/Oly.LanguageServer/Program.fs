@@ -1172,6 +1172,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         // Start diagnostic crawling
                         do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
+                        // TODO Uncomment below: this has performance issues that need to be investigated.
+                        (*
                         for doc in docs do
                             doc.Project.GetDocumentsExcept(doc.Path)
                             |> ImArray.iter (fun doc ->
@@ -1191,6 +1193,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     let diags = doc.ToLspDiagnostics(ct)
                                     server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
                                 )
+                        *)
                     with
                     | :? OperationCanceledException ->
                         ()
