@@ -590,6 +590,8 @@ let inline btLexer ([<InlineIfLambda>] p: _ -> _) state =
     let prevLexerStartPos = state.lexer.CurrentPosition
     let prevLexerEndPos = state.lexer.CurrentEndPosition
     let prevLexerColumn = state.lexer.CurrentColumn
+    let prevLexerConditionalCount = state.lexer.CurrentConditionalCount
+    let prevLexerCr = state.lexer.WasPreviousTokenCarriageReturn
     let prevBufferPos = state.btBufferPosition
     let prevBufferCount = state.btBufferCount
     let prevBuffer = state.btBuffer
@@ -612,6 +614,8 @@ let inline btLexer ([<InlineIfLambda>] p: _ -> _) state =
 #endif
         state.lexer.SetCurrentLexemeRange(prevLexerStartPos, prevLexerEndPos)
         state.lexer.SetCurrentColumn(prevLexerColumn)
+        state.lexer.SetCurrentConditionalCount(prevLexerConditionalCount)
+        state.lexer.SetWasPreviousCarriageReturn(prevLexerCr)
         state.btBufferPosition <- prevBufferPos
         state.btBufferCount <- prevBufferCount
 

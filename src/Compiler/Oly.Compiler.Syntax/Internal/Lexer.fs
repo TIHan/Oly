@@ -131,11 +131,21 @@ type Lexer =
 
     member this.CurrentEndPosition = this.window.LexemeEnd
 
+    member this.CurrentConditionalCount = this.currentConditionalCount
+
+    member this.WasPreviousTokenCarriageReturn = this.wasPrevCarriageReturn
+
     member this.SetCurrentLexemeRange(startPos, endPos) =
         this.window.SetLexemeRange(startPos, endPos)
 
     member this.SetCurrentColumn(column) =
         this.currentColumn <- column
+
+    member this.SetCurrentConditionalCount(count: int) =
+        this.currentConditionalCount <- count
+
+    member this.SetWasPreviousCarriageReturn(value: bool) =
+        this.wasPrevCarriageReturn <- value 
 
     /// Do not call this concurrently on the same lexer.
     /// Do not call this concurrently while the lexer is running.

@@ -10,38 +10,24 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
+let rs = 
+    let rs = OlyWorkspaceResourceState.Create()
+    let fileInfo = System.IO.FileInfo("prelude.oly")
+    let rs = rs.SetResource(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
+    let fileInfo = System.IO.FileInfo("interpreter_prelude.olyx")
+    rs.SetResource(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
+
+let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceState) =
+    let ms = new System.IO.MemoryStream()
+    ms.Write(System.Text.Encoding.Default.GetBytes(src))
+    rs.SetResource(path, ms, DateTime.UtcNow)
+
 let createWorkspace() =
     OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
 
-let createWorkspaceWith(f) =
-    let rs =
-        {
-            new IOlyWorkspaceResourceState with
-        
-                member _.LoadSourceText(filePath) =
-                    if filePath.EndsWith("prelude.olyx") then
-                        OlySourceText.FromFile(filePath.ToString())
-                    else
-                        f filePath
-        
-                member _.GetTimeStamp(filePath) = DateTime()
-        
-                member _.FindSubPaths(dirPath) =
-                    ImArray.empty
-        
-                member _.LoadProjectConfigurationAsync(_projectFilePath: OlyPath, ct: CancellationToken) =
-                    backgroundTask {
-                        ct.ThrowIfCancellationRequested()
-                        return OlyProjectConfiguration(String.Empty, ImArray.empty, false)
-                    }
-        }
-    let workspace = OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
-    workspace.UpdateResourceState(rs, CancellationToken.None)
-    workspace
-
 let createProject src (workspace: OlyWorkspace) =
     let path = OlyPath.Create "olytest.olyx"
-    workspace.UpdateDocumentAsync(path, OlySourceText.Create(src), CancellationToken.None).Result[0].Project
+    workspace.UpdateDocumentAsync(rs, path, OlySourceText.Create(src), CancellationToken.None).Result[0].Project
 
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
 let createProjectWeakReference src workspace =
@@ -57,13 +43,13 @@ let createDocument src (workspace: OlyWorkspace) =
     let isDebuggable = false
 #endif
     let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable)
-    let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", projOptions, "dotnet", OlyTargetInfo("net8", OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
+    let sol, proj = workspace.GetSolutionAsync(rs, CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", projOptions, "dotnet", OlyTargetInfo("net8", OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
     let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)))
     let sol, proj, doc = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
     doc
 
 let updateDocument path src (workspace: OlyWorkspace) =
-    workspace.UpdateDocumentAsync(path, OlySourceText.Create(src), CancellationToken.None).Result
+    workspace.UpdateDocumentAsync(rs, path, OlySourceText.Create(src), CancellationToken.None).Result
     |> ignore
 
 let shouldCompile (proj: OlyProject) =
@@ -357,10 +343,10 @@ main(): () =
     |> containsCompletionLabelsByCursor ["A";"B"]
 
 let clearSolution (workspace: OlyWorkspace) =
-    workspace.ClearSolutionAsync(CancellationToken.None).Result
+    workspace.ClearSolutionAsync(rs, CancellationToken.None).Result
 
 let getSolution (workspace: OlyWorkspace) =
-    workspace.GetSolutionAsync(CancellationToken.None).Result
+    workspace.GetSolutionAsync(rs, CancellationToken.None).Result
 
 let mutable workspaceGC_stub = Unchecked.defaultof<OlyWorkspace>
 
@@ -427,10 +413,10 @@ main(): () =
     workspaceGC_stub <- Unchecked.defaultof<_>
 
 let clearSolution2 (path: OlyPath) (workspace: OlyWorkspace) =
-    let mutable currentDocs = workspace.GetDocumentsAsync(path, CancellationToken.None).Result
+    let mutable currentDocs = workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 1)
-    workspace.ClearSolutionAsync(CancellationToken.None).Result
-    currentDocs <- workspace.GetDocumentsAsync(path, CancellationToken.None).Result
+    workspace.ClearSolutionAsync(rs, CancellationToken.None).Result
+    currentDocs <- workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 0)
 
 [<Fact>]
@@ -532,8 +518,8 @@ main(): () =
         """
     let workspace = createWorkspace()
     let path = OlyPath.Create("Oly.Runtime.Target.Example.olyx")
-    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
+    workspace.UpdateDocument(rs, path, OlySourceText.Create(src), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result[0].Project
     Assert.Equal("Oly.Runtime.Target.Example", proj.Name)
     Assert.Equal("Oly.Runtime.Target.Example", proj.Compilation.AssemblyName)
     let doc = proj.Documents[0]
@@ -558,8 +544,8 @@ main(): () =
         """
     let workspace = createWorkspace()
     let path = OlyPath.Create("Test.olyx")
-    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
+    workspace.UpdateDocument(rs, path, OlySourceText.Create(src), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result[0].Project
     
     let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
@@ -583,8 +569,8 @@ main(): () =
         """
     let workspace = createWorkspace()
     let path = OlyPath.Create("Test.olyx")
-    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
+    workspace.UpdateDocument(rs, path, OlySourceText.Create(src), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result[0].Project
     
     let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
@@ -618,9 +604,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -652,9 +642,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -687,9 +681,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -728,9 +726,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -786,9 +788,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -829,9 +835,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -882,12 +892,16 @@ main(): () =
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
-
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+        |> updateText path3 src3
     // We are trying to test to make sure that namespace aggregation works properly.
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 elif OlyPath.Equals(x, path2) then text2 else failwith "Invalid path")
-    workspace.UpdateDocument(path1, text1, CancellationToken.None)
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path1, text1, CancellationToken.None)
+    workspace.UpdateDocument(rs, path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -920,9 +934,13 @@ main(): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
@@ -978,15 +996,19 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
 
-    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path2, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -994,18 +1016,18 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
  
     // Should fail
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path2, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
 
     // Should pass
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path2, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1073,22 +1095,21 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+        |> updateText path3 src3
     let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+        createWorkspace()
+    workspace.UpdateDocument(rs, path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1096,18 +1117,18 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
  
     // Should fail
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
 
     // Should pass
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1178,22 +1199,21 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+        |> updateText path3 src3
     let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+        createWorkspace()
+    workspace.UpdateDocument(rs, path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1201,22 +1221,22 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
  
     // Should fail
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
-    let doc = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0]
+    let doc = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0]
     Assert.NotEmpty(doc.Project.Compilation.GetDiagnostics(CancellationToken.None))
 
     // Should fail
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
 
     // Should pass
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1287,22 +1307,21 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+        |> updateText path3 src3
     let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
-    let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
+        createWorkspace()
+    workspace.UpdateDocument(rs, path3, text3, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
     Assert.Empty(proj.Compilation.GetDiagnostics(CancellationToken.None))
     Assert.NotEqual(0, symbols.Length)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -1310,20 +1329,20 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
  
     // Getting the document for 'path2' shouldn't screw up building. Very weird case.
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
-    let _doc = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0]
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    let _doc = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0]
 
     // Should fail
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
 
     // Should pass
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
-    let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
+    let task = workspace.BuildProjectAsync(rs, path3, CancellationToken.None)
     let result = task.Result
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
@@ -2016,13 +2035,17 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
     let path2 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path2, text2, CancellationToken.None)
 
     let testLocation isAfterUpdate =
         let updateKindText = if isAfterUpdate then "after-update" else "before-update"
 
-        let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
+        let proj = workspace.GetDocumentsAsync(rs, path2, CancellationToken.None).Result[0].Project
         let doc = proj.Documents[0]
         let callInfo = doc.TryFindFunctionCallInfo(cursorPosition, CancellationToken.None)
         Assert.True(callInfo.IsSome, $"call info not found - {updateKindText}")
@@ -2033,5 +2056,5 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
 
     testLocation false
-    workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
+    workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
     testLocation true

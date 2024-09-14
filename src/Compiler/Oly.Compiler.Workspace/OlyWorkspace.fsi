@@ -192,50 +192,48 @@ type OlySolution =
 
     member GetTransitiveProjectReferencesFromProject: projectPath: OlyPath * ct: CancellationToken -> OlyProject imarray
 
-type IOlyWorkspaceResourceState =
+[<Sealed>]
+type OlyWorkspaceResourceState =
 
-    abstract LoadSourceText: filePath: OlyPath -> IOlySourceText
+    member SetResource : OlyPath * System.IO.Stream * DateTime -> OlyWorkspaceResourceState
+
+    member SetResources : (OlyPath * System.IO.Stream * DateTime) seq -> OlyWorkspaceResourceState
+
+    member GetSourceText: filePath: OlyPath -> IOlySourceText
 
     /// Returns UTC time-stamp.
-    abstract GetTimeStamp: filePath: OlyPath -> DateTime
+    member GetTimeStamp: filePath: OlyPath -> DateTime
 
-    abstract FindSubPaths: dirPath: OlyPath -> OlyPath imarray
+    member FindSubPaths: dirPath: OlyPath -> OlyPath imarray
 
-    abstract LoadProjectConfigurationAsync: projectConfigPath: OlyPath * ct: CancellationToken -> Task<OlyProjectConfiguration>
+    member GetProjectConfiguration: projectFilePath: OlyPath -> OlyProjectConfiguration
 
-[<Sealed>]
-type OlyDefaultWorkspaceResourceService =
-
-    new: unit -> OlyDefaultWorkspaceResourceService
-
-    interface IOlyWorkspaceResourceState
+    static member Create : unit -> OlyWorkspaceResourceState
 
 [<Sealed>]
 type OlyWorkspace =
 
-    member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
+    member GetSolutionAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<OlySolution>
 
     /// Updates documents by path with the given source text.
-    member UpdateDocumentAsync : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
+    member UpdateDocumentAsync : OlyWorkspaceResourceState * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// Updates documents by path with the given source text.
     /// Non-blocking.
-    member UpdateDocument : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
+    member UpdateDocument : OlyWorkspaceResourceState * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
-    member RemoveProject : projectPath: OlyPath * ct: CancellationToken -> unit
+    member RemoveProject : OlyWorkspaceResourceState * projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
-    member GetDocumentsAsync : documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetDocumentsAsync : OlyWorkspaceResourceState * documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// Get all the documents in the workspace's solution.
-    member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetAllDocumentsAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// TODO: We should make this API better.
-    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
+    member BuildProjectAsync : OlyWorkspaceResourceState * projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
-    member ClearSolutionAsync : ct: CancellationToken -> Task<unit>
-
-    member UpdateResourceState : rs: IOlyWorkspaceResourceState * ct: CancellationToken -> unit
+    member ClearSolutionAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<unit>
 
     static member Create : targets: OlyBuild seq -> OlyWorkspace

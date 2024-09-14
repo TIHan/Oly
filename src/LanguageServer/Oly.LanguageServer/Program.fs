@@ -659,7 +659,7 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
                 let trace = OmniSharp.Extensions.LanguageServer.Protocol.Models.LogTraceParams(Message = msg)
                 server.SendNotification(trace)
 
-    let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceState
+    let rs = OlyDefaultWorkspaceResourceService() :> OlyWorkspaceResourceState
 
     let wstateStore = 
         lazy
@@ -676,7 +676,7 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
             return! wstateStore.Value.GetContentsAsync(ct)
         }
 
-    interface IOlyWorkspaceResourceState with
+    interface OlyWorkspaceResourceState with
 
         member _.LoadSourceText(filePath) =
             match textManager.TryGet filePath with
@@ -740,7 +740,7 @@ type OlyWorkspaceLspResourceService(textManager: OlyLspSourceTextManager, server
         
 type ITextDocumentIdentifierParams with
 
-    member this.HandleOlyDocument(rs: IOlyWorkspaceResourceState, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
+    member this.HandleOlyDocument(rs: OlyWorkspaceResourceState, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
         let documentPath = this.TextDocument.Uri.Path |> normalizeFilePath
         
         try

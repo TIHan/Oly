@@ -364,3 +364,9 @@ type OlySourceText private () =
 
     static member FromFile(filePath: string) =
         StringText(File.ReadAllText(filePath)) :> IOlySourceText
+
+    static member FromStream(stream: Stream) =
+        let reader = new System.IO.StreamReader(stream, leaveOpen = true)
+        let text = StringText(reader.ReadToEnd())
+        reader.Dispose()
+        text :> IOlySourceText
