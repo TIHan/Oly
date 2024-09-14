@@ -472,6 +472,14 @@ type OlySymbol with
             ContainerName = if this.UseSyntax.IsDefinition then "Definition" else String.Empty
         )
 
+    member this.ToLspWorkspaceSymbol(ct: CancellationToken) =
+        WorkspaceSymbol(
+            Name = this.Name,
+            Location = this.UseSyntax.GetLocation().ToLspLocation(ct),
+            Kind = this.ClassificationKind.ToLspSymbolKind(),
+            ContainerName = if this.UseSyntax.IsDefinition then "Definition" else String.Empty
+        )
+
     member this.ToLspParameterInfo() =
         ParameterInformation(
             Label = ParameterInformationLabel(this.SignatureText),
@@ -958,7 +966,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets, rs = rs)
 
-    let documentSelector = DocumentSelector(DocumentFilter(Scheme = "file", Language = "oly"))
+    let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 
     let mutable settings = WorkspaceSettings.Default
 
@@ -1281,23 +1289,23 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             work.AsLspTask(ct)
 
     interface ITextDocumentSyncHandler with
-        member this.GetRegistrationOptions(_: SynchronizationCapability, _: ClientCapabilities): TextDocumentChangeRegistrationOptions = 
+        member this.GetRegistrationOptions(_: TextSynchronizationCapability, _: ClientCapabilities): TextDocumentChangeRegistrationOptions = 
             let options = TextDocumentChangeRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options.SyncKind <- TextDocumentSyncKind.Incremental
             options
 
-        member this.GetRegistrationOptions(_: SynchronizationCapability, _: ClientCapabilities): TextDocumentOpenRegistrationOptions = 
+        member this.GetRegistrationOptions(_: TextSynchronizationCapability, _: ClientCapabilities): TextDocumentOpenRegistrationOptions = 
             let options = TextDocumentOpenRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options
 
-        member this.GetRegistrationOptions(_: SynchronizationCapability, _: ClientCapabilities): TextDocumentCloseRegistrationOptions = 
+        member this.GetRegistrationOptions(_: TextSynchronizationCapability, _: ClientCapabilities): TextDocumentCloseRegistrationOptions = 
             let options = TextDocumentCloseRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options
 
-        member this.GetRegistrationOptions(_: SynchronizationCapability, _: ClientCapabilities): TextDocumentSaveRegistrationOptions = 
+        member this.GetRegistrationOptions(_: TextSynchronizationCapability, _: ClientCapabilities): TextDocumentSaveRegistrationOptions = 
             let options = TextDocumentSaveRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options
@@ -1458,15 +1466,15 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: WorkspaceSymbolCapability, clientCapabilities: ClientCapabilities): WorkspaceSymbolRegistrationOptions = 
             WorkspaceSymbolRegistrationOptions()
 
-        member this.Handle(request: WorkspaceSymbolParams, ct: CancellationToken): Task<Container<SymbolInformation>> = 
+        member this.Handle(request: WorkspaceSymbolParams, ct: CancellationToken): Task<Container<WorkspaceSymbol>> = 
             backgroundTask {
                 if String.IsNullOrWhiteSpace request.Query then
-                    return Container<SymbolInformation>()
+                    return Container<WorkspaceSymbol>()
                 else
 
                 let! solution = workspace.GetSolutionAsync(CancellationToken.None)
 
-                let symbolInfos =
+                let lspSymbols =
                     solution.GetProjects()
                     |> ImArray.map (fun proj ->
                         proj.Documents
@@ -1477,10 +1485,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     )
                     |> ImArray.concat
                     |> ImArray.map (fun x ->
-                        x.ToLspSymbolInfo(ct)
+                        x.ToLspWorkspaceSymbol(ct)
                     )
 
-                return Container<SymbolInformation>(symbolInfos)
+                return Container<WorkspaceSymbol>(lspSymbols)
             }
 
     interface IDocumentSymbolHandler with
