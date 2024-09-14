@@ -195,9 +195,13 @@ type OlySolution =
 [<Sealed>]
 type OlyWorkspaceResourceState =
 
+    member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceState
+
     member SetResource : OlyPath * System.IO.Stream * DateTime -> OlyWorkspaceResourceState
 
     member SetResources : (OlyPath * System.IO.Stream * DateTime) seq -> OlyWorkspaceResourceState
+
+    member RemoveResource : OlyPath -> OlyWorkspaceResourceState
 
     member GetSourceText: filePath: OlyPath -> IOlySourceText
 

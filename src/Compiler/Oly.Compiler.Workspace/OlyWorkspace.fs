@@ -690,6 +690,14 @@ type internal ResourceState =
 [<Sealed>]
 type OlyWorkspaceResourceState(state: ResourceState) =
 
+    member this.SetResourceAsCopy(filePath: OlyPath) =       
+        let fileInfo = System.IO.FileInfo(filePath.ToString())
+        let filePath = fileInfo.FullName
+        let ms = new System.IO.MemoryStream(System.IO.File.ReadAllBytes(filePath))
+        let dt = System.IO.File.GetLastWriteTimeUtc(filePath)
+        ms.Position <- 0
+        this.SetResource(OlyPath.Create(filePath), ms, dt)
+
     member _.SetResource(filePath: OlyPath, ms: System.IO.Stream, dt: DateTime) =
         ms.Position <- 0
         { state with files = state.files.SetItem(filePath, (ms, dt)) }
@@ -704,6 +712,9 @@ type OlyWorkspaceResourceState(state: ResourceState) =
             )
         { state with files = state.files.SetItems(pairs) }
         |> OlyWorkspaceResourceState
+
+    member _.RemoveResource(filePath: OlyPath) =
+        OlyWorkspaceResourceState({ state with files = state.files.Remove(filePath) })
 
     member _.GetSourceText(filePath) =
         let stream = state.files[filePath] |> fst
