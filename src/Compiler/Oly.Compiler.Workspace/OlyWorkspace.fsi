@@ -192,7 +192,7 @@ type OlySolution =
 
     member GetTransitiveProjectReferencesFromProject: projectPath: OlyPath * ct: CancellationToken -> OlyProject imarray
 
-type IOlyWorkspaceResourceService =
+type IOlyWorkspaceResourceState =
 
     abstract LoadSourceText: filePath: OlyPath -> IOlySourceText
 
@@ -208,7 +208,7 @@ type OlyDefaultWorkspaceResourceService =
 
     new: unit -> OlyDefaultWorkspaceResourceService
 
-    interface IOlyWorkspaceResourceService
+    interface IOlyWorkspaceResourceState
 
 [<Sealed>]
 type OlyWorkspace =
@@ -236,4 +236,6 @@ type OlyWorkspace =
     /// Clears the entire solution.
     member ClearSolutionAsync : ct: CancellationToken -> Task<unit>
 
-    static member Create : targets: OlyBuild seq * ?rs: IOlyWorkspaceResourceService -> OlyWorkspace
+    member UpdateResourceState : rs: IOlyWorkspaceResourceState * ct: CancellationToken -> unit
+
+    static member Create : targets: OlyBuild seq -> OlyWorkspace

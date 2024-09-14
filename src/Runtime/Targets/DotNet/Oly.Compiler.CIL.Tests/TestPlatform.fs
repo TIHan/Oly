@@ -16,7 +16,10 @@ let globalSetup() =
     TestUtilities.Configuration.defaultReferences <- 
         let dotnetLocation = Path.GetDirectoryName(typeof<obj>.Assembly.Location)
         let asms = AppDomain.CurrentDomain.GetAssemblies()
-        asms 
+        let consoleAsm = typeof<System.Console>.Assembly
+        asms  
+        |> Array.append [|consoleAsm|]
+        |> Array.distinctBy (fun x -> x.FullName)
         |> Array.choose (fun x ->
             if x.Location.StartsWith(dotnetLocation) then
                 use fs = File.OpenRead(x.Location)
@@ -44,20 +47,6 @@ let emitterWrite(emitter: OlyRuntimeClrEmitter, isDebuggable) =
     ms
 
 let private gate = obj()
-
-//let private runtimeconfigJson =
-//    """{
-//  "runtimeOptions": {
-//    "tfm": "net7.0",
-//    "framework": {
-//      "name": "Microsoft.NETCore.App",
-//      "version": "7.0.0"
-//    },
-//    "configProperties": {
-//      "System.Reflection.Metadata.MetadataUpdater.IsSupported": false
-//    }
-//  }
-//}"""
 
 let ilverify (ms: MemoryStream) =
     let tmpFile = Path.GetTempFileName()

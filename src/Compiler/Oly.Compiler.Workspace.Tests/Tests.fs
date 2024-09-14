@@ -16,7 +16,7 @@ let createWorkspace() =
 let createWorkspaceWith(f) =
     let rs =
         {
-            new IOlyWorkspaceResourceService with
+            new IOlyWorkspaceResourceState with
         
                 member _.LoadSourceText(filePath) =
                     if filePath.EndsWith("prelude.olyx") then
@@ -35,7 +35,9 @@ let createWorkspaceWith(f) =
                         return OlyProjectConfiguration(String.Empty, ImArray.empty, false)
                     }
         }
-    OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()], rs)
+    let workspace = OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
+    workspace.UpdateResourceState(rs, CancellationToken.None)
+    workspace
 
 let createProject src (workspace: OlyWorkspace) =
     let path = OlyPath.Create "olytest.olyx"
@@ -55,7 +57,7 @@ let createDocument src (workspace: OlyWorkspace) =
     let isDebuggable = false
 #endif
     let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable)
-    let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", projOptions, "dotnet", OlyTargetInfo("net7", OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
+    let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", projOptions, "dotnet", OlyTargetInfo("net8", OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
     let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)))
     let sol, proj, doc = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
     doc

@@ -34,9 +34,9 @@ module Implementation =
     [<Sealed>]
     type OlyWorkspaceResourceService(configName: string) =
 
-        let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceService
+        let rs = OlyDefaultWorkspaceResourceService() :> IOlyWorkspaceResourceState
 
-        interface IOlyWorkspaceResourceService with
+        interface IOlyWorkspaceResourceState with
 
             member _.LoadSourceText(filePath) = rs.LoadSourceText(filePath)
 
@@ -102,13 +102,14 @@ module Oly =
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         DoNotTrim(false)
 
-        let rs = Implementation.OlyWorkspaceResourceService(configName) :> IOlyWorkspaceResourceService
+        let rs = Implementation.OlyWorkspaceResourceService(configName) :> IOlyWorkspaceResourceState
 
         let targets = 
             [
                 InterpreterTarget() :> OlyBuild
                 DotNetTarget()
             ] |> ImArray.ofSeq
-        let workspace = OlyWorkspace.Create(targets, rs = rs)
+        let workspace = OlyWorkspace.Create(targets)
+        workspace.UpdateResourceState(rs, ct)
         workspace.UpdateDocument(projectPath, rs.LoadSourceText(projectPath), ct)
         workspace.BuildProjectAsync(projectPath, ct)
