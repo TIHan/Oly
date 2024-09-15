@@ -11,16 +11,19 @@ open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
 let rs = 
-    let rs = OlyWorkspaceResourceState.Create()
+    let rs = OlyWorkspaceResourceState.Create(OlyPath.Empty)
     let fileInfo = System.IO.FileInfo("prelude.oly")
-    let rs = rs.SetResource(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
+    let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
     let fileInfo = System.IO.FileInfo("interpreter_prelude.olyx")
-    rs.SetResource(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
+    rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
 
 let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceState) =
     let ms = new System.IO.MemoryStream()
     ms.Write(System.Text.Encoding.Default.GetBytes(src))
-    rs.SetResource(path, ms, DateTime.UtcNow)
+    ms.Position <- 0
+    let result = rs.SetResourceAsCopy(path, ms, DateTime.UtcNow)
+    ms.Dispose()
+    result
 
 let createWorkspace() =
     OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])

@@ -651,7 +651,7 @@ let LspWorkspaceStateDirectory = ".olyworkspace/"
 let LspWorkspaceStateFileName = "state.json"
  
 [<Sealed>]
-type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher) as this =
+type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher, workspace: OlyWorkspace) as this =
     
     do
         OlyTrace.Log <-
@@ -659,23 +659,38 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
                 let trace = OmniSharp.Extensions.LanguageServer.Protocol.Models.LogTraceParams(Message = msg)
                 server.SendNotification(trace)
 
-    let mutable rs = 
-        OlyWorkspaceResourceState.Create()
-            .SetResourceAsCopy(OlyPath.Create(Path.Combine(Path.GetDirectoryName(typeof<OlyWorkspaceLspResourceService>.Assembly.Location), "prelude.oly")))
-            .SetResourceAsCopy(OlyPath.Create(Path.Combine(Path.GetDirectoryName(typeof<OlyWorkspaceLspResourceService>.Assembly.Location), "dotnet_prelude.olyx")))
-            .SetResourceAsCopy(OlyPath.Create(Path.Combine(Path.GetDirectoryName(typeof<OlyWorkspaceLspResourceService>.Assembly.Location), "dotnet_prelude.json")))
-            .SetResourceAsCopy(OlyPath.Create(Path.Combine(Path.GetDirectoryName(typeof<OlyWorkspaceLspResourceService>.Assembly.Location), "interpreter_prelude.olyx")))
-            .SetResourceAsCopy(OlyPath.Create(Path.Combine(Path.GetDirectoryName(typeof<OlyWorkspaceLspResourceService>.Assembly.Location), "interpreter_prelude.json")))
+    let invalidate (rs: OlyWorkspaceResourceState) (filePath: string) =
+        let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
+        let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
+        solution.GetProjects()
+        |> ImArray.iter (fun proj ->
+            let mustInvalidate =
+                proj.Documents
+                |> ImArray.exists (fun x ->
+                    OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
+                )
+            if mustInvalidate then
+                workspace.RemoveProject(rs, proj.Path, CancellationToken.None)
+        )
 
-    let wstateStore = 
+    let lazyRs = 
         lazy
+            let activeConfigPath =
+                Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
+                |> OlyPath.Create
+            let mutable rs = OlyWorkspaceResourceState.Create(activeConfigPath)
+            
             editorDirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
             editorDirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
 
             Directory.EnumerateFiles(server.ClientSettings.RootPath, "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
-                    rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
+                    let filePath = OlyPath.Create(filePath)
+                    rs <- rs.SetResourceAsCopy(filePath)
+                    if filePath.HasExtension(".olyx") then
+                        let _ = workspace.GetDocumentsAsync(rs, filePath, CancellationToken.None)
+                        ()
                 with
                 | _ ->
                     ()
@@ -684,46 +699,102 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
             Directory.EnumerateFiles(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
+                    let filePath = OlyPath.Create(filePath)
+                    rs <- rs.SetResourceAsCopy(filePath)
+                    if filePath.HasExtension(".olyx") then
+                        let _ = workspace.GetDocumentsAsync(rs, filePath, CancellationToken.None)
+                        ()
+                with
+                | _ ->
+                    ()
+            )
+
+            Directory.EnumerateFiles(server.ClientSettings.RootPath, "*.json", SearchOption.AllDirectories)
+            |> Seq.iter (fun filePath ->
+                try
                     rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
                 with
                 | _ ->
                     ()
             )
 
-            new JsonFileStore<LspWorkspaceState>(this.GetWorkspaceStatePath(), { activeConfiguration = "Debug" }, editorDirWatch)
-
-    do
-        editorDirWatch.FileChanged.Add(
-            fun filePath ->
+            Directory.EnumerateFiles(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
+            |> Seq.iter (fun filePath ->
                 try
                     rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
                 with
                 | _ ->
                     ()
+            )
+
+            rs
+
+    let rsObj = obj()
+    let mutable rsOpt = None
+
+    let checkValidation filePath =
+        match rsOpt with
+        | Some rs when (OlyPath.Create(filePath).HasExtension(".oly") || OlyPath.Create(filePath).HasExtension(".olyx")) ->
+            invalidate rs filePath
+        | _ ->
+            ()
+
+    do
+        editorDirWatch.FileCreated.Add(
+            fun filePath ->
+                let rs: OlyWorkspaceResourceState = this.State
+                try
+                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                with
+                | _ ->
+                    ()
+                checkValidation filePath
+        )
+
+        editorDirWatch.FileChanged.Add(
+            fun filePath ->
+                let rs: OlyWorkspaceResourceState = this.State
+                try
+                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                with
+                | _ ->
+                    ()
+                checkValidation filePath
         )
 
         editorDirWatch.FileDeleted.Add(
             fun filePath ->
-                rs <- rs.RemoveResource(OlyPath.Create(filePath))
+                let rs: OlyWorkspaceResourceState = this.State
+                rsOpt <- Some(rs.RemoveResource(OlyPath.Create(filePath)))
+                checkValidation filePath
         )
 
         editorDirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
-                rs <- rs.RemoveResource(OlyPath.Create(oldFilePath))
+                let rs: OlyWorkspaceResourceState = this.State
+                let rs = rs.RemoveResource(OlyPath.Create(oldFilePath))
                 try
-                    rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
+                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                    checkValidation filePath
                 with
                 | _ ->
-                    ()
+                    rsOpt <- Some(rs)
+                    checkValidation filePath
         )
 
     member this.State = 
-        wstateStore.Force() |> ignore
-        rs
-
-    member this.GetWorkspaceStatePath() =
-        Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
-        |> OlyPath.Create
+        match rsOpt with
+        | None ->
+            lock rsObj (fun () ->
+                match rsOpt with
+                | None ->
+                    rsOpt <- Some lazyRs.Value
+                | _ ->
+                    ()
+            )
+            rsOpt.Value
+        | Some rs ->
+            rs
 
 type ITextDocumentIdentifierParams with
 
@@ -906,15 +977,6 @@ module ExtensionHelpers =
                 match textManager.TryGet(documentPath) with
                 | Some (sourceText, _) ->
                     let! docs = workspace.UpdateDocumentAsync(rs, documentPath, sourceText, ct)
-
-                    //if docs.IsEmpty then
-                    //    let! docs = workspace.UpdateDocumentAsync(documentPath, sourceText, ct)
-                    //    if docs.Length >= 1 then
-                    //        let doc = docs.[0]
-                    //        return! f doc ct
-                    //    else
-                    //        return raise(OperationCanceledException())
-                    //else
                     if docs.Length >= 1 then
                         let doc = docs.[0]
                         return! f doc ct
@@ -943,14 +1005,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     let editorDirWatch = new DirectoryWatcher()
 
     let textManager = OlyLspSourceTextManager()
-    let rs = OlyWorkspaceLspResourceService(server, editorDirWatch)
-
     let targets = 
         [
             InterpreterTarget() :> OlyBuild
             DotNetTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets)
+    let rs = OlyWorkspaceLspResourceService(server, editorDirWatch, workspace)
 
     let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 
@@ -984,63 +1045,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             cts
 
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
-
-    //let invalidate (filePath: string) =
-    //    let solution = workspace.GetSolutionAsync(rs.State, CancellationToken.None).Result
-    //    let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
-    //    solution.GetProjects()
-    //    |> ImArray.iter (fun proj ->
-    //        let mustInvalidate =
-    //            proj.Documents
-    //            |> ImArray.exists (fun x ->
-    //                OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
-    //            )
-    //        if mustInvalidate then
-    //            workspace.RemoveProject(rs.State, proj.Path, CancellationToken.None)
-    //    )
-
-    //let invalidateEditor (filePath: string) =
-    //    let fileName = Path.GetFileName(filePath)
-    //    if fileName.Equals(LspWorkspaceStateFileName, StringComparison.OrdinalIgnoreCase) then
-    //        lock ctsLock <| fun () ->
-    //            let results = ctsTable.Values |> ImArray.ofSeq
-    //            results
-    //            |> ImArray.iter (fun x -> try x.Cancel() with | _ -> ())
-    //            ctsTable.Clear()
-    //            workspace.ClearSolutionAsync(rs.State, CancellationToken.None).Result |> ignore
-    //       // server.RefreshClientAsync(CancellationToken.None).Result |> ignore
-    //    elif fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) then
-    //        invalidate (Path.ChangeExtension(filePath, ".olyx"))
-    //    else
-    //        ()
-
-    //do
-    //    dirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidate oldFullPath)
-    //    dirWatch.FileCreated.Add(invalidate)
-    //    dirWatch.FileDeleted.Add(invalidate)
-
-    //    editorDirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidateEditor oldFullPath)
-    //    editorDirWatch.FileCreated.Add(invalidateEditor)
-    //    editorDirWatch.FileDeleted.Add(invalidateEditor)
-    //    editorDirWatch.FileChanged.Add(invalidateEditor)
-
-    let getProjectFilesInClient () =
-        let rootPath = (server.Workspace.ClientSettings.WorkspaceFolders |> Seq.item 0).Uri.Path |> OlyPath.Create
-        Directory.EnumerateFiles(rootPath.ToString(), "*.olyx", SearchOption.AllDirectories)
-        |> Seq.map (fun x -> OlyPath.Create(x))
-        |> ImArray.ofSeq
-
-    let tryGetSourceText (documentPath: OlyPath) =
-        match textManager.TryGet(documentPath) with
-        | Some(sourceText, _) ->
-            Some sourceText
-        | _ ->
-            try
-                OlySourceText.FromFile(documentPath.ToString())
-                |> Some
-            with
-            | :? FileNotFoundException ->
-                None
 
     member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
         backgroundTask {

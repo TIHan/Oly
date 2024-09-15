@@ -99,7 +99,8 @@ type DirectoryWatcher() =
         watcher.Renamed.Add(fun args ->
             let oldPath = OlyPath.Create(args.OldFullPath)
             let path = OlyPath.Create(args.FullPath)
-            fileRenamed.Trigger(oldPath.ToString(), path.ToString())
+            if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
+                fileRenamed.Trigger(oldPath.ToString(), path.ToString())
         )
         watcher.EnableRaisingEvents <- true
 

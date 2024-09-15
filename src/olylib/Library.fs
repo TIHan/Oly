@@ -102,7 +102,8 @@ module Oly =
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         DoNotTrim(false)
 
-        let rs = OlyWorkspaceResourceState.Create()
+        // TODO: Fix this.
+        let rs = OlyWorkspaceResourceState.Create(OlyPath.Empty)
 
         let targets = 
             [

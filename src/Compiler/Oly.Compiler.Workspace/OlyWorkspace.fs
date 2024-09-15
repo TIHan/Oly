@@ -6,6 +6,7 @@ open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open System
+open System.Text.Json.Serialization
 open System.Threading
 open System.Threading.Tasks
 open System.Collections.Generic
@@ -179,6 +180,24 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
         documentPath.HasExtension(ProjectExtension)
 
 [<Sealed>]
+type ProjectConfiguration [<JsonConstructor>] (name: string, defines: string [], debuggable: bool) =
+    member _.Name = name
+    member _.Defines = defines
+    member _.Debuggable = debuggable
+
+[<Sealed>]
+type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfiguration []) =
+    member _.Configurations = configurations
+
+    static member Default =
+        ProjectConfigurations(
+            [|
+                ProjectConfiguration("Release", [||], false)
+                ProjectConfiguration("Debug", [|"DEBUG"|], true)
+            |]
+        )
+
+[<Sealed>]
 type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool) =
 
     member _.Name = name
@@ -186,6 +205,28 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
     member _.Defines = defines
 
     member _.Debuggable = debuggable
+
+    static member Deserialize(configName: string, stream: System.IO.Stream): OlyProjectConfiguration =
+        let jsonOptions = System.Text.Json.JsonSerializerOptions()
+        jsonOptions.PropertyNameCaseInsensitive <- true
+        let configs = System.Text.Json.JsonSerializer.Deserialize<ProjectConfigurations>(stream, jsonOptions)
+        let configOpt =
+            configs.Configurations
+            |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(configName, StringComparison.OrdinalIgnoreCase))
+
+        let config =
+            match configOpt with
+            | None ->
+                match configs.Configurations |> Array.tryHead with
+                | Some config -> config
+                | _ -> ProjectConfigurations.Default.Configurations[0]
+            | Some config ->
+                config
+
+        let name = config.Name
+        let conditionalDefines = config.Defines |> ImArray.ofSeq
+        let isDebuggable = config.Debuggable
+        OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
 
 [<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
@@ -684,48 +725,107 @@ type OlySolution (state: SolutionState) =
 [<NoEquality;NoComparison>]
 type internal ResourceState =
     {
-        files: ImmutableDictionary<OlyPath, System.IO.Stream * DateTime>
+        files: ImmutableDictionary<OlyPath, int64 * System.IO.MemoryMappedFiles.MemoryMappedFile * DateTime>
+    }
+
+type ActiveConfigurationState =
+    {
+        mutable activeConfiguration: string
     }
 
 [<Sealed>]
-type OlyWorkspaceResourceState(state: ResourceState) =
+type OlyWorkspaceResourceState(state: ResourceState, activeConfigPath: OlyPath) =
+
+    let sourceTexts = System.Runtime.CompilerServices.ConditionalWeakTable<System.IO.MemoryMappedFiles.MemoryMappedFile, WeakReference<IOlySourceText>>()
 
     member this.SetResourceAsCopy(filePath: OlyPath) =       
         let fileInfo = System.IO.FileInfo(filePath.ToString())
-        let filePath = fileInfo.FullName
-        let ms = new System.IO.MemoryStream(System.IO.File.ReadAllBytes(filePath))
-        let dt = System.IO.File.GetLastWriteTimeUtc(filePath)
-        ms.Position <- 0
-        this.SetResource(OlyPath.Create(filePath), ms, dt)
+        let dt = fileInfo.LastWriteTimeUtc
+        let fs = System.IO.File.Open(fileInfo.FullName, IO.FileMode.Open)
+        try
+            this.SetResourceAsCopy(filePath, fs, dt)
+        finally
+            fs.Dispose()
 
-    member _.SetResource(filePath: OlyPath, ms: System.IO.Stream, dt: DateTime) =
-        ms.Position <- 0
-        { state with files = state.files.SetItem(filePath, (ms, dt)) }
-        |> OlyWorkspaceResourceState
+    member this.SetResourceAsCopy(filePath: OlyPath, stream: System.IO.Stream, dt: DateTime) =
+        let length = stream.Length - stream.Position
+        let mmap = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(null, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite)
+        let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Write)
+        try
+            stream.CopyTo(view)
+            this.SetResource(filePath, length, mmap, dt)
+        finally
+            view.Dispose()
 
-    member _.SetResources(items: (OlyPath * System.IO.Stream * DateTime) seq) =
-        let pairs =
-            items
-            |> Seq.map (fun (filePath, ms, dt) ->
-                ms.Position <- 0
-                KeyValuePair(filePath, (ms, dt))
-            )
-        { state with files = state.files.SetItems(pairs) }
-        |> OlyWorkspaceResourceState
+    member _.SetResource(filePath: OlyPath, length: int64, mmap: System.IO.MemoryMappedFiles.MemoryMappedFile, dt: DateTime) =
+        OlyWorkspaceResourceState(
+            { state with files = state.files.SetItem(filePath, (length, mmap, dt)) },
+            activeConfigPath
+        )
+
+    //member _.SetResources(items: (OlyPath * System.IO.MemoryMappedFiles.MemoryMappedFile * DateTime) seq) =
+    //    let pairs =
+    //        items
+    //        |> Seq.map (fun (filePath, mmap, dt) ->
+    //            KeyValuePair(filePath, (mmap, dt))
+    //        )
+    //    OlyWorkspaceResourceState(
+    //        { state with files = state.files.SetItems(pairs) },
+    //        activeConfigPath
+    //    )
 
     member _.RemoveResource(filePath: OlyPath) =
-        OlyWorkspaceResourceState({ state with files = state.files.Remove(filePath) })
+        OlyWorkspaceResourceState({ state with files = state.files.Remove(filePath) }, activeConfigPath)
 
     member _.GetSourceText(filePath) =
-        let stream = state.files[filePath] |> fst
-        try
-            OlySourceText.FromStream(stream)
-        finally
-            stream.Position <- 0
+        let (length, mmap, _) = state.files[filePath]
+        match sourceTexts.TryGetValue mmap with
+        | true, weakTarget ->
+            match weakTarget.TryGetTarget() with
+            | true, sourceText -> sourceText
+            | _ ->
+                lock mmap (fun () ->
+                    match weakTarget.TryGetTarget() with
+                    | true, sourceText -> sourceText
+                    | _ ->
+                        let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Read)
+                        try
+                            let sourceText = OlySourceText.FromStream(view)
+                            weakTarget.SetTarget(sourceText)
+                            sourceText
+                        finally
+                            view.Dispose()
+                )
+        | _ ->
+            lock mmap (fun () ->
+                match sourceTexts.TryGetValue mmap with
+                | true, weakTarget ->
+                    match weakTarget.TryGetTarget() with
+                    | true, sourceText -> sourceText
+                    | _ ->
+                        match weakTarget.TryGetTarget() with
+                        | true, sourceText -> sourceText
+                        | _ ->
+                            let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Read)
+                            try
+                                let sourceText = OlySourceText.FromStream(view)
+                                weakTarget.SetTarget(sourceText)
+                                sourceText
+                            finally
+                                view.Dispose()
+                | _ ->
+                    let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Read)
+                    try
+                        let sourceText = OlySourceText.FromStream(view)
+                        sourceTexts.AddOrUpdate(mmap, WeakReference<_>(sourceText))
+                        sourceText
+                    finally
+                        view.Dispose()
+            )
 
     member _.GetTimeStamp(filePath) =
-        state.files[filePath]
-        |> snd
+        let (_, _, dt) = state.files[filePath]
+        dt
 
     member _.FindSubPaths(dirPath: OlyPath) =
         let builder = ImArray.builder()
@@ -736,20 +836,35 @@ type OlyWorkspaceResourceState(state: ResourceState) =
 
         builder.ToImmutable()
 
-    member _.GetProjectConfiguration(projectFilePath: OlyPath) =
-        match state.files.TryGetValue(projectFilePath) with
-        | true, (ms, _) ->
+    member this.GetProjectConfiguration(projectFilePath: OlyPath) =
+        match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
+        | true, (length, mmap, _) ->
+            let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Read)
+            try    
+                let configName = this.GetActiveConfigurationName()
+                let contents = OlyProjectConfiguration.Deserialize(configName, view)
+                contents
+            finally
+                view.Dispose()
+        | _ -> 
+            OlyProjectConfiguration("Release", ImArray.empty, false)
+
+    member _.GetActiveConfigurationName() =
+        match state.files.TryGetValue(OlyPath.ChangeExtension(activeConfigPath, ".json")) with
+        | true, (length, mmap, _) ->
+            let view = mmap.CreateViewStream(0, length, IO.MemoryMappedFiles.MemoryMappedFileAccess.Read)
             try
                 let jsonOptions = System.Text.Json.JsonSerializerOptions()
                 jsonOptions.PropertyNameCaseInsensitive <- true
-                let contents = System.Text.Json.JsonSerializer.Deserialize<OlyProjectConfiguration>(ms, jsonOptions)
-                contents
+                let contents = System.Text.Json.JsonSerializer.Deserialize<ActiveConfigurationState>(view, jsonOptions)
+                contents.activeConfiguration
             finally
-                ms.Position <- 0
-        | _ -> OlyProjectConfiguration("Release", ImArray.empty, false)
+                view.Dispose()
+        | _ ->
+            "Release"
 
-    static member Create() =
-        OlyWorkspaceResourceState({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance) })
+    static member Create(activeConfigPath: OlyPath) =
+        OlyWorkspaceResourceState({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance) }, activeConfigPath)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =

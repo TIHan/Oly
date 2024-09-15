@@ -8,6 +8,26 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Core
 
+type ActiveConfigurationState =
+    {
+        mutable activeConfiguration: string
+    }
+
+[<Sealed>]
+type ProjectConfiguration =
+    new : name: string * defines: string [] * debuggable: bool -> ProjectConfiguration
+    member Name: string
+    member Defines: string []
+    member Debuggable: bool
+
+[<Sealed>]
+type ProjectConfigurations =
+    new : configurations: ProjectConfiguration [] -> ProjectConfigurations
+
+    member Configurations: ProjectConfiguration []
+
+    static member Default: ProjectConfigurations
+
 [<Sealed>]
 type OlyProgram =
 
@@ -142,6 +162,8 @@ type OlyProjectConfiguration =
 
     member Debuggable : bool
 
+    static member Deserialize : configName: string * System.IO.Stream -> OlyProjectConfiguration
+
 [<Sealed>]
 type OlyProject =
 
@@ -197,9 +219,9 @@ type OlyWorkspaceResourceState =
 
     member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceState
 
-    member SetResource : OlyPath * System.IO.Stream * DateTime -> OlyWorkspaceResourceState
+    member SetResourceAsCopy : OlyPath * System.IO.Stream * DateTime -> OlyWorkspaceResourceState
 
-    member SetResources : (OlyPath * System.IO.Stream * DateTime) seq -> OlyWorkspaceResourceState
+    //member SetResources : (OlyPath * System.IO.Stream * DateTime) seq -> OlyWorkspaceResourceState
 
     member RemoveResource : OlyPath -> OlyWorkspaceResourceState
 
@@ -212,7 +234,9 @@ type OlyWorkspaceResourceState =
 
     member GetProjectConfiguration: projectFilePath: OlyPath -> OlyProjectConfiguration
 
-    static member Create : unit -> OlyWorkspaceResourceState
+    member GetActiveConfigurationName: unit -> string
+
+    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceState
 
 [<Sealed>]
 type OlyWorkspace =
