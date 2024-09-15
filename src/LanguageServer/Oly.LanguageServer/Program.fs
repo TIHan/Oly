@@ -26,6 +26,7 @@ open Oly.Core
 open Oly.Runtime.Tools
 open Oly.Runtime.Clr.Emitter
 open Oly.Compiler.Workspace
+open Oly.Compiler.Workspace.Service
 open OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities
 open Oly.Compiler.Extensions
 open Oly.Compiler.Workspace.Extensions
@@ -569,81 +570,6 @@ let getLocationsBySymbol symbol doc ct =
         x.ToLspLocation(ct)
     )
 
-[<Sealed>]
-type OlyLspSourceTextManager() =
-
-    let lockObj = obj()
-    let openedTexts = Dictionary<OlyPath, IOlySourceText * Nullable<int>>()
-
-    member _.OnOpen(path: OlyPath, version) =
-        lock lockObj <| fun _ ->
-        let sourceText = OlySourceText.FromFile(path.ToString())
-        openedTexts[path] <- sourceText, version
-
-    member _.OnClose(path: OlyPath) =
-        lock lockObj <| fun _ ->
-        match openedTexts.Remove(path) with
-        | _ -> ()
-
-    member _.OnChange(path: OlyPath, version, textChanges: OlyTextChangeWithRange seq) =
-        lock lockObj <| fun _ ->
-        match openedTexts.TryGetValue(path) with
-        | true, (sourceText, _) ->
-            let newSourceText = sourceText.ApplyTextChanges(textChanges)
-            openedTexts[path] <- newSourceText, version
-            Some(newSourceText)
-        | _ ->
-            None
-
-    member _.TryGet(path: OlyPath) =
-        lock lockObj <| fun _ ->
-        match openedTexts.TryGetValue(path) with
-        | true, sourceText -> Some sourceText
-        | _ -> None
-
-    member _.TrySet(path, sourceText) =
-        lock lockObj <| fun _ ->
-        match openedTexts.TryGetValue(path) with
-        | true, _ -> 
-            openedTexts[path] <- sourceText
-            true
-        | _ ->
-            false
-
-type LspProjectConfiguration =
-    {
-        mutable name: string
-        mutable defines: string []
-        mutable debuggable: bool
-    }
-
-type LspProjectConfigurations =
-    {
-        mutable configurations: LspProjectConfiguration []
-    }
-
-    static member Default =
-        {
-            configurations =
-                [|
-                    {
-                        name = "Debug"
-                        defines = [|"DEBUG"|]
-                        debuggable = true
-                    }
-                    {
-                        name = "Release"
-                        defines = [||]
-                        debuggable = false
-                    }
-                |]
-        }
-
-type LspWorkspaceState =
-    {
-        mutable activeConfiguration: string
-    }
-
 [<Literal>]
 let LspWorkspaceStateDirectory = ".olyworkspace/"
 
@@ -651,7 +577,7 @@ let LspWorkspaceStateDirectory = ".olyworkspace/"
 let LspWorkspaceStateFileName = "state.json"
  
 [<Sealed>]
-type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatch: DirectoryWatcher, workspace: OlyWorkspace) as this =
+type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, dirWatch: DirectoryWatcher, workspace: OlyWorkspace) as this =
     
     do
         OlyTrace.Log <-
@@ -659,7 +585,7 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
                 let trace = OmniSharp.Extensions.LanguageServer.Protocol.Models.LogTraceParams(Message = msg)
                 server.SendNotification(trace)
 
-    let invalidate (rs: OlyWorkspaceResourceState) (filePath: string) =
+    let invalidate (rs: OlyWorkspaceResourceSnapshot) (filePath: string) =
         let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
         let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
         solution.GetProjects()
@@ -678,10 +604,10 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
             let activeConfigPath =
                 Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
                 |> OlyPath.Create
-            let mutable rs = OlyWorkspaceResourceState.Create(activeConfigPath)
+            let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
             
-            editorDirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
-            editorDirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
+            dirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
+            dirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
 
             Directory.EnumerateFiles(server.ClientSettings.RootPath, "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
@@ -740,9 +666,9 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
             ()
 
     do
-        editorDirWatch.FileCreated.Add(
+        dirWatch.FileCreated.Add(
             fun filePath ->
-                let rs: OlyWorkspaceResourceState = this.State
+                let rs: OlyWorkspaceResourceSnapshot = this.State
                 try
                     rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
                 with
@@ -751,9 +677,9 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
                 checkValidation filePath
         )
 
-        editorDirWatch.FileChanged.Add(
+        dirWatch.FileChanged.Add(
             fun filePath ->
-                let rs: OlyWorkspaceResourceState = this.State
+                let rs: OlyWorkspaceResourceSnapshot = this.State
                 try
                     rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
                 with
@@ -762,16 +688,16 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
                 checkValidation filePath
         )
 
-        editorDirWatch.FileDeleted.Add(
+        dirWatch.FileDeleted.Add(
             fun filePath ->
-                let rs: OlyWorkspaceResourceState = this.State
+                let rs: OlyWorkspaceResourceSnapshot = this.State
                 rsOpt <- Some(rs.RemoveResource(OlyPath.Create(filePath)))
                 checkValidation filePath
         )
 
-        editorDirWatch.FileRenamed.Add(
+        dirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
-                let rs: OlyWorkspaceResourceState = this.State
+                let rs: OlyWorkspaceResourceSnapshot = this.State
                 let rs = rs.RemoveResource(OlyPath.Create(oldFilePath))
                 try
                     rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
@@ -798,7 +724,7 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
 
 type ITextDocumentIdentifierParams with
 
-    member this.HandleOlyDocument(rs: OlyWorkspaceResourceState, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
+    member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlySourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
         let documentPath = this.TextDocument.Uri.Path |> normalizeFilePath
         
         try
@@ -962,7 +888,7 @@ module ExtensionHelpers =
 
     type IOlyRequest<'T> with
 
-        member this.HandleOlyDocument(rs: OlyWorkspaceResourceState, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
+        member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlySourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
             backgroundTask {
                 let documentPath = this.DocumentPath |> normalizeFilePath
         
@@ -1002,16 +928,16 @@ type WorkspaceSettings =
 
 type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
-    let editorDirWatch = new DirectoryWatcher()
+    let dirWatch = new DirectoryWatcher()
 
-    let textManager = OlyLspSourceTextManager()
+    let textManager = OlySourceTextManager()
     let targets = 
         [
             InterpreterTarget() :> OlyBuild
             DotNetTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets)
-    let rs = OlyWorkspaceLspResourceService(server, editorDirWatch, workspace)
+    let rs = OlyWorkspaceLspResourceService(server, dirWatch, workspace)
 
     let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 
@@ -1078,7 +1004,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
                         // TODO Uncomment below: this has performance issues that need to be investigated.
-                        (*
+                        //(*
                         for doc in docs do
                             doc.Project.GetDocumentsExcept(doc.Path)
                             |> ImArray.iter (fun doc ->
@@ -1098,7 +1024,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     let diags = doc.ToLspDiagnostics(ct)
                                     server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
                                 )
-                        *)
+                        //*)
                     with
                     | :? OperationCanceledException ->
                         ()

@@ -24,6 +24,7 @@
     <Compile Include="OlyWorkspace.fsi" />
     <Compile Include="OlyWorkspace.fs" />
     <Compile Include="OlyWorkspaceExtensions.fs" />
+    <Compile Include="OlyWorkspaceService.fs" />
   </ItemGroup>
 
   <ItemGroup>

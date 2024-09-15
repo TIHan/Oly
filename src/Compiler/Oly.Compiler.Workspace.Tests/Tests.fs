@@ -11,13 +11,13 @@ open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
 let rs = 
-    let rs = OlyWorkspaceResourceState.Create(OlyPath.Empty)
+    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
     let fileInfo = System.IO.FileInfo("prelude.oly")
     let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
     let fileInfo = System.IO.FileInfo("interpreter_prelude.olyx")
     rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)), DateTime.UtcNow)
 
-let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceState) =
+let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceSnapshot) =
     let ms = new System.IO.MemoryStream()
     ms.Write(System.Text.Encoding.Default.GetBytes(src))
     ms.Position <- 0

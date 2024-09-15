@@ -8,11 +8,13 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Core
 
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
 type ActiveConfigurationState =
     {
         mutable activeConfiguration: string
     }
 
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
 [<Sealed>]
 type ProjectConfiguration =
     new : name: string * defines: string [] * debuggable: bool -> ProjectConfiguration
@@ -20,6 +22,7 @@ type ProjectConfiguration =
     member Defines: string []
     member Debuggable: bool
 
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
 [<Sealed>]
 type ProjectConfigurations =
     new : configurations: ProjectConfiguration [] -> ProjectConfigurations
@@ -215,15 +218,13 @@ type OlySolution =
     member GetTransitiveProjectReferencesFromProject: projectPath: OlyPath * ct: CancellationToken -> OlyProject imarray
 
 [<Sealed>]
-type OlyWorkspaceResourceState =
+type OlyWorkspaceResourceSnapshot =
 
-    member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceState
+    member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceSnapshot
 
-    member SetResourceAsCopy : OlyPath * System.IO.Stream * DateTime -> OlyWorkspaceResourceState
+    member SetResourceAsCopy : OlyPath * System.IO.Stream -> OlyWorkspaceResourceSnapshot
 
-    //member SetResources : (OlyPath * System.IO.Stream * DateTime) seq -> OlyWorkspaceResourceState
-
-    member RemoveResource : OlyPath -> OlyWorkspaceResourceState
+    member RemoveResource : OlyPath -> OlyWorkspaceResourceSnapshot
 
     member GetSourceText: filePath: OlyPath -> IOlySourceText
 
@@ -236,32 +237,32 @@ type OlyWorkspaceResourceState =
 
     member GetActiveConfigurationName: unit -> string
 
-    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceState
+    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 
 [<Sealed>]
 type OlyWorkspace =
 
-    member GetSolutionAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<OlySolution>
+    member GetSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlySolution>
 
     /// Updates documents by path with the given source text.
-    member UpdateDocumentAsync : OlyWorkspaceResourceState * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
+    member UpdateDocumentAsync : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// Updates documents by path with the given source text.
     /// Non-blocking.
-    member UpdateDocument : OlyWorkspaceResourceState * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
+    member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
-    member RemoveProject : OlyWorkspaceResourceState * projectPath: OlyPath * ct: CancellationToken -> unit
+    member RemoveProject : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
-    member GetDocumentsAsync : OlyWorkspaceResourceState * documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetDocumentsAsync : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// Get all the documents in the workspace's solution.
-    member GetAllDocumentsAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetAllDocumentsAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// TODO: We should make this API better.
-    member BuildProjectAsync : OlyWorkspaceResourceState * projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
+    member BuildProjectAsync : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
-    member ClearSolutionAsync : OlyWorkspaceResourceState * ct: CancellationToken -> Task<unit>
+    member ClearSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<unit>
 
     static member Create : targets: OlyBuild seq -> OlyWorkspace

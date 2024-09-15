@@ -103,7 +103,7 @@ module Oly =
         DoNotTrim(false)
 
         // TODO: Fix this.
-        let rs = OlyWorkspaceResourceState.Create(OlyPath.Empty)
+        let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
 
         let targets = 
             [

@@ -22,7 +22,7 @@ type DotNetCompile() =
 
     let benchmarkPath = OlyPath.Create("benchmark.olyx")
     let workspace = OlyWorkspace.Create([DotNetTarget(true)])
-    let rs = OlyWorkspaceResourceState.Create(OlyPath.Empty)
+    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
     let rs = rs.SetResourceAsCopy(benchmarkPath, new MemoryStream(File.ReadAllBytes(benchmarkPath.ToString())), DateTime.UtcNow)
     do
         workspace.UpdateDocument(rs, benchmarkPath, OlySourceText.FromFile(benchmarkPath.ToString()), System.Threading.CancellationToken.None)
