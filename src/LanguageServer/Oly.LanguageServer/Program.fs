@@ -671,6 +671,25 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
         lazy
             editorDirWatch.WatchSubdirectories(server.ClientSettings.RootPath)
             editorDirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
+
+            Directory.EnumerateFiles(server.ClientSettings.RootPath, "*.oly*", SearchOption.AllDirectories)
+            |> Seq.iter (fun filePath ->
+                try
+                    rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
+                with
+                | _ ->
+                    ()
+            )
+
+            Directory.EnumerateFiles(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
+            |> Seq.iter (fun filePath ->
+                try
+                    rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
+                with
+                | _ ->
+                    ()
+            )
+
             new JsonFileStore<LspWorkspaceState>(this.GetWorkspaceStatePath(), { activeConfiguration = "Debug" }, editorDirWatch)
 
     do
@@ -698,17 +717,14 @@ type OlyWorkspaceLspResourceService(server: ILanguageServerFacade, editorDirWatc
                     ()
         )
 
-    member this.State = rs
+    member this.State = 
+        wstateStore.Force() |> ignore
+        rs
 
     member this.GetWorkspaceStatePath() =
         Path.Combine(Path.Combine(server.ClientSettings.RootPath, LspWorkspaceStateDirectory), LspWorkspaceStateFileName)
         |> OlyPath.Create
 
-    member this.GetWorkspaceStateAsync(ct: CancellationToken): Task<LspWorkspaceState> =
-        backgroundTask {
-            return! wstateStore.Value.GetContentsAsync(ct)
-        }
-        
 type ITextDocumentIdentifierParams with
 
     member this.HandleOlyDocument(rs: OlyWorkspaceResourceState, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlyLspSourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
@@ -925,7 +941,6 @@ type WorkspaceSettings =
 type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let editorDirWatch = new DirectoryWatcher()
-    let dirWatch = new DirectoryWatcher();
 
     let textManager = OlyLspSourceTextManager()
     let rs = OlyWorkspaceLspResourceService(server, editorDirWatch)
@@ -970,44 +985,44 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
 
-    let invalidate (filePath: string) =
-        let solution = workspace.GetSolutionAsync(rs.State, CancellationToken.None).Result
-        let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
-        solution.GetProjects()
-        |> ImArray.iter (fun proj ->
-            let mustInvalidate =
-                proj.Documents
-                |> ImArray.exists (fun x ->
-                    OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
-                )
-            if mustInvalidate then
-                workspace.RemoveProject(rs.State, proj.Path, CancellationToken.None)
-        )
+    //let invalidate (filePath: string) =
+    //    let solution = workspace.GetSolutionAsync(rs.State, CancellationToken.None).Result
+    //    let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
+    //    solution.GetProjects()
+    //    |> ImArray.iter (fun proj ->
+    //        let mustInvalidate =
+    //            proj.Documents
+    //            |> ImArray.exists (fun x ->
+    //                OlyPath.Equals(OlyPath.GetDirectory(x.Path), dir)
+    //            )
+    //        if mustInvalidate then
+    //            workspace.RemoveProject(rs.State, proj.Path, CancellationToken.None)
+    //    )
 
-    let invalidateEditor (filePath: string) =
-        let fileName = Path.GetFileName(filePath)
-        if fileName.Equals(LspWorkspaceStateFileName, StringComparison.OrdinalIgnoreCase) then
-            lock ctsLock <| fun () ->
-                let results = ctsTable.Values |> ImArray.ofSeq
-                results
-                |> ImArray.iter (fun x -> try x.Cancel() with | _ -> ())
-                ctsTable.Clear()
-                workspace.ClearSolutionAsync(rs.State, CancellationToken.None).Result |> ignore
-           // server.RefreshClientAsync(CancellationToken.None).Result |> ignore
-        elif fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) then
-            invalidate (Path.ChangeExtension(filePath, ".olyx"))
-        else
-            ()
+    //let invalidateEditor (filePath: string) =
+    //    let fileName = Path.GetFileName(filePath)
+    //    if fileName.Equals(LspWorkspaceStateFileName, StringComparison.OrdinalIgnoreCase) then
+    //        lock ctsLock <| fun () ->
+    //            let results = ctsTable.Values |> ImArray.ofSeq
+    //            results
+    //            |> ImArray.iter (fun x -> try x.Cancel() with | _ -> ())
+    //            ctsTable.Clear()
+    //            workspace.ClearSolutionAsync(rs.State, CancellationToken.None).Result |> ignore
+    //       // server.RefreshClientAsync(CancellationToken.None).Result |> ignore
+    //    elif fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) then
+    //        invalidate (Path.ChangeExtension(filePath, ".olyx"))
+    //    else
+    //        ()
 
-    do
-        dirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidate oldFullPath)
-        dirWatch.FileCreated.Add(invalidate)
-        dirWatch.FileDeleted.Add(invalidate)
+    //do
+    //    dirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidate oldFullPath)
+    //    dirWatch.FileCreated.Add(invalidate)
+    //    dirWatch.FileDeleted.Add(invalidate)
 
-        editorDirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidateEditor oldFullPath)
-        editorDirWatch.FileCreated.Add(invalidateEditor)
-        editorDirWatch.FileDeleted.Add(invalidateEditor)
-        editorDirWatch.FileChanged.Add(invalidateEditor)
+    //    editorDirWatch.FileRenamed.Add(fun (oldFullPath, _) -> invalidateEditor oldFullPath)
+    //    editorDirWatch.FileCreated.Add(invalidateEditor)
+    //    editorDirWatch.FileDeleted.Add(invalidateEditor)
+    //    editorDirWatch.FileChanged.Add(invalidateEditor)
 
     let getProjectFilesInClient () =
         let rootPath = (server.Workspace.ClientSettings.WorkspaceFolders |> Seq.item 0).Uri.Path |> OlyPath.Create
@@ -1027,84 +1042,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             | :? FileNotFoundException ->
                 None
 
-    let documentIsUsedInProject (projectPath: OlyPath) (documentPath: OlyPath) =
-        if OlyPath.Equals(projectPath, documentPath) then true
-        else
-            match tryGetSourceText projectPath with
-            | Some(sourceText) ->
-                let projSyntaxTree = OlySyntaxTree.Parse(projectPath, sourceText, { OlyParsingOptions.Default with CompilationUnitConfigurationEnabled = true })
-                let config = projSyntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
-
-                let exists =
-                    config.Loads
-                    |> ImArray.exists (fun (_, x) ->
-                        let absolutePath = OlyPath.Combine(OlyPath.GetDirectory(projectPath), x)
-                        absolutePath.ContainsDirectoryOrFile(documentPath)
-                    )
-                exists
-            | _ ->
-                false
-
-    let autoOpenProjects ct =
-        getProjectFilesInClient()
-        |> ImArray.iter (fun x ->
-            match tryGetSourceText x with
-            | Some(sourceText) ->
-                workspace.UpdateDocument(rs.State, x, sourceText, ct)
-            | _ ->
-                ()
-        )
-
-    let autoOpenProjectsByDocument (documentPath: OlyPath) ct =
-        getProjectFilesInClient()
-        |> ImArray.iter (fun x ->
-            if documentIsUsedInProject x documentPath then
-                match tryGetSourceText x with
-                | Some(sourceText) ->
-                    workspace.UpdateDocument(rs.State, x, sourceText, ct) 
-                | _ ->
-                    ()
-        )
-
-    let autoOpenProjectsByDocumentIfNecessary (documentPath: OlyPath) ct =
-        backgroundTask {
-            let! solution = workspace.GetSolutionAsync(rs.State, ct)
-            if solution.HasDocument(documentPath) |> not then
-                autoOpenProjectsByDocument documentPath ct
-        }
-
-    let refreshWorkspaceByDocument (documentPath: OlyPath) version ct =
-        backgroundTask {
-            autoOpenProjectsByDocument documentPath ct
-            let! docs = workspace.GetDocumentsAsync(rs.State, documentPath, ct)
-            for doc in docs do
-                doc.Project.Documents
-                |> ImArray.iter (fun doc ->
-                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.oly")
-                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.olyx")
-                )
-                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Project.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Project.Path, ".json")).ToString())
-                let diags = doc.ToLspDiagnostics(ct)
-                server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
-        }
-
-    let refreshWorkspace ct =
-        backgroundTask {
-            autoOpenProjects ct
-            let! docs = workspace.GetAllDocumentsAsync(rs.State, ct)
-            for doc in docs do
-                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.oly")
-                dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), "*.olyx")
-                if doc.IsProjectDocument then
-                    dirWatch.WatchFiles(OlyPath.GetDirectory(doc.Path).ToString(), OlyPath.GetFileName(OlyPath.ChangeExtension(doc.Path, ".json")).ToString())
-        }
-
     member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
         backgroundTask {
             let cts = getCts documentPath
             let ct = cts.Token
-
-            do! refreshWorkspaceByDocument documentPath version ct
             return MediatR.Unit.Value
         }
 
@@ -1112,25 +1053,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         backgroundTask {
             let cts = cancelAndGetCts documentPath
             let ct = cts.Token
-
-            do! autoOpenProjectsByDocumentIfNecessary documentPath ct
-
-            //let solution = workspace.Solution
-            //solution.GetDocuments(documentPath)
-            //|> ImArray.iter (fun x ->
-            //    solution.GetProjectsDependentOnReference(x.Project.Path)
-            //    |> ImArray.iter (fun x ->
-            //        x.Documents
-            //        |> ImArray.iter (fun d ->
-            //            try
-            //                let cts = cancelAndGetCts d.Path
-            //                ()
-            //            with
-            //            | _ -> ()
-            //        )
-            //    )
-            //)
-
             workspace.UpdateDocument(rs.State, documentPath, sourceText, ct)
             let work =
                 backgroundTask {
@@ -1589,8 +1511,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 if symbol.IsInLocalScope then
                     allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
                 else
-                    // TODO: We could optimize this where we don't have to refresh everything.
-                    do! refreshWorkspace ct // Ensure all projects are available in the workspace when finding references.
                     let! solution = workspace.GetSolutionAsync(rs.State, ct)
                     match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
                     | Some(doc) ->
@@ -1740,9 +1660,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
             backgroundTask {
-                let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                do! autoOpenProjectsByDocumentIfNecessary documentPath ct
-
                 return! request.HandleOlyDocument(rs.State, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
                     let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                     
