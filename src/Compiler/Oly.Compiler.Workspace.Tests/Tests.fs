@@ -346,7 +346,7 @@ main(): () =
     |> containsCompletionLabelsByCursor ["A";"B"]
 
 let clearSolution (workspace: OlyWorkspace) =
-    workspace.ClearSolutionAsync(rs, CancellationToken.None).Result
+    workspace.ClearSolution(CancellationToken.None)
 
 let getSolution (workspace: OlyWorkspace) =
     workspace.GetSolutionAsync(rs, CancellationToken.None).Result
@@ -418,7 +418,7 @@ main(): () =
 let clearSolution2 (path: OlyPath) (workspace: OlyWorkspace) =
     let mutable currentDocs = workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 1)
-    workspace.ClearSolutionAsync(rs, CancellationToken.None).Result
+    workspace.ClearSolution(CancellationToken.None)
     currentDocs <- workspace.GetDocumentsAsync(rs, path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 0)
 

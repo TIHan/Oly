@@ -876,12 +876,13 @@ type private WorkspaceState =
 [<NoComparison;NoEquality>]
 type WorkspaceMessage =
     | UpdateDocumentNoReply of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
+    | UpdateDocumentsNoReplyNoText of OlyWorkspaceResourceSnapshot * documentPaths: OlyPath imarray * ct: CancellationToken
     | UpdateDocument of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetDocuments of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetAllDocuments of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | RemoveProject of OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken
     | GetSolution of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<OlySolution>
-    | ClearSolution of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<unit>
+    | ClearSolution of ct: CancellationToken
 
 [<Sealed>]
 type OlyWorkspace private (state: WorkspaceState) as this =
@@ -979,26 +980,23 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
 
-                | ClearSolution(rs, ct, reply) ->
+                | ClearSolution(ct) ->
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - ClearSolution()")
+                    OlyTrace.Log($"OlyWorkspace - ClearSolution")
 #endif
                     let prevSolution = solution
                     try
-                        try
-                            ct.ThrowIfCancellationRequested()
-                            solution <- 
-                                {
-                                    workspace = this
-                                    projects = ImmutableDictionary.Empty
-                                    version = 0UL
-                                }
-                                |> OlySolution
-                        with
-                        | _ ->
-                            solution <- prevSolution
-                    finally
-                        reply.Reply(())
+                        ct.ThrowIfCancellationRequested()
+                        solution <- 
+                            {
+                                workspace = this
+                                projects = ImmutableDictionary.Empty
+                                version = 0UL
+                            }
+                            |> OlySolution
+                    with
+                    | _ ->
+                        solution <- prevSolution
 
                 | UpdateDocumentNoReply(rs, documentPath, sourceText, ct) ->
 #if DEBUG || CHECKED
@@ -1016,6 +1014,24 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     with
                     | _ ->
                         solution <- prevSolution
+
+                | UpdateDocumentsNoReplyNoText(rs, documentPaths, ct) ->
+#if DEBUG || CHECKED
+                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText
+#endif                    
+                    for documentPath in documentPaths do
+                        let prevSolution = solution
+                        try
+                            ct.ThrowIfCancellationRequested()
+                            do! checkProjectsThatContainDocument rs documentPath ct
+                            do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
+                            solution.GetDocuments(documentPath)
+                            |> ImArray.iter (fun doc ->
+                                solution <- solution.InvalidateDependentProjectsOn(doc.Project.Path)
+                            )
+                        with
+                        | _ ->
+                            solution <- prevSolution
 
                 | UpdateDocument(rs, documentPath, sourceText, ct, reply) ->
 #if DEBUG || CHECKED
@@ -1476,6 +1492,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     member this.UpdateDocument(rs, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.UpdateDocumentNoReply(rs, documentPath, sourceText, ct))
 
+    member this.UpdateDocuments(rs, documentPaths: OlyPath imarray, ct: CancellationToken): unit =
+        mbp.Post(WorkspaceMessage.UpdateDocumentsNoReplyNoText(rs, documentPaths, ct))
+
     member this.RemoveProject(rs, projectPath: OlyPath, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.RemoveProject(rs, projectPath, ct))
 
@@ -1531,10 +1550,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             })
         workspace
 
-    member this.ClearSolutionAsync(rs, ct) =
-        backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.ClearSolution(rs, ct, reply))
-        }
+    member this.ClearSolution(ct) =
+        mbp.Post(WorkspaceMessage.ClearSolution(ct))
 
     static member Create(targets) =
         OlyWorkspace.CreateCore(targets)

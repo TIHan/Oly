@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Collections.Generic
 open System.Threading
+open System.Reflection
 open Oly.Core
 open Oly.Compiler.Text
 open Oly.Compiler.Workspace
@@ -60,9 +61,9 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 
     let dirWatch = new DirectoryWatcher()
 
-    let invalidate (rs: OlyWorkspaceResourceSnapshot) (filePath: string) =
+    let invalidate (rs: OlyWorkspaceResourceSnapshot) (filePath: OlyPath) =
         let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
-        let dir = OlyPath.Create(filePath) |> OlyPath.GetDirectory
+        let dir = filePath |> OlyPath.GetDirectory
         solution.GetProjects()
         |> ImArray.iter (fun proj ->
             let mustInvalidate =
@@ -74,17 +75,20 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                 workspace.RemoveProject(rs, proj.Path, CancellationToken.None)
         )
 
+    let getActiveConfigPath =
+        lazy
+            let rootPath = getRootPath.Value
+            Path.Combine(Path.Combine(rootPath.ToString(), WorkspaceStateDirectory), WorkspaceStateFileName)
+            |> OlyPath.Create
+
     let mutable lazyRs = 
         lazy
             let rootPath = getRootPath.Value
-            let activeConfigPath =
-                Path.Combine(Path.Combine(rootPath.ToString(), WorkspaceStateDirectory), WorkspaceStateFileName)
-                |> OlyPath.Create
+            let activeConfigPath = getActiveConfigPath.Value
+
             let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
-            
-            dirWatch.WatchSubdirectories(rootPath.ToString())
-            dirWatch.WatchSubdirectories(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
-            dirWatch.WatchFiles(OlyPath.GetDirectory(activeConfigPath).ToString(), "*.json")
+
+            let projectsToUpdate = ImArray.builder()
 
             Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
@@ -92,21 +96,19 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let filePath = OlyPath.Create(filePath)
                     rs <- rs.SetResourceAsCopy(filePath)
                     if filePath.HasExtension(".olyx") then
-                        let _ = workspace.GetDocumentsAsync(rs, filePath, CancellationToken.None)
-                        ()
+                        projectsToUpdate.Add(filePath)
                 with
                 | _ ->
                     ()
             )
 
-            Directory.EnumerateFiles(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
+            Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
                     let filePath = OlyPath.Create(filePath)
                     rs <- rs.SetResourceAsCopy(filePath)
                     if filePath.HasExtension(".olyx") then
-                        let _ = workspace.GetDocumentsAsync(rs, filePath, CancellationToken.None)
-                        ()
+                        projectsToUpdate.Add(filePath)
                 with
                 | _ ->
                     ()
@@ -123,7 +125,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     ()
             )
 
-            Directory.EnumerateFiles(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
+            Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
                     rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
@@ -132,35 +134,45 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     ()
             )
 
+            workspace.UpdateDocuments(rs, projectsToUpdate.ToImmutable(), CancellationToken.None)
+
             rs
 
     let rsObj = obj()
     let mutable rsOpt = None
 
-    let checkValidation filePath =
+    let checkValidation (filePath: OlyPath) =
         match rsOpt with
-        | Some rs when (OlyPath.Create(filePath).HasExtension(".oly") || OlyPath.Create(filePath).HasExtension(".olyx")) ->
-            invalidate rs filePath
+        | Some rs ->
+            if (filePath.HasExtension(".oly") || filePath.HasExtension(".olyx")) then
+                invalidate rs filePath
+            elif OlyPath.Equals(filePath, getActiveConfigPath.Value) then
+                workspace.ClearSolution(CancellationToken.None)
         | _ ->
             ()
 
     do
         dirWatch.FileCreated.Add(
             fun filePath ->
+                let filePath = OlyPath.Create(filePath)
                 let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                 try
-                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
                 with
                 | _ ->
                     ()
                 checkValidation filePath
+                if filePath.HasExtension(".olyx") then
+                    workspace.UpdateDocuments(rs, ImArray.createOne filePath, CancellationToken.None)
+                    
         )
 
         dirWatch.FileChanged.Add(
             fun filePath ->
+                let filePath = OlyPath.Create(filePath)
                 let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                 try
-                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
                 with
                 | _ ->
                     ()
@@ -169,22 +181,27 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 
         dirWatch.FileDeleted.Add(
             fun filePath ->
+                let filePath = OlyPath.Create(filePath)
                 let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                rsOpt <- Some(rs.RemoveResource(OlyPath.Create(filePath)))
+                rsOpt <- Some(rs.RemoveResource(filePath))
                 checkValidation filePath
         )
 
         dirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
+                let oldFilePath = OlyPath.Create(oldFilePath)
+                let filePath = OlyPath.Create(filePath)
                 let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                let rs = rs.RemoveResource(OlyPath.Create(oldFilePath))
+                let rs = rs.RemoveResource(oldFilePath)
+                checkValidation oldFilePath
                 try
-                    rsOpt <- Some(rs.SetResourceAsCopy(OlyPath.Create(filePath)))
+                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
                     checkValidation filePath
+                    if filePath.HasExtension(".olyx") then
+                        workspace.UpdateDocuments(rs, ImArray.createOne filePath, CancellationToken.None)
                 with
                 | _ ->
                     rsOpt <- Some(rs)
-                    checkValidation filePath
         )
 
     member this.ResourceSnapshot = 
@@ -195,6 +212,14 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                 | None ->
                     rsOpt <- Some lazyRs.Value
                     lazyRs <- Unchecked.defaultof<_>
+
+                    let rootPath = getRootPath.Value
+                    let activeConfigPath = getActiveConfigPath.Value
+
+                    dirWatch.WatchSubdirectories(rootPath.ToString())
+                    dirWatch.WatchSubdirectories(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
+                    dirWatch.WatchFiles(OlyPath.GetDirectory(activeConfigPath).ToString(), "*.json")
+
                 | _ ->
                     ()
             )

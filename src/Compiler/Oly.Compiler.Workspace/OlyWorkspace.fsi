@@ -247,6 +247,10 @@ type OlyWorkspace =
     /// Updates documents by path with the given source text.
     member UpdateDocumentAsync : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
 
+    /// Updates documents by path.
+    /// Non-blocking.
+    member UpdateDocuments : OlyWorkspaceResourceSnapshot * documentPaths: OlyPath imarray * ct: CancellationToken -> unit
+
     /// Updates documents by path with the given source text.
     /// Non-blocking.
     member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
@@ -263,6 +267,7 @@ type OlyWorkspace =
     member BuildProjectAsync : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
-    member ClearSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<unit>
+    /// Non-blocking.
+    member ClearSolution : ct: CancellationToken -> unit
 
     static member Create : targets: OlyBuild seq -> OlyWorkspace
