@@ -188,12 +188,6 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
                 areEntitiesEqual formal1 formal2
             | _ ->
                 areTypesEqual this.Internal symbol.Internal
-        | :? OlyValueSymbol as symbol when symbol.IsConstructor ->
-            match symbol.Enclosing.TryType with
-            | Some tySymbol ->
-                this.IsSimilarTo(tySymbol)
-            | _ ->
-                false
         | _ ->
             false
 
@@ -304,11 +298,14 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
 
     member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(boundModel, benv, location, ty.Enclosing)
 
-    member this.IsSimilarTo(ty: OlyTypeSymbol) =
-        areGeneralizedTypesEqual ty.Internal this.Internal
-
     member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
-        subsumesTypeInEnvironment benv superTy.Internal this.Internal
+        match superTy.Internal, this.Internal with
+        | TypeSymbol.Entity(superEnt), TypeSymbol.Entity(ent) ->
+            let superFormal = stripRetargetedEntitySymbol superEnt.Formal
+            let formal = stripRetargetedEntitySymbol ent.Formal
+            subsumesEntity superFormal formal
+        | _ ->
+            subsumesTypeInEnvironment benv superTy.Internal this.Internal
 
     member this.Documentation =
         match ty with
@@ -490,7 +487,11 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
 
     member internal _.Internal: IValueSymbol = value
 
-    override _.Name = value.Name
+    override _.Name =
+        if value.IsConstructor then
+            value.Enclosing.AsType.Name
+        else
+            value.Name
 
     override _.SignatureText = printValue benv value
 
@@ -546,7 +547,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | :? OlyTypeSymbol when this.IsConstructor ->
             match this.Enclosing.TryType with
             | Some tySymbol ->
-                tySymbol.IsSimilarTo(symbol)
+                tySymbol.IsSimilarTo(symbol) && not this.UseSyntax.IsNewToken
             | _ ->
                 false
         | _ ->

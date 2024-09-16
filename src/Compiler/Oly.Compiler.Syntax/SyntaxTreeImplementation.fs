@@ -499,6 +499,11 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 None
 
+        member this.IsNewToken =
+            match this.InternalNode with
+            | :? SyntaxToken as token -> token.RawToken = Token.New
+            | _ -> false
+
         member this.IsDummy: bool =
             if obj.ReferenceEquals(this.Tree.DummyNode, this) then true
             else
