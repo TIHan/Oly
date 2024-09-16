@@ -1017,7 +1017,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                 | UpdateDocumentsNoReplyNoText(rs, documentPaths, ct) ->
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText
+                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
 #endif                    
                     for documentPath in documentPaths do
                         let prevSolution = solution

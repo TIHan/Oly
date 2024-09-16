@@ -8,7 +8,7 @@ A side project to understand programming languages and compilers in all stages.
 ## Building
 
 Requirements:
-- .NET 7 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)
+- .NET 8 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
 
 This will build everything except for the VSCode extension.
 

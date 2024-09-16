@@ -183,7 +183,9 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | :? OlyTypeSymbol as symbol ->
             match this.Internal, symbol.Internal with
             | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
-                areEntitiesEqual ent1.Formal ent2.Formal
+                let formal1 = stripRetargetedEntitySymbol ent1.Formal
+                let formal2 = stripRetargetedEntitySymbol ent2.Formal
+                areEntitiesEqual formal1 formal2
             | _ ->
                 areTypesEqual this.Internal symbol.Internal
         | :? OlyValueSymbol as symbol when symbol.IsConstructor ->
