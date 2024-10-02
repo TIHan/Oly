@@ -5522,6 +5522,20 @@ module SymbolHelpers =
 
     type IValueSymbol with
 
+        member this.TryGetFunctionLogicalParameters() =
+            match this with
+            | :? IFunctionSymbol as this ->
+                ValueSome(this.LogicalParameters)
+            | _ ->
+                ValueNone
+
+        member this.TryGetFunctionLogicalParameterAttributesByIndex(parIndex: int) =
+            match this.TryGetFunctionLogicalParameters() with
+            | ValueSome(pars) when parIndex < pars.Length ->
+                ValueSome(pars[parIndex].Attributes)
+            | _ ->
+                ValueNone
+
         /// Gets the actual value via substitution by the provided type instantiations.
         /// Must provide all type instantiations within scope.
         /// A different enclosing can be provided as well.

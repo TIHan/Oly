@@ -656,7 +656,7 @@ let checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
     |> lateCheckCalleeExpression cenv env
     |> checkCallReturnExpression cenv env expectedTyOpt
 
-let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) index parTy argExpr =
+let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (parAttrs: AttributeSymbol imarray) parTy argExpr =
     match argExpr with
     | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup ->
         let isAddrOf = caller.IsAddressOf
@@ -690,7 +690,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
             match parsOpt with
             | ValueSome pars when not(lambdaFlags.HasFlag(LambdaFlags.Inline)) ->
                 let lambdaInlineFlagsOpt =
-                    pars[index].Attributes
+                    parAttrs
                     |> ImArray.tryPick (function
                         | AttributeSymbol.Inline(inlineArg) ->
                             inlineArg.ToLambdaFlags() |> Some
@@ -715,8 +715,12 @@ let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: 
     if argTys.Length = argExprs.Length then              
         (argTys, argExprs)
         ||> ImArray.mapi2 (fun i argTy argExpr ->
+            let parAttrs =
+                match caller.TryGetFunctionLogicalParameterAttributesByIndex(i) with
+                | ValueSome(attrs) -> attrs
+                | _ -> ImArray.empty
             argExpr.RewriteReturningTargetExpression(fun x ->
-                checkCalleeArgumentExpression cenv env tyChecking caller i argTy x
+                checkCalleeArgumentExpression cenv env tyChecking caller parAttrs argTy x
             )
         )
     else
@@ -767,8 +771,14 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
                         argTys[i]
                     else
                         TypeSymbolError
+
+                let parAttrs =
+                    match value.TryGetFunctionLogicalParameterAttributesByIndex(i) with
+                    | ValueSome(attrs) -> attrs
+                    | _ -> ImArray.empty
+
                 argExpr.RewriteReturningTargetExpression(fun x ->
-                    checkCalleeArgumentExpression cenv env TypeChecking.Disabled value i expectedArgTy x
+                    checkCalleeArgumentExpression cenv env TypeChecking.Disabled value parAttrs expectedArgTy x
                     |> checkArgumentExpression cenv env TypeChecking.Disabled (Some expectedArgTy)
                 )
             )
@@ -825,8 +835,14 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                         argTys[i]
                     else
                         TypeSymbolError
+
+                let parAttrs =
+                    match value.TryGetFunctionLogicalParameterAttributesByIndex(i) with
+                    | ValueSome(attrs) -> attrs
+                    | _ -> ImArray.empty
+
                 argExpr.RewriteReturningTargetExpression(fun x ->
-                    checkCalleeArgumentExpression cenv env tyChecking value i expectedArgTy x
+                    checkCalleeArgumentExpression cenv env tyChecking value parAttrs expectedArgTy x
                     |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
                 )
             )

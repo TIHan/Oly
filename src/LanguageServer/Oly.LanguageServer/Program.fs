@@ -1295,13 +1295,12 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 if symbol.IsInLocalScope then
                     allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
                 else
-                    let! solution = workspace.GetSolutionAsync(rs.ResourceSnapshot, ct)
-                    match solution.GetDocuments(doc.Path) |> ImArray.tryFind (fun x -> OlyPath.Equals(x.Project.Path, doc.Project.Path)) with
-                    | Some(doc) ->
-                        // Re-find the symbol because the solution and projects could have changed.
-                        let symbolOpt = doc.TryFindSymbol(line, column, ct)
-                        match symbolOpt with
-                        | Some symbol ->
+                    match symbol.TryGetDefinitionLocation(ct) with
+                    | Some location ->
+                        let definitionPath = location.SyntaxTree.Path
+                        let solution = doc.Project.Solution
+                        let docs = solution.GetDocuments(definitionPath)
+                        for doc in docs do
                             let originatingProj = doc.Project
                             let projs = solution.GetProjectsDependentOnReference(originatingProj.Path).Add(originatingProj)
                             projs
@@ -1311,8 +1310,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                     allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
                                 )
                             )
-                        | _ ->
-                            ()
                     | _ ->
                         ()
             | _ ->
