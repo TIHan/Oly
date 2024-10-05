@@ -9917,3 +9917,54 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Tuple uses an interface and we try to upcast a concrete type``() =
+    """
+interface IA =
+
+    X: __oly_int32 get
+
+class A =
+    implements IA
+
+    X: __oly_int32 get = 5
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+getTuple(): (IA, __oly_int32) =
+    let result = (A(): IA, 9) // notice the upcast ': IA'
+    ~^~result
+
+main(): () =
+    let (a, v) = getTuple()
+    print(a.X)
+    print(v)
+    """
+    |> hasSymbolSignatureTextByCursor "result: (IA, __oly_int32)"
+
+[<Fact>]
+let ``Tuple uses an interface and we try to upcast a concrete type 2``() =
+    """
+interface IA =
+
+    X: __oly_int32 get
+
+class A =
+    implements IA
+
+    X: __oly_int32 get = 5
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    static let ~^~getTuple() =
+        (A(): IA, 9) // notice the upcast ': IA'
+
+    let (a, v) = getTuple()
+    print(a.X)
+    print(v)
+    """
+    |> hasSymbolSignatureTextByCursor "getTuple(): (IA, __oly_int32)"

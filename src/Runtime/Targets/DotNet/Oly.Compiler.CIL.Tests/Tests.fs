@@ -19989,3 +19989,30 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "123456"
+
+[<Fact>]
+let ``Tuple uses an interface and we try to pass a concrete type``() =
+    """
+interface IA =
+
+    X: __oly_int32 get
+
+class A =
+    implements IA
+
+    X: __oly_int32 get = 5
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+getTuple(): (IA, __oly_int32) =
+    (A(), 9) // 'A' is the concrete type
+
+main(): () =
+    let (a, v) = getTuple()
+    print(a.X)
+    print(v)
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "59"

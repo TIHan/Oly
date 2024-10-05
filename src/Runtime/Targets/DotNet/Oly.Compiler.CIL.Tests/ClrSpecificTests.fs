@@ -7660,3 +7660,27 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Enum to object then to enum``() =
+    let src =
+        """
+#[intrinsic("unsafe_cast")]
+unsafeCast<T>(__oly_object): T
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum E =
+    | A
+    | B 
+
+main(): () =
+    let x = E.B
+    let y = x: System.Enum
+    let z = unsafeCast<E>(y)
+    print(z)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "B"

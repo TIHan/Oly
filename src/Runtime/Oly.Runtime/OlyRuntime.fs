@@ -1103,9 +1103,22 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.Print(irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.Cast(ilArgExpr, ilResultTy) ->
-            let irArgExpr, _ = importExpression cenv env None ilArgExpr
+            let irArgExpr, irArgExprTy = importExpression cenv env None ilArgExpr
             let resultTy = cenv.ResolveType( env.ILAssembly, ilResultTy, env.GenericContext)
-            O.Cast(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
+
+            let defaultCase() =
+                O.Cast(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
+
+            if (resultTy.IsAnyStruct && not irArgExprTy.IsAnyStruct) then
+                if irArgExprTy.IsByRef_t then
+                    if resultTy.IsAnyPtr || resultTy.IsByRef_t then
+                        defaultCase()
+                    else
+                        failwith "Invalid cast"
+                else
+                    O.Unbox(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
+            else
+                defaultCase()
 
         | OlyILOperation.Throw(ilArgExpr, ilResultTy) ->
             let irArgExpr, _ = importExpression cenv env None ilArgExpr
@@ -1520,7 +1533,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                     irArg
                 else
                     E.Operation(NoRange, O.Upcast(irArg, cenv.EmitType(expectedArgTy)))
-        elif argTy.IsObjectType && not(expectedArgTy.IsObjectType) then
+        elif argTy.IsObjectType && not(expectedArgTy.IsObjectType) then // TODO: We shouldn't need to do this, because we will require a Cast node to handle it.
             E.Operation(NoRange, O.Unbox(irArg, cenv.EmitType(expectedArgTy)))
         else
             let ty =
