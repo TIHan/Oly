@@ -550,6 +550,7 @@ let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<
         | OlyILExpression.Sequential _ ->
             importSequentialExpression cenv env (Some RuntimeType.Void) ilExpr1 (fun (irExpr1, _) ->
                 match ilExpr2 with
+                | OlyILExpression.Let _
                 | OlyILExpression.Sequential _ ->
                     importSequentialExpression cenv env expectedTyOpt ilExpr2 cont
                 | _ ->
@@ -559,6 +560,7 @@ let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<
         | _ ->
             let irExpr1, _ = importExpression cenv env (Some RuntimeType.Void) ilExpr1
             match ilExpr2 with
+            | OlyILExpression.Let _
             | OlyILExpression.Sequential _ ->
                 importSequentialExpression cenv env expectedTyOpt ilExpr2 (fun (irExpr2, resultTy) ->
                     cont(E.Sequential(irExpr1, irExpr2), resultTy)

@@ -1157,8 +1157,29 @@ module rec ClrCodeGen =
             I.LdcI4 0 |> emitInstruction cenv
 
             match resultTy.TryByRefElementType with
-            | ValueSome resultTy ->
-                emitInstruction cenv (I.Ldelema resultTy.Handle)
+            | ValueSome elementTy ->
+                // IMPORTANT: THIS IS VERY CRITICAL!!!
+                //            We must create a temporary variable that stores
+                //            the byref so we can pin it to prevent the GC
+                //            from moving it around.
+                //            This can happen as a RefCell is created when a mutable value is captured by a closure,
+                //            and then later the address of the value is taken and used as an unsafe pointer.
+                //
+                //            This is conservative because we do it all the time.
+                //            We technically only need to do it if we are passing
+                //            the byref as an unsafe pointer.
+                //
+                //            There is an optimization opportunity where 
+                //            we only need to pin this once in a method body if 'irArg' is a local.
+                //            However, that may or may not be trivial.
+                //
+                //            REVIEW: Should this actually be illegal? 
+                //                    Should we add analysis to the frontend? 
+                //                    Should we add a special node like "PinAddress" to be used in OlyIL and let the front-end explicitly code-gen it?
+                emitInstruction cenv (I.Ldelema elementTy.Handle)
+                let tmpToPin = cenv.NewLocalPinned(resultTy)
+                I.Stloc tmpToPin |> emitInstruction cenv
+                I.Ldloc tmpToPin |> emitInstruction cenv
             | _ ->
                 OlyAssert.Fail("Expected ByRef type.")
 
