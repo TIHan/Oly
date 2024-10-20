@@ -1231,14 +1231,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     do
         mbp.Start()
 
-    member this.CancelEverything() =
-        try
-            while (mbp.CurrentQueueLength > 0) do
-                mbp.TryReceive() |> ignore
-        with
-        | _ ->
-            ()
-        
+    member this.CancelCurrentWork() =
         try
             cts.Cancel()
         with

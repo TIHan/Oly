@@ -111,7 +111,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, textManager: OlySourceTextMan
             ()
 
     let refresh() =
-        workspace.CancelEverything()
+        workspace.CancelCurrentWork()
 
         let rootPath = getRootPath.Value
         let projectsToUpdate = ImArray.builder()
@@ -151,7 +151,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, textManager: OlySourceTextMan
                 if not (filePath.ToString().Contains(".olycache")) then
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                   // workspace.CancelEverything()
+                    refresh()
         )
 
         dirWatch.FileChanged.Add(
@@ -168,8 +168,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, textManager: OlySourceTextMan
                 if not (filePath.ToString().Contains(".olycache")) then
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     rsOpt <- Some(rs.RemoveResource(filePath))
-                   // workspace.CancelEverything()
-                //    refresh()
+                    refresh()
         )
 
         dirWatch.FileRenamed.Add(

@@ -244,7 +244,7 @@ type OlyWorkspace =
 
     member StaleSolution : OlySolution
 
-    member CancelEverything : unit -> unit
+    member CancelCurrentWork : unit -> unit
 
     member GetSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlySolution>
 

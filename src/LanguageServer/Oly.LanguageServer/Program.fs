@@ -826,10 +826,58 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
 
+    let publishDiagnostics (documentPath: OlyPath, version, ct) =
+        backgroundTask {
+            let! docs = workspace.GetDocumentsAsync(rs.ResourceSnapshot, documentPath, ct)
+
+            for doc in docs do
+                let stopwatch = Stopwatch.StartNew()
+                let diags = doc.ToLspDiagnostics(ct)
+                stopwatch.Stop()
+
+                let delay = settings.editedDocumentDiagnosticMaxDelay - stopwatch.Elapsed.TotalMilliseconds |> int
+                if delay > 0 then
+                    do! Task.Delay(delay, ct).ConfigureAwait(false)
+
+                server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
+
+                // Start diagnostic crawling
+                do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
+
+                for doc in docs do
+                    doc.Project.GetDocumentsExcept(doc.Path)
+                    |> ImArray.iter (fun doc ->
+                        let diags = doc.ToLspDiagnostics(ct)
+                        server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                    )
+
+                do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
+
+                for doc in docs do
+                    let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
+                    for dep in depsOn do
+                        ct.ThrowIfCancellationRequested()
+                        dep.Documents
+                        |> ImArray.iter (fun doc ->
+                            ct.ThrowIfCancellationRequested()
+                            let diags = doc.ToLspDiagnostics(ct)
+                            server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
+                        )
+        }
+
     member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
         backgroundTask {
             let cts = getCts documentPath
             let ct = cts.Token
+            let work =
+                backgroundTask {
+                    try
+                        do! publishDiagnostics(documentPath, version, ct)
+                    with
+                    | :? OperationCanceledException ->
+                        ()
+                }
+            try work.Start() with | _ -> ()
             return MediatR.Unit.Value
         }
 
@@ -841,49 +889,11 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let work =
                 backgroundTask {
                     try
-                        let! docs = workspace.GetDocumentsAsync(rs.ResourceSnapshot, documentPath, ct)
-
-                        for doc in docs do
-                            let stopwatch = Stopwatch.StartNew()
-                            let diags = doc.ToLspDiagnostics(ct)
-                            stopwatch.Stop()
-
-                            let delay = settings.editedDocumentDiagnosticMaxDelay - stopwatch.Elapsed.TotalMilliseconds |> int
-                            if delay > 0 then
-                                do! Task.Delay(delay, ct).ConfigureAwait(false)
-
-                            server.PublishDiagnostics(Protocol.DocumentUri.From(documentPath.ToString()), version, diags)
-
-                        // Start diagnostic crawling
-                        do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
-
-                        // TODO Uncomment below: this has performance issues that need to be investigated.
-                        //(*
-                        for doc in docs do
-                            doc.Project.GetDocumentsExcept(doc.Path)
-                            |> ImArray.iter (fun doc ->
-                                let diags = doc.ToLspDiagnostics(ct)
-                                server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                            )
-
-                        do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
-
-                        for doc in docs do
-                            let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
-                            for dep in depsOn do
-                                ct.ThrowIfCancellationRequested()
-                                dep.Documents
-                                |> ImArray.iter (fun doc ->
-                                    ct.ThrowIfCancellationRequested()
-                                    let diags = doc.ToLspDiagnostics(ct)
-                                    server.PublishDiagnostics(Protocol.DocumentUri.From(doc.Path.ToString()), Nullable(), diags)
-                                )
-                        //*)
+                        do! publishDiagnostics(documentPath, version, ct)
                     with
                     | :? OperationCanceledException ->
                         ()
                 }
-
             try work.Start() with | _ -> ()
             return MediatR.Unit.Value
         }
