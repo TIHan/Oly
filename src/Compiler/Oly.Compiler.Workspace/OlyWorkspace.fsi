@@ -242,6 +242,10 @@ type OlyWorkspaceResourceSnapshot =
 [<Sealed>]
 type OlyWorkspace =
 
+    member StaleSolution : OlySolution
+
+    member CancelEverything : unit -> unit
+
     member GetSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlySolution>
 
     /// Updates documents by path with the given source text.

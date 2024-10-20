@@ -952,6 +952,31 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             do! checkProjectsByDocuments rs docs ct
         }
 
+    let mutable cts = new CancellationTokenSource()
+
+    let mapCtToCtr (ct: CancellationToken) =
+        async {
+            cts.Dispose()
+            cts <- new CancellationTokenSource()
+            return 
+                (
+                    let ctr =
+                        ct.Register(
+                            fun () ->
+                                cts.Cancel()
+                        )
+                    try
+                        ct.ThrowIfCancellationRequested()
+                    with
+                    | _ ->
+                        ctr.Dispose()
+                        reraise()
+                    ctr,
+                    cts.Token
+                )
+        }
+                
+
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
@@ -961,7 +986,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
 #endif
                     let prevSolution = solution
+                    
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         reply.Reply(solution)
                     with
@@ -974,6 +1002,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         solution <- solution.RemoveProject(projectPath)
                     with
@@ -986,6 +1016,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         solution <- 
                             {
@@ -1004,6 +1036,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
@@ -1022,6 +1056,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     for documentPath in documentPaths do
                         let prevSolution = solution
                         try
+                            let! ctr, ct = mapCtToCtr ct
+                            use _ = ctr
                             ct.ThrowIfCancellationRequested()
                             do! checkProjectsThatContainDocument rs documentPath ct
                             do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
@@ -1039,6 +1075,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
@@ -1059,6 +1097,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
                         let docs = solution.GetDocuments(documentPath)
@@ -1074,6 +1114,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #endif
                     let prevSolution = solution
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkAllProjects rs ct
                         let docs = solution.GetAllDocuments()
@@ -1089,6 +1131,20 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     do
         mbp.Start()
+
+    member this.CancelEverything() =
+        try
+            while (mbp.CurrentQueueLength > 0) do
+                mbp.TryReceive() |> ignore
+        with
+        | _ ->
+            ()
+        
+        try
+            cts.Cancel()
+        with
+        | _ ->
+            ()
 
     member this.GetBuild(projPath: OlyPath) =   
         let solution = solution
@@ -1470,6 +1526,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ()
                 return solutionResult
         }
+
+    member _.StaleSolution = solution
 
     member this.GetSolutionAsync(rs, ct) =
         backgroundTask {
