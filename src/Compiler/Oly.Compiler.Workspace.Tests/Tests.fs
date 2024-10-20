@@ -59,6 +59,10 @@ let shouldCompile (proj: OlyProject) =
     let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
     Assert.Empty(diags)
 
+let shouldNotCompile (proj: OlyProject) =
+    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    Assert.NotEmpty(diags)
+
 let getDocumentWithCursor (srcWithCursor: string) =
     let cursorPosition = srcWithCursor.IndexOf("~^~")
     let src = srcWithCursor.Replace("~^~", "")
@@ -132,6 +136,42 @@ main(): () =
     createWorkspace()
     |> createProject src
     |> shouldCompile
+
+[<Fact>]
+let ``Simple workspace with hello world project should compile and then add a new file`` () =
+    let src =
+        """
+#target "interpreter: default"
+
+#load "*.oly"
+
+module Test
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    print("Hello World!")
+    Extra.Print()
+        """
+    let workspace = createWorkspace()
+    let proj = createProject src workspace
+    shouldNotCompile proj
+    workspace.RemoveProject(rs, proj.Path, CancellationToken.None)
+
+    let srcExtra =
+        """
+module Extra
+    
+Print(): () =
+    Test.print("extra")
+        """
+    let rs = updateText (OlyPath.Create("extra.oly")) srcExtra rs
+    let _ = workspace.UpdateDocumentAsync(rs, proj.Path, OlySourceText.Create(src), CancellationToken.None)
+    let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
+    let proj = solution.GetProject(proj.Path)
+    shouldCompile proj
+
 
 [<Fact>]
 let ``By cursor, get completions of local variable 'x'`` () =
