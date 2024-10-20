@@ -756,6 +756,11 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
     member private this.SetResourceAsCopy(filePath: OlyPath, stream: Stream, dt: DateTime) =
         let length = stream.Length - stream.Position
+        let length =
+            if length = 0 then
+                1L
+            else
+                length
         let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
         let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
         try

@@ -89,13 +89,14 @@ type DirectoryWatcher() =
         )
         watcher.Created.Add(fun args ->
             let path = OlyPath.Create(args.FullPath)
-            updateLastWriteTime path files |> ignore
-            fileCreated.Trigger(path.ToString())
+            if updateLastWriteTime path files then
+                fileCreated.Trigger(path.ToString())
         )
         watcher.Deleted.Add(fun args ->
             let path = OlyPath.Create(args.FullPath)
-            files.TryRemove(path) |> ignore
-            fileDeleted.Trigger(args.FullPath)
+            let mutable result = Unchecked.defaultof<_>
+            if files.TryRemove(path, &result) then
+                fileDeleted.Trigger(args.FullPath)
         )
         watcher.Renamed.Add(fun args ->
             let oldPath = OlyPath.Create(args.OldFullPath)

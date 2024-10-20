@@ -152,7 +152,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             ()
 
     let refresh() =
-        workspace.CancelEverything()
+      //  workspace.CancelEverything()
 
         let rootPath = getRootPath.Value
         let projectsToUpdate = ImArray.builder()
