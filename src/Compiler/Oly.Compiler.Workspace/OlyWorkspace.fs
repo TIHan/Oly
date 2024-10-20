@@ -278,11 +278,17 @@ type OlyProject (
     member _.CopyFileInfos = copyFileInfos
     member _.IsInvalidated = isInvalidated
 
+    member this.InvalidateReferences(newSolutionLazy) =
+#if DEBUG || CHECKED
+        OlyTrace.Log($"OlyWorkspace - Invalidating Project References - {projPath.ToString()}")
+#endif
+        this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
+
     member this.Invalidate(newSolutionLazy) =
 #if DEBUG || CHECKED
-         OlyTrace.Log($"OlyWorkspace - Invalidating Project - {projPath.ToString()}")
+        OlyTrace.Log($"OlyWorkspace - Invalidating Project - {projPath.ToString()}")
 #endif
-         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
+        OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, compilation, documents, references, packages, copyFileInfos, platformName, targetInfo, true)
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation.GetValue(CancellationToken.None)))
 
@@ -316,7 +322,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -339,7 +345,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -361,7 +367,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -703,9 +709,22 @@ type OlySolution (state: SolutionState) =
             let newProjects =
                 (state.projects, projectsToInvalidate)
                 ||> ImArray.fold (fun projects x -> 
-                    projects.SetItem(x, projects[x].Invalidate(newSolutionLazy))
+                    projects.SetItem(x, projects[x].InvalidateReferences(newSolutionLazy))
                 )
             newSolution <- { state with projects = newProjects } |> OlySolution
+            newSolution <- updateSolution newSolution newSolutionLazy
+            newSolutionLazy.Force() |> ignore
+            newSolution
+        | _ ->
+            this
+
+    member this.InvalidProject(projectPath: OlyPath) =
+        match this.TryGetProject(projectPath) with
+        | Some project ->
+            let mutable newSolution = this.InvalidateDependentProjectsOn(projectPath)
+            let newSolutionLazy = lazy newSolution
+            let newProject = project.Invalidate(newSolutionLazy)
+            newSolution <- { state with projects = state.projects.SetItem(newProject.Path, newProject) } |> OlySolution
             newSolution <- updateSolution newSolution newSolutionLazy
             newSolutionLazy.Force() |> ignore
             newSolution
@@ -735,27 +754,66 @@ type OlySolution (state: SolutionState) =
 type internal ResourceState =
     {
         files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
+        version: uint64
     }
+
+[<NoEquality;NoComparison>]
+type OlyWorkspaceResourceEvent =
+    | Added of OlyPath
+    | Deleted of OlyPath
+    | Changed of OlyPath
 
 [<Sealed>]
 type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
-    let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
+    static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
+
+    static let deltaComparer =
+        {
+            new IEqualityComparer<KeyValuePair<OlyPath, (int64 * MemoryMappedFile * DateTime)>> with
+                member _.GetHashCode(pair) = pair.Key.GetHashCode()
+                member _.Equals(pair1, pair2) =
+                    if OlyPath.Equals(pair1.Key, pair2.Key) then
+                        match pair1.Value, pair2.Value with
+                        | (length1, mmap1, dt1), (length2, mmap2, dt2) ->
+                            length1 = length2 && obj.ReferenceEquals(mmap1, mmap2) && dt1 = dt2
+                    else
+                        false
+        }
+
+    member private this.State = state
+
+    member this.GetDeltaEvents(prevRs: OlyWorkspaceResourceSnapshot) =
+        let events = ImArray.builder()
+        let deferChangedEvents = List()
+        let result = System.Linq.Enumerable.Except(prevRs.State.files, state.files, deltaComparer)
+        for x in result do
+            if (prevRs.State.files.ContainsKey(x.Key) && state.files.ContainsKey(x.Key)) then
+                deferChangedEvents.Add(OlyWorkspaceResourceEvent.Changed x.Key)
+            else
+                events.Add(OlyWorkspaceResourceEvent.Deleted x.Key)
+        let result = System.Linq.Enumerable.Except(state.files.Keys, prevRs.State.files.Keys, OlyPathEqualityComparer.Instance)
+        for x in result do
+            events.Add(OlyWorkspaceResourceEvent.Added x)
+        events.AddRange(deferChangedEvents)
+        events.ToImmutable()
+
+    member _.Version = state.version
 
     member this.SetResourceAsCopy(filePath: OlyPath) =       
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
-        let fs = File.Open(fileInfo.FullName, IO.FileMode.Open)
+        let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
         try
-            this.SetResourceAsCopy(filePath, fs, dt)
+            this.SetResourceAsCopy(filePath, streamToCopy, dt)
         finally
-            fs.Dispose()
+            streamToCopy.Dispose()
 
     member this.SetResourceAsCopy(filePath: OlyPath, stream: Stream) =
         this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
 
-    member private this.SetResourceAsCopy(filePath: OlyPath, stream: Stream, dt: DateTime) =
-        let length = stream.Length - stream.Position
+    member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime) =
+        let length = streamToCopy.Length - streamToCopy.Position
         let length =
             if length = 0 then
                 1L
@@ -764,19 +822,19 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
         let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
         try
-            stream.CopyTo(view)
+            streamToCopy.CopyTo(view)
             this.SetResource(filePath, length, mmap, dt)
         finally
             view.Dispose()
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime) =
         OlyWorkspaceResourceSnapshot(
-            { state with files = state.files.SetItem(filePath, (length, mmap, dt)) },
+            { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = state.version + 1UL },
             activeConfigPath
         )
 
     member _.RemoveResource(filePath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath) }, activeConfigPath)
+        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = state.version + 1UL }, activeConfigPath)
 
     member _.GetSourceText(filePath) =
         let (length, mmap, _) = state.files[filePath]
@@ -789,13 +847,18 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
                     match weakTarget.TryGetTarget() with
                     | true, sourceText -> sourceText
                     | _ ->
-                        let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
-                        try
-                            let sourceText = OlySourceText.FromStream(view)
+                        if length = 1 then
+                            let sourceText = OlySourceText.Create("")
                             weakTarget.SetTarget(sourceText)
                             sourceText
-                        finally
-                            view.Dispose()
+                        else
+                            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+                            try
+                                let sourceText = OlySourceText.FromStream(view)
+                                weakTarget.SetTarget(sourceText)
+                                sourceText
+                            finally
+                                view.Dispose()
                 )
         | _ ->
             lock mmap (fun () ->
@@ -868,7 +931,7 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             "Release"
 
     static member Create(activeConfigPath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance) }, activeConfigPath)
+        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = 0UL }, activeConfigPath)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =
@@ -957,7 +1020,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             do! checkProjectsByDocuments rs docs ct
         }
 
-    let mutable currentRs = Unchecked.defaultof<_>
     let mutable cts = new CancellationTokenSource()
 
     let mapCtToCtr (ct: CancellationToken) =
@@ -982,6 +1044,15 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 )
         }
                 
+    let invalidateSolution() =
+        let newSolution = solution
+        let projects = newSolution.GetProjects()
+        solution <-
+            (newSolution, projects)
+            ||> ImArray.fold (fun newSolution project ->
+                newSolution.InvalidProject(project.Path)
+            )
+
     let clearSolution() =
         solution <- 
             {
@@ -991,14 +1062,49 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             }
             |> OlySolution
 
+    let mutable currentRs = Unchecked.defaultof<OlyWorkspaceResourceSnapshot>
+    let getRs (rs: OlyWorkspaceResourceSnapshot) (ct: CancellationToken) =
+        async {
+            let prevSolution = solution
+            let prevRs = currentRs
+            try
+                if isNull(currentRs: obj) then
+                    clearSolution()
+                    currentRs <- rs
+                elif rs.Version > currentRs.Version then
+                    let deltaEvents = rs.GetDeltaEvents(currentRs)
+                    let mutable mustInvalidateSolution = false
+                    for deltaEvent in deltaEvents do
+                        match deltaEvent with
+                        | OlyWorkspaceResourceEvent.Added _ 
+                        | OlyWorkspaceResourceEvent.Deleted _ ->
+                            mustInvalidateSolution <- true
+                        | OlyWorkspaceResourceEvent.Changed filePath ->
+                            if not mustInvalidateSolution then
+                                do! checkProjectsThatContainDocument rs filePath ct
+
+                    if mustInvalidateSolution then
+                        invalidateSolution()
+
+                    currentRs <- rs
+                return currentRs
+            with
+            | _ ->
+                solution <- prevSolution
+                if isNull(currentRs: obj) then
+                    clearSolution()
+                    currentRs <- rs
+                    return currentRs
+                else
+                    return prevRs
+        }
+
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
                 match! mbp.Receive() with
                 | GetSolution(rs, ct, reply) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
 #endif
@@ -1014,9 +1120,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | RemoveProject(rs, projectPath, ct) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
 #endif
@@ -1045,9 +1149,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | UpdateDocumentNoReply(rs, documentPath, sourceText, ct) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
 #endif
@@ -1067,9 +1169,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | UpdateDocumentsNoReplyNoText(rs, documentPaths, ct) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
 #endif                    
@@ -1090,9 +1190,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             solution <- prevSolution
 
                 | UpdateDocument(rs, documentPath, sourceText, ct, reply) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
 #endif
@@ -1115,9 +1213,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                 | GetDocuments(rs, documentPath, ct, reply) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
 #endif
@@ -1135,9 +1231,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                 | GetAllDocuments(rs, ct, reply) ->
-                    if obj.ReferenceEquals(rs, currentRs) |> not then
-                        clearSolution()
-                    currentRs <- rs
+                    let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
 #endif
@@ -1151,6 +1245,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(docs)
                     with
                     | _ ->
+                        solution <- prevSolution
                         reply.Reply(ImArray.empty)
 
                 return! loop()
