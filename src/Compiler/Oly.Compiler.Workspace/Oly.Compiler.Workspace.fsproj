@@ -21,6 +21,7 @@
     <None Include="prelude.oly">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Compile Include="OlySourceTextManager.fs" />
     <Compile Include="OlyWorkspace.fsi" />
     <Compile Include="OlyWorkspace.fs" />
     <Compile Include="OlyWorkspaceExtensions.fs" />

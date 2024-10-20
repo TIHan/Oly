@@ -791,7 +791,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             DotNetTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets)
-    let rs = OlyWorkspaceListener(workspace, lazyGetRootPath)
+    let rs = OlyWorkspaceListener(workspace, textManager, lazyGetRootPath)
 
     let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 

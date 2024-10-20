@@ -251,8 +251,7 @@ type OlyProject (
     packages: OlyPackageInfo imarray,
     copyFileInfos: OlyCopyFileInfo imarray,
     platformName: string, 
-    targetInfo: OlyTargetInfo,
-    isInvalidated: bool) =
+    targetInfo: OlyTargetInfo) =
 
     let mutable documentList = ValueNone
 
@@ -276,19 +275,12 @@ type OlyProject (
     member _.Configuration = projConfig
     member _.Packages = packages
     member _.CopyFileInfos = copyFileInfos
-    member _.IsInvalidated = isInvalidated
 
     member this.InvalidateReferences(newSolutionLazy) =
 #if DEBUG || CHECKED
         OlyTrace.Log($"OlyWorkspace - Invalidating Project References - {projPath.ToString()}")
 #endif
-        this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
-
-    member this.Invalidate(newSolutionLazy) =
-#if DEBUG || CHECKED
-        OlyTrace.Log($"OlyWorkspace - Invalidating Project - {projPath.ToString()}")
-#endif
-        OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, compilation, documents, references, packages, copyFileInfos, platformName, targetInfo, true)
+        this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None)
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation.GetValue(CancellationToken.None)))
 
@@ -322,7 +314,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -345,7 +337,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -367,7 +359,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo, isInvalidated)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -519,7 +511,7 @@ module WorkspaceHelpers =
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
             |> ImmutableDictionary.CreateRange
 
-        OlyProject(newSolution, projectId, projectName, projectConfig, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo, false)   
+        OlyProject(newSolution, projectId, projectName, projectConfig, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
         let mutable project = project
@@ -546,7 +538,7 @@ module WorkspaceHelpers =
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo, project.IsInvalidated)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -718,19 +710,6 @@ type OlySolution (state: SolutionState) =
         | _ ->
             this
 
-    member this.InvalidProject(projectPath: OlyPath) =
-        match this.TryGetProject(projectPath) with
-        | Some project ->
-            let mutable newSolution = this.InvalidateDependentProjectsOn(projectPath)
-            let newSolutionLazy = lazy newSolution
-            let newProject = project.Invalidate(newSolutionLazy)
-            newSolution <- { state with projects = state.projects.SetItem(newProject.Path, newProject) } |> OlySolution
-            newSolution <- updateSolution newSolution newSolutionLazy
-            newSolutionLazy.Force() |> ignore
-            newSolution
-        | _ ->
-            this
-
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
 #if DEBUG || CHECKED
         OlyTrace.Log($"OlyWorkspace - Updating References For Project - {projectPath.ToString()}")
@@ -764,7 +743,7 @@ type OlyWorkspaceResourceEvent =
     | Changed of OlyPath
 
 [<Sealed>]
-type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
+type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath, textManager: OlySourceTextManager) =
 
     static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
 
@@ -813,31 +792,40 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
 
     member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime) =
-        let length = streamToCopy.Length - streamToCopy.Position
+        let origLength = streamToCopy.Length - streamToCopy.Position
         let length =
-            if length = 0 then
-                1L
+            if origLength = 0 then
+                2L
             else
-                length
+                origLength
         let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
         let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
         try
             streamToCopy.CopyTo(view)
-            this.SetResource(filePath, length, mmap, dt)
+            this.SetResource(filePath, origLength, mmap, dt)
         finally
             view.Dispose()
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime) =
         OlyWorkspaceResourceSnapshot(
             { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = state.version + 1UL },
-            activeConfigPath
+            activeConfigPath,
+            textManager
         )
 
     member _.RemoveResource(filePath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = state.version + 1UL }, activeConfigPath)
+        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = state.version + 1UL }, activeConfigPath, textManager)
 
     member _.GetSourceText(filePath) =
+        match textManager.TryGet filePath with
+        | Some(sourceText, _) -> sourceText
+        | _ ->
+
         let (length, mmap, _) = state.files[filePath]
+        if length = 0 then
+            OlySourceText.Create("")
+        else
+
         match sourceTexts.TryGetValue mmap with
         | true, weakTarget ->
             match weakTarget.TryGetTarget() with
@@ -847,18 +835,13 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
                     match weakTarget.TryGetTarget() with
                     | true, sourceText -> sourceText
                     | _ ->
-                        if length = 1 then
-                            let sourceText = OlySourceText.Create("")
+                        let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+                        try
+                            let sourceText = OlySourceText.FromStream(view)
                             weakTarget.SetTarget(sourceText)
                             sourceText
-                        else
-                            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
-                            try
-                                let sourceText = OlySourceText.FromStream(view)
-                                weakTarget.SetTarget(sourceText)
-                                sourceText
-                            finally
-                                view.Dispose()
+                        finally
+                            view.Dispose()
                 )
         | _ ->
             lock mmap (fun () ->
@@ -930,8 +913,8 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         | _ ->
             "Release"
 
-    static member Create(activeConfigPath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = 0UL }, activeConfigPath)
+    static member Create(activeConfigPath: OlyPath, textManager: OlySourceTextManager) =
+        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = 0UL }, activeConfigPath, textManager)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =
@@ -1043,15 +1026,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     cts.Token
                 )
         }
-                
-    let invalidateSolution() =
-        let newSolution = solution
-        let projects = newSolution.GetProjects()
-        solution <-
-            (newSolution, projects)
-            ||> ImArray.fold (fun newSolution project ->
-                newSolution.InvalidProject(project.Path)
-            )
 
     let clearSolution() =
         solution <- 
@@ -1084,7 +1058,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                 do! checkProjectsThatContainDocument rs filePath ct
 
                     if mustInvalidateSolution then
-                        invalidateSolution()
+                        // TODO: There is an optimization opportunity to only invalidate projects that use the file.
+                        clearSolution()
 
                     currentRs <- rs
                 return currentRs
@@ -1552,7 +1527,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let currentTargetName = currentTarget |> Option.map snd |> Option.defaultValue ""
                 let targetName = target |> Option.map snd |> Option.defaultValue ""
 
-                if project.IsInvalidated || loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
+                if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - IsInvalidated: {project.IsInvalidated} - {projPath.ToString()}")
@@ -1620,7 +1595,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     ct.ThrowIfCancellationRequested()
                     let doc = docs[i]
                     let prevSourceText = doc.GetSourceText(ct)
-                    if not(obj.ReferenceEquals(prevSourceText, sourceText)) && prevSourceText.GetHashCode() <> sourceText.GetHashCode() then
+                    if (not(obj.ReferenceEquals(prevSourceText, sourceText)) && prevSourceText.GetHashCode() <> sourceText.GetHashCode()) then
                         let syntaxTree = doc.SyntaxTree.ApplySourceText(sourceText)
                         if doc.IsProjectDocument then
 

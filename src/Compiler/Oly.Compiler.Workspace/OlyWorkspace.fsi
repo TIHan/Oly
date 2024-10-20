@@ -237,7 +237,7 @@ type OlyWorkspaceResourceSnapshot =
 
     member GetActiveConfigurationName: unit -> string
 
-    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
+    static member Create : activeConfigPath: OlyPath * OlySourceTextManager -> OlyWorkspaceResourceSnapshot
 
 [<Sealed>]
 type OlyWorkspace =
