@@ -957,6 +957,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             do! checkProjectsByDocuments rs docs ct
         }
 
+    let mutable currentRs = Unchecked.defaultof<_>
     let mutable cts = new CancellationTokenSource()
 
     let mapCtToCtr (ct: CancellationToken) =
@@ -981,12 +982,23 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 )
         }
                 
+    let clearSolution() =
+        solution <- 
+            {
+                workspace = this
+                projects = ImmutableDictionary.Empty
+                version = 0UL
+            }
+            |> OlySolution
 
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
                 match! mbp.Receive() with
                 | GetSolution(rs, ct, reply) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
 #endif
@@ -1002,6 +1014,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | RemoveProject(rs, projectPath, ct) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
 #endif
@@ -1024,18 +1039,15 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
-                        solution <- 
-                            {
-                                workspace = this
-                                projects = ImmutableDictionary.Empty
-                                version = 0UL
-                            }
-                            |> OlySolution
+                        clearSolution()
                     with
                     | _ ->
                         solution <- prevSolution
 
                 | UpdateDocumentNoReply(rs, documentPath, sourceText, ct) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
 #endif
@@ -1055,6 +1067,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | UpdateDocumentsNoReplyNoText(rs, documentPaths, ct) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
 #endif                    
@@ -1075,6 +1090,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             solution <- prevSolution
 
                 | UpdateDocument(rs, documentPath, sourceText, ct, reply) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
 #endif
@@ -1097,6 +1115,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                 | GetDocuments(rs, documentPath, ct, reply) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
 #endif
@@ -1114,6 +1135,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                 | GetAllDocuments(rs, ct, reply) ->
+                    if obj.ReferenceEquals(rs, currentRs) |> not then
+                        clearSolution()
+                    currentRs <- rs
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
 #endif

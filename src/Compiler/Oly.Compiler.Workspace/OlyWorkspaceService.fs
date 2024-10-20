@@ -198,7 +198,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     with
                     | _ ->
                         ()          
-                    refresh()
+                  //  refresh()
         )
 
         dirWatch.FileChanged.Add(
@@ -221,7 +221,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                 if not (filePath.ToString().Contains(".olycache")) then
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     rsOpt <- Some(rs.RemoveResource(filePath))
-                    refresh()
+                 //   refresh()
         )
 
         dirWatch.FileRenamed.Add(
