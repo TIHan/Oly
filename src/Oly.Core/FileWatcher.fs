@@ -53,7 +53,7 @@ type DirectoryWatcher() =
     let createDirectoryWatcher dir =
         let watcher = new FileSystemWatcher(dir)
         watcher.NotifyFilter <- NotifyFilters.DirectoryName
-        watcher.Deleted.Add(fun args -> 
+        watcher.Deleted.Add(fun args ->
             let path = OlyPath.Create(args.FullPath)
             directoryDeleted.Trigger(path.ToString())
 
@@ -82,9 +82,10 @@ type DirectoryWatcher() =
     let createWatcher dir filter (files: ConcurrentDictionary<OlyPath, DateTime>) =
         let watcher = new FileSystemWatcher(dir, filter)
         watcher.Changed.Add(fun args -> 
-            let path = OlyPath.Create(args.FullPath)
-            if updateLastWriteTime path files then
-                fileChanged.Trigger(path.ToString())
+            if (args.ChangeType = WatcherChangeTypes.Changed) then
+                let path = OlyPath.Create(args.FullPath)
+                if updateLastWriteTime path files then
+                    fileChanged.Trigger(path.ToString())
         )
         watcher.Created.Add(fun args ->
             let path = OlyPath.Create(args.FullPath)
@@ -102,6 +103,7 @@ type DirectoryWatcher() =
             if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
                 fileRenamed.Trigger(oldPath.ToString(), path.ToString())
         )
+        watcher.IncludeSubdirectories <- true
         watcher.EnableRaisingEvents <- true
 
         Directory.EnumerateFiles(dir, filter)

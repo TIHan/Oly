@@ -182,7 +182,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         match rsOpt with
         | Some rs ->
             for projectPath in projectsToUpdate.ToImmutable() do
-                invalidate rs projectPath
+                workspace.RemoveProject(rs, projectPath, CancellationToken.None)
             workspace.UpdateDocuments(rs, projectsToUpdate.ToImmutable(), CancellationToken.None)
         | _ ->
             ()
@@ -191,50 +191,55 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         dirWatch.FileCreated.Add(
             fun filePath ->
                 let filePath = OlyPath.Create(filePath)
-                let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                try
-                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                with
-                | _ ->
-                    ()          
-                refresh()
+                if not (filePath.ToString().Contains(".olycache")) then
+                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                    try
+                        rsOpt <- Some(rs.SetResourceAsCopy(filePath))
+                    with
+                    | _ ->
+                        ()          
+                    refresh()
         )
 
         dirWatch.FileChanged.Add(
             fun filePath ->
                 let filePath = OlyPath.Create(filePath)
-                let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                try
-                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                with
-                | _ ->
+                if not (filePath.ToString().Contains(".olycache")) then
                     ()
-                checkValidation filePath
+                    //let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                    //try
+                    //    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
+                    //with
+                    //| _ ->
+                    //    ()
+                   // checkValidation filePath
         )
 
         dirWatch.FileDeleted.Add(
             fun filePath ->
                 let filePath = OlyPath.Create(filePath)
-                let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                rsOpt <- Some(rs.RemoveResource(filePath))
-                refresh()
+                if not (filePath.ToString().Contains(".olycache")) then
+                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                    rsOpt <- Some(rs.RemoveResource(filePath))
+                    refresh()
         )
 
         dirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
-                let oldFilePath = OlyPath.Create(oldFilePath)
-                let filePath = OlyPath.Create(filePath)
-                let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                let rs = rs.RemoveResource(oldFilePath)
-                checkValidation oldFilePath
-                try
-                    rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                    checkValidation filePath
-                    if filePath.HasExtension(".olyx") then
-                        workspace.UpdateDocuments(rs, ImArray.createOne filePath, CancellationToken.None)
-                with
-                | _ ->
-                    rsOpt <- Some(rs)
+                if not (filePath.ToString().Contains(".olycache")) then
+                    let oldFilePath = OlyPath.Create(oldFilePath)
+                    let filePath = OlyPath.Create(filePath)
+                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                    let rs = rs.RemoveResource(oldFilePath)
+                    checkValidation oldFilePath
+                    try
+                        rsOpt <- Some(rs.SetResourceAsCopy(filePath))
+                        checkValidation filePath
+                        if filePath.HasExtension(".olyx") then
+                            workspace.UpdateDocuments(rs, ImArray.createOne filePath, CancellationToken.None)
+                    with
+                    | _ ->
+                        rsOpt <- Some(rs)
         )
 
     member this.ResourceSnapshot = 
@@ -249,8 +254,8 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let rootPath = getRootPath.Value
                     let activeConfigPath = getActiveConfigPath.Value
 
-                    dirWatch.WatchSubdirectories(rootPath.ToString())
-                    dirWatch.WatchSubdirectories(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location))
+                    dirWatch.WatchFiles(rootPath.ToString(), "*.oly*")
+                    dirWatch.WatchFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*")
                     dirWatch.WatchFiles(OlyPath.GetDirectory(activeConfigPath).ToString(), "*.json")
 
                 | _ ->
