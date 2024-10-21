@@ -7684,3 +7684,75 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "B"
+
+[<Fact>]
+let ``Regression - closure and pattern should succeed``() =
+    let src =
+        """
+#[intrinsic("unsafe_cast")]
+unsafeCast<T>(__oly_object): T
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32) : bool
+
+abstract class Command =
+    Tag: int32 get
+    Name: string get
+    new(tag: int32, name: string) = { Tag = tag; Name = name }
+
+module FieldCommand<T> =
+
+    interface IFieldCommand =
+        Getter: () -> T get
+        Setter: T -> () get
+
+    class Impl =
+        inherits Command
+        implements IFieldCommand
+        Getter: () -> T get
+        Setter: T -> () get
+        new(name: string, getter: () -> T, setter: T -> ()) = base(10000, name) with { Getter = getter; Setter = setter }
+
+    pattern FieldCommand(cmd: Command): (getter: () -> T, setter: T -> ()) when (cmd.Tag == 10000) =>
+        let cmd = unsafeCast<IFieldCommand>(cmd)
+        (cmd.Getter, cmd.Setter)
+
+class FunctionCommand =
+    inherits Command
+    Action: () -> () get
+    new(name: string, action: () -> ()) = base(0, name) with { Action = action }
+
+pattern FunctionCommand(cmd: Command): (() -> ()) when (cmd.Tag == 0) =>
+    let cmd = unsafeCast<FunctionCommand>(cmd)
+    cmd.Action
+
+init(f: (scoped () -> ()) -> ()): () =
+    let cmd: Command = FieldCommand<bool>.Impl("test", () -> true, x -> f(() -> ()))
+
+    match (cmd)
+    | FunctionCommand(action) =>
+        action()
+    | FieldCommand<bool>.FieldCommand(getter, setter) =>
+        setter(false)
+    | _ =>
+        ()
+
+main(): () =
+    init(f -> f())
+    print("fix me")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput ""
