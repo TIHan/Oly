@@ -200,87 +200,12 @@ let substitute
             expr: E,
             tyParLookup: Dictionary<int64, TypeSymbol>, 
             valueLookup: Dictionary<int64, IValueSymbol>,
-            extraEnclosingTyPars: TypeParameterSymbol imarray,
             handleReceiverExpr: IValueSymbol -> E
         ) =
     let newExpr =
         expr.Rewrite(
             (fun origExpr ->
                 match origExpr with
-                | E.EntityDefinition(syntaxInfo, bodyExpr, localEnt) ->
-                    OlyAssert.True(localEnt.IsLocal)
-                    OlyAssert.True(localEnt.IsClosure)
-                    OlyAssert.True(localEnt.TypeParameters.Length >= tyParLookup.Count)
-
-                    // Do not do anything yet, as we may not need this.
-                    if extraEnclosingTyPars.IsEmpty then
-                        origExpr
-                    else
-                        OlyAssert.False(localEnt.TypeParameters.Length >= (tyParLookup.Count + extraEnclosingTyPars.Length))
-                        //// Local entity definition needs to account for the extra type parameters.
-                        //let builder = 
-                        //    EntitySymbolBuilder.Create(
-                        //        localEnt.ContainingAssembly, 
-                        //        localEnt.Enclosing,
-                        //        localEnt.Name,
-                        //        localEnt.Flags,
-                        //        localEnt.Kind,
-                        //        localEnt.Documentation
-                        //    )
-
-                        //let tyLookup = Dictionary()
-                        //tyLookup.Add(localEnt.FormalId, builder.Entity.AsType)
-
-                        //builder.SetExtends(LambdaLifting, localEnt.Extends)
-                        //builder.SetTypeParameters(Pass0, localEnt.TypeParameters.AddRange(extraEnclosingTyPars))
-                        //builder.SetFields(Pass2, 
-                        //    localEnt.Fields 
-                        //    |> ImArray.map (fun x -> 
-                        //        OlyAssert.False(areTypesEqual x.Type localEnt.AsType)
-                        //        createFieldValue builder.Entity.AsEnclosing x.Attributes x.Name x.Type x.MemberFlags x.ValueFlags (ref None)
-                        //    )
-                        //)
-
-                        //let appliedEnclosingTy = applyType builder.Entity.AsType (builder.Entity.TypeParameters |> ImArray.map (fun x -> x.AsType))
-                        //builder.SetFunctions(Pass2,
-                        //    localEnt.Functions
-                        //    |> ImArray.map (fun x ->
-                        //        OlyAssert.True(x.FunctionOverrides.IsNone)
-                        //        createFunctionValueSemantic
-                        //            builder.Entity.AsEnclosing
-                        //            x.Attributes
-                        //            x.Name
-                        //            x.TypeParameters
-                        //            (
-                        //                if x.IsInstance then 
-                        //                    x.Parameters 
-                        //                    |> ImArray.map (fun x -> 
-                        //                        let ty =
-                        //                            if areTypesEqual x.Type localEnt.AsType then
-                        //                                appliedEnclosingTy
-                        //                            else
-                        //                                match stripTypeEquations x.Type with
-                        //                                | TypeSymbol.ByRef(ty, byRefKind) when areTypesEqual ty localEnt.AsType ->
-                        //                                    TypeSymbol.ByRef(appliedEnclosingTy, byRefKind)
-                        //                                | _ ->
-                        //                                    x.Type
-
-                        //                        createLocalParameterValue(x.Attributes, x.Name, ty, x.IsMutable)
-                        //                    ) 
-                        //                else 
-                        //                    x.Parameters
-                        //            )
-                        //            (if x.IsInstanceConstructor then appliedEnclosingTy else x.ReturnType)
-                        //            x.MemberFlags
-                        //            x.FunctionFlags
-                        //            x.Semantic
-                        //            x.WellKnownFunction
-                        //            x.FunctionOverrides
-                        //            x.IsMutable
-                        //    )
-                        //)
-                        origExpr
-                        
                 | E.Lambda(syntaxInfo, lambdaFlags, tyPars, pars, lazyBodyExpr, _lambdaCachedTy, _lambdaFreeLocals, _lambdaFreeTyVars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) && not(lambdaFlags.HasFlag(LambdaFlags.Static)) ->
                     
                     let constrsList = ResizeArray()
@@ -663,7 +588,7 @@ let substituteValues
     |> ImArray.iter (fun (id, value) ->
         valueLookup[id] <- value
     )
-    substitute(expr, Dictionary(), valueLookup, ImArray.empty, fun _ -> OlyAssert.Fail("handleReceiverExpr"))
+    substitute(expr, Dictionary(), valueLookup, fun _ -> OlyAssert.Fail("handleReceiverExpr"))
 
 let canRewrite (expr: E) =
     match expr with
@@ -876,7 +801,6 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
                 bodyExpr,
                 tyParLookup, 
                 valueLookup,
-                extraEnclosingTyPars,
                 fun _ -> 
                     thisExpr
             )
@@ -1058,28 +982,33 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         // The inline optimization is handled in the runtime and looks for a specific pattern with
         // type arguments of a type function which can be replaced by a closure type.
         let extraTyPars, extraTyParsLookup =
-            let extraTyPars =
-                let mutable index = closureTyPars.Length
-                freeLocals
-                |> ImArray.choosei (fun i x ->
-                    if x.IsMutable then
-                        None
-                    else
-                        match stripTypeEquations x.Type with
-                        | TypeSymbol.Function(kind=FunctionKind.Normal) ->
-                            let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(x.Type.Substitute(tyParLookup)))
-                            let constrs = ImArray.createOne constr |> ref
-                            let tyPar = TypeParameterSymbol("__oly_" + i.ToString(), index, 0, false, TypeParameterKind.Type, constrs)
-                            index <- index + 1
-                            Some(KeyValuePair(i, tyPar))
-                        | _ ->
+            // REVIEW: Do not do this optimization right now.
+            //         If the body of this lambda contains an E.EntityDefinition, nested closure, then it will not know about these extra type parameters; therefore inconsistency.
+            if true then
+                (ImArray.empty, Dictionary())
+            else
+                let extraTyPars =
+                    let mutable index = closureTyPars.Length
+                    freeLocals
+                    |> ImArray.choosei (fun i x ->
+                        if x.IsMutable then
                             None
+                        else
+                            match stripTypeEquations x.Type with
+                            | TypeSymbol.Function(kind=FunctionKind.Normal) ->
+                                let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(x.Type.Substitute(tyParLookup)))
+                                let constrs = ImArray.createOne constr |> ref
+                                let tyPar = TypeParameterSymbol("__oly_" + i.ToString(), index, 0, false, TypeParameterKind.Type, constrs)
+                                index <- index + 1
+                                Some(KeyValuePair(i, tyPar))
+                            | _ ->
+                                None
+                    )
+                (
+                    (extraTyPars |> ImArray.map (fun x -> x.Value)),
+                    extraTyPars
+                    |> Dictionary
                 )
-            (
-                (extraTyPars |> ImArray.map (fun x -> x.Value)),
-                extraTyPars
-                |> Dictionary
-            )
 
         let closureTyPars = closureTyPars.AddRange(extraTyPars)
         
@@ -1362,7 +1291,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     valueLookup[func.Id] <- newFunc
 
                     let newLambdaBodyExpr =
-                        substitute(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, ImArray.empty, fun _ -> failwith "unexpected receiver")
+                        substitute(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
 
                     let newLazyLambdaBodyExpr =
                         LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)

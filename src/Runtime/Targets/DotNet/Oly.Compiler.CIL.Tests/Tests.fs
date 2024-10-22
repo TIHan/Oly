@@ -20071,7 +20071,7 @@ pattern FunctionCommand(cmd: Command): (() -> ()) when (cmd.Tag == 0) =>
     cmd.Action
 
 init(f: (scoped () -> ()) -> ()): () =
-    let cmd: Command = FieldCommand<bool>.Impl("test", () -> true, x -> f(() -> ()))
+    let cmd: Command = FieldCommand<bool>.Impl("test", () -> true, x -> f(() -> print("hello")))
 
     match (cmd)
     | FunctionCommand(action) =>
@@ -20083,8 +20083,7 @@ init(f: (scoped () -> ()) -> ()): () =
 
 main(): () =
     init(f -> f())
-    print("fix me")
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "hello"
