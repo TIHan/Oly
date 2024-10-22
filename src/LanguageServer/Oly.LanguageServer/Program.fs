@@ -572,7 +572,7 @@ let getLocationsBySymbol symbol doc ct =
 
 type ITextDocumentIdentifierParams with
 
-    member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlySourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
+    member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
         let documentPath = this.TextDocument.Uri.Path |> normalizeFilePath
         
         try
@@ -586,7 +586,7 @@ type ITextDocumentIdentifierParams with
             let ct = handleCts.Token
 
             backgroundTask {
-                match textManager.TryGet(documentPath) with
+                match rs.TextEditors.TryGet(documentPath) with
                 | Some (sourceText, _) ->
                     let! docs = workspace.UpdateDocumentAsync(rs, documentPath, sourceText, ct)
                     if docs.Length >= 1 then
@@ -736,7 +736,7 @@ module ExtensionHelpers =
 
     type IOlyRequest<'T> with
 
-        member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, textManager: OlySourceTextManager, f: OlyDocument -> CancellationToken -> Task<'T>) =
+        member this.HandleOlyDocument(rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
             backgroundTask {
                 let documentPath = this.DocumentPath |> normalizeFilePath
         
@@ -748,7 +748,7 @@ module ExtensionHelpers =
                 cts.Token.ThrowIfCancellationRequested()
                 let ct = handleCts.Token
 
-                match textManager.TryGet(documentPath) with
+                match rs.TextEditors.TryGet(documentPath) with
                 | Some (sourceText, _) ->
                     let! docs = workspace.UpdateDocumentAsync(rs, documentPath, sourceText, ct)
                     if docs.Length >= 1 then
@@ -784,14 +784,17 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let lazyGetRootPath = lazy OlyPath.Create(server.ClientSettings.RootPath)
 
-    let textManager = OlySourceTextManager()
+    let mutable textManager = OlySourceTextManager.Empty
     let targets = 
         [
             InterpreterTarget() :> OlyBuild
             DotNetTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets)
-    let rs = OlyWorkspaceListener(workspace, textManager, lazyGetRootPath)
+    let workspaceListener = OlyWorkspaceListener(workspace, lazyGetRootPath)
+
+    let getSnapshot() =
+        workspaceListener.ResourceSnapshot.WithTextEditors(textManager)
 
     let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 
@@ -828,7 +831,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let publishDiagnostics (documentPath: OlyPath, version, ct) =
         backgroundTask {
-            let! docs = workspace.GetDocumentsAsync(rs.ResourceSnapshot, documentPath, ct)
+            let! docs = workspace.GetDocumentsAsync(getSnapshot(), documentPath, ct)
 
             for doc in docs do
                 let stopwatch = Stopwatch.StartNew()
@@ -885,7 +888,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         backgroundTask {
             let cts = cancelAndGetCts documentPath
             let ct = cts.Token
-            workspace.UpdateDocument(rs.ResourceSnapshot, documentPath, sourceText, ct)
+            workspace.UpdateDocument(getSnapshot(), documentPath, sourceText, ct)
             let work =
                 backgroundTask {
                     try
@@ -905,7 +908,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentRangeFormattingParams, ct: CancellationToken): Task<TextEditContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let textRange = request.Range.ToOlyTextRange()
                 // TODO:
                 return null
@@ -921,7 +924,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentOnTypeFormattingParams, ct: CancellationToken): Task<TextEditContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 match doc.SyntaxTree.GetRoot(ct).TryFindToken(request.Position.ToOlyTextPosition(), ct = ct) with
                 | None -> return TextEditContainer()
                 | Some token ->
@@ -1009,7 +1012,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 )
               
             match textManager.OnChange(documentPath, request.TextDocument.Version, textChanges) with
-            | Some(sourceText) ->
+            | Some(sourceText, newTextManager) ->
+                textManager <- newTextManager
                 try
                     this.OnDidChangeDocumentAsync(documentPath, request.TextDocument.Version, sourceText).Result
                     |> ignore
@@ -1022,7 +1026,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: DidOpenTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> =
             task {
                 let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                textManager.OnOpen(documentPath, request.TextDocument.Version)
+                textManager <- textManager.OnOpen(documentPath, request.TextDocument.Version)
                 this.OnDidOpenDocumentAsync(documentPath, request.TextDocument.Version).Start()
                 return MediatR.Unit.Value
             }
@@ -1030,7 +1034,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: DidCloseTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> =
             task {
                 let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                textManager.OnClose(documentPath)
+                textManager <- textManager.OnClose(documentPath)
                 return MediatR.Unit.Value
             }
 
@@ -1050,7 +1054,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: CodeActionParams, ct: CancellationToken): Task<CommandOrCodeActionContainer> = 
             match request.Context.Diagnostics |> Seq.tryFind (fun x -> x.Code.Value.Long = 100L) with
             | Some lspDiag ->
-                request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+                request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                     let diags = doc.GetDiagnostics(ct)
                     let diagOpt =
                         let r2 = lspDiag.Range
@@ -1118,7 +1122,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: SignatureHelpParams, ct: CancellationToken): Task<SignatureHelp> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 if request.Context.TriggerKind = SignatureHelpTriggerKind.Invoked || request.Context.TriggerKind = SignatureHelpTriggerKind.TriggerCharacter then
                     match doc.TryFindFunctionCallInfo(request.Position.Line, request.Position.Character, ct) with
                     | Some info ->
@@ -1159,7 +1163,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return Container<WorkspaceSymbol>()
                 else
 
-                let! solution = workspace.GetSolutionAsync(rs.ResourceSnapshot, CancellationToken.None)
+                let! solution = workspace.GetSolutionAsync(getSnapshot(), CancellationToken.None)
 
                 let lspSymbols =
                     solution.GetProjects()
@@ -1186,7 +1190,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentSymbolParams, ct: CancellationToken): Task<SymbolInformationOrDocumentSymbolContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbols = doc.GetAllSymbols(ct)
                 let result =
                     let sortedSymbols =
@@ -1277,7 +1281,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentHighlightParams, ct: CancellationToken): Task<DocumentHighlightContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
                 | Some symbol ->
@@ -1334,7 +1338,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: ReferenceParams, ct: CancellationToken): Task<LocationContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
                 return LocationContainer.From(allSymbols)                   
             })
@@ -1347,7 +1351,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
                 | Some symbol ->
@@ -1364,7 +1368,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: TypeDefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
                 | Some symbol ->
@@ -1392,7 +1396,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: CodeLensParams, ct: CancellationToken): Task<CodeLensContainer> = 
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let syntaxRoot = doc.SyntaxTree.GetRoot(ct)
                 let entryPointOpt = 
                     syntaxRoot.ChooseDescendants(function 
@@ -1451,7 +1455,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
             backgroundTask {
-                return! request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+                return! request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                     let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                     
                     match symbolOpt with
@@ -1559,7 +1563,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
                     match textManager.TryGet(documentPath) with
                     | Some (sourceText, _) ->
-                        let! docs = workspace.UpdateDocumentAsync(rs.ResourceSnapshot, documentPath, sourceText, ct)
+                        let! docs = workspace.UpdateDocumentAsync(getSnapshot(), documentPath, sourceText, ct)
                         if docs.IsEmpty then
                             return null
                         else
@@ -1595,7 +1599,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             RenameRegistrationOptions()
 
         member this.Handle(request, ct): Task<WorkspaceEdit> =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
                 if allSymbols.Count > 0 then    
                     let edit = WorkspaceEdit(Changes = Dictionary())
@@ -1630,9 +1634,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyCompileRequest, OlyLspCompilationResult> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct ->
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct ->
                 backgroundTask {
-                    match! workspace.BuildProjectAsync(rs.ResourceSnapshot, doc.Project.Path, ct) with
+                    match! workspace.BuildProjectAsync(getSnapshot(), doc.Project.Path, ct) with
                     | Ok prog -> 
                         return { resultPath = prog.Path.ToString(); error = null }
                     | Error error -> 
@@ -1652,7 +1656,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct ->
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct ->
                 backgroundTask {
                     match doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct) with
                     | None ->
@@ -1712,7 +1716,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetSyntaxTreeRequest, OlySyntaxTreeViewModel> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun doc ct ->
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct ->
                 backgroundTask {
                     let mutable nextId = ref 1               
                     let nodes = doc.SyntaxTree.GetRoot(ct) |> getViewModel ct nextId
@@ -1723,7 +1727,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(rs.ResourceSnapshot, ct, getCts, workspace, textManager, fun (doc: OlyDocument) ct ->
+            request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun (doc: OlyDocument) ct ->
                 backgroundTask {
                     let classify line column width tokenType tokenModifiers =
                         {

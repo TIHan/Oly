@@ -220,6 +220,10 @@ type OlySolution =
 [<Sealed>]
 type OlyWorkspaceResourceSnapshot =
 
+    member Version : DateTime
+
+    member TextEditors : OlySourceTextManager
+
     member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceSnapshot
 
     member SetResourceAsCopy : OlyPath * System.IO.Stream -> OlyWorkspaceResourceSnapshot
@@ -237,7 +241,9 @@ type OlyWorkspaceResourceSnapshot =
 
     member GetActiveConfigurationName: unit -> string
 
-    static member Create : activeConfigPath: OlyPath * OlySourceTextManager -> OlyWorkspaceResourceSnapshot
+    member WithTextEditors: OlySourceTextManager -> OlyWorkspaceResourceSnapshot
+
+    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 
 [<Sealed>]
 type OlyWorkspace =

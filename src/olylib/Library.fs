@@ -15,7 +15,7 @@ module Oly =
 
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         // TODO: Fix this.
-        let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty, OlySourceTextManager())
+        let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
 
         let targets = 
             [

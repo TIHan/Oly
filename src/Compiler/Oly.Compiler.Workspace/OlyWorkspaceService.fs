@@ -10,7 +10,7 @@ open Oly.Compiler.Text
 open Oly.Compiler.Workspace
 
 [<Sealed>]
-type OlyWorkspaceListener(workspace: OlyWorkspace, textManager: OlySourceTextManager, getRootPath: Lazy<OlyPath>) as this =
+type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) as this =
 
     [<Literal>]
     let WorkspaceStateDirectory = ".olyworkspace/"
@@ -45,7 +45,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, textManager: OlySourceTextMan
             let rootPath = getRootPath.Value
             let activeConfigPath = getActiveConfigPath.Value
 
-            let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath, textManager)
+            let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
 
             let projectsToUpdate = ImArray.builder()
 

@@ -733,17 +733,12 @@ type OlySolution (state: SolutionState) =
 type internal ResourceState =
     {
         files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
-        version: uint64
+        textEditors: OlySourceTextManager
+        version: DateTime
     }
 
-[<NoEquality;NoComparison>]
-type OlyWorkspaceResourceEvent =
-    | Added of OlyPath
-    | Deleted of OlyPath
-    | Changed of OlyPath
-
 [<Sealed>]
-type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath, textManager: OlySourceTextManager) =
+type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
     static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
 
@@ -761,6 +756,8 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         }
 
     member private this.State = state
+
+    member _.TextEditors = state.textEditors
 
     member this.GetDeltaEvents(prevRs: OlyWorkspaceResourceSnapshot) =
         let events = ImArray.builder()
@@ -808,16 +805,15 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime) =
         OlyWorkspaceResourceSnapshot(
-            { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = state.version + 1UL },
-            activeConfigPath,
-            textManager
+            { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = DateTime.UtcNow },
+            activeConfigPath
         )
 
     member _.RemoveResource(filePath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = state.version + 1UL }, activeConfigPath, textManager)
+        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = DateTime.UtcNow }, activeConfigPath)
 
     member _.GetSourceText(filePath) =
-        match textManager.TryGet filePath with
+        match state.textEditors.TryGet filePath with
         | Some(sourceText, _) -> sourceText
         | _ ->
 
@@ -913,8 +909,14 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         | _ ->
             "Release"
 
-    static member Create(activeConfigPath: OlyPath, textManager: OlySourceTextManager) =
-        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = 0UL }, activeConfigPath, textManager)
+    member this.WithTextEditors(textEditors: OlySourceTextManager) =
+        if obj.ReferenceEquals(state.textEditors, textEditors) then
+            this
+        else
+            OlyWorkspaceResourceSnapshot({ state with textEditors = textEditors }, activeConfigPath)
+
+    static member Create(activeConfigPath: OlyPath) =
+        OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = DateTime(); textEditors = OlySourceTextManager.Empty }, activeConfigPath)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =
