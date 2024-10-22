@@ -749,6 +749,19 @@ let replaceTargetExpressionByValue (valueLookup: MatchPatternLookup) i (expr: E)
                     E.Value(syntaxInfo, tmpValues.[flipIndex index])
                 | _ ->
                     expr
+
+            | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
+                // Try to get the largest index from 'patternValues' that has our value; this is why we use 'Array.rev' and 'flipIndex'.
+                // This is the way to get the latest generated value.
+                // Think of it like 'Array.tryBackFindIndex' would be.
+                match patternValues |> Array.rev |> Array.tryFindIndex (fun value2 -> value2.Id = value.Id) with
+                | Some index ->
+                    let flipIndex index =
+                        patternValues.Length - 1 - index
+                    E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, tmpValues.[flipIndex index], callFlags)
+                | _ ->
+                    expr
+
             | _ ->
                 expr
         )

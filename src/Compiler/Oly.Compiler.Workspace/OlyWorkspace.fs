@@ -1523,7 +1523,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - IsInvalidated: {project.IsInvalidated} - {projPath.ToString()}")
+                    OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
 #endif
                     let! result = OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result

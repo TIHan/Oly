@@ -343,6 +343,8 @@ type EntitySymbol() =
 type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: ResizeArray<EntitySymbol>, docText: string) =
     inherit EntitySymbol()
 
+    let mutable enclosing = enclosing
+
     do
         assert(docText <> null)
 
@@ -403,6 +405,15 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.Attributes = attrs.contents
     override _.Flags = lazyFlags.Value
     override _.Documentation = docText
+
+    member _.ChangeLocalClosureEnclosing(pass: CompilerPass, newEnclosing: EnclosingSymbol) =
+        if pass <> CompilerPass.LambdaLifting then
+            OlyAssert.Fail($"ChangeLocalClosureEnclosing - Invalid Pass {pass}")
+        match enclosing with
+        | EnclosingSymbol.Local ->
+            enclosing <- newEnclosing
+        | _ ->
+            OlyAssert.Fail("Invalid enclosing to change")
 
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     if ty.IsError_t then ty

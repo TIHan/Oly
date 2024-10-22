@@ -1080,6 +1080,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             OlyILTableIndex(OlyILTableKind.String, -1)
         else
             GenString cenv name
+
     let ilTyPars = 
         let enclosingTyParCount =
             match ent.Enclosing with

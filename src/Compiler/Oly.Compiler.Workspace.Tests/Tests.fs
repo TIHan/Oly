@@ -11,7 +11,7 @@ open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
 let rs = 
-    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
+    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty, OlySourceTextManager())
     let fileInfo = System.IO.FileInfo("prelude.oly")
     let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
     let fileInfo = System.IO.FileInfo("interpreter_prelude.olyx")

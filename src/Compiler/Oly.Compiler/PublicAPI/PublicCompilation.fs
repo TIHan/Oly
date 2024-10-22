@@ -502,9 +502,9 @@ module private CompilationPhases =
                     |> Optimizer.Lower ct { LocalValueElimination = not state.options.Debuggable; BranchElimination = true }
                   //  |> outputTree
                     |> RefCellLowering.Lower
-                   // |> outputTree
+                   //|> outputTree
                     |> LambdaLifting.Lower g
-                    //|> outputTree
+                   // |> outputTree
                 loweredBoundTree, diags
             )
 
