@@ -95,7 +95,12 @@ type InterpreterType =
         | Float32
         | Float64
         | Bool
-        | Char16 -> true
+        | Char16 
+        | Unit
+        | Tuple _ 
+        | BaseStruct 
+        | BaseStructEnum
+        | LiteralInt32 _ -> true
         | Custom(isStruct=isStruct;info=info) -> 
             if isStruct then
                 true
@@ -1050,7 +1055,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterValue.ArgumentAddress(n, _, _) ->
                 stack.Push(InterpreterByReferenceOfArgument(args, n))
             | InterpreterValue.Unit _ ->
-                stack.Push(null)
+                stack.Push("()")
             | InterpreterValue.Null _ ->
                 stack.Push(null)
             | InterpreterValue.Default(resultTy) ->
@@ -1230,6 +1235,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
                                 match fieldNameOpt with
                                 | Some fieldName -> fieldName
                                 | _ -> arg.ToString()
+                            | InterpreterType.Unit ->
+                                "()"
+                            // TODO: What about tuples?
                             | _ ->
                                 arg.ToString()
                         | _ ->

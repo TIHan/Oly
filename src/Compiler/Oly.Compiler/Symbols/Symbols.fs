@@ -4225,6 +4225,7 @@ type TypeSymbol =
         | NativeUInt
         | NativePtr _ 
         | NativeFunctionPtr _
+        | Unit
         | Tuple _ -> true
         // Scoped function types are structs.
         | Function(kind=FunctionKind.Scoped) -> true

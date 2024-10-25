@@ -1425,7 +1425,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
 
 [<Fact>]
 let ``Use of '()' should pass 2``() =
@@ -1447,7 +1447,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
 
 [<Fact>]
 let ``Type extension of a generic type``() =

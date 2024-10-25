@@ -368,6 +368,7 @@ module rec ClrCodeGen =
     [<NoEquality;NoComparison>]
     type g =
         {
+            ``ValueTuple``:   ClrTypeInfo
             ``ValueTuple`2``: ClrTypeInfo
             ``ValueTuple`3``: ClrTypeInfo
             ``ValueTuple`4``: ClrTypeInfo
@@ -831,34 +832,23 @@ module rec ClrCodeGen =
         let env = { prevEnv with isReturnable = false }
         match irOp with
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
-            if receiverExpr.ResultType.IsStruct then
-                // TODO: Assert or remove this.
-                failwith "this is dead"
-                GenArgumentExpression cenv env receiverExpr
-                let localIndex = cenv.NewLocal(receiverExpr.ResultType)
-                I.Stloc localIndex |> emitInstruction cenv
+            OlyAssert.False(receiverExpr.ResultType.IsStruct)
 
-                I.Ldloca localIndex |> emitInstruction cenv
-                I.Ldftn(irFunc.EmittedFunction.handle) |> emitInstruction cenv
-                let ctor = ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
-                I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
+            GenArgumentExpression cenv env receiverExpr
 
-            else
-                GenArgumentExpression cenv env receiverExpr
+            // Converts a byref to a native int.
+            if receiverExpr.ResultType.IsByRef_t then
+                OlyAssert.True(receiverExpr.ResultType.TryByRefElementType.Value.IsStruct)
+                I.Conv_u |> emitInstruction cenv
 
-                // Converts a byref to a native int.
-                if receiverExpr.ResultType.IsByRef_t then
-                    OlyAssert.True(receiverExpr.ResultType.TryByRefElementType.Value.IsStruct)
-                    I.Conv_u |> emitInstruction cenv
+            emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
 
-                emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
-
-                let ctor = 
-                    if funcTy.IsTypeDefinition_t then
-                        ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
-                    else
-                        ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
-                I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
+            let ctor = 
+                if funcTy.IsTypeDefinition_t then
+                    ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
+                else
+                    ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
+            I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -1337,9 +1327,13 @@ module rec ClrCodeGen =
         | O.CallConstrained(constrainedTy, irFunc, irArgs, _) ->
             GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false (ValueSome constrainedTy)
 
-    let GenValue cenv env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
+    let GenValue (cenv: cenv) env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
-        | V.Unit _ -> I.Ldnull |> emitInstruction cenv
+        | V.Unit ty ->
+            let localIndex = cenv.NewLocal(ty)
+            emitInstruction cenv (I.Ldloca(localIndex))
+            emitInstruction cenv (I.Initobj(ty.Handle))
+            emitInstruction cenv (I.Ldloc(localIndex))
         | V.Null _ -> I.Ldnull |> emitInstruction cenv
         | V.Constant(irConstant, _) ->
             match irConstant with
@@ -2202,6 +2196,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let ``ValueTuple`5`` = vm.TryFindType("System.ValueTuple", 5).Value
             let ``ValueTuple`6`` = vm.TryFindType("System.ValueTuple", 6).Value
             let ``ValueTuple`7`` = vm.TryFindType("System.ValueTuple", 7).Value
+            let ``ValueTuple`` = vm.TryFindType("System.ValueTuple", 0).Value
 
             let createTuple_GetItemField count index =
                 vm.TryFindField("System.ValueTuple", count, $"Item{index + 1}").Value.Handle
@@ -2225,6 +2220,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             g <-
                 {
+                    ``ValueTuple`` = ``ValueTuple``
                     ``ValueTuple`2`` = ``ValueTuple`2``
                     ``ValueTuple`3`` = ``ValueTuple`3``
                     ``ValueTuple`4`` = ``ValueTuple`4``
@@ -2308,7 +2304,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             voidTy
 
         member this.EmitTypeUnit() =
-            ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceObject, false, false)
+            g.ValueTuple
+          //  ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceInt32, true, true)
 
         member this.EmitTypeInt8() =
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceSByte, true, true)

@@ -13461,7 +13461,7 @@ main(): () =
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
     |> ignore
 
 [<Fact>]
@@ -13482,7 +13482,7 @@ main(): () =
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
     |> ignore
 
 [<Fact>]
@@ -13503,7 +13503,7 @@ main(): () =
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
     |> ignore
 
 [<Fact>]
