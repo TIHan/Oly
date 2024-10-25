@@ -14,6 +14,14 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 
+let private stripNewtype (ty: TypeSymbol) =
+    OlyAssert.True(ty.IsNewtype)
+    let underlyingTy = ty.AsEntity.UnderlyingTypeOfNewtype
+    if underlyingTy.IsNewtype then
+        stripNewtype underlyingTy
+    else
+        underlyingTy
+
 /// Pass 1 - Get type definition inherits and implements.
 let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
@@ -47,7 +55,24 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     )
     (**)
 
-    let ent = ent
+    let getDefaultExtendType (ty: TypeSymbol) =
+        if ty.IsEnum then
+            // DEFAULT
+            match env.benv.implicitExtendsForEnum with
+            | Some(extendsTy) ->
+                extendsTy
+            | _ ->
+                TypeSymbol.BaseObject
+        elif ty.IsAnyStruct then
+            // DEFAULT
+            match env.benv.implicitExtendsForStruct with
+            | Some(extendsTy) ->
+                extendsTy
+            | _ ->
+                TypeSymbol.BaseObject
+        else
+            // DEFAULT
+            TypeSymbol.BaseObject
 
     let defaultExtends (extends: TypeSymbol imarray) =
         if ent.IsAlias then
@@ -72,32 +97,25 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         else
             extends
 
-    match syntaxEntDefBody with
-    | OlySyntaxTypeDeclarationBody.None _ ->
-        let extends = defaultExtends ImArray.empty
-        if not extends.IsEmpty then
-            entBuilder.SetExtends(cenv.pass, extends)
-
-        env
-
-    | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, _, syntaxExpr) ->
-        let extends = bindExtends cenv env syntaxExtends
-        let implements = bindImplements cenv env syntaxImplements
-
-        let extends =
-            if ent.IsEnum then
-                if extends.IsEmpty then
-                    // Int32 is default for enum declarations.
-                    entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32)
-                    extends 
-                else
-                    let runtimeTy = extends[0]
-                    if not runtimeTy.IsInteger then
-                        cenv.diagnostics.Error($"'{printEntity env.benv ent}' can only extend integers.", 10, syntaxExtends)
-                    entBuilder.SetRuntimeType(cenv.pass, runtimeTy)
-                    ImArray.empty
+    let handleEnumExtends syntaxNode (extends: TypeSymbol imarray) =
+        if ent.IsEnum then
+            if extends.IsEmpty then
+                // Int32 is default for enum declarations.
+                entBuilder.SetRuntimeType(cenv.pass, TypeSymbol.Int32, MemberFlags.Private, "value", ValueFlags.Generated)
+                extends 
             else
-                extends
+                let runtimeTy = extends[0]
+                if not runtimeTy.IsInteger then
+                    cenv.diagnostics.Error($"'{printEntity env.benv ent}' can only extend integers.", 10, syntaxNode)
+                entBuilder.SetRuntimeType(cenv.pass, runtimeTy, MemberFlags.Private, "value", ValueFlags.Generated)
+                ImArray.empty
+        else
+            extends        
+
+    match syntaxEntDefBody with
+    | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, _, syntaxExpr) ->
+        let extends = bindExtends cenv env syntaxExtends |> handleEnumExtends syntaxExtends
+        let implements = bindImplements cenv env syntaxImplements
 
         if ent.IsAlias then
             if implements.IsEmpty |> not then
@@ -111,7 +129,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
         let inheritCount = extends.Length
         if ent.IsTypeExtension || ent.IsAlias then 
-            if inheritCount <> 1 then
+            if inheritCount <> 1 && not ent.IsCompilerIntrinsic then
                 cenv.diagnostics.Error(sprintf "Aliases, newtypes, and type extensions must inherit from a single type that will be extended.", 10, syntaxNode)
             else
                 ent.Extends
@@ -139,11 +157,23 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
         (* BEGIN NEWTYPE LOGIC *)
         let extends, implements =
             if ent.IsNewtype then
+                OlyAssert.True(extends.IsEmpty)
+                match syntaxExpr with
+                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))), _) 
+                | OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))) ->
+                    let extendTy = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
+                    let memberAccessFlags = bindAccessorAsMemberFlags true syntaxAccessor
+                    entBuilder.SetRuntimeType(cenv.pass, extendTy, memberAccessFlags, syntaxIdent.ValueText, ValueFlags.None)
+                | _ ->
+                    entBuilder.SetRuntimeType(cenv.pass, TypeSymbolError, MemberFlags.Private, "value", ValueFlags.Invalid)
+                    cenv.diagnostics.Error($"Expected field definition signature for newtype '{ent.Name}' as the first expression.", 10, syntaxNode)
+
+            if ent.IsNewtype then
                 if not extends.IsEmpty then
                     cenv.diagnostics.Error($"'{ent.Name}' is a newtype which cannot be extended.", 10, syntaxExtends)
                 if not implements.IsEmpty then
                     cenv.diagnostics.Error($"'{ent.Name}' is a newtype which cannot implement interfaces directly.", 10, syntaxImplements)
-                ImArray.empty, ImArray.empty
+                ImArray.createOne(getDefaultExtendType (stripNewtype ent.AsType)), ImArray.empty
             elif ent.IsTypeExtension then
                 // Type extensions that extend alias types are not supported, with the exception of intrinsic alias types.
                 // The reason being is that phantom alias types' type parameters are not sound:
@@ -159,20 +189,6 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             else
                 let extends = defaultExtends extends
                 extends, implements
-
-        let extends =
-            if ent.IsNewtype then
-                OlyAssert.True(extends.IsEmpty)
-                match syntaxExpr with
-                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(_, syntaxReturnTyAnnot))), _) 
-                | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(_, syntaxReturnTyAnnot))) ->
-                    let extendTy = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
-                    ImArray.createOne extendTy
-                | _ ->
-                    cenv.diagnostics.Error($"Expected field definition signature for newtype '{ent.Name}' as the first expression.", 10, syntaxExpr)
-                    extends
-            else
-                extends
         (* END NEWTYPE LOGIC *)
 
         // Check recursive inheritance.
@@ -231,8 +247,9 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             else
                 extends
 
-        entBuilder.SetExtends(cenv.pass, extends)
-        entBuilder.SetImplements(cenv.pass, implements)
+        if not ent.IsCompilerIntrinsic then
+            entBuilder.SetExtends(cenv.pass, extends)
+            entBuilder.SetImplements(cenv.pass, implements)
 
         let env, _ = bindTopLevelExpressionPass1 cenv env canOpen entBuilder entities syntaxExpr
         env

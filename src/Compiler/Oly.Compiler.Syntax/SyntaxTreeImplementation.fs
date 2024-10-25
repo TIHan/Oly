@@ -1624,7 +1624,6 @@ module OlySyntaxDiffs =
 
             let rec checkTyDeclBody (syntaxTyDeclBody1: OlySyntaxTypeDeclarationBody) (syntaxTyDeclBody2: OlySyntaxTypeDeclarationBody) =
                 match syntaxTyDeclBody1, syntaxTyDeclBody2 with
-                | OlySyntaxTypeDeclarationBody.None _, OlySyntaxTypeDeclarationBody.None _ -> true
                 | OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr1), OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr2) ->
                     checkExpr syntaxExpr1 syntaxExpr2
                 | _ ->

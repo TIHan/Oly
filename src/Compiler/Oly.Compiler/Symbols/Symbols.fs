@@ -283,18 +283,17 @@ type EntitySymbol() =
 
     abstract Documentation : string
 
-    member this.TryEnumUnderlyingType =
-        if (this.IsEnum) then
-            if this.Fields.Length > 0 then
-                let field = this.Fields[0]
-                if field.IsInstance then
-                    Some field.Type
-                else
-                    None
-            else
-                None
-        else
-            None
+    member this.UnderlyingTypeOfEnum =
+        OlyAssert.True(this.IsEnum)
+        OlyAssert.True(this.Fields.Length > 0)
+        OlyAssert.True(this.Fields[0].IsInstance)
+        this.Fields[0].Type
+
+    member this.UnderlyingTypeOfNewtype =
+        OlyAssert.True(this.IsNewtype)
+        OlyAssert.True(this.Fields.Length > 0)
+        OlyAssert.True(this.Fields[0].IsInstance)
+        this.Fields[0].Type
 
     /// Mutability
     /// Do not use directly! Use the extension member 'IsUnmanaged' and `IsBlittable`.
@@ -3895,7 +3894,7 @@ type TypeSymbol =
 
     member this.TryEnumUnderlyingType =
         match stripTypeEquations this with
-        | Entity(ent) -> ent.TryEnumUnderlyingType
+        | Entity(ent) when ent.IsEnum -> Some(ent.UnderlyingTypeOfEnum)
         | _ -> None
 
     member this.Inherits =
@@ -5250,8 +5249,8 @@ module SymbolExtensions =
                     match this.Extends |> Seq.tryExactlyOne with
                     | Some realTy -> realTy.IsAnyStruct
                     | _ -> false
-                | EntityKind.Newtype when this.Extends.Length = 1 -> this.Extends.[0].IsAnyStruct
-                | EntityKind.Enum when this.TryEnumUnderlyingType.IsSome -> this.TryEnumUnderlyingType.Value.IsAnyStruct
+                | EntityKind.Newtype -> this.UnderlyingTypeOfNewtype.IsAnyStruct
+                | EntityKind.Enum -> this.UnderlyingTypeOfEnum.IsAnyStruct
                 | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->

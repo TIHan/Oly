@@ -1892,22 +1892,21 @@ type OlyBoundModel internal (
                         match syntaxBodyExpr with
                         | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, _) ->  
                             if ent.IsEnum then
-                                if (ent :> EntitySymbol).TryEnumUnderlyingType.IsSome then
-                                    let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
-                                    let ty = ent.AsType
-                                    let mutable i = 0
-                                    ent.Fields
-                                    |> ImArray.iter (fun x -> 
-                                        if x.IsFieldConstant && areTypesEqual x.Type ty then
-                                            if i < syntaxTyDeclCases.Length then
-                                                match syntaxTyDeclCases[i] with
-                                                | OlySyntaxTypeDeclarationCase.Case(_, syntaxIdent)
-                                                | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, _) ->
-                                                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent x
-                                                | _ ->
-                                                    ()
-                                                i <- i + 1
-                                    )
+                                let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
+                                let ty = ent.AsType
+                                let mutable i = 0
+                                ent.Fields
+                                |> ImArray.iter (fun x -> 
+                                    if x.IsFieldConstant && areTypesEqual x.Type ty then
+                                        if i < syntaxTyDeclCases.Length then
+                                            match syntaxTyDeclCases[i] with
+                                            | OlySyntaxTypeDeclarationCase.Case(_, syntaxIdent)
+                                            | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, _) ->
+                                                getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent x
+                                            | _ ->
+                                                ()
+                                            i <- i + 1
+                                )
                             let syntaxExtends =
                                 match syntaxExtends with
                                 | OlySyntaxExtends.Inherits(_, syntaxTys) ->

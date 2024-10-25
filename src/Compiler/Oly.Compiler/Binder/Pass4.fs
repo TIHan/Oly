@@ -105,10 +105,7 @@ let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuild
             env       
 
     match syntaxEntDefBody with
-    | OlySyntaxTypeDeclarationBody.None _ ->
-        BoundExpression.None(BoundSyntaxInfo.User(syntaxEntDefBody, env.benv))
-
-    | OlySyntaxTypeDeclarationBody.Body(syntaxCastList, syntaxInherits, syntaxImplements, syntaxExpr) ->
+    | OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr) ->
         let _, boundExpr = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr
         boundExpr
 

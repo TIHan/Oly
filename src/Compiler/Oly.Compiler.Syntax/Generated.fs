@@ -3110,15 +3110,6 @@ module OlySyntaxTypeDeclarationBody =
         match node.Internal with
         | SyntaxTypeDeclarationBody.Body _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
-        | _ ->
-            Option.None
-
-    let (|None|_|) (node: OlySyntaxTypeDeclarationBody) : unit option =
-        match node.Internal with
-        | SyntaxTypeDeclarationBody.None _ ->
-            Option.Some()
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxTypeDeclarationName internal (tree, start: int, parent, internalNode: SyntaxTypeDeclarationName) as this =

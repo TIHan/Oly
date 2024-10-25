@@ -1161,10 +1161,6 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilFuncDefs
                 |> ImArray.ofSeq
 
-
-        if ent.IsEnum && ent.TryEnumUnderlyingType.IsNone then
-            failwith "Enum type is invalid to emit."
-
 #if DEBUG || CHECKED
         if ent.IsEnum || ent.IsNewtype then   
             OlyAssert.True(ilImplements.IsEmpty)

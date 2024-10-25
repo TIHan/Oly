@@ -388,13 +388,13 @@ type RuntimeEntity =
     member this.AssemblyIdentity = this.ILAssembly.Identity
 
     member this.IsAnyStruct =
-        if this.IsEnum then
+        if this.IsEnumOrNewtype then
             this.RuntimeType.Value.IsAnyStruct
         else
             this.ILEntityKind = OlyILEntityKind.Struct ||
             this.IsScopedClosure ||
             (
-                (this.IsTypeExtension || this.IsNewtype || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
+                (this.IsTypeExtension || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
             )
 
     member this.IsEnum =
@@ -402,6 +402,9 @@ type RuntimeEntity =
 
     member this.IsNewtype =
         this.ILEntityKind = OlyILEntityKind.Newtype
+
+    member this.IsEnumOrNewtype =
+        this.IsEnum || this.IsNewtype
 
     member this.IsTypeExtension =
         this.ILEntityKind = OlyILEntityKind.TypeExtension
@@ -753,6 +756,9 @@ type RuntimeType =
         match this with
         | Entity(ent) -> ent.IsNewtype
         | _ -> false
+        
+    member this.IsEnumOrNewtype =
+        this.IsEnum || this.IsNewtype
 
     member this.IsTypeVariable =
         match this with
@@ -1666,15 +1672,17 @@ type RuntimeType with
             this
 
     member this.StripAliasAndNewtype(): RuntimeType =
-        if (this.IsAlias || this.IsNewtype) && this.Extends.Length = 1 then
+        if this.IsAlias && this.Extends.Length = 1 then
             this.Extends.[0].StripAliasAndNewtype()
+        elif this.IsNewtype then
+            this.RuntimeType.Value.StripAliasAndNewtype()
         else
             this
 
     member this.StripAliasAndNewtypeAndEnum(): RuntimeType =
-        if (this.IsAlias || this.IsNewtype) && this.Extends.Length = 1 then
+        if this.IsAlias && this.Extends.Length = 1 then
             this.Extends.[0].StripAliasAndNewtypeAndEnum()
-        elif this.IsEnum then
+        elif this.IsEnumOrNewtype then
             this.RuntimeType.Value.StripAliasAndNewtypeAndEnum()
         else
             this
@@ -1704,19 +1712,16 @@ let getAllDistinctExtends (ty: RuntimeType) : RuntimeType imarray =
     |> ImArray.ofSeq
 
 let getAllDistinctInheritsAndImplements (ty: RuntimeType) : RuntimeType imarray =
-    if ty.IsNewtype then
-        ImArray.empty
-    else
-        let result = ty.Extends.AddRange(ty.Implements)
-        let result2 =
-            result
-            |> ImArray.map (fun x ->
-                getAllDistinctInheritsAndImplements x
-            )
-            |> Seq.concat
-        Seq.append result result2
-        |> Seq.distinct
-        |> ImArray.ofSeq
+    let result = ty.Extends.AddRange(ty.Implements)
+    let result2 =
+        result
+        |> ImArray.map (fun x ->
+            getAllDistinctInheritsAndImplements x
+        )
+        |> Seq.concat
+    Seq.append result result2
+    |> Seq.distinct
+    |> ImArray.ofSeq
 
 let subsumesType (superTy: RuntimeType) (ty: RuntimeType) =
     if superTy.StripAlias().IsObjectType then true

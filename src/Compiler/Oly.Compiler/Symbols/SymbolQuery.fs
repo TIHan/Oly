@@ -212,8 +212,7 @@ let private queryHierarchicalTypesOfTypeParameter (tyPar: TypeParameterSymbol) =
     |> TypeSymbol.Distinct
 
 let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironment -> QueryMemberFlags -> 'Flags -> string option -> TypeSymbol -> #IValueSymbol seq) benv (overridenFuncs: #IValueSymbol imarray) queryMemberFlags (flags: 'Flags) nameOpt (ent: EntitySymbol) =
-    // TODO: If we make newtypes not extend anything, then this should not be needed.
-    if ent.IsNewtype || ent.IsShape then ImArray.empty
+    if ent.IsShape then ImArray.empty
     else
         let values = ImArray.builder()
         let isNotTypeExtensionOrInterface = not(ent.IsTypeExtension || ent.IsInterface)
@@ -495,20 +494,16 @@ let private queryIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFla
     let fields = queryImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
     
     let inheritedFields =
-        // TODO: If we make newtypes not extend anything, then this should not be needed.
-        if ent.IsNewtype then
-            Seq.empty
-        else
-            ent.Extends
-            |> Seq.map (fun x ->
-                match x.TryEntity with
-                | ValueSome x ->
-                    queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
-                | _ ->
-                    Seq.empty
-            )
-            |> Seq.concat
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
+        ent.Extends
+        |> Seq.map (fun x ->
+            match x.TryEntity with
+            | ValueSome x ->
+                queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
+            | _ ->
+                Seq.empty
+        )
+        |> Seq.concat
+        |> filterValuesByAccessibility benv.ac queryMemberFlags
     
     Seq.append inheritedFields fields
     

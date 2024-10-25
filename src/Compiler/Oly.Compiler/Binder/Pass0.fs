@@ -117,13 +117,6 @@ let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     let env = env.SetAccessorContext(ent)  
 
     match syntaxEntDefBody with
-    | OlySyntaxTypeDeclarationBody.None _ ->
-
-        if ent.IsEnum then
-            cenv.diagnostics.Error("Enum declaration must specify one or more cases.", 10, syntaxNode)
-
-        env, entities
-
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->
         let syntaxCases = syntaxCaseList.ChildrenOfType
 

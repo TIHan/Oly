@@ -681,7 +681,6 @@
 	  <Field name="caseList">SyntaxTypeDeclarationCase SyntaxList</Field>
       <Field name="bodyExpr">SyntaxExpression</Field>
     </Case>
-    <Case name="None" />
   </Node>
 
   <Node name="SyntaxTypeDeclarationName">

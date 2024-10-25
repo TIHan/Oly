@@ -667,13 +667,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILValue.Local(localIndex) ->
             let localTy = cenv.ResolveType(env.ILAssembly, env.ILLocals.[localIndex].Type, env.GenericContext)
-
-            let localTy =
-                if localTy.IsNewtype then
-                    localTy.Extends[0]
-                else
-                    localTy
-
             V.Local(localIndex, cenv.EmitType(localTy)) |> asExpr, localTy
 
         | OlyILValue.LocalAddress(localIndex, ilByRefKind) ->
@@ -689,7 +682,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let localTy =
                 if localTy.IsNewtype then
-                    localTy.Extends[0]
+                    localTy.RuntimeType.Value
                 else
                     localTy
 
@@ -1396,7 +1389,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let enclosingTy = func.EnclosingType
 
             if enclosingTy.IsNewtype then
-                irArgs[0], enclosingTy.Extends[0]
+                irArgs[0], enclosingTy.RuntimeType.Value
             else
 
             let emittedFunc = cenv.EmitFunction(func)
@@ -1531,7 +1524,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                 E.Operation(NoRange, O.Box(irArg, cenv.EmitType(expectedArgTy)))
             else
                 // No need to upcast for newtypes if its extending type is the same as the expected type.
-                if argTy.IsNewtype && argTy.Extends[0].Formal = expectedArgTy.Formal then
+                if argTy.IsNewtype && argTy.RuntimeType.Value.Formal = expectedArgTy.Formal then
                     irArg
                 else
                     E.Operation(NoRange, O.Upcast(irArg, cenv.EmitType(expectedArgTy)))
@@ -1583,7 +1576,7 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                                 failwith $"Type {argTy.DebugText} is not a sub-type of {expectedArgTy.DebugText}."
                         elif (argTy.IsAnyPtr || argTy.IsAnyNativeInt) && (expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt) then
                             irArg
-                        elif (argTy.IsEnum && argTy.RuntimeType.Value = expectedArgTy) || (expectedArgTy.IsEnum && expectedArgTy.RuntimeType.Value = argTy) then
+                        elif (argTy.IsEnumOrNewtype && argTy.RuntimeType.Value = expectedArgTy) || (expectedArgTy.IsEnumOrNewtype && expectedArgTy.RuntimeType.Value = argTy) then
                             irArg
                         else
                             failwith $"Type {argTy.DebugText} is not a sub-type of {expectedArgTy.DebugText}."
@@ -2197,17 +2190,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         )
 
                 let inheritTys =
-                    if tyDef.IsNewtype then
-                        OlyAssert.Equal(1, tyDef.Extends.Length)
-                        ImArray.empty
-                    else
-                        tyDef.Extends
-                        |> ImArray.map (fun x ->
-                            // Emit the type first before subscribing!
-                            let ty = this.EmitType(x)
-                            this.SubscribeType(x, tyDef)
-                            ty
-                        )
+                    tyDef.Extends
+                    |> ImArray.map (fun x ->
+                        // Emit the type first before subscribing!
+                        let ty = this.EmitType(x)
+                        this.SubscribeType(x, tyDef)
+                        ty
+                    )
 
                 let implementTys = 
                     if tyDef.IsNewtype then
@@ -2527,7 +2516,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith "Invalid type."
 
         elif ty.IsNewtype then
-            emitType false (ty.Extends[0])
+            emitType false (ty.RuntimeType.Value)
 
         elif ty.IsIntrinsic then
             emitType false (ty.Strip())
@@ -3293,7 +3282,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 asm.EntityDefinitionCache.[ilEntDefOrRefHandle] <- (ty, RuntimeEntityDefinitionTypeArgumentWitnessListTable())
 
                 let runtimeTyOpt =
-                    if ent.IsEnum then
+                    if ent.IsEnumOrNewtype then
                         let ilFieldDefHandles = ilEntDef.FieldDefinitionHandles
                         if ilFieldDefHandles.IsEmpty then
                             failwith "Enum is missing its principal field."
@@ -3949,7 +3938,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         let pars =
                             if func.Flags.IsInstance then
                                 let fakeReceiverTy =
-                                    let extendsTy = func.EnclosingType.Extends[0]
+                                    let extendsTy = func.EnclosingType.RuntimeType.Value
                                     if extendsTy.IsAnyStruct then
                                         createByReferenceRuntimeType OlyIRByRefKind.Read extendsTy
                                     else

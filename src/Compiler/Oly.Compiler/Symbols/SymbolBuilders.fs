@@ -43,6 +43,9 @@ type EntitySymbolBuilder private (
 #if DEBUG || CHECKED
         extends
         |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+
+        if (not extendsHole.contents.IsEmpty && ent.IsCompilerIntrinsic) then
+            OlyAssert.Fail("Cannot set extends for a built-in type at this point.")
 #endif
         match pass with
         | LambdaLifting
@@ -63,14 +66,14 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
-    member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol) =
+    member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol, memberAccessFlags: MemberFlags, name: string, valueFlags: ValueFlags) =
         OlyAssert.True(runtimeTy.IsSolved)
-        OlyAssert.True(ent.IsEnum)
+        OlyAssert.True(ent.IsEnum || ent.IsNewtype)
         match pass with
         | Pass1 ->
             let fields = fieldsHole.contents
             if fields.IsEmpty then
-                let field = FieldSymbol(ImArray.empty, ent.AsEnclosing, MemberFlags.Private ||| MemberFlags.Instance, "value", runtimeTy, ValueFlags.Generated, ref None)
+                let field = FieldSymbol(ImArray.empty, ent.AsEnclosing, (memberAccessFlags &&& MemberFlags.AccessorMask) ||| MemberFlags.Instance, name, runtimeTy, valueFlags, ref None)
                 fieldsHole.contents <- ImArray.createOne field
             else
                 failwith "cannot set runtime type as fields are not empty"
@@ -94,8 +97,13 @@ type EntitySymbolBuilder private (
     member this.SetFields(pass: CompilerPass, fields: IFieldSymbol imarray) =
         match pass with
         | Pass2 ->
-            if ent.IsEnum then
-                if ent.Fields.Length = 1 && ent.TryEnumUnderlyingType.IsSome then
+            if ent.IsEnum || ent.IsNewtype then
+                if ent.Fields.Length = 1 then
+#if DEBUG || CHECKED
+                    for i = 0 to fields.Length - 1 do
+                        OlyAssert.True(fields[i].IsStatic)
+                    OlyAssert.Equal(1, fieldsHole.contents.Length)
+#endif
                     fieldsHole.contents <- fieldsHole.contents.AddRange(fields)
                 else
                     failwith "Invalid SetFields."

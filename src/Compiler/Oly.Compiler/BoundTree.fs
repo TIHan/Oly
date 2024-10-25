@@ -1098,10 +1098,7 @@ module EntitySymbolExtensions =
     type EntitySymbol with
 
         member this.ExtendsAndImplementsForMemberOverriding =
-            // TODO: If we make newtypes not extend anything, then this should not be needed.
-            if this.IsNewtype then
-                ImArray.empty
-            elif this.IsTypeExtension then
+            if this.IsTypeExtension then
                 this.Implements
             elif this.IsInterface then
                 this.Extends

@@ -3373,6 +3373,9 @@ let tryParseTypeDeclarationName state =
 
     None
 
+let SyntaxTypeDeclarationBodyNone() =
+    SyntaxTypeDeclarationBody.Body(SyntaxExtends.Empty(), SyntaxImplements.Empty(), SyntaxList.Empty(), SyntaxExpression.None(), 0)
+
 let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
     match bt2 tryParseTypeDeclarationKind tryParseTypeDeclarationName state with
     | Some(kind), Some(tyDefName) ->
@@ -3383,9 +3386,9 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
         | Some(equalsToken), _ ->
             errorDo(ExpectedSyntaxAfterToken("declaration body", Equal), equalsToken) state
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
         | _ ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
     | Some(kind), _ ->
         let tyPars = parseTypeParameters TypeParameterContext.Default state
         let constrClauseList = parseConstraintClauseList state
@@ -3395,9 +3398,9 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
         | Some(equalsToken), _ ->
             errorDo(ExpectedSyntaxAfterToken("declaration body", Equal), equalsToken) state
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
         | _ ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
     | _ ->
         None
 

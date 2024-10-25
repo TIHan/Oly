@@ -2880,8 +2880,6 @@ type SyntaxTypeDeclarationBody =
         caseList: SyntaxTypeDeclarationCase SyntaxList *
         bodyExpr: SyntaxExpression *
         fullWidth: int
-    | None
-        of unit
 
     interface ISyntaxNode with
 
@@ -2900,20 +2898,15 @@ type SyntaxTypeDeclarationBody =
                 | 2 -> caseList :> ISyntaxNode
                 | 3 -> bodyExpr :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | None _ ->
-                failwith "invalid slot"
 
         member this.SlotCount =
             match this with
             | Body _ -> 4
-            | None _ -> 0
 
         member this.FullWidth =
             match this with
             | Body(fullWidth=fullWidth) ->
                 fullWidth
-            | None _ ->
-                0
 
         member _.Tag = 38
 

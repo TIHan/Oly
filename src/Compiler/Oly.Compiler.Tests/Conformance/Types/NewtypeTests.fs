@@ -114,3 +114,21 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype without a field should fail``() =
+    let src =
+        """
+newtype A
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected field definition signature for newtype 'A' as the first expression.",
+             """
+newtype A
+        ^
+"""
+            )
+        ]
+    |> ignore

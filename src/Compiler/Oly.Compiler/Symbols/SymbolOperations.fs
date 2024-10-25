@@ -1257,33 +1257,31 @@ type TypeSymbol with
             | _ -> false
 
         member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
-            if (not this.IsNewtype) then
-                let ty = stripTypeEquationsAndBuiltIn this
-                match ty.TryEntity with
-                | ValueSome ent -> ent.Hierarchy(f, set)
-                | _ ->
-                    match ty.TryTypeParameter with
-                    | ValueSome tyPar ->
-                        let mutable cont = true
+            let ty = stripTypeEquationsAndBuiltIn this
+            match ty.TryEntity with
+            | ValueSome ent -> ent.Hierarchy(f, set)
+            | _ ->
+                match ty.TryTypeParameter with
+                | ValueSome tyPar ->
+                    let mutable cont = true
 
-                        let mutable i = 0
-                        while (cont && i < tyPar.Constraints.Length) do
-                            match tyPar.Constraints[i] with
-                            | ConstraintSymbol.SubtypeOf(ty)
-                            | ConstraintSymbol.TraitType(ty) ->
-                                let ty = ty.Value
-                                if set.Add(ty) then
-                                    cont <- f ty
-                            | _ ->
-                                ()
-                            i <- i + 1
-                    | _ ->
-                        ()
+                    let mutable i = 0
+                    while (cont && i < tyPar.Constraints.Length) do
+                        match tyPar.Constraints[i] with
+                        | ConstraintSymbol.SubtypeOf(ty)
+                        | ConstraintSymbol.TraitType(ty) ->
+                            let ty = ty.Value
+                            if set.Add(ty) then
+                                cont <- f ty
+                        | _ ->
+                            ()
+                        i <- i + 1
+                | _ ->
+                    ()
 
         member this.Hierarchy(f: TypeSymbol -> bool): unit =
-            if (not this.IsNewtype) then
-                let set = HashSet(SymbolComparers.TypeSymbolComparer())
-                this.Hierarchy(f, set)
+            let set = HashSet(SymbolComparers.TypeSymbolComparer())
+            this.Hierarchy(f, set)
 
         member this.HierarchyExists(f: TypeSymbol -> bool): bool =
             let ty = stripTypeEquationsAndBuiltIn this
@@ -1298,27 +1296,20 @@ type TypeSymbol with
                 exists
 
         member this.FlattenHierarchy(): TypeSymbol imarray =
-            if this.IsNewtype then
-                ImArray.empty
-            else
-                let builder = ImArray.builder()
-                this.Hierarchy(fun x -> builder.Add(x); true)
-                builder.ToImmutable()
+            let builder = ImArray.builder()
+            this.Hierarchy(fun x -> builder.Add(x); true)
+            builder.ToImmutable()
 
         member this.FlattenHierarchyIncluding(): TypeSymbol imarray =
-            if this.IsNewtype then
-                ImArray.empty
-            else
-                let builder = ImArray.builder()
-                builder.Add(this)
-                this.Hierarchy(fun x -> builder.Add(x); true)
-                builder.ToImmutable()
+            let builder = ImArray.builder()
+            builder.Add(this)
+            this.Hierarchy(fun x -> builder.Add(x); true)
+            builder.ToImmutable()
 
         member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
             if f(this) then
-                if (not this.IsNewtype) then
-                    let set = HashSet(SymbolComparers.TypeSymbolComparer())
-                    this.Hierarchy(f, set)
+                let set = HashSet(SymbolComparers.TypeSymbolComparer())
+                this.Hierarchy(f, set)
 
         // TODO: Remove this.
         member this.AllLogicalInheritsAndImplements: _ imarray =
@@ -1533,76 +1524,63 @@ type EntitySymbol with
         |> filterTypesAsInterfaces
 
     member this.AllLogicalImplements: TypeSymbol imarray =
-        if this.IsNewtype then
-            ImArray.empty
-        else
-            let results =
-                if this.IsTypeExtension then
-                    seq {
-                        for implementTy in this.Implements do
-                            yield implementTy
-                            yield! implementTy.AllLogicalImplements
-                    }
-                elif this.IsInterface then
-                    Seq.empty
-                else
-                    seq {
-                        for implementTy in this.Implements do
-                            yield implementTy
-                            yield! implementTy.AllLogicalImplements
-                    }
-
-            TypeSymbol.Distinct(results) |> ImArray.ofSeq
-
-    /// Includes ImplicitBaseTypes
-    member this.AllLogicalInherits: TypeSymbol imarray =
-        if this.IsNewtype then
-            ImArray.empty
-        else
-            let results =
-                if this.IsTypeExtension then
-                    Seq.empty
-                elif this.IsInterface then
-                    seq {
-                        for inheritTy in this.Extends do
-                            yield inheritTy
-                            yield! inheritTy.AllLogicalInherits
-                    }
-                else
-                    seq {
-                        for inheritTy in this.Extends do
-                            yield inheritTy
-                            yield! inheritTy.AllLogicalInherits
-                    }
-
-            TypeSymbol.Distinct(results) |> ImArray.ofSeq
-    
-    member this.AllInherits: TypeSymbol imarray =
-        if this.IsNewtype then
-            ImArray.empty
-        else
-            let results =
-                seq {
-                    for inheritTy in this.Extends do
-                        yield inheritTy
-                        yield! inheritTy.AllInherits
-                }
-
-            TypeSymbol.Distinct(results) |> ImArray.ofSeq
-
-    member this.AllImplements: TypeSymbol imarray =
-        if this.IsNewtype then
-            OlyAssert.True(this.Implements.IsEmpty)
-            ImArray.empty
-        else
-            let results =
+        let results =
+            if this.IsTypeExtension then
                 seq {
                     for implementTy in this.Implements do
                         yield implementTy
-                        yield! implementTy.AllImplements
+                        yield! implementTy.AllLogicalImplements
+                }
+            elif this.IsInterface then
+                Seq.empty
+            else
+                seq {
+                    for implementTy in this.Implements do
+                        yield implementTy
+                        yield! implementTy.AllLogicalImplements
                 }
 
-            TypeSymbol.Distinct(results) |> ImArray.ofSeq
+        TypeSymbol.Distinct(results) |> ImArray.ofSeq
+
+    /// Includes ImplicitBaseTypes
+    member this.AllLogicalInherits: TypeSymbol imarray =
+        let results =
+            if this.IsTypeExtension then
+                Seq.empty
+            elif this.IsInterface then
+                seq {
+                    for inheritTy in this.Extends do
+                        yield inheritTy
+                        yield! inheritTy.AllLogicalInherits
+                }
+            else
+                seq {
+                    for inheritTy in this.Extends do
+                        yield inheritTy
+                        yield! inheritTy.AllLogicalInherits
+                }
+
+        TypeSymbol.Distinct(results) |> ImArray.ofSeq
+    
+    member this.AllInherits: TypeSymbol imarray =
+        let results =
+            seq {
+                for inheritTy in this.Extends do
+                    yield inheritTy
+                    yield! inheritTy.AllInherits
+            }
+
+        TypeSymbol.Distinct(results) |> ImArray.ofSeq
+
+    member this.AllImplements: TypeSymbol imarray =
+        let results =
+            seq {
+                for implementTy in this.Implements do
+                    yield implementTy
+                    yield! implementTy.AllImplements
+            }
+
+        TypeSymbol.Distinct(results) |> ImArray.ofSeq
 
     member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
         let mutable cont = true
@@ -1668,12 +1646,9 @@ type EntitySymbol with
         exists
 
     member this.FlattenHierarchy(): TypeSymbol imarray =
-        if this.IsNewtype then
-            ImArray.empty
-        else
-            let builder = ImArray.builder()
-            this.Hierarchy(fun x -> builder.Add(x); true)
-            builder.ToImmutable()
+        let builder = ImArray.builder()
+        this.Hierarchy(fun x -> builder.Add(x); true)
+        builder.ToImmutable()
 
     /// 'Logical' means that certain results may not be included based on language rules.
     /// Includes implicit base types.
@@ -1715,9 +1690,9 @@ type EntitySymbol with
 #endif
         if this.IsAnyStruct then
             if hash.Add(this) then
-                match this.TryEnumUnderlyingType with
-                | Some(runtimeTy) -> EntitySymbol.CheckUnmanaged(pass, hash, runtimeTy)
-                | _ ->
+                if this.IsEnum then
+                    EntitySymbol.CheckUnmanaged(pass, hash, this.UnderlyingTypeOfEnum)
+                else
                     if this.IsAlias && this.Extends.Length > 0 then
                         EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
                     else
@@ -1753,9 +1728,9 @@ type EntitySymbol with
 #endif
         if this.IsAnyStruct then
             if hash.Add(this) then
-                match this.TryEnumUnderlyingType with
-                | Some(runtimeTy) -> EntitySymbol.CheckBlittable(pass, hash, runtimeTy)
-                | _ ->
+                if this.IsEnum then
+                    EntitySymbol.CheckBlittable(pass, hash, this.UnderlyingTypeOfEnum)
+                else
                     if this.IsAlias && this.Extends.Length > 0 then
                         EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
                     else

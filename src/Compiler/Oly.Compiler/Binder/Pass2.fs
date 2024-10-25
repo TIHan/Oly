@@ -352,11 +352,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
 
             let parsWithInstance =
                 if ent.IsNewtype then
-                    let parTy =
-                        if ent.Extends.Length <> 1 then
-                            TypeSymbolError
-                        else
-                            ent.Extends[0]
+                    let parTy = ent.UnderlyingTypeOfNewtype
                     parsWithInstance.Add(createLocalParameterValue(ImArray.empty, "", parTy, false))
                 else
                     parsWithInstance
@@ -411,7 +407,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         let ty = ent.AsType
 
         let mutable hasExplicitNonEnumCase = false
-        let mutable runtimeTyOpt = (ent :> EntitySymbol).TryEnumUnderlyingType
+        let mutable runtimeTyOpt = Some(ent.UnderlyingTypeOfEnum)
         let mutable requireAllCasesAConstant = false
         let mutable autoIncrement = 0
         let fieldConstants =
@@ -480,7 +476,9 @@ let addBindingDeclarationsToEntityPass2 cenv env (bindings: (BindingInfoSymbol *
         // TODO: Just use pattern matching on bindingInfo instead of value.
         match bindingInfo.Value with
         | :? IFieldSymbol as field ->
-            fields.Add field
+            // REVIEW: This is a weird check. We basically do not want to set instance fields on a Newtype, otherwise we will have problems...
+            if not (field.IsInstance && entBuilder.Entity.IsNewtype) then
+                fields.Add field
 
         | :? FunctionSymbol as func ->
             funcs.Add func
@@ -512,7 +510,10 @@ let addBindingDeclarationsToEntityPass2 cenv env (bindings: (BindingInfoSymbol *
     )
 
     entBuilder.SetBindings(cenv.pass, bindings)
-    if entBuilder.Entity.IsEnum then
+    if entBuilder.Entity.IsEnum || entBuilder.Entity.IsNewtype then
+        OlyAssert.False(entBuilder.Entity.Fields.IsEmpty)
+        if entBuilder.Entity.IsNewtype then
+            entBuilder.SetFields(cenv.pass, fields.ToImmutable()) // TODO: This actually appends for newtypes. We should add a new function to 'EntityBuilder' - 'AddFieldsForNewtype' to be specific.
         entBuilder.SetProperties(cenv.pass, props.ToImmutable())
         entBuilder.SetFunctions(cenv.pass, funcs.ToImmutable())
         entBuilder.SetPatterns(cenv.pass, pats.ToImmutable())
@@ -540,9 +541,6 @@ let bindTypeDeclarationBodyPass2 (cenv: cenv) (env: BinderEnvironment) entities 
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
     match syntaxEntDefBody with
-    | OlySyntaxTypeDeclarationBody.None _ ->
-        ()
-
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->
         let supers =
             filterTypesAsInterfaces (ent.AllLogicalInheritsAndImplements)

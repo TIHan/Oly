@@ -7684,3 +7684,159 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "B"
+
+[<Fact>]
+let ``Newtype inherits ValueType properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+main(): () =
+    let a = A(24)
+    let v = a: ValueType
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "24Int32"
+
+[<Fact>]
+let ``Newtype inherits Enum properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum E =
+    | A
+    | B 
+
+newtype A =
+    field Value: E
+
+main(): () =
+    let a = A(E.B)
+    let v = a: Enum
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "BE"
+
+[<Fact>]
+let ``Newtype of a newtype inherits ValueType properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype B =
+    field Value: __oly_int32
+
+newtype A =
+    field Value: B
+
+main(): () =
+    let a = A(B(42))
+    let v = a: ValueType
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "42Int32"
+
+[<Fact>]
+let ``Newtype should error when trying to override method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    overrides ToString(): __oly_utf16 =
+        "A"
+
+main(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+                """
+    overrides ToString(): __oly_utf16 =
+              ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Newtype should error when NOT trying to hide method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    ToString(): __oly_utf16 =
+        "Test"
+
+main(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The member 'ToString' will hide over its base.",
+                """
+    ToString(): __oly_utf16 =
+    ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Newtype should pass when trying to hide method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    new ToString(): __oly_utf16 =
+        "Test"
+
+main(): () =
+    let a = A(32)
+    print(a.ToString())
+    let v = a: ValueType
+    print(v.ToString())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Test32"

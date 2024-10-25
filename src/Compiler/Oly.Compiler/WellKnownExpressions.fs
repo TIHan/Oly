@@ -17,10 +17,9 @@ let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
 let ImplicitCast benv (expr: BoundExpression) castToType =
     let exprTy = expr.Type
     if exprTy.IsEnum then
-        match exprTy.AsEntityNoAlias.TryEnumUnderlyingType with
-        | Some(runtimeTy) when areTypesEqual runtimeTy castToType ->
+        if areTypesEqual exprTy.AsEntityNoAlias.UnderlyingTypeOfEnum castToType then
             Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        | _ ->
+        else
             expr
     else
         expr
@@ -28,10 +27,9 @@ let ImplicitCast benv (expr: BoundExpression) castToType =
 let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
     if castToType.IsEnum then
         let exprTy = expr.Type
-        match castToType.AsEntityNoAlias.TryEnumUnderlyingType with
-        | Some(runtimeTy) when areTypesEqual runtimeTy exprTy ->
+        if areTypesEqual castToType.AsEntityNoAlias.UnderlyingTypeOfEnum exprTy then
             Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        | _ ->
+        else
             expr
     else
         expr
