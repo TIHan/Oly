@@ -198,6 +198,7 @@ print(__oly_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
+    inherits System.Object
 
     get_Count() : __oly_int32
     get_Item(__oly_int32): T
@@ -231,6 +232,7 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 #[import("CLR:mscorlib", "System", "Int32")]
 struct CustomInt32 =
+    inherits System.ValueType
 
     static Parse(s: __oly_utf16) : CustomInt32
 
@@ -7778,7 +7780,7 @@ main(): () = ()
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+            ("'ToString' cannot be overriden in a newtype declaration.",
                 """
     overrides ToString(): __oly_utf16 =
               ^^^^^^^^

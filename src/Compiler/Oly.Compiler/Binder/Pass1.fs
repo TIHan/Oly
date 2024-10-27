@@ -75,7 +75,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             TypeSymbol.BaseObject
 
     let defaultExtends (extends: TypeSymbol imarray) =
-        if ent.IsAlias then
+        if ent.IsAlias || ent.IsImported then
             extends
         elif ent.IsClass && extends.IsEmpty then
             // DEFAULT
@@ -139,7 +139,8 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
                 )
         elif not ent.IsInterface && not ent.IsNewtype then
             if not ent.IsClass && inheritCount > 0 then
-                cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." ent.Name ent.Name, 10, syntaxNode)
+                if not ent.IsImported then
+                    cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." ent.Name ent.Name, 10, syntaxNode)
             elif inheritCount > 1 then
                 cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxNode)
             elif inheritCount = 1 && extends[0].IsSealed then
@@ -159,8 +160,12 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             if ent.IsNewtype then
                 OlyAssert.True(extends.IsEmpty)
                 match syntaxExpr with
-                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))), _) 
-                | OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))) ->
+                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))), _) 
+                | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))) ->
+
+                    if not syntaxAttrs.Children.IsEmpty then
+                        cenv.diagnostics.Error($"Attributes are not allowed on the principal field for a newtype.", 10, syntaxAttrs)
+
                     let extendTy = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
                     let memberAccessFlags = bindAccessorAsMemberFlags true syntaxAccessor
 
@@ -262,7 +267,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             else
                 extends
 
-        if not ent.IsCompilerIntrinsic then
+        if not ent.IsCompilerIntrinsic || ent.IsImported then
             entBuilder.SetExtends(cenv.pass, extends)
             entBuilder.SetImplements(cenv.pass, implements)
 

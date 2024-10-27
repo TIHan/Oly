@@ -20206,3 +20206,100 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "8"
+
+[<Fact>]
+let ``Newtype - take address of principal field should succeed 4``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+class S =
+    public field mutable X: int32 = 1
+
+newtype NewtypeS =
+    public field mutable S: S
+
+main(): () =
+    let mutable ns = NewtypeS(S())
+    let x = &ns.S.X
+
+    x <- 7
+
+    print(ns.S.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+
+[<Fact>]
+let ``Newtype - take address of principal field should fail``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+class S =
+    public field mutable X: int32 = 1
+
+newtype NewtypeS =
+    public field mutable S: S
+
+main(): () =
+    let mutable ns = NewtypeS(S())
+    let x = &ns.S
+
+    let mutable s = S()
+    s.X <- 8
+    x <- s
+
+    print(ns.S.X)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            // TODO: These are duplicate messages.
+            ("Newtypes that are not struct types do not allow getting the address of its principal field.",
+                """
+    let x = &ns.S
+            ^^^^^
+"""
+            )
+            ("Newtypes that are not struct types do not allow getting the address of its principal field.",
+                """
+    let x = &ns.S
+            ^^^^^
+"""
+            )
+        ]
+    |> ignore

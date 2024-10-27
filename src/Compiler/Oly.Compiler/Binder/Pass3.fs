@@ -282,6 +282,11 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             else
                 false
 
+        let checkFuncFromNewtype (func: IFunctionSymbol) =
+            // Newtypes cannot override anything.
+            if func.Enclosing.IsNewtype then
+                cenv.diagnostics.Error($"'{func.Name}' cannot be overriden in a newtype declaration.", 10, syntax.Identifier)
+
         let checkFunc (func: IFunctionSymbol) =
             match func.FunctionOverrides with
             | Some overridenFunc when overridenFunc.Enclosing.IsInterface -> ()
@@ -301,6 +306,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             if tryOverride func then
                 if not func.IsExplicitOverrides then
                     checkFunc func
+                else
+                    checkFuncFromNewtype func
             else
                 if func.IsExplicitOverrides then
                     cenv.diagnostics.Error($"The function '{printValue env.benv func}' cannot find a function to override.", 10, syntax.Identifier)
@@ -320,6 +327,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                             if tryOverride getter then
                                 if not getter.IsExplicitOverrides then
                                     checkFunc getter
+                                else
+                                    checkFuncFromNewtype getter
                                 false
                             else
                                 if getter.IsExplicitOverrides then
@@ -337,6 +346,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                             if tryOverride setter then
                                 if not setter.IsExplicitOverrides then
                                     checkFunc setter
+                                else
+                                    checkFuncFromNewtype setter
                                 false
                             else
                                 if setter.IsExplicitOverrides then

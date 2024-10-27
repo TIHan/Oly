@@ -421,7 +421,9 @@ let checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: Typ
             match argExpr with
             | AutoDereferenced _ -> ()
             | E.Value _ -> ()
-            | E.GetField(field=field) -> ()
+            | E.GetField(field=field) ->
+                if field.IsInstance && field.Enclosing.IsNewtype && not field.Enclosing.IsAnyStruct then
+                    cenv.diagnostics.Error("Newtypes that are not struct types do not allow getting the address of its principal field.", 10, syntaxInfo.Syntax)
             | E.Call(value=value) ->
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) -> ()
