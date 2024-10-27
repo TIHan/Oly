@@ -1223,9 +1223,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             if field.ILConstant.IsSome then
                 failwith "Cannot take the address of a constant."
 
-            if field.EnclosingType.IsNewtype then
-                failwith "Cannot take the address of a field from a newtype."
-
             let irByRefKind =
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
@@ -1237,6 +1234,17 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     field.EnclosingType
 
             let irArg, argTy = importExpression cenv env (Some expectedArgTy) ilArg
+
+            if field.EnclosingType.IsNewtype then
+                if argTy.IsByRef_t then
+                    let elementTy = argTy.TypeArguments[0]
+                    if not elementTy.IsAnyStruct then
+                        OlyAssert.Fail("Expected a struct type")
+                    irArg, argTy
+                else
+                    OlyAssert.Fail("Expected a byref of a struct type")
+            else
+
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
 
             let emittedField = cenv.EmitField(field)

@@ -20087,3 +20087,122 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Newtype - take address of principal field should succeed``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+struct S =
+    public field mutable X: int32 = 1
+
+class C =
+    public field mutable X: int32 = 5
+
+newtype NewtypeS =
+    public field mutable S: S
+
+newtype NewtypeC =
+    public field C: C
+
+main(): () =
+    let mutable ns = NewtypeS(S())
+    print(ns.S.X)
+    ns.S.X <- 9
+    print(ns.S.X)
+
+    let nc = NewtypeC(C())
+    print(nc.C.X)
+    nc.C.X <- 3
+    print(nc.C.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "1953"
+
+[<Fact>]
+let ``Newtype - take address of principal field should succeed 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct S =
+    public field mutable X: int32 = 1
+
+newtype NewtypeS =
+    public field mutable S: S
+
+main(): () =
+    let mutable ns = NewtypeS(S())
+    let x = &ns.S.X
+
+    x <- 7
+
+    print(ns.S.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7"
+
+[<Fact>]
+let ``Newtype - take address of principal field should succeed 3``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct S =
+    public field mutable X: int32 = 1
+
+newtype NewtypeS =
+    public field mutable S: S
+
+main(): () =
+    let mutable ns = NewtypeS(S())
+    let x = &ns.S
+
+    let mutable s = S()
+    s.X <- 8
+    x <- s
+
+    print(ns.S.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8"

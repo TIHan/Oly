@@ -327,10 +327,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                     else
                         expr
 
-                if field.Enclosing.IsNewtype then
-                    // Cannot take the address of a field from a newtype.
-                    expr
-                elif exprTy.IsTypeVariable then
+                if exprTy.IsTypeVariable then
                     if isMutable then
                         AddressOfMutable expr
                     else

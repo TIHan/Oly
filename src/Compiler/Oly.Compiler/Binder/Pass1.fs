@@ -159,11 +159,26 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             if ent.IsNewtype then
                 OlyAssert.True(extends.IsEmpty)
                 match syntaxExpr with
-                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))), _) 
-                | OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, _, _, _, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))) ->
+                | OlySyntaxExpression.Sequential(OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))), _) 
+                | OlySyntaxExpression.ValueDeclaration(_, syntaxAccessor, syntaxValueDeclPremodifiers, syntaxValueDeclKind, syntaxValueDeclPostmodifiers, OlySyntaxBinding.Signature(OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxReturnTyAnnot))) ->
                     let extendTy = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
                     let memberAccessFlags = bindAccessorAsMemberFlags true syntaxAccessor
-                    entBuilder.SetRuntimeType(cenv.pass, extendTy, memberAccessFlags, syntaxIdent.ValueText, ValueFlags.None)
+
+                    let _memberFlags, valueExplicitness = 
+                        bindValueModifiersAndKindAsMemberFlags 
+                            cenv 
+                            env 
+                            false 
+                            syntaxValueDeclPremodifiers.ChildrenOfType
+                            syntaxValueDeclKind 
+                            syntaxValueDeclPostmodifiers.ChildrenOfType
+
+                    let valueFlags = 
+                        if valueExplicitness.IsExplicitMutable then
+                            ValueFlags.Mutable
+                        else
+                            ValueFlags.None
+                    entBuilder.SetRuntimeType(cenv.pass, extendTy, memberAccessFlags, syntaxIdent.ValueText, valueFlags)
                 | _ ->
                     entBuilder.SetRuntimeType(cenv.pass, TypeSymbolError, MemberFlags.Private, "value", ValueFlags.Invalid)
                     cenv.diagnostics.Error($"Expected field definition signature for newtype '{ent.Name}' as the first expression.", 10, syntaxNode)

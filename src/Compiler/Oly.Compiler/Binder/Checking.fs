@@ -421,9 +421,7 @@ let checkCalleeExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: Typ
             match argExpr with
             | AutoDereferenced _ -> ()
             | E.Value _ -> ()
-            | E.GetField(field=field) ->
-                if field.IsInstance && field.Enclosing.IsNewtype then
-                    cenv.diagnostics.Error("Newtypes do not allow getting the address of its field.", 10, syntaxInfo.Syntax)
+            | E.GetField(field=field) -> ()
             | E.Call(value=value) ->
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) -> ()
