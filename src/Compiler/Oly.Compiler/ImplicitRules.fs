@@ -1,6 +1,7 @@
 ﻿module internal Oly.Compiler.Internal.ImplicitRules
 
 open Oly.Core
+open Oly.Compiler
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments

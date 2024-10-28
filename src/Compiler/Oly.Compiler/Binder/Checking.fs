@@ -2,6 +2,7 @@
 module internal rec Oly.Compiler.Internal.Binder.Checking
 
 open Oly.Core
+open Oly.Compiler
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker

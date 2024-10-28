@@ -408,7 +408,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -433,7 +433,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -458,7 +458,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
@@ -490,7 +490,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
@@ -522,7 +522,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
@@ -532,7 +532,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
     mutable GetValue(): int32 =
         this.item.GetHashCode()
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
@@ -566,12 +566,12 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-interface IHash<T> where T: { mutable GetHashCode(): int32 } =
+interface IHash<T> where T: { GetHashCode(): int32 } =
 
     default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
     
     private field mutable item: T
@@ -583,7 +583,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
         let x: IHash<T> = this
         x.GetValue(this.item)
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
@@ -617,12 +617,12 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-interface IHash<T> where T: { mutable GetHashCode(): int32 } =
+interface IHash<T> where T: { GetHashCode(): int32 } =
 
     default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
     
     public field mutable item: T
@@ -634,7 +634,7 @@ struct Hash<T> where T: { mutable GetHashCode(): int32 } =
         let x: IHash<T> = this
         x.GetValue(this.item)
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
 
     public field mutable item: Hash<T>
@@ -672,7 +672,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -4066,19 +4066,19 @@ extension ArrayExtensions =
 // DotNet Specific
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
@@ -4463,7 +4463,7 @@ alias inref<T>
 print(__oly_object): ()
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -4471,7 +4471,7 @@ print(__oly_object): ()
     x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 
 main(): () =
@@ -5265,7 +5265,7 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -5275,17 +5275,17 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 private class Subscription =
@@ -5385,7 +5385,7 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -5395,17 +5395,17 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 private class Subscription =
@@ -6832,7 +6832,7 @@ alias string
 #[intrinsic("int32")]
 alias int32
 
-printSpecial<T>(mutable value: T): () where T: { mutable ToString(): string } =
+printSpecial<T>(mutable value: T): () where T: { ToString(): string } =
     print(value.ToString())
 
 #[intrinsic("print")]

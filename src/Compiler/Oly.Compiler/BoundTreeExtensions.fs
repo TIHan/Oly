@@ -877,27 +877,24 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
                 if func.IsInstance = superFunc.IsInstance && (func.Name = superFunc.Name || (func.IsInstanceConstructor && superFunc.IsInstanceConstructor)) && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                     // TODO: This really isn't right.
                     let isInstance = func.IsInstance
-                    if not isInstance || not ty.IsAnyStruct || (if superFunc.IsReadOnly then func.IsReadOnly else true) then
-                        let result =
-                            (superFunc.Parameters, func.Parameters)
-                            ||> ImArray.foralli2 (fun i par1 par2 ->
-                                if i = 0 && isInstance then
-                                    // We return true here because the first parameter of an instance member function is the 'shape' entity,
-                                    // which cannot be unified.
-                                    true
-                                else
-                                    UnifyTypes rigidity par1.Type par2.Type
-                            ) &&
-                            UnifyTypes rigidity superFunc.ReturnType func.ReturnType
+                    let result =
+                        (superFunc.Parameters, func.Parameters)
+                        ||> ImArray.foralli2 (fun i par1 par2 ->
+                            if i = 0 && isInstance then
+                                // We return true here because the first parameter of an instance member function is the 'shape' entity,
+                                // which cannot be unified.
+                                true
+                            else
+                                UnifyTypes rigidity par1.Type par2.Type
+                        ) &&
+                        UnifyTypes rigidity superFunc.ReturnType func.ReturnType
 
-                        if (rigidity = Rigid) && not(areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction) then
-                            false
-                        elif not result then
-                            areLogicalFunctionSignaturesEqual superFunc func
-                        else
-                            true
-                    else
+                    if (rigidity = Rigid) && not(areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction) then
                         false
+                    elif not result then
+                        areLogicalFunctionSignaturesEqual superFunc func
+                    else
+                        true
                 else
                     false
             )

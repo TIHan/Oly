@@ -1481,7 +1481,7 @@ module DotNet =
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -1491,17 +1491,17 @@ module DotNet =
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
@@ -1515,7 +1515,7 @@ module DotNet =
 (|)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseOr(T1, T2): T3 } = T1.op_BitwiseOr(x, y)
 (&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
 
-printLine<T>(mutable value: T): () where T: trait { mutable ToString(): string } =
+printLine<T>(value: T): () where T: trait { ToString(): string } =
     print(value.ToString() + "\n")
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)

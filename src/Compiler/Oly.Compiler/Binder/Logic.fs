@@ -21,7 +21,7 @@ open Oly.Compiler.Internal.BoundTreePatterns
 let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
         if checkMutable && valueExplicitness.IsExplicitMutable then
-            if not ty.IsAnyStruct && not ty.IsShape then
+            if not ty.IsAnyStruct then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be a struct." name, 10, syntaxNode)
             if ty.IsAnyStruct && enclosing.IsReadOnly then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxNode)
