@@ -20248,7 +20248,7 @@ main(): () =
     |> shouldRunWithExpectedOutput "7"
 
 [<Fact>]
-let ``Newtype - take address of principal field should fail``() =
+let ``Newtype - take address of principal field should pass``() =
     let src =
         """
 #[intrinsic("print")]
@@ -20286,23 +20286,8 @@ main(): () =
     print(ns.S.X)
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            // TODO: These are duplicate messages.
-            ("Newtypes that are not struct types do not allow getting the address of its principal field.",
-                """
-    let x = &ns.S
-            ^^^^^
-"""
-            )
-            ("Newtypes that are not struct types do not allow getting the address of its principal field.",
-                """
-    let x = &ns.S
-            ^^^^^
-"""
-            )
-        ]
-    |> ignore
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8"
 
 [<Fact>]
 let ``Struct value will not mutate from interface constraint for inref``() =

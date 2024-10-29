@@ -7842,3 +7842,64 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "Test32"
+
+[<Fact>]
+let ``Newtype of Vector512 - regression - should not crash runtime``() =
+    let src =
+        """
+open System
+open System.IO
+open System.Text
+open System.Numerics
+open System.Diagnostics
+open System.Security.Cryptography
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open System.Runtime.Intrinsics
+open System.Collections.Generic
+open System.Collections.Concurrent
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("add")]
+(+)(int32, int32) : int32
+
+shape DotNetIndexGetter<TKey, TValue> =
+
+    get_Item(TKey): TValue
+
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: DotNetIndexGetter<TKey, TValue> = x.get_Item(key)
+
+newtype BitSet512 =
+    field value: Vector512<int32>
+
+    GetSomeValue(): int32 = this.value[0] + this.value[1]
+
+    GetSomething(): int32 =
+        let valueIndex = this.GetSomeValue()
+        valueIndex
+
+main(): () =
+    let x = BitSet512(default)
+    print(x.GetSomeValue())
+    print(x.GetSomething())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "00"

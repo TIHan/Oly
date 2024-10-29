@@ -270,15 +270,6 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
     else
         expr
 
-and AutoDereferenceReceiverIfPossible (expr: BoundExpression) =
-    let exprTy = expr.Type
-    match exprTy.TryByReferenceElementType with
-    // If the receiver's type is a struct or a type parameter, we do not want to dereference.
-    | ValueSome elementTy when elementTy.IsAnyStruct || elementTy.IsTypeVariable ->
-        expr
-    | _ ->
-        AutoDereferenceIfPossible expr
-
 /// Creates a 'Call' expression to get the address
 /// based on the given expression. Expression type is a read/write ByRef type.
 let AddressOf (expr: BoundExpression) =
@@ -303,7 +294,7 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable then
+    if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable || (enclosingTy.IsNewtype && not exprTy.IsByRef_t) then
         match expr with
         // Cannot take the address of a constant.
         | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
@@ -314,7 +305,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                     AddressOfMutable expr
                 else
                     expr
-        | BoundExpression.GetField(syntaxInfo, receiver, field) -> 
+        | BoundExpression.GetField(syntaxInfo, receiver, field) ->
             let expr = 
                 if field.Enclosing.IsType then
                     let newReceiver = AddressOfReceiverIfPossibleAux isMutable receiver.Type receiver

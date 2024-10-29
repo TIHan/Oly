@@ -562,7 +562,6 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
     let receiverExprOpt =
         receiverExprOpt
         |> Option.map (fun expr -> 
-            let expr = AutoDereferenceReceiverIfPossible expr // TODO/REVIEW: What is this for?
             if value.IsInstance then
                 if value.Enclosing.IsType then
                     AddressOfReceiverIfPossible value.Enclosing.AsType expr

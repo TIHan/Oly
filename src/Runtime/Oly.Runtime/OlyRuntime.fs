@@ -1237,12 +1237,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             if field.EnclosingType.IsNewtype then
                 if argTy.IsByRef_t then
-                    let elementTy = argTy.TypeArguments[0]
-                    if not elementTy.IsAnyStruct then
-                        OlyAssert.Fail("Expected a struct type")
                     irArg, argTy
                 else
-                    OlyAssert.Fail("Expected a byref of a struct type")
+                    OlyAssert.Fail("Expected a byref type")
             else
 
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
@@ -3574,7 +3571,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     match ilKind with
                     | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
                     | OlyILByRefKind.Read -> OlyIRByRefKind.Read
-                RuntimeType.ByRef(this.ResolveType(ilAsm, ilElementTy, genericContext), kind)
+                let elementTy = this.ResolveType(ilAsm, ilElementTy, genericContext)
+                if elementTy.IsByRef_t then
+                    OlyAssert.Fail("Cannot have byref of a byref type.")
+                RuntimeType.ByRef(elementTy, kind)
 
             | OlyILTypeHigherVariable(index, ilTyArgs, ilKind) ->
                 let tyArgs =
