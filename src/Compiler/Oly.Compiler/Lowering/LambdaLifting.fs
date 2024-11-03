@@ -25,7 +25,11 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
     match expr with
     | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
         checkLocals localScope rhsExpr
-        let localScope = localScope.Add(bindingInfo.Value.Id)
+        let localScope = 
+            if bindingInfo.Value.IsLocalAndNotFunction then
+                localScope.Add(bindingInfo.Value.Id)
+            else
+                localScope
         checkLocals localScope bodyExpr
 
     | E.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
@@ -42,7 +46,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         checkLocals localScope expr2
 
     | E.Call(receiverOpt=receiverExprOpt;args=argExprs;value=value) ->
-        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
         match receiverExprOpt with
@@ -55,7 +59,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         |> ImArray.iter (checkLocals localScope)
 
     | E.Value(value=value) ->
-        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
     | E.EntityDefinition(body=bodyExpr) ->
@@ -66,7 +70,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         checkLocals localScope rhsExpr
 
     | E.SetValue(value=value;rhs=rhsExpr) ->
-        if value.IsLocal && not(localScope.Contains(value.Formal.Id)) then
+        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
         checkLocals localScope rhsExpr

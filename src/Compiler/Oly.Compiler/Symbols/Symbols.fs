@@ -4608,6 +4608,11 @@ module SymbolExtensions =
                 | EnclosingSymbol.Local -> true
                 | _ -> false
 
+            member this.IsLocalAndNotFunction =
+                match this.Enclosing with
+                | EnclosingSymbol.Local -> not this.IsStaticLocalFunction
+                | _ -> false
+
             /// Returns the type parameters of the value, 
             ///     or the enclosing type parameters if the value is a constructor.
             member this.TypeParametersOrConstructorEnclosingTypeParameters =
