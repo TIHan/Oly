@@ -76,7 +76,7 @@ type OlyPath private (path: string) =
             else
                 false
         | _ ->
-            if this.ToString().Equals(path.ToString()) then
+            if OlyPath.Equals(this, path) then
                 true
             elif this.IsDirectory then
                 let result = Path.GetRelativePath(this.ToString(), path.ToString())

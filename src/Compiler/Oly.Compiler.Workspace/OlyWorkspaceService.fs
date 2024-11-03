@@ -38,7 +38,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
-                    let filePath = OlyPath.Create(filePath)
+                    let filePath = OlyPath.CreateAbsolute(filePath)
                     rs <- rs.SetResourceAsCopy(filePath)
                     if filePath.HasExtension(".olyx") then
                         projectsToUpdate.Add(filePath)
@@ -50,7 +50,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
-                    let filePath = OlyPath.Create(filePath)
+                    let filePath = OlyPath.CreateAbsolute(filePath)
                     rs <- rs.SetResourceAsCopy(filePath)
                     if filePath.HasExtension(".olyx") then
                         projectsToUpdate.Add(filePath)
@@ -61,7 +61,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 
             Directory.EnumerateFiles(rootPath.ToString(), "*.json", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
-                let filePath = OlyPath.Create(filePath)
+                let filePath = OlyPath.CreateAbsolute(filePath)
                 try
                     rs <- rs.SetResourceAsCopy(filePath)
                 with
@@ -72,7 +72,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
             |> Seq.iter (fun filePath ->
                 try
-                    rs <- rs.SetResourceAsCopy(OlyPath.Create(filePath))
+                    rs <- rs.SetResourceAsCopy(OlyPath.CreateAbsolute(filePath))
                 with
                 | _ ->
                     ()
@@ -85,40 +85,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
     let rsObj = obj()
     let mutable rsOpt = None
 
-    let refresh() =
-        workspace.CancelCurrentWork()
-    
-        let rootPath = getRootPath.Value
-        let projectsToUpdate = ImArray.builder()
-    
-        Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            try
-                let filePath = OlyPath.Create(filePath)
-                if filePath.HasExtension(".olyx") then
-                    projectsToUpdate.Add(filePath)
-            with
-            | _ ->
-                ()
-        )
-
-        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            try
-                let filePath = OlyPath.Create(filePath)
-                if filePath.HasExtension(".olyx") then
-                    projectsToUpdate.Add(filePath)
-            with
-            | _ ->
-                ()
-        )
-
-        match rsOpt with
-        | Some rs ->
-            workspace.UpdateDocuments(rs, projectsToUpdate.ToImmutable(), CancellationToken.None)
-        | _ ->
-            ()
-
     do
         // TODO: Handle state.json
 
@@ -129,7 +95,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     try
                         rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                        refresh()
                     with
                     | _ ->
                         rsOpt <- Some(rs)
@@ -142,7 +107,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     try
                         rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                        refresh()
                     with
                     | _ ->
                         rsOpt <- Some(rs)
@@ -155,7 +119,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     try
                         rsOpt <- Some(rs.RemoveResource(filePath))
-                        refresh()
                     with
                     | _ ->
                         rsOpt <- Some(rs)
@@ -170,7 +133,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     try
                         let rs = rs.RemoveResource(oldFilePath)
                         rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                        refresh()
                     with
                     | _ ->
                         rsOpt <- Some(rs)

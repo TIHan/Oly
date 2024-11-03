@@ -710,6 +710,29 @@ type OlySolution (state: SolutionState) =
         | _ ->
             this
 
+    member this.InvalidateProject(projectPath) =
+        match this.TryGetProject(projectPath) with
+        | Some projectToInvalidate ->
+            let projectDoc = projectToInvalidate.DocumentLookup[projectToInvalidate.Path]
+            let mutable newSolution = this
+            let newSolutionLazy = lazy newSolution
+            let newProjects = 
+                state.projects.SetItem(
+                    projectToInvalidate.Path, 
+                    projectToInvalidate.UpdateDocument(
+                        newSolutionLazy, 
+                        projectDoc.Path, 
+                        projectToInvalidate.Compilation.GetSyntaxTree(projectDoc.Path),
+                        projectDoc.ExtraDiagnostics
+                    ) |> fst
+                )
+            newSolution <- { state with projects = newProjects } |> OlySolution
+            newSolution <- updateSolution newSolution newSolutionLazy
+            newSolutionLazy.Force() |> ignore
+            newSolution.InvalidateDependentProjectsOn(projectPath)
+        | _ ->
+            this
+
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
 #if DEBUG || CHECKED
         OlyTrace.Log($"OlyWorkspace - Updating References For Project - {projectPath.ToString()}")
@@ -1057,19 +1080,42 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     currentRs <- rs
                 elif rs.Version > currentRs.Version then
                     let deltaEvents = rs.GetDeltaEvents(currentRs)
-                    let mutable mustInvalidateSolution = false
+
                     for deltaEvent in deltaEvents do
                         match deltaEvent with
-                        | OlyWorkspaceResourceEvent.Added _ 
-                        | OlyWorkspaceResourceEvent.Deleted _ ->
-                            mustInvalidateSolution <- true
-                        | OlyWorkspaceResourceEvent.Changed filePath ->
-                            if not mustInvalidateSolution then
-                                do! checkProjectsThatContainDocument rs filePath ct
+                        | OlyWorkspaceResourceEvent.Added filePath ->
+                            solution.GetProjects()
+                            |> ImArray.iter (fun project ->
+                                let projConfig = project.Configuration
+                                let platformName = project.PlatformName
 
-                    if mustInvalidateSolution then
-                        // TODO: There is an optimization opportunity to only invalidate projects that use the file.
-                        clearSolution()
+                                let projectDir = OlyPath.GetDirectory(project.Path)
+                                let syntaxTree = project.Compilation.GetSyntaxTree(project.Path)
+                                let config = syntaxTree.GetCompilationUnitConfiguration(ct)
+
+                                if filePath.HasExtension(ProjectExtension) |> not then
+                                    config.Loads
+                                    |> ImArray.iter (fun (_, loadPath) ->
+                                        let loadPath = OlyPath.Combine(projectDir, loadPath)
+                                        if loadPath.ContainsDirectoryOrFile(filePath) then
+                                            let sourceText = rs.GetSourceText(filePath)
+                                            let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
+                                            let syntaxTree = OlySyntaxTree.Parse(filePath, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
+                                            let (newSolution, _, _) = solution.UpdateDocument(project.Path, filePath, syntaxTree, ImArray.empty)
+                                            solution <- newSolution
+                                    )
+                            )
+                        | OlyWorkspaceResourceEvent.Deleted filePath ->
+                            if filePath.HasExtension(ProjectExtension) then
+                                solution <- solution.RemoveProject(filePath)
+                            else
+                                let docs = solution.GetDocuments(filePath)
+                                docs
+                                |> ImArray.iter (fun doc ->
+                                    solution <- solution.RemoveDocument(doc.Project.Path, doc.Path)
+                                )
+                        | OlyWorkspaceResourceEvent.Changed filePath ->
+                            do! checkProjectsThatContainDocument rs filePath ct
 
                     currentRs <- rs
                 return currentRs
