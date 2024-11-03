@@ -568,6 +568,18 @@ type OlySolution (state: SolutionState) =
 
     let state = { state with version = state.version + 1UL }
 
+    static member InvalidateDependentProjectsOnCore(newSolution: byref<OlySolution>, newSolutionLazy: Lazy<OlySolution>, projectPath: OlyPath): unit =
+        let projectsToInvalidate = 
+            newSolution.GetProjectsDependentOnReference(projectPath)
+            |> ImArray.map (fun x -> x.Path)
+
+        let newProjects =
+            (newSolution.State.projects, projectsToInvalidate)
+            ||> ImArray.fold (fun projects x -> 
+                projects.SetItem(x, projects[x].InvalidateReferences(newSolutionLazy))
+            )
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
+
     member this.State = state
 
     member this.Version = state.version
@@ -621,8 +633,8 @@ type OlySolution (state: SolutionState) =
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
         let newProject = createProject newSolutionLazy projectPath projectName projectConfig ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
-        let newProjects = state.projects.SetItem(newProject.Path, newProject)
-        newSolution <- { state with projects = newProjects } |> OlySolution
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
@@ -634,9 +646,10 @@ type OlySolution (state: SolutionState) =
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
+        OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
         let newProject, newDocument = project.UpdateDocument(newSolutionLazy, documentPath, syntaxTree, extraDiagnostics)
-        let newProjects = state.projects.SetItem(newProject.Path, newProject)
-        newSolution <- { state with projects = newProjects } |> OlySolution
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
 
@@ -665,9 +678,10 @@ type OlySolution (state: SolutionState) =
             let project = this.GetProject(projectPath)
             let mutable newSolution = this
             let newSolutionLazy = lazy newSolution
+            OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
             let newProject = project.RemoveDocument(newSolutionLazy, documentPath)
-            let newProjects = state.projects.SetItem(newProject.Path, newProject)
-            newSolution <- { state with projects = newProjects } |> OlySolution
+            let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+            newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
             newSolution <- updateSolution newSolution newSolutionLazy
             newSolutionLazy.Force() |> ignore
             newSolution
@@ -675,61 +689,16 @@ type OlySolution (state: SolutionState) =
     member this.RemoveProject(projectPath) =
         match this.TryGetProject(projectPath) with
         | Some project ->
+            let mutable newSolution = this
+            let newSolutionLazy = lazy newSolution
             let projectsToRemove = 
-                this.GetProjectsDependentOnReference(projectPath).Add(project)
+                newSolution.GetProjectsDependentOnReference(projectPath).Add(project)
                 |> ImArray.map (fun x -> x.Path)
-
-            let mutable newSolution = this
-            let newSolutionLazy = lazy newSolution
-            let newProjects = state.projects.RemoveRange(projectsToRemove)
-            newSolution <- { state with projects = newProjects } |> OlySolution
+            let newProjects = newSolution.State.projects.RemoveRange(projectsToRemove)
+            newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
             newSolution <- updateSolution newSolution newSolutionLazy
             newSolutionLazy.Force() |> ignore
             newSolution
-        | _ ->
-            this
-
-    member this.InvalidateDependentProjectsOn(projectPath) =
-        match this.TryGetProject(projectPath) with
-        | Some _ ->
-            let projectsToInvalidate = 
-                this.GetProjectsDependentOnReference(projectPath)
-                |> ImArray.map (fun x -> x.Path)
-
-            let mutable newSolution = this
-            let newSolutionLazy = lazy newSolution
-            let newProjects =
-                (state.projects, projectsToInvalidate)
-                ||> ImArray.fold (fun projects x -> 
-                    projects.SetItem(x, projects[x].InvalidateReferences(newSolutionLazy))
-                )
-            newSolution <- { state with projects = newProjects } |> OlySolution
-            newSolution <- updateSolution newSolution newSolutionLazy
-            newSolutionLazy.Force() |> ignore
-            newSolution
-        | _ ->
-            this
-
-    member this.InvalidateProject(projectPath) =
-        match this.TryGetProject(projectPath) with
-        | Some projectToInvalidate ->
-            let projectDoc = projectToInvalidate.DocumentLookup[projectToInvalidate.Path]
-            let mutable newSolution = this
-            let newSolutionLazy = lazy newSolution
-            let newProjects = 
-                state.projects.SetItem(
-                    projectToInvalidate.Path, 
-                    projectToInvalidate.UpdateDocument(
-                        newSolutionLazy, 
-                        projectDoc.Path, 
-                        projectToInvalidate.Compilation.GetSyntaxTree(projectDoc.Path),
-                        projectDoc.ExtraDiagnostics
-                    ) |> fst
-                )
-            newSolution <- { state with projects = newProjects } |> OlySolution
-            newSolution <- updateSolution newSolution newSolutionLazy
-            newSolutionLazy.Force() |> ignore
-            newSolution.InvalidateDependentProjectsOn(projectPath)
         | _ ->
             this
 
@@ -1191,10 +1160,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
-                        solution.GetDocuments(documentPath)
-                        |> ImArray.iter (fun doc ->
-                            solution <- solution.InvalidateDependentProjectsOn(doc.Project.Path)
-                        )
                     with
                     | _ ->
                         solution <- prevSolution
@@ -1212,10 +1177,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             ct.ThrowIfCancellationRequested()
                             do! checkProjectsThatContainDocument rs documentPath ct
                             do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
-                            solution.GetDocuments(documentPath)
-                            |> ImArray.iter (fun doc ->
-                                solution <- solution.InvalidateDependentProjectsOn(doc.Project.Path)
-                            )
                         with
                         | _ ->
                             solution <- prevSolution
@@ -1234,10 +1195,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
                         let docs = solution.GetDocuments(documentPath)
                         reply.Reply(docs)
-                        docs
-                        |> ImArray.iter (fun doc ->
-                            solution <- solution.InvalidateDependentProjectsOn(doc.Project.Path)
-                        )
                     with
                     | _ ->
                         solution <- prevSolution

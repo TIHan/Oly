@@ -711,7 +711,8 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
 
 let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (argExprs: E imarray) =
     let argTys = caller.LogicalType.FunctionArgumentTypes
-    if argTys.Length = argExprs.Length then              
+    if argTys.Length = argExprs.Length then       
+        let env = env.SetReturnable(false).SetPassedAsArgument(false)
         (argTys, argExprs)
         ||> ImArray.mapi2 (fun i argTy argExpr ->
             let parAttrs =
@@ -762,7 +763,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
         let argTys = value.LogicalType.FunctionArgumentTypes
 
         let newArgExprs =
-            let env = env.SetReturnable(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(false)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -791,7 +792,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
     | E.NewArray(syntaxExpr, benv, argExprs, exprTy) when not argExprs.IsEmpty ->
         let expectedArgTyOpt = Some exprTy.FirstTypeArgument
         let newArgExprs =         
-            let env = env.SetReturnable(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(false)
             argExprs
             |> ImArray.map (fun argExpr ->
                 checkArgumentExpression cenv env TypeChecking.Enabled expectedArgTyOpt argExpr
@@ -801,7 +802,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
     | E.NewTuple(syntaxInfo, argExprs, exprTy) ->
         OlyAssert.True(argExprs.Length > 1)
         let newArgExprs =       
-            let env = env.SetReturnable(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(false)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -826,7 +827,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 tyChecking
 
         let newArgExprs =
-            let env = env.SetReturnable(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(false)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -841,8 +842,10 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                     | _ -> ImArray.empty
 
                 argExpr.RewriteReturningTargetExpression(fun x ->
-                    checkCalleeArgumentExpression cenv env tyChecking value parAttrs expectedArgTy x
-                    |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
+                    let result =
+                        checkCalleeArgumentExpression cenv env tyChecking value parAttrs expectedArgTy x
+                        |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
+                    result
                 )
             )
 

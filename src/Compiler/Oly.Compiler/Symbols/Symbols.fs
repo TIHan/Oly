@@ -3627,8 +3627,7 @@ type TypeSymbol =
         | Variable(tyPar)
         | HigherVariable(tyPar, _)
         | InferenceVariable(Some tyPar, _)
-        | HigherInferenceVariable(Some tyPar, _, _, _)
-        | Error(tyParOpt = Some tyPar) -> tyPar.Arity
+        | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.TypeParameters.Length
         | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 
@@ -3648,8 +3647,7 @@ type TypeSymbol =
         | Variable(tyPar)
         | HigherVariable(tyPar, _)
         | InferenceVariable(Some tyPar, _)
-        | HigherInferenceVariable(Some tyPar, _, _, _)
-        | Error(tyParOpt = Some tyPar) -> tyPar.Arity
+        | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.LogicalTypeParameterCount
         | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 

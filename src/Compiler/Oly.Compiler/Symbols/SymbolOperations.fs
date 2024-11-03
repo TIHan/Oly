@@ -151,7 +151,7 @@ type TypeVariableRigidity =
 
 // --------------------------------------------------------------------------------------------------------------------
 
-let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs (externalSolution: VariableSolutionSymbol) (solution: VariableSolutionSymbol) (ty2: TypeSymbol) =
+let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) (tyArgs: TypeSymbol imarray) (externalSolution: VariableSolutionSymbol) (solution: VariableSolutionSymbol) (ty2: TypeSymbol) =
     let result0 =
         if externalSolution.HasSolution then
             let ty1 = externalSolution.Solution
@@ -160,6 +160,8 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) tyArgs
             true
 
     if result0 then
+        OlyAssert.Equal(tyArgs.Length, ty2.LogicalTypeArguments.Length)
+
         let result =
             (tyArgs, ty2.LogicalTypeArguments)
             ||> ImArray.forall2 (fun ty1 ty2 ->
@@ -1228,7 +1230,7 @@ type TypeSymbol with
         static member DistinctByGeneralization(tys: TypeSymbol seq) =
             HashSet(tys, TypeSymbolGeneralizedComparer()) :> _ seq
 
-        member this.LogicalTypeArguments =
+        member this.LogicalTypeArguments : TypeSymbol imarray =
             match this with
             | TypeSymbol.Entity(ent) -> ent.LogicalTypeArguments
             | _ -> this.TypeArguments

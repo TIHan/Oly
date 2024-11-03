@@ -754,6 +754,52 @@ class Test =
     |> ignore
 
 [<Fact>]
+let ``Should not crash with an unknown indexer``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+// Immutable array
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+// Mutable array
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+main(): () =
+    if (Data[0].Value == Data[0])
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Identifier 'Data' not found in scope.",
+                """
+    if (Data[0].Value == Data[0])
+        ^^^^
+"""
+            )
+            ("Identifier 'Data' not found in scope.",
+                """
+    if (Data[0].Value == Data[0])
+                         ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Should get documentation summary for type``() =
     let src =
         """
