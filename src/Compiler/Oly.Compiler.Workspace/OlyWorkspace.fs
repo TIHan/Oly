@@ -757,6 +757,11 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
     member private this.State = state
 
+    member private this.HasResourceChanged(filePath: OlyPath, dt: DateTime): bool =
+        match state.files.TryGetValue filePath with
+        | true, (_, _, storedDt) -> storedDt <> dt
+        | _ -> true
+
     member _.TextEditors = state.textEditors
 
     member this.GetDeltaEvents(prevRs: OlyWorkspaceResourceSnapshot) =
@@ -779,16 +784,19 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
     member this.SetResourceAsCopy(filePath: OlyPath) =       
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
-        let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
-        try
-            this.SetResourceAsCopy(filePath, streamToCopy, dt)
-        finally
-            streamToCopy.Dispose()
+        if this.HasResourceChanged(filePath, dt) then
+            let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
+            try
+                this.SetResourceAsCopy(filePath, streamToCopy, dt)
+            finally
+                streamToCopy.Dispose()
+        else
+            this
 
     member this.SetResourceAsCopy(filePath: OlyPath, stream: Stream) =
         this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
 
-    member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime) =
+    member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
         let origLength = streamToCopy.Length - streamToCopy.Position
         let length =
             if origLength = 0 then
@@ -803,7 +811,7 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         finally
             view.Dispose()
 
-    member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime) =
+    member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
         OlyWorkspaceResourceSnapshot(
             { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = DateTime.UtcNow },
             activeConfigPath

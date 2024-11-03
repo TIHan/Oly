@@ -172,6 +172,10 @@ type OlyPath private (path: string) =
         OlyPath.Normalize(path)
         |> OlyPath
 
+    static member CreateAbsolute(path: string) =
+        Path.GetFullPath(path)
+        |> OlyPath.Create
+
 [<Sealed>]
 type OlyPathEqualityComparer private () =
 
