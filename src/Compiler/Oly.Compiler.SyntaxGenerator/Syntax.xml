@@ -841,10 +841,6 @@
       <Field name="name">SyntaxName</Field>
       <Field name="arg">SyntaxExpression</Field>
     </Case>
-	<Case name="Throw">
-	  <Field name="throwToken">SyntaxToken</Field>
-	  <Field name="arg">SyntaxExpression</Field>
-	</Case>
 	<Case name="Indexer">
 	  <Field name="lhsExpr">SyntaxExpression</Field>
       <Field name="brackets">SyntaxExpression SyntaxSeparatorList SyntaxBrackets</Field>
@@ -932,6 +928,12 @@
       <Field name="rightArrowToken">SyntaxToken</Field>
       <Field name="body">SyntaxExpression</Field>
     </Case>
+	<Case name="Type">
+	  <Field name="typeToken">SyntaxToken</Field>
+	  <Field name="leftParenToken">SyntaxToken</Field>
+	  <Field name="ty">SyntaxType</Field>
+	  <Field name="rightParenToken">SyntaxToken</Field>
+	</Case>
     <Case name="Error">
       <Field name="token">SyntaxToken</Field>
     </Case>

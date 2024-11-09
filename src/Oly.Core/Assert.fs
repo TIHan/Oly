@@ -97,6 +97,12 @@ type OlyAssert =
         |> raise
 
     [<DebuggerHidden>]
+    [<MethodImpl(MethodImplOptions.NoInlining)>]
+    static member Unreached() =
+        OlyAssertionException "Should not be reached"
+        |> raise
+
+    [<DebuggerHidden>]
     [<Conditional("DEBUG")>]
     [<Conditional("CHECKED")>]
     [<MethodImpl(MethodImplOptions.NoInlining)>]

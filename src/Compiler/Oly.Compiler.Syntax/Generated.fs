@@ -3703,13 +3703,6 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|Throw|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxExpression ) option =
-        match node.Internal with
-        | SyntaxExpression.Throw _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
-        | _ ->
-            Option.None
-
     let (|Indexer|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxExpression OlySyntaxSeparatorList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxExpression.Indexer _ ->
@@ -3818,6 +3811,13 @@ module OlySyntaxExpression =
     let (|Lambda|_|) (node: OlySyntaxExpression) : ( OlySyntaxLambdaKind * OlySyntaxParameters * OlySyntaxToken * OlySyntaxExpression ) option =
         match node.Internal with
         | SyntaxExpression.Lambda _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
+        | _ ->
+            Option.None
+
+    let (|Type|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxType * OlySyntaxToken ) option =
+        match node.Internal with
+        | SyntaxExpression.Type _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
         | _ ->
             Option.None

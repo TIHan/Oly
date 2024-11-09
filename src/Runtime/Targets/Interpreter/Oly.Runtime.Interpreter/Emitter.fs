@@ -12,6 +12,13 @@ open Oly.Metadata
 open Oly.Runtime
 open Oly.Runtime.CodeGen
 
+type InterpreterUnit =
+
+    static let singleton = InterpreterUnit()
+    static member Singleton = singleton
+
+    private new() = { }
+
 [<Sealed>]
 type InterpreterEnvironment(stdout: TextWriter) =
 
@@ -60,9 +67,7 @@ type InterpreterType =
     | Tuple of elementTys: InterpreterType imarray
     | ReferenceCell of elementTy: InterpreterType
     | Function of parTys: InterpreterType imarray * returnTy: InterpreterType
-    | BaseObject
-    | BaseStruct
-    | BaseStructEnum
+    | Object
     | LiteralInt32 of value: int32
 
     | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * info: InterpreterTypeDefinitionInfo
@@ -98,8 +103,6 @@ type InterpreterType =
         | Char16 
         | Unit
         | Tuple _ 
-        | BaseStruct 
-        | BaseStructEnum
         | LiteralInt32 _ -> true
         | Custom(isStruct=isStruct;info=info) -> 
             if isStruct then
@@ -188,6 +191,56 @@ type InterpreterType =
         match this with
         | Custom(info=info) -> info
         | _ -> OlyAssert.Fail("Expected a type definition.")
+
+    static member GetTypeOf(o: obj) =
+        if isNull(o) then
+            raise(NotSupportedException("Getting type of 'null'."))
+        else
+            match o with
+            | :? uint8 -> InterpreterType.UInt8
+            | :? int8 -> InterpreterType.Int8
+            | :? uint16 -> InterpreterType.UInt16
+            | :? int16 -> InterpreterType.Int16
+            | :? uint32 -> InterpreterType.UInt32
+            | :? int32 -> InterpreterType.Int32
+            | :? uint64 -> InterpreterType.UInt64
+            | :? int64 -> InterpreterType.Int64
+            | :? float32 -> InterpreterType.Float32
+            | :? float -> InterpreterType.Float64
+            | :? bool -> InterpreterType.Bool
+            | :? char -> InterpreterType.Char16
+            | :? InterpreterUnit -> InterpreterType.Unit
+            | :? InterpreterInstanceOfType as instance ->
+                instance.Type
+            | _ ->
+                OlyAssert.Fail("Invalid instance of an object to acquire type.")
+
+    member this.IsSuperTypeOf(o: obj) =
+        if isNull(o) then false
+        else
+            let ty = InterpreterType.GetTypeOf(o)
+            this.IsSuperTypeOf(ty)
+
+    member this.IsSuperTypeOf(ty: InterpreterType) =
+        match this with
+        | Object -> true
+        | _ ->
+            if obj.ReferenceEquals(this, ty) then
+                true
+            else
+                match this, ty with
+                | Custom _, Custom(info=info) ->
+                    info.inherits
+                    |> ImArray.exists (fun x ->
+                        this.IsSuperTypeOf(x)
+                    )
+                    ||
+                    info.implements
+                    |> ImArray.exists (fun x ->
+                        this.IsSuperTypeOf(x)
+                    )
+                | _ -> 
+                    false
 
 [<NoEquality;NoComparison>]
 type InterpreterField = InterpreterField of declaringTy: InterpreterType * name: string * ty: InterpreterType * constValueOpt: obj option * staticFieldValueOpt: obj option ref with
@@ -1055,7 +1108,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterValue.ArgumentAddress(n, _, _) ->
                 stack.Push(InterpreterByReferenceOfArgument(args, n))
             | InterpreterValue.Unit _ ->
-                stack.Push("()")
+                stack.Push(InterpreterUnit.Singleton)
             | InterpreterValue.Null _ ->
                 stack.Push(null)
             | InterpreterValue.Default(resultTy) ->
@@ -1143,6 +1196,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
 
             | InterpreterOperation.Cast(argExpr, resultTy) ->
                 stack.Push(this.HandleCast(evalArg stack argExpr, resultTy))
+
+            | InterpreterOperation.Is(argExpr, targetTy, _) ->
+                stack.Push(targetTy.IsSuperTypeOf(evalArg stack argExpr))
 
             | InterpreterOperation.Add(argExpr1, argExpr2, _) ->
                 stack.Push(this.HandleAdd(evalArg stack argExpr1, evalArg stack argExpr2))
@@ -1866,7 +1922,7 @@ type InterpreterRuntimeEmitter(stdout) =
             InterpreterType.LiteralInt32(value)
 
         member this.EmitTypeBaseObject(): InterpreterType = 
-            InterpreterType.BaseObject
+            InterpreterType.Object
 
         member this.EmitTypeRefCell(ty: InterpreterType): InterpreterType = 
             InterpreterType.ReferenceCell(ty)
@@ -1911,5 +1967,5 @@ type InterpreterRuntimeEmitter(stdout) =
             raise(System.NotImplementedException())
 
         member this.EmitTypeArray(elementTy, _, _) =
-            InterpreterType.BaseObject // TODO:
+            InterpreterType.Object // TODO:
 

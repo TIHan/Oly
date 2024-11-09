@@ -892,7 +892,6 @@ type OlyILOperation =
 
     | Print of arg: OlyILExpression
     | Throw of arg: OlyILExpression * resultTy: OlyILType
-    | Cast of arg: OlyILExpression * resultTy: OlyILType
 
     | Store of n: int32 * arg: OlyILExpression
     | StoreArgument of n: int32 * arg: OlyILExpression
@@ -908,6 +907,7 @@ type OlyILOperation =
     | StoreArrayElement of receiver: OlyILExpression * indexArgs: OlyILExpression imarray * arg: OlyILExpression
     | LoadArrayLength of receiver: OlyILExpression
 
+    /// TODO: Rename to 'LoadTupleItem'.
     | LoadTupleElement of arg: OlyILExpression * index: int32
 
     | LoadFunction of OlyILFunctionInstance * arg: OlyILExpression
@@ -921,7 +921,10 @@ type OlyILOperation =
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
+    | Cast of arg: OlyILExpression * resultTy: OlyILType
     | Witness of body: OlyILExpression * witnessArg: OlyILType * ty: OlyILType
+    | Is of arg: OlyILExpression * targetTy: OlyILType
+
     | Ignore of arg: OlyILExpression
 
 [<Sealed>]

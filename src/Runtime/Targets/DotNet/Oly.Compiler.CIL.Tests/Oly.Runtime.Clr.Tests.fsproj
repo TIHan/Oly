@@ -25,6 +25,8 @@
     <Compile Include="ReferenceTests.fs" />
     <Compile Include="PatternMatchStressTests.fs" />
     <Compile Include="ClrSpecificTests.fs" />
+    <Compile Include="Conformance\IsOperatorTests.fs" />
+    <Compile Include="DotNet\Conformance\IsOperatorTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -3441,11 +3441,6 @@ type SyntaxExpression =
         name: SyntaxName *
         arg: SyntaxExpression *
         fullWidth: int
-    | Throw
-        of
-        throwToken: SyntaxToken *
-        arg: SyntaxExpression *
-        fullWidth: int
     | Indexer
         of
         lhsExpr: SyntaxExpression *
@@ -3545,6 +3540,13 @@ type SyntaxExpression =
         rightArrowToken: SyntaxToken *
         body: SyntaxExpression *
         fullWidth: int
+    | Type
+        of
+        typeToken: SyntaxToken *
+        leftParenToken: SyntaxToken *
+        ty: SyntaxType *
+        rightParenToken: SyntaxToken *
+        fullWidth: int
     | Error
         of
         token: SyntaxToken
@@ -3616,11 +3618,6 @@ type SyntaxExpression =
             | PrefixCall(name, arg, _) ->
                 match index with
                 | 0 -> name :> ISyntaxNode
-                | 1 -> arg :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | Throw(throwToken, arg, _) ->
-                match index with
-                | 0 -> throwToken :> ISyntaxNode
                 | 1 -> arg :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | Indexer(lhsExpr, brackets, _) ->
@@ -3726,6 +3723,13 @@ type SyntaxExpression =
                 | 2 -> rightArrowToken :> ISyntaxNode
                 | 3 -> body :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Type(typeToken, leftParenToken, ty, rightParenToken, _) ->
+                match index with
+                | 0 -> typeToken :> ISyntaxNode
+                | 1 -> leftParenToken :> ISyntaxNode
+                | 2 -> ty :> ISyntaxNode
+                | 3 -> rightParenToken :> ISyntaxNode
+                | _ -> failwith "invalid slot"
             | Error(token) ->
                 match index with
                 | 0 -> token :> ISyntaxNode
@@ -3745,7 +3749,6 @@ type SyntaxExpression =
             | Call _ -> 2
             | InfixCall _ -> 3
             | PrefixCall _ -> 2
-            | Throw _ -> 2
             | Indexer _ -> 2
             | Name _ -> 1
             | Literal _ -> 1
@@ -3762,6 +3765,7 @@ type SyntaxExpression =
             | MemberAccess _ -> 3
             | Mutate _ -> 3
             | Lambda _ -> 4
+            | Type _ -> 4
             | Error _ -> 1
             | None _ -> 0
 
@@ -3786,8 +3790,6 @@ type SyntaxExpression =
             | InfixCall(fullWidth=fullWidth) ->
                 fullWidth
             | PrefixCall(fullWidth=fullWidth) ->
-                fullWidth
-            | Throw(fullWidth=fullWidth) ->
                 fullWidth
             | Indexer(fullWidth=fullWidth) ->
                 fullWidth
@@ -3820,6 +3822,8 @@ type SyntaxExpression =
             | Mutate(fullWidth=fullWidth) ->
                 fullWidth
             | Lambda(fullWidth=fullWidth) ->
+                fullWidth
+            | Type(fullWidth=fullWidth) ->
                 fullWidth
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth

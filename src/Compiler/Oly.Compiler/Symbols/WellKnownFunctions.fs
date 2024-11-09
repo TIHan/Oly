@@ -97,6 +97,11 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 else 
                     true
 
+            | WellKnownFunction.Is ->
+                if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 1 then false
+                else
+                    areTypesEqual func.ReturnType TypeSymbol.Bool && areTypesEqual func.Parameters[0].Type TypeSymbol.BaseObject
+
             | WellKnownFunction.Ignore ->
                 if func.Parameters.Length <> 1 then false
                 else
@@ -545,9 +550,10 @@ let StoreRefCellContents =
     let returnTy = TypeSymbol.Unit
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_store_ref_cell_contents" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.StoreRefCellContents None false
 
+/// TODO: Rename to 'LoadTupleItem'.
 let LoadTupleElement =
-    // __oly_load_tuple_element<N, T...>(__oly_tuple<T...>): T...[N] where N: constant __oly_int32
-    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("get_tuple_element"))
+    // __oly_load_tuple_element<N, T...>(__oly_tuple<T...>): T...[N] where N: constant __oly_int32 /// TODO: Rename to 'get_tuple_item'.
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("get_tuple_element")) /// TODO: Rename to 'get_tuple_item'.
     let tyParNConstrs =
         ConstraintSymbol.ConstantType(Lazy.CreateFromValue TypeSymbol.Int32)
         |> ImArray.createOne
@@ -561,6 +567,7 @@ let LoadTupleElement =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.Tuple(ImArray.createOne tyPars[1].AsType, ImArray.empty), false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.DependentIndexer(tyPars[0].AsType, tyPars[1].AsType)
+    /// TODO: Rename to '__oly_load_tuple_item'.
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_tuple_element" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.GetTupleElement None false
 
 let PrintFunction =

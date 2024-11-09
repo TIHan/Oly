@@ -369,19 +369,23 @@ module rec ClrCodeGen =
     type g =
         {
             ``ValueTuple``:   ClrTypeInfo
+            ``ValueTuple`1``: ClrTypeInfo
             ``ValueTuple`2``: ClrTypeInfo
             ``ValueTuple`3``: ClrTypeInfo
             ``ValueTuple`4``: ClrTypeInfo
             ``ValueTuple`5``: ClrTypeInfo
             ``ValueTuple`6``: ClrTypeInfo
             ``ValueTuple`7``: ClrTypeInfo
+            ``ValueTuple`8``: ClrTypeInfo
 
+            ``ValueTuple`1_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`2_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`3_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`4_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`5_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`6_GetItemFields``: ClrFieldHandle imarray
             ``ValueTuple`7_GetItemFields``: ClrFieldHandle imarray
+            ``ValueTuple`8_GetItemFields``: ClrFieldHandle imarray
 
             ``Object_.ctor``: ClrMethodHandle
 
@@ -1019,6 +1023,12 @@ module rec ClrCodeGen =
             | _ ->
                 emitConv cenv castToTy     
 
+        | O.Is(irArg, targetTy, _) ->
+            GenArgumentExpression cenv env irArg
+            I.Isinst targetTy.Handle |> emitInstruction cenv
+            I.Ldnull |> emitInstruction cenv
+            I.Cgt_un |> emitInstruction cenv
+
         | O.Throw(irArg, _) ->
             GenArgumentExpression cenv env irArg
             I.Throw |> emitInstruction cenv
@@ -1191,7 +1201,9 @@ module rec ClrCodeGen =
                     let formalTyHandle = formalTy.Handle
                     let g = cenv.g
 
-                    if formalTyHandle = g.``ValueTuple`2``.Handle then
+                    if formalTyHandle = g.``ValueTuple`1``.Handle then
+                        g.``ValueTuple`1_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`2``.Handle then
                         g.``ValueTuple`2_GetItemFields``[index]
                     elif formalTyHandle = g.``ValueTuple`3``.Handle then
                         g.``ValueTuple`3_GetItemFields``[index]
@@ -1203,6 +1215,8 @@ module rec ClrCodeGen =
                         g.``ValueTuple`6_GetItemFields``[index]
                     elif formalTyHandle = g.``ValueTuple`7``.Handle then
                         g.``ValueTuple`7_GetItemFields``[index]
+                    elif formalTyHandle = g.``ValueTuple`8``.Handle then
+                        g.``ValueTuple`8_GetItemFields``[index]
                     else
                         failwith "Invalid LoadTupleItem"
                 | _ ->
@@ -1285,11 +1299,23 @@ module rec ClrCodeGen =
             I.Ldflda irField.EmittedField.Handle |> emitInstruction cenv
 
         | O.NewTuple(itemTys, irArgs, _) ->
+            OlyAssert.Equal(itemTys.Length, irArgs.Length)
+
             irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
-            let tyArgs =
-                itemTys
-                |> ImArray.map (fun x -> x.Handle)
-            I.Newobj(cenv.assembly.AddValueTupleConstructor(tyArgs), irArgs.Length) |> emitInstruction cenv
+
+            let rec emitNewTuple (itemTys: ClrTypeHandle imarray) isRest =
+                if (itemTys.Length > 8) || (not isRest && itemTys.Length = 8) then
+                    let take7 = itemTys |> ImArray.take 7
+                    let skip7 = itemTys |> ImArray.skip 7
+                    let skip7Handle = emitNewTuple skip7 false
+                    emitNewTuple (take7.Add(skip7Handle)) true
+                else
+                    let tyHandle, methHandle = cenv.assembly.AddValueTupleConstructor(itemTys)
+                    I.Newobj(methHandle, itemTys.Length) |> emitInstruction cenv
+                    tyHandle
+
+            emitNewTuple (itemTys |> ImArray.map (fun x -> x.Handle)) false
+            |> ignore
             
         | O.NewMutableArray(elementTy, irSizeArgExpr, _) ->
             GenArgumentExpression cenv env irSizeArgExpr
@@ -2190,22 +2216,32 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | None -> failwith "System.ValueTuple not found."
             | Some(result) ->
 
+            let ``ValueTuple`` = vm.TryFindType("System.ValueTuple", 0).Value
+            let ``ValueTuple`1`` = vm.TryFindType("System.ValueTuple", 1).Value
             let ``ValueTuple`2`` = result
             let ``ValueTuple`3`` = vm.TryFindType("System.ValueTuple", 3).Value
             let ``ValueTuple`4`` = vm.TryFindType("System.ValueTuple", 4).Value
             let ``ValueTuple`5`` = vm.TryFindType("System.ValueTuple", 5).Value
             let ``ValueTuple`6`` = vm.TryFindType("System.ValueTuple", 6).Value
             let ``ValueTuple`7`` = vm.TryFindType("System.ValueTuple", 7).Value
-            let ``ValueTuple`` = vm.TryFindType("System.ValueTuple", 0).Value
+            let ``ValueTuple`8`` = vm.TryFindType("System.ValueTuple", 8).Value
 
             let createTuple_GetItemField count index =
                 vm.TryFindField("System.ValueTuple", count, $"Item{index + 1}").Value.Handle
 
             let createTuple_GetItemFields count =
-                ImArray.init count
-                    (fun i ->
-                        createTuple_GetItemField count i
-                    )
+                if count = 8 then
+                    let fields =
+                        ImArray.init 7
+                            (fun i ->
+                                createTuple_GetItemField count i
+                            )
+                    fields.Add(vm.TryFindField("System.ValueTuple", count, $"Rest").Value.Handle)
+                else
+                    ImArray.init count
+                        (fun i ->
+                            createTuple_GetItemField count i
+                        )
 
             let objectCtor =
                 match vm.TryFindFunction(("System.Object", 0), ".ctor", 0, ImArray.empty, ("System.Void", 0), OlyFunctionKind.Instance) with
@@ -2221,26 +2257,34 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             g <-
                 {
                     ``ValueTuple`` = ``ValueTuple``
+                    ``ValueTuple`1`` = ``ValueTuple`1``
                     ``ValueTuple`2`` = ``ValueTuple`2``
                     ``ValueTuple`3`` = ``ValueTuple`3``
                     ``ValueTuple`4`` = ``ValueTuple`4``
                     ``ValueTuple`5`` = ``ValueTuple`5``
                     ``ValueTuple`6`` = ``ValueTuple`6``
                     ``ValueTuple`7`` = ``ValueTuple`7``
+                    ``ValueTuple`8`` = ``ValueTuple`8``
 
+                    ``ValueTuple`1_GetItemFields`` = createTuple_GetItemFields 1
                     ``ValueTuple`2_GetItemFields`` = createTuple_GetItemFields 2
                     ``ValueTuple`3_GetItemFields`` = createTuple_GetItemFields 3
                     ``ValueTuple`4_GetItemFields`` = createTuple_GetItemFields 4
                     ``ValueTuple`5_GetItemFields`` = createTuple_GetItemFields 5
                     ``ValueTuple`6_GetItemFields`` = createTuple_GetItemFields 6
                     ``ValueTuple`7_GetItemFields`` = createTuple_GetItemFields 7
+                    ``ValueTuple`8_GetItemFields`` = createTuple_GetItemFields 8
 
                     ``Object_.ctor`` = objectCtor
                     ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
                 } : ClrCodeGen.g
 
-        member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _): ClrTypeInfo =
-            ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
+        member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, kind): ClrTypeInfo =
+            match kind with
+            | OlyIRArrayKind.Mutable ->
+                ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
+            | OlyIRArrayKind.Immutable ->
+                ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false) 
 
         member this.EmitTypeNativeInt(): ClrTypeInfo = 
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceIntPtr, false, true)
@@ -2346,18 +2390,34 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeUtf16() =
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceString, true, false)
 
-        member this.EmitTypeTuple(itemTys, _) =   
-            let formalTy =
-                match itemTys.Length with
-                | 2 -> g.``ValueTuple`2``
-                | 3 -> g.``ValueTuple`3``
-                | 4 -> g.``ValueTuple`4``
-                | 5 -> g.``ValueTuple`5``
-                | 6 -> g.``ValueTuple`6``
-                | 7 -> g.``ValueTuple`7``
-                | count -> raise(NotSupportedException($"Tuple of {count}"))
+        member this.EmitTypeTuple(itemTys, _) =
+            OlyAssert.True(itemTys.Length > 1)
 
-            createTypeGenericInstance formalTy itemTys
+            // TODO: Should we cache these?
+            let rec emitTypeTuple (itemTys: ClrTypeInfo imarray) =
+                let itemTys =
+                    if itemTys.Length >= 8 then
+                        let take7 = itemTys |> ImArray.take 7
+                        take7.Add(emitTypeTuple (itemTys |> ImArray.skip 7))
+                    else
+                        itemTys
+
+                let formalTy =
+                    match itemTys.Length with
+                    | 1 -> g.``ValueTuple`1``
+                    | 2 -> g.``ValueTuple`2``
+                    | 3 -> g.``ValueTuple`3``
+                    | 4 -> g.``ValueTuple`4``
+                    | 5 -> g.``ValueTuple`5``
+                    | 6 -> g.``ValueTuple`6``
+                    | 7 -> g.``ValueTuple`7``
+                    | 8 -> g.``ValueTuple`8``
+                    | _ -> OlyAssert.Unreached()
+
+                // TODO: Cache these as to avoid duplicates. Could we do anything in the VM?
+                createTypeGenericInstance formalTy itemTys
+
+            emitTypeTuple itemTys
 
         member this.EmitTypeConstantInt32 _ = raise (System.NotSupportedException())
 

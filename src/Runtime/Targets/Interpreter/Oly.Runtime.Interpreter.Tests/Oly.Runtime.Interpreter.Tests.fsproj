@@ -17,6 +17,8 @@
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\ReferenceTests.fs" Link="ReferenceTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\SampleProgramTests.fs" Link="SampleProgramTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\PatternMatchStressTests.fs" Link="PatternMatchStressTests.fs" />
+    <Folder Include="Conformance\" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Conformance\IsOperatorTests.fs" Link="Conformance\IsOperatorTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Program.fs" Link="Program.fs" />
   </ItemGroup>
 
@@ -37,5 +39,7 @@
     <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
     <ProjectReference Include="..\..\Interpreter\Oly.Runtime.Interpreter\Oly.Runtime.Interpreter.fsproj" />
   </ItemGroup>
+
+  <ItemGroup />
 
 </Project>

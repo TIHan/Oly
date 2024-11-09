@@ -1113,6 +1113,9 @@ module OlySyntaxTreeExtensions =
         member this.IsNew =
             this.Internal.RawToken = Token.New
 
+        member this.IsIs =
+            this.Internal.RawToken = Token.Is
+
         member this.IsTrueToken =
             this.Internal.RawToken = Token.True
 

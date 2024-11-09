@@ -20372,3 +20372,236 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "00"
+
+[<Fact>]
+let ``Using 'is' should work``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+main(): () =
+    let x = 1: int32
+    let y = x: object
+ 
+    print(x is type(object))
+    print(x is type(int32))
+    print(y is type(int32))
+    print(y is type(object))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "TrueTrueTrueTrue"
+
+[<Fact>]
+let ``Using 'is' should work 2``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+main(): () =
+    print(null is type(object))
+    print(null is type(int32))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "FalseFalse"
+
+[<Fact>]
+let ``Using 'is' should work 3``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+interface IA
+
+class A =
+    implements IA
+
+main(): () =
+    let a = A()
+    print(a is type(A))
+    print(a is type(IA))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "TrueTrue"
+
+[<Fact>]
+let ``Using 'is' should work 4``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+abstract class BaseA
+
+class A =
+    inherits BaseA
+
+main(): () =
+    let a = A()
+    print(a is type(BaseA))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+
+[<Fact>]
+let ``Using 'is' should work 5``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+interface IA
+
+struct A =
+    implements IA
+
+main(): () =
+    let a = A()
+    print(a is type(A))
+    print(a is type(IA))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "TrueTrue"
+
+[<Fact>]
+let ``Using 'is' should work 6``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+interface IA
+
+struct A =
+    implements IA
+
+newtype NA =
+    field value: A
+
+main(): () =
+    let na = NA(A())
+    print(na is type(A))
+    print(na is type(IA))
+    print(na is type(NA))
+
+    let a = A()
+    print(a is type(NA))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "TrueTrueTrueTrue"
+
+[<Fact>]
+let ``Using 'is' should work 7``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("is")]
+(is)<T>(object): bool
+
+enum E =
+    | A
+    | B
+
+main(): () =
+    let e = E.A
+    print(e is type(int32))
+    print(e is type(E))
+
+    let o = e: object
+    print(o is type(int32))
+    print(o is type(E))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "FalseTrueFalseTrue"

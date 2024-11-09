@@ -799,42 +799,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         createMemRef realHandle name signature
 
-    let createTupleGetItems count =
-        let ty: ClrTypeHandle =
-            match count with
-            | 2 -> this.``TypeReferenceTuple`2``
-            | 3 -> this.``TypeReferenceTuple`3``
-            | 4 -> this.``TypeReferenceTuple`4``
-            | 5 -> this.``TypeReferenceTuple`5``
-            | 6 -> this.``TypeReferenceTuple`6``
-            | 7 -> this.``TypeReferenceTuple`7``
-            | _ -> failwith "Invalid tuple"
-
-        ImArray.init count (fun index ->
-            let itemn = index + 1
-            let signature = BlobBuilder()
-       
-            let mutable encoder = BlobEncoder(signature)
-            let mutable encoder = encoder.MethodSignature(isInstanceMethod = true)
-            encoder.Parameters(
-                0,
-                (fun encoder -> encoder.Type().GenericTypeParameter(index)),
-                (fun encoder -> ())
-            )
-
-            let name = metadataBuilder.GetOrAddString("get_Item" + itemn.ToString())
-            let signature = metadataBuilder.GetOrAddBlob(signature)
-
-            let realHandle =
-                metadataBuilder.AddMemberReference(
-                    ty.EntityHandle,
-                    name,
-                    signature
-                )
-
-            createMemRef realHandle name signature
-        )
-
     let signatureBuilder = BlobBuilder()
 
     member internal _.MetadataBuilder = metadataBuilder
@@ -904,31 +868,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member val ``TypeReferenceFunc`15`` = sysTy "Func`15" false
     member val ``TypeReferenceFunc`16`` = sysTy "Func`16" false
 
-    member val ``TypeReferenceTuple`2`` = sysTy "Tuple`2" false
-    member val ``TypeReferenceTuple`3`` = sysTy "Tuple`3" false
-    member val ``TypeReferenceTuple`4`` = sysTy "Tuple`4" false
-    member val ``TypeReferenceTuple`5`` = sysTy "Tuple`5" false
-    member val ``TypeReferenceTuple`6`` = sysTy "Tuple`6" false
-    member val ``TypeReferenceTuple`7`` = sysTy "Tuple`7" false
-
-    // 8th type parameter is TRest
-    member val ``TypeReferenceTuple`8`` = sysTy "Tuple`8" false
-
-    member val ``Tuple`2_ItemMethods`` = lazy createTupleGetItems 2
-    member val ``Tuple`3_ItemMethods`` = lazy createTupleGetItems 3
-    member val ``Tuple`4_ItemMethods`` = lazy createTupleGetItems 4
-    member val ``Tuple`5_ItemMethods`` = lazy createTupleGetItems 5
-    member val ``Tuple`6_ItemMethods`` = lazy createTupleGetItems 6
-    member val ``Tuple`7_ItemMethods`` = lazy createTupleGetItems 7
-
     member val ``String_Equals`` = lazy createStringEqualsMethod ()
 
+    member val ``TypeReferenceValueTuple`1`` = sysTy "ValueTuple`1" true
     member val ``TypeReferenceValueTuple`2`` = sysTy "ValueTuple`2" true
     member val ``TypeReferenceValueTuple`3`` = sysTy "ValueTuple`3" true
     member val ``TypeReferenceValueTuple`4`` = sysTy "ValueTuple`4" true
     member val ``TypeReferenceValueTuple`5`` = sysTy "ValueTuple`5" true
     member val ``TypeReferenceValueTuple`6`` = sysTy "ValueTuple`6" true
     member val ``TypeReferenceValueTuple`7`` = sysTy "ValueTuple`7" true
+    member val ``TypeReferenceValueTuple`8`` = sysTy "ValueTuple`8" true
 
     member val tr_InAttribute: ClrTypeHandle option = None with get, set
     member val tr_IsReadOnlyAttribute: ClrTypeHandle option = None with get, set
@@ -1479,25 +1428,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member this.AddValueTupleType(tyInst: ClrTypeHandle imarray) =
         match tyInst.Length with
+        | 1 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`1``, tyInst)
         | 2 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`2``, tyInst)
         | 3 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`3``, tyInst)
         | 4 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`4``, tyInst)
         | 5 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`5``, tyInst)
         | 6 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`6``, tyInst)
         | 7 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`7``, tyInst)
+        | 8 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`8``, tyInst)
         | _ ->
-            raise(System.NotSupportedException("Tuple item count larger than 7"))
-
-    member this.AddTupleType(tyInst: ClrTypeHandle imarray) =
-        match tyInst.Length with
-        | 2 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`2``, tyInst)
-        | 3 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`3``, tyInst)
-        | 4 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`4``, tyInst)
-        | 5 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`5``, tyInst)
-        | 6 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`6``, tyInst)
-        | 7 -> this.AddGenericInstanceType(this.``TypeReferenceTuple`7``, tyInst)
-        | _ ->
-            raise(System.NotSupportedException("Tuple item count larger than 7"))
+            raise(System.NotSupportedException("Tuple item count larger than 8 or zero."))
 
     member this.AddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =
         let valueTupleTy = this.AddValueTupleType(tyInst)
@@ -1515,25 +1455,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
-
-    member this.AddTupleConstructor(tyInst: ClrTypeHandle imarray) =
-        let tupleTy = this.AddTupleType(tyInst)
-
-        let methTyInst =
-            ImArray.init tyInst.Length (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
-
-        let name = metadataBuilder.GetOrAddString(".ctor")
-        let signature = this.CreateMethodSignature(SignatureCallingConvention.Default, 0, true, methTyInst, this.TypeReferenceVoid)
-
-        let realHandle =
-            metadataBuilder.AddMemberReference(
-                tupleTy.EntityHandle,
-                name,
-                signature
-            )
-
-        createMemRef realHandle name signature
+        valueTupleTy, createMemRef realHandle name signature
 
     member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct) =
         let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, isStruct, false)
@@ -1964,6 +1886,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Endfinally ->
             il.OpCode(ILOpCode.Endfinally)
 
+        | I.Isinst handle ->
+            il.OpCode(ILOpCode.Isinst)
+            emitTypeToken asmBuilder &il handle
+
         | I.Beq _
         | I.Bge _
         | I.Bge_un _
@@ -2166,6 +2092,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Newobj _ ->
             1 + 4
         | I.Newarr _ ->
+            1 + 4
+        | I.Isinst _ ->
             1 + 4
 
         | I.Ldstr _ ->

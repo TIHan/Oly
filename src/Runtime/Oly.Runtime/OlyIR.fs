@@ -301,7 +301,9 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | Unbox of                      arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Upcast of                     arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Cast of                       arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
+    | Is of                         arg: OlyIRExpression<'Type, 'Function, 'Field> * targetTy: 'Type * resultTy: 'Type
 
+    /// TODO: Rename to 'LoadTupleItem'.
     | LoadTupleElement of           receiver: OlyIRExpression<'Type, 'Function, 'Field> * index: int32 * resultTy: 'Type
 
     | LoadFunction of               func: OlyIRFunction<'Type, 'Function, 'Field> * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
@@ -343,6 +345,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Unbox(arg, _) 
         | Upcast(arg, _)
         | Cast(arg, _)
+        | Is(arg, _, _)
         | LoadRefCellContents(arg, _)
         | LoadRefCellContentsAddress(arg, _, _)
         | LoadFromAddress(arg, _)
@@ -426,6 +429,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Unbox(arg, _) 
         | Upcast(arg, _)
         | Cast(arg, _)
+        | Is(arg, _, _)
         | LoadRefCellContents(arg, _)
         | LoadRefCellContentsAddress(arg, _, _)
         | LoadFromAddress(arg, _)
@@ -527,6 +531,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Unbox(_, _) 
         | Upcast(_, _)
         | Cast(_, _)
+        | Is(_, _, _)
         | LoadRefCellContents(_, _)
         | LoadRefCellContentsAddress _
         | LoadFromAddress(_, _)
@@ -633,6 +638,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             Upcast(newArgs[0], this.ResultType)
         | Cast _ ->
             Cast(newArgs[0], this.ResultType)
+        | Is(_, targetTy, _) ->
+            Is(newArgs[0], targetTy, this.ResultType)
         | LoadRefCellContents _ ->
             LoadRefCellContents(newArgs[0], this.ResultType)
         | LoadRefCellContentsAddress(_, byRefKind, _) ->
@@ -746,6 +753,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Unbox(resultTy=resultTy)
         | Upcast(resultTy=resultTy)
         | Cast(resultTy=resultTy)
+        | Is(resultTy=resultTy)
         | NewArray(resultTy=resultTy) 
         | Ignore(resultTy=resultTy) -> resultTy
 

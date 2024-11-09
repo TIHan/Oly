@@ -331,6 +331,8 @@ type ClrInstruction =
 
     | Throw
 
+    | Isinst of ClrTypeHandle
+
     | Dup
 
     // Branches

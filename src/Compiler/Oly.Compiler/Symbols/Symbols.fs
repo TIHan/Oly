@@ -2049,6 +2049,7 @@ type WellKnownFunction =
     | Throw
     | Cast
     | UnsafeCast
+    | Is
     | Ignore
 
     | BitwiseAnd
@@ -2068,6 +2069,7 @@ type WellKnownFunction =
     | LoadFunctionPtr
     | LoadNullPtr
 
+    /// TODO: Rename to 'GetTupleItem'
     | GetTupleElement
 
     | Import // TODO: this is a little weird as its not really a function or op...
@@ -2077,6 +2079,7 @@ type WellKnownFunction =
         match name with
         | "cast" -> Cast |> Some
         | "unsafe_cast" -> UnsafeCast |> Some
+        | "is" -> Is |> Some
         | "add" -> Add |> Some
         | "subtract" -> Subtract |> Some
         | "multiply" -> Multiply |> Some
