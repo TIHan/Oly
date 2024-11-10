@@ -19,6 +19,7 @@ type ClrMethodSpecialKind =
     | External
     | TypeOf
     | SizeOf
+    | IsSubtypeOf
     | FunctionPointer
     | CreateDelegate
 
@@ -1023,12 +1024,6 @@ module rec ClrCodeGen =
             | _ ->
                 emitConv cenv castToTy     
 
-        | O.Is(irArg, targetTy, _) ->
-            GenArgumentExpression cenv env irArg
-            I.Isinst targetTy.Handle |> emitInstruction cenv
-            I.Ldnull |> emitInstruction cenv
-            I.Cgt_un |> emitInstruction cenv
-
         | O.Throw(irArg, _) ->
             GenArgumentExpression cenv env irArg
             I.Throw |> emitInstruction cenv
@@ -1486,6 +1481,13 @@ module rec ClrCodeGen =
 
         | ClrMethodSpecialKind.SizeOf ->
             I.Sizeof func.tyInst.[0].Handle |> emitInstruction cenv
+
+        | ClrMethodSpecialKind.IsSubtypeOf ->
+            OlyAssert.Equal(func.tyParCount, func.tyInst.Length)
+            OlyAssert.Equal(func.Parameters.Length, irArgs.Length)
+            I.Isinst func.tyInst[0].Handle |> emitInstruction cenv
+            I.Ldnull |> emitInstruction cenv
+            I.Cgt_un |> emitInstruction cenv
 
         | ClrMethodSpecialKind.CreateDelegate when irArgs.Length = 2 && func.tyInst.Length > 0 ->
             
@@ -2279,12 +2281,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
                 } : ClrCodeGen.g
 
-        member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, kind): ClrTypeInfo =
-            match kind with
-            | OlyIRArrayKind.Mutable ->
-                ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)  
-            | OlyIRArrayKind.Immutable ->
-                ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false) 
+        member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _kind): ClrTypeInfo =
+            // Immutable and Mutable arrays are the exact same type.
+            ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)
 
         member this.EmitTypeNativeInt(): ClrTypeInfo = 
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceIntPtr, false, true)
@@ -2349,7 +2348,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
         member this.EmitTypeUnit() =
             g.ValueTuple
-          //  ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceInt32, true, true)
 
         member this.EmitTypeInt8() =
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceSByte, true, true)
@@ -3166,13 +3164,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 match externalInfoOpt with
                 | Some externalInfo when externalInfo.Platform = "intrinsic-CLR" ->
                     match externalInfo.Name with
-                    | "typeof" when pars.Length = 0 && tyPars.Length = 1 ->
+                    | "typeof" when isStatic && pars.Length = 0 && tyPars.Length = 1 ->
                         ClrMethodSpecialKind.TypeOf
-                    | "sizeof" when pars.Length = 0 && tyPars.Length = 1 ->
+                    | "sizeof" when isStatic && pars.Length = 0 && tyPars.Length = 1 ->
                         ClrMethodSpecialKind.SizeOf
-                    | "__ldftn" ->
+                    | "is" when isStatic && pars.Length = 1 && tyPars.Length = 1 &&
+                            ((pars[0] |> snd).Handle = asmBuilder.TypeReferenceObject) &&
+                            returnTy.Handle = asmBuilder.TypeReferenceBoolean ->
+                        ClrMethodSpecialKind.IsSubtypeOf
+                    | "__ldftn" when isStatic ->
                         ClrMethodSpecialKind.FunctionPointer
-                    | "CreateDelegate" ->
+                    | "CreateDelegate" when isStatic ->
                         ClrMethodSpecialKind.CreateDelegate
                     | _ ->
                         failwith "Invalid CLR intrinsic"

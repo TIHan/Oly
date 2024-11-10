@@ -1457,12 +1457,13 @@ assert(condition: bool): () =
 #if DOTNET
 module DotNet =
 
-    /// Performs a forced garbage collection of all generations as well as compacting the large-object-heap.
-    /// This will also wait for pending finalizers.
-    GCCollect(): () =
-        System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
-        System.GC.Collect(2, System.GCCollectionMode.Forced, true, true)
-        System.GC.WaitForPendingFinalizers()
+    module GC =
+        /// Performs a forced garbage collection of all generations as well as compacting the large-object-heap.
+        /// This will also wait for pending finalizers.
+        Collect(): () =
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+            System.GC.Collect(2, System.GCCollectionMode.Forced, true, true)
+            System.GC.WaitForPendingFinalizers()
 
     #[import("intrinsic-CLR", "", "CreateDelegate")]
     CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
@@ -1478,6 +1479,9 @@ module DotNet =
     #[intrinsic("constant")]
     #[import("intrinsic-CLR", "", "sizeof")]
     SizeOf<require T>: int32
+
+    #[import("intrinsic-CLR", "", "is")]
+    IsSubtypeOf<require T>(object): bool
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]

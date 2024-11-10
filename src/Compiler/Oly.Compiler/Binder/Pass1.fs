@@ -16,7 +16,7 @@ open Oly.Compiler.Internal.SymbolOperations
 
 let private stripNewtype (ty: TypeSymbol) =
     OlyAssert.True(ty.IsNewtype)
-    let underlyingTy = ty.AsEntity.UnderlyingTypeOfNewtype
+    let underlyingTy = ty.AsEntity.UnderlyingTypeOfEnumOrNewtype
     if underlyingTy.IsNewtype then
         stripNewtype underlyingTy
     else

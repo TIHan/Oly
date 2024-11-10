@@ -280,7 +280,7 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
                 |> ImArray.map (fun x ->
                     match x.TryEntity with
                     | ValueSome(ent) when ent.IsEnum ->
-                        ent.UnderlyingTypeOfEnum
+                        ent.UnderlyingTypeOfEnumOrNewtype
                     | _ ->
                         x
                 )

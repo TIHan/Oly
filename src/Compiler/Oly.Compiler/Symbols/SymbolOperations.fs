@@ -1692,15 +1692,12 @@ type EntitySymbol with
 #endif
         if this.IsAnyStruct then
             if hash.Add(this) then
-                if this.IsEnum then
-                    EntitySymbol.CheckUnmanaged(pass, hash, this.UnderlyingTypeOfEnum)
+                if this.IsAlias && this.Extends.Length > 0 then
+                    EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
                 else
-                    if this.IsAlias && this.Extends.Length > 0 then
-                        EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
-                    else
-                        this.Fields 
-                        |> ImArray.filter (fun x -> x.IsInstance)
-                        |> ImArray.forall (fun x -> EntitySymbol.CheckUnmanaged(pass, hash, x.Type))
+                    this.Fields 
+                    |> ImArray.filter (fun x -> x.IsInstance)
+                    |> ImArray.forall (fun x -> EntitySymbol.CheckUnmanaged(pass, hash, x.Type))
             else
                 true
         else
@@ -1730,15 +1727,12 @@ type EntitySymbol with
 #endif
         if this.IsAnyStruct then
             if hash.Add(this) then
-                if this.IsEnum then
-                    EntitySymbol.CheckBlittable(pass, hash, this.UnderlyingTypeOfEnum)
+                if this.IsAlias && this.Extends.Length > 0 then
+                    EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
                 else
-                    if this.IsAlias && this.Extends.Length > 0 then
-                        EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
-                    else
-                        this.Fields 
-                        |> ImArray.filter (fun x -> x.IsInstance)
-                        |> ImArray.forall (fun x -> EntitySymbol.CheckBlittable(pass, hash, x.Type))
+                    this.Fields 
+                    |> ImArray.filter (fun x -> x.IsInstance)
+                    |> ImArray.forall (fun x -> EntitySymbol.CheckBlittable(pass, hash, x.Type))
             else
                 true
         else

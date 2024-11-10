@@ -283,14 +283,8 @@ type EntitySymbol() =
 
     abstract Documentation : string
 
-    member this.UnderlyingTypeOfEnum =
-        OlyAssert.True(this.IsEnum)
-        OlyAssert.True(this.Fields.Length > 0)
-        OlyAssert.True(this.Fields[0].IsInstance)
-        this.Fields[0].Type
-
-    member this.UnderlyingTypeOfNewtype =
-        OlyAssert.True(this.IsNewtype)
+    member this.UnderlyingTypeOfEnumOrNewtype =
+        OlyAssert.True(this.IsEnumOrNewtype)
         OlyAssert.True(this.Fields.Length > 0)
         OlyAssert.True(this.Fields[0].IsInstance)
         this.Fields[0].Type
@@ -2049,7 +2043,6 @@ type WellKnownFunction =
     | Throw
     | Cast
     | UnsafeCast
-    | Is
     | Ignore
 
     | BitwiseAnd
@@ -2079,7 +2072,6 @@ type WellKnownFunction =
         match name with
         | "cast" -> Cast |> Some
         | "unsafe_cast" -> UnsafeCast |> Some
-        | "is" -> Is |> Some
         | "add" -> Add |> Some
         | "subtract" -> Subtract |> Some
         | "multiply" -> Multiply |> Some
@@ -3895,7 +3887,7 @@ type TypeSymbol =
 
     member this.TryEnumUnderlyingType =
         match stripTypeEquations this with
-        | Entity(ent) when ent.IsEnum -> Some(ent.UnderlyingTypeOfEnum)
+        | Entity(ent) when ent.IsEnum -> Some(ent.UnderlyingTypeOfEnumOrNewtype)
         | _ -> None
 
     member this.Inherits =
@@ -5256,8 +5248,8 @@ module SymbolExtensions =
                     match this.Extends |> Seq.tryExactlyOne with
                     | Some realTy -> realTy.IsAnyStruct
                     | _ -> false
-                | EntityKind.Newtype -> this.UnderlyingTypeOfNewtype.IsAnyStruct
-                | EntityKind.Enum -> this.UnderlyingTypeOfEnum.IsAnyStruct
+                | EntityKind.Enum
+                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsAnyStruct
                 | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->

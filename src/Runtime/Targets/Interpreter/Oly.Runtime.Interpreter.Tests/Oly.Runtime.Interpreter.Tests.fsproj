@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Remove="Conformance\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="TestPlatform.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Utilities.fs" Link="Utilities.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Tests.fs" Link="Tests.fs" />
@@ -17,8 +21,6 @@
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\ReferenceTests.fs" Link="ReferenceTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\SampleProgramTests.fs" Link="SampleProgramTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\PatternMatchStressTests.fs" Link="PatternMatchStressTests.fs" />
-    <Folder Include="Conformance\" />
-    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Conformance\IsOperatorTests.fs" Link="Conformance\IsOperatorTests.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Program.fs" Link="Program.fs" />
   </ItemGroup>
 

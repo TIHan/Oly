@@ -578,7 +578,7 @@ let lateCheckCalleeExpression cenv env expr =
                     cenv.diagnostics.Error($"'{value.Name}' is parameter-less which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
 
                 if value.RequiresExplicitTypeArguments then
-                    let resTyArity = typeResolutionArityOfName syntaxName
+                    let resTyArity = typeResolutionArityOfName syntaxName.LastGenericNameIfPossible
                     if resTyArity.IsAny_t then
                         cenv.diagnostics.Error($"'{value.Name}' requires explicit type arguments.", 10, syntaxInfo.Syntax)
             | _ ->

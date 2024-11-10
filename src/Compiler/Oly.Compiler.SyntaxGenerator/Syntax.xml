@@ -928,12 +928,6 @@
       <Field name="rightArrowToken">SyntaxToken</Field>
       <Field name="body">SyntaxExpression</Field>
     </Case>
-	<Case name="Type">
-	  <Field name="typeToken">SyntaxToken</Field>
-	  <Field name="leftParenToken">SyntaxToken</Field>
-	  <Field name="ty">SyntaxType</Field>
-	  <Field name="rightParenToken">SyntaxToken</Field>
-	</Case>
     <Case name="Error">
       <Field name="token">SyntaxToken</Field>
     </Case>

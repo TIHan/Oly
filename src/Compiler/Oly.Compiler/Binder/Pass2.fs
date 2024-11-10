@@ -352,7 +352,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
 
             let parsWithInstance =
                 if ent.IsNewtype then
-                    let parTy = ent.UnderlyingTypeOfNewtype
+                    let parTy = ent.UnderlyingTypeOfEnumOrNewtype
                     parsWithInstance.Add(createLocalParameterValue(ImArray.empty, "", parTy, false))
                 else
                     parsWithInstance
@@ -407,7 +407,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         let ty = ent.AsType
 
         let mutable hasExplicitNonEnumCase = false
-        let mutable runtimeTyOpt = Some(ent.UnderlyingTypeOfEnum)
+        let mutable runtimeTyOpt = Some(ent.UnderlyingTypeOfEnumOrNewtype)
         let mutable requireAllCasesAConstant = false
         let mutable autoIncrement = 0
         let fieldConstants =

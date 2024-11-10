@@ -3540,13 +3540,6 @@ type SyntaxExpression =
         rightArrowToken: SyntaxToken *
         body: SyntaxExpression *
         fullWidth: int
-    | Type
-        of
-        typeToken: SyntaxToken *
-        leftParenToken: SyntaxToken *
-        ty: SyntaxType *
-        rightParenToken: SyntaxToken *
-        fullWidth: int
     | Error
         of
         token: SyntaxToken
@@ -3723,13 +3716,6 @@ type SyntaxExpression =
                 | 2 -> rightArrowToken :> ISyntaxNode
                 | 3 -> body :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Type(typeToken, leftParenToken, ty, rightParenToken, _) ->
-                match index with
-                | 0 -> typeToken :> ISyntaxNode
-                | 1 -> leftParenToken :> ISyntaxNode
-                | 2 -> ty :> ISyntaxNode
-                | 3 -> rightParenToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | Error(token) ->
                 match index with
                 | 0 -> token :> ISyntaxNode
@@ -3765,7 +3751,6 @@ type SyntaxExpression =
             | MemberAccess _ -> 3
             | Mutate _ -> 3
             | Lambda _ -> 4
-            | Type _ -> 4
             | Error _ -> 1
             | None _ -> 0
 
@@ -3822,8 +3807,6 @@ type SyntaxExpression =
             | Mutate(fullWidth=fullWidth) ->
                 fullWidth
             | Lambda(fullWidth=fullWidth) ->
-                fullWidth
-            | Type(fullWidth=fullWidth) ->
                 fullWidth
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth

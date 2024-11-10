@@ -1137,7 +1137,17 @@ module OlySyntaxTreeExtensions =
             | OlySyntaxName.Parenthesis _ -> this
             | OlySyntaxName.Generic(name, _) -> name.LastName
             | OlySyntaxName.Qualified(_, _, tail) -> tail.LastName
+            | _ -> 
+                failwith "Invalid syntax name."
 
+        member this.LastGenericNameIfPossible =
+            match this with
+            | OlySyntaxName.Identifier _
+            | OlySyntaxName.Parenthesis _
+            | OlySyntaxName.Generic(OlySyntaxName.Identifier _, _) 
+            | OlySyntaxName.Generic(OlySyntaxName.Parenthesis _, _) -> this
+            | OlySyntaxName.Generic(name, _) -> name.LastGenericNameIfPossible
+            | OlySyntaxName.Qualified(_, _, tail) -> tail.LastGenericNameIfPossible
             | _ -> 
                 failwith "Invalid syntax name."
 

@@ -921,9 +921,8 @@ type OlyILOperation =
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
-    | Cast of arg: OlyILExpression * resultTy: OlyILType
+    | Cast of arg: OlyILExpression * castToTy: OlyILType
     | Witness of body: OlyILExpression * witnessArg: OlyILType * ty: OlyILType
-    | Is of arg: OlyILExpression * targetTy: OlyILType
 
     | Ignore of arg: OlyILExpression
 

@@ -3005,31 +3005,6 @@ let tryInfixOperator s left state =
     | _ ->
         None
 
-let tryParseTypeExpression state =
-    if isNextToken (function Type -> true | _ -> false) state then
-        let s = sp state
-
-        match bt4 TYPE LEFT_PARENTHESIS tryParseType tryRecoverableRightParenthesis state with
-        | Some(typeToken), Some(leftParenToken), Some(ty), Some(rightParenToken) ->
-            SyntaxExpression.Type(typeToken, leftParenToken, ty, rightParenToken, ep s state) |> Some
-
-        | Some(typeToken), Some(leftParenToken), Some(ty), _ ->
-            errorDo (ExpectedTokenAfterSyntax(RightParenthesis, "type"), ty) state // TODO: "type" is ambiguous because we have a Type token. We should fix this all up.
-            SyntaxExpression.Type(typeToken, leftParenToken, ty, dummyToken(), ep s state) |> Some
-
-        | Some(typeToken), Some(leftParenToken), _, _ ->
-            errorDo (ExpectedSyntaxAfterToken("type", LeftParenthesis), leftParenToken) state // TODO: "type" is ambiguous because we have a Type token. We should fix this all up.
-            SyntaxExpression.Type(typeToken, leftParenToken, SyntaxType.Error(dummyToken()), dummyToken(), ep s state) |> Some
-
-        | Some(typeToken), _, _, _ ->
-            errorDo (ExpectedTokenAfterToken(LeftParenthesis, Type), typeToken) state
-            SyntaxExpression.Type(typeToken, dummyToken(), SyntaxType.Error(dummyToken()), dummyToken(), ep s state) |> Some
-
-        | _ ->
-            None
-    else
-        None
-
 let parseExpressionAux context state =
     let s = sp state
 
@@ -3067,10 +3042,6 @@ let parseExpressionAux context state =
         | _ ->
 
         match bt (alignOrFlexAlignRecover (tryParseLetExpression context)) state with
-        | Some result -> result
-        | _ ->
-
-        match bt (alignOrFlexAlignRecover tryParseTypeExpression) state with
         | Some result -> result
         | _ ->
 

@@ -97,11 +97,6 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 else 
                     true
 
-            | WellKnownFunction.Is ->
-                if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 1 then false
-                else
-                    areTypesEqual func.ReturnType TypeSymbol.Bool && areTypesEqual func.Parameters[0].Type TypeSymbol.BaseObject
-
             | WellKnownFunction.Ignore ->
                 if func.Parameters.Length <> 1 then false
                 else

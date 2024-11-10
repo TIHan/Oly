@@ -103,8 +103,7 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
         | OlyILOperation.NewMutableArray(_, ilArgExpr)
         | OlyILOperation.Print(ilArgExpr)
         | OlyILOperation.Throw(ilArgExpr, _)
-        | OlyILOperation.Cast(ilArgExpr, _) 
-        | OlyILOperation.Is(ilArgExpr, _) ->
+        | OlyILOperation.Cast(ilArgExpr, _) ->
             isSimpleILExpression (depth + 1) ilArgExpr
         | OlyILOperation.Ignore(ilArgExpr) ->
             // We purposely do not increase the depth here.
@@ -1115,12 +1114,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     O.Unbox(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
             else
                 defaultCase()
-
-        | OlyILOperation.Is(ilArgExpr, ilTargetTy) ->
-            let irArgExpr = importArgumentExpression cenv env RuntimeType.BaseObject ilArgExpr
-            let emittedTargetTy = cenv.EmitType(cenv.ResolveType(env.ILAssembly, ilTargetTy, env.GenericContext))
-            let resultTy = RuntimeType.Bool
-            O.Is(irArgExpr, emittedTargetTy, cenv.EmittedTypeBool) |> asExpr, resultTy
 
         | OlyILOperation.Throw(ilArgExpr, ilResultTy) ->
             let irArgExpr, _ = importExpression cenv env None ilArgExpr

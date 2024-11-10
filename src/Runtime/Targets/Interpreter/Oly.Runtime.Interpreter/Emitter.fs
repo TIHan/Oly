@@ -215,12 +215,14 @@ type InterpreterType =
             | _ ->
                 OlyAssert.Fail("Invalid instance of an object to acquire type.")
 
+    /// TODO: Do we need this?
     member this.IsSuperTypeOf(o: obj) =
         if isNull(o) then false
         else
             let ty = InterpreterType.GetTypeOf(o)
             this.IsSuperTypeOf(ty)
 
+    /// TODO: Do we need this?
     member this.IsSuperTypeOf(ty: InterpreterType) =
         match this with
         | Object -> true
@@ -1196,9 +1198,6 @@ type InterpreterFunction(env: InterpreterEnvironment,
 
             | InterpreterOperation.Cast(argExpr, resultTy) ->
                 stack.Push(this.HandleCast(evalArg stack argExpr, resultTy))
-
-            | InterpreterOperation.Is(argExpr, targetTy, _) ->
-                stack.Push(targetTy.IsSuperTypeOf(evalArg stack argExpr))
 
             | InterpreterOperation.Add(argExpr1, argExpr2, _) ->
                 stack.Push(this.HandleAdd(evalArg stack argExpr1, evalArg stack argExpr2))

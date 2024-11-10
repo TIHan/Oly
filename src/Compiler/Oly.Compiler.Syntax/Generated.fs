@@ -3815,13 +3815,6 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|Type|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxToken * OlySyntaxType * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxExpression.Type _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
-        | _ ->
-            Option.None
-
     let (|Error|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken ) option =
         match node.Internal with
         | SyntaxExpression.Error _ ->

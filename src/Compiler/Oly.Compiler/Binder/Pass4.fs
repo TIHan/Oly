@@ -1584,47 +1584,14 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.InfixCall(syntaxLeft, syntaxName, syntaxRight) ->     
-        let willUseTyArg =
-            match syntaxRight with
-            | OlySyntaxExpression.Type _ ->
-                true
-            | _ ->
-                false
-
-        // TODO: Refactor some of this.
-        if willUseTyArg then
-            let targetTy =
-                match syntaxRight with
-                | OlySyntaxExpression.Type(_, _, syntaxTy, _) ->
-                    bindType cenv env (Some(syntaxRight)) ResolutionTypeArity.Any syntaxTy
-                | _ ->
-                    OlyAssert.Unreached()
-
-            let _, argExpr = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxLeft syntaxLeft
-            let argExprs = ImmutableArray.CreateRange[argExpr]
-            let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
-            let expr =
-                bindNameAsItem cenv env (Some syntaxToCapture) None resInfo syntaxName
-                |> bindItemAsExpression cenv env
-
-            match expr with
-            | E.Call(value=value) ->
-                if value.TypeArguments.Length = 1 then
-                    solveTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxRight value.TypeArguments[0] targetTy
-                    |> ignore
-            | _ ->
-                ()
-
-            env, checkExpression cenv env expectedTyOpt expr
-        else
-            let _, left = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxLeft syntaxLeft
-            let _, right = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxRight syntaxRight
-            let argExprs = ImmutableArray.CreateRange[left;right]
-            let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
-            let expr =
-                bindNameAsItem cenv env (Some syntaxToCapture) None resInfo syntaxName
-                |> bindItemAsExpression cenv env
-            env, checkExpression cenv env expectedTyOpt expr
+        let _, left = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxLeft syntaxLeft
+        let _, right = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxRight syntaxRight
+        let argExprs = ImmutableArray.CreateRange[left;right]
+        let resInfo = ResolutionInfo.Create(ValueSome argExprs, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
+        let expr =
+            bindNameAsItem cenv env (Some syntaxToCapture) None resInfo syntaxName
+            |> bindItemAsExpression cenv env
+        env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.PrefixCall(syntaxName, syntaxArg) ->
         let _, argExpr = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxArg syntaxArg
@@ -1690,10 +1657,6 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let env = env.SetEnclosingTypeArguments(entBuilder.Entity.FormalId, enclosingTyParTys)
         let env = scopeInInstanceConstructors true env entBuilder.Entity
         scopeInEntity env entBuilder.Entity, expr
-
-    | OlySyntaxExpression.Type(syntaxTypeToken, _, _, _) ->
-        cenv.diagnostics.Error($"Invalid use of '{syntaxTypeToken.ValueText}'.", 10, syntaxTypeToken)
-        env, invalidExpression syntaxToCapture env.benv
 
     | OlySyntaxExpression.None _ ->
         env, checkExpression cenv env expectedTyOpt (BoundExpression.None(BoundSyntaxInfo.User(syntaxToCapture, env.benv)))
