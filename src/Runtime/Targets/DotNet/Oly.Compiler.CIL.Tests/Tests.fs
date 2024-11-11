@@ -20372,3 +20372,197 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "00"
+
+[<Fact>]
+let ``Able to mutate value field of a newtype``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+newtype NewInt =
+    public field mutable Value: int32
+
+M(x: byref<NewInt>): () =
+    x.Value <- 5
+
+main(): () =
+    let mutable ni = NewInt(1)
+    print(ni)
+    M(&ni)
+    print(ni)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "15"
+
+[<Fact>]
+let ``Able to mutate value field of a newtype 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+struct S =
+    public field mutable N: int32 = 7
+
+newtype NewS =
+    public field mutable Value: S
+
+M(x: byref<NewS>): () =
+    x.Value.N <- 2
+
+M2(x: byref<NewS>): () =
+    x.Value <- S()
+
+M3(x: byref<NewS>, y: byref<S>): () =
+    x.Value <- y
+
+main(): () =
+    let mutable ns = NewS(S())
+    print(ns.Value.N)
+    M(&ns)
+    print(ns.Value.N)
+    M2(&ns)
+    print(ns.Value.N)
+
+    let mutable s = S()
+    s.N <- 9
+
+    M3(&ns, &s)
+
+    print(ns.Value.N)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7279"
+
+[<Fact>]
+let ``Able to mutate value field of a newtype 3``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+class S =
+    public field mutable N: int32 = 7
+
+newtype NewS =
+    public field mutable Value: S
+
+M(x: NewS): () =
+    x.Value.N <- 2
+
+M2(x: NewS): () =
+    x.Value <- S()
+
+M3(x: NewS, y: S): () =
+    x.Value <- y
+
+main(): () =
+    let ns = NewS(S())
+    print(ns.Value.N)
+    M(ns)
+    print(ns.Value.N)
+    M2(ns)
+    print(ns.Value.N)
+
+    let s = S()
+    s.N <- 9
+
+    M3(ns, s)
+
+    print(ns.Value.N)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7279"
+
+[<Fact>]
+let ``Able to mutate value field of a newtype 4``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+class S =
+    public field mutable N: int32 = 7
+
+newtype NewS =
+    public field mutable Value: S
+
+M(x: inref<NewS>): () =
+    x.Value.N <- 2
+
+M2(x: inref<NewS>): () =
+    x.Value <- S()
+
+M3(x: inref<NewS>, y: inref<S>): () =
+    x.Value <- y
+
+main(): () =
+    let ns = NewS(S())
+    print(ns.Value.N)
+    M(&ns)
+    print(ns.Value.N)
+    M2(&ns)
+    print(ns.Value.N)
+
+    let s = S()
+    s.N <- 9
+
+    M3(&ns, &s)
+
+    print(ns.Value.N)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "7279"

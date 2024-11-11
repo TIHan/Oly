@@ -1150,15 +1150,26 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         | OlyILOperation.StoreField(ilFieldRef, ilArg1, ilArg2) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
             if field.ILConstant.IsSome then
-                failwith "assert"
+                OlyAssert.Fail("Cannot modify a constant.")
             let expectedArgTy1 = 
                 if field.EnclosingType.IsAnyStruct then
                     createByReferenceRuntimeType OlyIRByRefKind.ReadWrite field.EnclosingType
                 else
                     field.EnclosingType
             let irArg1, argTy1 = importExpression cenv env (Some expectedArgTy1) ilArg1
-            let irArg1, _ = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
+            let irArg1, argTy1 = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
             let irArg2 = importArgumentExpression cenv env field.Type ilArg2
+
+            if field.EnclosingType.IsNewtype then
+                if field.EnclosingType.IsAnyStruct then
+                    if not argTy1.IsReadWriteByRef then
+                        OlyAssert.Fail("Expected ReadWrite byref.")
+                else
+                    if not argTy1.IsByRef_t then
+                        OlyAssert.Fail("Expected byref.")
+
+                E.Operation(NoRange, O.StoreToAddress(irArg1, irArg2, cenv.EmittedTypeVoid)), RuntimeType.Void
+            else
 
             let emittedField = cenv.EmitField(field)
 
@@ -2032,10 +2043,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         // we cache the emitted field. Without this, we could emit duplicate fields.
         let enclosingTy = field.EnclosingType
         let enclosingTy = 
-            if enclosingTy.IsNewtype && field.IsStatic then
-                // We need to actually emit the newtype as a type definition here
-                // so the static field can be emitted correctly.
-                emitTypeDefinition enclosingTy
+            if enclosingTy.IsNewtype then
+                if field.IsStatic then
+                    // We need to actually emit the newtype as a type definition here
+                    // so the static field can be emitted correctly.
+                    emitTypeDefinition enclosingTy
+                else
+                    OlyAssert.Fail($"Cannot emit instance field for newtype '{enclosingTy.Name}'.")
             else
                 this.EmitType(enclosingTy)
         let fieldTy = this.EmitType(field.Type)
@@ -2051,6 +2065,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
 
             let res = 
+                if not field.IsStatic && field.EnclosingType.IsAnyStruct && field.Formal.EnclosingType.Formal = field.Formal.Type.Formal then
+                    // TODO: This only checks one layer. We need to check deeper.
+                    OlyAssert.Fail($"Struct type '{field.EnclosingType.Name}' recursively contains itself.")
+
                 if field.IsFormal || field.EnclosingType.TypeParameters.IsEmpty || (not field.EnclosingType.IsExternal && not field.EnclosingType.IsExported) then
                     this.Emitter.EmitField(
                         enclosingTy,
