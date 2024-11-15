@@ -20233,7 +20233,7 @@ class S =
     public field mutable X: int32 = 1
 
 newtype NewtypeS =
-    public field mutable S: S
+    public field S: S
 
 main(): () =
     let mutable ns = NewtypeS(S())
@@ -20246,48 +20246,6 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "7"
-
-[<Fact>]
-let ``Newtype - take address of principal field should pass``() =
-    let src =
-        """
-#[intrinsic("print")]
-print(__oly_object): ()
-
-#[intrinsic("int32")]
-alias int32
-
-#[intrinsic("by_ref_read_write")]
-alias byref<T>
-
-#[intrinsic("by_ref_read")]
-alias inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
-
-class S =
-    public field mutable X: int32 = 1
-
-newtype NewtypeS =
-    public field mutable S: S
-
-main(): () =
-    let mutable ns = NewtypeS(S())
-    let x = &ns.S
-
-    let mutable s = S()
-    s.X <- 8
-    x <- s
-
-    print(ns.S.X)
-        """
-    Oly src
-    |> withCompile
-    |> shouldRunWithExpectedOutput "8"
 
 [<Fact>]
 let ``Struct value will not mutate from interface constraint for inref``() =
@@ -20481,35 +20439,20 @@ class S =
     public field mutable N: int32 = 7
 
 newtype NewS =
-    public field mutable Value: S
+    public field Value: S
 
 M(x: NewS): () =
     x.Value.N <- 2
-
-M2(x: NewS): () =
-    x.Value <- S()
-
-M3(x: NewS, y: S): () =
-    x.Value <- y
 
 main(): () =
     let ns = NewS(S())
     print(ns.Value.N)
     M(ns)
     print(ns.Value.N)
-    M2(ns)
-    print(ns.Value.N)
-
-    let s = S()
-    s.N <- 9
-
-    M3(ns, s)
-
-    print(ns.Value.N)
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "7279"
+    |> shouldRunWithExpectedOutput "72"
 
 [<Fact>]
 let ``Able to mutate value field of a newtype 4``() =
@@ -20537,32 +20480,43 @@ class S =
     public field mutable N: int32 = 7
 
 newtype NewS =
-    public field mutable Value: S
+    public field Value: S
 
 M(x: inref<NewS>): () =
     x.Value.N <- 2
-
-M2(x: inref<NewS>): () =
-    x.Value <- S()
-
-M3(x: inref<NewS>, y: inref<S>): () =
-    x.Value <- y
 
 main(): () =
     let ns = NewS(S())
     print(ns.Value.N)
     M(&ns)
     print(ns.Value.N)
-    M2(&ns)
-    print(ns.Value.N)
-
-    let s = S()
-    s.N <- 9
-
-    M3(&ns, &s)
-
-    print(ns.Value.N)
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "7279"
+    |> shouldRunWithExpectedOutput "72"
+
+[<Fact>]
+let ``Newtype should work with a shape trait constraint``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+newtype NewInt =
+    public field Value: int32
+
+    Doot(): int32 = 8
+
+M<T>(x: T): () where T: trait { Doot(): int32 } =
+    print(x.Doot())
+
+main(): () =
+    let ns = NewInt(2)
+    M(ns)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "8"

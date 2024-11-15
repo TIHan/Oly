@@ -113,3 +113,37 @@ newtype A
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype should not work with a non-trait shape constraint``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+newtype NewInt =
+    public field Value: int32
+
+    Doot(): int32 = 8
+
+M<T>(x: T): () where T: { Doot(): int32 } =
+    print(x.Doot())
+
+main(): () =
+    let ns = NewInt(2)
+    M(ns)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'NewInt' is a newtype. Newtypes have a runtime limitation in that they cannot be a solution for solving a non-trait shape constraint.",
+             """
+    M(ns)
+    ^
+"""
+            )
+        ]
+    |> ignore

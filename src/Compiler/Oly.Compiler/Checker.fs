@@ -695,7 +695,8 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     and check (isWitnessShape: bool) (receiver: BoundExpression) : bool =
         match receiver with
         | BoundExpression.Value(value=value) ->
-            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRef) && not value.IsInvalid then
+            // TODO: Revisit this, do we need 'isWitnessShape' anymore?
+            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else

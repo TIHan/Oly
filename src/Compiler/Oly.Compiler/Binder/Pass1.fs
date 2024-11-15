@@ -180,9 +180,14 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then
-                            ValueFlags.Mutable
+                            if not extendTy.IsAnyStruct || extendTy.IsTypeVariable then
+                                cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.")
+                                ValueFlags.None
+                            else
+                                ValueFlags.Mutable
                         else
                             ValueFlags.None
+
                     entBuilder.SetRuntimeType(cenv.pass, extendTy, memberAccessFlags, syntaxIdent.ValueText, valueFlags)
                 | _ ->
                     entBuilder.SetRuntimeType(cenv.pass, TypeSymbolError, MemberFlags.Private, "value", ValueFlags.Invalid)

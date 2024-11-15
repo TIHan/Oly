@@ -4138,9 +4138,19 @@ type TypeSymbol =
         | TypeSymbol.ByRef(_, ByRefKind.Read) -> true
         | _ -> false
 
+    member this.IsReadOnlyByRefOfAnyStruct =
+        match stripTypeEquations this with
+        | TypeSymbol.ByRef(ty, ByRefKind.Read) -> ty.IsAnyStruct
+        | _ -> false
+
     member this.IsReadWriteByRef =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(_, ByRefKind.ReadWrite) -> true
+        | _ -> false
+
+    member this.IsReadWriteByRefOfAnyStruct =
+        match stripTypeEquations this with
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite) -> ty.IsAnyStruct
         | _ -> false
 
     member this.TryByReferenceElementType =

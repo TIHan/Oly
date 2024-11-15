@@ -1157,7 +1157,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 else
                     field.EnclosingType
             let irArg1, argTy1 = importExpression cenv env (Some expectedArgTy1) ilArg1
-            let irArg1, argTy1 = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
             let irArg2 = importArgumentExpression cenv env field.Type ilArg2
 
             if field.EnclosingType.IsNewtype then
@@ -1165,11 +1164,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     if not argTy1.IsReadWriteByRef then
                         OlyAssert.Fail("Expected ReadWrite byref.")
                 else
-                    if not argTy1.IsByRef_t then
-                        OlyAssert.Fail("Expected byref.")
+                    OlyAssert.Fail("Expected newtype to be a struct.")
 
                 E.Operation(NoRange, O.StoreToAddress(irArg1, irArg2, cenv.EmittedTypeVoid)), RuntimeType.Void
             else
+
+            let irArg1, _ = env.HandleReceiver(cenv, expectedArgTy1, irArg1, argTy1, false)
 
             let emittedField = cenv.EmitField(field)
 
