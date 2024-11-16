@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="InternalHelpers.fs" />
+    <Compile Include="Spirv.fs" />
+    <Compile Include="SpirvModule.fs" />
+  </ItemGroup>
+
+</Project>
