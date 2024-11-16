@@ -72,18 +72,23 @@ let genDiscriminatedUnionCaseItem (item: DiscriminatedUnionCaseItem) =
     match item with
     | DiscriminatedUnionCaseItem (name, typ) ->
         match name with
-        | Some name -> name + ": " + typ
-        | _ -> typ
+        | Some name -> 
+            let name = if String.IsNullOrWhiteSpace(name) then "Value" else name
+            name + ": " + typ
+        | _ -> 
+            typ
 
 let genDiscriminatedUnionCase (u: DiscriminatedUnionCase) =
     match u with
     | DiscriminatedUnionCase(name, _, pars) ->
+        if String.IsNullOrWhiteSpace(name) then
+            failwith "Invalid name"
         if pars.Length = 0 then
             "    | " + name
         else
             "    | " + name + " of " + (if pars.IsEmpty then String.Empty else pars |> List.map genDiscriminatedUnionCaseItem |> List.reduce (fun x y -> x + " * " + y))
 
-let createDiscriminatedUnionCaseItems (p: SpirvSpec.Parameter []) =
+let createDiscriminatedUnionCaseItems (p: SpirvSpec.Operand []) =
     p
     |> Array.map (fun x -> DiscriminatedUnionCaseItem(x.Name |> Option.map cleanName, x.Kind))
     |> List.ofArray
@@ -158,15 +163,19 @@ let genKind (kind: SpirvSpec.OperandKind) =
          genDuMemberValueMember enumerants + "\n"
     | "ValueEnum" | "BitEnum" ->
         "type " + kind.Kind + " =\n" +
-        (enumerants
-            |> Array.map (fun case ->
-                let name =
-                    match case.Enumerant with
-                    | "1D" -> "One"
-                    | "2D" -> "Two"
-                    | "3D" -> "Three"
-                    | x -> x
-                "   | " + name + " = " + case.Value.String.Value + "u")
+        if enumerants.Length = 0 then
+            "   | " + kind.Kind + " = 0u"
+        else
+            (enumerants
+                |> Array.map (fun case ->
+                    let name =
+                        match case.Enumerant with
+                        | "1D" -> "One"
+                        | "2D" -> "Two"
+                        | "3D" -> "Three"
+                        | "2x2" -> "TwoByTwo"
+                        | x -> x
+                    "   | " + name + " = " + case.Value.String.Value + "u")
                 |> Array.reduce (fun case1 case2 -> case1 + "\n" + case2)) + "\n"
     | "Composite" ->
         "type " + kind.Kind + " = " + kind.Kind + " of " + (kind.Bases |> Array.reduce (fun x y -> x + " * " + y)) + "\n"
@@ -282,7 +291,7 @@ let rec genDeserializeType (ty: OperandType) =
     | OperandType.List ty ->
         "stream.ReadList(fun () -> " + genDeserializeType ty + ")"
     | OperandType.DiscriminatedUnion(duName, cases) ->
-        "match stream.ReadUInt32() with " + genDeserializeCases duName cases + """ | _ -> failwith "invalid" """
+        "(match stream.ReadUInt32() with " + genDeserializeCases duName cases + """ | _ -> failwith "invalid" )"""
 
 and genDeserializeCases (duName: string) (cases: DiscriminatedUnionCase list) =
     cases
