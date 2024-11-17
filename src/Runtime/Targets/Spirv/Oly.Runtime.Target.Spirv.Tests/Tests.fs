@@ -85,16 +85,6 @@ let ``Blank vertex shader but has output`` () =
 //{
 //    gl_Position = vec4(1);
 //}
-    let glslSrc =
-        """
-#version 450
-
-void main()
-{
-    gl_Position = vec4(1);
-}
-        """
-    let target = glsl_to_vertex(glslSrc)
     let src =
         """
 main(): vec4 =
