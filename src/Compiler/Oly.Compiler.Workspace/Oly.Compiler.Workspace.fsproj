@@ -18,9 +18,12 @@
     <Content Include="dotnet_prelude.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <None Include="prelude.oly">
+    <Content Include="spirv_prelude.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
+    <Content Include="prelude.oly">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Compile Include="OlySourceTextManager.fs" />
     <Compile Include="OlyWorkspace.fsi" />
     <Compile Include="OlyWorkspace.fs" />

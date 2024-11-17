@@ -107,7 +107,7 @@ module private DotNetReferences =
                 return result
         }
 
-type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb: bool) =
+type DotNetTarget internal (platformName: string, copyReferences: bool) =
     inherit OlyBuild(platformName)
 
     let gate = obj ()
@@ -534,4 +534,4 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
     new (?copyReferences: bool) =
         let copyReferences =
             defaultArg copyReferences true
-        DotNetTarget("dotnet", copyReferences, true)
+        DotNetTarget("dotnet", copyReferences)

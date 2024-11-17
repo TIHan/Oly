@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj" />
   </ItemGroup>
 
 </Project>

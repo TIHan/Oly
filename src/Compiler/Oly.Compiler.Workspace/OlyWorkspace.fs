@@ -1705,11 +1705,20 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             |> ImArray.map (fun x -> KeyValuePair(x.PlatformName, x))
             |> ImmutableDictionary.CreateRange
 
+        let preludeDirName = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
+
+        let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
+        let preludeDir =
+            if preludeDir.IsDirectory then
+                preludeDir
+            else
+                OlyPath.Create(preludeDirName + "/")
+
         let workspace =
             OlyWorkspace({
                 defaultTargetPlatform = defaultTargetPlatform
                 targetPlatforms = targets
-                preludeDirectory = OlyPath.Create(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location))
+                preludeDirectory = preludeDir
             })
         workspace
 

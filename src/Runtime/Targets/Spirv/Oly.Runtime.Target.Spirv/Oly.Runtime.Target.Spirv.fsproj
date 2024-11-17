@@ -8,12 +8,13 @@
   <ItemGroup>
     <Compile Include="Emitter\SpirvModuleBuilder.fs" />
     <Compile Include="Emitter\Emitter.fs" />
-    <Compile Include="Library.fs" />
+    <Compile Include="SpirvTarget.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\..\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj" />
     <ProjectReference Include="..\Spirv\Spirv.fsproj" />
   </ItemGroup>
 

@@ -789,6 +789,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         [
             InterpreterTarget() :> OlyBuild
             DotNetTarget()
+            Oly.Runtime.Target.Spirv.SpirvTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets)
     let workspaceListener = OlyWorkspaceListener(workspace, lazyGetRootPath)

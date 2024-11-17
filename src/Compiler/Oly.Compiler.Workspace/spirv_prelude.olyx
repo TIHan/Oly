@@ -1,0 +1,48 @@
+﻿#target "spirv: lib"
+#library
+
+#[open]
+module OlyPrelude
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("by_ref_read_write")]
+alias byref<T>
+
+#[intrinsic("by_ref_read")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[import("spirv", "__oly_spirv_", "vec2")]
+struct vec2 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+
+#[import("spirv", "__oly_spirv_", "vec3")]
+struct vec3 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+
+#[import("spirv", "__oly_spirv_", "vec4")]
+struct vec4 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+    public field mutable W: float32
+
+    new(float32)
+
+    new(v: vec2, z: float32, w: float32)

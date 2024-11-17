@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Core.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\Oly.Runtime\Oly.Runtime.fsproj" />
+  </ItemGroup>
+
+</Project>

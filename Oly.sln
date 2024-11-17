@@ -71,7 +71,9 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv", "src\Runtime\Target
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Runtime\Targets\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Oly.Runtime.Target.Spirv.Tests", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Tests", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -236,6 +238,12 @@ Global
 		{265A3607-1E29-4509-B607-E948175F2A6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{265A3607-1E29-4509-B607-E948175F2A6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{265A3607-1E29-4509-B607-E948175F2A6B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Checked|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Checked|Any CPU.Build.0 = Debug|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -268,6 +276,7 @@ Global
 		{449DED35-EE7E-4499-BA87-D1C3D3BDCE12} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
 		{0D4F8D42-049D-4312-9958-68E0C2DBFAE7} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
 		{265A3607-1E29-4509-B607-E948175F2A6B} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
+		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB} = {B7DB17C7-BCBF-4100-B91D-3BF9BB000F11}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7F633C8C-B945-4698-820E-EF9D9DDA1514}
