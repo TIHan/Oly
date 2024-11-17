@@ -6,7 +6,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Emitter\SpirvModuleBuilder.fs" />
+    <Compile Include="Emitter\Emitter.fs" />
     <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\Spirv\Spirv.fsproj" />
   </ItemGroup>
 
 </Project>

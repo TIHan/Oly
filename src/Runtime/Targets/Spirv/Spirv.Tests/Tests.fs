@@ -31,7 +31,6 @@ void main()
 }"
 
 
-    let vertexCode = glsl_to_spirv_vertex vertexCode
-    let fragmentCode = glsl_to_spirv_fragment fragmentCode
-
-    draw_quad(vertexCode, fragmentCode)
+    let vertex = glsl_to_vertex vertexCode
+    let fragment = glsl_to_fragment fragmentCode
+    draw_quad(vertex, fragment)

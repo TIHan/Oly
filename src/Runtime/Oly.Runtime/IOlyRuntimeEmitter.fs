@@ -20,6 +20,7 @@ type OlyFunctionKind =
 
 type IOlyVirtualMachine<'Type, 'Function, 'Field> =
 
+    abstract GetTypeVoid : unit -> 'Type
     abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
     abstract TryFindType : fullyQualifiedTypeName: string * tyParCount: int32 -> 'Type option
     abstract TryFindField : fullyQualifiedTypeName: string * tyParCount: int32 * fieldName: string -> 'Field option

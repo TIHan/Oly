@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="TestPlatform.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Utilities.fs" Link="Utilities.fs" />
+    <Compile Include="Tests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
+    <ProjectReference Include="..\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj" />
+    <ProjectReference Include="..\Spirv.Tests\Spirv.Tests.fsproj" />
+  </ItemGroup>
+
+</Project>

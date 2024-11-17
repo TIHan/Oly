@@ -63,13 +63,15 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "olylib", "src\olylib\olylib
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Spirv", "Spirv", "{2D35B853-33D8-4E9B-978E-B93660AB828F}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Oly.Runtime.Target.Spirv", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Spirv.ApiGenerator", "src\Runtime\Targets\Spirv\Spirv.ApiGenerator\Spirv.ApiGenerator.fsproj", "{238D43A4-F13C-4366-8F49-52510AE39E30}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.ApiGenerator", "src\Runtime\Targets\Spirv\Spirv.ApiGenerator\Spirv.ApiGenerator.fsproj", "{238D43A4-F13C-4366-8F49-52510AE39E30}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Spirv", "src\Runtime\Targets\Spirv\Spirv\Spirv.fsproj", "{449DED35-EE7E-4499-BA87-D1C3D3BDCE12}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv", "src\Runtime\Targets\Spirv\Spirv\Spirv.fsproj", "{449DED35-EE7E-4499-BA87-D1C3D3BDCE12}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Spirv.Tests", "src\Runtime\Targets\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Runtime\Targets\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Oly.Runtime.Target.Spirv.Tests", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -228,6 +230,12 @@ Global
 		{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Checked|Any CPU.ActiveCfg = Debug|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Checked|Any CPU.Build.0 = Debug|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{265A3607-1E29-4509-B607-E948175F2A6B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -259,6 +267,7 @@ Global
 		{238D43A4-F13C-4366-8F49-52510AE39E30} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
 		{449DED35-EE7E-4499-BA87-D1C3D3BDCE12} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
 		{0D4F8D42-049D-4312-9958-68E0C2DBFAE7} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
+		{265A3607-1E29-4509-B607-E948175F2A6B} = {2D35B853-33D8-4E9B-978E-B93660AB828F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7F633C8C-B945-4698-820E-EF9D9DDA1514}

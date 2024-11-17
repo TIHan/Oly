@@ -17,32 +17,36 @@ type VertexPositionColor(position: Vector2, color: RgbaFloat) =
     static member SizeInBytes = 24
 
 /// This tests serialization and deserialization.
-let glsl_to_spirv_vertex (code: string) =
+let glsl_to_vertex (code: string) =
     let options = GlslCompileOptions()
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "vertex.vert", ShaderStages.Vertex, options)
-    let origSpirvBytes = new MemoryStream(result.SpirvBytes)
-    let spirvBytes = new MemoryStream()
-    SpirvModule.Serialize(spirvBytes, SpirvModule.Deserialize(origSpirvBytes))
+    use origSpirvBytes = new MemoryStream(result.SpirvBytes)
+    use spirvBytes = new MemoryStream()
+    let spvModule = SpirvModule.Deserialize(origSpirvBytes)
+    SpirvModule.Serialize(spirvBytes, spvModule)
     let newResult = spirvBytes.ToArray()
     Assert.Equal<byte>(result.SpirvBytes, newResult)
-    spirvBytes.Dispose()
-    origSpirvBytes.Dispose()
-    newResult
+    spvModule
 
 /// This tests serialization and deserialization.
-let glsl_to_spirv_fragment (code: string) =
+let glsl_to_fragment (code: string) =
     let options = GlslCompileOptions()
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "fragment.frag", ShaderStages.Fragment, options)
-    let origSpirvBytes = new MemoryStream(result.SpirvBytes)
-    let spirvBytes = new MemoryStream()
-    SpirvModule.Serialize(spirvBytes, SpirvModule.Deserialize(origSpirvBytes))
+    use origSpirvBytes = new MemoryStream(result.SpirvBytes)
+    use spirvBytes = new MemoryStream()
+    let spvModule = SpirvModule.Deserialize(origSpirvBytes)
+    SpirvModule.Serialize(spirvBytes, spvModule)
     let newResult = spirvBytes.ToArray()
     Assert.Equal<byte>(result.SpirvBytes, newResult)
-    spirvBytes.Dispose()
-    origSpirvBytes.Dispose()
-    newResult
+    spvModule
 
-let draw_quad (vertexCode: byte array, fragmentCode: byte array) =
+let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
+
+    use spvVertexBytes = new MemoryStream()
+    use spvFragmentBytes = new MemoryStream()
+
+    SpirvModule.Serialize(spvVertexBytes, spvVertex)
+    SpirvModule.Serialize(spvFragmentBytes, spvFragment)
 
     let mutable windowCI = 
         new WindowCreateInfo
@@ -87,11 +91,11 @@ let draw_quad (vertexCode: byte array, fragmentCode: byte array) =
 
     let vertexShaderDesc = ShaderDescription(
         ShaderStages.Vertex,
-        vertexCode,
+        spvVertexBytes.ToArray(),
         "main")
     let fragmentShaderDesc = ShaderDescription(
         ShaderStages.Fragment,
-        fragmentCode,
+        spvFragmentBytes.ToArray(),
         "main")
 
     let shaders = factory.CreateFromSpirv(vertexShaderDesc, fragmentShaderDesc)
