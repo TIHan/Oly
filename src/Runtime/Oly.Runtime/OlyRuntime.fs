@@ -4454,6 +4454,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         member this.GetTypeVoid(): 'Type =
             this.EmitType(RuntimeType.Void)
 
+        member this.GetTypeInt32(): 'Type =
+            this.EmitType(RuntimeType.Int32)
+
+        member this.GetTypeFloat32(): 'Type =
+            this.EmitType(RuntimeType.Float32)
+
         /// Try to find a type based on its fully-qualified name.
         /// Note: Does not support nested types (yet).
         member this.TryFindType(fullyQualifiedTypeName: string, tyParCount: int32): 'Type option =

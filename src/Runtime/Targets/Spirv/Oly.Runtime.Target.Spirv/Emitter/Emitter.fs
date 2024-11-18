@@ -28,25 +28,12 @@ module private Helpers =
     let InvalidOperation() =
         raise(InvalidOperationException())
 
-[<NoEquality;NoComparison>]
-type g =
-    {
-        TypeVoid: SpirvType
-    }
-
 [<Sealed>]
 type SpirvEmitter() =
 
     let mutable g = Unchecked.defaultof<g>
 
     let builder = SpirvModuleBuilder()
-
-    let mutable cachedFloat32Ty = Unchecked.defaultof<SpirvType>
-    let getFloat32Type() =
-        if isNull (box cachedFloat32Ty) then
-            cachedFloat32Ty <- SpirvType.Float32(builder.NewIdResult())
-            builder.AddType(cachedFloat32Ty)
-        cachedFloat32Ty
 
     member this.EmitOutput(_isDebuggable: bool) =
         {
@@ -62,15 +49,15 @@ type SpirvEmitter() =
 
             match externalName with
             | "vec2" -> 
-                let ty = SpirvType.Vector2(builder.NewIdResult(), getFloat32Type())
+                let ty = SpirvType.Vector2(builder.NewIdResult(), g.TypeFloat32)
                 builder.AddType(ty)
                 ty
             | "vec3" -> 
-                let ty = SpirvType.Vector3(builder.NewIdResult(), getFloat32Type())
+                let ty = SpirvType.Vector3(builder.NewIdResult(), g.TypeFloat32)
                 builder.AddType(ty)
                 ty
             | "vec4" -> 
-                let ty = SpirvType.Vector4(builder.NewIdResult(), getFloat32Type())
+                let ty = SpirvType.Vector4(builder.NewIdResult(), g.TypeFloat32)
                 builder.AddType(ty)
                 ty
             | _ ->
@@ -85,6 +72,9 @@ type SpirvEmitter() =
         member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, tier: OlyIRFunctionTier, func: SpirvFunction): unit = 
             let body = body.Value
 
+            let cenv = { Instructions = List(); g = g; Module = builder; Function = (match func with SpirvFunction.Builder(x) -> x | _ -> failwith "Invalid func") }
+            CodeGen.Gen cenv body.Expression
+
             match func with
             | SpirvFunction.Builder(funcBuilder) ->
                 let returnTy =
@@ -96,8 +86,7 @@ type SpirvEmitter() =
                         OpFunction(returnTy.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
 
                         OpLabel(builder.NewIdResult())
-                        // TODO: Convert 'body' to instructions.
-                        OpReturn 
+                        yield! cenv.Instructions
 
                         OpFunctionEnd
                     ]
@@ -184,7 +173,9 @@ type SpirvEmitter() =
             ()
 
         member this.EmitTypeFloat32(): SpirvType = 
-            getFloat32Type()
+            let ty = SpirvType.Float32(builder.NewIdResult())
+            builder.AddType(ty)
+            ty
 
         member this.EmitTypeFloat64(): SpirvType = 
             let ty = SpirvType.Float64(builder.NewIdResult())
@@ -286,5 +277,7 @@ type SpirvEmitter() =
             g <-
                 {
                     TypeVoid = vm.GetTypeVoid()
+                    TypeInt32 = vm.GetTypeInt32()
+                    TypeFloat32 = vm.GetTypeFloat32()
                 }
 

@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <Compile Include="Emitter\SpirvModuleBuilder.fs" />
+    <Compile Include="Emitter\CodeGen.fs" />
     <Compile Include="Emitter\Emitter.fs" />
     <Compile Include="SpirvTarget.fs" />
   </ItemGroup>
