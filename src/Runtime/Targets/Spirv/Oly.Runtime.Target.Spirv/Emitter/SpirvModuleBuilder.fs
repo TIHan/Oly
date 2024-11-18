@@ -152,7 +152,8 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
         if irFlags.IsEntryPoint then
             match returnTy with
             | SpirvType.Void _ -> []
-            | SpirvType.Vector4 _ ->
+            | SpirvType.Vector4 _
+            | SpirvType.Tuple _ ->
                 let blockIdResult = builder.NewIdResult()
                 let typePointerOfBlockIdResult = builder.NewIdResult()
                 let variableOfPointerOfBlockIdResult = builder.NewIdResult()
@@ -166,7 +167,14 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                     | _ ->
                         raise(InvalidOperationException())
 
-                [{| MemberTypes = memberTys; BlockIdResult = blockIdResult; TypePointerOfBlockIdResult = typePointerOfBlockIdResult; VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult |}]
+                [
+                    {| 
+                        MemberTypes = memberTys
+                        BlockIdResult = blockIdResult
+                        TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
+                        VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
+                    |}
+                ]
             | _ ->
                 raise(NotImplementedException())
         else
