@@ -154,10 +154,6 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
             | SpirvType.Void _ -> []
             | SpirvType.Vector4 _
             | SpirvType.Tuple _ ->
-                let blockIdResult = builder.NewIdResult()
-                let typePointerOfBlockIdResult = builder.NewIdResult()
-                let variableOfPointerOfBlockIdResult = builder.NewIdResult()
-
                 let memberTys =
                     match returnTy with
                     | SpirvType.Vector4(vec4IdResult, SpirvType.Float32 _) ->
@@ -167,14 +163,42 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                     | _ ->
                         raise(InvalidOperationException())
 
-                [
-                    {| 
-                        MemberTypes = memberTys
-                        BlockIdResult = blockIdResult
-                        TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
-                        VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
-                    |}
-                ]
+                match memberTys with
+                | [] -> []
+                | [_] ->
+                    let blockIdResult = builder.NewIdResult()
+                    let typePointerOfBlockIdResult = builder.NewIdResult()
+                    let variableOfPointerOfBlockIdResult = builder.NewIdResult()
+
+                    [
+                        {| 
+                            MemberTypes = memberTys
+                            BlockIdResult = blockIdResult
+                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
+                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
+                        |}
+                    ]
+                | vec4Ty :: memberTys ->
+                    [
+                        let blockIdResult = builder.NewIdResult()
+                        let typePointerOfBlockIdResult = builder.NewIdResult()
+                        let variableOfPointerOfBlockIdResult = builder.NewIdResult()
+                        {| 
+                            MemberTypes = [vec4Ty]
+                            BlockIdResult = blockIdResult
+                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
+                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
+                        |}
+                        let blockIdResult = builder.NewIdResult()
+                        let typePointerOfBlockIdResult = builder.NewIdResult()
+                        let variableOfPointerOfBlockIdResult = builder.NewIdResult()
+                        {|
+                            MemberTypes = memberTys
+                            BlockIdResult = blockIdResult
+                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
+                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
+                        |}
+                    ]
             | _ ->
                 raise(NotImplementedException())
         else
@@ -315,20 +339,38 @@ type SpirvModuleBuilder() =
 
                 entryPointInstrs <-
                     [
-                        OpEntryPoint(ExecutionModel.Vertex, func.IdResult, func.Name, variableOfPointerOfBlockIdResults @ (func.ParameterIdResults |> List.map fst))
+                        OpEntryPoint(ExecutionModel.Vertex, func.IdResult, func.Name, 
+                            variableOfPointerOfBlockIdResults @ (func.ParameterIdResults |> List.map fst)
+                        )
 
                         let mutable i = 0
                         for x in func.OutputParameterIdResults do
-                            if i > 0 then raise(NotImplementedException())
-                            let blockIdResult = x.BlockIdResult
-                            OpMemberDecorate(blockIdResult, 0u, Decoration.BuiltIn(BuiltIn.Position))
-                            OpMemberDecorate(blockIdResult, 1u, Decoration.BuiltIn(BuiltIn.PointSize))
-                            OpMemberDecorate(blockIdResult, 2u, Decoration.BuiltIn(BuiltIn.ClipDistance))
-                            OpMemberDecorate(blockIdResult, 3u, Decoration.BuiltIn(BuiltIn.CullDistance))
-                            OpDecorate(blockIdResult, Decoration.Block)
+                            if i = 0 then
+                                let blockIdResult = x.BlockIdResult
+                                OpMemberDecorate(blockIdResult, 0u, Decoration.BuiltIn(BuiltIn.Position))
+                                OpMemberDecorate(blockIdResult, 1u, Decoration.BuiltIn(BuiltIn.PointSize))
+                                OpMemberDecorate(blockIdResult, 2u, Decoration.BuiltIn(BuiltIn.ClipDistance))
+                                OpMemberDecorate(blockIdResult, 3u, Decoration.BuiltIn(BuiltIn.CullDistance))
+                                OpDecorate(blockIdResult, Decoration.Block)
+                            else
+                                let blockIdResult = x.BlockIdResult
+                                OpDecorate(blockIdResult, Decoration.Block)
+
                         yield! (
                             func.ParameterIdResults
                             |> List.mapi (fun i (varIdResult, _) -> OpDecorate(varIdResult, Decoration.Location(uint32(i))))
+                        )
+                        yield! (
+                            let mutable index = 0
+                            func.OutputParameterIdResults
+                            |> List.choose (fun x ->
+                                let i = index
+                                index <- index + 1
+                                if i = 0 then None
+                                else
+                                    OpDecorate(x.BlockIdResult, Decoration.Location(uint32(i - 1)))
+                                    |> Some
+                            )
                         )
                     ]
 
@@ -385,7 +427,7 @@ type SpirvModuleBuilder() =
                     | 3 ->
                         OpConstantComposite(this.TypeVector3Float32.IdResult, pair.Value, pair.Key)
                     | 4 ->
-                        OpConstantComposite(cachedTypeVector4Float32.IdResult, pair.Value, pair.Key)
+                        OpConstantComposite(this.TypeVector4Float32.IdResult, pair.Value, pair.Key)
                     | _ ->
                         raise(NotImplementedException($"Vector{n} of float32 constant"))
                 )

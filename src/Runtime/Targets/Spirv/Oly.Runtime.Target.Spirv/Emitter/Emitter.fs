@@ -73,7 +73,8 @@ type SpirvEmitter() =
             let body = body.Value
 
             let cenv = { Instructions = List(); g = g; Module = builder; Function = (match func with SpirvFunction.Builder(x) -> x | _ -> failwith "Invalid func") }
-            CodeGen.Gen cenv (Lowering.Lower body.Expression)
+            let loweringCenv = { Lowering.cenv.Function = cenv.Function; Lowering.cenv.g = g }
+            CodeGen.Gen cenv (Lowering.Lower loweringCenv body.Expression)
 
             match func with
             | SpirvFunction.Builder(funcBuilder) ->

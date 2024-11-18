@@ -142,17 +142,17 @@ module rec CodeGen =
             if idRef = 0u then
                 OpReturn |> emitInstruction cenv
             else
-                if cenv.IsEntryPoint then
-                    // Special!
-                    match cenv.Function.ReturnType with
-                    | SpirvType.Vector4 _ ->
-                        let idResult = cenv.Module.NewIdResult()
-                        let outputPar1 = cenv.Function.OutputParameterIdResults[0]
-                        OpAccessChain(outputPar1.TypePointerOfBlockIdResult, idResult, outputPar1.VariableOfPointerOfBlockIdResult, [cenv.Module.CreateConstantInt32(0)]) |> emitInstruction cenv
-                        OpStore(idResult, idRef, None) |> emitInstruction cenv
-                    | _ ->
-                        raise(NotImplementedException("returnable value for entry-point"))
-                    OpReturn |> emitInstruction cenv
-                else
+                //if cenv.IsEntryPoint then
+                //    // Special!
+                //    match cenv.Function.ReturnType with
+                //    | SpirvType.Vector4 _ ->
+                //        let idResult = cenv.Module.NewIdResult()
+                //        let outputPar1 = cenv.Function.OutputParameterIdResults[0]
+                //        OpAccessChain(outputPar1.TypePointerOfBlockIdResult, idResult, outputPar1.VariableOfPointerOfBlockIdResult, [cenv.Module.CreateConstantInt32(0)]) |> emitInstruction cenv
+                //        OpStore(idResult, idRef, None) |> emitInstruction cenv
+                //    | _ ->
+                //        raise(NotImplementedException("returnable value for entry-point"))
+                //    OpReturn |> emitInstruction cenv
+                //else
                     raise(NotImplementedException("returnable value"))
         idRef

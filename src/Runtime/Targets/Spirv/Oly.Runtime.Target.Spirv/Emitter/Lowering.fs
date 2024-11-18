@@ -15,8 +15,26 @@ open Spirv.SpirvModule
 
 module rec Lowering =
 
-    type cenv() = class end
-    type env() = class end
+    [<NoEquality;NoComparison>]
+    type cenv =
+        {
+            Function: SpirvFunctionBuilder
+            g: g
+        }
+
+        member this.IsEntryPoint = this.Function.IsEntryPoint
+
+    [<NoEquality;NoComparison>]
+    type private env =
+        {
+            IsReturnable: bool
+        }
+
+        member this.NotReturnable =
+            if this.IsReturnable then
+                { this with IsReturnable = false }
+            else
+                this
 
     let private LowerLinearExpression (cenv: cenv) (env: env) (expr: E) =
         match expr with
@@ -39,18 +57,21 @@ module rec Lowering =
         | _ ->
             LowerExpression cenv env expr
 
-    let private LowerExpression (cenv: cenv) (env: env) (expr: E) =
+    let private LowerExpressionAux (cenv: cenv) (env: env) (expr: E) =
         match expr with
         | E.None _
-        | E.Value _
         | E.Phi _ -> expr
 
         | E.Sequential _
         | E.Let _ ->
             LowerLinearExpression cenv env expr
 
+        | E.Value(_, _value) ->
+            expr
+
         | E.Operation(textRange, op) ->
             let newOp =
+                let env = env.NotReturnable
                 op.MapAndReplaceArguments (fun _ argExpr ->
                     LowerExpression cenv env argExpr
                 )
@@ -60,7 +81,7 @@ module rec Lowering =
                 E.Operation(textRange, newOp)
 
         | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
-            let newConditionExpr = LowerExpression cenv env conditionExpr
+            let newConditionExpr = LowerExpression cenv env.NotReturnable conditionExpr
             let newTrueTargetExpr = LowerExpression cenv env trueTargetExpr
             let newFalseTargetExpr = LowerExpression cenv env falseTargetExpr
 
@@ -70,8 +91,8 @@ module rec Lowering =
                 E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
 
         | E.While(conditionExpr, bodyExpr, resultTy) ->
-            let newConditionExpr = LowerExpression cenv env conditionExpr
-            let newBodyExpr = LowerExpression cenv env bodyExpr
+            let newConditionExpr = LowerExpression cenv env.NotReturnable conditionExpr
+            let newBodyExpr = LowerExpression cenv env.NotReturnable bodyExpr
 
             if newConditionExpr = conditionExpr && newBodyExpr = bodyExpr then
                 expr
@@ -81,8 +102,21 @@ module rec Lowering =
         | E.Try _ ->
             raise(NotSupportedException())
 
-    let Lower (expr: E) =
-        let cenv = cenv()
-        let env = env()
+    let private LowerExpression (cenv: cenv) (env: env) (expr: E) =
+        let expr = LowerExpressionAux cenv env expr
+        if cenv.IsEntryPoint && env.IsReturnable then
+            match cenv.Function.ReturnType with
+            | SpirvType.Void _ ->
+                expr
+            | SpirvType.Vector4 _ ->
+                raise(NotImplementedException())
+                E.None(OlyIRDebugSourceTextRange.Empty, cenv.g.TypeVoid)
+            | _ ->
+                raise(NotImplementedException())
+        else
+            expr
+
+    let Lower cenv (expr: E) =
+        let env = { IsReturnable = true }
         LowerExpression cenv env expr
             
