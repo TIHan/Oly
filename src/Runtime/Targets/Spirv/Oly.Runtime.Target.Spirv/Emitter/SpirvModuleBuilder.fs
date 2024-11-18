@@ -366,7 +366,7 @@ type SpirvModuleBuilder() =
             ) @
             (
                 constantsFloat32 
-                |> Seq.map (fun pair -> OpConstant(this.TypeFloat32.IdResult, pair.Value, uint32(pair.Key))) 
+                |> Seq.map (fun pair -> OpConstant(this.TypeFloat32.IdResult, pair.Value, (* TODO: This is not correct *) uint32(pair.Key))) 
                 |> List.ofSeq
             ) @
             (
