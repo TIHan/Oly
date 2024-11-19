@@ -96,10 +96,8 @@ type SpirvEmitter() =
                 | _ -> 
                     InvalidOperation()
             | _ ->
-                let funcBuilder = SpirvFunctionBuilder(builder, builder.NewIdResult(), enclosingTy, name, flags, pars, returnTy, builder.GetTypeVoid())
-                let func = SpirvFunction.Function(funcBuilder)
-                builder.AddFunctionBuilder(funcBuilder)
-                func
+                let funcBuilder = builder.CreateFunctionBuilder(enclosingTy, name, flags, pars, returnTy)
+                funcBuilder.AsFunction
 
         member this.EmitFunctionInstance(enclosingTy: SpirvType, formalFunc: SpirvFunction, tyArgs: SpirvType imarray): SpirvFunction = 
             NotSupported()
@@ -134,16 +132,8 @@ type SpirvEmitter() =
             | OlyILEntityKind.Module ->
                 SpirvType.Module(enclosing, name)
             | OlyILEntityKind.Struct ->
-                let namedTy =
-                    {
-                        IdResult = builder.NewIdResult()
-                        Enclosing = enclosing
-                        Name = name
-                        Fields = List()
-                    }
-                let ty = SpirvType.Named(namedTy)
-                builder.AddType(ty)
-                ty
+                let namedTy = builder.CreateNameTypedBuilder(enclosing, name)
+                namedTy.AsType
             | _ ->
                 NotSupported()
 
@@ -193,9 +183,7 @@ type SpirvEmitter() =
             NotSupported()
 
         member this.EmitTypeTuple(elementTys: SpirvType imarray, elementNames: string imarray): SpirvType = 
-            let ty = SpirvType.Tuple(builder.NewIdResult(), elementTys, elementNames)
-            builder.AddType(ty)
-            ty
+            builder.GetTypeTuple(elementTys, elementNames)
 
         member this.EmitTypeUInt16(): SpirvType = 
             raise(NotImplementedException())

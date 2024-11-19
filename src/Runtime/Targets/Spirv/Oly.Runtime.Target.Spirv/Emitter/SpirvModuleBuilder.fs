@@ -12,13 +12,17 @@ open Oly.Runtime.CodeGen
 open Spirv
 open Spirv.SpirvModule
 
-type SpirvNamedTypeBuilder =
-    {
-        IdResult: IdResult
-        Enclosing: Choice<string imarray, SpirvType>
-        Name: string
-        Fields: List<SpirvField>
-    }
+[<Sealed>]
+type SpirvNamedTypeBuilder(idResult: IdResult, enclosing: Choice<string imarray, SpirvType>, name: string, fields: List<SpirvField>) as this =
+
+    let ty = SpirvType.Named(this)
+
+    member _.IdResult = idResult
+    member _.Enclosing = enclosing
+    member _.Name = name
+    member _.Fields = fields
+
+    member this.AsType = ty
 
 [<RequireQualifiedAccess>]
 type SpirvByRefKind =
@@ -136,9 +140,11 @@ type SpirvType =
         | _ -> false
 
 [<Sealed>]
-type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType, voidTy: SpirvType) =
+type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType) as this =
 
-    let realReturnTy = if irFlags.IsEntryPoint then voidTy else returnTy
+    let func = SpirvFunction.Function(this)
+
+    let realReturnTy = if irFlags.IsEntryPoint then builder.GetTypeVoid() else returnTy
     let realParTys = irPars |> ImArray.map (fun x -> if irFlags.IsEntryPoint then builder.GetTypePointer(StorageClass.Input, x.Type) else x.Type)
 
     let funcTy = SpirvType.Function(builder.NewIdResult(), realParTys, realReturnTy)
@@ -226,6 +232,8 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
     member _.OutputParameterIdResults = outputParameterIdResults
 
     member _.IsEntryPoint = irFlags.IsEntryPoint
+
+    member _.AsFunction = func
 
 [<RequireQualifiedAccess>]
 type SpirvFunction =
@@ -374,13 +382,23 @@ type SpirvModuleBuilder() =
             this.AddType(cachedTypeVector4Float32)
         cachedTypeVector4Float32
 
-    /// TODO: Make this private.
-    member _.AddType(ty) =
+    member this.GetTypeTuple(elementTys: SpirvType imarray, elementNames: string imarray): SpirvType = 
+        let ty = SpirvType.Tuple(this.NewIdResult(), elementTys, elementNames)
+        this.AddType(ty)
+        ty
+
+    member this.CreateNameTypedBuilder(enclosing: Choice<string imarray, SpirvType>, name: string) =
+        let tyBuilder = SpirvNamedTypeBuilder(this.NewIdResult(), enclosing, name, List())
+        this.AddType(tyBuilder.AsType)
+        tyBuilder
+
+    member private _.AddType(ty) =
         if isBuilding then
             failwith "Unable to add type while the module is building."
         types.Add(ty)
 
-    member this.AddFunctionBuilder(func) =
+    member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType) =
+        let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy, name, irFlags, irPars, returnTy)
         funcs.Add(func)
 
         this.AddType(func.Type) // TODO: Cache this!
@@ -452,6 +470,7 @@ type SpirvModuleBuilder() =
                     varInstrs @ outVarInstrs
             | _ ->
                 failwith "Entry point already set."
+        func
 
     member this.Build() =
         isBuilding <- true
