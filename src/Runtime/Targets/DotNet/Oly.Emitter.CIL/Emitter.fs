@@ -1988,8 +1988,13 @@ module rec ClrCodeGen =
             // If the last emitted instruction is a return, then we do not need to emit another one.
             if cenv.IsRetEmitted then ()
             else
-                emitHiddenSequencePointIfPossible cenv env
-                I.Ret |> emitInstruction cenv
+                match irExpr with
+                | E.Let _
+                | E.Sequential _
+                | E.IfElse _ -> ()
+                | _ ->
+                    emitHiddenSequencePointIfPossible cenv env
+                    I.Ret |> emitInstruction cenv
 
 let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
     let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)

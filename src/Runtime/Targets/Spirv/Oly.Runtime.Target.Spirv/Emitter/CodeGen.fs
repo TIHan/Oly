@@ -19,24 +19,18 @@ type V = OlyIRValue<SpirvType, SpirvFunction, SpirvField>
 type C = OlyIRConstant<SpirvType, SpirvFunction>
 
 [<NoEquality;NoComparison>]
-type g =
-    {
-        TypeVoid: SpirvType
-        TypeInt32: SpirvType
-        TypeFloat32: SpirvType
-    }
-
-[<NoEquality;NoComparison>]
 type cenv =
     {
         Function: SpirvFunctionBuilder
         Module: SpirvModuleBuilder
         Instructions: List<Instruction>
-        g: g
     }
 
     member this.IsEntryPoint =
         this.Function.IsEntryPoint
+
+    member this.GetArgumentIdRef(argIndex: int32) =
+        this.Function.ParameterIdResults[argIndex].VariableIdRef
 
 [<NoEquality;NoComparison>]
 type env =
@@ -51,6 +45,8 @@ type env =
             this
 
 module rec CodeGen =
+
+    let private IdRef0 : IdRef = 0u
 
     let private emitInstruction cenv instr =
         cenv.Instructions.Add(instr)
@@ -72,7 +68,7 @@ module rec CodeGen =
         | _ ->
             GenExpression cenv env expr
 
-    let GenOperation (cenv: cenv) (env: env) (op: O) =
+    let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
         | O.New(func, argExprs, _) ->
             match func.EmittedFunction with
@@ -82,22 +78,60 @@ module rec CodeGen =
                 | 1 ->
                     match argExprs[0] with
                     | E.Value(value=V.Constant(C.Float32 value, _)) ->
-                        cenv.Module.CreateConstantVector4Float32(value, value, value, value)
+                        cenv.Module.GetConstantVector4Float32(value, value, value, value)
                     | _ ->
-                        raise(NotImplementedException(op.ToString()))  
+                        raise(NotImplementedException(op.ToString()))
+
+                | 3 ->
+                    match argTys[0], argTys[1], argTys[2] with
+                    | SpirvType.Vector2 _, SpirvType.Float32 _, SpirvType.Float32 _ ->
+                        let idRefs =
+                            let env = env.NotReturnable
+                            argExprs
+                            |> ImArray.map (GenExpression cenv env)
+
+                        let arg0IdResult = cenv.Module.NewIdResult()
+                        OpCompositeExtract(cenv.Module.GetTypeFloat32().IdResult, arg0IdResult, idRefs[0], [0u]) |> emitInstruction cenv
+
+                        let arg1IdResult = cenv.Module.NewIdResult()
+                        OpCompositeExtract(cenv.Module.GetTypeFloat32().IdResult, arg1IdResult, idRefs[0], [1u]) |> emitInstruction cenv
+
+                        let arg2IdRef = idRefs[1]
+                        let arg3IdRef = idRefs[2]
+
+                        let idResult = cenv.Module.NewIdResult()
+                        OpCompositeConstruct(cenv.Module.GetTypeVector4Float32().IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef]) |> emitInstruction cenv
+                        idResult
+                    | _ ->
+                        raise(NotImplementedException(op.ToString()))
                 | _ ->
-                    raise(NotImplementedException(op.ToString()))                  
+                    raise(NotImplementedException(op.ToString()))
             | _ ->
-               raise(NotImplementedException(op.ToString())) 
+               raise(NotImplementedException(op.ToString()))
+
+        | O.Call(func, argExprs, _) ->
+            match func.EmittedFunction with
+            | SpirvFunction.SetVariable(varTy, varIdRef) ->
+                OlyAssert.Equal(1, argExprs.Length)
+
+                let rhsIdRef = GenExpression cenv env.NotReturnable argExprs[0] 
+
+                let idResult = cenv.Module.NewIdResult()
+                OpAccessChain(varTy, idResult, varIdRef, [cenv.Module.GetConstantInt32(0)]) |> emitInstruction cenv
+                OpStore(idResult, rhsIdRef, None) |> emitInstruction cenv
+                IdRef0
+
+            | _ ->          
+                raise(NotImplementedException(op.ToString()))
         | _ ->
             raise(NotImplementedException(op.ToString()))
 
     let GenConstant (cenv: cenv) (env: env) (cns: C) =
         match cns with
         | C.Int32 value ->
-            cenv.Module.CreateConstantInt32(value)
+            cenv.Module.GetConstantInt32(value)
         | C.Float32 value ->
-            cenv.Module.CreateConstantFloat32(value)
+            cenv.Module.GetConstantFloat32(value)
         | _ ->
             raise(NotImplementedException(cns.ToString()))
 
@@ -105,9 +139,16 @@ module rec CodeGen =
         match value with
         | V.Constant(cns, _) ->
             GenConstant cenv env cns
+
+        | V.Argument(argIndex, resultTy) ->
+            let argIdRef = cenv.GetArgumentIdRef(argIndex)
+
+            let idResult = cenv.Module.NewIdResult()
+            OpLoad(resultTy.IdResult, idResult, argIdRef, None) |> emitInstruction cenv
+            idResult
+
         | _ ->
             raise(NotImplementedException(value.ToString()))
-
 
     let private GenExpressionAux (cenv: cenv) (env: env) (expr: E) : IdResult =
         match expr with
@@ -116,7 +157,7 @@ module rec CodeGen =
             GenLinearExpression cenv env expr
 
         | E.None _ ->
-            0u // Nothing
+            IdRef0 // Nothing
 
         | E.Value(value=value) ->
             GenValue cenv env value
@@ -139,20 +180,13 @@ module rec CodeGen =
     let GenExpression (cenv: cenv) (env: env) (expr: E) : IdResult =
         let idRef : IdRef = GenExpressionAux cenv env expr
         if env.IsReturnable then
-            if idRef = 0u then
-                OpReturn |> emitInstruction cenv
-            else
-                //if cenv.IsEntryPoint then
-                //    // Special!
-                //    match cenv.Function.ReturnType with
-                //    | SpirvType.Vector4 _ ->
-                //        let idResult = cenv.Module.NewIdResult()
-                //        let outputPar1 = cenv.Function.OutputParameterIdResults[0]
-                //        OpAccessChain(outputPar1.TypePointerOfBlockIdResult, idResult, outputPar1.VariableOfPointerOfBlockIdResult, [cenv.Module.CreateConstantInt32(0)]) |> emitInstruction cenv
-                //        OpStore(idResult, idRef, None) |> emitInstruction cenv
-                //    | _ ->
-                //        raise(NotImplementedException("returnable value for entry-point"))
-                //    OpReturn |> emitInstruction cenv
-                //else
+            match expr with
+            | E.Let _
+            | E.Sequential _
+            | E.IfElse _ -> ()
+            | _ ->
+                if idRef = IdRef0 then
+                    OpReturn |> emitInstruction cenv
+                else
                     raise(NotImplementedException("returnable value"))
         idRef
