@@ -595,10 +595,10 @@ let ``Indexer operator example with struct byref and mutable byrefs``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -622,10 +622,10 @@ let ``Indexer operator example with struct byref and mutable byrefs 2``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -649,10 +649,10 @@ let ``Indexer operator example with struct byref and mutable byrefs 3``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -719,7 +719,7 @@ alias void
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("native_ptr")]
@@ -1180,10 +1180,10 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1299,10 +1299,10 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1336,10 +1336,10 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1373,10 +1373,10 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]

@@ -114,8 +114,14 @@ let ``Blank vertex shader but has output`` () =
 //}
     let src =
         """
-main(): vec4 =
-    vec4(1)
+#[block()]
+struct VertexOutput =
+
+    #[position()]
+    public field mutable Position: vec4 = default
+
+main(output: outref<VertexOutput>): () =
+    output.Position <- vec4(1)
         """
     OlyVertex src
     |> shouldRun
@@ -136,8 +142,42 @@ let ``Basic vertex shader`` () =
 //}
     let src =
         """
-main(position: vec2, color: vec4): (position: vec4, color: vec4) =
-    (vec4(position, 0, 1), color)
+#[block()]
+struct VertexOutput =
+
+    #[position()]
+    public field mutable Position: vec4 = default
+
+main(
+        #[location(0u32)] position: inref<vec2>, 
+        #[location(1u32)] color: inref<vec4>, 
+        #[location(0u32)] outColor: outref<vec4>, 
+        output: outref<VertexOutput>
+    ): () =
+    output.Position <- vec4(position, 0, 1)
+    outColor <- color
+        """
+    OlyVertex src
+    |> shouldRun
+
+[<Fact>]
+let ``Basic vertex shader but with a different order`` () =
+    let src =
+        """
+#[block()]
+struct VertexOutput =
+
+    #[position()]
+    public field mutable Position: vec4 = default
+
+main(
+        output: outref<VertexOutput>,
+        #[location(1u32)] color: inref<vec4>, 
+        #[location(0u32)] outColor: outref<vec4>,
+        #[location(0u32)] position: inref<vec2>
+    ): () =
+    output.Position <- vec4(position, 0, 1)
+    outColor <- color
         """
     OlyVertex src
     |> shouldRun

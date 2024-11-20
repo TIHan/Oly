@@ -389,10 +389,12 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
 
             elif tyParCount = 1 then
                 match intrinsicName with
-                | "by_ref_read_write" ->
+                | "by_ref" ->
                     Some(Types.ByRef)
-                | "by_ref_read" ->
+                | "by_ref_read_only" ->
                     Some(Types.InRef)
+                | "by_ref_write_only" ->
+                    Some(Types.OutRef)
                 | "native_ptr" ->
                     Some(Types.NativePtr)
                 | _ ->

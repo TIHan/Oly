@@ -85,7 +85,7 @@ let private tryGetPropagatedExpressionByLoadFromAddressLocal optenv (items: Dict
     match items.TryGetValue localIndex with
     | true, item ->
         match item with
-        | CopyPropagationItem.LocalAddress(localIndex, OlyIRByRefKind.Read) ->
+        | CopyPropagationItem.LocalAddress(localIndex, OlyIRByRefKind.ReadOnly) ->
             tryGetPropagatedExpressionByLocal optenv items (localIndex, resultTy)
         | _ ->
             None

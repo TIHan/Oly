@@ -30,7 +30,7 @@ type cenv =
         this.Function.IsEntryPoint
 
     member this.GetArgumentIdRef(argIndex: int32) =
-        this.Function.ParameterIdResults[argIndex].VariableIdRef
+        this.Function.Parameters[argIndex].VariableIdRef
 
 [<NoEquality;NoComparison>]
 type env =
@@ -123,8 +123,40 @@ module rec CodeGen =
 
             | _ ->          
                 raise(NotImplementedException(op.ToString()))
-        | _ ->
-            raise(NotImplementedException(op.ToString()))
+
+        | op ->
+            let argCount = op.ArgumentCount
+            let idRefs = Array.zeroCreate argCount
+            let envForArg = env.NotReturnable
+            op.ForEachArgument(fun i argExpr ->
+                idRefs[i] <- GenExpression cenv envForArg argExpr
+            )
+            match op with
+            | O.StoreField(field, receiverExpr, _, _) ->
+                let receiverIdRef = idRefs[0]
+                let rhsIdRef = idRefs[1]
+
+                let idResult = cenv.Module.NewIdResult()
+                OpAccessChain(receiverExpr.ResultType.IdResult, idResult, receiverIdRef, [cenv.Module.GetConstantInt32(field.EmittedField.Index)]) |> emitInstruction cenv
+                OpStore(idResult, rhsIdRef, None) |> emitInstruction cenv
+                IdRef0
+
+            | O.LoadFromAddress(_, resultTy) ->
+                let bodyIdRef = idRefs[0]
+
+                let idResult = cenv.Module.NewIdResult()
+                OpLoad(resultTy.IdResult, idResult, bodyIdRef, None) |> emitInstruction cenv
+                idResult
+
+            | O.StoreToAddress _ ->
+                let argIdRef = idRefs[0]
+                let rhsIdRef = idRefs[1]
+
+                OpStore(argIdRef, rhsIdRef, None) |> emitInstruction cenv
+                IdRef0
+
+            | _ ->
+                raise(NotImplementedException(op.ToString()))
 
     let GenConstant (cenv: cenv) (env: env) (cns: C) =
         match cns with
@@ -140,12 +172,8 @@ module rec CodeGen =
         | V.Constant(cns, _) ->
             GenConstant cenv env cns
 
-        | V.Argument(argIndex, resultTy) ->
-            let argIdRef = cenv.GetArgumentIdRef(argIndex)
-
-            let idResult = cenv.Module.NewIdResult()
-            OpLoad(resultTy.IdResult, idResult, argIdRef, None) |> emitInstruction cenv
-            idResult
+        | V.Argument(argIndex, _) ->
+            cenv.GetArgumentIdRef(argIndex)
 
         | _ ->
             raise(NotImplementedException(value.ToString()))

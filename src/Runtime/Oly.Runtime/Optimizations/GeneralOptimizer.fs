@@ -55,7 +55,7 @@ let private optimizeOperationSecondPass optenv irExpr : E<_, _, _> =
 
         | O.StoreToAddress(E.Value(_, V.LocalAddress(localIndex, irByRefKind, _)), irRhsExpr, resultTy) ->
             match irByRefKind with
-            | OlyIRByRefKind.Read ->
+            | OlyIRByRefKind.ReadOnly ->
                 OlyAssert.Fail("Expected read-write byref type.")
             | _ ->
                 ()
@@ -63,7 +63,7 @@ let private optimizeOperationSecondPass optenv irExpr : E<_, _, _> =
 
         | O.StoreToAddress(E.Value(_, V.ArgumentAddress(argIndex, irByRefKind, _)), irRhsExpr, resultTy) ->
             match irByRefKind with
-            | OlyIRByRefKind.Read ->
+            | OlyIRByRefKind.ReadOnly ->
                 OlyAssert.Fail("Expected read-write byref type.")
             | _ ->
                 ()

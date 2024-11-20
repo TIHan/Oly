@@ -274,6 +274,7 @@ type RuntimeTypeParameter =
 [<NoComparison;CustomEquality;RequireQualifiedAccess>]
 type RuntimeParameter =
     {
+        Attributes: RuntimeAttribute imarray
         Name: string
         Type: RuntimeType
     }
@@ -722,14 +723,19 @@ type RuntimeType =
         | Void -> true
         | _ -> false
 
-    member this.IsReadOnlyByRef =
-        match this.StripAlias() with
-        | ByRef(_, OlyIRByRefKind.Read) -> true
-        | _ -> false
-
     member this.IsReadWriteByRef =
         match this.StripAlias() with
         | ByRef(_, OlyIRByRefKind.ReadWrite) -> true
+        | _ -> false
+
+    member this.IsReadOnlyByRef =
+        match this.StripAlias() with
+        | ByRef(_, OlyIRByRefKind.ReadOnly) -> true
+        | _ -> false
+
+    member this.IsWriteOnlyByRef =
+        match this.StripAlias() with
+        | ByRef(_, OlyIRByRefKind.WriteOnly) -> true
         | _ -> false
 
     member this.Witnesses : RuntimeWitness imarray =
@@ -1360,7 +1366,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
                     if this.IsMutable then
                         RuntimeType.ByRef(this.EnclosingType, OlyIRByRefKind.ReadWrite)
                     else
-                        RuntimeType.ByRef(this.EnclosingType, OlyIRByRefKind.Read)
+                        RuntimeType.ByRef(this.EnclosingType, OlyIRByRefKind.ReadOnly)
                 else
                     this.EnclosingType
             else
@@ -1377,6 +1383,15 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         else
             this.Parameters[argIndex].Type.IsByRef_t
 
+    member this.IsArgumentReadWriteByRefType(argIndex: int) =
+        if this.Flags.IsInstance then
+            if argIndex = 0 then
+                this.EnclosingType.IsAnyStruct && this.IsMutable
+            else
+                this.Parameters[argIndex - 1].Type.IsReadWriteByRef
+        else
+            this.Parameters[argIndex].Type.IsReadWriteByRef
+
     member this.IsArgumentReadOnlyByRefType(argIndex: int) =
         if this.Flags.IsInstance then
             if argIndex = 0 then
@@ -1386,14 +1401,14 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         else
             this.Parameters[argIndex].Type.IsReadOnlyByRef
 
-    member this.IsArgumentReadWriteByRefType(argIndex: int) =
+    member this.IsArgumentWriteOnlyByRefType(argIndex: int) =
         if this.Flags.IsInstance then
             if argIndex = 0 then
-                this.EnclosingType.IsAnyStruct && this.IsMutable
+                this.EnclosingType.IsAnyStruct && not this.IsMutable
             else
-                this.Parameters[argIndex - 1].Type.IsReadWriteByRef
+                this.Parameters[argIndex - 1].Type.IsWriteOnlyByRef
         else
-            this.Parameters[argIndex].Type.IsReadWriteByRef
+            this.Parameters[argIndex].Type.IsWriteOnlyByRef
 
     member this.MakeInstance(enclosing: RuntimeEnclosing, funcTyArgs: RuntimeType imarray) =
         let enclosingTy = enclosing.AsType

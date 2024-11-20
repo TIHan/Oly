@@ -58,11 +58,14 @@ alias char
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
 
 #if DOTNET
 #[intrinsic("native_ptr")]

@@ -1858,7 +1858,10 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.ConstantType(ty) ->
                     areTypesEqualWithRigidity rigidity superTy ty.Value
             )
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.Read) ->
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.ReadOnly) ->
+            subsumesTypeWith rigidity superTy ty
+
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.WriteOnly) ->
             subsumesTypeWith rigidity superTy ty
 
         | _ -> 
@@ -2265,7 +2268,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                 if isCtor then ByRefKind.ReadWrite
                 else 
                     if mightBeReadOnly then
-                        ByRefKind.Read
+                        ByRefKind.ReadOnly
                     else
                         ByRefKind.ReadWrite
             TypeSymbol.CreateByRef(ty, kind)
@@ -2288,7 +2291,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                 if isCtor then ByRefKind.ReadWrite
                 else 
                     if mightBeReadOnly then
-                        ByRefKind.Read
+                        ByRefKind.ReadOnly
                     else
                         ByRefKind.ReadWrite
             TypeSymbol.CreateByRef(ty, kind)

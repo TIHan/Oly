@@ -300,7 +300,7 @@ let ``By cursor, get completions from a byref local variable`` () =
     """
 #target "interpreter: default"
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -322,7 +322,7 @@ let ``By cursor, get completions from a byref local variable 2`` () =
     """
 #target "interpreter: default"
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]

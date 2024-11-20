@@ -239,10 +239,10 @@ alias int32
 #[intrinsic("int16")]
 alias int16
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 class OverloadTest =

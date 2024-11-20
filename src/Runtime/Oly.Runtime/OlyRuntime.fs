@@ -286,6 +286,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         ilFuncSpec.Parameters
         |> ImArray.map (fun ilPar ->
             { 
+                Attributes = ilPar.Attributes |> ImArray.choose (fun x -> runtime.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
                 Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
             } : RuntimeParameter
@@ -661,7 +662,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind = 
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
             let resultTy = createByReferenceRuntimeType irByRefKind argTy
             V.ArgumentAddress(argIndex, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -689,7 +691,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind = 
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
 
             let _elementTy = cenv.EmitType(localTy)
             let resultTy = createByReferenceRuntimeType irByRefKind localTy
@@ -724,7 +727,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind =
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
             let elementTy = cenv.EmitType(field.Type)
             let resultTy = createByReferenceRuntimeType irByRefKind field.Type
 
@@ -800,7 +804,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                                 if func.IsMutable then
                                     OlyIRByRefKind.ReadWrite
                                 else
-                                    OlyIRByRefKind.Read
+                                    OlyIRByRefKind.ReadOnly
                             createByReferenceRuntimeType irByRefKind enclosingTy
                         else
                             enclosingTy
@@ -901,7 +905,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let expectedArgTy =
                 if func.EnclosingType.IsAnyStruct then                   
-                    createByReferenceRuntimeType OlyIRByRefKind.Read func.EnclosingType
+                    createByReferenceRuntimeType OlyIRByRefKind.ReadOnly func.EnclosingType
                 else
                     func.EnclosingType
 
@@ -940,7 +944,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind =
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
             let irReceiver, resultTy = importExpression cenv env None ilReceiver
             let irIndexArgs = 
                 ilIndexArgs
@@ -1082,7 +1087,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind =
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
 
             let resultTy = createByReferenceRuntimeType irByRefKind elementTy
 
@@ -1218,7 +1224,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             let expectedArgTy =
                 if field.EnclosingType.IsAnyStruct then
-                    createByReferenceRuntimeType OlyIRByRefKind.Read field.EnclosingType
+                    createByReferenceRuntimeType OlyIRByRefKind.ReadOnly field.EnclosingType
                 else
                     field.EnclosingType
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
@@ -1237,10 +1243,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irByRefKind =
                 match ilByRefKind with
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
             let expectedArgTy =
                 if field.EnclosingType.IsAnyStruct then
-                    createByReferenceRuntimeType OlyIRByRefKind.Read field.EnclosingType
+                    createByReferenceRuntimeType OlyIRByRefKind.ReadOnly field.EnclosingType
                 else
                     field.EnclosingType
 
@@ -1576,13 +1583,15 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                     | RuntimeType.ByRef(argTy, kind), RuntimeType.ByRef(expectedArgTy, expectedKind) when argTy.StripAliasAndNewtype() = expectedArgTy.StripAliasAndNewtype() ->
                         match kind, expectedKind with
                         | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.ReadWrite
-                        | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.Read
-                        | OlyIRByRefKind.Read, OlyIRByRefKind.Read ->
+                        | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.ReadOnly
+                        | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.WriteOnly
+                        | OlyIRByRefKind.ReadOnly, OlyIRByRefKind.ReadOnly
+                        | OlyIRByRefKind.WriteOnly, OlyIRByRefKind.WriteOnly ->
                             irArg
-                        | OlyIRByRefKind.Read, OlyIRByRefKind.ReadWrite ->
+                        | _ ->
                             let currentFunction = env.Function
                             let dumpExpr = Dump.DumpExpression irArg
-                            failwith $"Expected read-write ByRef, but was given a read-only ByRef. \n\n{currentFunction.EnclosingType.DebugText}.{currentFunction.Name}:\n{dumpExpr}"
+                            failwith $"Expected {expectedKind} ByRef, but was given a {kind} ByRef. \n\n{currentFunction.EnclosingType.DebugText}.{currentFunction.Name}:\n{dumpExpr}"
                     | _ ->
                         // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
                         if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) then
@@ -1645,7 +1654,7 @@ let importFunctionBody
                 if func.IsMutable then
                     OlyIRByRefKind.ReadWrite
                 else
-                    OlyIRByRefKind.Read
+                    OlyIRByRefKind.ReadOnly
             createByReferenceRuntimeType irByRefKind enclosingTy
         else
             enclosingTy
@@ -3588,7 +3597,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let kind =
                     match ilKind with
                     | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
-                    | OlyILByRefKind.Read -> OlyIRByRefKind.Read
+                    | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
+                    | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
                 let elementTy = this.ResolveType(ilAsm, ilElementTy, genericContext)
                 if elementTy.IsByRef_t then
                     OlyAssert.Fail("Cannot have byref of a byref type.")
@@ -3892,7 +3902,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let pars = 
                     func.Parameters 
                     |> ImArray.map (fun par -> 
-                        OlyIRParameter(par.Name, this.EmitType(par.Type), true)
+                        let attrs =
+                            if par.Attributes.IsEmpty then
+                                Lazy<_>.CreateFromValue(ImArray.empty)
+                            else
+                                lazy
+                                    emitAttributes ilAsm par.Attributes
+                        OlyIRParameter(attrs, par.Name, this.EmitType(par.Type), true)
                     )
 
                 let overrides =
@@ -3949,6 +3965,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let irAttrs = emitAttributes ilAsm func.Attributes
 
+                pars
+                |> ImArray.iter (fun par ->
+                    match par with
+                    | OlyIRParameter(attrs=attrs) -> attrs.Force() |> ignore
+                )
+
                 let externalInfoOpt =
                     if func.IsExternal then
                         func.TryGetExternalInfo()
@@ -3966,11 +3988,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 let fakeReceiverTy =
                                     let extendsTy = func.EnclosingType.RuntimeType.Value
                                     if extendsTy.IsAnyStruct then
-                                        createByReferenceRuntimeType OlyIRByRefKind.Read extendsTy
+                                        createByReferenceRuntimeType OlyIRByRefKind.ReadOnly extendsTy
                                     else
                                         extendsTy
                                 pars
-                                |> ImArray.prependOne (OlyIRParameter("", this.EmitType(fakeReceiverTy), false))
+                                |> ImArray.prependOne (OlyIRParameter(Lazy<_>.CreateFromValue(ImArray.empty), "", this.EmitType(fakeReceiverTy), false))
                             else
                                 pars
 

@@ -3223,7 +3223,8 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool, isStrict: bo
 [<RequireQualifiedAccess>]
 type ByRefKind =
     | ReadWrite
-    | Read
+    | ReadOnly
+    | WriteOnly
 
 let private FormalFunctionTypeParameters =
     let returnTy = TypeParameterSymbol("TReturn", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
@@ -3328,7 +3329,8 @@ let private FormalDependentIndexerType =
 
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
 let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
-let private FormalReadByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.Read)
+let private FormalReadOnlyByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadOnly)
+let private FormalWriteOnlyByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.WriteOnly)
 
 let TypeSymbolError =
     TypeSymbol.Error(None, None)
@@ -3397,8 +3399,10 @@ type TypeSymbol =
         match kind with
         | ByRefKind.ReadWrite ->
             FormalReadWriteByRef
-        | ByRefKind.Read ->
-            FormalReadByRef
+        | ByRefKind.ReadOnly ->
+            FormalReadOnlyByRef
+        | ByRefKind.WriteOnly ->
+            FormalWriteOnlyByRef
 
     static member CreateByRef(elementTy, kind) =
         ByRef(mkSolvedInferenceVariableType ByReferenceTypeParameters.[0] elementTy, kind)
@@ -3535,8 +3539,9 @@ type TypeSymbol =
                 "__oly_function"
         | ByRef(_, kind) ->
             match kind with
-            | ByRefKind.ReadWrite -> "__oly_read_write_by_ref"
-            | ByRefKind.Read -> "__oly_read_by_ref"
+            | ByRefKind.ReadWrite -> "__oly_by_ref"
+            | ByRefKind.ReadOnly -> "__oly_by_ref_read_only"
+            | ByRefKind.WriteOnly -> "__oly_by_ref_write_only"
         | ForAll(_, innerTy) -> innerTy.Name
         | Variable(tyPar) -> tyPar.Name
         | HigherVariable(tyPar, _) -> tyPar.Name
@@ -4135,12 +4140,17 @@ type TypeSymbol =
 
     member this.IsReadOnlyByRef =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(_, ByRefKind.Read) -> true
+        | TypeSymbol.ByRef(_, ByRefKind.ReadOnly) -> true
+        | _ -> false
+
+    member this.IsWriteOnlyByRef =
+        match stripTypeEquations this with
+        | TypeSymbol.ByRef(_, ByRefKind.WriteOnly) -> true
         | _ -> false
 
     member this.IsReadOnlyByRefOfAnyStruct =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.Read) -> ty.IsAnyStruct
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsAnyStruct
         | _ -> false
 
     member this.IsReadWriteByRef =
@@ -4277,7 +4287,7 @@ type TypeSymbol =
         | Tuple _
         | Function _ 
         | ConstantInt32 _ -> true
-        | ByRef(_, ByRefKind.Read) 
+        | ByRef(_, ByRefKind.ReadOnly) 
         | Array(_, _, ArrayKind.Immutable) -> true
         | _ -> false
         
@@ -5379,7 +5389,9 @@ type LocalBindingInfoSymbol =
 module Types =
     let ByRef = TypeSymbol.GetFormalByRef(ByRefKind.ReadWrite)
 
-    let InRef = TypeSymbol.GetFormalByRef(ByRefKind.Read)
+    let InRef = TypeSymbol.GetFormalByRef(ByRefKind.ReadOnly)
+
+    let OutRef = TypeSymbol.GetFormalByRef(ByRefKind.WriteOnly)
 
     let Tuple = FormalTupleType
 
@@ -5409,8 +5421,9 @@ module OtherExtensions =
             | AttributeSymbol.Intrinsic("native_int") -> outTy <- TypeSymbol.NativeInt; true
             | AttributeSymbol.Intrinsic("native_uint") -> outTy <- TypeSymbol.NativeUInt; true
             | AttributeSymbol.Intrinsic("native_ptr") -> outTy <- Types.NativePtr; true
-            | AttributeSymbol.Intrinsic("by_ref_read_write") -> outTy <- Types.ByRef; true
-            | AttributeSymbol.Intrinsic("by_ref_read") -> outTy <- Types.InRef; true
+            | AttributeSymbol.Intrinsic("by_ref") -> outTy <- Types.ByRef; true
+            | AttributeSymbol.Intrinsic("by_ref_read_only") -> outTy <- Types.InRef; true
+            | AttributeSymbol.Intrinsic("by_ref_write_only") -> outTy <- Types.OutRef; true
             | AttributeSymbol.Intrinsic("base_object") -> outTy <- TypeSymbol.BaseObject; true
             | _ -> false
 

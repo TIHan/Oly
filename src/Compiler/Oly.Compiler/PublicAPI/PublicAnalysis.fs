@@ -118,8 +118,9 @@ let rec private convert (boundModel: OlyBoundModel) (expr: BoundExpression) ct :
 type OlyAnalysisByRefKindDescription =
     | DefaultByRefKind
     | WildcardByRefKind
-    | Read
     | ReadWrite
+    | ReadOnly
+    | WriteOnly
 
 [<NoEquality;NoComparison>]
 type OlyAnalysisTypeDescription =
@@ -142,8 +143,9 @@ let rec private areTypesEqualWithDescription (tTy: OlyAnalysisTypeDescription) (
         | TypeSymbol.ByRef(elementTy1, byRefKind1), TypeSymbol.ByRef(elementTy2, byRefKind2) ->
             match tByRefKind, byRefKind1, byRefKind2 with
             | WildcardByRefKind, _, _
-            | Read, ByRefKind.Read, ByRefKind.Read
-            | ReadWrite, ByRefKind.ReadWrite, ByRefKind.ReadWrite ->
+            | ReadWrite, ByRefKind.ReadWrite, ByRefKind.ReadWrite
+            | ReadOnly, ByRefKind.ReadOnly, ByRefKind.ReadOnly
+            | WriteOnly, ByRefKind.WriteOnly, ByRefKind.WriteOnly ->
                 areTypesEqualWithDescription tElementTy elementTy1 elementTy2
 
             | DefaultByRefKind, _, _ -> byRefKind1 = byRefKind2 && areTypesEqualWithDescription tElementTy elementTy1 elementTy2

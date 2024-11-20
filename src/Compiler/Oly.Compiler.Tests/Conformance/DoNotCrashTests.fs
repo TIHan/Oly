@@ -59,10 +59,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -509,10 +509,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -624,10 +624,10 @@ alias int32
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -669,10 +669,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -708,10 +708,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -822,10 +822,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#intrinsic("by_ref_read_write")]
+#intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -970,10 +970,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -1172,10 +1172,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1282,7 +1282,7 @@ open extension Int32TestExtension
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
     
 interface ITest =

@@ -124,6 +124,22 @@ module ImArray =
                 builder.Add(mapper arr1.[i] arr2.[i])
             builder.MoveToImmutable()
 
+    let inline map3 (mapper: 'T1 -> 'T2 -> 'T3 -> 'T) (arr1: imarray<'T1>) (arr2: imarray<'T2>) (arr3: imarray<'T3>) : imarray<_> =
+        if arr1.Length <> arr2.Length then
+            invalidOp "Block lengths do not match."
+
+        if arr1.Length <> arr3.Length then
+            invalidOp "Block lengths do not match."
+      
+        match arr1.Length with
+        | 0 -> ImmutableArray.Empty
+        | 1 -> ImmutableArray.Create(mapper arr1.[0] arr2.[0] arr3.[0])
+        | n ->
+            let builder = ImmutableArray.CreateBuilder(n)
+            for i = 0 to n - 1 do
+                builder.Add(mapper arr1.[i] arr2.[i] arr3.[0])
+            builder.MoveToImmutable()
+
     let inline mapi2 (mapper: int -> 'T1 -> 'T2 -> 'T) (arr1: imarray<'T1>) (arr2: imarray<'T2>) : imarray<_> =
         if arr1.Length <> arr2.Length then
             invalidOp "Block lengths do not match."

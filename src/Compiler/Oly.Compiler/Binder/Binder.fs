@@ -525,6 +525,7 @@ let createInitialBoundEnvironment asmIdent =
             seq {
                 mk Types.ByRef
                 mk Types.InRef
+                mk Types.OutRef
                 mk Types.Tuple
             }
             |> NameMap.ofSeq

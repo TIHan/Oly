@@ -10,10 +10,10 @@ let ``ByRef should fail as it goes out of scope``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -44,10 +44,10 @@ let ``ByRef should fail as it goes out of scope 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -78,7 +78,7 @@ let ``ByRef should fail as it cannot be captured inside a non-scoped lambda``() 
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 M(f: () -> int32): int32 = f()
@@ -105,7 +105,7 @@ let ``ByRef should pass as it can be captured inside a scoped lambda``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 M(f: scoped () -> int32): int32 = f()
@@ -124,7 +124,7 @@ let ``Should not be allowed to box a byref``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -155,7 +155,7 @@ let ``Byref return should be out-of-scope``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -188,7 +188,7 @@ let ``Byref return should be out-of-scope 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -222,7 +222,7 @@ let ``Byref return should be out-of-scope 3``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -255,7 +255,7 @@ let ``Byref return should be out-of-scope 4``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -289,7 +289,7 @@ let ``Byref return should be out-of-scope 5``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -326,7 +326,7 @@ let ``Byref return should be out-of-scope 6``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -367,7 +367,7 @@ let ``Byref return should be able to return from inside a struct``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -394,7 +394,7 @@ let ``Byref return should error if a struct is returning itself``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -427,7 +427,7 @@ let ``Byref return should error if a struct is returning itself 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -462,7 +462,7 @@ let ``Byref return should error if a struct is returning itself from an extensio
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -499,7 +499,7 @@ let ``Byref return should error if a struct is returning itself from an extrensi
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]

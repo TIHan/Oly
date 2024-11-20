@@ -28,6 +28,11 @@ module private Helpers =
     let InvalidOperation() =
         raise(InvalidOperationException())
 
+    let isTypeName name ty =
+        match ty with
+        | SpirvType.Named(namedTy) -> namedTy.Name = name
+        | _ -> false
+
 [<Sealed>]
 type SpirvEmitter() =
 
@@ -56,7 +61,32 @@ type SpirvEmitter() =
                 InvalidOperation()
 
         member this.EmitField(enclosingTy: SpirvType, flags: OlyIRFieldFlags, name: string, ty: SpirvType, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, constValueOpt: OlyIRConstant<SpirvType,SpirvFunction> option): SpirvField = 
-            raise (System.NotImplementedException())
+            let namedTyBuilder = enclosingTy.AsNamedTypeBuilder
+
+            let mutable flags = SpirvFieldFlags.None
+
+            attrs
+            |> ImArray.iter (fun attr ->
+                match attr with
+                | OlyIRAttribute(ctor, _, _) ->
+                    match ctor with
+                    | SpirvFunction.Function(ctorBuilder) ->
+                        if isTypeName "positionAttribute" ctorBuilder.EnclosingType then
+                            flags <- flags ||| SpirvFieldFlags.Position
+                    | _ ->
+                        ()
+            )
+
+            let field = 
+                {
+                    Index = namedTyBuilder.Fields.Count
+                    Name = name
+                    Type = ty
+                    Flags = flags
+                }
+
+            namedTyBuilder.Fields.Add(field)
+            field
 
         member this.EmitFieldInstance(enclosingTy: SpirvType, formalField: SpirvField): SpirvField = 
             NotSupported()
@@ -72,6 +102,16 @@ type SpirvEmitter() =
             | SpirvFunction.Function(funcBuilder) ->
                 funcBuilder.Instructions <-
                     [
+                        for i = 0 to funcBuilder.Parameters.Length - 1 do
+                            let par = funcBuilder.Parameters[i]
+
+                            match par.Type with
+                            | SpirvType.NativePointer(_, storageClass, _) ->
+                                yield! par.DecorateInstructions
+                                OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
+                            | _ ->
+                                OpVariable(par.Type.IdResult, par.VariableIdRef, StorageClass.Private, None)
+
                         OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
 
                         OpLabel(builder.NewIdResult())
@@ -82,7 +122,7 @@ type SpirvEmitter() =
             | _ ->
                 InvalidOperation()
 
-        member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
+        member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
             if tyPars.Length > 0 then NotSupported()
             if overrides.IsSome then NotSupported()
             if attrs.IsEmpty |> not then NotSupported()
@@ -112,13 +152,19 @@ type SpirvEmitter() =
             NotSupported()
 
         member this.EmitTypeBaseObject(): SpirvType = 
-            NotSupported()
+            SpirvType.Invalid // TODO: What should we do here? Ideally, we should not ever emit an 'object' type in the first place. Structs always inherits from 'object', but maybe we should not do that.
 
         member this.EmitTypeBool(): SpirvType = 
             raise(NotImplementedException())
 
         member this.EmitTypeByRef(elementTy: SpirvType, kind: OlyIRByRefKind): SpirvType = 
-            raise(NotImplementedException())
+            match kind with
+            | OlyIRByRefKind.ReadWrite ->
+                builder.GetTypeByRef(SpirvByRefKind.ReadWrite, elementTy)
+            | OlyIRByRefKind.ReadOnly ->
+                builder.GetTypeByRef(SpirvByRefKind.ReadOnly, elementTy)
+            | OlyIRByRefKind.WriteOnly ->
+                builder.GetTypeByRef(SpirvByRefKind.WriteOnly, elementTy)
 
         member this.EmitTypeChar16(): SpirvType = 
             raise(NotImplementedException())
@@ -138,7 +184,22 @@ type SpirvEmitter() =
                 NotSupported()
 
         member this.EmitTypeDefinitionInfo(ty: SpirvType, enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, extends: SpirvType imarray, implements: SpirvType imarray, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, runtimeTyOpt: SpirvType option): unit = 
-            ()
+            if ty.IsNamedTypeBuilder then
+                let mutable flags = ty.AsNamedTypeBuilder.Flags
+
+                attrs
+                |> ImArray.iter (fun attr ->
+                    match attr with
+                    | OlyIRAttribute(ctor=ctor) ->
+                        match ctor with
+                        | SpirvFunction.Function(ctorBuilder) ->
+                            if isTypeName "blockAttribute" ctorBuilder.EnclosingType then
+                                flags <- flags ||| SpirvTypeFlags.Block
+                        | _ ->
+                            ()
+                )
+
+                ty.AsNamedTypeBuilder.Flags <- flags
 
         member this.EmitTypeFloat32(): SpirvType = 
             builder.GetTypeFloat32()
@@ -189,7 +250,7 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeUInt32(): SpirvType = 
-            raise(NotImplementedException())
+            builder.GetTypeUInt32()
 
         member this.EmitTypeUInt64(): SpirvType = 
             raise(NotImplementedException())

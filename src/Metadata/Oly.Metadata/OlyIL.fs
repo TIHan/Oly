@@ -285,7 +285,11 @@ type OlyILEntityInstance =
 
 [<NoEquality;NoComparison>]
 type OlyILParameter =
-    | OlyILParameter of name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
+    | OlyILParameter of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
+
+    member this.Attributes =
+        match this with
+        | OlyILParameter(attrs=attrs) -> attrs
 
     member this.NameHandle =
         match this with
@@ -355,7 +359,7 @@ type OlyILFunctionSpecification =
         callConv: OlyILCallingConvention *
         name: OlyILStringHandle * 
         tyPars: OlyILTypeParameter imarray * 
-        pars: OlyILParameter imarray * 
+        pars: OlyILParameter imarray *
         returnTy: OlyILType with
 
     member this.IsInstance =
@@ -630,7 +634,8 @@ type OlyILFieldReference =
 [<RequireQualifiedAccess>]
 type OlyILByRefKind =
     | ReadWrite
-    | Read
+    | ReadOnly
+    | WriteOnly
 
 [<RequireQualifiedAccess>]
 type OlyILArrayKind =
@@ -760,18 +765,20 @@ type OlyILType =
         | OlyILTypeHigherVariable _ -> 22
         | OlyILTypeByRef(_, kind) ->
             match kind with
-            | OlyILByRefKind.Read ->
-                23
             | OlyILByRefKind.ReadWrite ->
+                23
+            | OlyILByRefKind.ReadOnly ->
                 24
-        | OlyILTypeNativeInt -> 25
-        | OlyILTypeNativeUInt -> 26
-        | OlyILTypeNativePtr _ -> 27
-        | OlyILTypeNativeFunctionPtr _ -> 28
-        | OlyILTypeDependentIndexer _ -> 29
-        | OlyILTypeForAll _ -> 30
-        | OlyILTypeInvalid _ -> 31
-        | OlyILTypeModified _ -> 32
+            | OlyILByRefKind.WriteOnly ->
+                25
+        | OlyILTypeNativeInt -> 26
+        | OlyILTypeNativeUInt -> 27
+        | OlyILTypeNativePtr _ -> 28
+        | OlyILTypeNativeFunctionPtr _ -> 29
+        | OlyILTypeDependentIndexer _ -> 30
+        | OlyILTypeForAll _ -> 31
+        | OlyILTypeInvalid _ -> 32
+        | OlyILTypeModified _ -> 33
         | OlyILTypeEntity(ilEntInst) -> 64 + ilEntInst.DefinitionOrReferenceHandle.Index
 
     member this.IsBuiltIn =

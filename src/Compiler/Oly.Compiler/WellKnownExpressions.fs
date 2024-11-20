@@ -327,12 +327,13 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                 match stripTypeEquations receiver.Type with
                 | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct ->
                     match kind with
-                    | ByRefKind.ReadWrite -> 
+                    | ByRefKind.ReadWrite
+                    | ByRefKind.WriteOnly -> 
                         if isMutable then
                             AddressOfMutable expr
                         else
                             expr
-                    | ByRefKind.Read -> 
+                    | ByRefKind.ReadOnly -> 
                         AddressOf expr
                 | _ ->
                     if field.IsMutable then

@@ -664,7 +664,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
                 match caller.Type.TryFunction with
                 | ValueSome(_, outputTy) ->
                     if outputTy.IsReadOnlyByRef then
-                        TypeSymbol.CreateByRef(parTy, ByRefKind.Read)
+                        TypeSymbol.CreateByRef(parTy, ByRefKind.ReadOnly)
                     else
                         TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)
                 | _ ->

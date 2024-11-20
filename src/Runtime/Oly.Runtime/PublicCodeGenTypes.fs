@@ -61,7 +61,8 @@ type OlyIRFunctionSignatureKey =
 [<RequireQualifiedAccess>]
 type OlyIRByRefKind =
     | ReadWrite
-    | Read
+    | ReadOnly
+    | WriteOnly
 
 [<Struct>]
 [<RequireQualifiedAccess>]

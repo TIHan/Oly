@@ -31,7 +31,7 @@ let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: Enc
                 if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
                     ByRefKind.ReadWrite
                 else
-                    ByRefKind.Read
+                    ByRefKind.ReadOnly
             TypeSymbol.CreateByRef(ty, kind)
         else
             ty

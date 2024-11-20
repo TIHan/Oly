@@ -178,13 +178,13 @@ module internal Helpers =
                 optenv.IsArgumentMutable(argIndex)
             | V.LocalAddress(index=localIndex;kind=kind) ->
                 match kind with
-                | OlyIRByRefKind.Read ->
+                | OlyIRByRefKind.ReadOnly ->
                     optenv.IsLocalMutable(localIndex)
                 | _ ->
                     true
             | V.ArgumentAddress(index=argIndex;kind=kind) ->
                 match kind with
-                | OlyIRByRefKind.Read ->
+                | OlyIRByRefKind.ReadOnly ->
                     optenv.IsArgumentMutable(argIndex)
                 | _ ->
                     true

@@ -487,7 +487,7 @@ struct Test =
     public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
-test(t: __oly_read_by_ref<Test>): () =
+test(t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
         """
     Oly src
@@ -503,7 +503,7 @@ struct Test =
     public field x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
-test(t: __oly_read_write_by_ref<Test>): () =
+test(t: __oly_by_ref<Test>): () =
     t.x <- 5
         """
     Oly src
@@ -519,7 +519,7 @@ struct Test =
     public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
-test(t: __oly_read_by_ref<Test>): () =
+test(t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
         """
     Oly src
@@ -535,7 +535,7 @@ struct Test =
     public field mutable x: __oly_int32
     new(x: __oly_int32) = { x = x }
 
-test(mutable t: __oly_read_by_ref<Test>): () =
+test(mutable t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
         """
     Oly src
@@ -1271,7 +1271,7 @@ let ``Should error on out-of-scope address-of``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1301,7 +1301,7 @@ let ``Should error on out-of-scope address-of 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1334,7 +1334,7 @@ let ``Should error on out-of-scope address-of 3``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1365,7 +1365,7 @@ let ``Should error on out-of-scope address-of 4``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1399,7 +1399,7 @@ let ``Should error on trying to re-assign byref``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1433,7 +1433,7 @@ let ``Should error on trying to re-assign byref 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -1622,10 +1622,10 @@ main() : () =
 let ``Can return byref from struct field``() =
     let src =
         """
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1653,10 +1653,10 @@ let ``Automatic deref from function call``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1688,10 +1688,10 @@ let ``Automatic deref from function call should fail as it is expected to be der
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1725,10 +1725,10 @@ let ``Automatic deref from function call should work with including a call to __
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -3036,7 +3036,7 @@ open extension Int32TestExtension
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 interface ITest =
@@ -3680,7 +3680,7 @@ let ``Indexer operator example with struct``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 struct Test<T> where T: struct =
@@ -3703,10 +3703,10 @@ let ``Indexer operator example with struct 2``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -3729,10 +3729,10 @@ let ``Indexer operator example with struct 3``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -3764,7 +3764,7 @@ let ``Indexer operator example with struct should error``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 struct Test<T> where T: struct =
@@ -3790,10 +3790,10 @@ let ``Indexer operator example with struct should error 2``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -3819,10 +3819,10 @@ let ``Indexer operator example with struct should NOT error - however, it did us
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -3846,7 +3846,7 @@ let ``Indexer operator example with struct should error 4``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 struct Test<T> where T: struct =
@@ -3872,7 +3872,7 @@ let ``Indexer operator example with class``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 class Test<T> where T: struct =
@@ -3895,10 +3895,10 @@ let ``Indexer operator example with class 2``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -3928,10 +3928,10 @@ let ``Indexer operator example with class 3``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -3961,7 +3961,7 @@ let ``Indexer operator example with class should error``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 class Test<T> where T: struct =
@@ -4341,10 +4341,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -4461,10 +4461,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -4577,10 +4577,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -4695,10 +4695,10 @@ alias int32
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4734,10 +4734,10 @@ alias int32
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4789,10 +4789,10 @@ alias int32
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4837,10 +4837,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4883,10 +4883,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4929,10 +4929,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4963,10 +4963,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4998,10 +4998,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5033,10 +5033,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5069,10 +5069,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5129,10 +5129,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5184,10 +5184,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5257,10 +5257,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5454,10 +5454,10 @@ let ``ByRef of a field should have correct signature``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5485,10 +5485,10 @@ module TestModule
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5513,10 +5513,10 @@ let ``ByRef of a field should have correct signature 3``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5541,10 +5541,10 @@ let ``ByRef of a field should have correct signature 4``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5572,10 +5572,10 @@ let ``ByRef of a field should have correct signature 5``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5600,10 +5600,10 @@ let ``ByRef of a field should have correct signature 6``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5628,10 +5628,10 @@ let ``ByRef of a field should have correct signature 7``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5656,10 +5656,10 @@ let ``ByRef of a field should have correct signature 8``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5684,14 +5684,14 @@ let ``ByRef of a field should have correct signature 9``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 test(): () =
     let t = Test()
     let ~^~x = &t.X
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5995,10 +5995,10 @@ alias int8
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -6528,10 +6528,10 @@ module Test2 =
 let ``Regression - Should error when trying to get the address-of``() =
     let src =
         """
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -8514,10 +8514,10 @@ let ``Extension method not marked as mutable and therefore should fail``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -8572,10 +8572,10 @@ let ``Use of mutable shape method should not compile as the value is not mutable
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -9970,3 +9970,187 @@ main(): () =
     print(v)
     """
     |> hasSymbolSignatureTextByCursor "getTuple(): (IA, __oly_int32)"
+
+[<Fact>]
+let ``Outref should pass``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+M(outValue: outref<int32>): () =
+    outValue <- 4
+
+main(): () =
+    let mutable x = 1
+    M(&x)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Outref should fail because of dereference``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M2(value: int32): () = ()
+
+M(outValue: outref<int32>): () =
+    M2(outValue)
+
+main(): () =
+    let mutable x = 1
+    M(&x)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+                """
+    M2(outValue)
+       ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of dereference 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M(value: int32): () = ()
+
+main(): () =
+    let mutable x = 1
+    let x : outref<int32> = &x
+    M(x)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+                """
+    M(x)
+      ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of invalid subsumption for inref``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+main(): () =
+    let x = 1
+    let x : outref<int32> = &x
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'outref<int32>' but is 'inref<int32>'.",
+                """
+    let x : outref<int32> = &x
+                            ^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of invalid subsumption for inref 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M(outValue: outref<int32>): () =
+    outValue <- 3
+
+main(): () =
+    let x = 1
+    M(&x)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'outref<int32>' but is 'inref<int32>'.",
+                """
+    M(&x)
+      ^^
+"""
+            )
+        ]
+    |> ignore

@@ -904,7 +904,8 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeVoid -> TypeSymbol.Unit
     | OlyILType.OlyILTypeBaseObject -> TypeSymbol.BaseObject
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadWrite) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadWrite)
-    | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.Read) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.Read)
+    | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadOnly) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadOnly)
+    | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.WriteOnly) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.WriteOnly)
     | OlyILType.OlyILTypeRefCell(ilElementTy) -> TypeSymbol.RefCell(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy)
     | OlyILType.OlyILTypeConstantInt32(n) -> TypeSymbol.ConstantInt32(n)
 
@@ -1181,7 +1182,7 @@ let private importParameter (cenv: cenv) (enclosingTyPars: TypeParameterSymbol i
     let name = cenv.ilAsm.GetStringOrEmpty(ilPar.NameHandle)
     let ty = importTypeSymbol cenv enclosingTyPars funcTyPars ilPar.Type
     let isThis = false // TODO:
-    let attrs = ImArray.empty // TODO:
+    let attrs = ilPar.Attributes |> ImArray.map (importAttribute cenv)
     LocalParameterSymbol(attrs, name, ty, isThis, (* isBase *) false, (* isMutable: *) false) :> ILocalParameterSymbol
 
 let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
@@ -1392,12 +1393,12 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         let ilEnclosingTy =
                             if enclosingEnt.IsAnyStruct then
                                 if enclosingEnt.IsReadOnly then
-                                    OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.Read)
+                                    OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.ReadOnly)
                                 else
                                     OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.ReadWrite)
                             else
                                 ilEnclosingTy
-                        ImArray.createOne(OlyILParameter(OlyILTableIndex.CreateString(-1), ilEnclosingTy, false)).AddRange(ilPars)
+                        ImArray.createOne(OlyILParameter(ImArray.empty, OlyILTableIndex.CreateString(-1), ilEnclosingTy, false)).AddRange(ilPars)
                     else
                         ilPars
 

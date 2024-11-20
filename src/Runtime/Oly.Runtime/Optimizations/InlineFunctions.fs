@@ -910,8 +910,9 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     OlyAssert.False(optenv.IsLocalByRefType(localIndex))
 #if DEBUG || CHECKED
                     match byRefKind with
-                    | OlyIRByRefKind.Read -> OlyAssert.True(func.IsArgumentReadOnlyByRefType(argIndex))
                     | OlyIRByRefKind.ReadWrite -> OlyAssert.True(func.IsArgumentReadWriteByRefType(argIndex))
+                    | OlyIRByRefKind.ReadOnly -> OlyAssert.True(func.IsArgumentReadOnlyByRefType(argIndex))
+                    | OlyIRByRefKind.WriteOnly -> OlyAssert.True(func.IsArgumentWriteOnlyByRefType(argIndex))
 #endif
                     E.Value(textRange, V.LocalAddress(localIndex, byRefKind, resultTy))
 

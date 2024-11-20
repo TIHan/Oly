@@ -434,7 +434,7 @@ let AddressOf =
         seq {
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read)
+    let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.ReadOnly)
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.AddressOf None false
 
 let UnsafeAddressOf =
@@ -458,7 +458,7 @@ let FromAddress =
         } |> ImArray.ofSeq
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read), false)
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.ReadOnly), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_from_address" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.FromAddress None false

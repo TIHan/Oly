@@ -277,7 +277,7 @@ module internal rec Helpers =
                                     | "InAttribute" ->
                                         match olyUnmodifiedType with
                                         | OlyILTypeByRef(olyElementTy, _) ->
-                                            OlyILTypeByRef(olyElementTy, OlyILByRefKind.Read)
+                                            OlyILTypeByRef(olyElementTy, OlyILByRefKind.ReadOnly)
                                         | _ ->
                                             invalidType cenv "Unsupported .NET type."
 
@@ -561,15 +561,19 @@ module internal rec Helpers =
                 for i = 0 to sigg.ParameterTypes.Length - 1 do
                     let parTy = sigg.ParameterTypes.[i]
 
-                    let olyNameHandle = 
+                    let olyAttrs, olyNameHandle = 
                         match pars |> ImArray.tryFind (fun x -> x.SequenceNumber = i + 1) with
                         | Some par ->
-                            if par.Name.IsNil then OlyILTableIndex(OlyILTableKind.String, -1)
-                            else importString cenv par.Name
-                        | _ ->
-                            OlyILTableIndex(OlyILTableKind.String, -1)
+                            let olyAttrs =
+                                par.GetCustomAttributes().ToImmutableArray()
+                                |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
 
-                    yield OlyILParameter(olyNameHandle, parTy, false)
+                            if par.Name.IsNil then olyAttrs, OlyILTableIndex(OlyILTableKind.String, -1)
+                            else olyAttrs, importString cenv par.Name
+                        | _ ->
+                            ImArray.empty, OlyILTableIndex(OlyILTableKind.String, -1)
+
+                    yield OlyILParameter(olyAttrs, olyNameHandle, parTy, false)
             }
             |> ImArray.ofSeq
 
@@ -942,7 +946,7 @@ module internal rec Helpers =
         let pars = 
             si.ParameterTypes
             |> ImArray.map (fun olyTy ->
-                OlyILParameter(OlyILTableIndex.CreateString(-1), olyTy, false)
+                OlyILParameter(ImArray.empty, OlyILTableIndex.CreateString(-1), olyTy, false)
             )
         let returnTy = si.ReturnType
 

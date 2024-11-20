@@ -8,8 +8,13 @@ open Oly.Core.TaskExtensions
         
 [<NoComparison;NoEquality>]
 [<DebuggerDisplay("{ToString()}")>]
-type OlyIRParameter<'RuntimeType> =
-    | OlyIRParameter of name: string * ty: 'RuntimeType * isMutable: bool
+type OlyIRParameter<'RuntimeType, 'RuntimeFunction> =
+    | OlyIRParameter of attrs: Lazy<OlyIRAttribute<'RuntimeType, 'RuntimeFunction> imarray> * name: string * ty: 'RuntimeType * isMutable: bool
+
+    member this.Attributes =
+        match this with
+        | OlyIRParameter(attrs=attrs) when attrs.IsValueCreated -> attrs.Value
+        | _ -> failwith "Attributes cannot be accessed at this point."
 
     member this.Name =
         match this with
@@ -1022,7 +1027,8 @@ module Dump =
     let private dumpByRefKind (byRefKind: OlyIRByRefKind) =
         match byRefKind with
         | OlyIRByRefKind.ReadWrite -> "rw"
-        | OlyIRByRefKind.Read -> "r"
+        | OlyIRByRefKind.ReadOnly -> "r"
+        | OlyIRByRefKind.WriteOnly -> "w"
 
     let private dumpTypeVariableKind (tyVarKind: OlyIRTypeVariableKind) =
         match tyVarKind with

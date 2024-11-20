@@ -738,7 +738,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
-        if not lhsExpr.Type.IsReadWriteByRef then
+        if not lhsExpr.Type.IsReadWriteByRef && not lhsExpr.Type.IsWriteOnlyByRef then
             env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)  
 
     | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->

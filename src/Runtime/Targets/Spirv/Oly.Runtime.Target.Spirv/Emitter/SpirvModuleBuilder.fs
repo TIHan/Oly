@@ -12,10 +12,16 @@ open Oly.Runtime.CodeGen
 open Spirv
 open Spirv.SpirvModule
 
+type SpirvTypeFlags =
+    | None  = 0b00
+    | Block = 0b01
+
 [<Sealed>]
-type SpirvNamedTypeBuilder(idResult: IdResult, enclosing: Choice<string imarray, SpirvType>, name: string, fields: List<SpirvField>) as this =
+type SpirvNamedTypeBuilder(idResult: IdResult, enclosing: Choice<string imarray, SpirvType>, name: string, fields: List<SpirvField>, flags: SpirvTypeFlags) as this =
 
     let ty = SpirvType.Named(this)
+
+    member val Flags = flags with get, set
 
     member _.IdResult = idResult
     member _.Enclosing = enclosing
@@ -28,9 +34,11 @@ type SpirvNamedTypeBuilder(idResult: IdResult, enclosing: Choice<string imarray,
 type SpirvByRefKind =
     | ReadWrite
     | ReadOnly
+    | WriteOnly
 
 [<RequireQualifiedAccess>]
 type SpirvType =
+    | Invalid
     | Void of idResult: IdResult
     | Unit of idResult: IdResult
     | Int8 of idResult: IdResult
@@ -46,7 +54,7 @@ type SpirvType =
     | Bool of idResult: IdResult
     | Char16 of idResult: IdResult
     | Tuple of idResult: IdResult * itemTys: SpirvType imarray * itemNames: string imarray
-    | ByRef of idResult: IdResult * elementTy: SpirvType * kind: SpirvByRefKind
+    | ByRef of idResult: IdResult * kind: SpirvByRefKind * elementTy: SpirvType
     | NativeInt of idResult: IdResult
     | NativeUInt of idResult: IdResult
     | NativePointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
@@ -62,6 +70,7 @@ type SpirvType =
 
     member this.GetDefinitionInstructions() =
         match this with
+        | Invalid -> failwith "invalid"
         | Void idResult ->                  [OpTypeVoid(idResult)]
         | Unit idResult ->                  [OpTypeInt(idResult, 32u, 0u)]
         | Int8 idResult ->                  [OpTypeInt(idResult, 8u, 1u)]
@@ -85,7 +94,10 @@ type SpirvType =
                 OpTypeStruct(idResult, itemTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq)
             ]
 
-        | ByRef(idResult, _, _) ->          raise(NotImplementedException())
+        | ByRef(idResult, kind, elementTy) ->
+            [
+                OpTypePointer(idResult, StorageClass.Private, elementTy.IdResult)
+            ]
         | NativeInt idResult ->             raise(NotImplementedException())
         | NativeUInt idResult ->            raise(NotImplementedException())
         | NativePointer(idResult, storageClass, elementTy) ->
@@ -100,6 +112,16 @@ type SpirvType =
 
         | Named(namedTy) -> 
             [
+                for field in namedTy.Fields do
+                    if field.Flags.HasFlag(SpirvFieldFlags.Position) then
+                        OpMemberDecorate(namedTy.IdResult, uint32(field.Index), Decoration.BuiltIn BuiltIn.Position)
+                     //   OpMemberDecorate(namedTy.IdResult, uint32(field.Index + 1), Decoration.BuiltIn BuiltIn.PointSize)
+                     //   OpMemberDecorate(namedTy.IdResult, uint32(field.Index + 2), Decoration.BuiltIn BuiltIn.ClipDistance)
+                     //   OpMemberDecorate(namedTy.IdResult, uint32(field.Index + 3), Decoration.BuiltIn BuiltIn.CullDistance)
+
+                if namedTy.Flags.HasFlag(SpirvTypeFlags.Block) then
+                    OpDecorate(namedTy.IdResult, Decoration.Block)
+
                 OpTypeStruct(namedTy.IdResult, namedTy.Fields |> Seq.map (fun x -> x.Type.IdResult) |> List.ofSeq)
             ]
 
@@ -108,6 +130,7 @@ type SpirvType =
 
     member this.IdResult =
         match this with
+        | Invalid -> failwith "invalid"
         | Void idResult
         | Unit idResult
         | Int8 idResult
@@ -139,97 +162,72 @@ type SpirvType =
         | Module _ -> true
         | _ -> false
 
+    member this.IsNamedTypeBuilder =
+        match this with
+        | Named _ -> true
+        | _ -> false
+
+    member this.AsNamedTypeBuilder =
+        match this with
+        | Named(namedTyBuilder) -> namedTyBuilder
+        | _ -> failwith "Expected named type."
+
 [<Sealed>]
-type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType) as this =
+type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType) as this =
 
     let func = SpirvFunction.Function(this)
 
-    let realReturnTy = if irFlags.IsEntryPoint then builder.GetTypeVoid() else returnTy
-    let realParTys = irPars |> ImArray.map (fun x -> if irFlags.IsEntryPoint then builder.GetTypePointer(StorageClass.Input, x.Type) else x.Type)
-
-    let funcTy = SpirvType.Function(builder.NewIdResult(), realParTys, realReturnTy)
-
-    let parameterTypeIdResults =
-        realParTys
-        |> ImArray.map (fun x -> x.IdResult)
-
-    let parametersIdResults =
-        parameterTypeIdResults
-        |> Seq.map (fun typeIdResult ->
-            {| VariableIdRef = (builder.NewIdResult(): IdRef); TypeIdRef = (typeIdResult: IdRef) |}
+    let realParTys = 
+        irPars 
+        |> ImArray.map (fun x -> 
+            if irFlags.IsEntryPoint then 
+                match x.Type with
+                | SpirvType.ByRef(_, SpirvByRefKind.ReadOnly, elementTy) ->
+                    builder.GetTypePointer(StorageClass.Input, elementTy)
+                | SpirvType.ByRef(_, SpirvByRefKind.WriteOnly, elementTy) ->
+                    builder.GetTypePointer(StorageClass.Output, elementTy)
+                | _ ->
+                    failwith "Expected a read-only or write-only by-ref type."
+            else 
+                x.Type
         )
-        |> List.ofSeq
 
-    let outputParameterIdResults =
-        if irFlags.IsEntryPoint then
-            match returnTy with
-            | SpirvType.Void _ -> []
-            | SpirvType.Vector4 _
-            | SpirvType.Tuple _ ->
-                let memberTys =
-                    match returnTy with
-                    | SpirvType.Vector4(vec4IdResult, SpirvType.Float32 _) ->
-                        [vec4IdResult] // Vertex Shader Only
-                    | SpirvType.Tuple(_, itemTys, _) ->
-                        itemTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq
-                    | _ ->
-                        raise(InvalidOperationException())
+    let funcTy = SpirvType.Function(builder.NewIdResult(), realParTys, returnTy)
 
-                match memberTys with
-                | [] -> []
-                | [_] ->
-                    let blockIdResult = builder.NewIdResult()
-                    let typePointerOfBlockIdResult = builder.NewIdResult()
-                    let variableOfPointerOfBlockIdResult = builder.NewIdResult()
+    let pars =
+        realParTys
+        |> ImArray.mapi (fun i parTy ->
 
-                    [
-                        {| 
-                            MemberTypes = memberTys
-                            BlockIdResult = blockIdResult
-                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
-                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
-                        |}
-                    ]
-                | vec4Ty :: memberTys ->
-                    [
-                        let blockIdResult = builder.NewIdResult()
-                        let typePointerOfBlockIdResult = builder.NewIdResult()
-                        let variableOfPointerOfBlockIdResult = builder.NewIdResult()
-                        {| 
-                            MemberTypes = [vec4Ty]
-                            BlockIdResult = blockIdResult
-                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
-                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
-                        |}
-                        let blockIdResult = builder.NewIdResult()
-                        let typePointerOfBlockIdResult = builder.NewIdResult()
-                        let variableOfPointerOfBlockIdResult = builder.NewIdResult()
-                        {|
-                            MemberTypes = memberTys
-                            BlockIdResult = blockIdResult
-                            TypePointerOfBlockIdResult = typePointerOfBlockIdResult 
-                            VariableOfPointerOfBlockIdResult = variableOfPointerOfBlockIdResult 
-                        |}
-                    ]
-            | _ ->
-                raise(NotImplementedException())
-        else
-            []
+            let varIdRef = (builder.NewIdResult(): IdRef)
+
+            let decorateInstrs = 
+                let irPar = irPars[i]
+                [
+                    for attr in irPar.Attributes do
+                        match attr with
+                        | OlyIRAttribute(ctor, args, _) ->
+                            match ctor with
+                            | SpirvFunction.Function(ctorBuilder: SpirvFunctionBuilder) ->
+                                if ctorBuilder.EnclosingType.AsNamedTypeBuilder.Name = "locationAttribute" && args.Length = 1 then
+                                    match args[0] with
+                                    | OlyIRConstant.UInt32(value) ->
+                                        OpDecorate(varIdRef, Decoration.Location value)
+                                    | _ ->
+                                        ()
+                            | _ ->
+                                ()
+                ]
+
+            {| VariableIdRef = varIdRef; Type = parTy; DecorateInstructions = decorateInstrs |}
+        )
 
     member _.IdResult = idResult
-    member _.EnclosingType = enclosingTy
+    member _.EnclosingType: SpirvType = enclosingTy
     member _.Name = name
     member val Instructions : Instruction list = [] with get, set
     member _.Type = funcTy
-
-    /// Prefer 'ReturnType' if you want the return type.
-    /// However, if the function is an entry point, then use this property if you wanted the logical return type before CodeGen.
-    member _.LogicalReturnType = returnTy
-    member _.ReturnType = realReturnTy
-
-    member _.ParameterTypeIdResults = parameterTypeIdResults
-    member _.ParameterIdResults = parametersIdResults
-    member _.OutputParameterIdResults = outputParameterIdResults
+    member _.ReturnType = returnTy
+    member _.Parameters = pars
 
     member _.IsEntryPoint = irFlags.IsEntryPoint
 
@@ -241,11 +239,16 @@ type SpirvFunction =
     | NewVector4 of SpirvType imarray
     | SetVariable of varTy: IdResultType * IdRef
 
+type SpirvFieldFlags =
+    | None     = 0b0000
+    | Position = 0b0001
+
 type SpirvField =
     {
         Name: string
         Type: SpirvType
         Index: int32
+        Flags: SpirvFieldFlags
     }
 
 [<Sealed>]
@@ -257,6 +260,7 @@ type SpirvModuleBuilder() =
     let funcs = List<SpirvFunctionBuilder>()
 
     let pointerTys = Dictionary<(StorageClass * IdRef), SpirvType>()
+    let byRefTys = Dictionary<(SpirvByRefKind * IdRef), SpirvType>()
 
     let constantsInt32 = Dictionary<int32, IdResult>()
     let constantsFloat32 = Dictionary<float32, IdResult>()
@@ -276,6 +280,7 @@ type SpirvModuleBuilder() =
     (* cached types *)
     let mutable cachedTypeVoid           = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeInt32          = Unchecked.defaultof<SpirvType>
+    let mutable cachedTypeUInt32         = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeFloat32        = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeVector2Float32 = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeVector3Float32 = Unchecked.defaultof<SpirvType>
@@ -346,6 +351,17 @@ type SpirvModuleBuilder() =
             pointerTys[key] <- ty
             ty
 
+    member this.GetTypeByRef(kind: SpirvByRefKind, elementTy: SpirvType) =
+        let key = (kind, elementTy.IdResult)
+        match byRefTys.TryGetValue key with
+        | true, ty -> ty
+        | _ ->
+            let idResult = this.NewIdResult()
+            let ty = SpirvType.ByRef(idResult, kind, elementTy)
+            this.AddType(ty)
+            byRefTys[key] <- ty
+            ty
+
     member this.GetTypeVoid() =
         if isNull(box cachedTypeVoid) then
             cachedTypeVoid <- SpirvType.Void(this.NewIdResult())
@@ -357,6 +373,12 @@ type SpirvModuleBuilder() =
             cachedTypeInt32 <- SpirvType.Int32(this.NewIdResult())
             this.AddType(cachedTypeInt32)
         cachedTypeInt32
+
+    member this.GetTypeUInt32() =
+        if isNull(box cachedTypeUInt32) then
+            cachedTypeUInt32 <- SpirvType.UInt32(this.NewIdResult())
+            this.AddType(cachedTypeUInt32)
+        cachedTypeUInt32
 
     member this.GetTypeFloat32() =
         if isNull(box cachedTypeFloat32) then
@@ -388,7 +410,7 @@ type SpirvModuleBuilder() =
         ty
 
     member this.CreateNameTypedBuilder(enclosing: Choice<string imarray, SpirvType>, name: string) =
-        let tyBuilder = SpirvNamedTypeBuilder(this.NewIdResult(), enclosing, name, List())
+        let tyBuilder = SpirvNamedTypeBuilder(this.NewIdResult(), enclosing, name, List(), SpirvTypeFlags.None)
         this.AddType(tyBuilder.AsType)
         tyBuilder
 
@@ -397,7 +419,7 @@ type SpirvModuleBuilder() =
             failwith "Unable to add type while the module is building."
         types.Add(ty)
 
-    member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType> imarray, returnTy: SpirvType) =
+    member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType) =
         let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy, name, irFlags, irPars, returnTy)
         funcs.Add(func)
 
@@ -407,67 +429,16 @@ type SpirvModuleBuilder() =
             match entryPointInstrs with
             | [] ->
                 let variableOfPointerOfBlockIdResults =
-                    func.OutputParameterIdResults
-                    |> List.map (fun x -> x.VariableOfPointerOfBlockIdResult)
+                    func.Parameters
+                    |> Seq.map (fun par ->
+                        par.VariableIdRef
+                    )
+                    |> List.ofSeq
 
                 entryPointInstrs <-
                     [
-                        OpEntryPoint(ExecutionModel.Vertex, func.IdResult, func.Name, 
-                            variableOfPointerOfBlockIdResults @ (func.ParameterIdResults |> List.map (fun x -> x.VariableIdRef))
-                        )
-
-                        let mutable i = 0
-                        for x in func.OutputParameterIdResults do
-                            if i = 0 then
-                                let blockIdResult = x.BlockIdResult
-                                OpMemberDecorate(blockIdResult, 0u, Decoration.BuiltIn(BuiltIn.Position))
-                                OpMemberDecorate(blockIdResult, 1u, Decoration.BuiltIn(BuiltIn.PointSize))
-                                OpMemberDecorate(blockIdResult, 2u, Decoration.BuiltIn(BuiltIn.ClipDistance))
-                                OpMemberDecorate(blockIdResult, 3u, Decoration.BuiltIn(BuiltIn.CullDistance))
-                                OpDecorate(blockIdResult, Decoration.Block)
-                            else
-                                ()
-                                //OpDecorate(x.BlockIdResult, Decoration.Block)
-                            i <- i + 1
-
-                        yield! (
-                            func.ParameterIdResults
-                            |> List.mapi (fun i par -> OpDecorate(par.VariableIdRef, Decoration.Location(uint32(i))))
-                        )
-                        yield! (
-                            let mutable index = 0
-                            func.OutputParameterIdResults
-                            |> List.choose (fun x ->
-                                let i = index
-                                index <- index + 1
-                                if i = 0 then None
-                                else
-                                    OpDecorate(x.BlockIdResult, Decoration.Location(uint32(i - 1)))
-                                    |> Some
-                            )
-                        )
+                        OpEntryPoint(ExecutionModel.Vertex, func.IdResult, func.Name, variableOfPointerOfBlockIdResults)
                     ]
-
-                let outVarInstrs =
-                    func.OutputParameterIdResults
-                    |> List.collect (fun x ->
-                        [
-                            OpTypeStruct(x.BlockIdResult, x.MemberTypes)
-                            OpTypePointer(x.TypePointerOfBlockIdResult, StorageClass.Output, x.BlockIdResult)
-                            OpVariable(x.TypePointerOfBlockIdResult, x.VariableOfPointerOfBlockIdResult, StorageClass.Output, None)
-                        ]
-                    )
-
-                varInstrs <-
-                    func.ParameterIdResults
-                    |> List.collect (fun par ->
-                        [
-                            OpVariable(par.TypeIdRef, par.VariableIdRef, StorageClass.Input, None)
-                        ]
-                    )
-
-                varInstrs <-
-                    varInstrs @ outVarInstrs
             | _ ->
                 failwith "Entry point already set."
         func

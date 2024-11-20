@@ -1887,8 +1887,11 @@ type InterpreterRuntimeEmitter(stdout) =
             match arg2 with
             | OlyIRByRefKind.ReadWrite ->
                 InterpreterType.ByReference(arg1)
-            | OlyIRByRefKind.Read ->
+            | OlyIRByRefKind.ReadOnly ->
                 InterpreterType.InReference(arg1)
+            | OlyIRByRefKind.WriteOnly ->
+                // TODO: Should we create a 'OutReference'?
+                InterpreterType.ByReference(arg1)
 
         member this.EmitTypeChar16(): InterpreterType = 
             InterpreterType.Char16

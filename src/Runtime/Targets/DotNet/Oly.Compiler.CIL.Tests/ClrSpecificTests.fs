@@ -366,7 +366,7 @@ open System
 open System.Diagnostics
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias (&)<T>
 
 #[intrinsic("address_of")]
@@ -1756,10 +1756,10 @@ open System.Runtime.CompilerServices
 #[intrinsic("not")]
 (!)(__oly_bool): __oly_bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1828,10 +1828,10 @@ open System.Runtime.CompilerServices
 #[intrinsic("not")]
 (!)(__oly_bool): __oly_bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1872,7 +1872,7 @@ let ``Indexer operator example with struct with export``() =
         """
 namespace A
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[export]
@@ -2422,7 +2422,7 @@ module M =
     #[intrinsic("utf16")]
     alias string
     
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
     
     #[intrinsic("address_of")]
@@ -2492,7 +2492,7 @@ module M =
     #[intrinsic("utf16")]
     alias string
     
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
     
     #[intrinsic("address_of")]
@@ -2567,7 +2567,7 @@ alias (*)<T>
 #[intrinsic("unsafe_cast")]
 unsafeCast<T>(__oly_object): T
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("print")]
@@ -2688,10 +2688,10 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -3376,10 +3376,10 @@ alias char
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -4447,10 +4447,10 @@ open System
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4975,10 +4975,10 @@ alias int32
 #[intrinsic("float32")]
 alias float32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5135,10 +5135,10 @@ alias int32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5239,10 +5239,10 @@ let ``Observer example``() =
 open System
 open System.Collections.Concurrent
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
@@ -5359,10 +5359,10 @@ open System.Collections.Concurrent
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
@@ -5476,10 +5476,10 @@ let ``Lock example``() =
 open System
 open System.Collections.Concurrent
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
@@ -5761,7 +5761,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5799,7 +5799,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5836,7 +5836,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5873,7 +5873,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5910,7 +5910,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5980,7 +5980,7 @@ module Prelude =
     #[intrinsic("int32")]
     alias int32
 
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
 
     #[intrinsic("address_of")]
@@ -6074,7 +6074,7 @@ module Prelude =
     #[intrinsic("int32")]
     alias int32
 
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
 
     #[intrinsic("address_of")]
@@ -6862,7 +6862,7 @@ alias float32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("print")]
@@ -7148,10 +7148,10 @@ let ``byref captured in scoped lambda``() =
         """
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -7188,10 +7188,10 @@ let ``inref captured in scoped lambda``() =
         """
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -7400,7 +7400,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias (&)<T>
 
 #[intrinsic("address_of")]
@@ -7637,10 +7637,10 @@ nuint(int32): nuint
 #[intrinsic("unsafe_cast")]
 nuint(uint8): nuint
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -7865,10 +7865,10 @@ print(__oly_object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]

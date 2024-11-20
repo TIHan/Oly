@@ -782,10 +782,12 @@ module rec ClrCodeGen =
             ()
 
     let createByRef (asmBuilder: ClrAssemblyBuilder) byRefKind ty =
+        // TODO: Do we need to do something special with 'WriteOnly/outref'?
         match byRefKind with
-        | OlyIRByRefKind.ReadWrite ->
+        | OlyIRByRefKind.ReadWrite
+        | OlyIRByRefKind.WriteOnly ->
             ClrTypeInfo.ByRef(ty, false, ClrTypeHandle.CreateByRef(ty.Handle))     
-        | OlyIRByRefKind.Read ->
+        | OlyIRByRefKind.ReadOnly ->
             let handle = 
                 match asmBuilder.tr_InAttribute with
                 | Some tr_InAttribute ->
@@ -1184,7 +1186,7 @@ module rec ClrCodeGen =
 
             let irArg =
                 if irArg.ResultType.IsStruct then
-                    addressOf cenv OlyIRByRefKind.Read irArg
+                    addressOf cenv OlyIRByRefKind.ReadOnly irArg
                 else
                     irArg
 
@@ -2116,7 +2118,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             (name: string) 
             (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) 
             (originalOverridesOpt: ClrMethodInfo option)
-            (pars: OlyIRParameter<ClrTypeInfo> imarray) 
+            (pars: OlyIRParameter<ClrTypeInfo, ClrMethodInfo> imarray) 
             (returnTy: ClrTypeInfo) =
 
         // Exported functions will always use the name represented in the source.

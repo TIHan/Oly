@@ -161,10 +161,10 @@ alias utf16
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
         """
     Oly (prelude + printApi + src)

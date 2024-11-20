@@ -106,7 +106,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         enclosingTy: 'Type * flags: OlyIRFunctionFlags * 
         name: string * 
         tyPars: OlyIRTypeParameter<'Type> imarray * 
-        pars: OlyIRParameter<'Type> imarray * 
+        pars: OlyIRParameter<'Type, 'Function> imarray * 
         returnTy: 'Type * 
         overrides: 'Function option * 
         sigKey: OlyIRFunctionSignatureKey * 

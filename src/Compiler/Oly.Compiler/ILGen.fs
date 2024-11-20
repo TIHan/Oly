@@ -433,8 +433,10 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         match kind with
         | ByRefKind.ReadWrite ->
             OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadWrite)
-        | ByRefKind.Read ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.Read)
+        | ByRefKind.ReadOnly ->
+            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadOnly)
+        | ByRefKind.WriteOnly ->
+            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.WriteOnly)
 
     | TypeSymbol.NativeInt -> OlyILTypeNativeInt
     | TypeSymbol.NativeUInt -> OlyILTypeNativeUInt
@@ -573,7 +575,8 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
             failwith "Unexpected type constructor."
 #endif
 
-        OlyILParameter(nameHandle, emitILType cenv env parTy, canInlineClosure)
+        let attrs = GenAttributes cenv env par.Attributes
+        OlyILParameter(attrs, nameHandle, emitILType cenv env parTy, canInlineClosure)
     )
 
 and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) =
@@ -1795,8 +1798,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 let ilElementTy = emitILType cenv env expr.Type.TryGetReferenceCellElement.Value
                 let ilExpr = GenExpression cenv env expr
                 let ilByRefKind =
+                    OlyAssert.False(argExpr.Type.IsWriteOnlyByRef)
                     if argExpr.Type.IsReadOnlyByRef then
-                        OlyILByRefKind.Read
+                        OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
                 OlyILExpression.Operation(ilTextRange, OlyILOperation.LoadRefCellContentsAddress(ilElementTy, ilExpr, ilByRefKind))
@@ -1810,8 +1814,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             | _ ->
                 match value with
                 | :? IFunctionSymbol as func ->
+                    OlyAssert.False(func.ReturnType.IsWriteOnlyByRef)
                     if func.ReturnType.IsReadOnlyByRef then
-                        OlyILByRefKind.Read
+                        OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
                 | _ ->
@@ -2035,9 +2040,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     let ilFunArgExpr =
                         match ilFunArgExpr with
                         | OlyILExpression.Value(ilTextRange, OlyILValue.Local n) ->
-                            OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(n, OlyILByRefKind.Read))
+                            OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(n, OlyILByRefKind.ReadOnly))
                         | OlyILExpression.Value(ilTextRange, OlyILValue.Argument n) ->
-                            OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.Read))
+                            OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.ReadOnly))
                         | OlyILExpression.Operation(_, OlyILOperation.LoadFieldAddress _) ->
                             ilFunArgExpr
                         | _ ->
