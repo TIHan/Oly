@@ -57,6 +57,10 @@ type SpirvEmitter() =
                 builder.GetTypeVector3Float32()
             | "vec4" -> 
                 builder.GetTypeVector4Float32()
+            | "position"
+            | "block" 
+            | "location" ->
+                SpirvType.Invalid
             | _ ->
                 InvalidOperation()
 
@@ -68,11 +72,13 @@ type SpirvEmitter() =
             attrs
             |> ImArray.iter (fun attr ->
                 match attr with
-                | OlyIRAttribute(ctor, _, _) ->
+                | OlyIRAttribute(ctor, args, _) ->
                     match ctor with
-                    | SpirvFunction.Function(ctorBuilder) ->
-                        if isTypeName "positionAttribute" ctorBuilder.EnclosingType then
+                    | SpirvFunction.Attribute_Position ->
+                        if args.IsEmpty then
                             flags <- flags ||| SpirvFieldFlags.Position
+                        else
+                            InvalidOperation()
                     | _ ->
                         ()
             )
@@ -133,8 +139,14 @@ type SpirvEmitter() =
                 match info.Path |> Seq.toList with
                 | ["__oly_spirv_"; "vec4"] when flags.IsInstance && flags.IsConstructor -> 
                     SpirvFunction.NewVector4(pars |> ImArray.map (fun x -> x.Type))
-                | _ -> 
-                    InvalidOperation()
+                | ["__oly_spirv_"; "position"] when flags.IsInstance && flags.IsConstructor ->
+                    SpirvFunction.Attribute_Position
+                | ["__oly_spirv_"; "block"] when flags.IsInstance && flags.IsConstructor ->
+                    SpirvFunction.Attribute_Block
+                | ["__oly_spirv_"; "location"] when flags.IsInstance && flags.IsConstructor ->
+                    SpirvFunction.Attribute_Location
+                | _ ->
+                    NotSupported()
             | _ ->
                 let funcBuilder = builder.CreateFunctionBuilder(enclosingTy, name, flags, pars, returnTy)
                 funcBuilder.AsFunction
@@ -190,11 +202,13 @@ type SpirvEmitter() =
                 attrs
                 |> ImArray.iter (fun attr ->
                     match attr with
-                    | OlyIRAttribute(ctor=ctor) ->
+                    | OlyIRAttribute(ctor=ctor;args=args) ->
                         match ctor with
-                        | SpirvFunction.Function(ctorBuilder) ->
-                            if isTypeName "blockAttribute" ctorBuilder.EnclosingType then
+                        | SpirvFunction.Attribute_Block ->
+                            if args.IsEmpty then
                                 flags <- flags ||| SpirvTypeFlags.Block
+                            else
+                                InvalidOperation()
                         | _ ->
                             ()
                 )

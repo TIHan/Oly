@@ -94,7 +94,7 @@ type SpirvType =
                 OpTypeStruct(idResult, itemTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq)
             ]
 
-        | ByRef(idResult, kind, elementTy) ->
+        | ByRef(idResult, _, elementTy) ->
             [
                 OpTypePointer(idResult, StorageClass.Private, elementTy.IdResult)
             ]
@@ -207,13 +207,15 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                         match attr with
                         | OlyIRAttribute(ctor, args, _) ->
                             match ctor with
-                            | SpirvFunction.Function(ctorBuilder: SpirvFunctionBuilder) ->
-                                if ctorBuilder.EnclosingType.AsNamedTypeBuilder.Name = "locationAttribute" && args.Length = 1 then
+                            | SpirvFunction.Attribute_Location ->
+                                if args.Length = 1 then
                                     match args[0] with
                                     | OlyIRConstant.UInt32(value) ->
                                         OpDecorate(varIdRef, Decoration.Location value)
                                     | _ ->
-                                        ()
+                                        raise(InvalidOperationException())
+                                else
+                                    raise(InvalidOperationException())
                             | _ ->
                                 ()
                 ]
@@ -238,6 +240,9 @@ type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | NewVector4 of SpirvType imarray
     | SetVariable of varTy: IdResultType * IdRef
+    | Attribute_Position
+    | Attribute_Block
+    | Attribute_Location
 
 type SpirvFieldFlags =
     | None     = 0b0000
@@ -450,7 +455,9 @@ type SpirvModuleBuilder() =
             entryPointInstrs @
             (
                 types
-                |> Seq.collect (fun x -> x.GetDefinitionInstructions())
+                |> Seq.collect (fun x ->
+                    x.GetDefinitionInstructions()
+                )
                 |> List.ofSeq
             ) @
             varInstrs @

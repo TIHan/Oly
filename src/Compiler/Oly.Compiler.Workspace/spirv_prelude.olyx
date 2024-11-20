@@ -53,10 +53,11 @@ struct vec4 =
 
     new(v: vec2, z: float32, w: float32)
 
-struct positionAttribute
+#[import("spirv", "__oly_spirv_", "position")]
+struct positionAttribute = new()
 
-struct blockAttribute
+#[import("spirv", "__oly_spirv_", "block")]
+struct blockAttribute = new()
 
-struct locationAttribute =
-
-    new(number: uint32) = { }
+#[import("spirv", "__oly_spirv_", "location")]
+struct locationAttribute = new(number: uint32)
