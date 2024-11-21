@@ -1955,9 +1955,6 @@ let private bindPattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: Solver
     
     | OlySyntaxPattern.Literal(syntaxLiteral) ->
         let literal = bindLiteralAndCheck cenv env (Some matchTy) syntaxLiteral
-        let literal =
-            checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral matchTy literal.Type
-            stripLiteral literal
         env, BoundCasePattern.Literal(syntaxInfo, literal)
 
     | OlySyntaxPattern.Name(syntaxName) ->

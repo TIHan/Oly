@@ -120,7 +120,7 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
 
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
-        BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteralAndCheck cenv env (Some expectedTy) syntaxLiteral)
+        BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv syntaxLiteral)
     | OlySyntaxExpression.Call(OlySyntaxExpression.Name(syntaxName), syntaxArgs) ->
         // TODO: Handle generic attributes
         let argExprs = bindAttributeArguments cenv env syntaxArgs
@@ -172,13 +172,17 @@ let bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: T
         BoundExpression.Literal(BoundSyntaxInfo.User(syntaxExpr, env.benv), BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)))
 
     | OlySyntaxExpression.Name(syntaxName) ->
-        let resInfo = ResolutionInfo.Default.UpdateArguments(ResolutionArguments.Any)
+        let resInfo =
+            if isArg then
+                ResolutionInfo.Create(ValueNone, ResolutionTypeArity.Any, ResolutionContext.ValueOnly)
+            else
+                ResolutionInfo.Create(ValueSome ImArray.empty, ResolutionTypeArity.Any, ResolutionContext.ValueOnlyAttribute)
         let item = bindNameAsItem cenv env (Some syntaxExpr) None resInfo syntaxName
         match item with
         | ResolutionItem.Error _ ->
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
         | ResolutionItem.Expression(expr) ->
-            expr
+            checkExpression cenv env (Some expectedTy) expr
         | _ ->
             errorAttribute cenv env syntaxExpr
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
@@ -296,19 +300,23 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                     let expr = bindAttributeExpression cenv env (mkInferenceVariableType None) false syntaxExpr
                     match expr with
                     | BoundExpression.Call(value=value;args=argExprs) ->
-                        let attrArgs =
-                            argExprs
-                            |> ImArray.choose (fun x -> tryAttributeConstant cenv syntaxAttr x)
+                        if value.IsInstanceConstructor then
+                            let attrArgs =
+                                argExprs
+                                |> ImArray.choose (fun x -> tryAttributeConstant cenv syntaxAttr x)
 
-                        let attrNamedArgs =
-                            match syntaxExpr with
-                            | OlySyntaxExpression.Call(_, syntaxArgs) ->
-                                bindAttributeNamedArguments cenv env value syntaxArgs
-                            | _ ->
-                                ImArray.empty
+                            let attrNamedArgs =
+                                match syntaxExpr with
+                                | OlySyntaxExpression.Call(_, syntaxArgs) ->
+                                    bindAttributeNamedArguments cenv env value syntaxArgs
+                                | _ ->
+                                    ImArray.empty
 
-                        AttributeSymbol.Constructor(value :?> IFunctionSymbol, attrArgs, attrNamedArgs, AttributeFlags.AllowOnAll)
-                        |> Some
+                            AttributeSymbol.Constructor(value :?> IFunctionSymbol, attrArgs, attrNamedArgs, AttributeFlags.AllowOnAll)
+                            |> Some
+                        else
+                            cenv.diagnostics.Error($"Invalid attribute '{value.Name}'.", 10, syntaxExpr)
+                            None
                     | _ ->
                         None
                 else

@@ -32,6 +32,30 @@ type ResolutionContext =
     | ValueOnlyAttribute
     | PatternOnly
 
+[<RequireQualifiedAccess>]
+type ResolutionMemberContext =
+    | All
+    | PatternOnly
+    | ValueOnlyAttribute
+
+    member this.IsPatternOnlyContext =
+        match this with
+        | PatternOnly -> true
+        | _ -> false
+
+    member this.IsValueOnlyAttributeContext =
+        match this with
+        | ValueOnlyAttribute -> true
+        | _ -> false
+
+    static member From(resContext: ResolutionContext) =
+        match resContext with
+        | ResolutionContext.All
+        | ResolutionContext.TypeOnly
+        | ResolutionContext.ValueOnly -> All
+        | ResolutionContext.PatternOnly -> PatternOnly
+        | ResolutionContext.ValueOnlyAttribute -> ValueOnlyAttribute
+
 [<NoComparison;NoEquality>]
 type ResolutionInfo =
     {
@@ -343,33 +367,69 @@ let private tryFindNestedEntity cenv env syntaxNode ident resTyArity (ty: TypeSy
     else
         Some ents[0]
 
-let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) isPatternContext (ident: string) =
-    if isPatternContext then
-        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) true) ident
+let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
+    if resMemberContext.IsPatternOnlyContext then
+        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs resMemberContext ident
         ResolutionFormalItem.Value(Some receiverTy, value)
     else
-        // Nested entities of receiverTy take precedence over its member values.
-        tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy
-        |> Option.map (fun nestedEnt ->
-            determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
-        )
+        let possibleAttrIdent =
+            if resMemberContext.IsValueOnlyAttributeContext then
+                ident + "Attribute"
+            else
+                ident
+
+        let inline tryFind ident =
+            // Nested entities of receiverTy take precedence over its member values.
+            tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy
+            |> Option.map (fun nestedEnt ->
+                determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
+            )
+
+        let resultOpt = tryFind possibleAttrIdent
+
+        let resultOpt =
+            if resultOpt.IsNone && resMemberContext.IsValueOnlyAttributeContext then
+                // We did not find an attribute with the added "Attribute" postfix, try to find it normally.
+                tryFind ident
+            else
+                resultOpt
+
+        resultOpt
         |> Option.defaultWith (fun () ->
-            let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) false) ident
+            let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs resMemberContext ident
             ResolutionFormalItem.Value(Some receiverTy, value)
         )
 
-let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (args: ResolutionArguments) (ident: string) =
+let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
     if System.String.IsNullOrWhiteSpace(ident) then
         if not cenv.syntaxTree.HasErrors then
             cenv.diagnostics.Error("Empty identifiers are not allowed.", 10, syntaxNode)
         ResolutionFormalItem.None
     else
-        match tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType with
+        let possibleAttrIdent =
+            if resMemberContext.IsValueOnlyAttributeContext then
+                ident + "Attribute"
+            else
+                ident
+
+        let inline tryFind ident =
+            tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType
+
+        let resultOpt = tryFind possibleAttrIdent
+
+        let resultOpt =
+            if resultOpt.IsNone && resMemberContext.IsValueOnlyAttributeContext then
+                // We did not find an attribute with the added "Attribute" postfix, try to find it normally.
+                tryFind ident
+            else
+                resultOpt
+
+        match resultOpt with
         | Some nestedEnt ->
             if nestedEnt.IsNamespace then
                 ResolutionFormalItem.Namespace(nestedEnt)
             else
-                determineConstructorOrTypeAsFormalItem cenv env nestedEnt args
+                determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
         | _ ->
             ResolutionFormalItem.None
 
@@ -389,11 +449,11 @@ let private bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv)
             cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printEntity env.benv receiverNamespaceEnt), 10, syntaxNode)
             ResolutionFormalItem.Error
 
-let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode isStatic (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) isPatternContext (ident: string) =
+let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode isStatic (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
     if isStatic then
-        bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType cenv env syntaxNode receiverTy resTyArity resArgs isPatternContext ident
+        bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType cenv env syntaxNode receiverTy resTyArity resArgs resMemberContext ident
     else
-        let value = bindIdentifierAsMemberValue cenv env syntaxNode isStatic receiverTy resTyArity resArgs isPatternContext ident
+        let value = bindIdentifierAsMemberValue cenv env syntaxNode isStatic receiverTy resTyArity resArgs resMemberContext ident
         ResolutionFormalItem.Value(Some receiverTy, value)
 
 let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (ident: string) =
@@ -418,13 +478,13 @@ let private bindIdentifierWithReceiverAsFormalItem (cenv: cenv) (env: BinderEnvi
         if resInfo.InTypeOnlyContext && isStatic then
             bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode receiverTy resInfo.resTyArity ident
         else
-            bindIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode isStatic receiverTy resInfo.resTyArity resInfo.resArgs resInfo.InPatternOnlyContext ident
+            bindIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode isStatic receiverTy resInfo.resTyArity resInfo.resArgs (ResolutionMemberContext.From(resInfo.resContext)) ident
     
     | ReceiverItem.Namespace(receiverNamespaceEnt) ->
         if resInfo.InTypeOnlyContext && isStatic then
             bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity ident
         else
-            bindIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity resInfo.resArgs ident
+            bindIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity resInfo.resArgs (ResolutionMemberContext.From(resInfo.resContext)) ident
 
 let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverInfoOpt: ReceiverInfo option) (resInfo: ResolutionInfo) (ident: string) =
     match receiverInfoOpt with
@@ -1116,7 +1176,7 @@ let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args
         else
             invalidFunction () :> IValueSymbol
 
-let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs isPatternContext (ident: string) =
+let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs (resMemberContext: ResolutionMemberContext) (ident: string) =
     let ty = stripByRef ty
 
     let ty =
@@ -1138,7 +1198,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
         let funcs =
             ty.FindFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
             |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
-            |> ImArray.filter (fun x -> x.IsPatternFunction = isPatternContext)
+            |> ImArray.filter (fun x -> x.IsPatternFunction = resMemberContext.IsPatternOnlyContext)
         if not funcs.IsEmpty then
             FunctionGroupSymbol.CreateIfPossible(funcs) :> IValueSymbol
         else

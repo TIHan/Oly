@@ -114,10 +114,10 @@ let ``Blank vertex shader but has output`` () =
 //}
     let src =
         """
-#[block()]
+#[block]
 struct VertexOutput =
 
-    #[position()]
+    #[position]
     public field mutable Position: vec4 = default
 
 main(output: outref<VertexOutput>): () =
@@ -142,16 +142,16 @@ let ``Basic vertex shader`` () =
 //}
     let src =
         """
-#[block()]
+#[block]
 struct VertexOutput =
 
-    #[position()]
+    #[position]
     public field mutable Position: vec4 = default
 
 main(
-        #[location(0u32)] position: inref<vec2>, 
-        #[location(1u32)] color: inref<vec4>, 
-        #[location(0u32)] outColor: outref<vec4>, 
+        #[location(0)] position: inref<vec2>, 
+        #[location(1)] color: inref<vec4>, 
+        #[location(0)] outColor: outref<vec4>, 
         output: outref<VertexOutput>
     ): () =
     output.Position <- vec4(position, 0, 1)
@@ -164,19 +164,47 @@ main(
 let ``Basic vertex shader but with a different order`` () =
     let src =
         """
-#[block()]
+#[block]
 struct VertexOutput =
 
-    #[position()]
+    #[position]
     public field mutable Position: vec4 = default
 
 main(
         output: outref<VertexOutput>,
-        #[location(1u32)] color: inref<vec4>, 
-        #[location(0u32)] outColor: outref<vec4>,
-        #[location(0u32)] position: inref<vec2>
+        #[location(1)] color: inref<vec4>, 
+        #[location(0)] outColor: outref<vec4>,
+        #[location(0)] position: inref<vec2>
     ): () =
     output.Position <- vec4(position, 0, 1)
+    outColor <- color
+        """
+    OlyVertex src
+    |> shouldRun
+
+[<Fact>]
+let ``Basic vertex shader 2`` () =
+//#version 450
+
+//layout(location = 0) in vec2 Position;
+//layout(location = 1) in vec4 Color;
+
+//layout(location = 0) out vec4 fsin_Color;
+
+//void main()
+//{
+//    gl_Position = vec4(Position, 0, 1);
+//    fsin_Color = Color;
+//}
+    let src =
+        """
+main(
+        #[location(0)] position: inref<vec2>, 
+        #[location(1)] color: inref<vec4>, 
+        #[location(0)] outColor: outref<vec4>, 
+        #[position] outPosition: outref<vec4>
+    ): () =
+    outPosition <- vec4(position, 0, 1)
     outColor <- color
         """
     OlyVertex src

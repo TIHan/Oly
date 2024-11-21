@@ -19,20 +19,6 @@ type SpirvOutput =
         Module: SpirvModule
     }
 
-[<AutoOpen>]
-module private Helpers =
-
-    let NotSupported() =
-        raise(NotSupportedException("Construct not supported in Spirv."))
-
-    let InvalidOperation() =
-        raise(InvalidOperationException())
-
-    let isTypeName name ty =
-        match ty with
-        | SpirvType.Named(namedTy) -> namedTy.Name = name
-        | _ -> false
-
 [<Sealed>]
 type SpirvEmitter() =
 
@@ -46,9 +32,9 @@ type SpirvEmitter() =
     interface IOlyRuntimeEmitter<SpirvType, SpirvFunction, SpirvField> with
 
         member this.EmitExternalType(externalPlatform: string, externalPath: string imarray, externalName: string, enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyParCount: int): SpirvType = 
-            if externalPlatform <> "spirv" then InvalidOperation()
-            if externalPath.Length <> 1 then InvalidOperation()
-            if externalPath[0] <> "__oly_spirv_" then InvalidOperation()
+            if externalPlatform <> "spirv" then raise(InvalidOperationException())
+            if externalPath.Length <> 1 then raise(InvalidOperationException())
+            if externalPath[0] <> "__oly_spirv_" then raise(InvalidOperationException())
 
             match externalName with
             | "vec2" -> 
@@ -62,7 +48,7 @@ type SpirvEmitter() =
             | "location" ->
                 SpirvType.Invalid
             | _ ->
-                InvalidOperation()
+                raise(InvalidOperationException())
 
         member this.EmitField(enclosingTy: SpirvType, flags: OlyIRFieldFlags, name: string, ty: SpirvType, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, constValueOpt: OlyIRConstant<SpirvType,SpirvFunction> option): SpirvField = 
             let namedTyBuilder = enclosingTy.AsNamedTypeBuilder
@@ -78,7 +64,10 @@ type SpirvEmitter() =
                         if args.IsEmpty then
                             flags <- flags ||| SpirvFieldFlags.Position
                         else
-                            InvalidOperation()
+                            raise(InvalidOperationException())
+                    | SpirvFunction.Attribute_Location
+                    | SpirvFunction.Attribute_Block ->
+                        raise(InvalidOperationException())
                     | _ ->
                         ()
             )
@@ -95,7 +84,7 @@ type SpirvEmitter() =
             field
 
         member this.EmitFieldInstance(enclosingTy: SpirvType, formalField: SpirvField): SpirvField = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, tier: OlyIRFunctionTier, func: SpirvFunction): unit = 
             let body = body.Value
@@ -126,16 +115,16 @@ type SpirvEmitter() =
                         OpFunctionEnd
                     ]
             | _ ->
-                InvalidOperation()
+                raise(InvalidOperationException())
 
         member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
-            if tyPars.Length > 0 then NotSupported()
-            if overrides.IsSome then NotSupported()
-            if attrs.IsEmpty |> not then NotSupported()
+            if tyPars.Length > 0 then raise(NotSupportedException())
+            if overrides.IsSome then raise(NotSupportedException())
+            if attrs.IsEmpty |> not then raise(NotSupportedException())
 
             match externalInfoOpt with
             | Some(info) ->
-                if info.Platform <> "spirv" then InvalidOperation()
+                if info.Platform <> "spirv" then raise(InvalidOperationException())
                 match info.Path |> Seq.toList with
                 | ["__oly_spirv_"; "vec4"] when flags.IsInstance && flags.IsConstructor -> 
                     SpirvFunction.NewVector4(pars |> ImArray.map (fun x -> x.Type))
@@ -146,22 +135,22 @@ type SpirvEmitter() =
                 | ["__oly_spirv_"; "location"] when flags.IsInstance && flags.IsConstructor ->
                     SpirvFunction.Attribute_Location
                 | _ ->
-                    NotSupported()
+                    raise(NotSupportedException())
             | _ ->
                 let funcBuilder = builder.CreateFunctionBuilder(enclosingTy, name, flags, pars, returnTy)
                 funcBuilder.AsFunction
 
         member this.EmitFunctionInstance(enclosingTy: SpirvType, formalFunc: SpirvFunction, tyArgs: SpirvType imarray): SpirvFunction = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitFunctionReference(enclosingTy: SpirvType, formalFunc: SpirvFunction): SpirvFunction = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitProperty(enclosingTy: SpirvType, name: string, ty: SpirvType, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, getterOpt: SpirvFunction option, setterOpt: SpirvFunction option): unit = 
             ()
 
         member this.EmitTypeArray(elementTy: SpirvType, rank: int, kind: OlyIRArrayKind): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeBaseObject(): SpirvType = 
             SpirvType.Invalid // TODO: What should we do here? Ideally, we should not ever emit an 'object' type in the first place. Structs always inherits from 'object', but maybe we should not do that.
@@ -182,10 +171,10 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeConstantInt32(value: int32): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeDefinition(enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyParCount: int): SpirvType = 
-            if tyParCount > 0 then NotSupported()
+            if tyParCount > 0 then raise(NotSupportedException())
             match kind with
             | OlyILEntityKind.Module ->
                 SpirvType.Module(enclosing, name)
@@ -193,7 +182,7 @@ type SpirvEmitter() =
                 let namedTy = builder.CreateNameTypedBuilder(enclosing, name)
                 namedTy.AsType
             | _ ->
-                NotSupported()
+                raise(NotSupportedException())
 
         member this.EmitTypeDefinitionInfo(ty: SpirvType, enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, extends: SpirvType imarray, implements: SpirvType imarray, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, runtimeTyOpt: SpirvType option): unit = 
             if ty.IsNamedTypeBuilder then
@@ -208,7 +197,10 @@ type SpirvEmitter() =
                             if args.IsEmpty then
                                 flags <- flags ||| SpirvTypeFlags.Block
                             else
-                                InvalidOperation()
+                                raise(InvalidOperationException())
+                        | SpirvFunction.Attribute_Position
+                        | SpirvFunction.Attribute_Location ->
+                            raise(InvalidOperationException())
                         | _ ->
                             ()
                 )
@@ -222,13 +214,13 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeFunction(argTys: SpirvType imarray, returnTy: SpirvType, kind: OlyIRFunctionKind): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeGenericInstance(ty: SpirvType, tyArgs: SpirvType imarray): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeHigherVariable(index: int32, tyInst: SpirvType imarray, kind: OlyIRTypeVariableKind): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeInt16(): SpirvType = 
             raise(NotImplementedException())
@@ -243,7 +235,7 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeNativeFunctionPtr(arg1: OlyILCallingConvention, argTys: SpirvType imarray, returnTy: SpirvType): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeNativeInt(): SpirvType = 
             raise(NotImplementedException())
@@ -255,7 +247,7 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeRefCell(ty: SpirvType): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeTuple(elementTys: SpirvType imarray, elementNames: string imarray): SpirvType = 
             builder.GetTypeTuple(elementTys, elementNames)
@@ -276,10 +268,10 @@ type SpirvEmitter() =
             raise(NotImplementedException())
 
         member this.EmitTypeUtf16(): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeVariable(index: int32, kind: OlyIRTypeVariableKind): SpirvType = 
-            NotSupported()
+            raise(NotSupportedException())
 
         member this.EmitTypeVoid(): SpirvType = 
             builder.GetTypeVoid()

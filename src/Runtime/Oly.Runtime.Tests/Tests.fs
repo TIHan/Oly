@@ -587,9 +587,9 @@ let ``Test 1`` () =
 
     let ilExpr =
         let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
-        let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.Read), OlyILLocalFlags.None)
+        let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.ReadOnly), OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
-            (Let local1 (LocalAddress local0 OlyILByRefKind.Read)
+            (Let local1 (LocalAddress local0 OlyILByRefKind.ReadOnly)
                 (LoadFromAddress (Local local1))
             )
 
@@ -787,8 +787,8 @@ let ``Test 5`` () =
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
-            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
-                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
+            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
+                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
                     (Local local2)
                 )
             )
@@ -811,7 +811,7 @@ let ``Test 5`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -842,8 +842,8 @@ let ``Test 6`` () =
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
-            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
-                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
+            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
+                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
                     (Local local2)
                 )
             )
@@ -866,7 +866,7 @@ let ``Test 6`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -926,7 +926,7 @@ let ``Test 7`` () =
 
     match irExpr with
     | Let(0, DefaultStruct _,
-        LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+        LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -1199,7 +1199,7 @@ let ``Test 12`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr

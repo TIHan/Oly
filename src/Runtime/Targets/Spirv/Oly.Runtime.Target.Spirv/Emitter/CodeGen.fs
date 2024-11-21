@@ -109,21 +109,6 @@ module rec CodeGen =
             | _ ->
                raise(NotImplementedException(op.ToString()))
 
-        | O.Call(func, argExprs, _) ->
-            match func.EmittedFunction with
-            | SpirvFunction.SetVariable(varTy, varIdRef) ->
-                OlyAssert.Equal(1, argExprs.Length)
-
-                let rhsIdRef = GenExpression cenv env.NotReturnable argExprs[0] 
-
-                let idResult = cenv.Module.NewIdResult()
-                OpAccessChain(varTy, idResult, varIdRef, [cenv.Module.GetConstantInt32(0)]) |> emitInstruction cenv
-                OpStore(idResult, rhsIdRef, None) |> emitInstruction cenv
-                IdRef0
-
-            | _ ->          
-                raise(NotImplementedException(op.ToString()))
-
         | op ->
             let argCount = op.ArgumentCount
             let idRefs = Array.zeroCreate argCount

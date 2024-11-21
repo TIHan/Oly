@@ -216,6 +216,14 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                                         raise(InvalidOperationException())
                                 else
                                     raise(InvalidOperationException())
+                            | SpirvFunction.Attribute_Position ->
+                                if args.IsEmpty then
+                                    OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
+                                else
+                                    raise(InvalidOperationException())
+                            | SpirvFunction.Attribute_Block ->
+                                raise(InvalidOperationException())
+                                
                             | _ ->
                                 ()
                 ]
@@ -239,7 +247,6 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | NewVector4 of SpirvType imarray
-    | SetVariable of varTy: IdResultType * IdRef
     | Attribute_Position
     | Attribute_Block
     | Attribute_Location

@@ -10154,3 +10154,319 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Use of attribute should pass when using the full name``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+struct AbcAttribute
+
+#[AbcAttribute()]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Use of attribute should pass when using the full name 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+struct AbcAttribute
+
+#[AbcAttribute]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Use of attribute should pass when ambiguous with another name``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+struct AbcAttribute
+
+struct Abc =
+    new(x: int32) = { }
+
+#[Abc]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Use of attribute should pass when ambiguous with another name 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+module M =
+    struct AbcAttribute
+
+    struct Abc =
+        new(x: int32) = { }
+
+#[M.Abc]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Use of attribute should pass when ambiguous with another name 3``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+module M =
+    struct AbcAttribute
+
+    struct Abc =
+        new(x: int32) = { }
+
+    #[Test.M.Abc]
+    main(): () =
+        ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Use of attribute should error as it is missing arguments``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+struct AbcAttribute =
+
+    new(x: int32) = { }
+
+#[Abc]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+#[Abc]
+  ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+#[M.Abc]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+#[M.Abc]
+  ^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+#[M.Abc()]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+#[M.Abc()]
+  ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+#[M.AbcAttribute]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+#[M.AbcAttribute]
+  ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+#[M.AbcAttribute()]
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+#[M.AbcAttribute()]
+  ^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 5``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+module M =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+    #[Test.M.Abc()]
+    main(): () =
+        ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+    #[Test.M.Abc()]
+      ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 6``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+struct AbcAttribute =
+
+    new(x: int32) = { }
+
+module M =
+
+    #[Test.Abc()]
+    main(): () =
+        ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected 1 argument(s) but only given 0.",
+                """
+    #[Test.Abc()]
+      ^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of nested attribute should error as it is missing arguments 7``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+module MAttribute =
+
+    struct AbcAttribute =
+
+        new(x: int32) = { }
+
+    #[Test.M.Abc()]
+    main(): () =
+        ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Not a valid attribute expression.",
+                """
+    #[Test.M.Abc()]
+      ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
