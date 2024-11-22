@@ -61,18 +61,18 @@ type SpirvEmitter() =
                 match attr with
                 | OlyIRAttribute(ctor, args, _) ->
                     match ctor with
-                    | SpirvFunction.Attribute_Position ->
+                    | SpirvFunction.Attribute_Position _ ->
                         if args.IsEmpty then
                             flags <- flags ||| SpirvFieldFlags.Position
                         else
                             raise(InvalidOperationException())
-                    | SpirvFunction.Attribute_PointSize ->
+                    | SpirvFunction.Attribute_PointSize _ ->
                         if args.IsEmpty then
                             flags <- flags ||| SpirvFieldFlags.Position
                         else
                             raise(InvalidOperationException())
-                    | SpirvFunction.Attribute_Location
-                    | SpirvFunction.Attribute_Block ->
+                    | SpirvFunction.Attribute_Location _
+                    | SpirvFunction.Attribute_Block _ ->
                         raise(InvalidOperationException())
                     | _ ->
                         ()
@@ -196,14 +196,14 @@ type SpirvEmitter() =
                     match attr with
                     | OlyIRAttribute(ctor=ctor;args=args) ->
                         match ctor with
-                        | SpirvFunction.Attribute_Block ->
+                        | SpirvFunction.Attribute_Block _ ->
                             if args.IsEmpty then
                                 flags <- flags ||| SpirvTypeFlags.Block
                             else
                                 raise(InvalidOperationException())
-                        | SpirvFunction.Attribute_Position
-                        | SpirvFunction.Attribute_PointSize
-                        | SpirvFunction.Attribute_Location ->
+                        | SpirvFunction.Attribute_Position _
+                        | SpirvFunction.Attribute_PointSize _
+                        | SpirvFunction.Attribute_Location _ ->
                             raise(InvalidOperationException())
                         | _ ->
                             ()

@@ -207,7 +207,7 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                         match attr with
                         | OlyIRAttribute(ctor, args, _) ->
                             match ctor with
-                            | SpirvFunction.Attribute_Location ->
+                            | SpirvFunction.Attribute_Location _ ->
                                 if args.Length = 1 then
                                     match args[0] with
                                     | OlyIRConstant.UInt32(value) ->
@@ -216,17 +216,17 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                                         raise(InvalidOperationException())
                                 else
                                     raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_Position ->
+                            | SpirvFunction.Attribute_Position _ ->
                                 if args.IsEmpty then
                                     OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
                                 else
                                     raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_PointSize ->
+                            | SpirvFunction.Attribute_PointSize _ ->
                                 if args.IsEmpty then
                                     OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)
                                 else
                                     raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_Block ->
+                            | SpirvFunction.Attribute_Block _ ->
                                 raise(InvalidOperationException())
                                 
                             | _ ->
@@ -252,10 +252,18 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | NewVector4 of SpirvType imarray
-    | Attribute_Position
-    | Attribute_PointSize
-    | Attribute_Block
-    | Attribute_Location
+    | Attribute_Position of BuiltInFunction
+    | Attribute_PointSize of BuiltInFunction
+    | Attribute_Block of BuiltInFunction
+    | Attribute_Location of BuiltInFunction
+
+    member this.TryGetBuiltIn() =
+        match this with
+        | Attribute_Position(builtInFunc)
+        | Attribute_PointSize(builtInFunc)
+        | Attribute_Block(builtInFunc)
+        | Attribute_Location(builtInFunc) -> ValueSome builtInFunc
+        | _ -> ValueNone
 
 type SpirvFieldFlags =
     | None      = 0b0000
@@ -305,7 +313,6 @@ type BuiltInFunction =
         ParameterTypes: BuiltInFunctionParameterType imarray
         ReturnType: BuiltInFunctionParameterType 
         Flags: BuiltInFunctionFlags
-        Function: SpirvFunction
     }
 
     member this.IsValid(name: string, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) =
@@ -328,9 +335,9 @@ type BuiltInFunction =
 
 module BuiltInFunctions =
 
-    let Lookup = new Dictionary<string, BuiltInFunction>()
+    let Lookup = new Dictionary<string, SpirvFunction>()
 
-    let Add(name: string, func: SpirvFunction, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
+    let Add(name: string, createFunc: BuiltInFunction -> SpirvFunction, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
         Lookup.Add(
             name,
             {
@@ -338,8 +345,7 @@ module BuiltInFunctions =
                 ParameterTypes = parTys |> ImArray.ofSeq
                 ReturnType = returnTy
                 Flags = flags
-                Function = func
-            }
+            } |> createFunc
         )
 
     do
@@ -355,10 +361,11 @@ module BuiltInFunctions =
         else          
             let name = path[1]
             match Lookup.TryGetValue(name) with
-            | true, builtInFunc ->
-                if builtInFunc.IsValid(name, parTys, returnTy, irFlags) then
-                    Some builtInFunc.Function
-                else
+            | true, func ->
+                match func.TryGetBuiltIn() with
+                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, parTys, returnTy, irFlags) ->
+                    Some func
+                | _ ->
                     None
             | _ ->
                 None
