@@ -283,6 +283,7 @@ type BuiltInFunctionParameterType =
 
     member this.IsValid(ty: SpirvType) =
         match this, ty with
+        | Void, SpirvType.Void _
         | Int32, SpirvType.Int32 _
         | UInt32, SpirvType.UInt32 _
         | Float32, SpirvType.Float32 _
@@ -314,7 +315,7 @@ type BuiltInFunction =
             false
         elif not(this.ReturnType.IsValid(returnTy)) then
             false
-        elif (this.ParameterTypes, parTys) ||> ImArray.forall2 (fun x parTy -> x.IsValid(parTy)) then
+        elif (this.ParameterTypes, parTys) ||> ImArray.forall2 (fun x parTy -> x.IsValid(parTy)) |> not then
             false
         else
             if this.Flags.HasFlag(BuiltInFunctionFlags.Constructor) then
@@ -348,7 +349,7 @@ module BuiltInFunctions =
         Add("location",             SpirvFunction.Attribute_Location,           [BuiltInFunctionParameterType.UInt32],          BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
         
 
-    let TryGetBuiltInFunction (path: string imarray) (parTys: SpirvType imarray) (returnTy: SpirvType) (irFlags: OlyIRFunctionFlags) : SpirvFunction option =
+    let TryGetBuiltInFunction(path: string imarray, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
         if path.Length < 2 || path.Length > 2 then None
         elif path[0] <> "__oly_spirv_" then None
         else          

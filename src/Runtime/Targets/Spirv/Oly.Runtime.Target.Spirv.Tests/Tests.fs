@@ -202,7 +202,7 @@ main(
         #[location(0)] position: inref<vec2>, 
         #[location(1)] color: inref<vec4>, 
         #[location(0)] outColor: outref<vec4>,
-        #[Position] outPosition: outref<vec4>
+        #[position] outPosition: outref<vec4>
     ): () =
     outPosition <- vec4(position, 0, 1)
     outColor <- color

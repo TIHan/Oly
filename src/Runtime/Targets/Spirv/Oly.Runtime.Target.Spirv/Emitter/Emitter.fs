@@ -134,16 +134,11 @@ type SpirvEmitter() =
                 match info.Path |> Seq.toList with
                 | ["__oly_spirv_"; "vec4"] when flags.IsInstance && flags.IsConstructor -> 
                     SpirvFunction.NewVector4(pars |> ImArray.map (fun x -> x.Type))
-                | ["__oly_spirv_"; "position"] when flags.IsInstance && flags.IsConstructor ->
-                    SpirvFunction.Attribute_Position
-                | ["__oly_spirv_"; "point_size"] when flags.IsInstance && flags.IsConstructor ->
-                    SpirvFunction.Attribute_PointSize
-                | ["__oly_spirv_"; "block"] when flags.IsInstance && flags.IsConstructor ->
-                    SpirvFunction.Attribute_Block
-                | ["__oly_spirv_"; "location"] when flags.IsInstance && flags.IsConstructor ->
-                    SpirvFunction.Attribute_Location
                 | _ ->
-                    raise(NotSupportedException())
+                    match BuiltInFunctions.TryGetBuiltInFunction(info.Path, pars |> ImArray.map (fun x -> x.Type), returnTy, flags) with
+                    | Some func -> func
+                    | _ ->
+                        raise(NotSupportedException())
             | _ ->
                 let funcBuilder = builder.CreateFunctionBuilder(enclosingTy, name, flags, pars, returnTy)
                 funcBuilder.AsFunction
