@@ -13,11 +13,6 @@ open Oly.Runtime.CodeGen
 open Spirv
 open Spirv.SpirvModule
 
-type E = OlyIRExpression<SpirvType, SpirvFunction, SpirvField>
-type O = OlyIROperation<SpirvType, SpirvFunction, SpirvField>
-type V = OlyIRValue<SpirvType, SpirvFunction, SpirvField>
-type C = OlyIRConstant<SpirvType, SpirvFunction>
-
 [<NoEquality;NoComparison>]
 type cenv =
     {

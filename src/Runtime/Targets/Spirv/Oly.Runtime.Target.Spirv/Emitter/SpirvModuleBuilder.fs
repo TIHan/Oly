@@ -12,6 +12,11 @@ open Oly.Runtime.CodeGen
 open Spirv
 open Spirv.SpirvModule
 
+type E = OlyIRExpression<SpirvType, SpirvFunction, SpirvField>
+type O = OlyIROperation<SpirvType, SpirvFunction, SpirvField>
+type V = OlyIRValue<SpirvType, SpirvFunction, SpirvField>
+type C = OlyIRConstant<SpirvType, SpirvFunction>
+
 type SpirvTypeFlags =
     | None  = 0b00
     | Block = 0b01
@@ -213,24 +218,15 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
 
                                     match ctor with
                                     | SpirvFunction.Attribute_Location _ ->
-                                        if args.Length = 1 then
-                                            match args[0] with
-                                            | OlyIRConstant.UInt32(value) ->
-                                                OpDecorate(varIdRef, Decoration.Location value)
-                                            | _ ->
-                                                raise(InvalidOperationException())
-                                        else
+                                        match args[0] with
+                                        | C.UInt32(value) ->
+                                            OpDecorate(varIdRef, Decoration.Location value)
+                                        | _ ->
                                             raise(InvalidOperationException())
                                     | SpirvFunction.Attribute_Position _ ->
-                                        if args.IsEmpty then
-                                            OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
-                                        else
-                                            raise(InvalidOperationException())
+                                        OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
                                     | SpirvFunction.Attribute_PointSize _ ->
-                                        if args.IsEmpty then
-                                            OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)
-                                        else
-                                            raise(InvalidOperationException())                                
+                                        OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)                              
                                     | _ ->
                                         ()
                                 else
