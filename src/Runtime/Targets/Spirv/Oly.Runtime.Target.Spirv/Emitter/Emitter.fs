@@ -60,20 +60,12 @@ type SpirvEmitter() =
             |> ImArray.iter (fun attr ->
                 match attr with
                 | OlyIRAttribute(ctor, args, _) ->
-                    match ctor with
-                    | SpirvFunction.Attribute_Position _ ->
-                        if args.IsEmpty then
-                            flags <- flags ||| SpirvFieldFlags.Position
-                        else
+                    match ctor.TryGetBuiltIn() with
+                    | ValueSome(builtInFunc) ->
+                        if builtInFunc.DecorateFieldFlags = SpirvFieldFlags.None then
                             raise(InvalidOperationException())
-                    | SpirvFunction.Attribute_PointSize _ ->
-                        if args.IsEmpty then
-                            flags <- flags ||| SpirvFieldFlags.Position
                         else
-                            raise(InvalidOperationException())
-                    | SpirvFunction.Attribute_Location _
-                    | SpirvFunction.Attribute_Block _ ->
-                        raise(InvalidOperationException())
+                            flags <- flags ||| builtInFunc.DecorateFieldFlags
                     | _ ->
                         ()
             )

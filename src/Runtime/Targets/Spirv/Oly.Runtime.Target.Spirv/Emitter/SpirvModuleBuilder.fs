@@ -313,6 +313,7 @@ type BuiltInFunction =
         ParameterTypes: BuiltInFunctionParameterType imarray
         ReturnType: BuiltInFunctionParameterType 
         Flags: BuiltInFunctionFlags
+        DecorateFieldFlags: SpirvFieldFlags
     }
 
     member this.IsValid(name: string, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) =
@@ -337,7 +338,14 @@ module BuiltInFunctions =
 
     let Lookup = new Dictionary<string, SpirvFunction>()
 
-    let Add(name: string, createFunc: BuiltInFunction -> SpirvFunction, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
+    let Add(name: string, createFunc: BuiltInFunction -> SpirvFunction, fieldFlags: SpirvFieldFlags, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
+        if flags.HasFlag(BuiltInFunctionFlags.DecorateField) then
+            if fieldFlags = SpirvFieldFlags.None then
+                raise(InvalidOperationException())
+        else
+            if fieldFlags <> SpirvFieldFlags.None then
+                raise(InvalidOperationException())
+
         Lookup.Add(
             name,
             {
@@ -345,14 +353,15 @@ module BuiltInFunctions =
                 ParameterTypes = parTys |> ImArray.ofSeq
                 ReturnType = returnTy
                 Flags = flags
+                DecorateFieldFlags = fieldFlags
             } |> createFunc
         )
 
     do
-        Add("position",             SpirvFunction.Attribute_Position,           [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
-        Add("point_size",           SpirvFunction.Attribute_PointSize,          [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
-        Add("block",                SpirvFunction.Attribute_Block,              [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateType ||| BuiltInFunctionFlags.Constructor)
-        Add("location",             SpirvFunction.Attribute_Location,           [BuiltInFunctionParameterType.UInt32],          BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        Add("position",             SpirvFunction.Attribute_Position,       SpirvFieldFlags.Position,       [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        Add("point_size",           SpirvFunction.Attribute_PointSize,      SpirvFieldFlags.PointSize,      [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        Add("block",                SpirvFunction.Attribute_Block,          SpirvFieldFlags.None,           [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateType ||| BuiltInFunctionFlags.Constructor)
+        Add("location",             SpirvFunction.Attribute_Location,       SpirvFieldFlags.None,           [BuiltInFunctionParameterType.UInt32],          BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
         
 
     let TryGetBuiltInFunction(path: string imarray, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
