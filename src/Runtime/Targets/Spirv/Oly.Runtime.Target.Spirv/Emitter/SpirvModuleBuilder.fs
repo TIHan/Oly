@@ -206,29 +206,35 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                     for attr in irPar.Attributes do
                         match attr with
                         | OlyIRAttribute(ctor, args, _) ->
-                            match ctor with
-                            | SpirvFunction.Attribute_Location _ ->
-                                if args.Length = 1 then
-                                    match args[0] with
-                                    | OlyIRConstant.UInt32(value) ->
-                                        OpDecorate(varIdRef, Decoration.Location value)
+                            match ctor.TryGetBuiltIn() with
+                            | ValueSome builtInFunc ->
+                                if builtInFunc.Flags.HasFlag(BuiltInFunctionFlags.DecorateVariable) && 
+                                   builtInFunc.ParameterTypes.Length = args.Length then
+
+                                    match ctor with
+                                    | SpirvFunction.Attribute_Location _ ->
+                                        if args.Length = 1 then
+                                            match args[0] with
+                                            | OlyIRConstant.UInt32(value) ->
+                                                OpDecorate(varIdRef, Decoration.Location value)
+                                            | _ ->
+                                                raise(InvalidOperationException())
+                                        else
+                                            raise(InvalidOperationException())
+                                    | SpirvFunction.Attribute_Position _ ->
+                                        if args.IsEmpty then
+                                            OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
+                                        else
+                                            raise(InvalidOperationException())
+                                    | SpirvFunction.Attribute_PointSize _ ->
+                                        if args.IsEmpty then
+                                            OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)
+                                        else
+                                            raise(InvalidOperationException())                                
                                     | _ ->
-                                        raise(InvalidOperationException())
+                                        ()
                                 else
                                     raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_Position _ ->
-                                if args.IsEmpty then
-                                    OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
-                                else
-                                    raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_PointSize _ ->
-                                if args.IsEmpty then
-                                    OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)
-                                else
-                                    raise(InvalidOperationException())
-                            | SpirvFunction.Attribute_Block _ ->
-                                raise(InvalidOperationException())
-                                
                             | _ ->
                                 ()
                 ]
