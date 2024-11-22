@@ -221,6 +221,11 @@ type SpirvFunctionBuilder(builder: SpirvModuleBuilder, idResult: IdResult, enclo
                                     OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)
                                 else
                                     raise(InvalidOperationException())
+                            | SpirvFunction.Attribute_PointSize ->
+                                if args.IsEmpty then
+                                    OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)
+                                else
+                                    raise(InvalidOperationException())
                             | SpirvFunction.Attribute_Block ->
                                 raise(InvalidOperationException())
                                 
@@ -248,12 +253,14 @@ type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | NewVector4 of SpirvType imarray
     | Attribute_Position
+    | Attribute_PointSize
     | Attribute_Block
     | Attribute_Location
 
 type SpirvFieldFlags =
-    | None     = 0b0000
-    | Position = 0b0001
+    | None      = 0b0000
+    | Position  = 0b0001
+    | PointSize = 0b0010
 
 type SpirvField =
     {
@@ -262,6 +269,100 @@ type SpirvField =
         Index: int32
         Flags: SpirvFieldFlags
     }
+
+// --
+
+type BuiltInFunctionParameterType =
+    | Void
+    | Int32
+    | UInt32
+    | Float32
+    | Vector2Float32
+    | Vector3Float32
+    | Vector4Float32
+
+    member this.IsValid(ty: SpirvType) =
+        match this, ty with
+        | Int32, SpirvType.Int32 _
+        | UInt32, SpirvType.UInt32 _
+        | Float32, SpirvType.Float32 _
+        | Vector2Float32, SpirvType.Vector2(elementTy=SpirvType.Float32 _)
+        | Vector3Float32, SpirvType.Vector3(elementTy=SpirvType.Float32 _)
+        | Vector4Float32, SpirvType.Vector4(elementTy=SpirvType.Float32 _) -> true
+        | _ -> false
+
+type BuiltInFunctionFlags =
+    | None              = 0b0000000000
+    | Constructor       = 0b0000000001
+    | DecorateVariable  = 0b0000000010
+    | DecorateField     = 0b0000000100
+    | DecorateType      = 0b0000001000
+
+type BuiltInFunction = 
+    { 
+        Name: string;
+        ParameterTypes: BuiltInFunctionParameterType imarray
+        ReturnType: BuiltInFunctionParameterType 
+        Flags: BuiltInFunctionFlags
+        Function: SpirvFunction
+    }
+
+    member this.IsValid(name: string, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) =
+        if this.Name <> name then 
+            false
+        elif this.ParameterTypes.Length <> parTys.Length then 
+            false
+        elif not(this.ReturnType.IsValid(returnTy)) then
+            false
+        elif (this.ParameterTypes, parTys) ||> ImArray.forall2 (fun x parTy -> x.IsValid(parTy)) then
+            false
+        else
+            if this.Flags.HasFlag(BuiltInFunctionFlags.Constructor) then
+                if irFlags.IsConstructor && irFlags.IsInstance then
+                    true
+                else
+                    false
+            else
+                false
+
+module BuiltInFunctions =
+
+    let Lookup = new Dictionary<string, BuiltInFunction>()
+
+    let Add(name: string, func: SpirvFunction, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
+        Lookup.Add(
+            name,
+            {
+                Name = name
+                ParameterTypes = parTys |> ImArray.ofSeq
+                ReturnType = returnTy
+                Flags = flags
+                Function = func
+            }
+        )
+
+    do
+        Add("position",             SpirvFunction.Attribute_Position,           [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        Add("point_size",           SpirvFunction.Attribute_PointSize,          [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateField ||| BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        Add("block",                SpirvFunction.Attribute_Block,              [],                                             BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateType ||| BuiltInFunctionFlags.Constructor)
+        Add("location",             SpirvFunction.Attribute_Location,           [BuiltInFunctionParameterType.UInt32],          BuiltInFunctionParameterType.Void, BuiltInFunctionFlags.DecorateVariable ||| BuiltInFunctionFlags.Constructor)
+        
+
+    let TryGetBuiltInFunction (path: string imarray) (parTys: SpirvType imarray) (returnTy: SpirvType) (irFlags: OlyIRFunctionFlags) : SpirvFunction option =
+        if path.Length < 2 || path.Length > 2 then None
+        elif path[0] <> "__oly_spirv_" then None
+        else          
+            let name = path[1]
+            match Lookup.TryGetValue(name) with
+            | true, builtInFunc ->
+                if builtInFunc.IsValid(name, parTys, returnTy, irFlags) then
+                    Some builtInFunc.Function
+                else
+                    None
+            | _ ->
+                None
+
+// --
 
 [<Sealed>]
 type SpirvModuleBuilder() =

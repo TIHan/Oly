@@ -45,7 +45,8 @@ type SpirvEmitter() =
                 builder.GetTypeVector4Float32()
             | "position"
             | "block" 
-            | "location" ->
+            | "location"
+            | "point_size" ->
                 SpirvType.Invalid
             | _ ->
                 raise(InvalidOperationException())
@@ -61,6 +62,11 @@ type SpirvEmitter() =
                 | OlyIRAttribute(ctor, args, _) ->
                     match ctor with
                     | SpirvFunction.Attribute_Position ->
+                        if args.IsEmpty then
+                            flags <- flags ||| SpirvFieldFlags.Position
+                        else
+                            raise(InvalidOperationException())
+                    | SpirvFunction.Attribute_PointSize ->
                         if args.IsEmpty then
                             flags <- flags ||| SpirvFieldFlags.Position
                         else
@@ -130,6 +136,8 @@ type SpirvEmitter() =
                     SpirvFunction.NewVector4(pars |> ImArray.map (fun x -> x.Type))
                 | ["__oly_spirv_"; "position"] when flags.IsInstance && flags.IsConstructor ->
                     SpirvFunction.Attribute_Position
+                | ["__oly_spirv_"; "point_size"] when flags.IsInstance && flags.IsConstructor ->
+                    SpirvFunction.Attribute_PointSize
                 | ["__oly_spirv_"; "block"] when flags.IsInstance && flags.IsConstructor ->
                     SpirvFunction.Attribute_Block
                 | ["__oly_spirv_"; "location"] when flags.IsInstance && flags.IsConstructor ->
@@ -199,6 +207,7 @@ type SpirvEmitter() =
                             else
                                 raise(InvalidOperationException())
                         | SpirvFunction.Attribute_Position
+                        | SpirvFunction.Attribute_PointSize
                         | SpirvFunction.Attribute_Location ->
                             raise(InvalidOperationException())
                         | _ ->
