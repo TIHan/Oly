@@ -341,7 +341,14 @@ module BuiltInFunctions =
 
     let Lookup = new Dictionary<string, SpirvFunction>()
 
-    let Add(name: string, createFunc: BuiltInFunction -> SpirvFunction, fieldFlags: SpirvFieldFlags, tyFlags: SpirvTypeFlags, parTys: BuiltInFunctionParameterType list, returnTy: BuiltInFunctionParameterType, flags: BuiltInFunctionFlags) =
+    let Add(
+            name: string, 
+            createFunc: BuiltInFunction -> SpirvFunction, 
+            fieldFlags: SpirvFieldFlags, 
+            tyFlags: SpirvTypeFlags, 
+            parTys: BuiltInFunctionParameterType list, 
+            returnTy: BuiltInFunctionParameterType, 
+            flags: BuiltInFunctionFlags) =
         if flags.HasFlag(BuiltInFunctionFlags.DecorateField) then
             if fieldFlags = SpirvFieldFlags.None then
                 raise(InvalidOperationException())
