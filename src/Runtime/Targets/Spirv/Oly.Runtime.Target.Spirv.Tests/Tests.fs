@@ -12,17 +12,7 @@ open Oly.Runtime.Target.Spirv
 open Oly.Compiler.Workspace
 open Oly.Core
 
-let OlyVertex (src: string) =
-    let src = $"""
-#target "spirv: 1.3,vertex"
-
-{src}
-"""
-
-    // TODO: This does not handle a debug build.
-    //       To do this, we must supply an 'activeConfig' to the workspace that specifies what kind of build.
-    //       We also need to specify a '.json' file with the correct configuration as well.
-
+let OlyShaderPrelude isDebug (src: string) =
     let preludeDirName = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
     let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
     let preludeDir =
@@ -36,8 +26,21 @@ let OlyVertex (src: string) =
     let documentPath = OlyPath.Combine(preludeDir, "test.olyx")
     let srcText = OlySourceText.Create(src)
 
+    let projConfigPath = OlyPath.Combine(preludeDir, "test.json")
+    use projConfigMs = new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "configurations": [{ "name": "Debug", "defines": ["DEBUG"], "debuggable": true }, { "name": "Release", "defines": ["RELEASE"], "debuggable": false }] }"""))
+
+    let configPath = OlyPath.Create("state.json")
+    use configMs = 
+        if isDebug then
+            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Debug" }"""))
+        else
+            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Release" }"""))
+
     let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText, 1)
-    let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty).WithTextEditors(textManager)
+    let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
+
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(projConfigPath, projConfigMs)
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
     let preludePath = OlyPath.Combine(preludeDir, "spirv_prelude.olyx")
@@ -55,14 +58,13 @@ let OlyVertex (src: string) =
         workspace.RemoveProject(resourceSnapshot, documentPath, Threading.CancellationToken.None)
         program
 
-let shouldRun (program: OlyProgram) =
+let shouldRunFragment (program: OlyProgram) =
     program.Run()
-    // TODO: This only works for vertex as of right now.
     let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
-    let _defaultVertexCode = @"
+    let defaultVertexCode = @"
 #version 450
 
 layout(location = 0) in vec2 Position;
@@ -75,6 +77,15 @@ void main()
     gl_Position = vec4(Position, 0, 1);
     fsin_Color = Color;
 }"
+
+    draw_quad(glsl_to_vertex(defaultVertexCode), sm)
+
+let shouldRunVertex (program: OlyProgram) =
+    program.Run()
+    let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
+    let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
+    fs.Dispose()
+    System.IO.File.Delete(program.Path.ToString())
 
     let defaultFragmentCode = @"
 #version 450
@@ -89,6 +100,42 @@ void main()
 
     draw_quad(sm, glsl_to_fragment(defaultFragmentCode))
 
+let shouldRunCompute input (program: OlyProgram) =
+    program.Run()
+    let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
+    let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
+    fs.Dispose()
+    System.IO.File.Delete(program.Path.ToString())
+
+    compute_floats(sm, input)
+
+let OlyVertex (src: string) =
+    let src = $"""
+#target "spirv: vertex, 1.3"
+
+{src}
+"""
+    OlyShaderPrelude true src |> shouldRunVertex
+    OlyShaderPrelude false src |> shouldRunVertex
+
+let OlyFragment (src: string) =
+    let src = $"""
+#target "spirv: fragment, 1.3"
+
+{src}
+"""
+    OlyShaderPrelude true src |> shouldRunFragment
+    OlyShaderPrelude false src |> shouldRunFragment
+
+let OlyCompute input (src: string) =
+    let src = $"""
+#target "spirv: compute, 1.3"
+
+{src}
+"""
+    OlyShaderPrelude true src |> shouldRunCompute input
+    OlyShaderPrelude false src |> shouldRunCompute input
+
 [<Fact>]
 let ``Blank vertex shader`` () =
 //#version 450
@@ -102,7 +149,6 @@ main(): () =
     ()
         """
     OlyVertex src
-    |> shouldRun
 
 [<Fact>]
 let ``Blank vertex shader but has output`` () =
@@ -124,7 +170,6 @@ main(output: outref<VertexOutput>): () =
     output.Position <- vec4(1)
         """
     OlyVertex src
-    |> shouldRun
 
 [<Fact>]
 let ``Basic vertex shader`` () =
@@ -158,7 +203,6 @@ main(
     outColor <- color
         """
     OlyVertex src
-    |> shouldRun
 
 [<Fact>]
 let ``Basic vertex shader but with a different order`` () =
@@ -180,7 +224,6 @@ main(
     outColor <- color
         """
     OlyVertex src
-    |> shouldRun
 
 [<Fact>]
 let ``Basic vertex shader 2`` () =
@@ -208,5 +251,213 @@ main(
     outColor <- color
         """
     OlyVertex src
-    |> shouldRun
 
+[<Fact>]
+let ``Blank fragment shader`` () =
+//#version 450
+
+//void main()
+//{
+//}
+    let src =
+        """
+main(): () =
+    ()
+        """
+    OlyFragment src
+
+[<Fact>]
+let ``Basic fragment shader`` () =
+//#version 450
+
+//layout(location = 0) in vec4 fsin_Color;
+//layout(location = 0) out vec4 fsout_Color;
+
+//void main()
+//{
+//    fsout_Color = fsin_Color;
+//}
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    outColor <- color
+        """
+    OlyFragment src
+
+[<Fact>]
+let ``Should create a new value and use it`` () =
+    let src =
+        """
+#[block]
+struct VertexOutput =
+
+    #[position]
+    public field mutable Position: vec4 = default
+
+main(
+        #[location(0)] position: inref<vec2>, 
+        #[location(1)] color: inref<vec4>, 
+        #[location(0)] outColor: outref<vec4>, 
+        output: outref<VertexOutput>
+    ): () =
+    let position = position
+    output.Position <- vec4(position, 0, 1)
+    outColor <- color
+        """
+    OlyVertex src
+
+[<Fact>]
+let ``Should mutate a new value and use it`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    outColor <- color
+        """
+    OlyFragment src
+
+[<Fact>]
+let ``Should use if/else`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    if (color.X == 1)
+        color <- vec4(0.5)
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Should use if/else 2`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    if (color.X == 1)
+        color <- vec4(0.5)
+    else
+        color <- vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Should use if/else 3`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    if (color.X == 1.1)
+        color <- vec4(0.5)
+    else
+        color <- vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show black
+
+[<Fact>]
+let ``Should use if/else 4`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    color <-
+        if (color.X == 1)
+            vec4(0.5)
+        else
+            color
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Should use if/else 5`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    color <-
+        if (color.X == 1)
+            vec4(0.5)
+        else
+            vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Should use if/else 6`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    color <-
+        if (color.X == 1.1)
+            vec4(0.5)
+        else
+            vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show black
+
+[<Fact>]
+let ``Should use if/else 7`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <- vec4(1)
+    color <-
+        if (color.X == 1)
+            color <- vec4(0)
+            vec4(0.5)
+        else
+            color <- vec4(0)
+            vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Blank compute shader`` () =
+    let src =
+        """
+main(): () =
+    ()
+        """
+    OlyCompute [|0f|] src

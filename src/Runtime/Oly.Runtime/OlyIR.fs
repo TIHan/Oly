@@ -791,8 +791,8 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | Value of          textRange: OlyIRDebugSourceTextRange * value: OlyIRValue<'Type, 'Function, 'Field>
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
     | Sequential of     expr1: OlyIRExpression<'Type, 'Function, 'Field> * expr2: OlyIRExpression<'Type, 'Function, 'Field>
-    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
-    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
+    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
+    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
     | Phi of            int imarray * resultTy: 'Type
 
@@ -826,14 +826,14 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
 
     member this.ResultType =
         match this with
-        | None(_, returnTy) -> returnTy
         | Let(_, _, _, bodyExpr) -> bodyExpr.ResultType
         | Value(_, value) -> value.ResultType
         | Operation(_, op) -> op.ResultType
-        | While(returnTy=returnTy)
-        | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
-        | Try(resultTy=resultTy) -> resultTy
+        | None(resultTy=resultTy)
+        | While(resultTy=resultTy)
+        | IfElse(resultTy=resultTy) 
+        | Try(resultTy=resultTy)
         | Phi(resultTy=resultTy) -> resultTy
 
     member this.TextRange =

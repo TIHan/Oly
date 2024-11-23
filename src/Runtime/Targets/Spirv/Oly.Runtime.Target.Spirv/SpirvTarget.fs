@@ -19,7 +19,16 @@ open Spirv.SpirvModule
 type SpirvTarget() =
     inherit OlyTargetOutputOnly<SpirvEmitter, SpirvType, SpirvFunction, SpirvField>("spirv")
 
-    override this.CreateEmitter() = SpirvEmitter()
+    override this.CreateEmitter(targetInfo) = 
+        let splits = targetInfo.Name.Split(',')
+        if splits.Length = 2 && targetInfo.IsExecutable then
+            match splits[0], splits[1] with
+            | "vertex",    "1.3" -> SpirvEmitter(ExecutionModel.Vertex)
+            | "fragment",  "1.3" -> SpirvEmitter(ExecutionModel.Fragment)
+            | "compute",   "1.3" -> SpirvEmitter(ExecutionModel.GLCompute)
+            | _ -> raise(InvalidOperationException())
+        else
+            raise(InvalidOperationException())
 
     override this.EmitOutput(project, _binDirectory, emitter, isDebuggable) = 
         let output = emitter.EmitOutput(isDebuggable)
@@ -32,7 +41,9 @@ type SpirvTarget() =
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
             match splits[0], splits[1] with
-            | "1.3", "vertex" -> true
+            | "vertex",     "1.3"
+            | "fragment",   "1.3"
+            | "compute",    "1.3" -> true
             | _ -> false
         elif splits.Length = 1 && not targetInfo.IsExecutable then
             match splits[0] with

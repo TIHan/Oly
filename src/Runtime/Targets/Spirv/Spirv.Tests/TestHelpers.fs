@@ -1,5 +1,7 @@
 ﻿module Spirv.TestHelpers
 
+#nowarn "9"
+
 open System
 open System.IO
 open System.Text
@@ -32,6 +34,18 @@ let glsl_to_vertex (code: string) =
 let glsl_to_fragment (code: string) =
     let options = GlslCompileOptions()
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "fragment.frag", ShaderStages.Fragment, options)
+    use origSpirvBytes = new MemoryStream(result.SpirvBytes)
+    use spirvBytes = new MemoryStream()
+    let spvModule = SpirvModule.Deserialize(origSpirvBytes)
+    SpirvModule.Serialize(spirvBytes, spvModule)
+    let newResult = spirvBytes.ToArray()
+    Assert.Equal<byte>(result.SpirvBytes, newResult)
+    spvModule
+
+/// This tests serialization and deserialization.
+let glsl_to_compute (code: string) =
+    let options = GlslCompileOptions()
+    let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "compute.comp", ShaderStages.Compute, options)
     use origSpirvBytes = new MemoryStream(result.SpirvBytes)
     use spirvBytes = new MemoryStream()
     let spvModule = SpirvModule.Deserialize(origSpirvBytes)
@@ -147,11 +161,29 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
 
     graphicsDevice.SubmitCommands(commandList)
     graphicsDevice.SwapBuffers()
+    graphicsDevice.WaitForIdle()
+    commandList.Dispose()
+
+    //let texture = graphicsDevice.SwapchainFramebuffer.ColorTargets[0].Target
+    //let readTexture = factory.CreateTexture(TextureDescription(texture.Width, texture.Height, texture.Depth, texture.MipLevels, texture.ArrayLayers, texture.Format, TextureUsage.Staging, texture.Type))
+
+    //let commandList = factory.CreateCommandList()
+    //commandList.CopyTexture(texture, readTexture, 0u, 0u)
+    //commandList.End()
+    //graphicsDevice.SubmitCommands(commandList)
+    //graphicsDevice.WaitForIdle()
+    //commandList.Dispose()
     
+    //let output = Array.zeroCreate (int32(texture.Width) * int32(texture.Height) * sizeof<Vector4>)
+    //let mapped = graphicsDevice.Map(texture, MapMode.Read)
+    //let mappedSpan = Span<byte>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<byte>)
+    //mappedSpan.CopyTo(Span(output))
+    //graphicsDevice.Unmap(texture)
+
     System.Threading.Thread.Sleep(1000)
 
     // ----
-
+    window.Close()
     pipeline.Dispose()
     shaders
     |> Array.iter (fun shader -> 
@@ -162,3 +194,91 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     indexBuffer.Dispose()
     graphicsDevice.Dispose()
 
+let compute_floats (spvCompute: SpirvModule, input: float32 array) =
+
+    use spvComputeBytes = new MemoryStream()
+
+    SpirvModule.Serialize(spvComputeBytes, spvCompute)
+
+    let mutable windowCI = 
+        new WindowCreateInfo
+            (
+                X = 100,
+                Y = 100,
+                WindowWidth = 960,
+                WindowHeight = 540,
+                WindowTitle = "Veldrid Tutorial"
+            )
+    windowCI.WindowInitialState <- WindowState.Hidden
+    let window = VeldridStartup.CreateWindow(&windowCI);
+    let options = 
+        new GraphicsDeviceOptions
+            (
+                PreferStandardClipSpaceYDirection = true,
+                PreferDepthRangeZeroToOne = true
+            )
+    let graphicsDevice = VeldridStartup.CreateGraphicsDevice(window, options)
+    let factory = graphicsDevice.ResourceFactory
+
+    // ----
+
+    let buffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.StructuredBufferReadWrite, uint32(sizeof<float32>), true))
+    graphicsDevice.UpdateBuffer(buffer, 0u, input)
+
+    let computeShaderDesc = ShaderDescription(
+        ShaderStages.Compute,
+        spvComputeBytes.ToArray(),
+        "main")
+
+    let shader = factory.CreateFromSpirv(computeShaderDesc)
+
+    let resDesc = ResourceLayoutDescription(ResourceLayoutElementDescription("buffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute))
+    let layout = factory.CreateResourceLayout(resDesc)
+
+    let mutable pipelineDescription = ComputePipelineDescription(shader, [|layout|], 1u, 1u, 1u)
+    let pipeline = factory.CreateComputePipeline(pipelineDescription)
+
+    // ----
+
+    let resSetDesc = ResourceSetDescription(layout, buffer)
+    let resSet = factory.CreateResourceSet(resSetDesc)
+
+    let commandList = factory.CreateCommandList()
+
+    commandList.Begin()
+
+    commandList.SetPipeline(pipeline);
+    commandList.SetComputeResourceSet(0u, resSet)
+    commandList.Dispatch(uint32(input.Length), 1u, 1u)
+
+    commandList.End()
+
+    graphicsDevice.SubmitCommands(commandList)
+    graphicsDevice.WaitForIdle()
+    commandList.Dispose()
+
+    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.Staging, 0u, false))
+
+    let commandList = factory.CreateCommandList()
+    commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<float32> * input.Length))
+    commandList.End()
+    graphicsDevice.SubmitCommands(commandList)
+    graphicsDevice.WaitForIdle()
+    commandList.Dispose()
+
+    let output = Array.zeroCreate input.Length
+    let mapped = graphicsDevice.Map(readBuffer, MapMode.Read)
+    let mappedSpan = Span<float32>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<float32>)
+    mappedSpan.CopyTo(Span(output))
+    graphicsDevice.Unmap(readBuffer)
+
+    // ----
+    window.Close()
+    pipeline.Dispose()
+    resSet.Dispose()
+    shader.Dispose()
+    commandList.Dispose()
+    buffer.Dispose()
+    graphicsDevice.Dispose()
+
+    output

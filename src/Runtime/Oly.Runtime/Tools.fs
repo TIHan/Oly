@@ -36,7 +36,7 @@ type DummyEmitter(onEmitBody) =
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, name, tyParCount) =
             DummyType(name)
 
-        member this.EmitField(enclosingTy, flags, name, ty, attrs, constValueOpt) =
+        member this.EmitField(enclosingTy, flags, name, ty, index, attrs, constValueOpt) =
             DummyField(name)
 
         member this.EmitFieldInstance(enclosingTy, field) =

@@ -136,6 +136,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         flags: OlyIRFieldFlags * 
         name: string * 
         ty: 'Type * 
+        index: int32 *
         attrs: OlyIRAttribute<'Type, 'Function> imarray * 
         constValueOpt: OlyIRConstant<'Type, 'Function> option 
             -> 'Field

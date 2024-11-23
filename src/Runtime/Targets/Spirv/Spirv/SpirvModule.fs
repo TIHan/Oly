@@ -10,6 +10,14 @@ module private Helpers =
     let readInstruction (s: SpirvStream) =
         let opcode = s.ReadUInt16 ()
         s.remaining <- (s.ReadUInt16 () |> int) - 1
+
+        // TODO: This is horrible, what is it about this instruction where we need to subtract by an additional 2?
+        match opcode with
+        | 245us (* OpPhi *) ->
+            s.remaining <- s.remaining - 2
+        | _ ->
+            ()
+
         Instruction.Deserialize(opcode, s)
 
     let writeInstruction (instr: Instruction, s: SpirvStream) =

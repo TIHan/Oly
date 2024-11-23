@@ -9,7 +9,7 @@ open Oly.Compiler.Workspace
 type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOlyRuntimeEmitter<'Type, 'Function, 'Field>>(platformName) =
     inherit OlyBuild(platformName)
 
-    abstract CreateEmitter : unit -> 'Emitter
+    abstract CreateEmitter : OlyTargetInfo -> 'Emitter
 
     abstract EmitOutput : OlyProject * binDirectory: OlyPath * 'Emitter * isDebuggable: bool -> unit
 
@@ -32,7 +32,7 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
         | Error diags -> return Error(diags)
         | Ok asm ->
 
-        let emitter = this.CreateEmitter()
+        let emitter = this.CreateEmitter(proj.TargetInfo)
         let runtime = OlyRuntime(emitter)
 
         let refDiags = ImArray.builder()

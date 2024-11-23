@@ -1770,7 +1770,7 @@ type InterpreterRuntimeEmitter(stdout) =
 
         member _.EmitProperty(_, _, _, _, _, _) = ()
 
-        member this.EmitField(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, irConstValueOpt): InterpreterField = 
+        member this.EmitField(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, _, irConstValueOpt): InterpreterField = 
             match enclosingTy with
             | InterpreterType.Custom(info = { fields=fields }) ->
                 let constValueOpt =

@@ -4,6 +4,9 @@
 #[open]
 module OlyPrelude
 
+#[intrinsic("bool")]
+alias bool
+
 #[intrinsic("int32")]
 alias int32
 
@@ -27,6 +30,18 @@ alias outref<T>
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)(uint32, uint32): bool
+
+#[intrinsic("equal")]
+(==)(float32, float32): bool
 
 #[import("spirv", "__oly_spirv_", "vec2")]
 struct vec2 =

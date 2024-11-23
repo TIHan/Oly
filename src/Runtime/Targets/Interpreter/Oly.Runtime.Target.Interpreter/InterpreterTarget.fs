@@ -27,7 +27,7 @@ type InterpreterTarget() =
         | _ ->
             failwith "No successful build found"
 
-    override this.CreateEmitter() = InterpreterRuntimeEmitter(Console.Out)
+    override this.CreateEmitter(_) = InterpreterRuntimeEmitter(Console.Out)
 
     override this.EmitOutput(_, _, emitter: InterpreterRuntimeEmitter, _) = emitter.Run(ImArray.empty)
 

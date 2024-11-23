@@ -2084,6 +2084,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         field.Flags, 
                         field.Name,
                         fieldTy,
+                        field.Index,
                         irAttrs,
                         constantOpt
                     )
