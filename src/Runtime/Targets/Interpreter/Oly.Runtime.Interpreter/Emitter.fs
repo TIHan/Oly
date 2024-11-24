@@ -1866,7 +1866,6 @@ type InterpreterRuntimeEmitter(stdout) =
                     let argFlags = Array.init 2 (fun _ -> OlyIRLocalFlags.None) // TODO: This is not accurate. Consider never having to include the argflags.
                     lazy OlyIRFunctionBody(body, argFlags, [||]) |> Some
                 funcs.Add(ctor)
-            
 
         member this.EmitTypeDefinition(enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, _flags: OlyIRTypeFlags, name: string, _tyParCount): InterpreterType = 
             let isStruct = (kind = OlyILEntityKind.Struct)
@@ -1879,6 +1878,9 @@ type InterpreterRuntimeEmitter(stdout) =
                 (kind = OlyILEntityKind.Interface), 
                 InterpreterTypeDefinitionInfo.Default
             )
+
+        member this.OnTypeDefinitionEmitted(_) =
+            ()
 
         member this.EmitTypeBool(): InterpreterType = 
             InterpreterType.Bool

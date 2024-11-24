@@ -99,6 +99,8 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         runtimeTyOpt: 'Type option
             -> unit
 
+    abstract OnTypeDefinitionEmitted : ty: 'Type -> unit
+
     abstract EmitTypeGenericInstance : ty: 'Type * tyArgs: 'Type imarray -> 'Type
 
     abstract EmitFunctionDefinition : 

@@ -23,9 +23,9 @@ type SpirvTarget() =
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
             match splits[0], splits[1] with
-            | "vertex",    "1.3" -> SpirvEmitter(ExecutionModel.Vertex)
-            | "fragment",  "1.3" -> SpirvEmitter(ExecutionModel.Fragment)
-            | "compute",   "1.3" -> SpirvEmitter(ExecutionModel.GLCompute)
+            | "vertex",    "1.0" -> SpirvEmitter(ExecutionModel.Vertex)
+            | "fragment",  "1.0" -> SpirvEmitter(ExecutionModel.Fragment)
+            | "compute",   "1.0" -> SpirvEmitter(ExecutionModel.GLCompute)
             | _ -> raise(InvalidOperationException())
         else
             raise(InvalidOperationException())
@@ -41,9 +41,9 @@ type SpirvTarget() =
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
             match splits[0], splits[1] with
-            | "vertex",     "1.3"
-            | "fragment",   "1.3"
-            | "compute",    "1.3" -> true
+            | "vertex",     "1.0"
+            | "fragment",   "1.0"
+            | "compute",    "1.0" -> true
             | _ -> false
         elif splits.Length = 1 && not targetInfo.IsExecutable then
             match splits[0] with

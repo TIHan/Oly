@@ -4,6 +4,8 @@
 #[open]
 module OlyPrelude
 
+// Types
+
 #[intrinsic("bool")]
 alias bool
 
@@ -25,6 +27,75 @@ alias inref<T>
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
 
+#[import("spirv", "__oly_spirv_", "vec2")]
+struct vec2 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+
+#[import("spirv", "__oly_spirv_", "vec3")]
+struct vec3 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+
+#[import("spirv", "__oly_spirv_", "uvec3")]
+struct uvec3 =
+
+    public field mutable X: uint32
+    public field mutable Y: uint32
+    public field mutable Z: uint32
+
+#[import("spirv", "__oly_spirv_", "vec4")]
+struct vec4 =
+
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+    public field mutable W: float32
+
+    new(float32)
+
+    new(v: vec2, z: float32, w: float32)
+
+// Attributes
+
+#[import("spirv", "__oly_spirv_", "position")]
+struct positionAttribute = new()
+
+#[import("spirv", "__oly_spirv_", "point_size")]
+struct point_sizeAttribute = new()
+
+#[import("spirv", "__oly_spirv_", "block")]
+struct blockAttribute = new()
+
+#[import("spirv", "__oly_spirv_", "location")]
+struct locationAttribute = new(number: uint32)
+
+#[import("spirv", "__oly_spirv_", "global_invocation_id")]
+struct global_invocation_idAttribute = new()
+
+#[import("spirv", "__oly_spirv_", "uniform")]
+struct uniformAttribute = new()
+
+#[import("spirv", "__oly_spirv_", "descriptor_set")]
+struct descriptor_setAttribute = new(uint32)
+
+#[import("spirv", "__oly_spirv_", "binding")]
+struct bindingAttribute = new(uint32)
+
+#[import("spirv", "__oly_spirv_", "buffer_block")]
+struct buffer_blockAttribute = new()
+
+// Operations
+
+#[intrinsic("unsafe_cast")]
+int32(uint32): int32
+
+#[intrinsic("unsafe_cast")]
+uint32(int32): uint32
+
 #[intrinsic("address_of")]
 (&)<T>(T): inref<T>
 
@@ -43,39 +114,8 @@ alias outref<T>
 #[intrinsic("equal")]
 (==)(float32, float32): bool
 
-#[import("spirv", "__oly_spirv_", "vec2")]
-struct vec2 =
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
 
-    public field mutable X: float32
-    public field mutable Y: float32
-
-#[import("spirv", "__oly_spirv_", "vec3")]
-struct vec3 =
-
-    public field mutable X: float32
-    public field mutable Y: float32
-    public field mutable Z: float32
-
-#[import("spirv", "__oly_spirv_", "vec4")]
-struct vec4 =
-
-    public field mutable X: float32
-    public field mutable Y: float32
-    public field mutable Z: float32
-    public field mutable W: float32
-
-    new(float32)
-
-    new(v: vec2, z: float32, w: float32)
-
-#[import("spirv", "__oly_spirv_", "position")]
-struct positionAttribute = new()
-
-#[import("spirv", "__oly_spirv_", "point_size")]
-struct point_sizeAttribute = new()
-
-#[import("spirv", "__oly_spirv_", "block")]
-struct blockAttribute = new()
-
-#[import("spirv", "__oly_spirv_", "location")]
-struct locationAttribute = new(number: uint32)
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()

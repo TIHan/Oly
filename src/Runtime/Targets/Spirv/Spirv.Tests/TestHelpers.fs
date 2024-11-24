@@ -65,20 +65,22 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     let mutable windowCI = 
         new WindowCreateInfo
             (
-                X = 100,
-                Y = 100,
-                WindowWidth = 960,
-                WindowHeight = 540,
-                WindowTitle = "Veldrid Tutorial"
+                X = 0,
+                Y = 0,
+                WindowWidth = 256,
+                WindowHeight = 256,
+                WindowTitle = "SpirV Test"
             )
+    windowCI.WindowInitialState <- WindowState.Hidden
     let window = VeldridStartup.CreateWindow(&windowCI);
     let options = 
         new GraphicsDeviceOptions
             (
                 PreferStandardClipSpaceYDirection = true,
-                PreferDepthRangeZeroToOne = true
+                PreferDepthRangeZeroToOne = true,
+                Debug = true
             )
-    let graphicsDevice = VeldridStartup.CreateGraphicsDevice(window, options)
+    let graphicsDevice = VeldridStartup.CreateVulkanGraphicsDevice(options, window)
     let factory = graphicsDevice.ResourceFactory
 
     // ----
@@ -180,6 +182,7 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     //mappedSpan.CopyTo(Span(output))
     //graphicsDevice.Unmap(texture)
 
+    window.Visible <- true
     System.Threading.Thread.Sleep(1000)
 
     // ----
@@ -203,11 +206,11 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
     let mutable windowCI = 
         new WindowCreateInfo
             (
-                X = 100,
-                Y = 100,
-                WindowWidth = 960,
-                WindowHeight = 540,
-                WindowTitle = "Veldrid Tutorial"
+                X = 0,
+                Y = 0,
+                WindowWidth = 256,
+                WindowHeight = 256,
+                WindowTitle = "SpirV Test"
             )
     windowCI.WindowInitialState <- WindowState.Hidden
     let window = VeldridStartup.CreateWindow(&windowCI);
@@ -217,7 +220,7 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
                 PreferStandardClipSpaceYDirection = true,
                 PreferDepthRangeZeroToOne = true
             )
-    let graphicsDevice = VeldridStartup.CreateGraphicsDevice(window, options)
+    let graphicsDevice = VeldridStartup.CreateVulkanGraphicsDevice(options, window)
     let factory = graphicsDevice.ResourceFactory
 
     // ----
@@ -243,6 +246,9 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
     let resSetDesc = ResourceSetDescription(layout, buffer)
     let resSet = factory.CreateResourceSet(resSetDesc)
 
+    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.Staging, 0u, false))
+    graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<float32> input.Length)
+
     let commandList = factory.CreateCommandList()
 
     commandList.Begin()
@@ -251,17 +257,10 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
     commandList.SetComputeResourceSet(0u, resSet)
     commandList.Dispatch(uint32(input.Length), 1u, 1u)
 
-    commandList.End()
-
-    graphicsDevice.SubmitCommands(commandList)
-    graphicsDevice.WaitForIdle()
-    commandList.Dispose()
-
-    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.Staging, 0u, false))
-
-    let commandList = factory.CreateCommandList()
     commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<float32> * input.Length))
+
     commandList.End()
+
     graphicsDevice.SubmitCommands(commandList)
     graphicsDevice.WaitForIdle()
     commandList.Dispose()

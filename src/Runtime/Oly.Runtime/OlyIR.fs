@@ -126,6 +126,21 @@ type OlyIRValue<'Type, 'Function, 'Field> =
     | StaticFieldAddress of OlyIRField<'Type, 'Function, 'Field> * kind: OlyIRByRefKind * resultTy: 'Type
     | Constant of OlyIRConstant<'Type, 'Function> * resultTy: 'Type
 
+    member this.WithResultType(resultTy: 'Type) =
+        match this with
+        | Unit _ -> Unit(resultTy)
+        | Null _ -> Null(resultTy)
+        | Default _ -> Default(resultTy)
+        | FunctionPtr(func, _) -> FunctionPtr(func, resultTy)
+        | Function(func, _) -> Function(func, resultTy)
+        | Local(index, _) -> Local(index, resultTy)
+        | LocalAddress(index, kind, _) -> LocalAddress(index, kind, resultTy)
+        | Argument(index, _) -> Argument(index, resultTy)
+        | ArgumentAddress(index, kind, _) -> ArgumentAddress(index, kind, resultTy)
+        | StaticField(field, _) -> StaticField(field, resultTy)
+        | StaticFieldAddress(field, kind, _) -> StaticFieldAddress(field, kind, resultTy)
+        | Constant(cns, _) -> Constant(cns, resultTy)
+
     member this.ResultType =
         match this with
         | Unit(resultTy)
@@ -697,6 +712,71 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallStaticConstructor _ ->
             this
 
+    member this.WithResultType(resultTy) =
+        match this with
+        | Add(arg1, arg2, _) -> Add(arg1, arg2, resultTy)
+        | Subtract(arg1, arg2, _) -> Subtract(arg1, arg2, resultTy)
+        | Multiply(arg1, arg2, _) -> Multiply(arg1, arg2, resultTy)
+        | Divide(arg1, arg2, _) -> Divide(arg1, arg2, resultTy)
+        | Remainder(arg1, arg2, _) -> Remainder(arg1, arg2, resultTy)
+        | BitwiseAnd(arg1, arg2, _) -> BitwiseAnd(arg1, arg2, resultTy)
+        | BitwiseOr(arg1, arg2, _) -> BitwiseOr(arg1, arg2, resultTy)
+        | BitwiseExclusiveOr(arg1, arg2, _) -> BitwiseExclusiveOr(arg1, arg2, resultTy)
+        | BitwiseShiftLeft(arg1, arg2, _) -> BitwiseShiftLeft(arg1, arg2, resultTy)
+        | BitwiseShiftRight(arg1, arg2, _) -> BitwiseShiftRight(arg1, arg2, resultTy)
+        | Equal(arg1, arg2, _) -> Equal(arg1, arg2, resultTy)
+        | NotEqual(arg1, arg2, _) -> NotEqual(arg1, arg2, resultTy)
+        | Utf16Equal(arg1, arg2, _) -> Utf16Equal(arg1, arg2, resultTy)
+        | GreaterThan(arg1, arg2, _) -> GreaterThan(arg1, arg2, resultTy)
+        | GreaterThanOrEqual(arg1, arg2, _) -> GreaterThanOrEqual(arg1, arg2, resultTy)
+        | LessThan(arg1, arg2, _) -> LessThan(arg1, arg2, resultTy)
+        | LessThanOrEqual(arg1, arg2, _) -> LessThanOrEqual(arg1, arg2, resultTy)
+        | StoreRefCellContents(arg1, arg2, _) -> StoreRefCellContents(arg1, arg2, resultTy)
+        | StoreToAddress(arg1, arg2, _) -> StoreToAddress(arg1, arg2, resultTy)
+        | StoreField(field, arg1, arg2, _) -> StoreField(field, arg1, arg2, resultTy)
+
+        | BitwiseNot(arg, _) -> BitwiseNot(arg, resultTy)
+        | Not(arg, _) -> BitwiseNot(arg, resultTy)
+        | Negate(arg, _) -> Negate(arg, resultTy)
+        | Print(arg, _) -> Print(arg, resultTy)
+        | Throw(arg, _) -> Print(arg, resultTy)
+        | Box(arg, _) -> Print(arg, resultTy) 
+        | Unbox(arg, _) -> Unbox(arg, resultTy) 
+        | Upcast(arg, _) -> Upcast(arg, resultTy)
+        | Cast(arg, _) -> Cast(arg, resultTy)
+        | LoadRefCellContents(arg, _) -> LoadRefCellContents(arg, resultTy)
+        | LoadRefCellContentsAddress(arg, kind, _) -> LoadRefCellContentsAddress(arg, kind, resultTy)
+        | LoadFromAddress(arg, _) -> LoadFromAddress(arg, resultTy)
+        | Store(n, arg, _) -> Store(n, arg, resultTy) 
+        | StoreArgument(n, arg, _) -> StoreArgument(n, arg, resultTy)
+        | LoadField(field, arg, _) -> LoadField(field, arg, resultTy)
+        | LoadFieldAddress(field, arg, kind, _) -> LoadFieldAddress(field, arg, kind, resultTy)
+        | StoreStaticField(field, arg, _) -> StoreStaticField(field, arg, resultTy)
+        | NewRefCell(elementTy, arg, _) -> NewRefCell(elementTy, arg, resultTy) 
+        | NewMutableArray(elementTy, arg, _) -> NewMutableArray(elementTy, arg, resultTy) 
+        | Witness(arg, witnessTy, _) -> Witness(arg, witnessTy, resultTy)
+        | LoadTupleElement(arg, index, _) -> LoadTupleElement(arg, index, resultTy)
+        | LoadArrayLength(arg, rank, _) -> LoadArrayLength(arg, rank, resultTy) 
+        | LoadFunction(func, arg, _) -> LoadFunction(func, arg, resultTy)
+        | Ignore(arg, _) -> Ignore(arg, resultTy)
+
+        | Call(func, args, _) -> Call(func, args, resultTy)
+        | CallVirtual(func, args, _) -> CallVirtual(func, args, resultTy)
+        | CallConstrained(constrainedTy, func, args, _) -> CallConstrained(constrainedTy, func, args, resultTy)
+        | New(func, args, _) -> New(func, args, resultTy)
+        | NewTuple(itemTys, args, _) -> NewTuple(itemTys, args, resultTy)
+        | NewArray(elementTy, kind, args, _) -> NewArray(elementTy, kind, args, resultTy)
+
+        | CallIndirect(argTys, receiverArg, args, _) ->
+            CallIndirect(argTys, receiverArg, args, resultTy)
+
+        | LoadArrayElement(receiverArg, args, _) -> LoadArrayElement(receiverArg, args, resultTy)
+        | LoadArrayElementAddress(receiverArg, args, kind, _) -> LoadArrayElementAddress(receiverArg, args, kind, resultTy)
+        
+        | StoreArrayElement(receiverArg, args, arg, _) -> StoreArrayElement(receiverArg, args, arg, resultTy)
+
+        | CallStaticConstructor(func, _) -> CallStaticConstructor(func, resultTy)
+
     member this.ResultType =
         match this with
         | CallStaticConstructor(resultTy=resultTy)
@@ -795,6 +875,28 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
     | Phi of            int imarray * resultTy: 'Type
+
+    member this.WithResultType(resultTy: 'Type) =
+        match this with
+        | None(textRange, _) ->
+            None(textRange, resultTy)
+        | Let(name, localIndex, rhsExpr, bodyExpr) ->
+            let newBodyExpr = bodyExpr.WithResultType(resultTy)
+            Let(name, localIndex, rhsExpr, newBodyExpr)
+        | Value(textRange, value) ->
+            Value(textRange, value.WithResultType(resultTy))
+        | Operation(textRange, op) ->
+            Operation(textRange, op.WithResultType(resultTy))
+        | Sequential(expr1, expr2) ->
+            Sequential(expr1, expr2.WithResultType(resultTy))
+        | IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+            IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy)
+        | While(conditionExpr, bodyExpr, _) ->
+            While(conditionExpr, bodyExpr, resultTy)
+        | Try(bodyExpr, catchCases, finallyBodyExprOpt, _) ->
+            Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy)
+        | Phi(values, _) ->
+            Phi(values, resultTy)
 
     member this.GetExpressions() : _ imarray =
         match this with

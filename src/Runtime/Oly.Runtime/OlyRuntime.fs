@@ -2395,6 +2395,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         setterOpt                           
                     )
                 )
+
+                emitter.OnTypeDefinitionEmitted(res)
         
                 res
         | _ ->

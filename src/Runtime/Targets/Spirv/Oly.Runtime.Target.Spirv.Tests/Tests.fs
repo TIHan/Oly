@@ -111,7 +111,7 @@ let shouldRunCompute input (program: OlyProgram) =
 
 let OlyVertex (src: string) =
     let src = $"""
-#target "spirv: vertex, 1.3"
+#target "spirv: vertex, 1.0"
 
 {src}
 """
@@ -120,32 +120,36 @@ let OlyVertex (src: string) =
 
 let OlyFragment (src: string) =
     let src = $"""
-#target "spirv: fragment, 1.3"
+#target "spirv: fragment, 1.0"
 
 {src}
 """
     OlyShaderPrelude true src |> shouldRunFragment
     OlyShaderPrelude false src |> shouldRunFragment
 
-let OlyCompute input (src: string) =
+let OlyCompute input expectedOutput (src: string) =
     let src = $"""
-#target "spirv: compute, 1.3"
+#target "spirv: compute, 1.0"
 
 {src}
 """
-    OlyShaderPrelude true src |> shouldRunCompute input
-    OlyShaderPrelude false src |> shouldRunCompute input
+    let output = OlyShaderPrelude true src |> shouldRunCompute input
+    Assert.Equal<float32>(expectedOutput, output)
+    let output = OlyShaderPrelude false src |> shouldRunCompute input
+    Assert.Equal<float32>(expectedOutput, output)
 
 [<Fact>]
 let ``Blank vertex shader`` () =
 //#version 450
+
+//layout(location = 0) out vec4 fsin_Color;
 
 //void main()
 //{
 //}
     let src =
         """
-main(): () =
+main(#[location(0)] outColor: outref<vec4>): () =
     ()
         """
     OlyVertex src
@@ -153,6 +157,8 @@ main(): () =
 [<Fact>]
 let ``Blank vertex shader but has output`` () =
 //#version 450
+
+//layout(location = 0) out vec4 fsin_Color;
 
 //void main()
 //{
@@ -166,7 +172,7 @@ struct VertexOutput =
     #[position]
     public field mutable Position: vec4 = default
 
-main(output: outref<VertexOutput>): () =
+main(output: outref<VertexOutput>, #[location(0)] outColor: outref<vec4>): () =
     output.Position <- vec4(1)
         """
     OlyVertex src
@@ -315,7 +321,7 @@ let ``Should mutate a new value and use it`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -329,7 +335,7 @@ let ``Should use if/else`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -345,7 +351,7 @@ let ``Should use if/else 2`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -363,7 +369,7 @@ let ``Should use if/else 3`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -381,7 +387,7 @@ let ``Should use if/else 4`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -400,7 +406,7 @@ let ``Should use if/else 5`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -419,7 +425,7 @@ let ``Should use if/else 6`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -438,7 +444,7 @@ let ``Should use if/else 7`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     let mutable color = color
     color <- vec4(1)
@@ -460,4 +466,39 @@ let ``Blank compute shader`` () =
 main(): () =
     ()
         """
-    OlyCompute [|0f|] src
+    OlyCompute [|0f|] [|0f|] src
+
+[<Fact>]
+let ``Basic compute shader`` () =
+//#version 450
+
+//layout(set = 0, binding = 0) buffer Buffer
+//{
+//    float data[];
+//};
+
+//void main()
+//{
+//    uint index = gl_GlobalInvocationID.x;
+//    data[index] = 123;
+//}
+    let src =
+        """
+#[buffer_block]
+struct Buffer =
+    
+    public field Data: mutable float32[] = unchecked default
+    
+main(
+        #[uniform]
+        #[descriptor_set(0)]
+        #[binding(0)]
+        buffer: inref<Buffer>,
+
+        #[global_invocation_id] 
+        giid: inref<uvec3>
+    ): () =
+   let index = giid.X
+   //buffer.Data[int32(index)] <- 123
+        """
+    OlyCompute [|0f|] [|123f|] src

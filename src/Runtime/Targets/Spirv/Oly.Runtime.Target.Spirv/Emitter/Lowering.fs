@@ -71,7 +71,7 @@ module rec Lowering =
         | E.Value(textRange, value) ->
             match value with
             | V.Argument(index, _) when cenv.Function.IsEntryPoint ->
-                E.Value(textRange, V.Argument(index, cenv.Function.Parameters[index].Type))
+                E.Value(textRange, V.Argument(index, cenv.Function.EntryPointParameters[index].Type))
             | V.ArgumentAddress _ ->
                 raise(NotImplementedException()) // TODO: We will need to handle entrypoint like the above Argument
             | _ ->
@@ -112,6 +112,16 @@ module rec Lowering =
 
     let private LowerExpression (cenv: cenv) (env: env) (expr: E) =
         let expr = LowerExpressionAux cenv env expr
+        let expr =
+            match expr with
+            | E.Let _
+            | E.Sequential _ -> expr
+            | _ ->
+                match expr.ResultType with
+                | SpirvType.ByRef(elementTy=elementTy) ->
+                    expr.WithResultType(cenv.Module.GetTypePointer(StorageClass.Function, elementTy))
+                | _ ->
+                    expr
         if env.IsReturnable then
             match expr with
             | E.Let _

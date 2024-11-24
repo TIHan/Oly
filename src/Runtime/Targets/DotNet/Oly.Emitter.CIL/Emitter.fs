@@ -2765,6 +2765,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             ClrTypeInfo.TypeDefinition(tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Default)
 
+        member this.OnTypeDefinitionEmitted(_) =
+            ()
+
         member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, _index: int32, irAttrs, irConstValueOpt): ClrFieldInfo =
             if not flags.IsStatic && enclosingTy.IsStruct && enclosingTy.Handle = fieldTy.Handle then
                 OlyAssert.Fail($"Invalid struct {enclosingTy.FullyQualifiedName}")

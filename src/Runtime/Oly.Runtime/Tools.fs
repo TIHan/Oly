@@ -63,6 +63,8 @@ type DummyEmitter(onEmitBody) =
             DummyType(name)
         member this.EmitTypeDefinitionInfo(_, enclosing, kind, flags, name, tyPars, extends, implements, attrs, runtimeTyOpt) = 
             ()
+        member this.OnTypeDefinitionEmitted(_) =
+            ()
         member this.EmitTypeFloat32() = DummyType("float32")
         member this.EmitTypeFloat64() = DummyType("float64")
         member this.EmitTypeFunction(inputTys, outputTy, _) = DummyType("func")

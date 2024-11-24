@@ -45,8 +45,8 @@ type SpirvEmitter(executionModel) =
                     raise(InvalidOperationException())
 
         member this.EmitField(enclosingTy: SpirvType, flags: OlyIRFieldFlags, name: string, ty: SpirvType, index: int32, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, constValueOpt: OlyIRConstant<SpirvType,SpirvFunction> option): SpirvField = 
-            if enclosingTy.IsNamedTypeBuilder then
-                let namedTyBuilder = enclosingTy.AsNamedTypeBuilder
+            if enclosingTy.IsStructBuilder then
+                let namedTyBuilder = enclosingTy.AsStructBuilder
 
                 let attrs =
                     attrs
@@ -71,9 +71,9 @@ type SpirvEmitter(executionModel) =
                 field
             else
                 match enclosingTy with
-                | SpirvType.Vector4 _
-                | SpirvType.Vector3 _
-                | SpirvType.Vector2 _ ->
+                | SpirvType.Vec4 _
+                | SpirvType.Vec3 _
+                | SpirvType.Vec2 _ ->
                     {
                         Index = index
                         Name = name
@@ -105,9 +105,13 @@ type SpirvEmitter(executionModel) =
             | SpirvFunction.Function(funcBuilder) ->
                 funcBuilder.Instructions <-
                     [
-                        for i = 0 to funcBuilder.Parameters.Length - 1 do
-                            let par = funcBuilder.Parameters[i]
+                        let pars =
+                            if funcBuilder.IsEntryPoint then
+                                funcBuilder.EntryPointParameters
+                            else
+                                funcBuilder.Parameters
 
+                        for par in pars do
                             match par.Type with
                             | SpirvType.NativePointer(_, storageClass, _) ->
                                 yield! par.DecorateInstructions
@@ -116,11 +120,6 @@ type SpirvEmitter(executionModel) =
                                 OpVariable(par.Type.IdResult, par.VariableIdRef, StorageClass.Private, None)
 
                         OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
-
-                        for i = 0 to cenv.Locals.Count - 1 do
-                            let localIdResult = cenv.Locals[i]
-                            let localTy = cenv.LocalTypes[i]
-                            OpVariable(localTy.IdResult, localIdResult, StorageClass.Function, None)
 
                         yield! cenv.Instructions
 
@@ -154,7 +153,13 @@ type SpirvEmitter(executionModel) =
             ()
 
         member this.EmitTypeArray(elementTy: SpirvType, rank: int, kind: OlyIRArrayKind): SpirvType = 
-            raise(NotSupportedException())
+            if rank > 1 || rank <= 0 then
+                raise(InvalidOperationException())
+            match kind with
+            | OlyIRArrayKind.Immutable ->
+                builder.GetTypeArray(SpirvArrayKind.Immutable, elementTy)
+            | OlyIRArrayKind.Mutable ->
+                builder.GetTypeArray(SpirvArrayKind.Mutable, elementTy)
 
         member this.EmitTypeBaseObject(): SpirvType = 
             SpirvType.Invalid // TODO: What should we do here? Ideally, we should not ever emit an 'object' type in the first place. Structs always inherits from 'object', but maybe we should not do that.
@@ -165,11 +170,11 @@ type SpirvEmitter(executionModel) =
         member this.EmitTypeByRef(elementTy: SpirvType, kind: OlyIRByRefKind): SpirvType = 
             match kind with
             | OlyIRByRefKind.ReadWrite ->
-                builder.GetTypeByRef(SpirvByRefKind.ReadWrite, elementTy)
+                SpirvType.ByRef(SpirvByRefKind.ReadWrite, elementTy)
             | OlyIRByRefKind.ReadOnly ->
-                builder.GetTypeByRef(SpirvByRefKind.ReadOnly, elementTy)
+                SpirvType.ByRef(SpirvByRefKind.ReadOnly, elementTy)
             | OlyIRByRefKind.WriteOnly ->
-                builder.GetTypeByRef(SpirvByRefKind.WriteOnly, elementTy)
+                SpirvType.ByRef(SpirvByRefKind.WriteOnly, elementTy)
 
         member this.EmitTypeChar16(): SpirvType = 
             raise(NotImplementedException())
@@ -183,14 +188,14 @@ type SpirvEmitter(executionModel) =
             | OlyILEntityKind.Module ->
                 SpirvType.Module(enclosing, name)
             | OlyILEntityKind.Struct ->
-                let namedTy = builder.CreateNameTypedBuilder(enclosing, name)
+                let namedTy = builder.CreateTypeStructBuilder(enclosing, name)
                 namedTy.AsType
             | _ ->
                 raise(NotSupportedException())
 
         member this.EmitTypeDefinitionInfo(ty: SpirvType, enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, extends: SpirvType imarray, implements: SpirvType imarray, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, runtimeTyOpt: SpirvType option): unit = 
-            if ty.IsNamedTypeBuilder then
-                ty.AsNamedTypeBuilder.Attributes <-
+            if ty.IsStructBuilder then
+                ty.AsStructBuilder.Attributes <-
                     attrs
                     |> ImArray.choose (fun attr ->
                         match attr with
@@ -200,6 +205,10 @@ type SpirvEmitter(executionModel) =
                             | _ ->
                                 None
                     )
+
+        member this.OnTypeDefinitionEmitted(ty) =
+            if ty.IsStructBuilder then
+                builder.AddTypeStructBuilder(ty.AsStructBuilder)
 
         member this.EmitTypeFloat32(): SpirvType = 
             builder.GetTypeFloat32()
