@@ -137,51 +137,6 @@ module rec CodeGen =
                 OpStore(cenv.GetLocalPointerIdRef(localIndex), rhsIdRef, None) |> emitInstruction cenv
                 IdRef0
 
-            | O.StoreField(field, receiverExpr, _, _) ->
-                let receiverIdRef = idRefs[0]
-                let rhsIdRef = idRefs[1]
-
-                match receiverExpr.ResultType with
-                | SpirvType.NativePointer(storageClass=StorageClass.Input) ->
-                    raise(InvalidOperationException())
-
-                | SpirvType.NativePointer(storageClass=storageClass) ->
-                    let idResult1 = cenv.Module.NewIdResult()
-                    let idResultTy1 = cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type).IdResult
-                    OpAccessChain(idResultTy1, idResult1, receiverIdRef, [cenv.Module.GetConstantInt32(field.EmittedField.Index)]) 
-                    |> emitInstruction cenv
-
-                    OpStore(idResult1, rhsIdRef, None) 
-                    |> emitInstruction cenv
-                    IdRef0
-
-                | _ ->
-                    raise(NotImplementedException())
-
-            | O.LoadField(field, receiverExpr, resultTy) ->
-                let receiverIdRef = idRefs[0]
-
-                match receiverExpr.ResultType with
-                | SpirvType.NativePointer(storageClass=StorageClass.Output) ->
-                    raise(InvalidOperationException())
-
-                | SpirvType.NativePointer(storageClass=storageClass;elementTy=elementTy) ->
-                    let idResult1 = cenv.Module.NewIdResult()
-                    let idResultTy1 = cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type).IdResult
-                    OpAccessChain(idResultTy1, idResult1, receiverIdRef, [cenv.Module.GetConstantInt32(field.EmittedField.Index)]) 
-                    |> emitInstruction cenv
-
-                    let idResult2 = cenv.Module.NewIdResult()
-                    OpLoad(resultTy.IdResult, idResult2, idResult1, None)
-                    |> emitInstruction cenv
-                    idResult2
-
-                | SpirvType.ByRef _ ->
-                    raise(InvalidOperationException("ByRef should be lowered."))
-
-                | _ ->
-                    raise(NotImplementedException())
-
             | O.LoadFromAddress(_, resultTy) ->
                 let bodyIdRef = idRefs[0]
 
@@ -195,6 +150,41 @@ module rec CodeGen =
 
                 OpStore(argIdRef, rhsIdRef, None) |> emitInstruction cenv
                 IdRef0
+
+            | O.LoadFieldAddress(field, receiverExpr, _,_) ->
+                let receiverIdRef = idRefs[0]
+
+                match receiverExpr.ResultType with
+                | SpirvType.NativePointer(storageClass=storageClass) ->
+                    let idResult1 = cenv.Module.NewIdResult()
+                    let idResultTy1 = cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type).IdResult
+                    OpAccessChain(idResultTy1, idResult1, receiverIdRef, [cenv.Module.GetConstantInt32(field.EmittedField.Index)]) 
+                    |> emitInstruction cenv
+                    idResult1
+
+                | SpirvType.ByRef _ ->
+                    raise(InvalidOperationException("ByRef should be lowered."))
+
+                | _ ->
+                    raise(InvalidOperationException())
+
+            | O.LoadArrayElementAddress(receiverExpr, _, _, _) ->
+                OlyAssert.Equal(2, idRefs.Length)
+                let receiverIdRef = idRefs[0]
+                let indexIdRef = idRefs[1]
+
+                match receiverExpr.ResultType with
+                | SpirvType.Array(elementTy=elementTy) ->
+                    let idResult = cenv.Module.NewIdResult()
+                    OpAccessChain(
+                        cenv.Module.GetTypePointer(StorageClass.Function, elementTy).IdResult,
+                        idResult,
+                        receiverIdRef,
+                        [indexIdRef]
+                    ) |> emitInstruction cenv
+                    idResult
+                | _ ->
+                    raise(InvalidOperationException())
 
             | O.Equal(arg1Expr, _, resultTy) ->
                 let arg1IdRef = idRefs[0]
@@ -228,36 +218,24 @@ module rec CodeGen =
             | O.Cast(argExpr, castToTy) ->
                 let idRef1 = idRefs[0]
 
-                let castFromTy = argExpr.ResultType
+                //let castFromTy = argExpr.ResultType
 
-                let idResult = cenv.Module.NewIdResult()
-                match castFromTy, castToTy with
-                | SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
-                    OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
-                | SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
-                    OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
-                | _ ->
-                    raise(InvalidOperationException())
-                idResult
+                //let idResult = cenv.Module.NewIdResult()
+                //match castFromTy, castToTy with
+                //| SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
+                //    OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                //| SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
+                //    OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                //| _ ->
+                //    raise(InvalidOperationException())
+                idRef1
 
-            | O.StoreArrayElement(receiverExpr, _, _, _) ->
-                OlyAssert.Equal(3, idRefs.Length)
-                let receiverIdRef = idRefs[0]
-                let indexIdRef = idRefs[1]
-                let rhsIdRef = idRefs[2]
+            | O.StoreField _
+            | O.LoadField _
+            | O.StoreArrayElement _
+            | O.LoadArrayElement _ ->
+                raise(NotSupportedException("Should have lowered: \n" + op.ToString()))
 
-                let idResult = cenv.Module.NewIdResult()
-                OpAccessChain(
-                    receiverExpr.ResultType.IdResult,
-                    idResult,
-                    receiverIdRef,
-                    [indexIdRef]
-                ) |> emitInstruction cenv
-
-                OpStore(idResult, rhsIdRef, None) 
-                |> emitInstruction cenv
-
-                IdRef0
             | _ ->
                 raise(NotImplementedException(op.ToString()))
 

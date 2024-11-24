@@ -21,6 +21,7 @@ type VertexPositionColor(position: Vector2, color: RgbaFloat) =
 /// This tests serialization and deserialization.
 let glsl_to_vertex (code: string) =
     let options = GlslCompileOptions()
+    options.Debug <- true
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "vertex.vert", ShaderStages.Vertex, options)
     use origSpirvBytes = new MemoryStream(result.SpirvBytes)
     use spirvBytes = new MemoryStream()
@@ -33,6 +34,7 @@ let glsl_to_vertex (code: string) =
 /// This tests serialization and deserialization.
 let glsl_to_fragment (code: string) =
     let options = GlslCompileOptions()
+    options.Debug <- true
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "fragment.frag", ShaderStages.Fragment, options)
     use origSpirvBytes = new MemoryStream(result.SpirvBytes)
     use spirvBytes = new MemoryStream()
@@ -45,6 +47,7 @@ let glsl_to_fragment (code: string) =
 /// This tests serialization and deserialization.
 let glsl_to_compute (code: string) =
     let options = GlslCompileOptions()
+    options.Debug <- true
     let result = SPIRV.SpirvCompilation.CompileGlslToSpirv(code, "compute.comp", ShaderStages.Compute, options)
     use origSpirvBytes = new MemoryStream(result.SpirvBytes)
     use spirvBytes = new MemoryStream()

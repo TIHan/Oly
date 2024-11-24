@@ -28,6 +28,7 @@ type SpirvFieldFlags =
 
 type SpirvVariableFlags =
     | None          = 0b000000000
+    | Uniform       = 0b000000001
 
 [<Sealed>]
 type SpirvTypeStructBuilder(idResult: IdResult, enclosing: Choice<string imarray, SpirvType>, name: string, fields: List<SpirvField>, flags: SpirvTypeFlags) as this =
@@ -269,7 +270,27 @@ type SpirvFunctionBuilder(
             if irFlags.IsEntryPoint then 
                 match x.Type with
                 | SpirvType.ByRef(SpirvByRefKind.ReadOnly, elementTy) ->
-                    builder.GetTypePointer(StorageClass.Input, elementTy)
+                    let isUniform = 
+                        x.Attributes 
+                        |> ImArray.exists (fun x -> 
+                            match x with
+                            | OlyIRAttribute(ctor, _, _) ->
+                                match ctor.TryGetBuiltIn() with
+                                | ValueSome(builtInFunc) ->
+                                    match builtInFunc.Data with
+                                    | BuiltInFunctionData.DecorateVariable(varFlags, _)
+                                    | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                                        varFlags.HasFlag(SpirvVariableFlags.Uniform)
+                                    | _ ->
+                                        false
+                                | _ ->
+                                    false
+                        )
+
+                    if isUniform then
+                        builder.GetTypePointer(StorageClass.Uniform, elementTy)
+                    else
+                        builder.GetTypePointer(StorageClass.Input, elementTy)
                 | SpirvType.ByRef(SpirvByRefKind.WriteOnly, elementTy) ->
                     builder.GetTypePointer(StorageClass.Output, elementTy)
                 | _ ->
@@ -524,9 +545,9 @@ module BuiltInFunctions =
             BuiltInFunctionFlags.Constructor)
         Add("uniform",             
             BuiltInFunctionData.DecorateVariable(
-                SpirvVariableFlags.None, 
-                fun varIdRef args ->
-                    [OpDecorate(varIdRef, Decoration.Uniform)]
+                SpirvVariableFlags.Uniform, 
+                fun _varIdRef _args ->
+                    []
             ),     
             [],          
             BuiltInFunctionParameterType.Void, 
@@ -864,6 +885,9 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
         func
 
     member this.Build() =
+        if isBuilding then
+            raise(InvalidOperationException())
+
         isBuilding <- true
         let instrs =
             vertexHeaderInstrs @
@@ -914,7 +938,9 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
         let normalizedInstrs = Normalization.Normalize instrs
 
         let version = SpirvModule.CreateVersion(1u, 0u)
-        SpirvModule.Create(version, instrs = normalizedInstrs)
+        let result = SpirvModule.Create(version, instrs = normalizedInstrs)
+        isBuilding <- false
+        result
 
 module private Normalization =
 

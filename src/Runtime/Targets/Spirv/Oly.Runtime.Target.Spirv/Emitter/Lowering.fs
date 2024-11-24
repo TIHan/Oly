@@ -17,6 +17,12 @@ module rec Lowering =
 
     let private EmptyTextRange = OlyIRDebugSourceTextRange.Empty
 
+    let private StorageClassToOlyIRByRefKind storageClass =
+        match storageClass with
+        | StorageClass.Output -> OlyIRByRefKind.WriteOnly
+        | StorageClass.Input -> OlyIRByRefKind.ReadOnly
+        | _ -> OlyIRByRefKind.ReadWrite
+
     [<NoEquality;NoComparison>]
     type cenv =
         {
@@ -110,6 +116,86 @@ module rec Lowering =
         | E.Try _ ->
             raise(NotSupportedException())
 
+    let private LowerOperationExpression (cenv: cenv) (env: env) (expr: E) =
+        match expr with
+        | E.Operation(textRange, op) ->
+            match op with
+            | O.LoadField(field, receiverExpr, resultTy) ->
+                OlyAssert.Equal(field.EmittedField.Type, resultTy)
+                match receiverExpr.ResultType with
+                | SpirvType.NativePointer(storageClass=storageClass) ->
+                    if storageClass = StorageClass.Output then
+                        raise(InvalidOperationException())
+
+                    let loadFieldAddrExpr =
+                        E.Operation(EmptyTextRange, 
+                            O.LoadFieldAddress(
+                                field, 
+                                receiverExpr, 
+                                StorageClassToOlyIRByRefKind storageClass, 
+                                cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type)
+                            )
+                        )
+
+                    E.Operation(textRange,
+                        O.LoadFromAddress(loadFieldAddrExpr, field.EmittedField.Type)
+                    )
+                | _ ->
+                    raise(InvalidOperationException())
+
+            | O.StoreField(field, receiverExpr, rhsExpr, resultTy) ->
+                match receiverExpr.ResultType with
+                | SpirvType.NativePointer(storageClass=storageClass) ->
+                    if storageClass = StorageClass.Input then
+                        raise(InvalidOperationException())
+
+                    let loadFieldAddrExpr =
+                        E.Operation(EmptyTextRange, 
+                            O.LoadFieldAddress(
+                                field, 
+                                receiverExpr, 
+                                StorageClassToOlyIRByRefKind storageClass, 
+                                cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type)
+                            )
+                        )
+
+                    E.Operation(textRange,
+                        O.StoreToAddress(loadFieldAddrExpr, rhsExpr, resultTy)
+                    )
+                | _ ->
+                    raise(InvalidOperationException())
+
+            | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
+                OlyAssert.Equal(1, indexExprs.Length)
+                match receiverExpr.ResultType with
+                | SpirvType.Array(_, kind, elementTy) ->
+                    let irByRefKind =
+                        match kind with
+                        | SpirvArrayKind.Immutable ->
+                            OlyIRByRefKind.ReadOnly
+                        | SpirvArrayKind.Mutable ->
+                            OlyIRByRefKind.ReadWrite
+
+                    let loadArrayElementAddrExpr =
+                        E.Operation(EmptyTextRange, 
+                            O.LoadArrayElementAddress(
+                                receiverExpr,
+                                indexExprs,
+                                irByRefKind,
+                                cenv.Module.GetTypePointer(StorageClass.Function, elementTy)
+                            )
+                        )
+
+                    E.Operation(textRange,
+                        O.StoreToAddress(loadArrayElementAddrExpr, rhsExpr, resultTy)
+                    )
+                | _ ->
+                    raise(InvalidOperationException())
+            | _ ->
+                expr
+        | _ ->
+            expr
+
     let private LowerExpression (cenv: cenv) (env: env) (expr: E) =
         let expr = LowerExpressionAux cenv env expr
         let expr =
@@ -122,6 +208,9 @@ module rec Lowering =
                     expr.WithResultType(cenv.Module.GetTypePointer(StorageClass.Function, elementTy))
                 | _ ->
                     expr
+
+        let expr = LowerOperationExpression cenv env expr
+
         if env.IsReturnable then
             match expr with
             | E.Let _

@@ -498,7 +498,8 @@ main(
         #[global_invocation_id] 
         giid: inref<uvec3>
     ): () =
-   let index = giid.X
-   //buffer.Data[int32(index)] <- 123
+   //let index = giid.X
+   //let newIndex = uint32(index)
+   buffer.Data[0] <- 123
         """
     OlyCompute [|0f|] [|123f|] src
