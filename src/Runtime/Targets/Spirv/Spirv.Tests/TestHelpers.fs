@@ -74,7 +74,6 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
                 WindowHeight = 256,
                 WindowTitle = "SpirV Test"
             )
-    windowCI.WindowInitialState <- WindowState.Hidden
     let window = VeldridStartup.CreateWindow(&windowCI);
     let options = 
         new GraphicsDeviceOptions
@@ -185,7 +184,6 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     //mappedSpan.CopyTo(Span(output))
     //graphicsDevice.Unmap(texture)
 
-    window.Visible <- true
     System.Threading.Thread.Sleep(1000)
 
     // ----
