@@ -498,8 +498,31 @@ main(
         #[global_invocation_id] 
         giid: inref<uvec3>
     ): () =
-   //let index = giid.X
-   //let newIndex = uint32(index)
-   buffer.Data[0] <- 123
+   let index = giid.X
+   buffer.Data[int32(index)] <- 123
         """
-    OlyCompute [|0f|] [|123f|] src
+    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+
+[<Fact>]
+let ``Basic compute shader 2`` () =
+    let src =
+        """
+#[buffer_block]
+struct Buffer =
+    
+    public field Data: mutable float32[] = unchecked default
+    
+main(
+        #[uniform]
+        #[descriptor_set(0)]
+        #[binding(0)]
+        buffer: inref<Buffer>,
+
+        #[global_invocation_id] 
+        giid: inref<uvec3>
+    ): () =
+   let index = giid.X
+   let data2 = buffer.Data
+   data2[int32(index)] <- 123
+        """
+    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src

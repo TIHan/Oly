@@ -377,6 +377,7 @@ type SpirvFunctionBuilder(
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of BuiltInFunction
+    | AccessChain
 
     member this.TryGetBuiltIn() =
         match this with

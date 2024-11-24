@@ -123,6 +123,40 @@ module rec CodeGen =
             | _ ->
                raise(NotImplementedException(op.ToString()))
 
+        | O.Call(irFunc, argExprs, resultTy) ->
+            match irFunc.EmittedFunction with
+            | SpirvFunction.AccessChain ->
+                let receiverExpr = argExprs[0]
+                match receiverExpr with
+                | E.Operation(op=O.LoadFromAddress(body=E.Operation(op=O.LoadFieldAddress(field, innerReceiverExpr, _, _)))) ->
+                    let indexExprs = argExprs |> ImArray.skip 1
+                    let envNotReturnable = env.NotReturnable
+                    let receiverIdRef = GenExpression cenv envNotReturnable innerReceiverExpr
+                    let indexIdRefs =
+                        indexExprs
+                        |> ImArray.map (GenExpression cenv envNotReturnable)
+                        |> ImArray.prependOne
+                            (
+                                cenv.Module.GetConstantInt32(field.EmittedField.Index)
+                            )
+                        |> List.ofSeq
+                    let idResult = cenv.Module.NewIdResult()
+                    OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
+                    |> emitInstruction cenv
+                    idResult
+                | _ ->
+                    raise(InvalidOperationException())
+
+            | SpirvFunction.BuiltIn(builtInFunc) ->
+                match builtInFunc.Data with
+                | BuiltInFunctionData.Intrinsic _ ->
+                    raise(NotImplementedException())
+                | _ ->
+                    raise(InvalidOperationException())
+
+            | _ ->
+                raise(NotImplementedException(op.ToString()))
+
         | op ->
             let argCount = op.ArgumentCount
             let idRefs = Array.zeroCreate argCount
@@ -218,17 +252,17 @@ module rec CodeGen =
             | O.Cast(argExpr, castToTy) ->
                 let idRef1 = idRefs[0]
 
-                //let castFromTy = argExpr.ResultType
+                let castFromTy = argExpr.ResultType
 
-                //let idResult = cenv.Module.NewIdResult()
-                //match castFromTy, castToTy with
-                //| SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
-                //    OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
-                //| SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
-                //    OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
-                //| _ ->
-                //    raise(InvalidOperationException())
-                idRef1
+                let idResult = cenv.Module.NewIdResult()
+                match castFromTy, castToTy with
+                | SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
+                    OpSConvert(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                | SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
+                    OpUConvert(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                | _ ->
+                    raise(NotImplementedException())
+                idResult
 
             | O.StoreField _
             | O.LoadField _

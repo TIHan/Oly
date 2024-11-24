@@ -84,11 +84,29 @@ module rec Lowering =
                 expr
 
         | E.Operation(textRange, op) ->
+
+            match op with
+            | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
+                let accessChainExpr =
+                    E.Operation(EmptyTextRange,
+                        O.Call(
+                            OlyIRFunction(SpirvFunction.AccessChain), 
+                            ImArray.prependOne receiverExpr indexExprs, 
+                            cenv.Module.GetTypePointer(StorageClass.Function, rhsExpr.ResultType)
+                        )
+                    )
+                E.Operation(textRange, 
+                    O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
+                )
+                |> LowerExpression cenv env
+            | _ ->
+
             let newOp =
                 let env = env.NotReturnable
                 op.MapAndReplaceArguments (fun _ argExpr ->
                     LowerExpression cenv env argExpr
                 )
+
             if newOp = op then
                 expr
             else
