@@ -88,6 +88,9 @@ struct bindingAttribute = new(uint32)
 #[import("spirv", "__oly_spirv_", "buffer_block")]
 struct buffer_blockAttribute = new()
 
+#[import("spirv", "__oly_spirv_", "storage_buffer")]
+struct storage_bufferAttribute = new()
+
 // Operations
 
 #[intrinsic("unsafe_cast")]

@@ -29,6 +29,7 @@ type SpirvFieldFlags =
 type SpirvVariableFlags =
     | None          = 0b000000000
     | Uniform       = 0b000000001
+    | StorageBuffer = 0b000000010
 
 [<Sealed>]
 type SpirvTypeStructBuilder(idResult: IdResult, enclosing: Choice<string imarray, SpirvType>, name: string, fields: List<SpirvField>, flags: SpirvTypeFlags) as this =
@@ -270,7 +271,7 @@ type SpirvFunctionBuilder(
             if irFlags.IsEntryPoint then 
                 let checkParameterElementType elementTy =
                     match elementTy with
-                    | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
+                  //  | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
                     | _ -> ()
 
                 match x.Type with
@@ -294,8 +295,27 @@ type SpirvFunctionBuilder(
                                     false
                         )
 
+                    let isStorageBuffer =
+                        x.Attributes 
+                        |> ImArray.exists (fun x -> 
+                            match x with
+                            | OlyIRAttribute(ctor, _, _) ->
+                                match ctor.TryGetBuiltIn() with
+                                | ValueSome(builtInFunc) ->
+                                    match builtInFunc.Data with
+                                    | BuiltInFunctionData.DecorateVariable(varFlags, _)
+                                    | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                                        varFlags.HasFlag(SpirvVariableFlags.StorageBuffer)
+                                    | _ ->
+                                        false
+                                | _ ->
+                                    false
+                        )
+
                     if isUniform then
                         builder.GetTypePointer(StorageClass.Uniform, elementTy)
+                    elif isStorageBuffer then
+                        builder.GetTypePointer(StorageClass.StorageBuffer, elementTy)
                     else
                         builder.GetTypePointer(StorageClass.Input, elementTy)
 
@@ -557,6 +577,15 @@ module BuiltInFunctions =
         Add("uniform",             
             BuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.Uniform, 
+                fun _varIdRef _args ->
+                    []
+            ),     
+            [],          
+            BuiltInFunctionParameterType.Void, 
+            BuiltInFunctionFlags.Constructor)
+        Add("storage_buffer",             
+            BuiltInFunctionData.DecorateVariable(
+                SpirvVariableFlags.StorageBuffer, 
                 fun _varIdRef _args ->
                     []
             ),     
