@@ -493,8 +493,8 @@ main(
         #[global_invocation_id] 
         giid: inref<uvec3>
     ): () =
-   let index = giid.X
-   buffer[int32(index)] <- 123
+    let index = giid.X
+    buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
@@ -523,7 +523,7 @@ main(
         #[global_invocation_id] 
         giid: inref<uvec3>
     ): () =
-   let index = giid.X
-   buffer[int32(index)] <- 123
+    let index = giid.X
+    buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
