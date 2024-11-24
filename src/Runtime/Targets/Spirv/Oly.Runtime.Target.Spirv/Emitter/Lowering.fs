@@ -84,38 +84,11 @@ module rec Lowering =
                 expr
 
         | E.Operation(textRange, op) ->
-
-            match op with
-            | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
-                let indexExprs = List(indexExprs)
-                let receiverExpr =
-                    match receiverExpr with
-                    | E.Operation(op=O.LoadFromAddress(bodyExpr, _)) -> bodyExpr
-                    | E.Operation(op=O.LoadField(field, receiverExpr, _)) -> 
-                        indexExprs.Insert(0, E.Value(EmptyTextRange, V.Constant(C.Int32(field.EmittedField.Index), cenv.Module.GetTypeInt32())))
-                        receiverExpr
-                    | _ -> 
-                        receiverExpr
-                let accessChainExpr =
-                    E.Operation(EmptyTextRange,
-                        O.Call(
-                            OlyIRFunction(SpirvFunction.AccessChain), 
-                            ImArray.prependOne receiverExpr (indexExprs |> ImArray.ofSeq), 
-                            cenv.Module.GetTypePointer(StorageClass.Function, rhsExpr.ResultType)
-                        )
-                    )
-                E.Operation(textRange, 
-                    O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
-                )
-                |> LowerExpression cenv env
-            | _ ->
-
             let newOp =
                 let env = env.NotReturnable
                 op.MapAndReplaceArguments (fun _ argExpr ->
                     LowerExpression cenv env argExpr
                 )
-
             if newOp = op then
                 expr
             else
@@ -195,27 +168,25 @@ module rec Lowering =
             | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
                 OlyAssert.Equal(1, indexExprs.Length)
                 match receiverExpr.ResultType with
-                | SpirvType.RuntimeArray(_, kind, elementTy) ->
-                    let irByRefKind =
-                        match kind with
-                        | SpirvArrayKind.Immutable ->
-                            OlyIRByRefKind.ReadOnly
-                        | SpirvArrayKind.Mutable ->
-                            OlyIRByRefKind.ReadWrite
-
-                    let loadArrayElementAddrExpr =
-                        E.Operation(EmptyTextRange, 
-                            O.LoadArrayElementAddress(
-                                receiverExpr,
-                                indexExprs,
-                                irByRefKind,
-                                cenv.Module.GetTypePointer(StorageClass.Function, elementTy)
+                | SpirvType.NativePointer(_, storageClass, SpirvType.Struct(structBuilder)) ->
+                    if structBuilder.Fields.Count = 1 && (match structBuilder.Fields[0].Type with SpirvType.RuntimeArray _ -> true | _ -> false) then
+                        let indexExprs = List(indexExprs)
+                        indexExprs.Insert(0, E.Value(EmptyTextRange, V.Constant(C.Int32(structBuilder.Fields[0].Index), cenv.Module.GetTypeInt32())))
+                        let accessChainExpr =
+                            E.Operation(EmptyTextRange,
+                                O.Call(
+                                    OlyIRFunction(SpirvFunction.AccessChain), 
+                                    ImArray.prependOne receiverExpr (indexExprs |> ImArray.ofSeq), 
+                                    cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType)
+                                )
                             )
+                        E.Operation(textRange, 
+                            O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
                         )
+                        |> LowerExpression cenv env
+                    else
+                        raise(InvalidOperationException())
 
-                    E.Operation(textRange,
-                        O.StoreToAddress(loadArrayElementAddrExpr, rhsExpr, resultTy)
-                    )
                 | _ ->
                     raise(InvalidOperationException())
             | _ ->

@@ -484,21 +484,46 @@ let ``Basic compute shader`` () =
 //}
     let src =
         """
-#[buffer_block]
-struct Buffer =
-    
-    public field Data: mutable float32[] = unchecked default
-    
 main(
         #[uniform]
         #[descriptor_set(0)]
         #[binding(0)]
-        buffer: inref<Buffer>,
+        buffer: mutable float32[],
 
         #[global_invocation_id] 
         giid: inref<uvec3>
     ): () =
    let index = giid.X
-   buffer.Data[int32(index)] <- 123
+   buffer[int32(index)] <- 123
+        """
+    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+
+[<Fact>]
+let ``Basic compute shader 2`` () =
+//#version 450
+
+//layout(set = 0, binding = 0) buffer Buffer
+//{
+//    float data[];
+//};
+
+//void main()
+//{
+//    uint index = gl_GlobalInvocationID.x;
+//    data[index] = 123;
+//}
+    let src =
+        """
+main(
+        #[storage_buffer]
+        #[descriptor_set(0)]
+        #[binding(0)]
+        buffer: mutable float32[],
+
+        #[global_invocation_id] 
+        giid: inref<uvec3>
+    ): () =
+   let index = giid.X
+   buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
