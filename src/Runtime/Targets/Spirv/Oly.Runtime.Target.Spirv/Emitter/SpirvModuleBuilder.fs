@@ -268,8 +268,15 @@ type SpirvFunctionBuilder(
         irPars 
         |> ImArray.map (fun x -> 
             if irFlags.IsEntryPoint then 
+                let checkParameterElementType elementTy =
+                    match elementTy with
+                    | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
+                    | _ -> ()
+
                 match x.Type with
                 | SpirvType.ByRef(SpirvByRefKind.ReadOnly, elementTy) ->
+                    checkParameterElementType elementTy
+
                     let isUniform = 
                         x.Attributes 
                         |> ImArray.exists (fun x -> 
@@ -291,8 +298,11 @@ type SpirvFunctionBuilder(
                         builder.GetTypePointer(StorageClass.Uniform, elementTy)
                     else
                         builder.GetTypePointer(StorageClass.Input, elementTy)
+
                 | SpirvType.ByRef(SpirvByRefKind.WriteOnly, elementTy) ->
+                    checkParameterElementType elementTy
                     builder.GetTypePointer(StorageClass.Output, elementTy)
+
                 | _ ->
                     failwith "Expected a read-only or write-only by-ref type."
             else 

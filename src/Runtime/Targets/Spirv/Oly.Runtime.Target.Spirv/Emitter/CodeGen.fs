@@ -127,25 +127,17 @@ module rec CodeGen =
             match irFunc.EmittedFunction with
             | SpirvFunction.AccessChain ->
                 let receiverExpr = argExprs[0]
-                match receiverExpr with
-                | E.Operation(op=O.LoadFromAddress(body=E.Operation(op=O.LoadFieldAddress(field, innerReceiverExpr, _, _)))) ->
-                    let indexExprs = argExprs |> ImArray.skip 1
-                    let envNotReturnable = env.NotReturnable
-                    let receiverIdRef = GenExpression cenv envNotReturnable innerReceiverExpr
-                    let indexIdRefs =
-                        indexExprs
-                        |> ImArray.map (GenExpression cenv envNotReturnable)
-                        |> ImArray.prependOne
-                            (
-                                cenv.Module.GetConstantInt32(field.EmittedField.Index)
-                            )
-                        |> List.ofSeq
-                    let idResult = cenv.Module.NewIdResult()
-                    OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
-                    |> emitInstruction cenv
-                    idResult
-                | _ ->
-                    raise(InvalidOperationException())
+                let indexExprs = argExprs |> ImArray.skip 1
+                let envNotReturnable = env.NotReturnable
+                let receiverIdRef = GenExpression cenv envNotReturnable receiverExpr
+                let indexIdRefs =
+                    indexExprs
+                    |> ImArray.map (GenExpression cenv envNotReturnable)
+                    |> List.ofSeq
+                let idResult = cenv.Module.NewIdResult()
+                OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
+                |> emitInstruction cenv
+                idResult
 
             | SpirvFunction.BuiltIn(builtInFunc) ->
                 match builtInFunc.Data with

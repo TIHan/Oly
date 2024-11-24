@@ -87,11 +87,20 @@ module rec Lowering =
 
             match op with
             | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
+                let indexExprs = List(indexExprs)
+                let receiverExpr =
+                    match receiverExpr with
+                    | E.Operation(op=O.LoadFromAddress(bodyExpr, _)) -> bodyExpr
+                    | E.Operation(op=O.LoadField(field, receiverExpr, _)) -> 
+                        indexExprs.Insert(0, E.Value(EmptyTextRange, V.Constant(C.Int32(field.EmittedField.Index), cenv.Module.GetTypeInt32())))
+                        receiverExpr
+                    | _ -> 
+                        receiverExpr
                 let accessChainExpr =
                     E.Operation(EmptyTextRange,
                         O.Call(
                             OlyIRFunction(SpirvFunction.AccessChain), 
-                            ImArray.prependOne receiverExpr indexExprs, 
+                            ImArray.prependOne receiverExpr (indexExprs |> ImArray.ofSeq), 
                             cenv.Module.GetTypePointer(StorageClass.Function, rhsExpr.ResultType)
                         )
                     )
