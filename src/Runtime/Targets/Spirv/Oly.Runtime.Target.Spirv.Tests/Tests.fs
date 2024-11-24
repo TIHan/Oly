@@ -287,7 +287,7 @@ let ``Basic fragment shader`` () =
         """
 main(
         #[location(0)] color: inref<vec4>,
-        outColor: outref<vec4>
+        #[location(0)] outColor: outref<vec4>
     ): () =
     outColor <- color
         """
