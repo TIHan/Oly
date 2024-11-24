@@ -171,8 +171,14 @@ module rec CodeGen =
                 OpStore(cenv.GetLocalPointerIdRef(localIndex), rhsIdRef, None) |> emitInstruction cenv
                 IdRef0
 
-            | O.LoadFromAddress(_, resultTy) ->
+            | O.LoadFromAddress(bodyExpr, resultTy) ->
                 let bodyIdRef = idRefs[0]
+
+                match bodyExpr.ResultType with
+                | SpirvType.NativePointer(_, _, SpirvType.RuntimeArray _) ->
+                    raise(InvalidOperationException("Cannot load a runtime array from an address."))
+                | _ ->
+                    ()
 
                 let idResult = cenv.Module.NewIdResult()
                 OpLoad(resultTy.IdResult, idResult, bodyIdRef, None) |> emitInstruction cenv
@@ -208,7 +214,7 @@ module rec CodeGen =
                 let indexIdRef = idRefs[1]
 
                 match receiverExpr.ResultType with
-                | SpirvType.Array(elementTy=elementTy) ->
+                | SpirvType.RuntimeArray(elementTy=elementTy) ->
                     let idResult = cenv.Module.NewIdResult()
                     OpAccessChain(
                         cenv.Module.GetTypePointer(StorageClass.Function, elementTy).IdResult,

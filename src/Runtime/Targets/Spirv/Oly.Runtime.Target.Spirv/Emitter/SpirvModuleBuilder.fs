@@ -86,7 +86,7 @@ type SpirvType =
 
     | Function of idResult: IdResult * parTys: SpirvType imarray * returnTy: SpirvType
 
-    | Array of idResult: IdResult * kind: SpirvArrayKind * elementTy: SpirvType
+    | RuntimeArray of idResult: IdResult * kind: SpirvArrayKind * elementTy: SpirvType
 
     | Struct of SpirvTypeStructBuilder
     | Module of enclosing: Choice<string imarray, SpirvType> * name: string
@@ -126,7 +126,7 @@ type SpirvType =
             raise(NotImplementedException())
         | Function _ ->
             raise(NotSupportedException())
-        | Array _ ->
+        | RuntimeArray _ ->
             raise(NotSupportedException())
         | Struct _ ->
             raise(NotImplementedException())
@@ -176,7 +176,7 @@ type SpirvType =
                 OpTypeFunction(idResult, returnTy.IdResult, parTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq)
             ]
 
-        | Array(idResult, _, elementTy) ->
+        | RuntimeArray(idResult, _, elementTy) ->
             [
                 OpTypeRuntimeArray(idResult, elementTy.IdResult)
                 OpDecorate(idResult, Decoration.ArrayStride(elementTy.GetSizeInBytes()))
@@ -231,7 +231,7 @@ type SpirvType =
         | Vec3(idResult, _)
         | Vec4(idResult, _) 
         | Function(idResult, _, _)
-        | Array(idResult, _, _) -> idResult
+        | RuntimeArray(idResult, _, _) -> idResult
         | Struct(namedTy) -> namedTy.IdResult
         | Module _ -> failwith "Invalid type for 'IdResult'."
         | ByRef _ -> raise(InvalidOperationException("ByRef must be lowered."))
@@ -779,7 +779,7 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
         | true, ty -> ty
         | _ ->
             let idResult = this.NewIdResult()
-            let ty = SpirvType.Array(idResult, kind, elementTy)
+            let ty = SpirvType.RuntimeArray(idResult, kind, elementTy)
             this.AddType(ty)
             arrayTys[key] <- ty
             ty

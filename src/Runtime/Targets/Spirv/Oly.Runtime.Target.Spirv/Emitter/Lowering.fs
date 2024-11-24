@@ -186,7 +186,7 @@ module rec Lowering =
             | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
                 OlyAssert.Equal(1, indexExprs.Length)
                 match receiverExpr.ResultType with
-                | SpirvType.Array(_, kind, elementTy) ->
+                | SpirvType.RuntimeArray(_, kind, elementTy) ->
                     let irByRefKind =
                         match kind with
                         | SpirvArrayKind.Immutable ->
