@@ -327,7 +327,7 @@ main(
     color <- vec4(1)
     outColor <- color
         """
-    OlyFragment src
+    OlyFragment src // Should show white
 
 [<Fact>]
 let ``Should use if/else`` () =
@@ -525,5 +525,36 @@ main(
     ): () =
     let index = giid.X
     buffer[int32(index)] <- 123
+        """
+    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+
+[<Fact>]
+let ``Basic compute shader 3`` () =
+//#version 450
+
+//layout(set = 0, binding = 0) buffer Buffer
+//{
+//    float data[];
+//};
+
+//void main()
+//{
+//    uint index = gl_GlobalInvocationID.x;
+//    data[index] = 123;
+//}
+    let src =
+        """
+main(
+        #[storage_buffer]
+        #[descriptor_set(0)]
+        #[binding(0)]
+        buffer: mutable float32[],
+
+        #[global_invocation_id] 
+        giid: inref<uvec3>
+    ): () =
+    let index = giid.X
+    let buffer2 = buffer
+    buffer2[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src

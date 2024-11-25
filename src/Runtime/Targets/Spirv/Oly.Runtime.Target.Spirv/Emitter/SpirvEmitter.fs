@@ -88,45 +88,42 @@ type SpirvEmitter(executionModel) =
             raise(NotSupportedException())
 
         member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, _tier: OlyIRFunctionTier, func: SpirvFunction): unit = 
+            let funcBuilder = (match func with SpirvFunction.Function(x) -> x | _ -> raise(InvalidOperationException()))
             let body = body.Value
 
-            let cenv = 
+            let loweringCenv = { SpirvLowering.cenv.Module = builder; SpirvLowering.cenv.Function = funcBuilder; SpirvLowering.cenv.Locals = List(); SpirvLowering.cenv.LocalTypes = List() }
+            let codeGenCenv = 
                 { 
                     Instructions = List()
                     Module = builder
-                    Function = (match func with SpirvFunction.Function(x) -> x | _ -> failwith "Invalid func")
-                    Locals = List(Array.zeroCreate body.LocalCount)
-                    LocalTypes = List(Array.zeroCreate body.LocalCount)
+                    Function = funcBuilder
+                    Locals = loweringCenv.Locals
+                    LocalTypes = loweringCenv.LocalTypes
                 }
-            let loweringCenv = { Lowering.cenv.Module = builder; Lowering.cenv.Function = cenv.Function }
-            CodeGen.Gen cenv (Lowering.Lower loweringCenv body.Expression)
+            SpirvCodeGen.Gen codeGenCenv (SpirvLowering.Lower loweringCenv body.Expression)
 
-            match func with
-            | SpirvFunction.Function(funcBuilder) ->
-                funcBuilder.Instructions <-
-                    [
-                        let pars =
-                            if funcBuilder.IsEntryPoint then
-                                funcBuilder.EntryPointParameters
-                            else
-                                funcBuilder.Parameters
+            funcBuilder.Instructions <-
+                [
+                    let pars =
+                        if funcBuilder.IsEntryPoint then
+                            funcBuilder.EntryPointParameters
+                        else
+                            funcBuilder.Parameters
 
-                        for par in pars do
-                            match par.Type with
-                            | SpirvType.NativePointer(_, storageClass, _) ->
-                                yield! par.DecorateInstructions
-                                OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
-                            | _ ->
-                                OpVariable(par.Type.IdResult, par.VariableIdRef, StorageClass.Private, None)
+                    for par in pars do
+                        match par.Type with
+                        | SpirvType.Pointer(_, storageClass, _) ->
+                            yield! par.DecorateInstructions
+                            OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
+                        | _ ->
+                            OpVariable(par.Type.IdResult, par.VariableIdRef, StorageClass.Private, None)
 
-                        OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
+                    OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
 
-                        yield! cenv.Instructions
+                    yield! codeGenCenv.Instructions
 
-                        OpFunctionEnd
-                    ]
-            | _ ->
-                raise(InvalidOperationException())
+                    OpFunctionEnd
+                ]
 
         member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
             if tyPars.Length > 0 then raise(NotSupportedException())

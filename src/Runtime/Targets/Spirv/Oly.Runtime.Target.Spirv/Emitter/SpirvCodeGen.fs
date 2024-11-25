@@ -19,33 +19,27 @@ type cenv =
         Function: SpirvFunctionBuilder
         Module: SpirvModuleBuilder
         Instructions: List<Instruction>
-        Locals: List<IdResult>
-        LocalTypes: List<SpirvType>
+        Locals: IReadOnlyList<IdResult>
+        LocalTypes: IReadOnlyList<SpirvType>
     }
 
     member this.IsEntryPoint =
         this.Function.IsEntryPoint
 
-    member this.GetArgumentIdRef(argIndex: int32) =
+    member this.GetArgumentIdRef(argIndex: int32) : IdRef =
         if this.Function.IsEntryPoint then
             this.Function.EntryPointParameters[argIndex].VariableIdRef
         else
             this.Function.Parameters[argIndex].VariableIdRef
 
-    member this.GetLocalPointerIdRef(localIndex: int32) : IdRef =
+    member this.GetLocalIdRef(localIndex: int32) : IdRef =
         this.Locals[localIndex]
-
-    member this.GetLocalPointerElementType(localIndex: int32) : SpirvType =
-        match this.LocalTypes[localIndex] with
-        | SpirvType.NativePointer(elementTy=elementTy) -> elementTy
-        | _ -> failwith "Unable to get local pointer element type."
 
 [<NoEquality;NoComparison>]
 type env =
     {
         IsReturnable: bool
-//        BlockScope: int
-        BlockLabel: uint32
+        CurrentBlockLabel: IdRef
     }
 
     member this.NotReturnable =
@@ -54,7 +48,7 @@ type env =
         else
             this
 
-module rec CodeGen =
+module rec SpirvCodeGen =
 
     let private IdRef0 : IdRef = 0u
 
@@ -65,20 +59,24 @@ module rec CodeGen =
         cenv.Instructions.AddRange(instrs)
 
     let Gen (cenv: cenv) (expr: E) =
-        let blockLabel= cenv.Module.NewIdResult()
+        let blockLabel = cenv.Module.NewIdResult()
         OpLabel(blockLabel) |> emitInstruction cenv
 
         let newCenv = { cenv with Instructions = List() }
 
-        let env = { IsReturnable = true; BlockLabel = blockLabel }
+        let env = { IsReturnable = true; CurrentBlockLabel = blockLabel }
         GenExpression newCenv env expr
         |> ignore
 
         for i = 0 to cenv.Locals.Count - 1 do
             let localIdResult = cenv.Locals[i]
             let localTy = cenv.LocalTypes[i]
-            OpVariable(localTy.IdResult, localIdResult, StorageClass.Function, None)
-            |> emitInstruction cenv
+            match localTy with
+            | SpirvType.Pointer(pointerTyIdResult, StorageClass.Function, _) ->
+                OpVariable(pointerTyIdResult, localIdResult, StorageClass.Function, None)
+                |> emitInstruction cenv
+            | _ ->
+                raise(InvalidOperationException("Expected a pointer type of storage class 'Function'."))
 
         emitInstructions cenv newCenv.Instructions
 
@@ -88,14 +86,6 @@ module rec CodeGen =
             GenLinearExpression cenv env.NotReturnable expr1 |> ignore
             GenLinearExpression cenv env expr2
 
-        | E.Let(_, localIndex, rhsExpr, bodyExpr) ->
-            let rhsIdRef = GenLinearExpression cenv env.NotReturnable rhsExpr
-            let idResult = cenv.Module.NewIdResult()
-            cenv.Locals[localIndex] <- idResult
-            cenv.LocalTypes[localIndex] <- cenv.Module.GetTypePointer(StorageClass.Function, rhsExpr.ResultType)
-            OpStore(idResult, rhsIdRef, None) |> emitInstruction cenv
-            GenLinearExpression cenv env bodyExpr
-
         | _ ->
             GenExpression cenv env expr
 
@@ -104,6 +94,18 @@ module rec CodeGen =
         | O.New(func, argExprs, _) ->
             match func.EmittedFunction with
             | SpirvFunction.BuiltIn(builtInFunc) ->
+#if DEBUG || CHECKED
+                OlyAssert.True(argExprs.Length >= 1)
+                argExprs
+                |> ImArray.iter (fun argExpr ->
+                    match argExpr.ResultType with
+                    | SpirvType.Pointer _ ->
+                        raise(InvalidOperationException("Did not expect a pointer."))
+                    | _ ->
+                        ()
+                )
+#endif
+
                 match builtInFunc.Data with
                 | BuiltInFunctionData.Intrinsic(create) ->
                     let args =
@@ -123,31 +125,31 @@ module rec CodeGen =
             | _ ->
                raise(NotImplementedException(op.ToString()))
 
-        | O.Call(irFunc, argExprs, resultTy) ->
-            match irFunc.EmittedFunction with
-            | SpirvFunction.AccessChain ->
-                let receiverExpr = argExprs[0]
-                let indexExprs = argExprs |> ImArray.skip 1
-                let envNotReturnable = env.NotReturnable
-                let receiverIdRef = GenExpression cenv envNotReturnable receiverExpr
-                let indexIdRefs =
-                    indexExprs
-                    |> ImArray.map (GenExpression cenv envNotReturnable)
-                    |> List.ofSeq
-                let idResult = cenv.Module.NewIdResult()
-                OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
-                |> emitInstruction cenv
-                idResult
+        | BuiltInOperations.AccessChain(_, receiverExpr, indexExprs, resultTy) ->
+            match resultTy with
+            | SpirvType.Pointer _ -> ()
+            | _ -> raise(InvalidOperationException("Expected a pointer type."))
 
-            | SpirvFunction.BuiltIn(builtInFunc) ->
-                match builtInFunc.Data with
-                | BuiltInFunctionData.Intrinsic _ ->
-                    raise(NotImplementedException())
-                | _ ->
-                    raise(InvalidOperationException())
+#if DEBUG || CHECKED
+            match receiverExpr.ResultType, resultTy with
+            | SpirvType.Pointer(storageClass=expectedStorageClass), SpirvType.Pointer(storageClass=storageClass) ->
+                if expectedStorageClass <> storageClass then
+                    raise(InvalidOperationException($"Storage classes do not match up for access chain. Expected: {expectedStorageClass}, Actual: {storageClass}"))
+            | _ -> 
+                raise(InvalidOperationException("Expected a pointer type."))
+#endif
 
-            | _ ->
-                raise(NotImplementedException(op.ToString()))
+            let envNotReturnable = env.NotReturnable
+            let receiverIdRef = GenExpression cenv envNotReturnable receiverExpr
+            let indexIdRefs =
+                indexExprs
+                |> ImArray.map (GenExpression cenv envNotReturnable)
+                |> List.ofSeq
+
+            let idResult = cenv.Module.NewIdResult()
+            OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
+            |> emitInstruction cenv
+            idResult
 
         | op ->
             let argCount = op.ArgumentCount
@@ -157,66 +159,53 @@ module rec CodeGen =
                 idRefs[i] <- GenExpression cenv envForArg argExpr
             )
             match op with
-            | O.Store(localIndex, _, _) ->
+            | O.Store(localIndex, rhsExpr, _) ->
                 let rhsIdRef = idRefs[0]
 
-                OpStore(cenv.GetLocalPointerIdRef(localIndex), rhsIdRef, None) |> emitInstruction cenv
+#if DEBUG || CHECKED
+                match cenv.LocalTypes[localIndex] with
+                | SpirvType.Pointer(elementTy=elementTy) ->
+                    OlyAssert.Equal(rhsExpr.ResultType.IdResult, elementTy.IdResult)
+                | _ ->
+                    raise(InvalidOperationException("Expected a pointer type."))
+#endif
+
+                OpStore(cenv.GetLocalIdRef(localIndex), rhsIdRef, None) |> emitInstruction cenv
+                IdRef0
+
+            | O.StoreToAddress(lhsExpr, rhsExpr, _) ->
+                let argIdRef = idRefs[0]
+                let rhsIdRef = idRefs[1]
+
+#if DEBUG || CHECKED
+                match lhsExpr.ResultType with
+                | SpirvType.Pointer(elementTy=elementTy) ->
+                    OlyAssert.Equal(rhsExpr.ResultType.IdResult, elementTy.IdResult)
+                | _ ->
+                    raise(InvalidOperationException("Expected a pointer type."))
+#endif
+
+                OpStore(argIdRef, rhsIdRef, None) |> emitInstruction cenv
                 IdRef0
 
             | O.LoadFromAddress(bodyExpr, resultTy) ->
                 let bodyIdRef = idRefs[0]
 
+#if DEBUG || CHECKED
                 match bodyExpr.ResultType with
-                | SpirvType.NativePointer(_, _, SpirvType.RuntimeArray _) ->
-                    raise(InvalidOperationException("Cannot load a runtime array from an address."))
+                | SpirvType.Pointer(_, _, elementTy) ->
+                    match elementTy with
+                    | SpirvType.RuntimeArray _ ->
+                        raise(InvalidOperationException("Cannot load a runtime array from an address."))
+                    | _ ->
+                        ()
                 | _ ->
-                    ()
+                    raise(InvalidOperationException("Expected a pointer"))
+#endif
 
                 let idResult = cenv.Module.NewIdResult()
                 OpLoad(resultTy.IdResult, idResult, bodyIdRef, None) |> emitInstruction cenv
                 idResult
-
-            | O.StoreToAddress _ ->
-                let argIdRef = idRefs[0]
-                let rhsIdRef = idRefs[1]
-
-                OpStore(argIdRef, rhsIdRef, None) |> emitInstruction cenv
-                IdRef0
-
-            | O.LoadFieldAddress(field, receiverExpr, _,_) ->
-                let receiverIdRef = idRefs[0]
-
-                match receiverExpr.ResultType with
-                | SpirvType.NativePointer(storageClass=storageClass) ->
-                    let idResult1 = cenv.Module.NewIdResult()
-                    let idResultTy1 = cenv.Module.GetTypePointer(storageClass, field.EmittedField.Type).IdResult
-                    OpAccessChain(idResultTy1, idResult1, receiverIdRef, [cenv.Module.GetConstantInt32(field.EmittedField.Index)]) 
-                    |> emitInstruction cenv
-                    idResult1
-
-                | SpirvType.ByRef _ ->
-                    raise(InvalidOperationException("ByRef should be lowered."))
-
-                | _ ->
-                    raise(InvalidOperationException())
-
-            | O.LoadArrayElementAddress(receiverExpr, _, _, _) ->
-                OlyAssert.Equal(2, idRefs.Length)
-                let receiverIdRef = idRefs[0]
-                let indexIdRef = idRefs[1]
-
-                match receiverExpr.ResultType with
-                | SpirvType.RuntimeArray(elementTy=elementTy) ->
-                    let idResult = cenv.Module.NewIdResult()
-                    OpAccessChain(
-                        cenv.Module.GetTypePointer(StorageClass.Function, elementTy).IdResult,
-                        idResult,
-                        receiverIdRef,
-                        [indexIdRef]
-                    ) |> emitInstruction cenv
-                    idResult
-                | _ ->
-                    raise(InvalidOperationException())
 
             | O.Equal(arg1Expr, _, resultTy) ->
                 let arg1IdRef = idRefs[0]
@@ -245,7 +234,7 @@ module rec CodeGen =
                     OpFOrdEqual(resultTy.IdResult, idResult, arg1IdRef, arg2IdRef) |> emitInstruction cenv
                     idResult
                 | _ ->
-                    raise(NotImplementedException())
+                    raise(NotSupportedException(arg1Expr.ResultType.ToString()))
 
             | O.Cast(argExpr, castToTy) ->
                 let idRef1 = idRefs[0]
@@ -264,8 +253,10 @@ module rec CodeGen =
 
             | O.StoreField _
             | O.LoadField _
+            | O.LoadFieldAddress _
             | O.StoreArrayElement _
-            | O.LoadArrayElement _ ->
+            | O.LoadArrayElement _
+            | O.LoadArrayElementAddress _ ->
                 raise(NotSupportedException("Should have lowered: \n" + op.ToString()))
 
             | _ ->
@@ -293,20 +284,18 @@ module rec CodeGen =
             cenv.GetArgumentIdRef(argIndex)
 
         | V.Local(localIndex, _) ->
-            let idResult = cenv.Module.NewIdResult()
-            OpLoad(cenv.GetLocalPointerElementType(localIndex).IdResult, idResult, cenv.GetLocalPointerIdRef(localIndex), None) |> emitInstruction cenv
-            idResult
+            cenv.GetLocalIdRef(localIndex)
 
-        | V.LocalAddress(localIndex, _, _) ->
-            cenv.GetLocalPointerIdRef(localIndex)
+        | V.ArgumentAddress _
+        | V.LocalAddress _ ->
+            raise(NotSupportedException(value.ToString()))
 
         | _ ->
             raise(NotImplementedException(value.ToString()))
 
     let private GenExpressionAux (cenv: cenv) (env: env) (expr: E) : IdResult =
         match expr with
-        | E.Sequential _
-        | E.Let _ ->
+        | E.Sequential _ ->
             GenLinearExpression cenv env expr
 
         | E.None _ ->
@@ -321,6 +310,11 @@ module rec CodeGen =
         | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
             let conditionIdRef = GenExpression cenv env.NotReturnable conditionExpr
 
+#if DEBUG || CHECKED
+            OlyAssert.Equal(trueTargetExpr.ResultType, falseTargetExpr.ResultType)
+            OlyAssert.Equal(trueTargetExpr.ResultType, resultTy)
+#endif
+
             let contLabel = cenv.Module.NewIdResult()
             let trueTargetLabel = cenv.Module.NewIdResult()
             let falseTargetLabel = cenv.Module.NewIdResult()
@@ -332,11 +326,11 @@ module rec CodeGen =
             |> emitInstructions cenv
 
             OpLabel(trueTargetLabel) |> emitInstruction cenv
-            let trueTargetIdRef = GenExpression cenv { env with BlockLabel = trueTargetLabel } trueTargetExpr
+            let trueTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = trueTargetLabel } trueTargetExpr
             OpBranch(contLabel) |> emitInstruction cenv
 
             OpLabel(falseTargetLabel) |> emitInstruction cenv
-            let falseTargetIdRef = GenExpression cenv { env with BlockLabel = falseTargetLabel } falseTargetExpr
+            let falseTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = falseTargetLabel } falseTargetExpr
             OpBranch(contLabel) |> emitInstruction cenv
 
             OpLabel(contLabel) |> emitInstruction cenv
@@ -356,6 +350,9 @@ module rec CodeGen =
 
         | E.Phi _ ->
             raise(NotImplementedException())
+
+        | E.Let _ ->
+            raise(InvalidOperationException($"Should have been lowered:\n{expr}"))
 
         | E.Try _ ->
             raise(NotSupportedException("Try"))

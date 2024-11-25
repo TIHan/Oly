@@ -47,6 +47,14 @@ type SpirvTypeStructBuilder(idResult: IdResult, enclosing: Choice<string imarray
 
     member this.AsType = ty
 
+    member this.IsRuntimeArray =
+        this.Fields.Count = 1 && (match this.Fields[0].Type with SpirvType.RuntimeArray _ -> true | _ -> false)
+
+    member this.GetRuntimeArrayField() =
+        if not this.IsRuntimeArray then
+            raise(InvalidOperationException("Expected a runtime array type."))
+        this.Fields[0]
+
 [<RequireQualifiedAccess>]
 type SpirvByRefKind =
     | ReadWrite
@@ -79,7 +87,7 @@ type SpirvType =
     | ByRef of kind: SpirvByRefKind * elementTy: SpirvType
     | NativeInt of idResult: IdResult
     | NativeUInt of idResult: IdResult
-    | NativePointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
+    | Pointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
 
     | Vec2 of idResult: IdResult * elementTy: SpirvType
     | Vec3 of idResult: IdResult * elementTy: SpirvType
@@ -117,7 +125,7 @@ type SpirvType =
             raise(NotImplementedException())
         | NativeUInt _ ->
             raise(NotImplementedException())
-        | NativePointer _ ->
+        | Pointer _ ->
             raise(NotImplementedException())
         | Vec2 _ ->
             raise(NotImplementedException())
@@ -167,7 +175,7 @@ type SpirvType =
 
         | NativeInt idResult ->             raise(NotImplementedException())
         | NativeUInt idResult ->            raise(NotImplementedException())
-        | NativePointer(idResult, storageClass, elementTy) ->
+        | Pointer(idResult, storageClass, elementTy) ->
             [
                 OpTypePointer(idResult, storageClass, elementTy.IdResult)
             ]
@@ -227,7 +235,7 @@ type SpirvType =
         | Tuple(idResult, _, _)
         | NativeInt idResult
         | NativeUInt idResult
-        | NativePointer(idResult, _, _)
+        | Pointer(idResult, _, _)
         | Vec2(idResult, _)
         | Vec3(idResult, _)
         | Vec4(idResult, _) 
@@ -743,6 +751,67 @@ module BuiltInFunctions =
 
     let IsValid(name: string) = Lookup.ContainsKey(name)
 
+module BuiltInOperations =
+
+    let inline (|Vec4|_|)(op: O) =
+        match op with
+        | O.New(irFunc, argExprs, resultTy) ->
+            match irFunc.EmittedFunction with
+            | SpirvFunction.BuiltIn(builtInFunc) as func ->
+                if builtInFunc.Name = "vec4" then
+                    Some(func, argExprs, resultTy)
+                else
+                    None
+            | _ ->
+                None
+        | _ ->
+            None
+
+    let inline (|AccessChain|_|)(op: O) =
+        match op with
+        | O.Call(irFunc, argExprs, resultTy) ->
+            match irFunc.EmittedFunction with
+            | SpirvFunction.AccessChain as func ->
+                OlyAssert.True(argExprs.Length >= 1)
+                let receiverExpr = argExprs[0]
+                let indexExprs = argExprs |> ImArray.skip 1
+                Some(func, receiverExpr, indexExprs, resultTy)
+            | _ ->
+                None
+        | _ ->
+            None
+
+module BuiltInExpressions =
+
+    let IndexConstantFromField (builder: SpirvModuleBuilder) (field: SpirvField) =
+        E.Value(OlyIRDebugSourceTextRange.Empty, V.Constant(C.Int32(field.Index), builder.GetTypeInt32()))
+
+    let inline (|AccessChain|_|)(expr: E) =
+        match expr with
+        | E.Operation(op=BuiltInOperations.AccessChain(func, receiverExpr, indexExprs, resultTy)) ->
+            Some(func, receiverExpr, indexExprs, resultTy)
+        | _ ->
+            None
+
+    let AccessChain(receiverExpr: E, indexExprs: E imarray, resultTy: SpirvType) =
+        match resultTy with
+        | SpirvType.Pointer _ -> ()
+        | _ -> raise(InvalidOperationException("Expected a pointer type."))
+
+#if DEBUG || CHECKED
+        match receiverExpr.ResultType with
+        | SpirvType.Pointer _ -> ()
+        | _ -> raise(InvalidOperationException("Expected a pointer type."))   
+#endif
+
+        E.Operation(OlyIRDebugSourceTextRange.Empty,
+            O.Call(
+                OlyIRFunction(SpirvFunction.AccessChain), 
+                ImArray.prependOne receiverExpr indexExprs, 
+                resultTy
+            )
+        )
+
 module BuiltInTypes =
 
     let TryGetByName(spvModule: SpirvModuleBuilder, name: string) =
@@ -857,12 +926,17 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
             idResult
 
     member this.GetTypePointer(storageClass: StorageClass, elementTy: SpirvType) =
+        match elementTy with
+        | SpirvType.ByRef _
+        | SpirvType.Pointer _ -> raise(InvalidOperationException("Did not expect a pointer or by-ref type."))
+        | _ -> ()
+
         let key = (storageClass, elementTy.IdResult)
         match pointerTys.TryGetValue key with
         | true, ty -> ty
         | _ ->
             let idResult = this.NewIdResult()
-            let ty = SpirvType.NativePointer(idResult, storageClass, elementTy)
+            let ty = SpirvType.Pointer(idResult, storageClass, elementTy)
             this.AddType(ty)
             pointerTys[key] <- ty
             ty
