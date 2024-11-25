@@ -98,7 +98,8 @@ module rec SpirvLowering =
                 E.Sequential(newExpr1, newExpr2)
         
         | E.Let(_, localIndex, rhsExpr, bodyExpr) ->
-            let newRhsExpr = LowerLinearExpression cenv env rhsExpr
+            let envNotReturnable = env.NotReturnable
+            let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
 
 #if DEBUG || CHECKED
             match newRhsExpr.ResultType with
@@ -109,7 +110,9 @@ module rec SpirvLowering =
             cenv.AddLocal(localIndex, newRhsExpr.ResultType)
 
             E.Sequential(
-                E.Operation(EmptyTextRange, O.Store(localIndex, AutoDereferenceIfPossible newRhsExpr, cenv.Module.GetTypeVoid())),
+                // Lower Store to StoreToAddress.
+                E.Operation(EmptyTextRange, O.Store(localIndex, newRhsExpr, cenv.Module.GetTypeVoid()))
+                |> LowerExpression cenv envNotReturnable,
                 LowerLinearExpression cenv env bodyExpr
             )
 
@@ -151,6 +154,9 @@ module rec SpirvLowering =
                 | O.Store _ ->
                     AutoDereferenceIfPossible newArgExpr
 
+                | O.StoreArgument _ ->
+                    raise(NotImplementedException(op.ToString()))
+
                 | O.StoreField _ ->
                     if i = 0 then
                         AssertPointerType newArgExpr
@@ -181,6 +187,13 @@ module rec SpirvLowering =
                 | O.Cast _
                 | BuiltInOperations.Vec4 _ ->
                     AutoDereferenceIfPossible newArgExpr
+
+                | BuiltInOperations.AccessChain _ ->
+                    if i = 0 then
+                        AssertPointerType newArgExpr
+                        newArgExpr
+                    else
+                        AutoDereferenceIfPossible newArgExpr
 
                 | _ ->
                     raise(NotImplementedException(op.ToString()))
@@ -273,6 +286,15 @@ module rec SpirvLowering =
                 | _ ->
                     raise(InvalidOperationException())
 
+            | O.Store(localIndex, rhsExpr, resultTy) ->
+                let localTy = cenv.LocalTypes[localIndex]
+                let localExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+                AssertPointerType localExpr
+                E.Operation(textRange, O.StoreToAddress(localExpr, rhsExpr, resultTy))
+
+            | O.StoreArgument _ ->
+                raise(NotImplementedException(op.ToString()))
+
             | O.StoreField(field, receiverExpr, rhsExpr, resultTy) ->
                 let field = field.EmittedField
                 OlyAssert.Equal(field.Type, rhsExpr.ResultType)
@@ -308,6 +330,7 @@ module rec SpirvLowering =
                     )
                 | _ ->
                     raise(InvalidOperationException())
+
             | _ ->
                 expr
         | _ ->

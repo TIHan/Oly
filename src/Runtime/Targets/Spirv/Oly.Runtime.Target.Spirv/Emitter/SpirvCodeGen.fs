@@ -159,20 +159,6 @@ module rec SpirvCodeGen =
                 idRefs[i] <- GenExpression cenv envForArg argExpr
             )
             match op with
-            | O.Store(localIndex, rhsExpr, _) ->
-                let rhsIdRef = idRefs[0]
-
-#if DEBUG || CHECKED
-                match cenv.LocalTypes[localIndex] with
-                | SpirvType.Pointer(elementTy=elementTy) ->
-                    OlyAssert.Equal(rhsExpr.ResultType.IdResult, elementTy.IdResult)
-                | _ ->
-                    raise(InvalidOperationException("Expected a pointer type."))
-#endif
-
-                OpStore(cenv.GetLocalIdRef(localIndex), rhsIdRef, None) |> emitInstruction cenv
-                IdRef0
-
             | O.StoreToAddress(lhsExpr, rhsExpr, _) ->
                 let argIdRef = idRefs[0]
                 let rhsIdRef = idRefs[1]
@@ -251,13 +237,14 @@ module rec SpirvCodeGen =
                     raise(NotImplementedException())
                 idResult
 
+            | O.Store _
             | O.StoreField _
             | O.LoadField _
             | O.LoadFieldAddress _
             | O.StoreArrayElement _
             | O.LoadArrayElement _
             | O.LoadArrayElementAddress _ ->
-                raise(NotSupportedException("Should have lowered: \n" + op.ToString()))
+                raise(NotSupportedException("Should have been lowered: \n" + op.ToString()))
 
             | _ ->
                 raise(NotImplementedException(op.ToString()))
