@@ -257,8 +257,13 @@ type SpirvType =
 
     member this.AsStructBuilder =
         match this with
-        | Struct(namedTyBuilder) -> namedTyBuilder
+        | Struct(structBuilder) -> structBuilder
         | _ -> failwith "Expected named type."
+
+    member this.IsStructRuntimeArray =
+        match this with
+        | Struct(structBuilder) -> structBuilder.IsRuntimeArray
+        | _ -> false
 
 [<Sealed>]
 type SpirvFunctionBuilder(

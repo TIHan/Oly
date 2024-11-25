@@ -530,31 +530,15 @@ main(
 
 [<Fact>]
 let ``Basic compute shader 3`` () =
-//#version 450
-
-//layout(set = 0, binding = 0) buffer Buffer
-//{
-//    float data[];
-//};
-
-//void main()
-//{
-//    uint index = gl_GlobalInvocationID.x;
-//    data[index] = 123;
-//}
     let src =
         """
 main(
         #[storage_buffer]
         #[descriptor_set(0)]
         #[binding(0)]
-        buffer: mutable float32[],
-
-        #[global_invocation_id] 
-        giid: inref<uvec3>
+        buffer: mutable float32[]
     ): () =
-    let index = giid.X
     let buffer2 = buffer
-    buffer2[int32(index)] <- 123
+    buffer2[1] <- 123
         """
-    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+    OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src

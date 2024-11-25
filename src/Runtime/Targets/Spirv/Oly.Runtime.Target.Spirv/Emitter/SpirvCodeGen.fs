@@ -244,7 +244,7 @@ module rec SpirvCodeGen =
             | O.StoreArrayElement _
             | O.LoadArrayElement _
             | O.LoadArrayElementAddress _ ->
-                raise(NotSupportedException("Should have been lowered: \n" + op.ToString()))
+                raise(NotSupportedException($"Should have been lowered:\n{op}"))
 
             | _ ->
                 raise(NotImplementedException(op.ToString()))
