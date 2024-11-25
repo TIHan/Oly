@@ -412,7 +412,14 @@ main(
     color <- vec4(1)
     color <-
         if (color.X == 1)
-            vec4(0.5)
+            if (color.X == 1)
+                if (color.X == 1)
+                    color <- vec4(1)
+                    vec4(0.5)
+                else
+                    vec4(0)
+            else
+                vec4(1)
         else
             vec4(0)
     outColor <- color
@@ -454,6 +461,26 @@ main(
             vec4(0.5)
         else
             color <- vec4(0)
+            vec4(0)
+    outColor <- color
+        """
+    OlyFragment src // should show grey
+
+[<Fact>]
+let ``Should use if/else 8`` () =
+    let src =
+        """
+main(
+        #[location(0)] color: inref<vec4>,
+        #[location(0)] outColor: outref<vec4>
+    ): () =
+    let mutable color = color
+    color <-
+        if (color.X == 1)
+            if (color.X == 1)
+                color <- vec4(0)
+            vec4(0.5)
+        else
             vec4(0)
     outColor <- color
         """

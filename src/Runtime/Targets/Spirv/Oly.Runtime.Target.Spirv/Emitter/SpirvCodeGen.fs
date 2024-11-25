@@ -21,6 +21,8 @@ type cenv =
         Instructions: List<Instruction>
         Locals: IReadOnlyList<IdResult>
         LocalTypes: IReadOnlyList<SpirvType>
+
+        mutable PredecessorBlockLabel: IdRef
     }
 
     member this.IsEntryPoint =
@@ -314,13 +316,16 @@ module rec SpirvCodeGen =
 
             OpLabel(trueTargetLabel) |> emitInstruction cenv
             let trueTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = trueTargetLabel } trueTargetExpr
+            let trueTargetPredecessorBlockLabel = cenv.PredecessorBlockLabel
             OpBranch(contLabel) |> emitInstruction cenv
 
             OpLabel(falseTargetLabel) |> emitInstruction cenv
             let falseTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = falseTargetLabel } falseTargetExpr
+            let falseTargetPredecessorBlockLabel = cenv.PredecessorBlockLabel
             OpBranch(contLabel) |> emitInstruction cenv
 
             OpLabel(contLabel) |> emitInstruction cenv
+            cenv.PredecessorBlockLabel <- contLabel
             
             match resultTy with
             | SpirvType.Void _ ->
@@ -329,7 +334,12 @@ module rec SpirvCodeGen =
                 IdRef0
             | _ ->
                 let idResult = cenv.Module.NewIdResult()
-                OpPhi(resultTy.IdResult, idResult, [PairIdRefIdRef(trueTargetIdRef, trueTargetLabel);PairIdRefIdRef(falseTargetIdRef, falseTargetLabel)]) |> emitInstruction cenv
+                OpPhi(resultTy.IdResult, idResult, 
+                    [
+                        PairIdRefIdRef(trueTargetIdRef, trueTargetPredecessorBlockLabel)
+                        PairIdRefIdRef(falseTargetIdRef, falseTargetPredecessorBlockLabel)
+                    ]
+                ) |> emitInstruction cenv
                 idResult
 
         | E.While _ ->
@@ -346,6 +356,12 @@ module rec SpirvCodeGen =
 
     let GenExpression (cenv: cenv) (env: env) (expr: E) : IdResult =
         let idRef : IdRef = GenExpressionAux cenv env expr
+        match expr with
+        | E.Let _
+        | E.Sequential _
+        | E.IfElse _ -> ()
+        | _ ->
+            cenv.PredecessorBlockLabel <- env.CurrentBlockLabel
         if env.IsReturnable then
             match expr with
             | E.Let _

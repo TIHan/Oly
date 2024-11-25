@@ -99,6 +99,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                     Function = funcBuilder
                     Locals = loweringCenv.Locals
                     LocalTypes = loweringCenv.LocalTypes
+                    PredecessorBlockLabel = 0u
                 }
             SpirvCodeGen.Gen codeGenCenv (SpirvLowering.Lower loweringCenv body.Expression)
 
