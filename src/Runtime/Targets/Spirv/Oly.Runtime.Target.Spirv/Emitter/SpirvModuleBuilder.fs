@@ -265,6 +265,11 @@ type SpirvType =
         | Struct(structBuilder) -> structBuilder.IsRuntimeArray
         | _ -> false
 
+    member this.IsPointerOfStructRuntimeArray =
+        match this with
+        | Pointer(elementTy=elementTy) -> elementTy.IsStructRuntimeArray
+        | _ -> false
+
 [<Sealed>]
 type SpirvFunctionBuilder(
     builder: SpirvModuleBuilder, 

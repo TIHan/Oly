@@ -101,12 +101,6 @@ module rec SpirvLowering =
             let envNotReturnable = env.NotReturnable
             let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
 
-#if DEBUG || CHECKED
-            match newRhsExpr.ResultType with
-            | SpirvType.Pointer _ -> ()
-            | _ -> raise(InvalidOperationException("Expected a pointer type."))
-#endif
-
             cenv.AddLocal(localIndex, newRhsExpr.ResultType)
 
             E.Sequential(
