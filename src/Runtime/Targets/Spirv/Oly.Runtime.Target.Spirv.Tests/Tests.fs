@@ -538,6 +538,20 @@ main(
         #[binding(0)]
         buffer: mutable float32[]
     ): () =
+    buffer[1] <- 123
+        """
+    OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
+
+[<Fact>]
+let ``Basic compute shader 4`` () =
+    let src =
+        """
+main(
+        #[storage_buffer]
+        #[descriptor_set(0)]
+        #[binding(0)]
+        buffer: mutable float32[]
+    ): () =
     let buffer2 = buffer
     buffer2[1] <- 123
         """

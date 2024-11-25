@@ -85,8 +85,6 @@ type SpirvType =
     | Char16 of idResult: IdResult
     | Tuple of idResult: IdResult * itemTys: SpirvType imarray * itemNames: string imarray
     | ByRef of kind: SpirvByRefKind * elementTy: SpirvType
-    | NativeInt of idResult: IdResult
-    | NativeUInt of idResult: IdResult
     | Pointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
 
     | Vec2 of idResult: IdResult * elementTy: SpirvType
@@ -120,10 +118,6 @@ type SpirvType =
         | Tuple _ ->
             raise(NotImplementedException())
         | ByRef _ ->
-            raise(NotImplementedException())
-        | NativeInt _ ->
-            raise(NotImplementedException())
-        | NativeUInt _ ->
             raise(NotImplementedException())
         | Pointer _ ->
             raise(NotImplementedException())
@@ -173,8 +167,6 @@ type SpirvType =
         | ByRef _ ->
             raise(InvalidOperationException("ByRef must be lowered."))
 
-        | NativeInt idResult ->             raise(NotImplementedException())
-        | NativeUInt idResult ->            raise(NotImplementedException())
         | Pointer(idResult, storageClass, elementTy) ->
             [
                 OpTypePointer(idResult, storageClass, elementTy.IdResult)
@@ -191,25 +183,29 @@ type SpirvType =
                 OpDecorate(idResult, Decoration.ArrayStride(elementTy.GetSizeInBytes()))
             ]
 
-        | Struct(namedTy) -> 
+        | Struct(structBuilder) -> 
             [
-                for field in namedTy.Fields do
+                for field in structBuilder.Fields do
                     for attr in field.Attributes do
                         match attr.Data with
                         | BuiltInFunctionData.DecorateField(_, create)
                         | BuiltInFunctionData.DecorateFieldAndVariable(_, create, _, _) ->
-                            yield! create namedTy.IdResult (uint32(field.Index))
+                            yield! create structBuilder.IdResult (uint32(field.Index))
                         | _ ->
                             raise(InvalidOperationException())
 
-                for attr in namedTy.Attributes do
+                // TODO: We should actually do this for any struct type.
+                if this.IsStructRuntimeArray then
+                    OpMemberDecorate(structBuilder.IdResult, 0u, Decoration.Offset 0u)
+
+                for attr in structBuilder.Attributes do
                     match attr.Data with
                     | BuiltInFunctionData.DecorateType(_, create) ->
-                        yield! create namedTy.IdResult
+                        yield! create structBuilder.IdResult
                     | _ ->
                         raise(InvalidOperationException())
 
-                OpTypeStruct(namedTy.IdResult, namedTy.Fields |> Seq.map (fun x -> x.Type.IdResult) |> List.ofSeq)
+                OpTypeStruct(structBuilder.IdResult, structBuilder.Fields |> Seq.map (fun x -> x.Type.IdResult) |> List.ofSeq)
             ]
 
         | Module _ -> 
@@ -233,8 +229,6 @@ type SpirvType =
         | Bool idResult
         | Char16 idResult
         | Tuple(idResult, _, _)
-        | NativeInt idResult
-        | NativeUInt idResult
         | Pointer(idResult, _, _)
         | Vec2(idResult, _)
         | Vec3(idResult, _)
@@ -268,6 +262,11 @@ type SpirvType =
     member this.IsPointerOfStructRuntimeArray =
         match this with
         | Pointer(elementTy=elementTy) -> elementTy.IsStructRuntimeArray
+        | _ -> false
+
+    member this.IsPointerOfPointerOfStructRuntimeArray =
+        match this with
+        | Pointer(elementTy=elementTy) -> elementTy.IsPointerOfStructRuntimeArray
         | _ -> false
 
 [<Sealed>]
@@ -937,8 +936,7 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
 
     member this.GetTypePointer(storageClass: StorageClass, elementTy: SpirvType) =
         match elementTy with
-        | SpirvType.ByRef _
-        | SpirvType.Pointer _ -> raise(InvalidOperationException("Did not expect a pointer or by-ref type."))
+        | SpirvType.ByRef _ -> raise(InvalidOperationException("Did not expect a by-ref type."))
         | _ -> ()
 
         let key = (storageClass, elementTy.IdResult)
@@ -1018,9 +1016,6 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
 
     member this.GetTypeTuple(elementTys: SpirvType imarray, elementNames: string imarray): SpirvType = 
         raise(NotImplementedException())
-        //let ty = SpirvType.Tuple(this.NewIdResult(), elementTys, elementNames)
-        //this.AddType(ty)
-        //ty
 
     member this.CreateTypeStructBuilder(enclosing: Choice<string imarray, SpirvType>, name: string) =
         SpirvTypeStructBuilder(this.NewIdResult(), enclosing, name, List(), SpirvTypeFlags.None)
