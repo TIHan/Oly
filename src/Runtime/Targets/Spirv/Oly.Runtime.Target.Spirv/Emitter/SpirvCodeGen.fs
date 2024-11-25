@@ -86,6 +86,7 @@ module rec SpirvCodeGen =
         match expr with
         | E.Sequential(expr1, expr2) ->
             GenLinearExpression cenv env.NotReturnable expr1 |> ignore
+            let env = { env with CurrentBlockLabel = cenv.PredecessorBlockLabel }
             GenLinearExpression cenv env expr2
 
         | _ ->
