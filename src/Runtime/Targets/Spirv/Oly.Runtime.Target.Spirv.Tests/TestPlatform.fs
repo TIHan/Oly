@@ -15,7 +15,7 @@ let globalSetup() =
     ()
 
 let createEmitter(asm: OlyILAssembly) =
-    SpirvEmitter(ExecutionModel.Vertex) // TODO: What to do about fragment, compute, etc.?
+    SpirvEmitter(1u, 0u, ExecutionModel.Vertex) // TODO: What to do about fragment, compute, etc.?
 
 let configureRuntime(vm: OlyRuntime<SpirvType, SpirvFunction, SpirvField>) =
     ()

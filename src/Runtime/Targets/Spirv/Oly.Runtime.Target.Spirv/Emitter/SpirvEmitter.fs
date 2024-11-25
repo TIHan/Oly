@@ -20,9 +20,9 @@ type SpirvOutput =
     }
 
 [<Sealed>]
-type SpirvEmitter(executionModel) =
+type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
 
-    let builder = SpirvModuleBuilder(executionModel)
+    let builder = SpirvModuleBuilder(majorVersion, minorVersion, executionModel)
 
     member this.EmitOutput(_isDebuggable: bool) =
         {

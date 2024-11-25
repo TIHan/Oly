@@ -22,11 +22,22 @@ type SpirvTarget() =
     override this.CreateEmitter(targetInfo) = 
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
-            match splits[0], splits[1] with
-            | "vertex",    "1.0" -> SpirvEmitter(ExecutionModel.Vertex)
-            | "fragment",  "1.0" -> SpirvEmitter(ExecutionModel.Fragment)
-            | "compute",   "1.0" -> SpirvEmitter(ExecutionModel.GLCompute)
-            | _ -> raise(InvalidOperationException())
+            let executionModel =
+                match splits[0] with
+                | "vertex" -> ExecutionModel.Vertex
+                | "fragment" -> ExecutionModel.Fragment
+                | "compute" -> ExecutionModel.GLCompute
+                | _ -> raise(InvalidOperationException())
+
+            match splits[1] with
+            | "1.0" -> SpirvEmitter(1u, 0u, executionModel)
+            | "1.1" -> SpirvEmitter(1u, 1u, executionModel)
+            | "1.2" -> SpirvEmitter(1u, 2u, executionModel)
+            | "1.3" -> SpirvEmitter(1u, 3u, executionModel)
+            | "1.4" -> SpirvEmitter(1u, 4u, executionModel)
+            | "1.5" -> SpirvEmitter(1u, 5u, executionModel)
+            | "1.6" -> SpirvEmitter(1u, 6u, executionModel)
+            | _ -> raise(InvalidOperationException(""))
         else
             raise(InvalidOperationException())
 
@@ -40,11 +51,18 @@ type SpirvTarget() =
         // Target support
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
-            match splits[0], splits[1] with
-            | "vertex",     "1.0"
-            | "fragment",   "1.0"
-            | "compute",    "1.0" -> true
-            | _ -> false
+            match splits[0] with
+            | "vertex"
+            | "fragment"
+            | "compute" ->
+                match splits[1] with
+                | "1.0"
+                | "1.1"
+                | "1.2"
+                | "1.3" -> true
+                | _ -> false
+            | _ -> 
+                false
         elif splits.Length = 1 && not targetInfo.IsExecutable then
             match splits[0] with
             | "lib" -> true

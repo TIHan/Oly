@@ -515,7 +515,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             emitter.Write(exeFile, pdbFile, asm.IsDebuggable)
             exeFile.Close()
             pdbFile.Close()
-            return Ok(OlyProgram(OlyPath.Create(exePath), fun () -> raise(NotSupportedException("Run"))))
+            return Ok(OlyProgram(OlyPath.Create(exePath), fun () -> ()))
         else
             let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
@@ -524,7 +524,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
             dllFile.Close()
             pdbFile.Close()
-            return Ok(OlyProgram(OlyPath.Create(dllPath), fun () -> raise(NotSupportedException("Run"))))
+            return Ok(OlyProgram(OlyPath.Create(dllPath), fun () -> ()))
         }
 
     override _.GetImplicitExtendsForStruct() = Some "System.ValueType"

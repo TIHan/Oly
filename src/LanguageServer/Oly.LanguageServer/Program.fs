@@ -1639,6 +1639,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 backgroundTask {
                     match! workspace.BuildProjectAsync(getSnapshot(), doc.Project.Path, ct) with
                     | Ok prog -> 
+                        prog.Run()
                         return { resultPath = prog.Path.ToString(); error = null }
                     | Error error -> 
                         let diags =

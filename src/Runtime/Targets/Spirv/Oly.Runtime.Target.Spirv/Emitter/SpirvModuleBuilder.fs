@@ -834,7 +834,7 @@ module BuiltInTypes =
 // --
 
 [<Sealed>]
-type SpirvModuleBuilder(executionModel: ExecutionModel) =
+type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: ExecutionModel) =
 
     let mutable isBuilding = false
 
@@ -1041,8 +1041,11 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
             | [] ->
                 let variableOfPointerOfBlockIdResults =
                     func.EntryPointParameters
-                    |> Seq.map (fun par ->
-                        par.VariableIdRef
+                    |> Seq.choose (fun par ->
+                        match par.Type with
+                        | SpirvType.Pointer(_, StorageClass.Input, _) -> par.VariableIdRef |> Some
+                        | SpirvType.Pointer(_, StorageClass.Output, _) -> par.VariableIdRef |> Some
+                        | _ -> None
                     )
                     |> List.ofSeq
 
@@ -1111,7 +1114,7 @@ type SpirvModuleBuilder(executionModel: ExecutionModel) =
 
         let normalizedInstrs = Normalization.Normalize instrs
 
-        let version = SpirvModule.CreateVersion(1u, 0u)
+        let version = SpirvModule.CreateVersion(majorVersion, minorVersion)
         let result = SpirvModule.Create(version, instrs = normalizedInstrs)
         isBuilding <- false
         result
