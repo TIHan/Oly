@@ -913,6 +913,162 @@ struct Example2<Z> =
         )
 
 [<Fact>]
+let ``Complex test and csharp source 5``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 6``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+module Test =
+
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+
+#[export]
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+#[export]
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 7``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract class BaseExample =
+
+    abstract GenericExample<T>(T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    overrides GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 8 - using an export``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+module Test =
+
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+
+#[export]
+abstract class BaseExample =
+
+    abstract GenericExample<T>(T): ()
+
+#[export]
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    overrides GenericExample<T>(x: T): () =
+        Console.Write(x)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
 let ``Property test and csharp source``() =
     let csSrc =
         """
@@ -1917,12 +2073,10 @@ module Prelude =
 #[export]
 module Test =
 
-    #[export]
     private test_private(): () =
         print("test")
         print("_private")
 
-    #[export]
     test(): () = Test.test_private()
         """
     Oly src
@@ -2169,7 +2323,6 @@ module M =
 #[export]
 class AClass =
 
-    #[export]
     Mtd(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2201,7 +2354,6 @@ module M =
 #[export]
 class AClass =
 
-    #[export]
     Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2233,14 +2385,12 @@ module M =
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass =
     inherits BClass
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2272,14 +2422,12 @@ module M =
 #[export]
 abstract class BClass<T> =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass =
     inherits BClass<__oly_utf16>
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2311,14 +2459,12 @@ module M =
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass<T> =
     inherits BClass
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2350,14 +2496,12 @@ module M =
 #[export]
 abstract class BClass<T> =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass<T> =
     inherits BClass<T>
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2389,7 +2533,6 @@ module M =
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One * Vector3.One
 
 #[export]
@@ -2411,8 +2554,9 @@ let ``Weird one``() =
         """
 namespace Test
 
-#[export]
-module M =
+#[open]
+module Prelude =
+
     #[intrinsic("print")]
     print(__oly_object): ()
     
@@ -2434,11 +2578,12 @@ module M =
     #[intrinsic("unsafe_cast")]
     unsafeCast<T>(__oly_object): T
 
-    #[export]
+#[export]
+module M =
+
     interface IMoveable =
         Position: int get, set
    
-    #[export]
     class Item =
         implements IMoveable
 
@@ -2455,14 +2600,12 @@ module M =
                 print(this.Name)
                 print(" ")
 
-    #[export]
     GetOffset<T>(item: byref<T>): int =
         let item2 = Item()
         item2.Name <- "Bar"
         item <- unsafeCast(item2)
         0
 
-    #[export]
     Shift<T>(mutable item : T): () where T: IMoveable, not struct =
         item.Position <- item.Position + (GetOffset(&item))
 
@@ -2481,8 +2624,9 @@ let ``Weird one 2``() =
         """
 namespace Test
 
-#[export]
-module M =
+#[open]
+module Prelude =
+
     #[intrinsic("print")]
     print(__oly_object): ()
     
@@ -2504,11 +2648,12 @@ module M =
     #[intrinsic("unsafe_cast")]
     unsafeCast<T>(__oly_object): T
 
-    #[export]
+#[export]
+module M =
+
     interface IMoveable =
         Position: int get, set
-   
-    #[export]
+
     struct Item =
         implements IMoveable
 
@@ -2525,14 +2670,12 @@ module M =
                 print(this.Name)
                 print(" ")
 
-    #[export]
     GetOffset<T>(item: byref<T>): int where T: IMoveable =
         let mutable item2 = Item()
         item2.Name <- "Bar"
         item <- unsafeCast(item2)
         0
 
-    #[export]
     Shift<T>(mutable item : T): () where T: IMoveable, struct =
         item.Position <- item.Position + (GetOffset(&item))
 
@@ -4137,11 +4280,9 @@ open System
 #[export]
 abstract class A<T> =
 
-    #[export]
     abstract default Test(x: T): () =
         Program.print("Test_T_")
 
-    #[export]
     abstract default Test(x: Int32): () =
         Program.print("Test_int32_")
 
@@ -4153,7 +4294,6 @@ class Test =
 class Test2 =
     inherits A<Int32>
 
-    #[export]
     overrides Test(x: Int32): () =
         Program.print(x)
 
@@ -5958,10 +6098,8 @@ struct S<T> =
 #[export]
 module Program =
 
-    #[export]
     field X: S<int32> = S()
 
-    #[export]
     main(): () =
         print(X.X)
         """
@@ -6128,20 +6266,17 @@ struct S3<T> where T: IA =
 #[export]
 module Program =
 
-    #[export]
     M<T>(x: S3<T>): int32 where T: IA =
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     M2<T>(x: S3<T>): int32 where T: IA =
         x.SetX(1)
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     main(): () =
         let mutable s = S3<S2<S>>()
         let result = M(s)
@@ -7524,11 +7659,10 @@ module Prelude =
 
 #[export]
 module Exported =
-    #[export]
+
     Test<T>(): T where T: INumberBase<T> =
         T.One
 
-    #[export]
     main(): () =
         print(Test<int32>())
         """

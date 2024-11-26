@@ -484,6 +484,9 @@ module ImArray =
                 builder.Insert(i, newItem)
             state, builder.MoveToImmutable()
 
+    let inline head (arr: imarray<_>) =
+        arr[0]
+
     module Parallel =
 
         open System
@@ -582,6 +585,15 @@ module ROMem =
                 builder.Add(mapper arr.[i])
             builder.MoveToImmutable()
 
+    let inline mapAsList (mapper: 'T -> 'U) (arr: romem<'T>) : 'U list =
+        match arr.Length with
+        | 0 -> List.empty
+        | _ ->
+            [
+                for i = 0 to arr.Span.Length - 1 do
+                    mapper arr.Span.[i]
+            ]
+
     let inline toImArray (arr: romem<'T>) : imarray<'T> =
         match arr.Length with
         | 0 -> ImmutableArray.Empty
@@ -620,3 +632,19 @@ module ROMem =
             allAreEqual <- f items1[i] items2[i]
             i <- i + 1
         allAreEqual
+
+    let inline skip amount (items: romem<'T>) =
+        if amount < 0 then
+            invalidArg (nameof(amount)) "Less than zero."
+        if amount > items.Length then
+            invalidArg (nameof(amount)) "Greater than the number of items."
+
+        if amount = 0 then
+            items
+        else
+            items.Slice(amount, items.Length - amount)
+
+    let inline ofImArray (arr: 'T imarray) =
+        arr.AsMemory()
+
+

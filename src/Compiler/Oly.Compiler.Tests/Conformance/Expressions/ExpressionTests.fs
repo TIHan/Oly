@@ -10079,6 +10079,51 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Outref should fail because of dereference 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M2(value: int32): () = ()
+
+struct S =
+    public field Value: int32 = 0
+
+M(outValue: outref<S>): () =
+    M2(outValue.Value)
+
+main(): () =
+    let mutable s = S()
+    M(&s)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+                """
+    M2(outValue.Value)
+       ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Outref should fail because of invalid subsumption for inref``() =
     """
 #[intrinsic("int32")]

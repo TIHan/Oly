@@ -192,23 +192,31 @@ let tryAttributesUnmanagedFlags (attrs: AttributeSymbol imarray) =
 
 [<Flags>]
 type EntityFlags =
-    | None              = 0x000000000L
+    | None              = 0b00000000000L
 
-    | Public            = 0x000000000L
-    | Internal          = 0x000000001L
-    | Private           = 0x000000002L
-    | AccessorMask      = 0x000000007L
+    | Public            = 0x00000000000L
+    | Internal          = 0x00000000001L
+    | Private           = 0x00000000002L
+    | AccessorMask      = 0x00000000007L
 
-    | ReadOnly          = 0x000000010L
-    | Abstract          = 0x000000100L
-    | Final             = 0x000001000L
-    | Intrinsic         = 0x000010000L
-    | AutoOpen          = 0x000100000L
-    | Nullable          = 0x001000000L
+    | ReadOnly          = 0x00000000010L
+    | Abstract          = 0x00000000100L
+    | Final             = 0x00000001000L
+    | Intrinsic         = 0x00000010000L
+    | AutoOpen          = 0x00000100000L
+    | Nullable          = 0x00001000000L
 
-    | Scoped            = 0x010000000L
+    | Scoped            = 0x00010000000L
 
-    | Invalid           = 0x100000000L
+    /// Entity has an 'export' attribute.
+    /// Not relevant across compilations, only within current compilation.
+    | Exported          = 0x00100000000L
+
+    /// Entity has an 'import' attribute.
+    /// Not relevant across compilations, only within current compilation.
+    | Imported          = 0x00100000000L
+
+    | Invalid           = 0x10000000000L
 
 /// These flags are not persisted in IL metadata.
 /// The only use is to cache information so that the computation for that information is done once (usually).
@@ -1705,19 +1713,17 @@ type EnclosingSymbol =
         | Local
         | RootNamespace -> this
 
-    member this.IsImported =
-        match this with
-        | Entity(ent) ->
-            ent.Attributes
-            |> ImArray.exists (function AttributeSymbol.Import _ -> true | _ -> false)
-        | _ ->
-            false
-
     member this.IsExported =
         match this with
         | Entity(ent) ->
-            ent.Attributes
-            |> ImArray.exists (function AttributeSymbol.Export -> true | _ -> false)
+            ent.IsExported
+        | _ ->
+            false
+
+    member this.IsImported =
+        match this with
+        | Entity(ent) ->
+            ent.IsImported
         | _ ->
             false
 
@@ -5115,6 +5121,12 @@ module SymbolExtensions =
     module EntitySymbolExtensions =
     
         type EntitySymbol with
+
+            member this.IsImported =
+                this.Flags.HasFlag(EntityFlags.Imported)
+
+            member this.IsExported =
+                this.Flags.HasFlag(EntityFlags.Exported)
 
             member this.IsPublic =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Public

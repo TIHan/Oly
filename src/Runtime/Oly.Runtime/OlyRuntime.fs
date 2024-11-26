@@ -2156,8 +2156,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     tyDef.TypeArguments
                     |> ImArray.iter (function
                         | RuntimeType.Variable _
-                        | RuntimeType.HigherVariable _ -> failwith "Type variable cannot be erased."
-                        | _ -> ()
+                        | RuntimeType.HigherVariable _ -> 
+                            invalidOp $"Type variable cannot be erased for '{tyDef.Name}'."
+                        | _ -> 
+                            ()
                     )
 
                 let ilAsm = asm.ilAsm
@@ -3854,7 +3856,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if not isErasingFunc && not func.IsFormal then
             failwith "Expected formal function."
 
-        if isErasingFunc && func.IsFormal && (not func.TypeArguments.IsEmpty) then
+        if isErasingFunc && func.IsFormal && ((not func.TypeArguments.IsEmpty) || (not func.TypeParameters.IsEmpty)) then
             failwith "Unexpected formal function."
 
         if not isErasingFunc && func.Kind = RuntimeFunctionKind.Instance then
@@ -3933,7 +3935,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             if not witnesses.IsEmpty then
                                 OlyAssert.Fail("Did not expected witnesses for overrides function.")
                             if x.EnclosingType.TypeParameters.IsEmpty then
-                                this.EmitFunction(x.Formal)
+                                if isErasingFunc then
+                                    this.EmitFunction(x.Formal)
+                                else
+                                    this.EmitFunctionNoErasure(x.Formal)                                   
                             else
                                 let enclosingTy = 
                                     x.EnclosingType.Substitute(genericContext)
@@ -4022,7 +4027,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     emitFunctionBody func emittedFunc genericContext
                 else
                     if not func.Flags.IsAbstract && not func.Flags.IsExternal then
-                        failwith "Expected function body."
+                        invalidOp $"Expected function body for: {func.EnclosingType.Name}::{func.Name}"
 
                 let funcTyArgs = 
                     if genericContext.IsErasing then
@@ -4039,6 +4044,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     match asm.TypesThatInheritOrImplementType.TryGetValue(enclosingTy.ILEntityDefinitionHandle) with
                     | true, tys -> tys |> ImArray.ofSeq
                     | _ -> ImArray.empty
+
+                let isPrincipalFuncExternalOrExported = func.IsExternal || func.IsExported
 
                 tysThatInheritOrImplementTy
                 |> ImArray.iter (fun ty ->
@@ -4067,16 +4074,20 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     elif funcs.Length > 1 then
                                         failwithf "When emitting function definition, duplicate functions found: %A" func.Name
                                     else
-                                        let foundFunc = funcs.[0]
-                                        this.EmitFunction(foundFunc)
-                                        |> ignore
+                                        let foundFunc = funcs |> ImArray.head
+                                        if isPrincipalFuncExternalOrExported then
+                                            this.EmitFunctionNoErasure(foundFunc)
+                                            |> ignore
+                                        else
+                                            this.EmitFunction(foundFunc)
+                                            |> ignore
 
                         elif funcs.Length > 1 then
                             failwithf "Duplicate functions found: %A" func.Name
                         else
-                            let overridenFunc = funcs.[0]
+                            let overridenFunc = funcs |> ImArray.head
                             if (overridenFunc.Enclosing.AsType.IsExternal) || (ty.TypeArguments.IsEmpty && funcTyArgs.IsEmpty) then
-                                this.EmitFunction(overridenFunc) |> ignore
+                                this.EmitFunctionNoErasure(overridenFunc) |> ignore
                             else
                                 let funcInst =
                                     if isErasingFunc then
@@ -4084,14 +4095,17 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     else
                                         overridenFunc.MakeReference(ty)
                                 let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
-                                this.EmitFunction(funcInst) |> ignore
+                                if isErasingFunc then
+                                    this.EmitFunction(funcInst) |> ignore
+                                else
+                                    this.EmitFunctionNoErasure(funcInst) |> ignore
                     )
 
                 emittedFunc
         | _ ->
             failwithf "Function definition not cached: %A" func.Name
 
-    member private vm.EmitFunction(canErase, func: RuntimeFunction, irCustomBody: _ option) =
+    member private vm.EmitFunction(canErase, func: RuntimeFunction) =
         let genericContext = createGenericContextFromFunction canErase func
 
         if func.IsFormal then
@@ -4101,11 +4115,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 else enclosingTy.Formal
             vm.EmitFunctionDefinition(enclosingTy, func, genericContext)
         else
-            if irCustomBody.IsSome then
-                failwith "Custom IR bodies are only allowed for formal function definitions."
-
             if func.Enclosing.TypeArguments.IsEmpty && func.TypeArguments.IsEmpty then
-                vm.EmitFunction(false, func.Formal, None)
+                vm.EmitFunctionNoErasure(func.Formal)
             elif not genericContext.IsErasingFunction then
                 
                 if func.IsFormal then
@@ -4158,7 +4169,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 vm.EmitFunctionDefinition(func.Enclosing.AsType, func, genericContext)
 
     member runtime.EmitFunction(func: RuntimeFunction) : 'Function =
-        runtime.EmitFunction(true, func, None)
+        runtime.EmitFunction(true, func)
+
+    member runtime.EmitFunctionNoErasure(func: RuntimeFunction) : 'Function =
+        // If the function has no type parameters, then emit it as erasing.
+        // We do this because the function cache always stores 'isErasingFunc' as 'true' for these kinds of functions with no type parameters.
+        if func.TypeParameters.IsEmpty then
+            runtime.EmitFunction(func)
+        else
+            runtime.EmitFunction(false, func)
 
     member runtime.EmitILConstant(ilAsm, ilConstant: OlyILConstant, genericContext) =
         emitConstant ilAsm ilConstant genericContext
@@ -4168,7 +4187,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             this.EmitFunction(func)
         else
             // Forces no generic erasure.
-            this.EmitFunction(false, func, None)
+            this.EmitFunctionNoErasure(func)
 
     member this.TryGetCallStaticConstructorExpression(enclosingTy: RuntimeType) =
         match enclosingTy.Formal.TryGetStaticConstructor() with

@@ -31,6 +31,10 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
     let attrs = bindAttributes cenv envBody true syntaxAttrs
+
+    // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
+    //            In this case, it is OK because we always populate the attributes for the parent first before the children.
+    let attrs = addExportAttributeIfNecessary cenv syntaxIdent ent.Enclosing attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
 
     if not ent.Extends.IsEmpty then
@@ -170,6 +174,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     ||> ImArray.iter2 (fun (syntaxAttrs, syntax) (binding, isImpl) ->
         let attrs = bindAttributes cenv env true syntaxAttrs
         let attrs = addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
+        let attrs = addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
 
         match binding.Value with
         | :? FunctionSymbol as func -> 
@@ -236,6 +241,19 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 |> ImArray.filter (fun overridenFunc ->
                     areLogicalFunctionSignaturesEqual func overridenFunc
                 )
+
+            let mostSpecificFuncs =
+                if mostSpecificFuncs.Length > 1 then
+                    let nonInterfaceMostSpecificFuncs =
+                        // If we have ambiguities 
+                        mostSpecificFuncs
+                        |> ImArray.filter (fun x -> not x.Enclosing.IsInterface)
+                    if nonInterfaceMostSpecificFuncs.Length > 0 then
+                        nonInterfaceMostSpecificFuncs
+                    else
+                        mostSpecificFuncs
+                else
+                    mostSpecificFuncs
             
             if mostSpecificFuncs.Length > 1 then
                 cenv.diagnostics.Error($"The member '{func.Name}' is ambiguous to override.", 10, syntax.Identifier)

@@ -34,7 +34,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitExternalType(externalPlatform: string, externalPath: string imarray, externalName: string, _enclosing: Choice<string imarray,SpirvType>, _kind: OlyILEntityKind, _flags: OlyIRTypeFlags, _name: string, _tyParCount: int): SpirvType = 
             if externalPlatform <> "spirv" then raise(InvalidOperationException())
             if externalPath.Length <> 1 then raise(InvalidOperationException())
-            if externalPath[0] <> "__oly_spirv_" then raise(InvalidOperationException())
+            if (ImArray.head externalPath) <> "__oly_spirv_" then raise(InvalidOperationException())
 
             match BuiltInTypes.TryGetByName(builder, externalName) with
             | ValueSome ty -> ty
@@ -168,11 +168,11 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitTypeByRef(elementTy: SpirvType, kind: OlyIRByRefKind): SpirvType = 
             match kind with
             | OlyIRByRefKind.ReadWrite ->
-                SpirvType.ByRef(SpirvByRefKind.ReadWrite, elementTy)
+                SpirvType.OlyByRef(kind, elementTy)
             | OlyIRByRefKind.ReadOnly ->
-                SpirvType.ByRef(SpirvByRefKind.ReadOnly, elementTy)
+                SpirvType.OlyByRef(kind, elementTy)
             | OlyIRByRefKind.WriteOnly ->
-                SpirvType.ByRef(SpirvByRefKind.WriteOnly, elementTy)
+                SpirvType.OlyByRef(kind, elementTy)
 
         member this.EmitTypeChar16(): SpirvType = 
             raise(NotImplementedException())

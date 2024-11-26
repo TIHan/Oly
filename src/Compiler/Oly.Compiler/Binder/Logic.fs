@@ -582,6 +582,20 @@ let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs 
         | _ ->
             attrs
     | _ ->
+        attrs
+
+let addExportAttributeIfNecessary (cenv: cenv) syntaxNode (enclosing: EnclosingSymbol) attrs =
+    match enclosing with
+    | EnclosingSymbol.Entity(ent) ->
+        if ent.IsExported then
+            if attributesContainExport attrs then 
+                cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+                attrs
+            else
+                attrs.Add(AttributeSymbol.Export)
+        else
+            attrs
+    | _ ->
         attrs    
 
 let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openContent syntaxExpr =

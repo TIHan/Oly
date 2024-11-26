@@ -23,7 +23,7 @@ type SpirvTarget() =
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
             let executionModel =
-                match splits[0] with
+                match splits |> Array.head with
                 | "vertex" -> ExecutionModel.Vertex
                 | "fragment" -> ExecutionModel.Fragment
                 | "compute" -> ExecutionModel.GLCompute
@@ -51,7 +51,7 @@ type SpirvTarget() =
         // Target support
         let splits = targetInfo.Name.Split(',')
         if splits.Length = 2 && targetInfo.IsExecutable then
-            match splits[0] with
+            match splits |> Array.head with
             | "vertex"
             | "fragment"
             | "compute" ->
@@ -67,7 +67,7 @@ type SpirvTarget() =
             | _ -> 
                 false
         elif splits.Length = 1 && not targetInfo.IsExecutable then
-            match splits[0] with
+            match splits |> Array.head with
             | "lib" -> true
             | _ -> false
         else

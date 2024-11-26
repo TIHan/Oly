@@ -1101,3 +1101,47 @@ class A =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Must implement a body for the non-abstract method in an abstract class``() =
+    let src =
+        """
+abstract class BaseExample =
+
+    GenericExample<T>(T): ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO:",
+                """
+    GenericExample<T>(T): ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement a body for the non-abstract method in an abstract class - using an export``() =
+    let src =
+        """
+namespace Test
+
+#[export]
+abstract class BaseExample =
+
+    #[export]
+    GenericExample<T>(T): ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO:",
+                """
+    GenericExample<T>(T): ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

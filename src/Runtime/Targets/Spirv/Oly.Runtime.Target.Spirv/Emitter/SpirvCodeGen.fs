@@ -118,7 +118,7 @@ module rec SpirvCodeGen =
                             | E.Value(value=V.Constant(cns, _)) ->
                                 Choice2Of2(cns)
                             | argExpr ->
-                                Choice1Of2(GenExpression cenv env argExpr)
+                                Choice1Of2(argExpr.ResultType, GenExpression cenv env argExpr)
                         )
                     let idRef, instrs = create cenv.Module args
                     emitInstructions cenv instrs
@@ -146,8 +146,7 @@ module rec SpirvCodeGen =
             let receiverIdRef = GenExpression cenv envNotReturnable receiverExpr
             let indexIdRefs =
                 indexExprs
-                |> ImArray.map (GenExpression cenv envNotReturnable)
-                |> List.ofSeq
+                |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
 
             let idResult = cenv.Module.NewIdResult()
             OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
@@ -163,7 +162,7 @@ module rec SpirvCodeGen =
             )
             match op with
             | O.StoreToAddress(lhsExpr, rhsExpr, _) ->
-                let argIdRef = idRefs[0]
+                let argIdRef = idRefs |> Array.head
                 let rhsIdRef = idRefs[1]
 
 #if DEBUG || CHECKED
@@ -178,7 +177,7 @@ module rec SpirvCodeGen =
                 IdRef0
 
             | O.LoadFromAddress(bodyExpr, resultTy) ->
-                let bodyIdRef = idRefs[0]
+                let bodyIdRef = idRefs |> Array.head
 
 #if DEBUG || CHECKED
                 match bodyExpr.ResultType with
@@ -197,7 +196,7 @@ module rec SpirvCodeGen =
                 idResult
 
             | O.Equal(arg1Expr, _, resultTy) ->
-                let arg1IdRef = idRefs[0]
+                let arg1IdRef = idRefs |> Array.head
                 let arg2IdRef = idRefs[1]
 
                 match arg1Expr.ResultType with
@@ -226,7 +225,7 @@ module rec SpirvCodeGen =
                     raise(NotSupportedException(arg1Expr.ResultType.ToString()))
 
             | O.Cast(argExpr, castToTy) ->
-                let idRef1 = idRefs[0]
+                let idRef1 = idRefs |> Array.head
 
                 let castFromTy = argExpr.ResultType
 

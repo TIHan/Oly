@@ -69,10 +69,10 @@ module rec SpirvLowering =
     let private CheckArgumentOrLocalType resultTy =
         match resultTy with
         | SpirvType.Pointer(elementTy=SpirvType.RuntimeArray _) 
-        | SpirvType.ByRef(elementTy=SpirvType.RuntimeArray _) ->
+        | SpirvType.OlyByRef(elementTy=SpirvType.RuntimeArray _) ->
             raise(InvalidOperationException("Invalid use of runtime array."))
         | SpirvType.Pointer _
-        | SpirvType.ByRef _ ->
+        | SpirvType.OlyByRef _ ->
             resultTy
         | _ ->
             raise(InvalidOperationException("Expected pointer or by-ref type."))
@@ -82,7 +82,7 @@ module rec SpirvLowering =
         match expr.ResultType with
         | SpirvType.Pointer(elementTy=elementTy) ->
             E.Operation(EmptyTextRange, O.LoadFromAddress(expr, elementTy))
-        | SpirvType.ByRef _ ->
+        | SpirvType.OlyByRef _ ->
             raise(InvalidOperationException("Did not expect a by-ref type."))
         | _ ->
             expr
@@ -196,7 +196,7 @@ module rec SpirvLowering =
                 
                 | O.Equal _
                 | O.Cast _
-                | BuiltInOperations.Vec4 _ ->
+                | BuiltInOperations.NewVec4 _ ->
                     AutoDereferenceIfPossible newArgExpr
 
                 | BuiltInOperations.AccessChain _ ->
@@ -226,7 +226,7 @@ module rec SpirvLowering =
         let isPointer =
             match resultTy with
             | SpirvType.Pointer _ -> true
-            | SpirvType.ByRef _ -> raise(NotImplementedException())
+            | SpirvType.OlyByRef _ -> raise(NotImplementedException())
             | _ -> false
 
         let newTrueTargetExpr = if isPointer then newTrueTargetExpr else AutoDereferenceIfPossible newTrueTargetExpr
@@ -366,7 +366,7 @@ module rec SpirvLowering =
             | E.Sequential _ -> expr
             | _ ->
                 match expr.ResultType with
-                | SpirvType.ByRef(elementTy=elementTy) ->
+                | SpirvType.OlyByRef(elementTy=elementTy) ->
                     expr.WithResultType(cenv.Module.GetTypePointer(StorageClass.Function, elementTy))
                 | SpirvType.RuntimeArray _ ->
                     raise(InvalidOperationException($"Runtime array is not used correctly:\n{expr}"))

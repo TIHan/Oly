@@ -43,7 +43,7 @@ type ClrTypeDefinitionInfo =
             typeExtensionInfo = ValueNone
         }
 
-and [<RequireQualifiedAccess;NoComparison;NoEquality>] ClrTypeInfo = 
+and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.DebuggerDisplay("{FullyQualifiedName}")>] ClrTypeInfo = 
     | TypeGenericInstance of ClrTypeInfo * tyArgs: ClrTypeHandle imarray * appliedTyHandle: ClrTypeHandle
     | TypeReference of ClrTypeHandle * isReadOnly: bool * isStruct: bool
     | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo

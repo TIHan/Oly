@@ -13,19 +13,20 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 
 let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
-    let flags =
-        if attributesContainOpen attrs then
+    (flags, attrs)
+    ||> ImArray.fold (fun flags attr ->
+        match attr with
+        | AttributeSymbol.Open ->
             flags ||| EntityFlags.AutoOpen
-        else
-            flags
-
-    let flags =
-        if attributesContainNull attrs then
+        | AttributeSymbol.Null ->
             flags ||| EntityFlags.Nullable
-        else
+        | AttributeSymbol.Export ->
+            flags ||| EntityFlags.Exported
+        | AttributeSymbol.Import _ ->
+            flags ||| EntityFlags.Imported
+        | _ ->
             flags
-
-    flags
+    )
 
 /// Pass 0 - Type definition with type parameters.
 let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =

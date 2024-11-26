@@ -48,19 +48,16 @@ type SpirvTypeStructBuilder(idResult: IdResult, enclosing: Choice<string imarray
     member this.AsType = ty
 
     member this.IsRuntimeArray =
-        this.Fields.Count = 1 && (match this.Fields[0].Type with SpirvType.RuntimeArray _ -> true | _ -> false)
+        this.Fields.Count = 1 && (match (this.Fields |> Seq.head).Type with SpirvType.RuntimeArray _ -> true | _ -> false)
 
     member this.GetRuntimeArrayField() =
         if not this.IsRuntimeArray then
             raise(InvalidOperationException("Expected a runtime array type."))
-        this.Fields[0]
+        this.Fields
+        |> Seq.head
 
-[<RequireQualifiedAccess>]
-type SpirvByRefKind =
-    | ReadWrite
-    | ReadOnly
-    | WriteOnly
-
+/// TODO: Do we actually need this? 
+///       We only need it if we need to determine a spirv semantic based on if the Oly array was immutable or mutable.
 [<RequireQualifiedAccess>]
 type SpirvArrayKind =
     | Immutable
@@ -84,7 +81,6 @@ type SpirvType =
     | Bool of idResult: IdResult
     | Char16 of idResult: IdResult
     | Tuple of idResult: IdResult * itemTys: SpirvType imarray * itemNames: string imarray
-    | ByRef of kind: SpirvByRefKind * elementTy: SpirvType
     | Pointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
 
     | Vec2 of idResult: IdResult * elementTy: SpirvType
@@ -97,6 +93,11 @@ type SpirvType =
 
     | Struct of SpirvTypeStructBuilder
     | Module of enclosing: Choice<string imarray, SpirvType> * name: string
+
+    /// ByRefs do not exist in spirv, but it is useful to track it.
+    /// Note: We could get rid of this type if we can figure out a better way to handle emitting a byref and 
+    //        have the entry-point parameter semantics properly determined without introducing duplicate types to the spirv byte-code.
+    | OlyByRef of kind: OlyIRByRefKind * elementTy: SpirvType
 
     member this.GetSizeInBytes(): uint32 =
         match this with
@@ -117,8 +118,8 @@ type SpirvType =
             raise(NotImplementedException())
         | Tuple _ ->
             raise(NotImplementedException())
-        | ByRef _ ->
-            raise(NotImplementedException())
+        | OlyByRef _ ->
+            raise(InvalidOperationException("ByRef must be lowered."))
         | Pointer _ ->
             raise(NotImplementedException())
         | Vec2 _ ->
@@ -164,7 +165,7 @@ type SpirvType =
                 OpTypeStruct(idResult, itemTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq)
             ]
 
-        | ByRef _ ->
+        | OlyByRef _ ->
             raise(InvalidOperationException("ByRef must be lowered."))
 
         | Pointer(idResult, storageClass, elementTy) ->
@@ -237,7 +238,7 @@ type SpirvType =
         | RuntimeArray(idResult, _, _) -> idResult
         | Struct(namedTy) -> namedTy.IdResult
         | Module _ -> failwith "Invalid type for 'IdResult'."
-        | ByRef _ -> raise(InvalidOperationException("ByRef must be lowered."))
+        | OlyByRef _ -> raise(InvalidOperationException("ByRef must be lowered."))
 
     member this.IsModule_t =
         match this with
@@ -326,7 +327,7 @@ type SpirvFunctionBuilder(
                     )
 
                 match x.Type with
-                | SpirvType.ByRef(SpirvByRefKind.ReadOnly, elementTy) ->
+                | SpirvType.OlyByRef(OlyIRByRefKind.ReadOnly, elementTy) ->
                     checkParameterElementType elementTy
 
                     if isUniform then
@@ -336,7 +337,7 @@ type SpirvFunctionBuilder(
                     else
                         builder.GetTypePointer(StorageClass.Input, elementTy)
 
-                | SpirvType.ByRef(SpirvByRefKind.WriteOnly, elementTy) ->
+                | SpirvType.OlyByRef(OlyIRByRefKind.WriteOnly, elementTy) ->
                     checkParameterElementType elementTy
 
                     if isUniform || isStorageBuffer then
@@ -399,7 +400,7 @@ type SpirvFunctionBuilder(
                     failwith "Expected a read-only or write-only by-ref type, or a runtime array."
             else 
                 match x.Type with
-                | SpirvType.ByRef(_, elementTy) ->
+                | SpirvType.OlyByRef(_, elementTy) ->
                     builder.GetTypePointer(StorageClass.Function, elementTy)
                 | ty ->
                     ty
@@ -418,7 +419,7 @@ type SpirvFunctionBuilder(
             builder.GetTypeVoid()
         else
             match returnTy with
-            | SpirvType.ByRef(elementTy=elementTy) ->
+            | SpirvType.OlyByRef(elementTy=elementTy) ->
                 builder.GetTypePointer(StorageClass.Function, elementTy)
             | _ ->
                 returnTy
@@ -528,7 +529,7 @@ type BuiltInFunctionData =
     | DecorateType of SpirvTypeFlags * (IdRef -> Instruction list)
     | DecorateVariable of SpirvVariableFlags * (IdRef -> C imarray -> Instruction list)
     | DecorateFieldAndVariable of fieldFlags: SpirvFieldFlags * createFieldInstrs: (IdRef -> uint32 -> Instruction list) * varFlags: SpirvVariableFlags * createVarInstrs: (IdRef -> C imarray -> Instruction list)
-    | Intrinsic of (SpirvModuleBuilder -> Choice<IdRef, C> imarray -> IdRef * Instruction list)
+    | Intrinsic of (SpirvModuleBuilder -> Choice<(SpirvType * IdRef), C> imarray -> IdRef * Instruction list)
 
 [<NoEquality;NoComparison>]
 type BuiltInFunction = 
@@ -637,7 +638,7 @@ module BuiltInFunctions =
             BuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
-                    match args[0] with
+                    match args |> ImArray.head with
                     | C.UInt32(value) ->
                         [OpDecorate(varIdRef, Decoration.Location value)]
                     | _ ->
@@ -668,7 +669,7 @@ module BuiltInFunctions =
             BuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
-                    match args[0] with
+                    match args |> ImArray.head with
                     | C.UInt32(value) ->
                         [OpDecorate(varIdRef, Decoration.DescriptorSet value)]
                     | _ ->
@@ -681,7 +682,7 @@ module BuiltInFunctions =
             BuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
-                    match args[0] with
+                    match args |> ImArray.head with
                     | C.UInt32(value) ->
                         [OpDecorate(varIdRef, Decoration.Binding value)]
                     | _ ->
@@ -704,11 +705,16 @@ module BuiltInFunctions =
                 fun spvModule args ->
                     match args.Length with
                     | 1 ->
-                        match args[0] with
+                        match args |> ImArray.head with
                         | Choice2Of2(C.Float32 value) ->
                             (spvModule.GetConstantVector4Float32(value, value, value, value), [])
-                        | Choice1Of2 _ ->
-                            raise(NotImplementedException())
+                        | Choice1Of2(argTy, argIdRef) ->
+                            match argTy with
+                            | SpirvType.Float32 _ ->
+                                let idResult = spvModule.NewIdResult()
+                                idResult, [OpCompositeConstruct(spvModule.GetTypeVec4().IdResult, idResult, [argIdRef; argIdRef; argIdRef; argIdRef])]
+                            | _ ->
+                                raise(InvalidOperationException())
                         | _ ->
                             raise(InvalidOperationException())
 
@@ -716,7 +722,7 @@ module BuiltInFunctions =
                             let idRefs =
                                 args
                                 |> ImArray.map (function
-                                    | Choice1Of2(idRef) -> idRef
+                                    | Choice1Of2((_, idRef)) -> idRef
                                     | Choice2Of2(cns) ->
                                         match cns with
                                         | C.Float32 value ->
@@ -731,8 +737,8 @@ module BuiltInFunctions =
                             let idResult = spvModule.NewIdResult()
                             idResult,
                             [
-                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg0IdResult, idRefs[0], [0u])
-                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg1IdResult, idRefs[0], [1u])
+                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
+                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
                                 OpCompositeConstruct(spvModule.GetTypeVec4().IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
                             ]
                     | _ ->
@@ -745,7 +751,7 @@ module BuiltInFunctions =
 
     let TryGetBuiltInFunction(path: string imarray, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
         if path.Length < 2 || path.Length > 2 then None
-        elif path[0] <> "__oly_spirv_" then None
+        elif (ImArray.head path) <> "__oly_spirv_" then None
         else          
             let name = path[1]
             match Lookup.TryGetValue(name) with
@@ -762,11 +768,13 @@ module BuiltInFunctions =
 
 module BuiltInOperations =
 
-    let inline (|Vec4|_|)(op: O) =
+    let inline (|NewVec4|_|)(op: O) =
         match op with
         | O.New(irFunc, argExprs, resultTy) ->
             match irFunc.EmittedFunction with
             | SpirvFunction.BuiltIn(builtInFunc) as func ->
+                OlyAssert.True(argExprs.Length >= 1)
+                OlyAssert.True(argExprs.Length <= 4)
                 if builtInFunc.Name = "vec4" then
                     Some(func, argExprs, resultTy)
                 else
@@ -782,8 +790,13 @@ module BuiltInOperations =
             match irFunc.EmittedFunction with
             | SpirvFunction.AccessChain as func ->
                 OlyAssert.True(argExprs.Length >= 1)
-                let receiverExpr = argExprs[0]
-                let indexExprs = argExprs |> ImArray.skip 1
+                let receiverExpr = 
+                    argExprs
+                    |> ImArray.head
+                let indexExprs = 
+                    argExprs 
+                    |> ROMem.ofImArray 
+                    |> ROMem.skip 1
                 Some(func, receiverExpr, indexExprs, resultTy)
             | _ ->
                 None
@@ -878,7 +891,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
         newIdResultValue <- value + 1u
         value
 
-    member this.GetConstantInt32(value: int32) =
+    member this.GetConstantInt32(value: int32) : IdRef =
         match constantsInt32.TryGetValue value with
         | true, idResult -> idResult
         | _ ->
@@ -887,7 +900,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             constantsInt32[value] <- idResult
             idResult
 
-    member this.GetConstantUInt32(value: uint32) =
+    member this.GetConstantUInt32(value: uint32) : IdRef =
         match constantsUInt32.TryGetValue value with
         | true, idResult -> idResult
         | _ ->
@@ -896,7 +909,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             constantsUInt32[value] <- idResult
             idResult
 
-    member this.GetConstantFloat32(value: float32) =
+    member this.GetConstantFloat32(value: float32) : IdRef =
         match constantsFloat32.TryGetValue value with
         | true, idResult -> idResult
         | _ ->
@@ -905,7 +918,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             constantsFloat32[value] <- idResult
             idResult
 
-    member this.GetConstantVector3Float32(x: float32, y: float32, z: float32) =
+    member this.GetConstantVector3Float32(x: float32, y: float32, z: float32) : IdRef =
         let xIdRef : IdRef = this.GetConstantFloat32(x)
         let yIdRef : IdRef = this.GetConstantFloat32(y)
         let zIdRef : IdRef = this.GetConstantFloat32(z)
@@ -919,7 +932,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             constantsVectorFloat32[key] <- idResult
             idResult
 
-    member this.GetConstantVector4Float32(x: float32, y: float32, z: float32, w: float32) : IdResult =
+    member this.GetConstantVector4Float32(x: float32, y: float32, z: float32, w: float32) : IdRef =
         let xIdRef : IdRef = this.GetConstantFloat32(x)
         let yIdRef : IdRef = this.GetConstantFloat32(y)
         let zIdRef : IdRef = this.GetConstantFloat32(z)
@@ -936,7 +949,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
 
     member this.GetTypePointer(storageClass: StorageClass, elementTy: SpirvType) =
         match elementTy with
-        | SpirvType.ByRef _ -> raise(InvalidOperationException("Did not expect a by-ref type."))
+        | SpirvType.OlyByRef _ -> raise(InvalidOperationException("Did not expect a ByRef type."))
         | _ -> ()
 
         let key = (storageClass, elementTy.IdResult)
