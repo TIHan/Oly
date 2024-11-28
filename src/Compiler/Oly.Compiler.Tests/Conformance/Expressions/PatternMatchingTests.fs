@@ -262,7 +262,7 @@ pattern Some<T>(value: Option<T>): (T, T) when (value !== null) =>
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("'static guard_Some<T>(value: Option<T>): bool' has duplicate member definitions.", """
+            ("'static pattern_guard_Some<T>(value: Option<T>): bool' has duplicate member definitions.", """
 pattern Some<T>(value: Option<T>): (T, T) when (value !== null) =>
         ^^^^
 """)

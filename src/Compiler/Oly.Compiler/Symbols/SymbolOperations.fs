@@ -2141,6 +2141,22 @@ let createNameOfTypeExtensionWithType (tyToExtend: TypeSymbol) (withTy: TypeSymb
 let createNameOfTypeExtension (tyToExtend: TypeSymbol) =
     "__oly_type_extension_" + tyToExtend.Name
 
+[<RequireQualifiedAccess>]
+module private MemberPrefixNames =
+
+    [<Literal>]
+    let PropertyGet = "get_"
+
+    [<Literal>]
+    let PropertySet = "set_"
+
+    [<Literal>]
+    let Pattern = "pattern_"
+
+    [<Literal>]
+    let PatternGuard = "pattern_guard_"
+
+
 let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars: TypeParameterSymbol imarray) (pars: ILocalParameterSymbol imarray) returnTy (memberFlags: MemberFlags) funcFlags funcSemantic funcIntrin (overrides: IFunctionSymbol option) isMutable =
     if (funcFlags &&& FunctionFlags.Constructor = FunctionFlags.Constructor) && not tyPars.IsEmpty then
         failwith "Constructors cannot contain type parameters."
@@ -2218,6 +2234,19 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
             funcFlags ||| FunctionFlags.Blittable
         else
             funcFlags
+
+    let name =
+        match funcSemantic with
+        | PatternFunction ->
+            name
+        | PatternGuardFunction ->
+            MemberPrefixNames.PatternGuard + name
+        | GetterFunction ->
+            MemberPrefixNames.PropertyGet + name
+        | SetterFunction ->
+            MemberPrefixNames.PropertySet + name
+        | _ ->
+            name
 
     FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, funcIntrin, overrides, isMutable)
 

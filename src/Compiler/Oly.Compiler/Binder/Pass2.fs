@@ -238,11 +238,10 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
 
                 let returnTy = TypeSymbol.Bool
                 let guardFuncName = 
-                    "guard_" + 
-                        if syntaxIdentOptional.IsDummy then
-                            bindingInfo.Value.Name
-                        else
-                            syntaxIdentOptional.ValueText
+                    if syntaxIdentOptional.IsDummy then
+                        bindingInfo.Value.Name
+                    else
+                        syntaxIdentOptional.ValueText
                 let guardFunc = 
                     createFunctionValueSemantic
                         enclosing

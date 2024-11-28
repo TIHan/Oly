@@ -105,13 +105,12 @@ let createAutoPropertyValue (enclosing: EnclosingSymbol) attrs propName propTy (
 
 let createAutoPropertyGetterFunction cenv syntaxNode valueExplicitness enclosing name propTy memberFlags isMutable =
     let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
-    let getterName = "get_" + name
     let getterPars =
         if isInstance then
-            createInstancePars cenv syntaxNode valueExplicitness enclosing false getterName ImArray.empty
+            createInstancePars cenv syntaxNode valueExplicitness enclosing false name ImArray.empty
         else
             ImArray.empty
-    createFunctionValueSemantic enclosing ImArray.empty getterName ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
+    createFunctionValueSemantic enclosing ImArray.empty name ImArray.empty getterPars propTy memberFlags FunctionFlags.None FunctionSemantic.GetterFunction WellKnownFunction.None None isMutable
 
 /// A function is an entry point if the following is true:
 ///     1. Function's name is "main" with exact case.
@@ -306,14 +305,11 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
     let bindPropertyGetterSetter (cenv: cenv) env syntaxNode (syntaxParsOpt: OlySyntaxParameters option) propName propTy =
         match syntaxParsOpt with
         | Some syntaxPars ->
-            let funcName =
-                if isExplicitSet then "set_" + propName
-                else "get_" + propName
             let returnTy =
                 if isExplicitSet then TypeSymbol.Unit
                 else propTy
     
-            let func = bindFunction env funcName (false, ImArray.empty) returnTy syntaxNode syntaxPars
+            let func = bindFunction env propName (false, ImArray.empty) returnTy syntaxNode syntaxPars
     
             let logicalPars = func.LogicalParameters
             if isExplicitSet && (logicalPars.IsEmpty || not (areTypesEqual logicalPars.[0].Type propTy)) then
@@ -343,12 +339,11 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                     let setterOpt =
                         let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
                         if valueExplicitness.IsExplicitSet then
-                            let setterName = "set_" + name
                             let parValue = createLocalParameterValue(ImArray.empty, "", propTy, false)
                             let pars = ImArray.createOne parValue
                             let setterPars =
                                 if isInstance then
-                                    createInstancePars cenv syntaxNode valueExplicitness enclosing false setterName pars
+                                    createInstancePars cenv syntaxNode valueExplicitness enclosing false name pars
                                 else
                                     pars
                             let isMutable = 
@@ -356,7 +351,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                                     true // Setter functions are always considered mutable.
                                 else
                                     false
-                            createFunctionValueSemantic enclosing ImArray.empty setterName ImArray.empty setterPars TypeSymbol.Unit memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
+                            createFunctionValueSemantic enclosing ImArray.empty name ImArray.empty setterPars TypeSymbol.Unit memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
                             |> Some
                         else
                             None
