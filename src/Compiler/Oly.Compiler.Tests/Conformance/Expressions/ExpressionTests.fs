@@ -10515,3 +10515,72 @@ module MAttribute =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Explicit argument name should pass as the name does match with the parameter name``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Call(x: int32): () = ()
+
+main(): () =
+    Call(x = 1)
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Explicit argument name should fail as the name does not match with the parameter name``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Call(x: int32): () = ()
+
+main(): () =
+    Call(y = 1)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO: Invalid name",
+                """
+    Call(y = 1)
+         ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Explicit argument names should pass as the names do match with the parameter names``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Call(x: int32, y: int32): () = ()
+
+main(): () =
+    Call(x = 1, y = 2)
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Explicit argument names should pass as the names do match with the parameter names in a different order``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+Call(x: int32, y: int32): () = ()
+
+main(): () =
+    Call(y = 2, x = 1)
+        """
+    Oly src
+    |> shouldCompile

@@ -155,7 +155,7 @@ type ReceiverInfo =
 type ResolutionItem = 
     | Type of syntaxName: OlySyntaxName * TypeSymbol
     | Namespace of syntaxName: OlySyntaxName * EntitySymbol
-    | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxExpression imarray * syntaxMemberExprOpt: OlySyntaxExpression option
+    | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxArguments * syntaxMemberExprOpt: OlySyntaxExpression option
     | MemberIndexerCall of syntaxToCapture: OlySyntaxExpression * syntaxReceiver: OlySyntaxExpression * syntaxBrackets: OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>> * syntaxMemberExprOpt: OlySyntaxExpression option * expectedTyOpt: TypeSymbol option
     | Parenthesis of syntaxToCapture: OlySyntaxExpression * syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression> * syntaxMemberExprOpt: OlySyntaxExpression option
     // TODO: We really should not have Expression as part of ResolutionItem. Instead make separate cases for functions, locals, etc. Similar to Property and Pattern.
@@ -177,15 +177,6 @@ type ResolutionItem =
         | Property(syntax, _, _, _) -> syntax
         | Invalid(syntax) -> syntax
         | Error(syntax) -> syntax
-
-let getSyntaxArgumentsAsSyntaxExpressions (cenv: cenv) (syntaxArgs: OlySyntaxArguments) =
-    match syntaxArgs with
-    | OlySyntaxArguments.Arguments(_, syntaxArgList, syntaxNamedArgList, _) ->
-        if not syntaxNamedArgList.Children.IsEmpty then
-            cenv.diagnostics.Error("Named arguments not supported yet.", 10, syntaxNamedArgList)
-        syntaxArgList.ChildrenOfType
-    | _ ->
-        ImArray.empty
 
 let private createWitnessArguments (cenv: cenv) (value: IValueSymbol) =
     let witnessArgs =
@@ -686,7 +677,6 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =
     match syntaxReceiver with
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-        let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         ResolutionItem.MemberCall(syntaxToCapture, prevReceiverInfoOpt, syntaxCallBodyExpr, syntaxArgs, Some syntaxMemberExpr)
 
     | OlySyntaxExpression.Indexer(syntaxReceiver, syntaxBrackets) ->
@@ -712,7 +702,6 @@ let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) synta
 let bindMemberExpressionWithTypeAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) (syntaxMemberExpr: OlySyntaxExpression) : ResolutionItem =
     match syntaxMemberExpr with
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-        let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         let receiverInfo = { isStatic = true; item = ReceiverItem.Type(ty); expr = None }
         ResolutionItem.MemberCall(syntaxToCapture, Some receiverInfo, syntaxCallBodyExpr, syntaxArgs, None)
     | OlySyntaxExpression.Name(syntaxName) ->
@@ -731,7 +720,6 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
             bindNameAsItem cenv env (Some syntaxToCapture) (Some receiverInfo) resInfo syntaxName
 
         | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-            let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
             ResolutionItem.MemberCall(syntaxToCapture, Some receiverInfo, syntaxCallBodyExpr, syntaxArgs, None)
 
         | OlySyntaxExpression.MemberAccess(syntaxReceiver, _, syntaxMemberExpr) ->

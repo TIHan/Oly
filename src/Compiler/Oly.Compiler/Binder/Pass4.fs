@@ -317,13 +317,30 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySyntaxExpression imarray) =
+let bindCallArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySyntaxArguments) =
     let env = env.SetPassedAsArgument(true)
-    syntaxArgs
-    |> ImArray.map (fun x ->
-        let _, expr = bindLocalExpression cenv env None x x
-        expr
-    )
+
+    match syntaxArgs with
+    | OlySyntaxArguments.Arguments(_, syntaxArgList, syntaxNamedArgList, _) ->      
+        syntaxNamedArgList.ChildrenOfType
+        |> ImArray.iter (fun syntaxNamedArg ->
+            match syntaxNamedArg with
+            | OlySyntaxNamedArgument.NamedArgument(syntaxIdent, _, syntaxArgExpr) ->
+                cenv.diagnostics.Error("Named arguments are not supported yet.", 10, syntaxIdent)
+            | _ ->
+                unreached()
+        )      
+        syntaxArgList.ChildrenOfType
+        |> ImArray.map (fun x ->
+            let _, expr = bindLocalExpression cenv env None x x
+            expr
+        )
+
+    | OlySyntaxArguments.Empty ->
+        ImArray.empty
+
+    | _ ->
+        unreached()
 
 let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: ResolutionItem) =
     match nameRes with
@@ -449,8 +466,8 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
 
         env, checkExpression cenv env expectedTyOpt newTupleExpr
 
-let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxExpression imarray) : BoundExpression =
-    let argExprs = bindArguments cenv (env.SetReturnable(false)) syntaxArgs
+let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxArguments) : BoundExpression =
+    let argExprs = bindCallArguments cenv (env.SetReturnable(false)) syntaxArgs
 
     match syntaxCallBodyExpr with
     | OlySyntaxExpression.Name(syntaxName) ->
@@ -475,7 +492,6 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
             expr
 
     | OlySyntaxExpression.Call(syntaxCallBodyExpr2, syntaxArgs2) ->
-        let syntaxArgs2 = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs2
         let expr = 
             bindCallExpression cenv env syntaxCallBodyExpr receiverInfoOpt syntaxCallBodyExpr2 syntaxArgs2
             |> checkExpression cenv env None
@@ -1579,7 +1595,6 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Call(syntaxAppBodyExpr, syntaxArgs) ->
-        let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         let expr = bindCallExpression cenv env syntaxToCapture None syntaxAppBodyExpr syntaxArgs
         env, checkExpression cenv env expectedTyOpt expr
 
