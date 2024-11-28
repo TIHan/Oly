@@ -18,6 +18,12 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreePatterns
 
+[<Sealed>]
+type PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness) =
+    member _.Name = name
+    member _.Type = ty
+    member _.Explicitness = explicitness
+
 let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
         if checkMutable && valueExplicitness.IsExplicitMutable then
@@ -123,7 +129,7 @@ let private isValidEntryPoint (cenv: cenv) env (enclosing: EnclosingSymbol) (fun
     else
         false
 
-let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAttributes, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) (valueExplicitness: ValueExplicitness) (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) : Choice<BindingInfoSymbol, LocalBindingInfoSymbol> option =
+let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAttributes, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) (valueExplicitness: ValueExplicitness) (propInfoOpt: PropertyInfo option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) : Choice<BindingInfoSymbol, LocalBindingInfoSymbol> option =
     let enclosing = currentEnclosing env
 
     let isCtor = syntaxBindingDecl.Identifier.IsNew
@@ -180,7 +186,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                     let syntaxPar = syntaxPars[0]
                     let setterInfoOpt =
                         match propInfoOpt with
-                        | Some(_, propTy, _) -> Some propTy
+                        | Some propInfo -> Some propInfo.Type
                         | _ -> None
                     let (_, par) = bindParameter cenv env setterInfoOpt false syntaxPar
                     ImArray.createOne par
@@ -532,8 +538,8 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
             None
 
-        | Some(propName, propTy, _) ->
-            bindPropertyGetterSetter cenv env syntaxGetOrSetToken (Some syntaxPars) propName propTy
+        | Some propInfo ->
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken (Some syntaxPars) propInfo.Name propInfo.Type
 
     | OlySyntaxBindingDeclaration.Get(syntaxGetOrSetToken)
     | OlySyntaxBindingDeclaration.Set(syntaxGetOrSetToken) ->
@@ -541,8 +547,8 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         | None ->
             cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
             None
-        | Some(propName, propTy, _) ->
-            bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propName propTy
+        | Some propInfo ->
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propInfo.Name propInfo.Type
 
     | OlySyntaxBindingDeclaration.Error(_) ->
         None
@@ -550,7 +556,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
     | _ ->
         raise(InternalCompilerException())
 
-let bindMemberBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (propInfoOpt: (string * TypeSymbol * ValueExplicitness) option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
+let bindMemberBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (propInfoOpt: PropertyInfo option) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     match bindBindingDeclarationAux cenv env (syntaxAttrs, attrs) onlyBindAsType memberFlags valueExplicitness propInfoOpt syntaxBindingDecl with
     | Some(Choice1Of2(bindingInfo)) ->
         recordValueDeclaration cenv bindingInfo.Value syntaxBindingDecl.Identifier

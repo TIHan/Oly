@@ -76,7 +76,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
             | OlySyntaxValueDeclarationKind.Error _ -> ()
             | _ ->
                 cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-            bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
+            bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
         | _ ->
             raise(InternalCompilerUnreachedException())
 
@@ -89,7 +89,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
                 | OlySyntaxValueDeclarationKind.Error _ -> ()
                 | _ ->
                     cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(propName, propTy, valueExplicitness)) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
+                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
                 Some bindingInfo
             | _ ->
                 raise(InternalCompilerUnreachedException())
@@ -283,7 +283,7 @@ let private bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueE
 let private bindTopLevelValueDeclaration 
         cenv 
         env 
-        propInfoOpt 
+        (propInfoOpt: PropertyInfo option)
         syntaxAttrs 
         (syntaxAccessor: OlySyntaxAccessor) 
         syntaxValueDeclPremodifiers 
@@ -294,7 +294,7 @@ let private bindTopLevelValueDeclaration
 
     let isStaticProp =
         match propInfoOpt with
-        | Some(_, _, propExplicitness) -> propExplicitness.IsExplicitStatic
+        | Some propInfo -> propInfo.Explicitness.IsExplicitStatic
         | _ -> false
 
     let memberFlags, valueExplicitness = 
