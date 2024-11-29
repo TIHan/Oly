@@ -99,7 +99,8 @@ layout(set = 0, binding = 0) buffer Buffer
 
 void main()
 {
-    uint index = gl_GlobalInvocationID.x;
+    uvec3 abc = gl_GlobalInvocationID;
+    uint index = abc.x;
     data[index] = 123;
 }"
 
