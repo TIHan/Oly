@@ -654,7 +654,8 @@ let ``Basic compute shader 3`` () =
 
 //void main()
 //{
-//    uint index = gl_GlobalInvocationID.x;
+//    uvec3 abc = gl_GlobalInvocationID;
+//    uint index = abc.x;
 //    data[index] = 123;
 //}
     let src =

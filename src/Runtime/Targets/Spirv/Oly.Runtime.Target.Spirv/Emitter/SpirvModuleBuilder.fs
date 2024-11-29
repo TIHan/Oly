@@ -1023,7 +1023,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
 
     member this.GetTypeUVec3() : SpirvType =
         if isNull(box cachedTypeUVec3) then
-            cachedTypeUVec3 <- SpirvType.Vec4(this.NewIdResult(), this.GetTypeUInt32())
+            cachedTypeUVec3 <- SpirvType.Vec3(this.NewIdResult(), this.GetTypeUInt32())
             this.AddType(cachedTypeUVec3)
         cachedTypeUVec3
 

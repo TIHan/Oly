@@ -1137,8 +1137,8 @@ module Dump =
         | OlyIRTypeVariableKind.Function -> "f"
         | OlyIRTypeVariableKind.Type -> "t"
 
-    let DumpConstant (c: C<_, _>) : string =
-        match c with
+    let DumpConstant (cns: C<_, _>) : string =
+        match cns with
         | C.UInt8 value -> $"uint8 {value}"
         | C.Int8 value -> $"int8 {value}"
         | C.UInt16 value -> $"uint16 {value}"
@@ -1238,7 +1238,11 @@ module Dump =
         | E.None _ -> "NONE"
     
         | E.Value(_, v) ->
-            $"VALUE {DumpValue v}"
+            match v with
+            | V.Constant(cns, _) ->
+                $"CONSTANT {DumpConstant cns}"
+            | _ ->
+                $"VALUE {DumpValue v}"
     
         | E.IfElse(conditionE, trueTargetE, falseTargetE, _) ->
             let args =
