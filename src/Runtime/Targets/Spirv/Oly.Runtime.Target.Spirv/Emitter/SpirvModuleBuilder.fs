@@ -286,124 +286,126 @@ type SpirvFunctionBuilder(
         // Lowering
         irPars 
         |> ImArray.map (fun x -> 
-            if irFlags.IsEntryPoint then 
-                let checkParameterElementType elementTy =
-                    match elementTy with
-                    | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
-                    | _ -> ()
+            let checkParameterElementType elementTy =
+                match elementTy with
+                | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
+                | _ -> ()
 
-                let isUniform = 
-                    x.Attributes 
-                    |> ImArray.exists (fun x -> 
-                        match x with
-                        | OlyIRAttribute(ctor, _, _) ->
-                            match ctor.TryGetBuiltIn() with
-                            | ValueSome(builtInFunc) ->
-                                match builtInFunc.Data with
-                                | BuiltInFunctionData.DecorateVariable(varFlags, _)
-                                | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
-                                    varFlags.HasFlag(SpirvVariableFlags.Uniform)
-                                | _ ->
-                                    false
+            let isUniform = 
+                x.Attributes 
+                |> ImArray.exists (fun x -> 
+                    match x with
+                    | OlyIRAttribute(ctor, _, _) ->
+                        match ctor.TryGetBuiltIn() with
+                        | ValueSome(builtInFunc) ->
+                            match builtInFunc.Data with
+                            | BuiltInFunctionData.DecorateVariable(varFlags, _)
+                            | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                                varFlags.HasFlag(SpirvVariableFlags.Uniform)
                             | _ ->
                                 false
-                    )
+                        | _ ->
+                            false
+                )
 
-                let isStorageBuffer =
-                    x.Attributes 
-                    |> ImArray.exists (fun x -> 
-                        match x with
-                        | OlyIRAttribute(ctor, _, _) ->
-                            match ctor.TryGetBuiltIn() with
-                            | ValueSome(builtInFunc) ->
-                                match builtInFunc.Data with
-                                | BuiltInFunctionData.DecorateVariable(varFlags, _)
-                                | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
-                                    varFlags.HasFlag(SpirvVariableFlags.StorageBuffer)
-                                | _ ->
-                                    false
+            let isStorageBuffer =
+                x.Attributes 
+                |> ImArray.exists (fun x -> 
+                    match x with
+                    | OlyIRAttribute(ctor, _, _) ->
+                        match ctor.TryGetBuiltIn() with
+                        | ValueSome(builtInFunc) ->
+                            match builtInFunc.Data with
+                            | BuiltInFunctionData.DecorateVariable(varFlags, _)
+                            | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                                varFlags.HasFlag(SpirvVariableFlags.StorageBuffer)
                             | _ ->
                                 false
-                    )
+                        | _ ->
+                            false
+                )
 
-                match x.Type with
-                | SpirvType.OlyByRef(OlyIRByRefKind.ReadOnly, elementTy) ->
-                    checkParameterElementType elementTy
+            match x.Type with
+            | SpirvType.OlyByRef(OlyIRByRefKind.ReadOnly, elementTy) ->
+                checkParameterElementType elementTy
 
-                    if isUniform then
-                        builder.GetTypePointer(StorageClass.Uniform, elementTy)
-                    elif isStorageBuffer then
-                        builder.GetTypePointer(StorageClass.StorageBuffer, elementTy)
-                    else
+                if isUniform then
+                    builder.GetTypePointer(StorageClass.Uniform, elementTy)
+                elif isStorageBuffer then
+                    builder.GetTypePointer(StorageClass.StorageBuffer, elementTy)
+                else
+                    if irFlags.IsEntryPoint then
                         builder.GetTypePointer(StorageClass.Input, elementTy)
+                    else
+                        builder.GetTypePointer(StorageClass.Function, elementTy)
 
-                | SpirvType.OlyByRef(OlyIRByRefKind.WriteOnly, elementTy) ->
-                    checkParameterElementType elementTy
+            | SpirvType.OlyByRef(OlyIRByRefKind.WriteOnly, elementTy) ->
+                checkParameterElementType elementTy
 
-                    if isUniform || isStorageBuffer then
-                        raise(InvalidOperationException())
+                if isUniform || isStorageBuffer then
+                    raise(InvalidOperationException())
 
+                if irFlags.IsEntryPoint then
                     builder.GetTypePointer(StorageClass.Output, elementTy)
-
-                | SpirvType.RuntimeArray(elementTy=elementTy) ->
-                    checkParameterElementType elementTy
-                    let structBuilder = SpirvTypeStructBuilder(builder.NewIdResult(), Choice2Of2(SpirvType.Invalid), "buffer", List(), SpirvTypeFlags.None)
-                    structBuilder.Fields.Add(
-                        { 
-                            Name = "runtime_array"
-                            Type = x.Type
-                            Index = 0
-                            Flags = SpirvFieldFlags.None 
-                            Attributes = ImArray.empty
-                        }
-                    )
-                    if isUniform then
-                        structBuilder.Attributes <-
-                            {
-                                Name = "buffer_block"
-                                ParameterTypes = ImArray.empty
-                                ReturnType = BuiltInFunctionParameterType.Void
-                                Flags = BuiltInFunctionFlags.None
-                                Data =
-                                    BuiltInFunctionData.DecorateType(
-                                        SpirvTypeFlags.None,
-                                        fun idRef ->
-                                            [OpDecorate(idRef, Decoration.BufferBlock)]
-                                    )
-                            }
-                            |> ImArray.createOne
-                    else
-                        structBuilder.Attributes <-
-                            {
-                                Name = "block"
-                                ParameterTypes = ImArray.empty
-                                ReturnType = BuiltInFunctionParameterType.Void
-                                Flags = BuiltInFunctionFlags.None
-                                Data =
-                                    BuiltInFunctionData.DecorateType(
-                                        SpirvTypeFlags.None,
-                                        fun idRef ->
-                                            [OpDecorate(idRef, Decoration.Block)]
-                                    )
-                            }
-                            |> ImArray.createOne
-                    builder.AddTypeStructBuilder(structBuilder)
-
-                    if isUniform then
-                        builder.GetTypePointer(StorageClass.Uniform, structBuilder.AsType)
-                    elif isStorageBuffer then
-                        builder.GetTypePointer(StorageClass.StorageBuffer, structBuilder.AsType)
-                    else
-                        raise(InvalidOperationException())
-
-                | _ ->
-                    failwith "Expected a read-only or write-only by-ref type, or a runtime array."
-            else 
-                match x.Type with
-                | SpirvType.OlyByRef(_, elementTy) ->
+                else
                     builder.GetTypePointer(StorageClass.Function, elementTy)
-                | ty ->
-                    ty
+
+            | SpirvType.RuntimeArray(elementTy=elementTy) ->
+                checkParameterElementType elementTy
+                let structBuilder = SpirvTypeStructBuilder(builder.NewIdResult(), Choice2Of2(SpirvType.Invalid), "buffer", List(), SpirvTypeFlags.None)
+                structBuilder.Fields.Add(
+                    { 
+                        Name = "runtime_array"
+                        Type = x.Type
+                        Index = 0
+                        Flags = SpirvFieldFlags.None 
+                        Attributes = ImArray.empty
+                    }
+                )
+                if isUniform then
+                    structBuilder.Attributes <-
+                        {
+                            Name = "buffer_block"
+                            ParameterTypes = ImArray.empty
+                            ReturnType = BuiltInFunctionParameterType.Void
+                            Flags = BuiltInFunctionFlags.None
+                            Data =
+                                BuiltInFunctionData.DecorateType(
+                                    SpirvTypeFlags.None,
+                                    fun idRef ->
+                                        [OpDecorate(idRef, Decoration.BufferBlock)]
+                                )
+                        }
+                        |> ImArray.createOne
+                else
+                    structBuilder.Attributes <-
+                        {
+                            Name = "block"
+                            ParameterTypes = ImArray.empty
+                            ReturnType = BuiltInFunctionParameterType.Void
+                            Flags = BuiltInFunctionFlags.None
+                            Data =
+                                BuiltInFunctionData.DecorateType(
+                                    SpirvTypeFlags.None,
+                                    fun idRef ->
+                                        [OpDecorate(idRef, Decoration.Block)]
+                                )
+                        }
+                        |> ImArray.createOne
+                builder.AddTypeStructBuilder(structBuilder)
+
+                if isUniform then
+                    builder.GetTypePointer(StorageClass.Uniform, structBuilder.AsType)
+                elif isStorageBuffer then
+                    builder.GetTypePointer(StorageClass.StorageBuffer, structBuilder.AsType)
+                else
+                    raise(InvalidOperationException())
+
+            | SpirvType.Pointer _ ->
+                x.Type
+
+            | ty ->
+                builder.GetTypePointer(StorageClass.Function, ty)
         )
 
     let parTys =
@@ -482,6 +484,11 @@ type SpirvFunction =
     | BuiltIn of BuiltInFunction
     | AccessChain
     | PtrAccessChain
+
+    member this.AsBuilder =
+        match this with
+        | Function(builder) -> builder
+        | _ -> raise(InvalidOperationException("Expected a function builder."))
 
     member this.TryGetBuiltIn() =
         match this with
@@ -828,7 +835,7 @@ module BuiltInOperations =
 module BuiltInExpressions =
 
     let IndexConstantFromField (builder: SpirvModuleBuilder) (field: SpirvField) =
-        E.Value(OlyIRDebugSourceTextRange.Empty, V.Constant(C.Int32(field.Index), builder.GetTypeInt32()))
+        E.Value(OlyIRDebugSourceTextRange.Empty, V.Constant(C.UInt32(uint(field.Index)), builder.GetTypeUInt32()))
 
     let AccessChain(baseExpr: E, indexExprs: E imarray, resultTy: SpirvType) =
         match resultTy with
@@ -839,6 +846,13 @@ module BuiltInExpressions =
         match baseExpr.ResultType with
         | SpirvType.Pointer _ -> ()
         | _ -> raise(InvalidOperationException("Expected a pointer type."))   
+
+        indexExprs
+        |> ImArray.iter (fun indexExpr ->
+            match indexExpr.ResultType with
+            | SpirvType.UInt32 _ -> ()
+            | _ -> raise(InvalidOperationException("Expected an 'uint32' type for the index."))
+        )
 #endif
 
         E.Operation(OlyIRDebugSourceTextRange.Empty,
@@ -862,6 +876,13 @@ module BuiltInExpressions =
         match elementExpr.ResultType with
         | SpirvType.Int32 _ -> ()
         | _ -> raise(InvalidOperationException("Expected an int32 type."))
+
+        indexExprs
+        |> ImArray.iter (fun indexExpr ->
+            match indexExpr.ResultType with
+            | SpirvType.UInt32 _ -> ()
+            | _ -> raise(InvalidOperationException("Expected an 'uint32' type for the index."))
+        )
 #endif
 
         E.Operation(OlyIRDebugSourceTextRange.Empty,

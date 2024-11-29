@@ -679,13 +679,16 @@ main(
 let ``Basic compute shader 4`` () =
     let src =
         """
+GetValue(x: float32): float32 =
+    x
+
 main(
         #[storage_buffer]
         #[descriptor_set(0)]
         #[binding(0)]
         buffer: mutable float32[]
     ): () =
-    buffer[1] <- 123
+    buffer[1] <- GetValue(123)
         """
     OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
 

@@ -111,15 +111,25 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                         else
                             funcBuilder.Parameters
 
-                    for par in pars do
-                        match par.Type with
-                        | SpirvType.Pointer(_, storageClass, _) ->
-                            yield! par.DecorateInstructions
-                            OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
-                        | _ ->
-                            OpVariable(par.Type.IdResult, par.VariableIdRef, StorageClass.Private, None)
+                    if funcBuilder.IsEntryPoint then
+                        for par in pars do
+                            match par.Type with
+                            | SpirvType.Pointer(_, storageClass, _) ->
+                                yield! par.DecorateInstructions
+                                OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
+                            | _ ->
+                                raise(InvalidOperationException("Expected a pointer type."))
 
                     OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
+
+                    if not funcBuilder.IsEntryPoint then
+                        for par in pars do
+                            match par.Type with
+                            | SpirvType.Pointer _ ->
+                                OlyAssert.True(par.DecorateInstructions.IsEmpty)
+                                OpFunctionParameter(par.Type.IdResult, par.VariableIdRef)
+                            | _ ->
+                                raise(InvalidOperationException("Expected a pointer type."))                       
 
                     yield! codeGenCenv.Instructions
 

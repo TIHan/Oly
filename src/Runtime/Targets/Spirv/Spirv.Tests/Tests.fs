@@ -97,11 +97,16 @@ layout(set = 0, binding = 0) buffer Buffer
     float data[];
 };
 
+float GetValue(float x)
+{
+    return x;
+}
+
 void main()
 {
     uvec3 abc = gl_GlobalInvocationID;
     uint index = abc.x;
-    data[index] = 123;
+    data[index] = GetValue(123);
 }"
 
     let output = compute_floats(glsl_to_compute computeCode, [|0f;0f;0f;0f|])

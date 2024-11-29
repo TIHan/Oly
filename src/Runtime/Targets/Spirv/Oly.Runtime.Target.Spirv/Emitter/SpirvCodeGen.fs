@@ -174,6 +174,15 @@ module rec SpirvCodeGen =
                 indexExprs
                 |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
 
+#if DEBUG || CHECKED
+            indexExprs
+            |> ROMem.iter (fun indexExpr ->
+                match indexExpr.ResultType with
+                | SpirvType.UInt32 _ -> ()
+                | _ -> raise(InvalidOperationException("Expected an 'uint32' type for the index."))
+            )
+#endif
+
             let idResult = cenv.Module.NewIdResult()
             OpPtrAccessChain(resultTy.IdResult, idResult, baseIdRef, elementIdRef, indexIdRefs)
             |> emitInstruction cenv
@@ -274,6 +283,15 @@ module rec SpirvCodeGen =
             | O.LoadArrayElementAddress _ ->
                 raise(NotSupportedException($"Should have been lowered:\n{op}"))
 
+            | O.Call(func=irFunc) ->
+                let func = irFunc.EmittedFunction
+                let funcBuilder = func.AsBuilder
+
+                let idResult = cenv.Module.NewIdResult()
+                OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
+                |> emitInstruction cenv
+                idResult
+
             | _ ->
                 raise(NotImplementedException(op.ToString()))
 
@@ -281,6 +299,8 @@ module rec SpirvCodeGen =
         match cns with
         | C.Int32 value ->
             cenv.Module.GetConstantInt32(value)
+        | C.UInt32 value ->
+            cenv.Module.GetConstantUInt32(value)
         | C.Float32 value ->
             cenv.Module.GetConstantFloat32(value)
         | C.True ->
@@ -397,5 +417,5 @@ module rec SpirvCodeGen =
                 if idRef = IdRef0 then
                     OpReturn |> emitInstruction cenv
                 else
-                    raise(NotImplementedException("returnable value"))
+                    OpReturnValue idRef |> emitInstruction cenv
         idRef

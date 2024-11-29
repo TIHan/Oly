@@ -553,6 +553,14 @@ module ROMem =
                 builder.Add(f i)
             builder.MoveToImmutable().AsMemory()
 
+    let inline iter f (arr: romem<'T>) : unit =
+        match arr.Length with
+        | 0 -> ()
+        | 1 -> f arr.Span[0]
+        | _ ->
+            for i = 0 to arr.Length - 1 do
+                f arr.[i]
+
     let inline map (mapper: 'T -> 'U) (arr: romem<'T>) : romem<_> =
         match arr.Length with
         | 0 -> ReadOnlyMemory.Empty
