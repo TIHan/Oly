@@ -206,6 +206,13 @@ module rec SpirvLowering =
                     else
                         AutoDereferenceIfPossible newArgExpr
 
+                | BuiltInOperations.PtrAccessChain _ ->
+                    if i = 0 then
+                        AssertPointerType newArgExpr
+                        newArgExpr
+                    else
+                        AutoDereferenceIfPossible newArgExpr
+
                 | _ ->
                     raise(NotImplementedException(op.ToString()))
             )
@@ -345,7 +352,7 @@ module rec SpirvLowering =
                     let indexExprs = List(indexExprs)
                     indexExprs.Insert(0, BuiltInExpressions.IndexConstantFromField cenv.Module (structBuilder.GetRuntimeArrayField()))
                     let accessChainExpr =
-                        BuiltInExpressions.AccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType))
+                        BuiltInExpressions.PtrAccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType))
                     E.Operation(textRange, 
                         O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
                     )

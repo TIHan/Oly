@@ -128,13 +128,13 @@ module rec SpirvCodeGen =
             | _ ->
                raise(NotImplementedException(op.ToString()))
 
-        | BuiltInOperations.AccessChain(_, receiverExpr, indexExprs, resultTy) ->
+        | BuiltInOperations.AccessChain(_, baseExpr, indexExprs, resultTy) ->
             match resultTy with
             | SpirvType.Pointer _ -> ()
             | _ -> raise(InvalidOperationException("Expected a pointer type."))
 
 #if DEBUG || CHECKED
-            match receiverExpr.ResultType, resultTy with
+            match baseExpr.ResultType, resultTy with
             | SpirvType.Pointer(storageClass=expectedStorageClass), SpirvType.Pointer(storageClass=storageClass) ->
                 if expectedStorageClass <> storageClass then
                     raise(InvalidOperationException($"Storage classes do not match up for access chain. Expected: {expectedStorageClass}, Actual: {storageClass}"))
@@ -143,13 +143,39 @@ module rec SpirvCodeGen =
 #endif
 
             let envNotReturnable = env.NotReturnable
-            let receiverIdRef = GenExpression cenv envNotReturnable receiverExpr
+            let baseIdRef = GenExpression cenv envNotReturnable baseExpr
             let indexIdRefs =
                 indexExprs
                 |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
 
             let idResult = cenv.Module.NewIdResult()
-            OpAccessChain(resultTy.IdResult, idResult, receiverIdRef, indexIdRefs)
+            OpAccessChain(resultTy.IdResult, idResult, baseIdRef, indexIdRefs)
+            |> emitInstruction cenv
+            idResult
+
+        | BuiltInOperations.PtrAccessChain(_, baseExpr, elementExpr, indexExprs, resultTy) ->
+            match resultTy with
+            | SpirvType.Pointer _ -> ()
+            | _ -> raise(InvalidOperationException("Expected a pointer type."))
+
+#if DEBUG || CHECKED
+            match baseExpr.ResultType, resultTy with
+            | SpirvType.Pointer(storageClass=expectedStorageClass), SpirvType.Pointer(storageClass=storageClass) ->
+                if expectedStorageClass <> storageClass then
+                    raise(InvalidOperationException($"Storage classes do not match up for access chain. Expected: {expectedStorageClass}, Actual: {storageClass}"))
+            | _ -> 
+                raise(InvalidOperationException("Expected a pointer type."))
+#endif
+
+            let envNotReturnable = env.NotReturnable
+            let baseIdRef = GenExpression cenv envNotReturnable baseExpr
+            let elementIdRef = GenExpression cenv envNotReturnable elementExpr
+            let indexIdRefs =
+                indexExprs
+                |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
+
+            let idResult = cenv.Module.NewIdResult()
+            OpPtrAccessChain(resultTy.IdResult, idResult, baseIdRef, elementIdRef, indexIdRefs)
             |> emitInstruction cenv
             idResult
 

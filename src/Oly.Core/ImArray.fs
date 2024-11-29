@@ -28,6 +28,9 @@ module ImArray =
     let inline prependOne (item: 'T) (arr: imarray<'T>) : imarray<_> =
         imarray.Create(item).AddRange(arr)
 
+    let inline prependTwo (item1: 'T) (item2: 'T) (arr: imarray<'T>) : imarray<_> =
+        imarray.Create(item1).Add(item2).AddRange(arr)
+
     let inline append (arr1: imarray<'T1>) (arr2: imarray<'T1>) : imarray<_> =
         arr1.AddRange(arr2)
 

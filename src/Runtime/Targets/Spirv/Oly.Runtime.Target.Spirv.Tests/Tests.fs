@@ -129,7 +129,7 @@ let OlyFragment (src: string) =
 
 let OlyCompute input expectedOutput (src: string) =
     let src = $"""
-#target "spirv: compute, 1.0"
+#target "spirv: compute, 1.3"
 
 {src}
 """

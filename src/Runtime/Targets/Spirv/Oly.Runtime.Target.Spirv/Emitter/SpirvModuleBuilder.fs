@@ -481,6 +481,7 @@ type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of BuiltInFunction
     | AccessChain
+    | PtrAccessChain
 
     member this.TryGetBuiltIn() =
         match this with
@@ -789,15 +790,36 @@ module BuiltInOperations =
         | O.Call(irFunc, argExprs, resultTy) ->
             match irFunc.EmittedFunction with
             | SpirvFunction.AccessChain as func ->
-                OlyAssert.True(argExprs.Length >= 1)
-                let receiverExpr = 
+                OlyAssert.True(argExprs.Length >= 2)
+                let baseExpr = 
                     argExprs
                     |> ImArray.head
                 let indexExprs = 
                     argExprs 
                     |> ROMem.ofImArray 
                     |> ROMem.skip 1
-                Some(func, receiverExpr, indexExprs, resultTy)
+                Some(func, baseExpr, indexExprs, resultTy)
+            | _ ->
+                None
+        | _ ->
+            None
+
+    let inline (|PtrAccessChain|_|)(op: O) =
+        match op with
+        | O.Call(irFunc, argExprs, resultTy) ->
+            match irFunc.EmittedFunction with
+            | SpirvFunction.PtrAccessChain as func ->
+                OlyAssert.True(argExprs.Length >= 3)
+                let baseExpr = 
+                    argExprs
+                    |> ImArray.head
+                let elementExpr = 
+                    argExprs[1]
+                let indexExprs = 
+                    argExprs 
+                    |> ROMem.ofImArray 
+                    |> ROMem.skip 2
+                Some(func, baseExpr, elementExpr, indexExprs, resultTy)
             | _ ->
                 None
         | _ ->
@@ -808,20 +830,13 @@ module BuiltInExpressions =
     let IndexConstantFromField (builder: SpirvModuleBuilder) (field: SpirvField) =
         E.Value(OlyIRDebugSourceTextRange.Empty, V.Constant(C.Int32(field.Index), builder.GetTypeInt32()))
 
-    let inline (|AccessChain|_|)(expr: E) =
-        match expr with
-        | E.Operation(op=BuiltInOperations.AccessChain(func, receiverExpr, indexExprs, resultTy)) ->
-            Some(func, receiverExpr, indexExprs, resultTy)
-        | _ ->
-            None
-
-    let AccessChain(receiverExpr: E, indexExprs: E imarray, resultTy: SpirvType) =
+    let AccessChain(baseExpr: E, indexExprs: E imarray, resultTy: SpirvType) =
         match resultTy with
         | SpirvType.Pointer _ -> ()
         | _ -> raise(InvalidOperationException("Expected a pointer type."))
 
 #if DEBUG || CHECKED
-        match receiverExpr.ResultType with
+        match baseExpr.ResultType with
         | SpirvType.Pointer _ -> ()
         | _ -> raise(InvalidOperationException("Expected a pointer type."))   
 #endif
@@ -829,7 +844,30 @@ module BuiltInExpressions =
         E.Operation(OlyIRDebugSourceTextRange.Empty,
             O.Call(
                 OlyIRFunction(SpirvFunction.AccessChain), 
-                ImArray.prependOne receiverExpr indexExprs, 
+                ImArray.prependOne baseExpr indexExprs, 
+                resultTy
+            )
+        )
+
+    let PtrAccessChain(baseExpr: E, elementExpr: E, indexExprs: E imarray, resultTy: SpirvType) =
+        match resultTy with
+        | SpirvType.Pointer _ -> ()
+        | _ -> raise(InvalidOperationException("Expected a pointer type."))
+
+#if DEBUG || CHECKED
+        match baseExpr.ResultType with
+        | SpirvType.Pointer _ -> ()
+        | _ -> raise(InvalidOperationException("Expected a pointer type."))
+
+        match elementExpr.ResultType with
+        | SpirvType.Int32 _ -> ()
+        | _ -> raise(InvalidOperationException("Expected an int32 type."))
+#endif
+
+        E.Operation(OlyIRDebugSourceTextRange.Empty,
+            O.Call(
+                OlyIRFunction(SpirvFunction.PtrAccessChain), 
+                ImArray.prependTwo baseExpr elementExpr indexExprs, 
                 resultTy
             )
         )
@@ -865,6 +903,11 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let vertexHeaderInstrs =
         [
             OpCapability(Capability.Shader)
+            if (majorVersion >= 1u && minorVersion >= 3u) then
+                OpCapability(Capability.Addresses)
+                OpCapability(Capability.VariablePointers)
+                OpCapability(Capability.VariablePointersStorageBuffer)
+                OpCapability(Capability.PhysicalStorageBufferAddresses)
             OpExtInstImport(1u, "GLSL.std.450")
             OpMemoryModel(AddressingModel.Logical, MemoryModel.GLSL450)
         ]
