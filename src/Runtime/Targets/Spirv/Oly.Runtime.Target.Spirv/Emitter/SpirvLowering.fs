@@ -352,7 +352,7 @@ module rec SpirvLowering =
                     let indexExprs = List(indexExprs)
                     indexExprs.Insert(0, BuiltInExpressions.IndexConstantFromField cenv.Module (structBuilder.GetRuntimeArrayField()))
                     let accessChainExpr =
-                        BuiltInExpressions.PtrAccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType))
+                        BuiltInExpressions.AccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType))
                     E.Operation(textRange, 
                         O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
                     )
