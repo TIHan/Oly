@@ -146,7 +146,6 @@ let ``Blank vertex shader`` () =
 
 //void main()
 //{
-//    fsin_color = vec4(0)
 //}
     let src =
         """
@@ -156,7 +155,7 @@ outColor: vec4
     set
 
 main(): () =
-    outColor <- vec4(0)
+    ()
         """
     OlyVertex src // should show white
 

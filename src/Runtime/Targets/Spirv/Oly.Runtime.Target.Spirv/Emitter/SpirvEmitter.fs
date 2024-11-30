@@ -126,7 +126,6 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
             if tyPars.Length > 0 then raise(NotSupportedException())
             if overrides.IsSome then raise(NotSupportedException())
-            if attrs.IsEmpty |> not then raise(NotSupportedException())
 
             match externalInfoOpt with
             | Some(info) ->
