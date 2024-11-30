@@ -132,16 +132,35 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 match info.Platform with
                 | "spirv-var" when info.Path.IsEmpty ->
                     if flags.IsStatic then
+                        let isLazy =
+                            attrs
+                            |> ImArray.exists (fun irAttr ->
+                                match irAttr with
+                                | OlyIRAttribute(ctor=ctor) ->
+                                    match ctor.TryGetBuiltIn() with
+                                    | ValueSome builtInFunc ->
+                                        builtInFunc.Name = "position"
+                                    | _ ->
+                                        false
+                            )
                         if pars.IsEmpty then
                             if returnTy = builder.GetTypeVoid() then
                                 raise(InvalidOperationException())
-                            let ty = builder.GetTypePointer(StorageClass.Input, returnTy)
-                            let var = builder.CreateVariable((* global *) true, attrs, ty)
-                            SpirvFunction.Variable var
+                            let createVar() =
+                                let ty = builder.GetTypePointer(StorageClass.Input, returnTy)
+                                builder.CreateVariable((* global *) true, attrs, ty)
+                            if isLazy then
+                                SpirvFunction.LazyVariable (lazy createVar())
+                            else
+                                SpirvFunction.Variable (createVar())
                         elif pars.Length = 1 && returnTy = builder.GetTypeVoid() then
-                            let ty = builder.GetTypePointer(StorageClass.Output, pars[0].Type)
-                            let var = builder.CreateVariable((* global *) true, attrs, ty)
-                            SpirvFunction.Variable var
+                            let createVar() =
+                                let ty = builder.GetTypePointer(StorageClass.Output, pars[0].Type)
+                                builder.CreateVariable((* global *) true, attrs, ty)
+                            if isLazy then
+                                SpirvFunction.LazyVariable (lazy createVar())
+                            else
+                                SpirvFunction.Variable (createVar())
                         else
                             raise(InvalidOperationException())                           
                     else

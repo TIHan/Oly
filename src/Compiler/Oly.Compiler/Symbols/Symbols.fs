@@ -216,6 +216,12 @@ type EntityFlags =
     /// Not relevant across compilations, only within current compilation.
     | Imported          = 0x00100000000L
 
+    /// Entity is marked with an 'intrinsic("importer")' attribute.
+    /// This indicates that when you use this entity as an attribute,
+    ///     the construct that has the attribute is marked as imported.
+    ///     Imported values are default with no platform or path.
+    | AttributeImporter = 0x01000000000L
+
     | Invalid           = 0x10000000000L
 
 /// These flags are not persisted in IL metadata.
@@ -1911,7 +1917,7 @@ type EnclosingSymbol =
         | Some ty -> ty
         | _ -> failwith "Enclosing is not a type."
 
-    member this.AsEntity =
+    member this.AsEntity : EntitySymbol =
         match this.TryEntity with
         | Some ent -> ent
         | _ -> failwith "Enclosing is not an entity."
@@ -2186,7 +2192,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         else
             valueFlags
 
-    let valueFlags =
+    let mutable valueFlags =
         if attributesContainExport attrs then
             valueFlags ||| ValueFlags.Exported
         else
@@ -2231,7 +2237,15 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         overrides <- Some overridesToSet
 
     /// Mutability - is this the only good way to handle this?
-    member this.SetAttributes_Pass3_NonConcurrent(newAttrs: AttributeSymbol imarray) = 
+    member this.SetAttributes_Pass3_NonConcurrent(newAttrs: AttributeSymbol imarray) =
+        newAttrs
+        |> ImArray.iter (fun attr ->
+            match attr with
+            | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
+                valueFlags <- valueFlags ||| ValueFlags.Imported
+            | _ ->
+                ()
+        )
         attrs <- newAttrs
 
     /// Mutability
@@ -5121,6 +5135,9 @@ module SymbolExtensions =
     module EntitySymbolExtensions =
     
         type EntitySymbol with
+
+            member this.IsAttributeImporter =
+                this.Flags.HasFlag(EntityFlags.AttributeImporter)
 
             member this.IsImported =
                 this.Flags.HasFlag(EntityFlags.Imported)

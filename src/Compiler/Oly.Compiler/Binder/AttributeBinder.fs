@@ -344,7 +344,8 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
         match attr with
         | AttributeSymbol.Intrinsic(intrinsicName) ->
             let error () =
-                cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttr)
+                if intrinsicName <> "importer" then
+                    cenv.diagnostics.Error("Invalid intrinsic for this construct.", 10, syntaxAttr)
 
             if kind <> EntityKind.Alias then
                 if not (attributesContainImport attrs) then

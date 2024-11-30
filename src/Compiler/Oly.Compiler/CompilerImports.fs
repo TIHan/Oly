@@ -846,6 +846,12 @@ let private importEntityFlags (ilEntFlags: OlyILEntityFlags) =
         else
             flags
 
+    let flags =
+        if ilEntFlags.HasFlag(OlyILEntityFlags.AttributeImporter) then
+            flags ||| EntityFlags.AttributeImporter
+        else
+            flags
+
     flags
 
 let private importFunctionTypeInfo (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilArgTys: OlyILType imarray) (ilReturnTy: OlyILType) =

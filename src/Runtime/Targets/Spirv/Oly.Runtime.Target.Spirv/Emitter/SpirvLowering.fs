@@ -220,6 +220,33 @@ module rec SpirvLowering =
                 | _ ->
                     raise(NotImplementedException(op.ToString()))
             )
+
+        let handleCallVariable (var: SpirvVariable) irFunc argExprs resultTy =
+#if DEBUG || CHECKED
+            match var.Type with
+            | SpirvType.Pointer(elementTy=elementTy) ->
+                if not(resultTy = cenv.Module.GetTypeVoid()) then
+                    OlyAssert.True(elementTy = resultTy || var.Type = resultTy)
+            | _ ->
+                raise(InvalidOperationException("Expected a pointer type."))
+#endif
+            O.Call(irFunc, argExprs, var.Type)
+
+        let newOp =
+            match newOp with
+            | O.Call(irFunc, argExprs, resultTy) ->
+                match irFunc.EmittedFunction with
+                | SpirvFunction.Variable var ->
+                    let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
+                    handleCallVariable var irFunc argExprs resultTy
+                | SpirvFunction.LazyVariable lazyVar ->
+                    let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
+                    handleCallVariable lazyVar.Value irFunc argExprs resultTy
+                | _ ->
+                    newOp
+            | _ ->
+                newOp
+
         match newOp with
         | O.LoadFromAddress(bodyExpr, _) ->
             bodyExpr
@@ -363,7 +390,6 @@ module rec SpirvLowering =
 
                 | _ ->
                     raise(InvalidOperationException())
-
             | _ ->
                 expr
         | _ ->

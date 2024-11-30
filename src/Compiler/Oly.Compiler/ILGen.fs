@@ -927,7 +927,11 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Unmanaged _ ->
         None
     | AttributeSymbol.Import(platform, path, name) ->
-        let platform = GenString cenv platform
+        let platform = 
+            if String.IsNullOrEmpty platform then
+                OlyILTableIndex(OlyILTableKind.String, -1)
+            else
+                GenString cenv platform
         let path = 
             if path.Length = 1 && String.IsNullOrWhiteSpace path[0] then
                 ImArray.empty
@@ -936,8 +940,13 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
         let name = GenString cenv name
         OlyILAttribute.Import(platform, path, name) |> Some
     | AttributeSymbol.Intrinsic(name) ->
-        let name = GenString cenv name
-        OlyILAttribute.Intrinsic(name) |> Some
+        if name = "importer" then
+            // The "importer" intrinsic is specific to the front-end compiler.
+            // Therefore, we should not include this in the IL.
+            None
+        else
+            let name = GenString cenv name
+            OlyILAttribute.Intrinsic(name) |> Some
     | AttributeSymbol.Export ->
         OlyILAttribute.Export |> Some
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _flags) ->
@@ -1040,6 +1049,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEntFlags = if ent.IsAutoOpenable then ilEntFlags ||| OlyILEntityFlags.AutoOpen else ilEntFlags
     let ilEntFlags = if ent.IsSealed then ilEntFlags ||| OlyILEntityFlags.Final else ilEntFlags
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
+    let ilEntFlags = if ent.IsAttributeImporter then ilEntFlags ||| OlyILEntityFlags.AttributeImporter else ilEntFlags
     let ilEntFlags = 
         if ent.IsPrivate then
             if ent.Enclosing.IsNamespace then

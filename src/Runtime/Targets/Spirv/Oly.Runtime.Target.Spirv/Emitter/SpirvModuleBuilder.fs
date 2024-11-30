@@ -330,6 +330,7 @@ type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of BuiltInFunction
     | Variable of SpirvVariable
+    | LazyVariable of Lazy<SpirvVariable>
     | AccessChain
     | PtrAccessChain
 

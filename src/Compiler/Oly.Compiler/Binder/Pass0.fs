@@ -24,6 +24,8 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
             flags ||| EntityFlags.Exported
         | AttributeSymbol.Import _ ->
             flags ||| EntityFlags.Imported
+        | AttributeSymbol.Intrinsic("importer") ->
+            flags ||| EntityFlags.AttributeImporter
         | _ ->
             flags
     )

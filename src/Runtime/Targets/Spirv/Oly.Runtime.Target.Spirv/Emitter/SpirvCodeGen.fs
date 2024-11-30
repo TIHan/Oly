@@ -282,17 +282,37 @@ module rec SpirvCodeGen =
             | O.Call(func=irFunc) ->
                 let func = irFunc.EmittedFunction
 
-                match func with
-                | SpirvFunction.Variable var ->
+                let handleVariable (var: SpirvVariable) =
+#if DEBUG || CHECKED
+                    match var.Type with
+                    | SpirvType.Pointer _ ->
+                        ()
+                    | _ ->
+                        raise(InvalidOperationException("Expected a pointer type."))
+#endif
                     if idRefs.Length = 0 then
                         // Get
                         var.IdResult
                     else
                         // Set
                         OlyAssert.Equal(1, idRefs.Length)
+#if DEBUG || CHECKED
+                        match var.Type with
+                        | SpirvType.Pointer(elementTy=elementTy) ->
+                            OlyAssert.Equal(elementTy, op.GetArgument(0).ResultType)
+                        | _ ->
+                            raise(InvalidOperationException("Expected a pointer type."))
+#endif
                         OpStore(var.IdResult, idRefs |> Array.head, None)
                         |> emitInstruction cenv
                         IdRef0
+
+                match func with
+                | SpirvFunction.Variable var ->
+                    handleVariable var
+
+                | SpirvFunction.LazyVariable lazyVar ->
+                    handleVariable lazyVar.Value
 
                 | SpirvFunction.AccessChain
                 | SpirvFunction.PtrAccessChain ->

@@ -272,6 +272,9 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                         else
                             error()
 
+                    | "importer" ->
+                        None // This is handled elsewhere
+
                     | _ ->
                         match WellKnownFunction.TryFromName intrinsicName with
                         | Some(wkf) ->
@@ -574,17 +577,38 @@ let bindLetBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSym
         invalidLocalBinding syntaxBindingDecl.Identifier.ValueText
 
 let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs =
-    match enclosing with
-    | EnclosingSymbol.Entity(ent) ->
-        match ent.TryImportedInfo with
-        | Some(platform, path, name) ->
-            if attributesContainImport attrs then attrs
-            else
-                attrs.Add(AttributeSymbol.Import(platform, path.Add(name), importName))
+    let mutable hasImport = false
+    let newAttrs =
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) ->
+            match ent.TryImportedInfo with
+            | Some(platform, path, name) ->
+                hasImport <- true
+                if attributesContainImport attrs then attrs
+                else
+                    attrs.Add(AttributeSymbol.Import(platform, path.Add(name), importName))
+            | _ ->
+                attrs
         | _ ->
             attrs
-    | _ ->
-        attrs
+
+    // An explicit 'import' will always take precedence over an attribute importer.
+    if hasImport then
+        newAttrs
+    else
+        let mutable hasImporter = false
+        newAttrs
+        |> ImArray.iter (fun attr ->
+            match attr with
+            | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
+                hasImporter <- true
+            | _ ->
+                ()
+        )
+        if hasImporter then
+            newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
+        else
+            newAttrs
 
 let addExportAttributeIfNecessary (cenv: cenv) syntaxNode (enclosing: EnclosingSymbol) attrs =
     match enclosing with
@@ -877,8 +901,6 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
                     projection syntaxAttrs syntaxBindingDecl binding
                 | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
                 | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
-                    projection syntaxAttrs syntaxBindingDecl binding
-
                     match (fst binding) with
                     | BindingInfoSymbol.BindingProperty(innerBindings, _) ->
                         syntaxPropBindingList.ChildrenOfType
@@ -895,6 +917,7 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
                         )
                     | _ ->
                         failwith "Expected a property binding."  
+                    projection syntaxAttrs syntaxBindingDecl binding
 
                 | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
                     // TODO: What about the guard?

@@ -368,11 +368,8 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
-        | BindingProperty _ ->
-            match syntax with
-            // TODO:
-            | _ ->
-                ()
+        | BindingProperty(binding, prop) ->
+            ()
         | BindingFunction(func)
         | BindingPattern(_, func) ->
             match syntax with

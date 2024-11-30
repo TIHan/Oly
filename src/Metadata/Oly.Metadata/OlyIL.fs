@@ -84,19 +84,21 @@ type OlyILEntityKind =
 
 [<Flags>]
 type OlyILEntityFlags =
-    | None         = 0x00000000
-                   
-    | Public       = 0x00000000
-    | Internal     = 0x00000001
-    | Private      = 0x00000002
-    | AccessorMask = 0x00000007
-                   
-    | Abstract     = 0x00000100
-    | Final        = 0x00001000
-    | AutoOpen     = 0x00010000
-    | Nullable     = 0x00100000
+    | None              = 0x00000000
+                        
+    | Public            = 0x00000000
+    | Internal          = 0x00000001
+    | Private           = 0x00000002
+    | AccessorMask      = 0x00000007
+                        
+    | Abstract          = 0x00000100
+    | Final             = 0x00001000
+    | AutoOpen          = 0x00010000
+    | Nullable          = 0x00100000
+                        
+    | Scoped            = 0x01000000
 
-    | Scoped       = 0x01000000
+    | AttributeImporter = 0x10000000
 
 [<Flags>]
 type OlyILMemberFlags =

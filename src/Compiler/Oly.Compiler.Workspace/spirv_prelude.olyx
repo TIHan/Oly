@@ -62,33 +62,43 @@ struct vec4 =
 // Attributes
 
 #[import("spirv", "__oly_spirv_", "position")]
+#[intrinsic("importer")]
 struct positionAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "point_size")]
+#[intrinsic("importer")]
 struct point_sizeAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "block")]
+#[intrinsic("importer")]
 struct blockAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "location")]
+#[intrinsic("importer")]
 struct locationAttribute = new(number: uint32)
 
 #[import("spirv", "__oly_spirv_", "global_invocation_id")]
+#[intrinsic("importer")]
 struct global_invocation_idAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "uniform")]
+#[intrinsic("importer")]
 struct uniformAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "descriptor_set")]
+#[intrinsic("importer")]
 struct descriptor_setAttribute = new(uint32)
 
 #[import("spirv", "__oly_spirv_", "binding")]
+#[intrinsic("importer")]
 struct bindingAttribute = new(uint32)
 
 #[import("spirv", "__oly_spirv_", "buffer_block")]
+#[intrinsic("importer")]
 struct buffer_blockAttribute = new()
 
 #[import("spirv", "__oly_spirv_", "storage_buffer")]
+#[intrinsic("importer")]
 struct storage_bufferAttribute = new()
 
 // Operations
@@ -122,3 +132,11 @@ uint32(int32): uint32
 
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
+
+// BuiltIn
+
+module BuiltIn =
+
+    Position: vec4
+        #[position]
+        set
