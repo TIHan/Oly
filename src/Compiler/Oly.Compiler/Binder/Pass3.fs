@@ -417,7 +417,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
-        | BindingProperty(bindings, _) ->
+        | BindingProperty _ ->
             match syntax with
             // TODO:
             | _ ->
@@ -457,9 +457,10 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | _ ->
                 ()
 
-    let syntaxMemberDecls = syntaxTyDeclBody.GetMemberDeclarations()
-    (syntaxMemberDecls, entBuilder.Bindings)
-    ||> ImArray.iter2 processMember
+    (syntaxTyDeclBody, entBuilder.Bindings)
+    |> ForEachBinding (fun syntaxAttrs syntaxBindingDecl binding ->
+        processMember (syntaxAttrs, syntaxBindingDecl) binding
+    )
 
     env
 

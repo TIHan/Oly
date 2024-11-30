@@ -92,13 +92,17 @@ let bindNamespaceOrModuleDefinitionPass3 (cenv: cenv) (env: BinderEnvironment) (
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     bindTypeDeclarationBodyPass3 cenv env nestedEntBuilders entBuilder true syntaxTyDefBody
 
-let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entBuilder: EntitySymbolBuilder) (syntaxTyDefBody: OlySyntaxTypeDeclarationBody) =
+let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entBuilder: EntitySymbolBuilder) (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     let bindingInfos =
-        (syntaxTyDefBody.GetMemberDeclarations(), entBuilder.Bindings)
-        ||> ImArray.map2 (fun (_, syntaxBinding) (binding, _) -> KeyValuePair(syntaxBinding, binding))
-        |> ImmutableDictionary.CreateRange
-    let expr = bindTypeDeclarationBodyPass4 cenv env entBuilder nestedEntBuilders bindingInfos true syntaxTyDefBody
+        let bindingInfosBuilder = ImmutableDictionary.CreateBuilder()
+        (syntaxTyDeclBody, entBuilder.Bindings)
+        |> ForEachBinding (
+            fun _syntaxAttrs syntaxBinding (binding, _) ->
+                bindingInfosBuilder.Add(syntaxBinding, binding)
+        )
+        bindingInfosBuilder.ToImmutable()
+    let expr = bindTypeDeclarationBodyPass4 cenv env entBuilder nestedEntBuilders bindingInfos true syntaxTyDeclBody
     if entBuilder.Entity.IsNamespace then
         env, BoundRoot.Namespace(syntaxToCapture, env.benv, entBuilder.Entity, expr)
     else

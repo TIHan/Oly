@@ -54,10 +54,13 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
     OlyAssert.True(ent.IsFormal)
 
     let bindingInfos =
-        let syntaxMemberDecls = syntaxTyDeclBody.GetMemberDeclarations()
-        (syntaxMemberDecls, entBuilder.Bindings)
-        ||> ImArray.map2 (fun (_, syntaxBindingDecl) (binding, _) -> KeyValuePair(syntaxBindingDecl, binding))
-        |> ImmutableDictionary.CreateRange
+        let bindingInfosBuilder = ImmutableDictionary.CreateBuilder()
+        (syntaxTyDeclBody, entBuilder.Bindings)
+        |> ForEachBinding (
+            fun _syntaxAttrs syntaxBinding (binding, _) ->
+                bindingInfosBuilder.Add(syntaxBinding, binding)
+        )
+        bindingInfosBuilder.ToImmutable()
 
     let boundExpr = bindTypeDeclarationBodyPass4 cenv env entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
 

@@ -17,6 +17,7 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.BoundTreePatterns
+open System.Diagnostics
 
 [<Sealed>]
 type PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness) =
@@ -859,3 +860,49 @@ let bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syntaxAcces
     | _ ->
         // Default is public.
         EntityFlags.Public
+
+type private FakeUnit = FakeUnit
+
+let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, bindings: (BindingInfoSymbol * bool) imarray) =
+    let mutable bindingIndex = 0
+    let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
+        match expr with
+        | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+            let binding = bindings[bindingIndex]
+            bindingIndex <- bindingIndex + 1
+            let rec addBinding syntaxAttrs syntaxBinding =
+                match syntaxBinding with
+                | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
+                | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
+                    projection syntaxAttrs syntaxBindingDecl binding
+                    //syntaxPropBindingList.ChildrenOfType
+                    //|> ImArray.iter (fun syntaxPropBinding ->
+                    //    match syntaxPropBinding with
+                    //    | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                    //        addBinding syntaxAttrs syntaxBinding
+                    //    | _ ->
+                    //        raise(UnreachableException())
+                    //)
+                | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | _ ->
+                    ()
+            addBinding syntaxAttrs syntaxBinding
+            cont(FakeUnit)
+        | OlySyntaxExpression.Sequential(expr1, expr2) ->
+            f expr1 (fun FakeUnit ->
+                f expr2 cont
+            )
+        | _ ->
+            cont(FakeUnit)
+
+    syntaxTyDeclBody.Children
+    |> ImArray.iter (function
+        | :? OlySyntaxExpression as expr ->
+            f expr id |> ignore
+        | _ ->
+            ()
+    )

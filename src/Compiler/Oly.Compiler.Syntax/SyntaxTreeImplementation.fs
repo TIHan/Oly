@@ -1248,40 +1248,6 @@ module OlySyntaxTreeExtensions =
 
             builder.ToImmutable()
 
-        member this.GetMemberDeclarations() =
-            let builder = ImArray.builder()
-            let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
-                match expr with
-                | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
-                    let rec addBinding syntaxBinding =
-                        match syntaxBinding with
-                        | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
-                        | OlySyntaxBinding.Signature(syntaxBindingDecl)
-                        | OlySyntaxBinding.Property(syntaxBindingDecl, _)
-                        | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
-                        | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
-                            builder.Add(syntaxAttrs, syntaxBindingDecl)
-                        | _ ->
-                            ()
-                    addBinding syntaxBinding
-                    cont(FakeUnit)
-                | OlySyntaxExpression.Sequential(expr1, expr2) ->
-                    f expr1 (fun FakeUnit ->
-                        f expr2 cont
-                    )
-                | _ ->
-                    cont(FakeUnit)
-
-            this.Children
-            |> ImArray.iter (function
-                | :? OlySyntaxExpression as expr ->
-                    f expr id |> ignore
-                | _ ->
-                    ()
-            )
-
-            builder.ToImmutable()
-
     type OlySyntaxTypeDeclarationName with
 
         member this.Identifier =
