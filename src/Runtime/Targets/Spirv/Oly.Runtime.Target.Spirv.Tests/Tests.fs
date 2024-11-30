@@ -599,17 +599,33 @@ let ``Basic compute shader`` () =
 //}
     let src =
         """
-main(
-        #[uniform]
-        #[descriptor_set(0)]
-        #[binding(0)]
-        buffer: mutable float32[],
+buffer: mutable float32[]
+    #[uniform]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    #[import("spirv-var", "", "get_buffer")]
+    get
 
-        #[global_invocation_id] 
-        giid: inref<uvec3>
-    ): () =
+giid: uvec3
+    #[global_invocation_id]
+    #[import("spirv-var", "", "get_giid")]
+    get
+
+main(): () =
     let index = giid.X
     buffer[int32(index)] <- 123
+
+//main(
+//        #[uniform]
+//        #[descriptor_set(0)]
+//        #[binding(0)]
+//        buffer: mutable float32[],
+
+//        #[global_invocation_id] 
+//        giid: inref<uvec3>
+//    ): () =
+//    let index = giid.X
+//    buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 

@@ -154,6 +154,17 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
                 false
         )
 
+    let isAutoProp =
+        // If either getter or setter is imported, then do not create a backing field.
+        if getOrSet1.Value.IsImported then
+            false
+        else
+            match getOrSetOpt2 with
+            | Some getOrSet2 when getOrSet2.Value.IsImported ->
+                true
+            | _ ->
+                isAutoProp
+
     let hasAutoPropSet =
         if isAutoProp then
             syntaxPropBindings

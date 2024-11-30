@@ -482,6 +482,8 @@ type SpirvFunctionBuilder(
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of BuiltInFunction
+    | InputVariable of IdRef * ty: SpirvType
+    | OutputVariable of IdRef * ty: SpirvType
     | AccessChain
     | PtrAccessChain
 

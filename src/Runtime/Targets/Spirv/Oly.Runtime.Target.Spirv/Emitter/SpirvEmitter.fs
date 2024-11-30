@@ -143,10 +143,27 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
 
             match externalInfoOpt with
             | Some(info) ->
-                if info.Platform <> "spirv" then raise(InvalidOperationException())
-                match BuiltInFunctions.TryGetBuiltInFunction(info.Path, pars |> ImArray.map (fun x -> x.Type), returnTy, flags) with
-                | Some func -> func
-                | _ -> raise(InvalidOperationException())
+                match info.Platform with
+                | "spirv-var" when info.Path.IsEmpty ->
+                    raise(NotImplementedException())
+                    if flags.IsStatic then
+                        if pars.IsEmpty then
+                            if returnTy = builder.GetTypeVoid() then
+                                raise(InvalidOperationException())
+                            let ty = builder.GetTypePointer(StorageClass.Input, returnTy)
+                            SpirvFunction.InputVariable(builder.NewIdResult(), ty)
+                        elif pars.Length = 1 && returnTy = builder.GetTypeVoid() then
+                            let ty = builder.GetTypePointer(StorageClass.Input, pars[0].Type)
+                            SpirvFunction.OutputVariable(builder.NewIdResult(), ty)
+                        else
+                            raise(InvalidOperationException())                           
+                    else
+                        raise(InvalidOperationException())
+                | _ ->
+                    if info.Platform <> "spirv" then raise(InvalidOperationException())
+                    match BuiltInFunctions.TryGetBuiltInFunction(info.Path, pars |> ImArray.map (fun x -> x.Type), returnTy, flags) with
+                    | Some func -> func
+                    | _ -> raise(InvalidOperationException())
             | _ ->
                 let funcBuilder = builder.CreateFunctionBuilder(enclosingTy, name, flags, pars, returnTy)
                 funcBuilder.AsFunction
