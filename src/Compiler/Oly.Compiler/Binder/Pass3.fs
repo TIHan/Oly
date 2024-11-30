@@ -369,7 +369,28 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | _ ->
                 ()
         | BindingProperty(binding, prop) ->
-            ()
+            if prop.IsAutoProperty then
+                let isImported =
+                    match prop.Getter with
+                    | Some getter -> getter.IsImported
+                    | _ -> false
+                let isImported =
+                    if isImported then
+                        true
+                    else
+                        match prop.Setter with
+                        | Some setter -> setter.IsImported
+                        | _ -> false
+                if isImported then
+                    // REVIEW: This is sort of a hack.
+                    //         We have to do this because "AttributeImporter" attributes
+                    //         are not resolved until Pass3 and property creation with the backing field
+                    //         occurs in Pass2.
+                    //         A way to possibly get rid of this hack, is by creating the backing field in Pass3
+                    //         instead of Pass2.
+                    let backingField = prop.BackingField.Value
+                    entBuilder.RemoveField(cenv.pass, backingField)
+                    prop.RemoveBackingField_Pass3_NonConcurrent()
         | BindingFunction(func)
         | BindingPattern(_, func) ->
             match syntax with

@@ -112,6 +112,16 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
+    member this.RemoveField(pass: CompilerPass, field: IFieldSymbol) =
+        match pass with
+        | Pass3 ->
+            let count = fieldsHole.contents.Length
+            fieldsHole.contents <- fieldsHole.contents.Remove(field)
+            if count - 1 <> fieldsHole.contents.Length then
+                failwith "Unable to remove field."
+        | _ ->
+            failwith "Invalid pass."
+
     member _.SetProperties(pass: CompilerPass, props) = 
         match pass with
         | Pass2 ->

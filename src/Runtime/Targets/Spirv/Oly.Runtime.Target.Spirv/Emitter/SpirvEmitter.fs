@@ -130,7 +130,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             match externalInfoOpt with
             | Some(info) ->
                 match info.Platform with
-                | "spirv-var" when info.Path.IsEmpty ->
+                | "" when info.Path.IsEmpty ->
                     if flags.IsStatic then
                         let isLazy =
                             attrs

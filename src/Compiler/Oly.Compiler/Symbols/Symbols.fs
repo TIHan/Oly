@@ -2589,11 +2589,16 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         if valueFlags &&& ValueFlags.Mutable = ValueFlags.Mutable then
             failwith "Properties cannot be marked 'mutable'"
 
+    let mutable backingFieldOpt = None
+
     member _.Id = id
     member _.Type = propTy
     member _.Getter = getterOpt
     member _.Setter = setterOpt
     member _.BackingField = backingFieldOpt
+
+    member _.RemoveBackingField_Pass3_NonConcurrent() =
+        backingFieldOpt <- None
 
     interface IPropertySymbol with
         member this.Attributes: imarray<AttributeSymbol> = attrs

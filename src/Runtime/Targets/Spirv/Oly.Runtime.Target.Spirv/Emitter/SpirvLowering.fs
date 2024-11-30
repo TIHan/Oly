@@ -378,16 +378,6 @@ module rec SpirvLowering =
                         O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
                     )
 
-                | SpirvType.Pointer(_, _, (SpirvType.Pointer(_, storageClass, SpirvType.Struct(structBuilder)) as pointerOfStructRuntimeArrayTy)) when structBuilder.IsRuntimeArray ->
-                    let receiverExpr = E.Operation(EmptyTextRange, O.LoadFromAddress(receiverExpr, pointerOfStructRuntimeArrayTy))
-                    let indexExprs = List(indexExprs)
-                    indexExprs.Insert(0, BuiltInExpressions.IndexConstantFromField cenv.Module (structBuilder.GetRuntimeArrayField()))
-                    let accessChainExpr =
-                        BuiltInExpressions.AccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, rhsExpr.ResultType))
-                    E.Operation(textRange, 
-                        O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
-                    )
-
                 | _ ->
                     raise(InvalidOperationException())
             | _ ->
