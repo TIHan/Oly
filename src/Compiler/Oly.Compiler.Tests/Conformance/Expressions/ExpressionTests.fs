@@ -5818,10 +5818,10 @@ class Test =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("The property 'static X: __oly_int64 get' cannot find a 'get' to override.",
+            ("The function 'static get_X(): __oly_int64' cannot find a function to override.",
                 """
     static X: __oly_int64 overrides get = 1
-           ^
+                                    ^^^
 """
             )
         ]
@@ -5843,10 +5843,10 @@ class Test =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("The property 'static X: __oly_int64 get' cannot find a 'get' to override.",
+            ("The function 'static get_X(): __oly_int64' cannot find a function to override.",
                 """
     static X: __oly_int64 overrides get = 1
-           ^
+                                    ^^^
 """
             )
             ("The function 'static get_X(): __oly_int32' is not implemented for 'ITest' on 'Test'.",

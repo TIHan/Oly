@@ -331,56 +331,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     if doesFuncAlreadyExist func then
                         duplicateError func syntax.Identifier
 
-        if binding.Value.IsProperty then           
-            if not ent.IsInterface then
-                match binding.Value with
-                | :? IPropertySymbol as prop ->
-
-                    let mustCheckExistsGetter =
-                        match prop.Getter with
-                        | Some getter ->
-                            let getter = getter :?> FunctionSymbol
-                            if tryOverride getter then
-                                if not getter.IsExplicitOverrides then
-                                    checkFunc getter
-                                else
-                                    checkFuncFromNewtype getter
-                                false
-                            else
-                                if getter.IsExplicitOverrides then
-                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'get' to override.", 10, syntax.Identifier)
-                                    false
-                                else
-                                    true
-                        | _ ->
-                            false
-
-                    let mustCheckExistsSetter =
-                        match prop.Setter with
-                        | Some setter ->
-                            let setter = setter :?> FunctionSymbol
-                            if tryOverride setter then
-                                if not setter.IsExplicitOverrides then
-                                    checkFunc setter
-                                else
-                                    checkFuncFromNewtype setter
-                                false
-                            else
-                                if setter.IsExplicitOverrides then
-                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'set' to override.", 10, syntax.Identifier)
-                                    false
-                                else
-                                    prop.Getter.IsNone
-                        | _ ->
-                            false
-
-                    if mustCheckExistsGetter || mustCheckExistsSetter then
-                        if fieldOrPropSet.Add(binding.Value.Name) |> not then
-                            duplicateError binding.Value syntax.Identifier
-                | _ ->
-                    ()
-
-        elif binding.Value.IsField then
+        if binding.Value.IsField then
             if fieldOrPropSet.Add(binding.Value.Name) then
                 if not ent.IsNewtype && not isImpl && ((binding.Value.IsInstance && hasImplicitInstanceDefaultCtor) || (not binding.Value.IsInstance && hasImplicitStaticDefaultCtor)) then
                     cenv.diagnostics.Error($"The field '{binding.Value.Name}' must be given a default value.", 10, syntax.Identifier)

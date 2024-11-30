@@ -870,7 +870,7 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
         | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
             let binding = bindings[bindingIndex]
             bindingIndex <- bindingIndex + 1
-            let rec addBinding syntaxAttrs syntaxBinding =
+            let rec addBinding syntaxAttrs syntaxBinding binding =
                 match syntaxBinding with
                 | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
                 | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
@@ -878,19 +878,30 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
                 | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
                 | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
                     projection syntaxAttrs syntaxBindingDecl binding
-                    //syntaxPropBindingList.ChildrenOfType
-                    //|> ImArray.iter (fun syntaxPropBinding ->
-                    //    match syntaxPropBinding with
-                    //    | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, syntaxBinding) ->
-                    //        addBinding syntaxAttrs syntaxBinding
-                    //    | _ ->
-                    //        raise(UnreachableException())
-                    //)
+
+                    match (fst binding) with
+                    | BindingInfoSymbol.BindingProperty(innerBindings, _) ->
+                        syntaxPropBindingList.ChildrenOfType
+                        |> ImArray.iteri (fun i syntaxPropBinding ->
+                            match syntaxPropBinding with
+                            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                                let isImpl =
+                                    match syntaxBinding with
+                                    | OlySyntaxBinding.Signature _ -> false
+                                    | _ -> true
+                                projection syntaxAttrs syntaxBinding.Declaration (innerBindings[i],isImpl)
+                            | _ ->
+                                raise(UnreachableException())
+                        )
+                    | _ ->
+                        failwith "Expected a property binding."  
+
                 | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                    // TODO: What about the guard?
                     projection syntaxAttrs syntaxBindingDecl binding
                 | _ ->
                     ()
-            addBinding syntaxAttrs syntaxBinding
+            addBinding syntaxAttrs syntaxBinding binding
             cont(FakeUnit)
         | OlySyntaxExpression.Sequential(expr1, expr2) ->
             f expr1 (fun FakeUnit ->
