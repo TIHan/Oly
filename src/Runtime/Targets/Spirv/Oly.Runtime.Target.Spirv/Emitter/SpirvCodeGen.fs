@@ -94,7 +94,7 @@ module rec SpirvCodeGen =
 
     let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
-        | O.New(func, argExprs, _) ->
+        | O.New(func, argExprs, resultTy) ->
             match func.EmittedFunction with
             | SpirvFunction.BuiltIn(builtInFunc) ->
 #if DEBUG || CHECKED
@@ -114,13 +114,10 @@ module rec SpirvCodeGen =
                     let args =
                         let env = env.NotReturnable
                         argExprs
-                        |> ImArray.map (function
-                            | E.Value(value=V.Constant(cns, _)) ->
-                                Choice2Of2(cns)
-                            | argExpr ->
-                                Choice1Of2(argExpr.ResultType, GenExpression cenv env argExpr)
+                        |> ImArray.map (fun argExpr ->
+                            argExpr.ResultType, GenExpression cenv env argExpr
                         )
-                    let idRef, instrs = create cenv.Module args
+                    let idRef, instrs = create cenv.Module args resultTy
                     emitInstructions cenv instrs
                     idRef
                 | _ ->

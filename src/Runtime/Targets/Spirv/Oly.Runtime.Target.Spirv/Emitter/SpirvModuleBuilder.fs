@@ -516,9 +516,12 @@ type BuiltInFunctionParameterType =
     | Vec2
     | Vec3
     | Vec4
+    | Any
 
     member this.IsValid(ty: SpirvType) =
         match this, ty with
+        | Any, SpirvType.Void _ -> false
+        | Any, _
         | Void, SpirvType.Void _
         | Int32, SpirvType.Int32 _
         | UInt32, SpirvType.UInt32 _
@@ -539,7 +542,7 @@ type BuiltInFunctionData =
     | DecorateType of SpirvTypeFlags * (IdRef -> Instruction list)
     | DecorateVariable of SpirvVariableFlags * (IdRef -> C imarray -> Instruction list)
     | DecorateFieldAndVariable of fieldFlags: SpirvFieldFlags * createFieldInstrs: (IdRef -> uint32 -> Instruction list) * varFlags: SpirvVariableFlags * createVarInstrs: (IdRef -> C imarray -> Instruction list)
-    | Intrinsic of (SpirvModuleBuilder -> Choice<(SpirvType * IdRef), C> imarray -> IdRef * Instruction list)
+    | Intrinsic of (SpirvModuleBuilder -> (SpirvType * IdRef) imarray -> SpirvType -> IdRef * Instruction list)
 
 [<NoEquality;NoComparison>]
 type BuiltInFunction = 
@@ -712,34 +715,22 @@ module BuiltInFunctions =
             BuiltInFunctionFlags.Constructor) 
         Add("vec4",
             BuiltInFunctionData.Intrinsic(
-                fun spvModule args ->
+                fun spvModule args _ ->
                     match args.Length with
                     | 1 ->
                         match args |> ImArray.head with
-                        | Choice2Of2(C.Float32 value) ->
-                            (spvModule.GetConstantVector4Float32(value, value, value, value), [])
-                        | Choice1Of2(argTy, argIdRef) ->
+                        | (argTy, argIdRef) ->
                             match argTy with
                             | SpirvType.Float32 _ ->
                                 let idResult = spvModule.NewIdResult()
                                 idResult, [OpCompositeConstruct(spvModule.GetTypeVec4().IdResult, idResult, [argIdRef; argIdRef; argIdRef; argIdRef])]
                             | _ ->
                                 raise(InvalidOperationException())
-                        | _ ->
-                            raise(InvalidOperationException())
 
                     | 3 ->
                             let idRefs =
                                 args
-                                |> ImArray.map (function
-                                    | Choice1Of2((_, idRef)) -> idRef
-                                    | Choice2Of2(cns) ->
-                                        match cns with
-                                        | C.Float32 value ->
-                                            spvModule.GetConstantFloat32(value)
-                                        | _ ->
-                                            raise(InvalidOperationException())
-                                )
+                                |> ImArray.map snd
                             let arg0IdResult = spvModule.NewIdResult()
                             let arg1IdResult = spvModule.NewIdResult()
                             let arg2IdRef = idRefs[1]
@@ -757,6 +748,24 @@ module BuiltInFunctions =
             [],
             BuiltInFunctionParameterType.Void,
             BuiltInFunctionFlags.Constructor ||| BuiltInFunctionFlags.DynamicParameters
+        )
+        Add("bitcast",
+            BuiltInFunctionData.Intrinsic(
+                fun spvModule args returnTy ->
+                    match args.Length with
+                    | 1 ->
+                        let idRefs =
+                            args
+                            |> ImArray.map snd
+                        let idResult = spvModule.NewIdResult()
+                        idResult,
+                        [OpBitcast(returnTy.IdResult, idResult, idRefs |> ImArray.head)]
+                    | _ ->
+                        raise(InvalidOperationException())
+            ),
+            [BuiltInFunctionParameterType.Any],
+            BuiltInFunctionParameterType.Any,
+            BuiltInFunctionFlags.None
         )
 
     let TryGetBuiltInFunction(path: string imarray, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
@@ -894,6 +903,13 @@ module BuiltInExpressions =
                 resultTy
             )
         )
+
+    let Bitcast(argExpr: E, castToType: SpirvType) =
+        match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "bitcast", ImArray.createOne argExpr.ResultType, castToType, Unchecked.defaultof<_>) with
+        | Some func -> 
+            E.Operation(OlyIRDebugSourceTextRange.Empty, O.Call(OlyIRFunction(func), ImArray.createOne argExpr, castToType))
+        | _ ->
+            raise(InvalidOperationException())
 
 module BuiltInTypes =
 
