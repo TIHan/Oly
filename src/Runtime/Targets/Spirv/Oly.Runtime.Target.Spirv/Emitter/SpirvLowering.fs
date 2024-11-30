@@ -189,21 +189,11 @@ module rec SpirvLowering =
                         newArgExpr
                     elif i = 1 then // 1 dim - the index
                         let newArgExpr = AutoDereferenceIfPossible newArgExpr 
-                        match newArgExpr with
-                        | E.Operation(op=O.Cast(argExpr, castToTy)) ->
-                            match argExpr.ResultType, castToTy with
-                            | SpirvType.UInt32 _, SpirvType.Int32 _ ->
-                                argExpr
-                            | _, SpirvType.UInt32 _ ->
-                                newArgExpr
-                            | _ ->
-                                raise(NotImplementedException())
+                        match newArgExpr.ResultType with
+                        | SpirvType.UInt32 _ ->
+                            newArgExpr
                         | _ ->
-                            match newArgExpr.ResultType with
-                            | SpirvType.UInt32 _ ->
-                                newArgExpr
-                            | _ ->
-                                E.Operation(EmptyTextRange, O.Cast(newArgExpr, cenv.Module.GetTypeUInt32()))
+                            E.Operation(EmptyTextRange, O.Cast(newArgExpr, cenv.Module.GetTypeUInt32()))
                     else
                         AutoDereferenceIfPossible newArgExpr
 
