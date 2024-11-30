@@ -29,10 +29,7 @@ type cenv =
         this.Function.IsEntryPoint
 
     member this.GetArgumentIdRef(argIndex: int32) : IdRef =
-        if this.Function.IsEntryPoint then
-            this.Function.EntryPointParameters[argIndex].VariableIdRef
-        else
-            this.Function.Parameters[argIndex].VariableIdRef
+        this.Function.Parameters[argIndex].IdResult
 
     member this.GetLocalIdRef(localIndex: int32) : IdRef =
         this.Locals[localIndex]

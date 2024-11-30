@@ -105,20 +105,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
 
             funcBuilder.Instructions <-
                 [
-                    let pars =
-                        if funcBuilder.IsEntryPoint then
-                            funcBuilder.EntryPointParameters
-                        else
-                            funcBuilder.Parameters
-
-                    if funcBuilder.IsEntryPoint then
-                        for par in pars do
-                            match par.Type with
-                            | SpirvType.Pointer(_, storageClass, _) ->
-                                yield! par.DecorateInstructions
-                                OpVariable(par.Type.IdResult, par.VariableIdRef, storageClass, None)
-                            | _ ->
-                                raise(InvalidOperationException("Expected a pointer type."))
+                    let pars = funcBuilder.Parameters
 
                     OpFunction(funcBuilder.ReturnType.IdResult, funcBuilder.IdResult, FunctionControl.None, funcBuilder.Type.IdResult)
 
@@ -127,7 +114,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                             match par.Type with
                             | SpirvType.Pointer _ ->
                                 OlyAssert.True(par.DecorateInstructions.IsEmpty)
-                                OpFunctionParameter(par.Type.IdResult, par.VariableIdRef)
+                                OpFunctionParameter(par.Type.IdResult, par.IdResult)
                             | _ ->
                                 raise(InvalidOperationException("Expected a pointer type."))                       
 

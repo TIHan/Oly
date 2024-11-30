@@ -130,10 +130,6 @@ module rec SpirvLowering =
         | _ ->
             LowerExpression cenv env expr
 
-    let private LowerEntryPointArgument (cenv: cenv) (_env: env) textRange argIndex =
-        let resultTy = cenv.Function.EntryPointParameters[argIndex].Type
-        E.Value(textRange, V.Argument(argIndex, CheckArgumentOrLocalType resultTy))
-
     let private LowerArgument (cenv: cenv) (_env: env) textRange argIndex =
         let resultTy = cenv.Function.Parameters[argIndex].Type
         E.Value(textRange, V.Argument(argIndex, CheckArgumentOrLocalType resultTy))
@@ -144,9 +140,6 @@ module rec SpirvLowering =
 
     let private LowerValue (cenv: cenv) (env: env) origExpr textRange value =
         match value with
-        | V.Argument(argIndex, _)
-        | V.ArgumentAddress(argIndex, _, _) when cenv.Function.IsEntryPoint ->
-            LowerEntryPointArgument cenv env textRange argIndex
         | V.Argument(argIndex, _)
         | V.ArgumentAddress(argIndex, _, _)->
             LowerArgument cenv env textRange argIndex            
